@@ -7,6 +7,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { scheduleAppointmentReminder, cancelAppointmentReminder, scheduleCallbackReminder } from "@/src/notifications";
+import { openGoogleCalendar, openOutlookCalendar, shareIcs } from "@/src/calendar-export";
 
 type Appointment = {
   appointment_id: string; title: string; area: "energy" | "network"; start_at: string;
@@ -121,6 +122,37 @@ export default function AppointmentDetail() {
           <Ionicons name={a.done ? "checkmark-circle" : "ellipse-outline"} size={22} color="#FFF" />
           <Text style={styles.doneBtnTxt}>{a.done ? "Appuntamento fatto ✓" : "Segna come fatto"}</Text>
         </Pressable>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Sincronizza con calendario</Text>
+          <View style={styles.syncRow}>
+            <Pressable
+              testID="sync-google"
+              onPress={() => openGoogleCalendar({ id: a.appointment_id, title: a.title, start: new Date(a.start_at), location: a.location, description: a.notes })}
+              style={[styles.syncBtn, { backgroundColor: "#EA4335" }]}
+            >
+              <Ionicons name="logo-google" size={16} color="#FFF" />
+              <Text style={styles.syncBtnTxt}>Google</Text>
+            </Pressable>
+            <Pressable
+              testID="sync-outlook"
+              onPress={() => openOutlookCalendar({ id: a.appointment_id, title: a.title, start: new Date(a.start_at), location: a.location, description: a.notes })}
+              style={[styles.syncBtn, { backgroundColor: "#0078D4" }]}
+            >
+              <Ionicons name="mail" size={16} color="#FFF" />
+              <Text style={styles.syncBtnTxt}>Outlook</Text>
+            </Pressable>
+            <Pressable
+              testID="sync-ics"
+              onPress={() => shareIcs({ id: a.appointment_id, title: a.title, start: new Date(a.start_at), location: a.location, description: a.notes })}
+              style={[styles.syncBtn, { backgroundColor: theme.color.brandPrimary }]}
+            >
+              <Ionicons name="download-outline" size={16} color="#FFF" />
+              <Text style={styles.syncBtnTxt}>.ics</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.syncHint}>Aggiungi l&apos;appuntamento al tuo calendario personale (Google, Outlook o file .ics per Apple/altri).</Text>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Sposta / Rinvia</Text>
@@ -261,4 +293,8 @@ const styles = StyleSheet.create({
   outcomeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border },
   outcomeTxt: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary },
   lbl: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary, marginTop: 12, marginBottom: 4 },
+  syncRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  syncBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: theme.radius.md, flex: 1, justifyContent: "center", minWidth: 90 },
+  syncBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
+  syncHint: { fontSize: 11, color: theme.color.muted, marginTop: 8 },
 });

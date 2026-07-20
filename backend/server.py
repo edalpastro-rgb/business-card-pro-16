@@ -122,6 +122,7 @@ class UserOut(BaseModel):
     role: str = "owner"
     areas: List[str] = Field(default_factory=lambda: ["energy", "network"])
     parent_user_id: Optional[str] = None
+    avatar_base64: Optional[str] = None
 
 
 class TeamInviteInput(BaseModel):
@@ -217,6 +218,12 @@ class ContactUpdate(BaseModel):
     referral_note: Optional[str] = None
     email_note: Optional[str] = None
     general_note: Optional[str] = None
+    avatar_base64: Optional[str] = None
+
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    avatar_base64: Optional[str] = None
 
 
 class AppointmentIn(BaseModel):
@@ -364,6 +371,16 @@ async def logout(authorization: Optional[str] = Header(None)):
         token = authorization.split(" ", 1)[1].strip()
         await db.user_sessions.delete_one({"session_token": token})
     return {"ok": True}
+
+
+@api_router.put("/auth/profile")
+async def update_profile(body: ProfileUpdate, user=Depends(get_current_user)):
+    upd = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not upd:
+        raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": upd})
+    u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    return {"user": UserOut(**u).model_dump()}
 
 
 # =========================

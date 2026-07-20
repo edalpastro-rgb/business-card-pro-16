@@ -1,93 +1,164 @@
-# Deploy ProSync CRM su Aruba Cloud — Guida step-by-step
+# 🚀 Come pubblicare ProSync CRM su Aruba (Guida definitiva)
 
-Questa guida ti spiega come portare l'app dal preview di Emergent al tuo dominio **dalpastro.it** ospitato su **Aruba Cloud**.
+**Livello richiesto**: nessuna esperienza tecnica pregressa · **Tempo**: 60-90 min la prima volta
 
----
-
-## 📋 Cosa ti serve
-
-1. **Aruba Cloud PRO** (VPS Linux) — un piano base a partire da ~5€/mese va bene per iniziare
-   - Sistema: Ubuntu 22.04 LTS
-   - RAM: minimo 2 GB (consigliato 4 GB)
-   - Spazio: minimo 40 GB
-2. Dominio **dalpastro.it** (già tuo) con accesso al pannello Aruba per gestire DNS
-3. Cellulare con app Aruba per token 2FA
-4. Un computer con **terminale SSH** (Mac / Windows PowerShell / iTerm)
-
-**Costi indicativi**: VPS Aruba Cloud PRO ~5-15€/mese · Dominio già tuo · MongoDB Atlas gratuito (500MB) opzionale
+Questa guida ti porta dalla situazione attuale (app funzionante sulla preview di Emergent) alla pubblicazione **sul tuo dominio `dalpastro.it`** ospitato su **Aruba**.
 
 ---
 
-## 🖥 STEP 1 — Crea il server VPS su Aruba
+## 🎯 Scegli la strada che fa per te
 
-1. Vai su [https://www.cloud.it/pannello](https://www.cloud.it/pannello) e accedi
-2. Menu → **Cloud Server** → **Nuovo Cloud Server PRO**
-3. Configura:
-   - **Nome**: `prosync-server`
-   - **Sistema operativo**: Ubuntu 22.04 LTS
-   - **CPU**: 2 vCPU · **RAM**: 4 GB · **Disco**: 80 GB SSD
-   - **Password admin**: scegline una robusta e **annotala**
-4. Clicca **Crea** → attendi 3-5 minuti
-5. Copia l'**indirizzo IP pubblico** del server (esempio: `93.146.xxx.xxx`)
+Aruba ti offre 3 tipi di prodotti. Ne scegli **uno**:
 
----
+| Prodotto Aruba | Prezzo | Adatto a | Difficoltà |
+|---|---|---|---|
+| **A) Aruba Cloud PRO** (VPS) — consigliato | ~5-15€/mese | Server Linux completo dove gira l'app + database | 🟡 media |
+| **B) Aruba Hosting Linux Pro** | ~2-4€/mese | Solo il **frontend web** (SPA). Il backend deve girare altrove | 🟢 bassa |
+| **C) Aruba Managed Server** | ~30€+/mese | Come A ma gestito da Aruba, meno lavoro tuo | 🟢 bassa |
 
-## 🌐 STEP 2 — Punta il dominio al server
-
-1. Nel pannello Aruba → **Domini** → seleziona `dalpastro.it` → **Gestione DNS**
-2. Aggiungi/modifica questi record:
-
-| Tipo | Nome | Valore | TTL |
-|------|------|--------|-----|
-| A | `app` | `93.146.xxx.xxx` (IP del VPS) | 3600 |
-| A | `api` | `93.146.xxx.xxx` (stesso IP) | 3600 |
-
-Risultato: `app.dalpastro.it` e `api.dalpastro.it` punteranno al tuo server.
-
-⏱ **Attesa propagazione DNS**: 5-30 minuti. Verifica con: `ping app.dalpastro.it`
+👉 **Consigliato per te**: **A) Aruba Cloud PRO** (una macchina virtuale Linux) — hai controllo completo, costo basso, e ci stanno sia il backend che eventualmente il frontend web.
 
 ---
 
-## 🔐 STEP 3 — Connettiti al server via SSH
+## 🌐 Scegli come vuoi che appaia l'app
 
-Da terminale sul tuo computer:
+**Opzione 1 — Dominio principale**
+- L'app risponde su `dalpastro.it` e le API su `api.dalpastro.it`
+- ⚠️ Se `dalpastro.it` ha già un tuo sito web attivo (es. sito vetrina), NON usarlo, usa un sottodominio
+
+**Opzione 2 — Sottodominio dedicato (consigliato)**
+- L'app: `crm.dalpastro.it`
+- Le API: `api.dalpastro.it`
+- Non tocca il tuo sito principale
+- **Zero costi extra** (i sottodomini sono gratuiti nel tuo dominio Aruba)
+
+Nel resto della guida useremo l'**Opzione 2 (sottodomini)** perché è più pulita. Sostituisci i nomi con quelli che preferisci.
+
+---
+
+# 📋 CHECKLIST INIZIALE — cosa ti serve prima di partire
+
+- [ ] Accesso al pannello Aruba: https://admin.aruba.it — user + password
+- [ ] Accesso al pannello DNS del dominio `dalpastro.it` (di solito è nello stesso pannello Aruba)
+- [ ] Un computer con un terminale (Mac: app Terminale; Windows: PowerShell oppure "Windows Terminal")
+- [ ] 30€ circa disponibili (VPS Aruba Cloud costa dai 4 ai 15€/mese, primo mese di solito in prova o rimborsabile)
+- [ ] 60-90 minuti di tempo tranquillo
+- [ ] Le credenziali che chiederò per l'app (te le indico più avanti)
+
+---
+
+# 🖥 STEP 1 — Crea la macchina virtuale su Aruba Cloud
+
+1. Vai su **https://www.cloud.it** e accedi con le credenziali Aruba
+2. Nel menu clicca **Cloud Server → Compra un nuovo Cloud Server → PRO**
+3. Configura così:
+   - **Nome server**: `prosync`
+   - **Datacenter**: scegli quello geograficamente più vicino (per l'Italia va bene "Arezzo IT2" o "Bergamo IT3")
+   - **Sistema operativo**: `Ubuntu Server 22.04 LTS`
+   - **CPU**: 2 vCPU
+   - **RAM**: 4 GB (puoi ridurre a 2 GB per risparmiare, ma consiglio 4)
+   - **Storage**: 80 GB SSD
+   - **Backup automatico**: attivalo, costa poco e ti salva la vita se sbagli
+   - **Password amministratore**: creane una robusta (min 12 caratteri, con numeri e simboli). **ANNOTALA SUBITO** in un posto sicuro
+4. Clicca **Crea**. Attendi 3-5 minuti che Aruba prepari il server
+5. Torna a **Cloud Server → i tuoi server → prosync**: **copia l'indirizzo IP pubblico** (es. `93.146.100.55`). Da qui in poi lo chiamerò `TUO_IP`
+
+✅ **Ora hai un server Linux tuo, con un IP pubblico.**
+
+---
+
+# 🌐 STEP 2 — Configura i sottodomini (crm + api)
+
+1. Nel pannello Aruba vai a **Domini** → clicca su `dalpastro.it` → **Gestione DNS**
+2. Nella sezione **Record DNS** clicca "Aggiungi record"
+3. Aggiungi due record di tipo **A**:
+
+| Tipo | Nome (sottodominio) | Valore (IP) | TTL |
+|------|--------------------|-----|-----|
+| A | `crm` | `TUO_IP` (es. `93.146.100.55`) | 3600 |
+| A | `api` | `TUO_IP` (stesso IP) | 3600 |
+
+4. **Salva**. Aruba di solito propaga i DNS in 5-30 minuti (a volte fino a 2 ore)
+
+5. Verifica che funzioni: dal tuo terminale scrivi
+   ```bash
+   ping crm.dalpastro.it
+   ```
+   Se ti risponde dal tuo IP, sei a posto. Se dà "unknown host", aspetta ancora.
+
+✅ **Ora `crm.dalpastro.it` e `api.dalpastro.it` puntano al tuo server.**
+
+---
+
+# 🔌 STEP 3 — Collegati al server via SSH
+
+Dal terminale del tuo computer:
+
+**Su Mac / Linux**:
 ```bash
-ssh root@93.146.xxx.xxx
+ssh root@TUO_IP
 ```
-(inserisci la password creata al passo 1)
 
-**Aggiorna sistema e installa strumenti base**:
+**Su Windows** (PowerShell):
+```powershell
+ssh root@TUO_IP
+```
+
+Ti chiederà "Are you sure you want to continue?" → digita `yes` e invio.
+Poi ti chiederà la **password admin** creata allo step 1 → incollala (attenzione: quando incolli la password NON si vede nulla, è normale, premi invio).
+
+Se vedi il prompt `root@prosync:~#` sei dentro. 🎉
+
+---
+
+# 🛠 STEP 4 — Installa gli strumenti di base sul server
+
+Copia-incolla questo blocco intero nel terminale collegato al server e premi invio:
+
 ```bash
 apt update && apt upgrade -y
-apt install -y docker.io docker-compose git nginx certbot python3-certbot-nginx ufw
+apt install -y docker.io docker-compose git nginx certbot python3-certbot-nginx ufw curl
 systemctl enable --now docker
-```
-
-**Attiva firewall**:
-```bash
 ufw allow OpenSSH
 ufw allow 'Nginx Full'
 ufw --force enable
 ```
 
+Ci vogliono 3-5 minuti. Quando ha finito, sei pronto per l'app.
+
 ---
 
-## 📦 STEP 4 — Deploya l'app con Docker
+# 📥 STEP 5 — Porta il codice dell'app sul server
 
-1. Crea la cartella del progetto:
+Nel pannello Emergent (dove stai chattando ora con me), in alto a destra clicca **"Save to GitHub"** e crea un repository GitHub (se non ne hai già uno).
+
+Poi sul server:
+
 ```bash
-mkdir -p /opt/prosync && cd /opt/prosync
+cd /opt
+git clone https://github.com/TUO-USERNAME/TUO-REPO.git prosync
+cd prosync
+ls -la
 ```
 
-2. Copia i file backend dal tuo Emergent (scarica prima il codice con "Save to GitHub" dal pannello Emergent, poi clona qui):
-```bash
-git clone https://github.com/TUO-USERNAME/prosync-repo.git .
-```
-(sostituisci con il tuo repo GitHub)
+Sostituisci `TUO-USERNAME/TUO-REPO` con l'URL del tuo repository GitHub. Se il repo è privato, GitHub ti chiederà username + Personal Access Token (crealo su https://github.com/settings/tokens).
 
-3. Crea `docker-compose.yml` in `/opt/prosync/`:
+---
+
+# 🐳 STEP 6 — Configura e avvia Docker
+
+Crea il file di configurazione principale:
+
+```bash
+cd /opt/prosync
+nano docker-compose.yml
+```
+
+Copia dentro questo contenuto (attento a cambiare le password segnate ⚠️):
+
 ```yaml
 version: "3.9"
+
 services:
   mongodb:
     image: mongo:7
@@ -96,26 +167,37 @@ services:
       - ./mongo-data:/data/db
     environment:
       MONGO_INITDB_ROOT_USERNAME: prosync
-      MONGO_INITDB_ROOT_PASSWORD: CHANGE_ME_STRONG_PASSWORD
-    networks: [prosync]
+      MONGO_INITDB_ROOT_PASSWORD: CAMBIA_QUESTA_PASSWORD_DB   # ⚠️ scegli password robusta
+    networks: [prosync-net]
 
   backend:
     build: ./backend
     restart: always
     environment:
-      MONGO_URL: "mongodb://prosync:CHANGE_ME_STRONG_PASSWORD@mongodb:27017/?authSource=admin"
+      MONGO_URL: "mongodb://prosync:CAMBIA_QUESTA_PASSWORD_DB@mongodb:27017/?authSource=admin"   # ⚠️ stessa password sopra
       DB_NAME: "prosync_prod"
-      JWT_SECRET: "GENERA_UNA_STRINGA_LUNGA_RANDOM_QUI_64+_CARATTERI"
+      JWT_SECRET: "GENERA_STRINGA_RANDOM_LUNGA_64_CARATTERI_QUI"   # ⚠️ vedi sotto come generarla
     depends_on: [mongodb]
     ports:
       - "127.0.0.1:8001:8001"
-    networks: [prosync]
+    networks: [prosync-net]
 
 networks:
-  prosync:
+  prosync-net:
 ```
 
-4. Crea `backend/Dockerfile` (se non c'è già):
+Salva con **Ctrl+O**, invio, **Ctrl+X**.
+
+**Genera un JWT_SECRET random**:
+```bash
+openssl rand -hex 32
+```
+Copia l'output e sostituisci `GENERA_STRINGA_RANDOM_LUNGA_64_CARATTERI_QUI` nel file (riapri con `nano docker-compose.yml`).
+
+**Crea il Dockerfile del backend** (se non c'è già):
+```bash
+nano backend/Dockerfile
+```
 ```dockerfile
 FROM python:3.11-slim
 WORKDIR /app
@@ -125,21 +207,33 @@ COPY . .
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8001"]
 ```
 
-5. Avvia lo stack:
+**Avvia tutto**:
 ```bash
 docker-compose up -d --build
-docker-compose logs -f backend
 ```
-Verifica che il backend risponda: `curl http://localhost:8001/api/` deve tornare `{"message":"ProSync CRM API","ok":true}`
+
+La prima volta ci mette 5-10 minuti per scaricare e costruire tutto. Poi verifica:
+```bash
+docker-compose ps
+curl http://localhost:8001/api/
+```
+
+Se vedi `{"message":"ProSync CRM API","ok":true}` sei riuscito. 🎉
 
 ---
 
-## 🌍 STEP 5 — Configura Nginx come reverse proxy + HTTPS
+# 🌍 STEP 7 — Rendi visibile l'API dall'esterno (Nginx + HTTPS)
 
-1. Crea `/etc/nginx/sites-available/prosync`:
+**Configura Nginx per api.dalpastro.it**:
+
+```bash
+nano /etc/nginx/sites-available/prosync-api
+```
 ```nginx
 server {
     server_name api.dalpastro.it;
+
+    client_max_body_size 50M;
 
     location / {
         proxy_pass http://127.0.0.1:8001;
@@ -147,61 +241,60 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        client_max_body_size 50M;
     }
 
     listen 80;
 }
 ```
 
-2. Attiva:
+Attiva:
 ```bash
-ln -s /etc/nginx/sites-available/prosync /etc/nginx/sites-enabled/
+ln -s /etc/nginx/sites-available/prosync-api /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 ```
 
-3. Ottieni certificato HTTPS gratuito Let's Encrypt:
+**Ottieni certificato HTTPS gratuito** (Let's Encrypt):
 ```bash
 certbot --nginx -d api.dalpastro.it
 ```
-(rispondi alle domande — inserisci la tua email, accetta i termini)
-
-Ora `https://api.dalpastro.it/api/` funziona con HTTPS. ✅
-
----
-
-## 📱 STEP 6 — Genera build mobile che punti al tuo server
-
-Nel tuo pannello Emergent:
-1. Aggiorna la variabile d'ambiente `EXPO_PUBLIC_BACKEND_URL` a `https://api.dalpastro.it`
-2. Clicca **Publish** (in alto a destra) → **Deploy**
-3. Poi **Generate iOS/Android build** → segui procedura per app store
-
-Alternativa (build APK diretto senza store):
-- Emergent genera un `.apk` che puoi installare direttamente sul tuo Android
+Ti chiede la tua email → mettila. Accetta le condizioni.
+Certbot configura HTTPS automaticamente. Ora prova nel browser: `https://api.dalpastro.it/api/` → deve rispondere in JSON.
 
 ---
 
-## 📥 STEP 7 — (Opzionale) Ospita anche il frontend web su Aruba
+# 📱 STEP 8 — Configura la app perché usi il tuo server
 
-Se vuoi che `app.dalpastro.it` mostri la versione web dell'app:
+**Nel pannello Emergent** (dove chatti con me):
+1. Vai a **Deployments → Environment Variables** (oppure chiedimelo, lo aggiorno io)
+2. Modifica `EXPO_PUBLIC_BACKEND_URL` da `https://consulente-app.preview.emergentagent.com` a `https://api.dalpastro.it`
+3. Clicca **Publish** in alto a destra → Deploy
+4. Emergent rigenera la build. Poi genera **APK Android / IPA iOS** da "Build"
 
-1. Sul tuo computer, esporta la build web:
+Da questo momento le build che scaricano gli utenti punteranno al tuo server Aruba, non più al preview di Emergent.
+
+---
+
+# 🎉 (Opzionale) STEP 9 — Ospita anche la versione web su `crm.dalpastro.it`
+
+Se vuoi che la app sia usabile anche da browser:
+
+**Sul tuo computer**:
 ```bash
-cd /path/to/prosync/frontend
+cd path/to/prosync/frontend
 npx expo export --platform web
 ```
-Questo crea la cartella `dist/`.
-
-2. Trasferiscila sul server:
+Crea la cartella `dist/`. Trasferiscila sul server:
 ```bash
-scp -r dist/ root@93.146.xxx.xxx:/var/www/prosync-web/
+scp -r dist/ root@TUO_IP:/var/www/prosync-web/
 ```
 
-3. Aggiungi il vhost Nginx `/etc/nginx/sites-available/prosync-web`:
+**Sul server**:
+```bash
+nano /etc/nginx/sites-available/prosync-web
+```
 ```nginx
 server {
-    server_name app.dalpastro.it;
+    server_name crm.dalpastro.it;
     root /var/www/prosync-web;
     index index.html;
     location / {
@@ -212,38 +305,73 @@ server {
 ```
 ```bash
 ln -s /etc/nginx/sites-available/prosync-web /etc/nginx/sites-enabled/
-certbot --nginx -d app.dalpastro.it
+certbot --nginx -d crm.dalpastro.it
 systemctl reload nginx
+```
+
+Ora `https://crm.dalpastro.it` mostra la web app.
+
+---
+
+# 🔒 Manutenzione ordinaria (una volta al mese)
+
+**Aggiorna sistema operativo**:
+```bash
+ssh root@TUO_IP
+apt update && apt upgrade -y
+reboot
+```
+
+**Aggiorna l'app quando faccio modifiche**:
+```bash
+ssh root@TUO_IP
+cd /opt/prosync
+git pull
+docker-compose up -d --build
+```
+
+**Backup del database** (crea un file compresso):
+```bash
+docker exec $(docker ps -qf name=mongodb) mongodump --archive --gzip \
+  --username prosync --password TUA_PASSWORD_DB > /root/backup-$(date +%F).gz
+```
+Aggiungi in cron (`crontab -e`) per farlo automaticamente ogni notte:
+```
+0 3 * * * docker exec $(docker ps -qf name=mongodb) mongodump --archive --gzip --username prosync --password TUA_PASSWORD_DB > /root/backup-$(date +\%F).gz
 ```
 
 ---
 
-## 🔒 Consigli sicurezza & manutenzione
+# 🆘 Problemi comuni e soluzioni
 
-- **Backup MongoDB automatico**: aggiungi a crontab `0 3 * * * docker exec prosync_mongodb_1 mongodump --archive --gzip --username prosync --password TUO_PASSWORD > /backup/db-$(date +\%F).gz`
-- **Aggiorna Docker images ogni mese**: `docker-compose pull && docker-compose up -d`
-- **Monitora spazio disco**: `df -h`
-- **Log applicativi**: `docker-compose logs --tail=100 backend`
-- **Fail2ban per SSH**: `apt install fail2ban -y`
-
----
-
-## 🆘 Problemi comuni
-
-| Problema | Soluzione |
-|----------|-----------|
-| DNS non risolve | Aspetta 30 min; verifica `dig app.dalpastro.it` |
-| Certbot fallisce | Assicurati che porta 80 sia aperta e DNS punti al server |
-| 502 Bad Gateway | `docker-compose ps` verifica che backend sia UP |
-| MongoDB non parte | Controlla `docker-compose logs mongodb`, verifica permessi cartella |
-| Build APK non si connette | `EXPO_PUBLIC_BACKEND_URL` deve essere HTTPS con dominio pubblico |
+| Sintomo | Causa | Soluzione |
+|---|---|---|
+| `ping crm.dalpastro.it` dà "unknown host" | DNS non ancora propagato | Aspetta 30 min. Verifica con `dig crm.dalpastro.it` |
+| `certbot` fallisce con "connection refused" | Firewall blocca porta 80 | `ufw allow 'Nginx Full'` e riprova |
+| Nginx dà "502 Bad Gateway" | Backend Docker è giù | `docker-compose ps` e `docker-compose logs backend` |
+| App mobile non riesce a connettersi | URL sbagliata o HTTP invece di HTTPS | `EXPO_PUBLIC_BACKEND_URL` deve iniziare per `https://` |
+| MongoDB non parte | Password contiene caratteri speciali non escapati | Usa solo lettere/numeri per la password DB |
+| Rimane senza spazio disco | Log Docker cresciuti | `docker system prune -a --volumes` |
 
 ---
 
-## 📞 Riferimenti
+# 💰 Costi indicativi mensili
 
-- Aruba Cloud panel: https://www.cloud.it/pannello
-- Emergent panel: https://app.emergent.sh
-- Certbot docs: https://certbot.eff.org
+| Voce | Costo |
+|---|---|
+| Aruba Cloud PRO 2vCPU/4GB/80GB | ~7-9€/mese |
+| Backup automatico Aruba | ~2€/mese |
+| Dominio dalpastro.it | già tuo (~10€/anno) |
+| Certificato HTTPS Let's Encrypt | **gratuito** |
+| **Totale** | **~10-12€/mese** |
 
-**Tempo totale stimato**: 60-90 minuti la prima volta. Le volte successive per aggiornamenti: 5 min (`git pull && docker-compose up -d --build`).
+---
+
+# 📞 Se ti blocchi
+
+- Aruba supporto: 0575 05050 · pannello ticket https://admin.aruba.it
+- Documentazione Docker: https://docs.docker.com
+- Documentazione Nginx: https://nginx.org/en/docs/
+- **Chiedi a me nella chat Emergent**: posso guidarti passo per passo su ogni singolo step
+
+**Tempo prima volta**: 60-90 min. **Aggiornamenti successivi**: 5 min (`git pull && docker-compose up -d --build`).

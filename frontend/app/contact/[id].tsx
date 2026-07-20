@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Linking, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Linking, Platform, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -8,13 +8,14 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { pickAvatarBase64 } from "@/src/image-picker";
 
 type Note = { id: string; kind: "text" | "audio"; text?: string; audio_base64?: string; audio_mime?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string; address: string;
   area: "energy" | "network"; source: string; referral_note: string; email_note: string; general_note: string;
-  notes: Note[]; files: CFile[];
+  notes: Note[]; files: CFile[]; avatar_base64?: string;
 };
 
 export default function ContactDetail() {
@@ -121,7 +122,23 @@ export default function ContactDetail() {
         <Pressable testID="edit-contact" onPress={() => router.push(`/contact/edit/${id}`)}><Ionicons name="create-outline" size={22} color="#FFF" /></Pressable>
       </View>
       <View style={[styles.hero, { backgroundColor: color }]}>
-        <View style={styles.avatar}><Text style={styles.avatarTxt}>{c.first_name[0]?.toUpperCase()}{c.last_name[0]?.toUpperCase()}</Text></View>
+        <Pressable
+          testID="contact-avatar-btn"
+          onPress={async () => {
+            const b64 = await pickAvatarBase64();
+            if (b64) { await api(`/contacts/${id}`, { method: "PUT", body: { avatar_base64: b64 } }); await load(); }
+          }}
+          style={styles.avatarWrap}
+        >
+          {c.avatar_base64 ? (
+            <Image source={{ uri: c.avatar_base64 }} style={styles.avatarImg} />
+          ) : (
+            <View style={styles.avatar}><Text style={styles.avatarTxt}>{c.first_name[0]?.toUpperCase()}{c.last_name[0]?.toUpperCase()}</Text></View>
+          )}
+          <View style={styles.avatarBadge}>
+            <Ionicons name="camera" size={12} color="#FFF" />
+          </View>
+        </Pressable>
         <Text style={styles.name}>{c.first_name} {c.last_name}</Text>
         <Text style={styles.areaTag}>{c.area === "energy" ? "Consulente Energetico" : "Networker"} · {c.source === "referral" ? "Referenza" : "Conoscenza"}</Text>
         <View style={styles.actionsRow}>
@@ -238,7 +255,10 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.surface },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
   hero: { padding: 20, paddingTop: 4, alignItems: "center" },
-  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center", marginBottom: 10 },
+  avatarWrap: { position: "relative", marginBottom: 10 },
+  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center" },
+  avatarImg: { width: 72, height: 72, borderRadius: 36 },
+  avatarBadge: { position: "absolute", right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#FFF" },
   avatarTxt: { color: "#FFF", fontSize: 26, fontWeight: "700" },
   name: { color: "#FFF", fontSize: 22, fontWeight: "700" },
   areaTag: { color: "rgba(255,255,255,0.85)", marginTop: 4, fontSize: 12 },

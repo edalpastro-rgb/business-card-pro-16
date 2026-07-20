@@ -1,22 +1,35 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { pickAvatarBase64 } from "@/src/image-picker";
 
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
 
 const COLOR_SWATCHES = ["#C83232", "#1B6CB0", "#1C4869", "#2D7A5A", "#B77C14", "#7A2E8E", "#0B7285", "#E67700"];
 
 export default function ImpostazioniScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, refresh } = useAuth();
   const router = useRouter();
   const [s, setS] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+
+  const changeAvatar = async () => {
+    setAvatarBusy(true);
+    try {
+      const b64 = await pickAvatarBase64();
+      if (b64) {
+        await api("/auth/profile", { method: "PUT", body: { avatar_base64: b64 } });
+        await refresh();
+      }
+    } finally { setAvatarBusy(false); }
+  };
 
   const load = useCallback(async () => setS(await api<Settings>("/settings")), []);
   useEffect(() => { load(); }, [load]);
@@ -40,7 +53,16 @@ export default function ImpostazioniScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
         <View style={styles.card}>
           <View style={styles.profileHead}>
-            <View style={styles.avatar}><Text style={styles.avatarTxt}>{user?.name?.[0]?.toUpperCase()}</Text></View>
+            <Pressable testID="profile-avatar-btn" onPress={changeAvatar} style={styles.avatarWrap} disabled={avatarBusy}>
+              {user?.avatar_base64 ? (
+                <Image source={{ uri: user.avatar_base64 }} style={styles.avatarImg} />
+              ) : (
+                <View style={styles.avatar}><Text style={styles.avatarTxt}>{user?.name?.[0]?.toUpperCase()}</Text></View>
+              )}
+              <View style={styles.avatarBadge}>
+                {avatarBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="camera" size={14} color="#FFF" />}
+              </View>
+            </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>{user?.name}</Text>
               <Text style={styles.email}>{user?.email}</Text>
@@ -128,7 +150,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: "700", color: theme.color.onSurface },
   card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 16, borderWidth: 1, borderColor: theme.color.border },
   profileHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  avatarWrap: { position: "relative" },
   avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
+  avatarImg: { width: 52, height: 52, borderRadius: 26 },
+  avatarBadge: { position: "absolute", right: -2, bottom: -2, width: 22, height: 22, borderRadius: 11, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#FFF" },
   avatarTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 20 },
   name: { fontSize: 16, fontWeight: "700", color: theme.color.onSurface },
   email: { fontSize: 13, color: theme.color.muted, marginTop: 2 },
