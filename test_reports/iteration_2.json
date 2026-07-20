@@ -1,0 +1,35 @@
+{
+  "summary": "ProSync CRM (Italian dual-area energy/network). Backend: 15/15 pytest tests PASSED against public preview URL (auth register/login/me/duplicate, settings GET/PUT, contacts CRUD + notes + files, appointments CRUD + reschedule + done + outcome, callbacks CRUD with day filter, reports dual-area, google-session reachable returning 401 for fake session). Frontend: login screen renders all requested testIDs (auth-tab-login/register, auth-email-input, auth-password-input, auth-submit-button, auth-google-button). Email/password login succeeds and routes to /home. Home shows home-greeting 'Ciao, Mario', stat-energy, stat-network, qa-new-appt, qa-new-contact. Contatti tab shows contacts-add-btn, contacts-search, filter-all, filter-energy, filter-network. Calendario shows cal-add-btn and 14 day-* tiles. Report shows period-day/week/month/year + report-energy + report-network. Impostazioni shows settings-energy-title, settings-network-title, settings-save, logout-btn, 8 energy-color-* swatches, 8 network-color-* swatches. E2E create contact via UI succeeded (created c_4f60079dcc42 'TEST_UI Auto', Networker area, phone +39 111 222). Google OAuth button present; backend endpoint returns 401 on fake session_id as expected. Deprecated packages: none. Two RN-web non-blocking console warnings observed (shadow* and pointerEvents style props). Note: new-contact/new-appointment form testIDs use 'c-*'/'ap-*' prefixes (e.g. c-first-name, c-save-btn, ap-title, ap-save) rather than the 'contact-*'/'appt-*' names in the review request - naming discrepancy only; forms function correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "RN Web styles", "issue": "Non-blocking deprecation warning: 'shadow*' style props are deprecated. Use 'boxShadow'. Emitted by multiple components (statCard in home.tsx, segItemActive in login.tsx, etc.)"},
+      {"component": "RN Web props", "issue": "Non-blocking deprecation warning: props.pointerEvents is deprecated. Use style.pointerEvents (comes from react-native-web layer)."}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_crm_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "OPTIONAL naming alignment: review-request lists testIDs like 'contact-first-name/appt-title' but implementation uses 'c-first-name/ap-title'. If strict alignment desired, rename testIDs in /app/frontend/app/contact/new.tsx and /app/frontend/app/appointment/new.tsx. Not a functional bug.",
+    "OPTIONAL: migrate remaining shadow* style props to boxShadow and props.pointerEvents to style.pointerEvents to silence RN Web deprecation warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.py: register duplicate returns 400; login returns 401 on bad creds; JWT with 30d exp; all endpoints guarded by get_current_user; _id stripped from responses; contacts/appointments/callbacks scoped to user_id.",
+    "api.ts: uses process.env.EXPO_PUBLIC_BACKEND_URL correctly, throws on non-OK with parsed detail.",
+    "auth.tsx: handles web session_id extraction from URL for Google flow before regular refresh.",
+    "server.py:668 uses deprecated FastAPI @app.on_event startup/shutdown - consider migrating to lifespan handler (non-blocking).",
+    "Files stored as base64 inline in MongoDB per spec; no server-side size limit - E1 may want to add max payload guard for large PDFs."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "100% of requested testIDs present; login + navigation + create-contact E2E verified"},
+  "seed_data_creation": "Reused existing test@dalpastro.it / Test1234! account. Pytest suite auto-creates & deletes TEST_-prefixed contacts, appointments, callbacks via session fixtures. One UI-created contact 'TEST_UI Auto' (c_4f60079dcc42) may remain in DB.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend fully green. All requested tab-level testIDs exist. New-contact form uses 'c-*' testIDs and new-appointment form uses 'ap-*' testIDs (NOT contact-*/appt-*). For further E2E, use those prefixes. Google OAuth button only presence-checked; do not attempt full OAuth flow.",
+  "rca_of_issue": "N/A - no bugs found."
+}
