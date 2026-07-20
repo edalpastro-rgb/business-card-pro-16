@@ -21,7 +21,12 @@ Mobile CRM (React Native / Expo, SDK 54) per un professionista con due ruoli dis
 ## Non incluso (v1)
 - Comandi vocali AI (skip per scelta utente)
 - Notifiche push native (solo in-app / locali)
-- Multi-utente sub-account (base scaffold, ma UI di gestione utenti non ancora esposta)
+- Sincronizzazione Google Calendar / Outlook (opt-in — pianificata prossima iterazione)
+
+## v1.1 (aggiunta)
+- **Multi-utente**: owner invita membri via `/api/team` con areas specifiche. Sub-user vede solo i propri record (contatti/appuntamenti/callback creati da lui). Owner vede tutti i record del tenant.
+- **Notifiche locali**: promemoria appuntamento (15 min prima + all'ora) e ritelefonata (all'ora), gestiti via expo-notifications. Cancellati automaticamente su done/delete/reschedule.
+- **Deploy Aruba**: guida in `/app/ARUBA_DEPLOY.md`
 
 ## Stack
 - Frontend: Expo Router, expo-audio, expo-document-picker, expo-file-system, @react-native-community/datetimepicker, expo-linear-gradient, expo-secure-store

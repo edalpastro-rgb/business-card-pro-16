@@ -4,13 +4,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
+import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 
 export default function NewContactScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
   const [form, setForm] = useState({
     first_name: "", last_name: "", phone: "", email: "", address: "",
-    area: "energy" as "energy" | "network",
+    area: (allowed[0] || "energy") as "energy" | "network",
     source: "personal" as "personal" | "referral",
     referral_note: "", email_note: "", general_note: "",
   });
@@ -42,7 +45,7 @@ export default function NewContactScreen() {
 
           <Text style={styles.lbl}>Area</Text>
           <View style={styles.pillsRow}>
-            {(["energy", "network"] as const).map((a) => (
+            {(["energy", "network"] as const).filter((a) => allowed.includes(a)).map((a) => (
               <Pressable key={a} testID={`c-area-${a}`} onPress={() => setForm({ ...form, area: a })} style={[styles.pill, form.area === a && { backgroundColor: a === "energy" ? theme.color.energy : theme.color.network, borderColor: a === "energy" ? theme.color.energy : theme.color.network }]}>
                 <Text style={[styles.pillTxt, form.area === a && styles.pillTxtActive]}>{a === "energy" ? "Energia" : "Network"}</Text>
               </Pressable>

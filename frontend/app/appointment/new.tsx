@@ -5,18 +5,22 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { api } from "@/src/api";
+import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { scheduleAppointmentReminder } from "@/src/notifications";
 
 type Contact = { contact_id: string; first_name: string; last_name: string; area: string; address: string };
 
 export default function NewAppointmentScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
   const { contactId } = useLocalSearchParams<{ contactId?: string }>();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [form, setForm] = useState({
     title: "",
     contact_id: contactId || "",
-    area: "energy" as "energy" | "network",
+    area: (allowed[0] || "energy") as "energy" | "network",
     start_at: new Date(Date.now() + 60 * 60 * 1000),
     is_phone: false,
     location: "",
@@ -40,7 +44,8 @@ export default function NewAppointmentScreen() {
     if (!form.title.trim()) return;
     setBusy(true);
     try {
-      await api("/appointments", { method: "POST", body: { ...form, start_at: form.start_at.toISOString() } });
+      const created = await api<{ appointment_id: string }>("/appointments", { method: "POST", body: { ...form, start_at: form.start_at.toISOString() } });
+      await scheduleAppointmentReminder(created.appointment_id, form.title, form.start_at);
       router.back();
     } finally { setBusy(false); }
   };
@@ -69,7 +74,7 @@ export default function NewAppointmentScreen() {
 
         <Text style={styles.lbl}>Area</Text>
         <View style={styles.pillsRow}>
-          {(["energy", "network"] as const).map((a) => (
+          {(["energy", "network"] as const).filter((a) => allowed.includes(a)).map((a) => (
             <Pressable key={a} testID={`ap-area-${a}`} onPress={() => setForm({ ...form, area: a })} style={[styles.pill, form.area === a && { backgroundColor: a === "energy" ? theme.color.energy : theme.color.network, borderColor: a === "energy" ? theme.color.energy : theme.color.network }]}>
               <Text style={[styles.pillTxt, form.area === a && styles.pillTxtActive]}>{a === "energy" ? "Energia (Rosso)" : "Network (Blu)"}</Text>
             </Pressable>

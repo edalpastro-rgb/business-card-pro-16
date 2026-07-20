@@ -11,6 +11,7 @@ export type User = {
   picture?: string | null;
   role: string;
   areas: string[];
+  parent_user_id?: string | null;
 };
 
 type AuthCtx = {

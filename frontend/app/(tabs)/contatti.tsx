@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api";
+import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 
 type Contact = {
@@ -12,7 +13,7 @@ type Contact = {
 };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
 
-const AREAS: { key: "all" | "energy" | "network"; label: string }[] = [
+const AREAS_ALL: { key: "all" | "energy" | "network"; label: string }[] = [
   { key: "all", label: "Tutti" },
   { key: "energy", label: "Energia" },
   { key: "network", label: "Network" },
@@ -20,6 +21,9 @@ const AREAS: { key: "all" | "energy" | "network"; label: string }[] = [
 
 export default function ContattiScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const allowed = user?.areas || ["energy", "network"];
+  const AREAS = AREAS_ALL.filter((a) => a.key === "all" || allowed.includes(a.key));
   const [items, setItems] = useState<Contact[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [q, setQ] = useState("");

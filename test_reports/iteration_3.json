@@ -1,0 +1,43 @@
+{
+  "summary": "v1.1 backend testing: 20/20 new tests PASS + 15/15 v1 regression PASS = 35/35 total against public preview URL. Covered: (a) Team endpoints — owner-only guards on GET/POST/PUT/DELETE /api/team, sub-user login now returns parent_user_id + role=member + areas=['network'], full invite→login→update areas→delete cycle including sub-user login rejection post-delete. (b) Area enforcement — sub-user (network only) receives 403 with Italian message 'Area energy non consentita per questo utente' on POST /contacts, /appointments, /callbacks in energy area. (c) Tenant model — sub-created docs have created_by=sub_id, user_id=owner_id; sub GET /contacts|/appointments|/callbacks returns ONLY docs with created_by==sub_id; owner GET sees ALL tenant docs; sub GET /contacts/{owner_contact_id} returns 404 (scoped-out). (d) Settings — sub PUT /settings returns 403, sub GET /settings returns the same tenant settings doc as owner (same user_id). (e) Reports scoping — sub totals ≤ owner totals for every area/metric over the year period. (f) v1 regression — /auth/me + logout, contacts/notes/files, reports for day/week/month/year, all passed unchanged. No backend issues found. Sub-user account was pre-existing per test_credentials.md; test suite auto-creates and cleans up TEST_-prefixed temp members/contacts/appointments/callbacks.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_team_v11.py",
+    "/app/backend/tests/test_crm_api.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/pytest_v11_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:139-164 tenant_id/is_owner/scope_query helpers are clean and consistently used across contacts/appointments/callbacks/reports. Good separation.",
+    "server.py:409-433 POST /api/team: password stored hashed, role fixed to 'member', parent_user_id set to owner. Correct.",
+    "server.py:436-450 PUT /api/team/{id}: matches on {user_id, parent_user_id: owner} so an owner cannot mutate members of another tenant. Good.",
+    "server.py:453-461 DELETE /api/team/{id}: also removes user_sessions for the deleted member — good hygiene.",
+    "server.py:148-151 check_area_allowed raises 403 with Italian message. Applied on POST + on PUT when 'area' present. Correct.",
+    "server.py:731-766 reports uses scope_query base — sub-scoped totals verified <= owner tenant totals.",
+    "NON-BLOCKING: @app.on_event startup/shutdown are deprecated in current FastAPI; consider lifespan handler (already flagged in iteration_2).",
+    "NON-BLOCKING: /api/team invite does not enforce a max member count; consider a soft cap if abuse is a concern.",
+    "NON-BLOCKING: /api/team PUT accepts name but there is no email/password change endpoint for members — fine for MVP."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_team_v11.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (35/35 — 20 v1.1 + 15 v1 regression)",
+    "frontend": "N/A (backend-only iteration)"
+  },
+  "seed_data_creation": "Temp member accounts (TEST_m_*@dalpastro.it) invited and deleted per-test. Two long-lived session contacts TEST_SubOwned and TEST_OwnerOwned are created and deleted via fixture teardown. sub1@dalpastro.it and test@dalpastro.it accounts reused from test_credentials.md.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All v1.1 backend endpoints green. New pytest file /app/backend/tests/test_team_v11.py covers team CRUD, sub-user login shape, area 403, tenant scoping across contacts/appointments/callbacks/settings/reports, and v1 regression. Run: pytest /app/backend/tests/ -v. Credentials: owner test@dalpastro.it/Test1234!, sub sub1@dalpastro.it/Sub12345! (areas=network only). Local notifications & Aruba deploy guide were explicitly out of scope.",
+  "rca_of_issue": "N/A - no bugs found."
+}

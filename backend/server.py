@@ -287,7 +287,7 @@ async def register(body: RegisterInput):
         **SettingsModel().model_dump(),
     })
     token = create_jwt(user_id)
-    return {"token": token, "user": UserOut(**{k: doc[k] for k in ["user_id", "email", "name", "picture", "role", "areas"]}).model_dump()}
+    return {"token": token, "user": UserOut(**{k: doc.get(k) for k in ["user_id", "email", "name", "picture", "role", "areas", "parent_user_id"]}).model_dump()}
 
 
 @api_router.post("/auth/login")
@@ -732,26 +732,26 @@ def _period_range(period: str) -> tuple:
 async def reports(period: str = "day", user=Depends(get_current_user)):
     start, end = _period_range(period)
     result = {}
+    base = scope_query(user)
     for area in ("energy", "network"):
         appointments_done = await db.appointments.count_documents({
-            "user_id": user["user_id"], "area": area,
+            **base, "area": area,
             "done": True, "start_at": {"$gte": start, "$lt": end},
         })
         appointments_total = await db.appointments.count_documents({
-            "user_id": user["user_id"], "area": area,
+            **base, "area": area,
             "start_at": {"$gte": start, "$lt": end},
         })
         phone_done = await db.appointments.count_documents({
-            "user_id": user["user_id"], "area": area,
+            **base, "area": area,
             "done": True, "is_phone": True, "start_at": {"$gte": start, "$lt": end},
         })
         contracts = await db.appointments.count_documents({
-            "user_id": user["user_id"], "area": area,
+            **base, "area": area,
             "contract_signed": True, "start_at": {"$gte": start, "$lt": end},
         })
-        # sum products
         pipe = [
-            {"$match": {"user_id": user["user_id"], "area": area, "start_at": {"$gte": start, "$lt": end}}},
+            {"$match": {**base, "area": area, "start_at": {"$gte": start, "$lt": end}}},
             {"$group": {"_id": None, "s": {"$sum": {"$ifNull": ["$products_sold", 0]}}}},
         ]
         agg = await db.appointments.aggregate(pipe).to_list(1)
@@ -799,6 +799,7 @@ async def _startup():
     await db.contacts.create_index([("user_id", 1), ("contact_id", 1)])
     await db.appointments.create_index([("user_id", 1), ("start_at", 1)])
     await db.callbacks.create_index([("user_id", 1), ("scheduled_at", 1)])
+    await db.users.create_index("parent_user_id")
 
 
 @app.on_event("shutdown")

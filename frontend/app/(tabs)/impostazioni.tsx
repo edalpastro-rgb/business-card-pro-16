@@ -44,10 +44,23 @@ export default function ImpostazioniScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>{user?.name}</Text>
               <Text style={styles.email}>{user?.email}</Text>
+              <Text style={styles.roleBadge}>{user?.parent_user_id ? "Collaboratore" : "Owner"}</Text>
             </View>
           </View>
         </View>
 
+        {!user?.parent_user_id && (
+          <Pressable testID="team-link" onPress={() => router.push("/team")} style={styles.linkCard}>
+            <Ionicons name="people-circle" size={26} color={theme.color.brandPrimary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkTitle}>Gestione Team</Text>
+              <Text style={styles.linkSub}>Invita collaboratori e assegna aree</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+          </Pressable>
+        )}
+
+        {!user?.parent_user_id && (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Personalizza aree</Text>
 
@@ -98,6 +111,7 @@ export default function ImpostazioniScreen() {
             {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>{ok ? "Salvato ✓" : "Salva modifiche"}</Text>}
           </Pressable>
         </View>
+        )}
 
         <Pressable testID="logout-btn" onPress={async () => { await logout(); router.replace("/login"); }} style={styles.logoutBtn}>
           <Ionicons name="log-out-outline" size={20} color={theme.color.error} />
@@ -118,6 +132,10 @@ const styles = StyleSheet.create({
   avatarTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 20 },
   name: { fontSize: 16, fontWeight: "700", color: theme.color.onSurface },
   email: { fontSize: 13, color: theme.color.muted, marginTop: 2 },
+  roleBadge: { alignSelf: "flex-start", marginTop: 6, backgroundColor: theme.color.brandTertiary, color: theme.color.brandPrimary, fontSize: 11, fontWeight: "700", paddingHorizontal: 8, paddingVertical: 2, borderRadius: theme.radius.pill, overflow: "hidden" },
+  linkCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
+  linkTitle: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface },
+  linkSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
   sectionTitle: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface, marginBottom: 12 },
   label: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontWeight: "600", marginTop: 10, marginBottom: 6 },
   input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface },

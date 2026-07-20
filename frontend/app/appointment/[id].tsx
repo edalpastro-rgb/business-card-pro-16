@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { scheduleAppointmentReminder, cancelAppointmentReminder, scheduleCallbackReminder } from "@/src/notifications";
 
 type Appointment = {
   appointment_id: string; title: string; area: "energy" | "network"; start_at: string;
@@ -61,6 +62,12 @@ export default function AppointmentDetail() {
     try {
       const updated = await api<Appointment>(`/appointments/${id}`, { method: "PUT", body: patch });
       setA(updated);
+      if (patch.start_at) {
+        await scheduleAppointmentReminder(id as string, updated.title, new Date(updated.start_at));
+      }
+      if (patch.done === true) {
+        await cancelAppointmentReminder(id as string);
+      }
     } finally { setBusy(false); }
   };
 
@@ -72,14 +79,16 @@ export default function AppointmentDetail() {
   };
 
   const createCallback = async () => {
-    await api("/callbacks", {
+    const cb = await api<{ callback_id: string; title: string }>("/callbacks", {
       method: "POST",
       body: { title: `Richiamare: ${a.title}`, area: a.area, scheduled_at: callbackAt.toISOString(), contact_id: a.contact_id, note: "" },
     });
+    await scheduleCallbackReminder(cb.callback_id, cb.title, callbackAt);
     setShowCbSection(false);
   };
 
   const del = async () => {
+    await cancelAppointmentReminder(id as string);
     await api(`/appointments/${id}`, { method: "DELETE" });
     router.back();
   };
@@ -175,7 +184,7 @@ export default function AppointmentDetail() {
         )}
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Dopo l'appuntamento</Text>
+          <Text style={styles.sectionTitle}>Dopo l&apos;appuntamento</Text>
           <View style={styles.outcomesGrid}>
             {outcomes.map((o) => {
               const active = a.outcome_tags.includes(o.key);

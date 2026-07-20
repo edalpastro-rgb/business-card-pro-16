@@ -5,16 +5,20 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { api } from "@/src/api";
+import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { scheduleCallbackReminder } from "@/src/notifications";
 
 type Contact = { contact_id: string; first_name: string; last_name: string; area: string };
 
 export default function NewCallbackScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [form, setForm] = useState({
     title: "",
-    area: "energy" as "energy" | "network",
+    area: (allowed[0] || "energy") as "energy" | "network",
     scheduled_at: new Date(Date.now() + 60 * 60 * 1000),
     note: "",
     contact_id: "",
@@ -28,7 +32,8 @@ export default function NewCallbackScreen() {
     if (!form.title.trim()) return;
     setBusy(true);
     try {
-      await api("/callbacks", { method: "POST", body: { ...form, scheduled_at: form.scheduled_at.toISOString() } });
+      const cb = await api<{ callback_id: string }>("/callbacks", { method: "POST", body: { ...form, scheduled_at: form.scheduled_at.toISOString() } });
+      await scheduleCallbackReminder(cb.callback_id, form.title, form.scheduled_at);
       router.back();
     } finally { setBusy(false); }
   };
@@ -49,7 +54,7 @@ export default function NewCallbackScreen() {
 
         <Text style={styles.lbl}>Area</Text>
         <View style={styles.pillsRow}>
-          {(["energy", "network"] as const).map((a) => (
+          {(["energy", "network"] as const).filter((a) => allowed.includes(a)).map((a) => (
             <Pressable key={a} testID={`cb-area-${a}`} onPress={() => setForm({ ...form, area: a })} style={[styles.pill, form.area === a && { backgroundColor: a === "energy" ? theme.color.energy : theme.color.network, borderColor: a === "energy" ? theme.color.energy : theme.color.network }]}>
               <Text style={[styles.pillTxt, form.area === a && styles.pillTxtActive]}>{a === "energy" ? "Energia" : "Network"}</Text>
             </Pressable>
