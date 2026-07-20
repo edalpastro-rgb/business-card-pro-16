@@ -121,6 +121,47 @@ class UserOut(BaseModel):
     picture: Optional[str] = None
     role: str = "owner"
     areas: List[str] = Field(default_factory=lambda: ["energy", "network"])
+    parent_user_id: Optional[str] = None
+
+
+class TeamInviteInput(BaseModel):
+    email: EmailStr
+    name: str
+    password: str = Field(min_length=6)
+    areas: List[Literal["energy", "network"]] = Field(default_factory=lambda: ["energy", "network"])
+
+
+class TeamUpdateInput(BaseModel):
+    areas: Optional[List[Literal["energy", "network"]]] = None
+    name: Optional[str] = None
+
+
+def tenant_id(user: dict) -> str:
+    """Owner's user_id (tenant root). For owner returns own id, for sub-user returns parent."""
+    return user.get("parent_user_id") or user["user_id"]
+
+
+def is_owner(user: dict) -> bool:
+    return user.get("role") == "owner" and not user.get("parent_user_id")
+
+
+def check_area_allowed(user: dict, area: str):
+    allowed = user.get("areas") or ["energy", "network"]
+    if area not in allowed:
+        raise HTTPException(status_code=403, detail=f"Area '{area}' non consentita per questo utente")
+
+
+def scope_query(user: dict, extra: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Build a MongoDB filter that scopes reads based on user role.
+    - Owner: everything in tenant (user_id == owner_id)
+    - Sub-user: only records they created (created_by == user_id), still under same tenant
+    """
+    q: Dict[str, Any] = {"user_id": tenant_id(user)}
+    if not is_owner(user):
+        q["created_by"] = user["user_id"]
+    if extra:
+        q.update(extra)
+    return q
 
 
 class SettingsModel(BaseModel):
@@ -330,15 +371,18 @@ async def logout(authorization: Optional[str] = Header(None)):
 # =========================
 @api_router.get("/settings")
 async def get_settings(user=Depends(get_current_user)):
-    s = await db.settings.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    tid = tenant_id(user)
+    s = await db.settings.find_one({"user_id": tid}, {"_id": 0})
     if not s:
-        s = {"user_id": user["user_id"], **SettingsModel().model_dump()}
+        s = {"user_id": tid, **SettingsModel().model_dump()}
         await db.settings.insert_one(dict(s))
     return s
 
 
 @api_router.put("/settings")
 async def update_settings(body: SettingsModel, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo l'owner può modificare le impostazioni")
     await db.settings.update_one(
         {"user_id": user["user_id"]},
         {"$set": body.model_dump()},
@@ -349,11 +393,80 @@ async def update_settings(body: SettingsModel, user=Depends(get_current_user)):
 
 
 # =========================
+# Team (multi-user)
+# =========================
+@api_router.get("/team")
+async def list_team(user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo l'owner può gestire il team")
+    members = await db.users.find(
+        {"parent_user_id": user["user_id"]},
+        {"_id": 0, "password_hash": 0},
+    ).to_list(1000)
+    return {"items": members}
+
+
+@api_router.post("/team")
+async def invite_member(body: TeamInviteInput, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo l'owner può invitare utenti")
+    if not body.areas:
+        raise HTTPException(status_code=400, detail="Assegna almeno un'area")
+    existing = await db.users.find_one({"email": body.email.lower()})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email già registrata")
+    uid = f"user_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "user_id": uid,
+        "email": body.email.lower(),
+        "name": body.name,
+        "password_hash": hash_password(body.password),
+        "role": "member",
+        "areas": body.areas,
+        "parent_user_id": user["user_id"],
+        "picture": None,
+        "created_at": utcnow(),
+    }
+    await db.users.insert_one(doc)
+    strip_id(doc)
+    doc.pop("password_hash", None)
+    return doc
+
+
+@api_router.put("/team/{member_id}")
+async def update_member(member_id: str, body: TeamUpdateInput, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    upd = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not upd:
+        raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
+    r = await db.users.update_one(
+        {"user_id": member_id, "parent_user_id": user["user_id"]},
+        {"$set": upd},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Membro non trovato")
+    m = await db.users.find_one({"user_id": member_id}, {"_id": 0, "password_hash": 0})
+    return m
+
+
+@api_router.delete("/team/{member_id}")
+async def delete_member(member_id: str, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    r = await db.users.delete_one({"user_id": member_id, "parent_user_id": user["user_id"]})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Membro non trovato")
+    await db.user_sessions.delete_many({"user_id": member_id})
+    return {"ok": True}
+
+
+# =========================
 # Contacts
 # =========================
 @api_router.get("/contacts")
 async def list_contacts(area: Optional[str] = None, q: Optional[str] = None, user=Depends(get_current_user)):
-    query: Dict[str, Any] = {"user_id": user["user_id"]}
+    query: Dict[str, Any] = scope_query(user)
     if area in ("energy", "network"):
         query["area"] = area
     if q:
@@ -369,10 +482,12 @@ async def list_contacts(area: Optional[str] = None, q: Optional[str] = None, use
 
 @api_router.post("/contacts")
 async def create_contact(body: ContactIn, user=Depends(get_current_user)):
+    check_area_allowed(user, body.area)
     cid = f"c_{uuid.uuid4().hex[:12]}"
     doc = {
         "contact_id": cid,
-        "user_id": user["user_id"],
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
         **body.model_dump(),
         "notes": [],
         "files": [],
@@ -386,7 +501,7 @@ async def create_contact(body: ContactIn, user=Depends(get_current_user)):
 
 @api_router.get("/contacts/{contact_id}")
 async def get_contact(contact_id: str, user=Depends(get_current_user)):
-    c = await db.contacts.find_one({"contact_id": contact_id, "user_id": user["user_id"]}, {"_id": 0})
+    c = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0})
     if not c:
         raise HTTPException(status_code=404, detail="Contatto non trovato")
     return c
@@ -395,8 +510,10 @@ async def get_contact(contact_id: str, user=Depends(get_current_user)):
 @api_router.put("/contacts/{contact_id}")
 async def update_contact(contact_id: str, body: ContactUpdate, user=Depends(get_current_user)):
     upd = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "area" in upd:
+        check_area_allowed(user, upd["area"])
     upd["updated_at"] = utcnow()
-    r = await db.contacts.update_one({"contact_id": contact_id, "user_id": user["user_id"]}, {"$set": upd})
+    r = await db.contacts.update_one(scope_query(user, {"contact_id": contact_id}), {"$set": upd})
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail="Contatto non trovato")
     c = await db.contacts.find_one({"contact_id": contact_id}, {"_id": 0})
@@ -405,13 +522,13 @@ async def update_contact(contact_id: str, body: ContactUpdate, user=Depends(get_
 
 @api_router.delete("/contacts/{contact_id}")
 async def delete_contact(contact_id: str, user=Depends(get_current_user)):
-    await db.contacts.delete_one({"contact_id": contact_id, "user_id": user["user_id"]})
+    await db.contacts.delete_one(scope_query(user, {"contact_id": contact_id}))
     return {"ok": True}
 
 
 @api_router.post("/contacts/{contact_id}/notes")
 async def add_note(contact_id: str, body: ContactNote, user=Depends(get_current_user)):
-    c = await db.contacts.find_one({"contact_id": contact_id, "user_id": user["user_id"]}, {"_id": 0})
+    c = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0})
     if not c:
         raise HTTPException(status_code=404, detail="Contatto non trovato")
     note = body.model_dump()
@@ -422,7 +539,7 @@ async def add_note(contact_id: str, body: ContactNote, user=Depends(get_current_
 @api_router.delete("/contacts/{contact_id}/notes/{note_id}")
 async def delete_note(contact_id: str, note_id: str, user=Depends(get_current_user)):
     await db.contacts.update_one(
-        {"contact_id": contact_id, "user_id": user["user_id"]},
+        scope_query(user, {"contact_id": contact_id}),
         {"$pull": {"notes": {"id": note_id}}},
     )
     return {"ok": True}
@@ -430,12 +547,11 @@ async def delete_note(contact_id: str, note_id: str, user=Depends(get_current_us
 
 @api_router.post("/contacts/{contact_id}/files")
 async def add_file(contact_id: str, body: ContactFile, user=Depends(get_current_user)):
-    c = await db.contacts.find_one({"contact_id": contact_id, "user_id": user["user_id"]}, {"_id": 0})
+    c = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0})
     if not c:
         raise HTTPException(status_code=404, detail="Contatto non trovato")
     f = body.model_dump()
     await db.contacts.update_one({"contact_id": contact_id}, {"$push": {"files": f}})
-    # return without payload
     f_light = {k: v for k, v in f.items() if k != "data_base64"}
     return f_light
 
@@ -443,7 +559,7 @@ async def add_file(contact_id: str, body: ContactFile, user=Depends(get_current_
 @api_router.delete("/contacts/{contact_id}/files/{file_id}")
 async def delete_file(contact_id: str, file_id: str, user=Depends(get_current_user)):
     await db.contacts.update_one(
-        {"contact_id": contact_id, "user_id": user["user_id"]},
+        scope_query(user, {"contact_id": contact_id}),
         {"$pull": {"files": {"id": file_id}}},
     )
     return {"ok": True}
@@ -459,7 +575,7 @@ async def list_appointments(
     area: Optional[str] = None,
     user=Depends(get_current_user),
 ):
-    q: Dict[str, Any] = {"user_id": user["user_id"]}
+    q: Dict[str, Any] = scope_query(user)
     if start and end:
         q["start_at"] = {"$gte": start, "$lte": end}
     elif start:
@@ -472,10 +588,12 @@ async def list_appointments(
 
 @api_router.post("/appointments")
 async def create_appointment(body: AppointmentIn, user=Depends(get_current_user)):
+    check_area_allowed(user, body.area)
     aid = f"a_{uuid.uuid4().hex[:12]}"
     doc = {
         "appointment_id": aid,
-        "user_id": user["user_id"],
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
         **body.model_dump(),
         "done": False,
         "outcome_tags": [],
@@ -492,7 +610,7 @@ async def create_appointment(body: AppointmentIn, user=Depends(get_current_user)
 
 @api_router.get("/appointments/{appointment_id}")
 async def get_appointment(appointment_id: str, user=Depends(get_current_user)):
-    a = await db.appointments.find_one({"appointment_id": appointment_id, "user_id": user["user_id"]}, {"_id": 0})
+    a = await db.appointments.find_one(scope_query(user, {"appointment_id": appointment_id}), {"_id": 0})
     if not a:
         raise HTTPException(status_code=404, detail="Appuntamento non trovato")
     return a
@@ -501,9 +619,11 @@ async def get_appointment(appointment_id: str, user=Depends(get_current_user)):
 @api_router.put("/appointments/{appointment_id}")
 async def update_appointment(appointment_id: str, body: AppointmentUpdate, user=Depends(get_current_user)):
     upd = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "area" in upd:
+        check_area_allowed(user, upd["area"])
     upd["updated_at"] = utcnow()
     r = await db.appointments.update_one(
-        {"appointment_id": appointment_id, "user_id": user["user_id"]},
+        scope_query(user, {"appointment_id": appointment_id}),
         {"$set": upd},
     )
     if r.matched_count == 0:
@@ -514,7 +634,7 @@ async def update_appointment(appointment_id: str, body: AppointmentUpdate, user=
 
 @api_router.delete("/appointments/{appointment_id}")
 async def delete_appointment(appointment_id: str, user=Depends(get_current_user)):
-    await db.appointments.delete_one({"appointment_id": appointment_id, "user_id": user["user_id"]})
+    await db.appointments.delete_one(scope_query(user, {"appointment_id": appointment_id}))
     return {"ok": True}
 
 
@@ -523,12 +643,12 @@ async def delete_appointment(appointment_id: str, user=Depends(get_current_user)
 # =========================
 @api_router.get("/callbacks")
 async def list_callbacks(
-    day: Optional[str] = None,  # YYYY-MM-DD (user local day converted to utc range on client)
+    day: Optional[str] = None,
     area: Optional[str] = None,
     include_done: bool = False,
     user=Depends(get_current_user),
 ):
-    q: Dict[str, Any] = {"user_id": user["user_id"]}
+    q: Dict[str, Any] = scope_query(user)
     if area in ("energy", "network"):
         q["area"] = area
     if not include_done:
@@ -545,10 +665,12 @@ async def list_callbacks(
 
 @api_router.post("/callbacks")
 async def create_callback(body: CallbackIn, user=Depends(get_current_user)):
+    check_area_allowed(user, body.area)
     cid = f"cb_{uuid.uuid4().hex[:12]}"
     doc = {
         "callback_id": cid,
-        "user_id": user["user_id"],
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
         **body.model_dump(),
         "done": False,
         "created_at": utcnow(),
@@ -561,8 +683,10 @@ async def create_callback(body: CallbackIn, user=Depends(get_current_user)):
 @api_router.put("/callbacks/{callback_id}")
 async def update_callback(callback_id: str, body: CallbackUpdate, user=Depends(get_current_user)):
     upd = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "area" in upd:
+        check_area_allowed(user, upd["area"])
     r = await db.callbacks.update_one(
-        {"callback_id": callback_id, "user_id": user["user_id"]},
+        scope_query(user, {"callback_id": callback_id}),
         {"$set": upd},
     )
     if r.matched_count == 0:
@@ -573,7 +697,7 @@ async def update_callback(callback_id: str, body: CallbackUpdate, user=Depends(g
 
 @api_router.delete("/callbacks/{callback_id}")
 async def delete_callback(callback_id: str, user=Depends(get_current_user)):
-    await db.callbacks.delete_one({"callback_id": callback_id, "user_id": user["user_id"]})
+    await db.callbacks.delete_one(scope_query(user, {"callback_id": callback_id}))
     return {"ok": True}
 
 
