@@ -1,0 +1,38 @@
+{
+  "summary": "Comprehensive backend + frontend testing for ProSync CRM (dual-area energy/network). 15/15 pytest backend tests passed. Frontend login flow works, tab navigation works across Home/Contatti/Calendario/Report/Profilo, backend↔frontend integration verified (settings customization visible on Home cards after PUT /api/settings).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/google-session", "issue": "Uses HTTPException with detail 'Google auth fallita' on invalid session; endpoint reachable, real Emergent OAuth flow not exercised per instructions."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "app/login.tsx", "issue": "Missing testID attributes on email input, password input, submit button and Google login button. Only 'Accedi' text is present (which collides with the tab label + 'Accedi con Google' - 3 matches), making automation and future test stability brittle.", "testID": "email-input, password-input, login-button, google-login-button", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "login", "issues": ["Deprecation console warning: 'shadow*' style props are deprecated. Use 'boxShadow' - non-blocking but should be cleaned up."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_crm_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Add testID props to /app/frontend/app/login.tsx: email-input (TextInput), password-input (TextInput), login-button (submit TouchableOpacity), google-login-button, and to the Accedi/Registrati tab toggle buttons (login-tab, register-tab) to disambiguate the 3 'Accedi' text matches.",
+    "Fix 'shadow*' deprecated style warnings by migrating to boxShadow (React Native Web).",
+    "(Optional) Add testIDs to tab bar items (tab-home, tab-contatti, tab-calendario, tab-report, tab-profilo) for robust nav testing."
+  ],
+  "critical_code_review_comments": [
+    "server.py cleanly excludes MongoDB _id via projections/strip_id — good.",
+    "JWT_SECRET falls back to a hardcoded dev value if env not set — acceptable for MVP but flag for prod.",
+    "server.py is ~680 lines; still manageable but approaching the 700-line threshold for a modular split (routers per resource).",
+    "Callbacks day filter parses YYYY-MM-DD as UTC only — may misalign with user local timezone; consider tz-aware handling."
+  ],
+  "updated_files": ["/app/backend/tests/test_crm_api.py (new)", "/app/test_reports/pytest/pytest_results.xml (new)"],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "~90% (all core flows verified; only missing login testIDs)"},
+  "seed_data_creation": "Test data created via API is prefixed with TEST_ and cleaned up in fixtures. One residual contact 'TEST_Luca Rossi' may briefly appear during runs but is deleted in fixture teardown. Settings were updated to 'Consulente Test'/'Networker Test' colors #AA1111/#1122AA — main agent may want to reset defaults if needed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Frontend base URL = https://consulente-app.preview.emergentagent.com. Test credentials in /app/memory/test_credentials.md (test@dalpastro.it / Test1234!). Backend pytest suite at /app/backend/tests/test_crm_api.py covers auth, settings, contacts (CRUD+notes+files), appointments (CRUD+reschedule+done+outcome_tags), callbacks (with day filter), reports (dual-area), google-session endpoint reachability. Login submit button is the 2nd of three 'Accedi' exact-text matches (indexes: 0=tab, 1=submit, 2='Accedi con Google'). Impostazioni/Profilo screen already has testIDs (settings-energy-title, settings-network-title, settings-save, logout-btn, energy-color-*, network-color-*).",
+  "rca_of_issue": "No functional issues — only observability/testability gap on login screen due to missing testIDs. Deprecation shadow* warnings are cosmetic React Native Web migration items."
+}

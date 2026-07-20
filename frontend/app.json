@@ -9,14 +9,16 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.emergent.consulenteapp.zkleir"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.emergent.consulenteapp.zkleir"
     },
     "web": {
       "bundler": "metro",
@@ -33,7 +35,9 @@
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
-      ]
+      ],
+      "expo-audio",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
