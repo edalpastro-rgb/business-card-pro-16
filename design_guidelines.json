@@ -1,0 +1,178 @@
+{
+  "app_name": "ProSync CRM",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "An elegant, corporate, and highly trustworthy CRM that balances dual professional roles with flawless clarity and iOS-native comfort.",
+  "color": {
+    "surface": "#F7F8FB",
+    "onSurface": "#111820",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#111820",
+    "surfaceTertiary": "#EAEFF4",
+    "onSurfaceTertiary": "#293847",
+    "surfaceInverse": "#141D26",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#1C4869",
+    "brandPrimary": "#1C4869",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#3A739C",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#E6F0F7",
+    "onBrandTertiary": "#1C4869",
+    "success": "#2D7A5A",
+    "onSuccess": "#FFFFFF",
+    "warning": "#B77C14",
+    "onWarning": "#FFFFFF",
+    "error": "#C83232",
+    "onError": "#FFFFFF",
+    "info": "#1B6CB0",
+    "onInfo": "#FFFFFF",
+    "border": "#E2E8F0",
+    "borderStrong": "#CBD5E1",
+    "divider": "#EDF1F5",
+    "energy_red": "#C83232",
+    "onEnergy_red": "#FFFFFF",
+    "networker_blue": "#1B6CB0",
+    "onNetworker_blue": "#FFFFFF"
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Geist",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous padding around content. Avoid dense dashboards unless absolutely necessary. Use iOS-native spacing rhythms.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Bottom tab bar",
+      "Sticky headers over scrolling content",
+      "Modals/Bottom sheets headers"
+    ],
+    "dont's": [
+      "Every single list row",
+      "Form inputs",
+      "Cards in dense data feeds"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Login",
+      "purpose": "Secure entry via email or Google with a premium corporate aesthetic.",
+      "states": {
+        "loading": "Centered brand spinner.",
+        "empty": "N/A",
+        "error": "Standard alert toast/message."
+      },
+      "layout": "Hero image at the top (abstract slate/blue background) overlaid with a subtle gradient scrim. Bottom half contains a clean, single-column form on surfaceSecondary. Email, Password, and 'Accedi con Google' button."
+    },
+    {
+      "name": "Dashboard (Home)",
+      "purpose": "Dual-area quick stats overview and daily callbacks.",
+      "states": {
+        "loading": "Skeleton loaders for stat cards.",
+        "empty": "Illustration of a planner with a message to start adding appointments.",
+        "error": "Error loading dashboard data with a retry button."
+      },
+      "layout": "Sticky glass header. Two main summary cards side-by-side using a grid (flexWrap, space-between). One card accented with energy_red, the other with networker_blue. Below, a scrollable list of 'Da Richiamare Oggi' (Callbacks) grouped by area, with distinct colored dot indicators."
+    },
+    {
+      "name": "Contatti (Contacts)",
+      "purpose": "Manage clients with personal/referral tags and area assignment.",
+      "states": {
+        "loading": "List skeleton.",
+        "empty": "Empty desk/clipboard photo with 'Nessun contatto trovato'.",
+        "error": "Error state with retry CTA."
+      },
+      "layout": "Sticky header with search bar and filter chips (Tutti, Energia, Network). Vertical list of contacts with minimum 56pt tappable height. Avatar (initials), Name, Tag (Conoscenza/Referenza), and Area indicator."
+    },
+    {
+      "name": "Dettaglio Contatto (Contact Detail)",
+      "purpose": "Deep dive into a contact, offering text/voice notes, files, and Waze link.",
+      "states": {
+        "loading": "Skeleton profile.",
+        "empty": "N/A",
+        "error": "Error loading contact."
+      },
+      "layout": "Cover image (abstract blue) with gradient scrim and initials avatar overlapping. Tabbed or segmented control layout below: Info (Address with Waze icon), Note (Text/Voice), File (PDF/JPG list). Floating action button to add a note or file."
+    },
+    {
+      "name": "Calendario",
+      "purpose": "Shared appointment view color-coded by area with quick actions.",
+      "states": {
+        "loading": "Calendar skeleton.",
+        "empty": "Empty state illustration of a planner.",
+        "error": "Error loading appointments."
+      },
+      "layout": "Weekly/Monthly calendar strip at the top. Scrollable vertical list of appointments below. Each card has a thick left border (red for Energy, blue for Network), a phone icon if it's a call, and a 'Fatto' (Done) checkbox. Tapping opens the post-meeting checklist."
+    },
+    {
+      "name": "Report",
+      "purpose": "Analytics for both areas across multiple timeframes.",
+      "states": {
+        "loading": "Chart skeletons.",
+        "empty": "No data available yet.",
+        "error": "Failed to load metrics."
+      },
+      "layout": "Segmented control at the top (Giorno, Settimana, Mese, Anno). Two distinct sections (or toggleable via tabs): Consulenza Energetica (Red accents) and Network (Blue accents). Large typography for key metrics (Appuntamenti, Contratti, Prodotti)."
+    }
+  ],
+  "images": {
+    "login_hero": {
+      "url": "https://images.pexels.com/photos/5912576/pexels-photo-5912576.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Dark blue textured corporate background"
+    },
+    "empty_dashboard": {
+      "url": "https://images.pexels.com/photos/5712140/pexels-photo-5712140.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Open planner with pen on a glass desk"
+    },
+    "empty_contacts": {
+      "url": "https://images.pexels.com/photos/4101348/pexels-photo-4101348.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Empty clipboard on marble desk"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the 'iOS-Native Clean' personality guidelines. Use generous spacing (md/lg), rounded corners (md:12), and subtle shadow (tier 1).",
+    "Implement a clear dual-identity UI. Use 'energy_red' (#C83232) for Consulente Energetico elements and 'networker_blue' (#1B6CB0) for Networker elements. These should be used as accents (left borders on cards, dot indicators, tags) on top of the clean white/slate base.",
+    "The UI text MUST be in Italian as requested in the problem statement (e.g., 'Contatti', 'Calendario', 'Appuntamenti', 'Fatto').",
+    "Ensure every screen with a primary action has a sticky CTA at the bottom over scrolling content, wrapped in a glassmorphism container.",
+    "For the Contact Detail screen, incorporate a segmented control to switch between 'Note', 'File', and 'Info'. Ensure the Waze integration is prominent in the Info tab.",
+    "Post-meeting checklists are specific to the area. For Energy: 'Non interessato', 'Contratto fatto', 'Richiamare'. For Networker: 'Post appuntamento', 'Ok abo', 'Ok cliente', 'Dare seguito', 'Primo avvio', 'Presentazione prodotti', 'Incontro open', 'Incontro BBS', 'Incontro WES'. Use native-feeling bottom sheets or modals for these checklists.",
+    "All images used as backgrounds MUST include a vertical gradient scrim (transparent to surfaceInverse) to guarantee text readability.",
+    "Do NOT use any emojis in the UI. Use Ionicons filled/outlined icons appropriately."
+  ]
+}
