@@ -9,8 +9,9 @@ import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
+import * as ImagePicker from "expo-image-picker";
 
-type Note = { id: string; kind: "text" | "audio"; text?: string; audio_base64?: string; audio_mime?: string; created_at: string; duration_ms?: number };
+type Note = { id: string; kind: "text" | "audio" | "photo" | "link"; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string; address: string;
@@ -29,6 +30,8 @@ export default function ContactDetail() {
   const [c, setC] = useState<Contact | null>(null);
   const [tab, setTab] = useState<"info" | "notes" | "files">("info");
   const [noteText, setNoteText] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [showLinkInput, setShowLinkInput] = useState(false);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -97,6 +100,38 @@ export default function ContactDetail() {
   const deleteNote = async (nid: string) => {
     await api(`/contacts/${id}/notes/${nid}`, { method: "DELETE" });
     load();
+  };
+
+  const addPhotoNote = async (fromCamera: boolean) => {
+    const perm = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (Platform.OS !== "web" && !perm.granted) return;
+    const res = fromCamera
+      ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: Platform.OS === "web" })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: Platform.OS === "web" });
+    if (res.canceled || !res.assets?.[0]) return;
+    const a = res.assets[0];
+    let b64 = a.base64;
+    if (!b64) {
+      try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); } catch { return; }
+    }
+    const uri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
+    setBusy(true);
+    try {
+      await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "photo", photo_base64: uri } });
+      await load();
+    } finally { setBusy(false); }
+  };
+
+  const addLinkNote = async () => {
+    if (!linkUrl.trim()) return;
+    setBusy(true);
+    try {
+      await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "link", link_url: linkUrl, link_title: noteText } });
+      setLinkUrl(""); setNoteText(""); setShowLinkInput(false);
+      await load();
+    } finally { setBusy(false); }
   };
 
   const pickFile = async () => {
@@ -178,9 +213,30 @@ export default function ContactDetail() {
             <InfoRow icon="mail-outline" label="Email principale" value={c.email || "—"} />
             {c.email_alt ? <InfoRow icon="mail-outline" label="Email 2°" value={c.email_alt} /> : null}
             {(c.address_street || c.address_city) ? (
-              <InfoRow icon="location-outline" label="Indirizzo"
-                value={[c.address_street, [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province].filter(Boolean).join(", ")} />
-            ) : (c.address ? <InfoRow icon="location-outline" label="Indirizzo" value={c.address} /> : null)}
+              <View>
+                <InfoRow icon="location-outline" label="Indirizzo"
+                  value={[c.address_street, [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province].filter(Boolean).join(", ")} />
+                <Pressable
+                  testID="address-waze-btn"
+                  onPress={() => {
+                    const addr = [c.address_street, c.address_city, c.address_province].filter(Boolean).join(", ");
+                    if (addr) Linking.openURL(`https://www.waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`);
+                  }}
+                  style={styles.wazeInline}
+                >
+                  <Ionicons name="navigate" size={14} color="#FFF" />
+                  <Text style={styles.wazeInlineTxt}>Naviga con Waze</Text>
+                </Pressable>
+              </View>
+            ) : (c.address ? (
+              <View>
+                <InfoRow icon="location-outline" label="Indirizzo" value={c.address} />
+                <Pressable testID="address-waze-btn" onPress={() => Linking.openURL(`https://www.waze.com/ul?q=${encodeURIComponent(c.address)}&navigate=yes`)} style={styles.wazeInline}>
+                  <Ionicons name="navigate" size={14} color="#FFF" />
+                  <Text style={styles.wazeInlineTxt}>Naviga con Waze</Text>
+                </Pressable>
+              </View>
+            ) : null)}
             {c.birth_date ? <InfoRow icon="gift-outline" label="Data di nascita" value={c.birth_date} /> : null}
             {c.fiscal_code ? <InfoRow icon="card-outline" label="Codice Fiscale" value={c.fiscal_code} /> : null}
             {c.vat_number ? <InfoRow icon="business-outline" label="Partita IVA" value={c.vat_number} /> : null}
@@ -201,29 +257,68 @@ export default function ContactDetail() {
                 testID="note-text-input"
                 value={noteText}
                 onChangeText={setNoteText}
-                placeholder="Scrivi una nota..."
+                placeholder={showLinkInput ? "Etichetta del link (opzionale)" : "Scrivi una nota..."}
                 placeholderTextColor="#94A3B8"
-                style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
-                multiline
+                style={[styles.input, { minHeight: showLinkInput ? 44 : 80, textAlignVertical: "top" }]}
+                multiline={!showLinkInput}
               />
+              {showLinkInput && (
+                <TextInput
+                  testID="note-link-input"
+                  value={linkUrl}
+                  onChangeText={setLinkUrl}
+                  placeholder="https://..."
+                  placeholderTextColor="#94A3B8"
+                  autoCapitalize="none"
+                  keyboardType="url"
+                  style={[styles.input, { marginTop: 8 }]}
+                />
+              )}
               <View style={styles.noteBtnRow}>
-                <Pressable testID="note-add-text" onPress={addTextNote} style={styles.smallBtn} disabled={busy}>
-                  <Ionicons name="add" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Aggiungi</Text>
+                {!showLinkInput && (
+                  <Pressable testID="note-add-text" onPress={addTextNote} style={styles.smallBtn} disabled={busy}>
+                    <Ionicons name="add" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Testo</Text>
+                  </Pressable>
+                )}
+                {showLinkInput ? (
+                  <Pressable testID="note-add-link" onPress={addLinkNote} style={[styles.smallBtn, { backgroundColor: theme.color.success }]}>
+                    <Ionicons name="checkmark" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Salva link</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable testID="note-toggle-link" onPress={() => setShowLinkInput(true)} style={[styles.smallBtn, { backgroundColor: theme.color.info }]}>
+                    <Ionicons name="link" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Link</Text>
+                  </Pressable>
+                )}
+                <Pressable testID="note-photo-camera" onPress={() => addPhotoNote(true)} style={[styles.smallBtn, { backgroundColor: theme.color.brandSecondary }]}>
+                  <Ionicons name="camera" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Foto</Text>
                 </Pressable>
-                <Pressable testID="note-record-toggle" onPress={recording ? stopRecording : startRecording} style={[styles.smallBtn, { backgroundColor: recording ? theme.color.error : theme.color.info }]}>
-                  <Ionicons name={recording ? "stop" : "mic"} size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>{recording ? "Stop" : "Registra"}</Text>
+                <Pressable testID="note-record-toggle" onPress={recording ? stopRecording : startRecording} style={[styles.smallBtn, { backgroundColor: recording ? theme.color.error : theme.color.warning }]}>
+                  <Ionicons name={recording ? "stop" : "mic"} size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>{recording ? "Stop" : "Audio"}</Text>
                 </Pressable>
               </View>
             </View>
             {c.notes && c.notes.length > 0 ? c.notes.map((n) => (
               <View key={n.id} style={styles.noteCard}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.noteMeta}>{n.kind === "audio" ? "🎙 Vocale" : "📝 Testo"} · {new Date(n.created_at).toLocaleString("it-IT")}</Text>
-                  {n.kind === "text" ? <Text style={styles.noteTxt}>{n.text}</Text> :
+                  <Text style={styles.noteMeta}>
+                    {n.kind === "audio" ? "Vocale" : n.kind === "photo" ? "Foto" : n.kind === "link" ? "Link" : "Testo"} · {new Date(n.created_at).toLocaleString("it-IT")}
+                  </Text>
+                  {n.kind === "text" && <Text style={styles.noteTxt}>{n.text}</Text>}
+                  {n.kind === "audio" && (
                     <Pressable testID={`play-${n.id}`} onPress={() => playNote(n)} style={styles.playBtn}>
                       <Ionicons name="play" size={16} color={theme.color.brandPrimary} />
                       <Text style={styles.playBtnTxt}>Ascolta</Text>
-                    </Pressable>}
+                    </Pressable>
+                  )}
+                  {n.kind === "photo" && n.photo_base64 && (
+                    <Image source={{ uri: n.photo_base64 }} style={styles.notePhoto} />
+                  )}
+                  {n.kind === "link" && n.link_url && (
+                    <Pressable onPress={() => Linking.openURL(n.link_url!)} style={styles.linkBox}>
+                      <Ionicons name="link" size={16} color={theme.color.brandPrimary} />
+                      <Text style={styles.linkTxt} numberOfLines={2}>{n.link_title || n.link_url}</Text>
+                    </Pressable>
+                  )}
                 </View>
                 <Pressable testID={`del-note-${n.id}`} onPress={() => deleteNote(n.id)}><Ionicons name="trash-outline" size={18} color={theme.color.error} /></Pressable>
               </View>
@@ -314,4 +409,12 @@ const styles = StyleSheet.create({
   fileName: { fontSize: 14, fontWeight: "600", color: theme.color.onSurface },
   fileMeta: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
   emptyTxt: { textAlign: "center", color: theme.color.muted, marginTop: 20 },
+  tagChip: { backgroundColor: theme.color.brandTertiary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
+  tagChipTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 11 },
+  tagsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 },
+  notePhoto: { width: "100%", height: 180, borderRadius: theme.radius.md, marginTop: 6 },
+  linkBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.brandTertiary, padding: 10, borderRadius: theme.radius.md, marginTop: 6 },
+  linkTxt: { color: theme.color.brandPrimary, fontWeight: "600", flex: 1 },
+  wazeInline: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandPrimary, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill, marginTop: 6, marginLeft: 30 },
+  wazeInlineTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
 });

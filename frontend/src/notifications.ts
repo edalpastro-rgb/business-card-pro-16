@@ -82,6 +82,50 @@ export async function scheduleCallbackReminder(id: string, title: string, at: Da
   if (nid) await saveIds("cb", id, [nid]);
 }
 
+// Birthday: repeats yearly. birthDate string "dd/mm/yyyy" or "dd/mm"
+export async function scheduleBirthdayReminder(contactId: string, contactName: string, birthDate: string, daysBefore: number = 1): Promise<void> {
+  await cancelBirthdayReminder(contactId);
+  if (Platform.OS === "web") return;
+  const parts = birthDate.split("/").map((x) => parseInt(x, 10));
+  if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return;
+  const day = parts[0], month = parts[1];
+  const granted = await ensureNotifPermission();
+  if (!granted) return;
+  const ids: string[] = [];
+  await configure();
+  // schedule yearly notification on the alert day (daysBefore before birthday) at 9:00
+  const alertDate = new Date();
+  alertDate.setFullYear(alertDate.getFullYear(), month - 1, day);
+  alertDate.setDate(alertDate.getDate() - Math.max(0, daysBefore));
+  try {
+    const id1 = await Notifications.scheduleNotificationAsync({
+      content: { title: `Compleanno in arrivo`, body: `${contactName} compie gli anni tra ${daysBefore} giorno/i`, sound: "default" },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.YEARLY, month: (alertDate.getMonth()), day: alertDate.getDate(), hour: 9, minute: 0 } as any,
+    });
+    ids.push(id1);
+  } catch {}
+  try {
+    const id2 = await Notifications.scheduleNotificationAsync({
+      content: { title: `Buon compleanno!`, body: `Oggi ${contactName} festeggia il compleanno`, sound: "default" },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.YEARLY, month: month - 1, day, hour: 9, minute: 0 } as any,
+    });
+    ids.push(id2);
+  } catch {}
+  if (ids.length) await storage.setItem(`notif_bday_${contactId}`, JSON.stringify(ids));
+}
+
+export async function cancelBirthdayReminder(contactId: string) {
+  const raw = (await storage.getItem<string | null>(`notif_bday_${contactId}`, null)) as string | null;
+  if (!raw) return;
+  try {
+    const ids = JSON.parse(raw) as string[];
+    for (const nid of ids) {
+      try { await Notifications.cancelScheduledNotificationAsync(nid); } catch {}
+    }
+  } catch {}
+  await storage.removeItem(`notif_bday_${contactId}`);
+}
+
 export async function cancelAppointmentReminder(id: string) {
   const ids = await loadIds("appt", id);
   await cancelReminders(ids);

@@ -1,48 +1,44 @@
-# Dal Pastro CRM — PRD
+# Dal Pastro CRM — PRD v1.3
 
-## Overview
-Mobile CRM (React Native / Expo, SDK 54) per un professionista con due ruoli distinti: Consulente Energetico + Networker. Interfaccia italiana, palette azzurro corporate, branding "Dal Pastro CRM".
+## v1.3 nuove funzioni
+### Contatto
+- Referenza: 3 opzioni distinte
+  - Conoscenza personale
+  - Referenza diretta personale
+  - Referenza da altro contatto (con picker link a contatto)
+- **Compleanno**: campo data + alert 0/1/2 giorni prima + messaggio auto custom + link allegato (yearly repeat via expo-notifications)
+- **Foto multiple**: 
+  - Foto profilo (avatar) → tap sull'avatar
+  - Foto aggiuntive → sezione "Foto contatto" con camera / galleria (salvate come note kind="photo")
+- **Import dalla rubrica del telefono** (nativo iOS/Android tramite expo-contacts)
+- Waze: pulsante sia sull'header sia nella sezione Indirizzo del cliente
 
-## Auth
-- Email/Password (JWT, 30 giorni)
-- Google OAuth (Emergent-managed session, 7 giorni)
-- Endpoint: /api/auth/register, /api/auth/login, /api/auth/google-session, /api/auth/me, /api/auth/logout, /api/auth/profile
+### Note contatto (5 tipi)
+1. Testo
+2. Vocale (registrazione audio)
+3. **Foto** (camera / galleria)
+4. **Link** (URL + titolo opzionale)
 
-## Contatti (v1.2)
-Campi: nome, cognome, telefono principale + secondario + WhatsApp, email principale + secondaria, indirizzo (via/CAP/città/provincia separati + campo legacy), data di nascita, codice fiscale, partita IVA, website, LinkedIn, Instagram, Facebook, area (energy/network), origine (personal/referral), referred_by_contact_id, note referenza/email/generali, avatar_base64, tags[], note testuali/vocali, file PDF/JPG.
+### Appuntamento
+- Tipo appuntamento multi-select: Piano Marketing / Energia / Ant / Dare seguito / Demo prodotti (+ custom da settings)
+- **Prodotti** con categorie/sotto-categorie: quando "Demo prodotti" è spuntato, appaiono Artistry / Nutrilite / Home (+ custom)
+- Durata, promemoria, ricorrenza, partecipanti, valore € (v1.2)
 
-## Appuntamenti (v1.2)
-Campi: titolo, contact_id principale, partecipanti multipli, area, start_at, duration_min, is_phone, luogo, note, reminder_minutes (0/5/15/30/60/1440), recurrence (none/weekly/monthly/yearly), value_amount, esiti area-specifici, outcome_notes, products_sold, contract_signed.
+### Calendario
+- Vista giornaliera + filtro per categorie: Tutti / Energia / Network / Compleanni
+- I compleanni compaiono automaticamente ogni anno nella data del contatto
 
-## Ritelefonate
-Come v1. Notifica locale al programmato.
+### Settings / Impostazioni
+- Nome app modificabile (backend model)
+- Titolo + colore delle 2 aree (già v1)
+- custom_appointment_types (backend, UI da esporre)
+- custom_product_categories (backend, UI da esporre)
 
-## Report giorno/settimana/mese/anno per area
-Come v1: app. fatti/totali, telefonate fatte, contratti, prodotti.
+### Bugfix v1.2 (già chiusi)
+- Chrome Translate → translate="no" + lang="it"
+- DateTime picker duplicato → sostituito con `<input type="datetime-local">` nativo web
 
-## Impostazioni
-- Avatar personale
-- Titolo + colore aree personalizzabili
-- Gestione Team (owner only): invita membri con aree specifiche
-
-## Team multi-utente
-Owner vede tutto il tenant, sub-user vede solo i propri record. Area enforcement server-side.
-
-## Notifiche locali
-expo-notifications. Personalizzabile per appuntamento (0/5/15/30/60/1440 min prima). Cancellazione automatica su done/delete/reschedule.
-
-## Sync calendario
-- Google Calendar: link URL-based (apre calendario esterno con evento precompilato)
-- Outlook: idem
-- .ics: file universale scaricabile
-- **Full-OAuth bidirezionale**: pianificato per iterazione futura (richiede credenziali Google Cloud + Microsoft Azure fornite dall'utente)
-
-## Deploy
-Guida completa in `/app/ARUBA_DEPLOY.md` — VPS Aruba Cloud PRO + Docker + Nginx + Let's Encrypt.
-
-## Bugfix v1.2
-- Chrome Translate: aggiunto `translate="no"` e `lang="it"` globali per prevenire ri-traduzione automatica dei testi italiani
-- Datetime picker web: sostituito input ISO grezzo con `<input type="datetime-local">` nativo
-- Restyling home: gradiente hero, badge circolari colorati sulle stat card, avatar utente
-- Anagrafica contatti riorganizzata in sezioni chiare (Anagrafica, Contatti, Indirizzo, Classificazione, Note)
-- Rebranding: "ProSync CRM" → "Dal Pastro CRM" ovunque
+## Stack
+- Frontend: Expo Router SDK 54, expo-notifications (yearly triggers per compleanno), expo-contacts, expo-audio, expo-image-picker (camera + galleria), expo-document-picker
+- Backend: FastAPI + Mongo + JWT + bcrypt + httpx
+- Deploy: Emergent Publish oppure Aruba Cloud (`/app/ARUBA_DEPLOY.md`)

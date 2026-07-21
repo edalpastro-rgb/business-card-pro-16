@@ -170,6 +170,9 @@ class SettingsModel(BaseModel):
     energy_color: str = "#C83232"
     network_title: str = "Networker"
     network_color: str = "#1B6CB0"
+    app_name: str = "Dal Pastro CRM"
+    custom_appointment_types: List[str] = Field(default_factory=list)
+    custom_product_categories: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 AreaLiteral = Literal["energy", "network"]
@@ -177,10 +180,13 @@ AreaLiteral = Literal["energy", "network"]
 
 class ContactNote(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    kind: Literal["text", "audio"] = "text"
+    kind: Literal["text", "audio", "photo", "link"] = "text"
     text: Optional[str] = None
     audio_base64: Optional[str] = None
     audio_mime: Optional[str] = None
+    photo_base64: Optional[str] = None
+    link_url: Optional[str] = None
+    link_title: Optional[str] = None
     duration_ms: Optional[int] = None
     created_at: datetime = Field(default_factory=utcnow)
 
@@ -208,6 +214,11 @@ class ContactIn(BaseModel):
     address_city: str = ""
     address_province: str = ""
     birth_date: Optional[str] = None
+    birthday_alert_days_before: int = 1
+    birthday_auto_send: bool = False
+    birthday_message: str = ""
+    birthday_message_photo: Optional[str] = None
+    birthday_message_link: Optional[str] = None
     fiscal_code: str = ""
     vat_number: str = ""
     website: str = ""
@@ -217,6 +228,7 @@ class ContactIn(BaseModel):
     area: AreaLiteral = "energy"
     source: Literal["personal", "referral"] = "personal"
     referred_by_contact_id: Optional[str] = None
+    referral_type: Optional[Literal["direct", "from_contact"]] = None
     referral_note: str = ""
     email_note: str = ""
     general_note: str = ""
@@ -237,6 +249,11 @@ class ContactUpdate(BaseModel):
     address_city: Optional[str] = None
     address_province: Optional[str] = None
     birth_date: Optional[str] = None
+    birthday_alert_days_before: Optional[int] = None
+    birthday_auto_send: Optional[bool] = None
+    birthday_message: Optional[str] = None
+    birthday_message_photo: Optional[str] = None
+    birthday_message_link: Optional[str] = None
     fiscal_code: Optional[str] = None
     vat_number: Optional[str] = None
     website: Optional[str] = None
@@ -246,6 +263,7 @@ class ContactUpdate(BaseModel):
     area: Optional[AreaLiteral] = None
     source: Optional[Literal["personal", "referral"]] = None
     referred_by_contact_id: Optional[str] = None
+    referral_type: Optional[Literal["direct", "from_contact"]] = None
     referral_note: Optional[str] = None
     email_note: Optional[str] = None
     general_note: Optional[str] = None
@@ -272,6 +290,8 @@ class AppointmentIn(BaseModel):
     recurrence: Literal["none", "weekly", "monthly", "yearly"] = "none"
     participant_contact_ids: List[str] = Field(default_factory=list)
     value_amount: float = 0.0
+    appointment_type_tags: List[str] = Field(default_factory=list)
+    product_categories: List[str] = Field(default_factory=list)
 
 
 class AppointmentUpdate(BaseModel):
@@ -292,6 +312,8 @@ class AppointmentUpdate(BaseModel):
     recurrence: Optional[Literal["none", "weekly", "monthly", "yearly"]] = None
     participant_contact_ids: Optional[List[str]] = None
     value_amount: Optional[float] = None
+    appointment_type_tags: Optional[List[str]] = None
+    product_categories: Optional[List[str]] = None
 
 
 class CallbackIn(BaseModel):

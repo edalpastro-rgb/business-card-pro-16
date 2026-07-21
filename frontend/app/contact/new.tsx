@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as Contacts from "expo-contacts";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { scheduleBirthdayReminder } from "@/src/notifications";
 
 type ContactLite = { contact_id: string; first_name: string; last_name: string };
 
@@ -21,12 +25,19 @@ export default function NewContactScreen() {
     address_street: "", address_zip: "", address_city: "", address_province: "",
     birth_date: "", fiscal_code: "", vat_number: "",
     website: "", linkedin: "", instagram: "", facebook: "",
+    birthday_alert_days_before: 1,
+    birthday_auto_send: false,
+    birthday_message: "",
+    birthday_message_link: "",
     area: (allowed[0] || "energy") as "energy" | "network",
     source: "personal" as "personal" | "referral",
+    referral_type: "" as "" | "direct" | "from_contact",
     referred_by_contact_id: "",
     referral_note: "", email_note: "", general_note: "",
     tags: [] as string[],
     tag_input: "",
+    photos: [] as string[],
+    avatar_base64: "",
   });
   const [busy, setBusy] = useState(false);
   const [showMore, setShowMore] = useState(false);
@@ -35,18 +46,73 @@ export default function NewContactScreen() {
     api<{ items: ContactLite[] }>("/contacts").then((r) => setContacts(r.items)).catch(() => {});
   }, []);
 
+  const importFromPhone = async () => {
+    if (Platform.OS === "web") { Alert.alert("Non disponibile", "L'importazione dalla rubrica funziona solo su cellulare (app Expo Go o build nativa)."); return; }
+    const { status } = await Contacts.requestPermissionsAsync();
+    if (status !== "granted") { Alert.alert("Permesso negato", "Serve accesso alla rubrica per importare."); return; }
+    const c = await (Contacts as any).presentContactPickerAsync?.();
+    if (!c) return;
+    setForm((f) => ({
+      ...f,
+      first_name: c.firstName || f.first_name,
+      last_name: c.lastName || f.last_name,
+      phone: c.phoneNumbers?.[0]?.number || f.phone,
+      phone_alt: c.phoneNumbers?.[1]?.number || f.phone_alt,
+      email: c.emails?.[0]?.email || f.email,
+      email_alt: c.emails?.[1]?.email || f.email_alt,
+      address_street: c.addresses?.[0]?.street || f.address_street,
+      address_city: c.addresses?.[0]?.city || f.address_city,
+      address_zip: c.addresses?.[0]?.postalCode || f.address_zip,
+      address_province: c.addresses?.[0]?.region || f.address_province,
+      birth_date: c.birthday ? `${c.birthday.day || ""}/${c.birthday.month || ""}/${c.birthday.year || ""}` : f.birth_date,
+    }));
+  };
+
+  const pickPhoto = async (fromCamera: boolean) => {
+    const perm = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (Platform.OS !== "web" && !perm.granted) return;
+    const res = fromCamera
+      ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: Platform.OS === "web" })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: Platform.OS === "web" });
+    if (res.canceled || !res.assets?.[0]) return;
+    const a = res.assets[0];
+    let b64 = a.base64;
+    if (!b64) {
+      try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); }
+      catch { return; }
+    }
+    const dataUri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
+    setForm({ ...form, photos: [...form.photos, dataUri] });
+  };
+
+  const removePhoto = (idx: number) => {
+    setForm({ ...form, photos: form.photos.filter((_, i) => i !== idx) });
+  };
+
   const submit = async () => {
     if (!form.first_name.trim()) return;
     setBusy(true);
     try {
-      const { tag_input, ...payload } = form;
+      const { tag_input, photos, ...payload } = form;
       const body: any = { ...payload };
-      // build compound address for backward-compat
       body.address = [form.address_street, form.address_city, form.address_province, form.address_zip]
         .filter(Boolean).join(", ");
       if (!body.referred_by_contact_id) delete body.referred_by_contact_id;
+      if (!body.referral_type) delete body.referral_type;
       if (!body.birth_date) delete body.birth_date;
       const c = await api<{ contact_id: string }>("/contacts", { method: "POST", body });
+      // attach photos as notes with kind="photo"
+      for (const p of photos) {
+        try { await api(`/contacts/${c.contact_id}/notes`, { method: "POST", body: { kind: "photo", photo_base64: p } }); } catch {}
+      }
+      // schedule birthday reminder if birth_date present
+      if (form.birth_date && form.birth_date.length >= 5) {
+        try {
+          await scheduleBirthdayReminder(c.contact_id, `${form.first_name} ${form.last_name}`.trim(), form.birth_date, form.birthday_alert_days_before);
+        } catch {}
+      }
       router.replace(`/contact/${c.contact_id}`);
     } finally { setBusy(false); }
   };
@@ -72,12 +138,46 @@ export default function NewContactScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
+          <Pressable testID="import-phone-btn" onPress={importFromPhone} style={styles.importBtn}>
+            <Ionicons name="download-outline" size={18} color={theme.color.brandPrimary} />
+            <Text style={styles.importBtnTxt}>Importa dalla rubrica telefono</Text>
+          </Pressable>
+
           <Section title="Anagrafica">
             <Row>
               <Field flex={1} label="Nome *" testID="c-first-name" value={form.first_name} onChangeText={(t: string) => setForm({ ...form, first_name: t })} />
               <Field flex={1} label="Cognome" testID="c-last-name" value={form.last_name} onChangeText={(t: string) => setForm({ ...form, last_name: t })} />
             </Row>
             <Field label="Data di nascita (gg/mm/aaaa)" testID="c-birth-date" value={form.birth_date} onChangeText={(t: string) => setForm({ ...form, birth_date: t })} placeholder="01/01/1980" />
+
+            {form.birth_date.length >= 5 && (
+              <>
+                <Text style={styles.lbl}>Avviso compleanno</Text>
+                <View style={styles.pillsRow}>
+                  {[
+                    { d: 0, label: "Solo il giorno" },
+                    { d: 1, label: "1 giorno prima" },
+                    { d: 2, label: "2 giorni prima" },
+                  ].map((o) => (
+                    <Pressable key={o.d} testID={`c-bday-alert-${o.d}`} onPress={() => setForm({ ...form, birthday_alert_days_before: o.d })} style={[styles.pill, form.birthday_alert_days_before === o.d && styles.pillActive]}>
+                      <Text style={[styles.pillTxt, form.birthday_alert_days_before === o.d && styles.pillTxtActive]}>{o.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.rowBetween}>
+                  <Text style={styles.switchLbl}>Invia automaticamente messaggio</Text>
+                  <Pressable testID="c-bday-auto" onPress={() => setForm({ ...form, birthday_auto_send: !form.birthday_auto_send })}>
+                    <Ionicons name={form.birthday_auto_send ? "toggle" : "toggle-outline"} size={38} color={form.birthday_auto_send ? theme.color.success : theme.color.muted} />
+                  </Pressable>
+                </View>
+                {form.birthday_auto_send && (
+                  <Field label="Messaggio compleanno custom" testID="c-bday-msg" value={form.birthday_message} onChangeText={(t: string) => setForm({ ...form, birthday_message: t })} placeholder="Buon compleanno! Ti auguro..." multiline />
+                )}
+                {form.birthday_auto_send && (
+                  <Field label="Link da allegare (opzionale)" testID="c-bday-link" value={form.birthday_message_link} onChangeText={(t: string) => setForm({ ...form, birthday_message_link: t })} placeholder="https://..." autoCapitalize="none" />
+                )}
+              </>
+            )}
             <Row>
               <Field flex={1} label="Codice Fiscale" testID="c-fiscal-code" value={form.fiscal_code} onChangeText={(t: string) => setForm({ ...form, fiscal_code: t.toUpperCase() })} />
               <Field flex={1} label="Partita IVA" testID="c-vat" value={form.vat_number} onChangeText={(t: string) => setForm({ ...form, vat_number: t })} />
@@ -115,26 +215,34 @@ export default function NewContactScreen() {
 
             <Text style={styles.lbl}>Origine</Text>
             <View style={styles.pillsRow}>
-              {(["personal", "referral"] as const).map((a) => (
-                <Pressable key={a} testID={`c-source-${a}`} onPress={() => setForm({ ...form, source: a })} style={[styles.pill, form.source === a && styles.pillActive]}>
-                  <Text style={[styles.pillTxt, form.source === a && styles.pillTxtActive]}>{a === "personal" ? "Conoscenza personale" : "Referenza"}</Text>
-                </Pressable>
-              ))}
+              <Pressable testID="c-source-personal" onPress={() => setForm({ ...form, source: "personal", referral_type: "", referred_by_contact_id: "" })} style={[styles.pill, form.source === "personal" && styles.pillActive]}>
+                <Text style={[styles.pillTxt, form.source === "personal" && styles.pillTxtActive]}>Conoscenza personale</Text>
+              </Pressable>
+              <Pressable testID="c-source-ref-direct" onPress={() => setForm({ ...form, source: "referral", referral_type: "direct", referred_by_contact_id: "" })} style={[styles.pill, form.source === "referral" && form.referral_type === "direct" && styles.pillActive]}>
+                <Text style={[styles.pillTxt, form.source === "referral" && form.referral_type === "direct" && styles.pillTxtActive]}>Referenza diretta personale</Text>
+              </Pressable>
+              <Pressable testID="c-source-ref-contact" onPress={() => setForm({ ...form, source: "referral", referral_type: "from_contact" })} style={[styles.pill, form.source === "referral" && form.referral_type === "from_contact" && styles.pillActive]}>
+                <Text style={[styles.pillTxt, form.source === "referral" && form.referral_type === "from_contact" && styles.pillTxtActive]}>Referenza da altro contatto</Text>
+              </Pressable>
             </View>
 
-            {form.source === "referral" && (
+            {form.source === "referral" && form.referral_type === "from_contact" && (
               <>
                 <Text style={styles.lbl}>Chi lo ha segnalato</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                  <Pressable testID="c-ref-none" onPress={() => setForm({ ...form, referred_by_contact_id: "" })} style={[styles.pill, !form.referred_by_contact_id && styles.pillActive]}>
-                    <Text style={[styles.pillTxt, !form.referred_by_contact_id && styles.pillTxtActive]}>Non specificato</Text>
-                  </Pressable>
-                  {contacts.map((c) => (
+                  {contacts.length === 0 ? (
+                    <Text style={{ color: theme.color.muted, fontSize: 12, paddingVertical: 8 }}>Ancora nessun contatto in rubrica</Text>
+                  ) : contacts.map((c) => (
                     <Pressable key={c.contact_id} onPress={() => setForm({ ...form, referred_by_contact_id: c.contact_id })} style={[styles.pill, form.referred_by_contact_id === c.contact_id && styles.pillActive]}>
                       <Text style={[styles.pillTxt, form.referred_by_contact_id === c.contact_id && styles.pillTxtActive]}>{c.first_name} {c.last_name}</Text>
                     </Pressable>
                   ))}
                 </ScrollView>
+              </>
+            )}
+
+            {form.source === "referral" && (
+              <>
                 <View style={{ height: 8 }} />
                 <Field label="Nota alla referenza" testID="c-referral-note" value={form.referral_note} onChangeText={(t: string) => setForm({ ...form, referral_note: t })} multiline />
               </>
@@ -165,6 +273,31 @@ export default function NewContactScreen() {
                   </Pressable>
                 ))}
               </View>
+            )}
+          </Section>
+
+          <Section title="Foto contatto">
+            <View style={styles.photoRow}>
+              <Pressable testID="photo-camera" onPress={() => pickPhoto(true)} style={styles.photoAddBtn}>
+                <Ionicons name="camera" size={22} color={theme.color.brandPrimary} />
+                <Text style={styles.photoAddTxt}>Foto camera</Text>
+              </Pressable>
+              <Pressable testID="photo-gallery" onPress={() => pickPhoto(false)} style={styles.photoAddBtn}>
+                <Ionicons name="image" size={22} color={theme.color.brandPrimary} />
+                <Text style={styles.photoAddTxt}>Da galleria</Text>
+              </Pressable>
+            </View>
+            {form.photos.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginTop: 10 }}>
+                {form.photos.map((p, i) => (
+                  <Pressable key={i} onPress={() => removePhoto(i)}>
+                    <View style={styles.photoThumb}>
+                      <Image source={{ uri: p }} style={styles.photoThumbImg} />
+                      <View style={styles.photoThumbRemove}><Ionicons name="close" size={14} color="#FFF" /></View>
+                    </View>
+                  </Pressable>
+                ))}
+              </ScrollView>
             )}
           </Section>
 
@@ -245,8 +378,18 @@ const styles = StyleSheet.create({
   tagsWrap: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 8 },
   tagChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.color.brandTertiary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
   tagChipTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
+  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
+  switchLbl: { fontSize: 13, color: theme.color.onSurface, fontWeight: "600" },
   toggleMore: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 14, paddingVertical: 10 },
   toggleMoreTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
+  importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FFF", padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.brandPrimary, borderStyle: "dashed" },
+  importBtnTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
+  photoRow: { flexDirection: "row", gap: 10 },
+  photoAddBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.surface, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
+  photoAddTxt: { color: theme.color.brandPrimary, fontWeight: "600", fontSize: 13 },
+  photoThumb: { position: "relative", width: 80, height: 80 },
+  photoThumbImg: { width: 80, height: 80, borderRadius: theme.radius.md },
+  photoThumbRemove: { position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: theme.color.error, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#FFF" },
   saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 20 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
 });

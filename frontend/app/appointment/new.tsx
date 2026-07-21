@@ -10,6 +10,16 @@ import { theme } from "@/src/theme";
 import { scheduleAppointmentReminder } from "@/src/notifications";
 
 type Contact = { contact_id: string; first_name: string; last_name: string; area: string; address: string };
+type Settings = {
+  energy_title: string; network_title: string;
+  custom_appointment_types?: string[];
+  custom_product_categories?: { name: string; subs?: string[] }[];
+};
+
+const DEFAULT_APPT_TYPES = ["Piano Marketing", "Energia", "Ant", "Dare seguito", "Demo prodotti"];
+const DEFAULT_PRODUCT_CATS = [
+  { name: "Demo prodotti", subs: ["Artistry", "Nutrilite", "Home"] },
+];
 
 const DURATIONS = [
   { m: 15, label: "15m" }, { m: 30, label: "30m" }, { m: 60, label: "1h" },
@@ -31,6 +41,7 @@ export default function NewAppointmentScreen() {
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
   const { contactId } = useLocalSearchParams<{ contactId?: string }>();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [form, setForm] = useState({
     title: "",
     contact_id: contactId || "",
@@ -44,12 +55,15 @@ export default function NewAppointmentScreen() {
     location: "",
     notes: "",
     value_amount: "",
+    appointment_type_tags: [] as string[],
+    product_categories: [] as string[],
   });
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api<{ items: Contact[] }>("/contacts").then((r) => setContacts(r.items));
+    api<Settings>("/settings").then(setSettings).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -92,6 +106,26 @@ export default function NewAppointmentScreen() {
     setForm({ ...form, participant_contact_ids: next });
   };
 
+  const toggleType = (t: string) => {
+    const has = form.appointment_type_tags.includes(t);
+    setForm({
+      ...form,
+      appointment_type_tags: has ? form.appointment_type_tags.filter((x) => x !== t) : [...form.appointment_type_tags, t],
+    });
+  };
+
+  const toggleProduct = (t: string) => {
+    const has = form.product_categories.includes(t);
+    setForm({
+      ...form,
+      product_categories: has ? form.product_categories.filter((x) => x !== t) : [...form.product_categories, t],
+    });
+  };
+
+  const allApptTypes = [...DEFAULT_APPT_TYPES, ...(settings?.custom_appointment_types || [])];
+  const showDemo = form.appointment_type_tags.includes("Demo prodotti");
+  const productCats = [...DEFAULT_PRODUCT_CATS, ...(settings?.custom_product_categories || [])];
+
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
@@ -113,6 +147,44 @@ export default function NewAppointmentScreen() {
               </Pressable>
             ))}
           </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Tipo appuntamento (spuntabili più di uno)</Text>
+          <View style={styles.pillsRow}>
+            {allApptTypes.map((t) => {
+              const active = form.appointment_type_tags.includes(t);
+              return (
+                <Pressable key={t} testID={`ap-type-${t}`} onPress={() => toggleType(t)} style={[styles.pill, active && styles.pillActive]}>
+                  <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={14} color={active ? "#FFF" : theme.color.muted} />
+                  <Text style={[styles.pillTxt, active && styles.pillTxtActive, { marginLeft: 4 }]}>{t}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {showDemo && (
+            <>
+              <Text style={styles.lbl}>Categorie prodotti</Text>
+              {productCats.map((cat) => (
+                <View key={cat.name} style={{ marginBottom: 8 }}>
+                  <Text style={styles.subCat}>{cat.name}</Text>
+                  <View style={styles.pillsRow}>
+                    {(cat.subs || []).map((s) => {
+                      const key = `${cat.name}:${s}`;
+                      const active = form.product_categories.includes(key);
+                      return (
+                        <Pressable key={key} testID={`ap-prod-${s}`} onPress={() => toggleProduct(key)} style={[styles.pill, active && styles.pillActive]}>
+                          <Text style={[styles.pillTxt, active && styles.pillTxtActive]}>{s}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+              <Text style={styles.hint}>Aggiungi altre categorie da &quot;Profilo → Personalizzazioni&quot;</Text>
+            </>
+          )}
         </View>
 
         <View style={styles.card}>
@@ -256,6 +328,8 @@ const styles = StyleSheet.create({
   switchLbl: { fontSize: 14, color: theme.color.onSurface, fontWeight: "600" },
   saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 20 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
+  subCat: { fontSize: 12, fontWeight: "700", color: theme.color.onSurfaceTertiary, marginBottom: 6 },
+  hint: { fontSize: 11, color: theme.color.muted, marginTop: 8, fontStyle: "italic" },
 });
 
 const webInputStyle: any = {
