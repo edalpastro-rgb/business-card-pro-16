@@ -9,6 +9,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
+import { shareText, shareDataUri } from "@/src/share";
 import * as ImagePicker from "expo-image-picker";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "link"; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
@@ -154,11 +155,43 @@ export default function ContactDetail() {
     load();
   };
 
+  const shareContact = async () => {
+    if (!c) return;
+    const lines = [
+      `${c.first_name} ${c.last_name}`.trim(),
+      c.phone ? `📞 ${c.phone}` : "",
+      c.phone_alt ? `📞 ${c.phone_alt}` : "",
+      c.whatsapp ? `💬 WhatsApp: ${c.whatsapp}` : "",
+      c.email ? `✉️ ${c.email}` : "",
+      c.email_alt ? `✉️ ${c.email_alt}` : "",
+      c.telegram ? `Telegram: ${c.telegram}` : "",
+      c.address ? `📍 ${c.address}` : "",
+      c.website ? `🌐 ${c.website}` : "",
+      c.general_note ? `\n${c.general_note}` : "",
+    ].filter(Boolean).join("\n");
+    await shareText(lines, `Scheda ${c.first_name} ${c.last_name}`);
+  };
+
+  const shareFile = async (f: CFile) => {
+    if (!f.data_base64) return;
+    await shareDataUri(`data:${f.mime};base64,${f.data_base64}`, f.name, f.mime);
+  };
+
+  const shareNote = async (n: Note) => {
+    try {
+      if (n.kind === "text") await shareText(n.text || "");
+      else if (n.kind === "link") await shareText(`${n.link_title || ""}\n${n.link_url || ""}`.trim());
+      else if (n.kind === "audio" && n.audio_base64) await shareDataUri(`data:${n.audio_mime || "audio/m4a"};base64,${n.audio_base64}`, `vocale-${n.id}.m4a`, n.audio_mime || "audio/m4a");
+      else if (n.kind === "photo" && n.photo_base64) await shareDataUri(n.photo_base64, `foto-${n.id}.jpg`, "image/jpeg");
+    } catch (e) { console.warn(e); }
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={[styles.header, { backgroundColor: color }]}>
         <Pressable testID="back-btn" onPress={() => router.back()}><Ionicons name="chevron-back" size={26} color="#FFF" /></Pressable>
         <View style={{ flex: 1 }} />
+        <Pressable testID="share-contact" onPress={shareContact} style={{ marginRight: 12 }}><Ionicons name="share-social-outline" size={22} color="#FFF" /></Pressable>
         <Pressable testID="edit-contact" onPress={() => router.push(`/contact/edit/${id}`)}><Ionicons name="create-outline" size={22} color="#FFF" /></Pressable>
       </View>
       <View style={[styles.hero, { backgroundColor: color }]}>
@@ -380,6 +413,7 @@ export default function ContactDetail() {
                     </Pressable>
                   )}
                 </View>
+                <Pressable testID={`share-note-${n.id}`} onPress={() => shareNote(n)} style={{ marginRight: 6 }}><Ionicons name="share-social-outline" size={18} color={theme.color.brandPrimary} /></Pressable>
                 <Pressable testID={`del-note-${n.id}`} onPress={() => deleteNote(n.id)}><Ionicons name="trash-outline" size={18} color={theme.color.error} /></Pressable>
               </View>
             )) : <Text style={styles.emptyTxt}>Nessuna nota</Text>}
@@ -399,6 +433,7 @@ export default function ContactDetail() {
                   <Text style={styles.fileName} numberOfLines={1}>{f.name}</Text>
                   <Text style={styles.fileMeta}>{Math.round((f.size || 0) / 1024)} KB · {new Date(f.created_at).toLocaleDateString("it-IT")}</Text>
                 </View>
+                <Pressable testID={`share-file-${f.id}`} onPress={() => shareFile(f)} style={{ marginRight: 6 }}><Ionicons name="share-social-outline" size={18} color={theme.color.brandPrimary} /></Pressable>
                 <Pressable testID={`del-file-${f.id}`} onPress={() => deleteFile(f.id)}><Ionicons name="trash-outline" size={18} color={theme.color.error} /></Pressable>
               </View>
             )) : <Text style={styles.emptyTxt}>Nessun file</Text>}

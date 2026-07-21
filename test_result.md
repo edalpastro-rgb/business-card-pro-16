@@ -101,3 +101,167 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: >
+  App CRM per Consulente Energetico e Networker (multi-utente, multi-tenant, italiano).
+  Iterazione corrente (July 2026): aggiungere Gruppi contatti personalizzabili,
+  messaggistica bulk WhatsApp/Telegram/SMS (deep-link sequenziale) + Email (SMTP Aruba),
+  chat interna tra utenti del team con condivisione testo/audio/foto/file/link,
+  pulsante Condividi (share nativo) su contatti/note/file.
+
+backend:
+  - task: "Groups CRUD (custom, per-tenant) + contact.group_ids filter"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added GroupIn/GroupUpdate models, endpoints GET/POST/PUT/DELETE /api/groups + GET /api/groups/{id}/contacts. Contact schema now has group_ids: List[str]. /api/contacts accepts ?group_id= filter. On group delete, references are pulled from contacts."
+
+  - task: "SMTP config per-tenant + real bulk email"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Endpoints GET/PUT /api/smtp/config (password stripped from response), POST /api/smtp/test, POST /api/bulk/email (uses smtplib in threadpool, supports {nome}/{cognome} placeholders, group_id or contact_ids)."
+
+  - task: "Bulk preview (WhatsApp/Telegram/SMS deep-link sequential)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "POST /api/bulk/preview returns ordered list of {contact_id, name, target, skip} for a given channel + group_id/contact_ids. Client uses this to open Linking.openURL sequentially."
+
+  - task: "Team chat channels + messages (text/audio/photo/file/link)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Collections chat_channels + chat_messages. Endpoints for CRUD channels, list/send/delete messages. Direct 1-1 channels are deduped. Read tracking via read_map -> unread_count. Members validated against same tenant."
+
+  - task: "Team roster endpoint for sub-users (/api/team/members)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "New endpoint returns all tenant users minus caller; both owner and sub-user can call it. Enables chat with owner from sub-user account."
+
+  - task: "Contact vCard export"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "GET /api/contacts/{id}/vcard returns text/plain vCard 3.0. Used by frontend Share button."
+
+frontend:
+  - task: "Groups screens (list, create/edit modal, detail with bulk actions)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/groups/index.tsx + [id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Groups list with color swatches. Group detail shows members + bulk buttons (WhatsApp, Telegram, SMS deep-link sequential + Email SMTP)."
+
+  - task: "Contact form group multi-select + contacts list group filter"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/contact/new.tsx + (tabs)/contatti.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Contact new/edit form has a Gruppi pill multi-select (fetched from /api/groups). Contacts list has a horizontal group filter chips row that filters via ?group_id=. Long-press a group chip navigates to group detail."
+
+  - task: "Team chat tab + create channel + chat detail with all media"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/chat.tsx + chat/new.tsx + chat/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Chat tab lists channels with last message + unread badge. New chat allows multi-select from /api/team/members. Chat detail supports text, audio (expo-audio recording), photo (camera/library), file (DocumentPicker), link. Polling 5s for new messages. Long-press bubble triggers native Share."
+
+  - task: "SMTP config screen"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/smtp.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Form with presets (Aruba, Gmail, Outlook, Custom), save + optional test-send. Only owner can access. Empty password on GET preserves stored one on PUT."
+
+  - task: "Native share buttons on contact/notes/files"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/share.ts + app/contact/[id].tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "shareText + shareDataUri helpers using expo-sharing (native) with web fallback. Share buttons: contact detail header (vCard text), each note item, each file item."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Groups CRUD (custom, per-tenant) + contact.group_ids filter"
+    - "SMTP config per-tenant + real bulk email"
+    - "Bulk preview (WhatsApp/Telegram/SMS deep-link sequential)"
+    - "Team chat channels + messages (text/audio/photo/file/link)"
+    - "Groups screens (list, create/edit modal, detail with bulk actions)"
+    - "Contact form group multi-select + contacts list group filter"
+    - "Team chat tab + create channel + chat detail with all media"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Implementata iterazione feature: Gruppi personalizzabili, bulk email via SMTP Aruba/Gmail configurato per tenant, bulk WhatsApp/Telegram/SMS via deep-link sequenziale, chat interna team con testo/audio/foto/file/link, pulsanti Condividi nativi. Backend include CRUD gruppi, endpoint /api/bulk/email, /api/bulk/preview, /api/chat/channels + /api/chat/channels/{id}/messages, /api/team/members, /api/smtp/config + /api/smtp/test, /api/contacts/{id}/vcard. Credenziali test in /app/memory/test_credentials.md (owner + sub-user). Test SMTP funzionerà solo se le credenziali reali vengono inserite (verificare solo la validazione degli errori: '400 Configurazione SMTP mancante')."

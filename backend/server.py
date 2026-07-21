@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Header, status
+from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -8,6 +9,12 @@ import uuid
 import bcrypt
 import jwt
 import httpx
+import smtplib
+import ssl
+import asyncio
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any, Literal
@@ -235,6 +242,7 @@ class ContactIn(BaseModel):
     email_note: str = ""
     general_note: str = ""
     tags: List[str] = Field(default_factory=list)
+    group_ids: List[str] = Field(default_factory=list)
 
 
 class ContactUpdate(BaseModel):
@@ -272,6 +280,7 @@ class ContactUpdate(BaseModel):
     email_note: Optional[str] = None
     general_note: Optional[str] = None
     tags: Optional[List[str]] = None
+    group_ids: Optional[List[str]] = None
     avatar_base64: Optional[str] = None
 
 
@@ -491,6 +500,20 @@ async def list_team(user=Depends(get_current_user)):
     return {"items": members}
 
 
+@api_router.get("/team/members")
+async def list_team_members(user=Depends(get_current_user)):
+    """Return all users in the current tenant (owner + all sub-users) — usable by owner and sub-users.
+    Excludes the current caller.
+    """
+    tid = tenant_id(user)
+    members = await db.users.find(
+        {"$or": [{"user_id": tid}, {"parent_user_id": tid}]},
+        {"_id": 0, "password_hash": 0},
+    ).to_list(1000)
+    members = [m for m in members if m.get("user_id") != user["user_id"]]
+    return {"items": members}
+
+
 @api_router.post("/team")
 async def invite_member(body: TeamInviteInput, user=Depends(get_current_user)):
     if not is_owner(user):
@@ -550,10 +573,12 @@ async def delete_member(member_id: str, user=Depends(get_current_user)):
 # Contacts
 # =========================
 @api_router.get("/contacts")
-async def list_contacts(area: Optional[str] = None, q: Optional[str] = None, user=Depends(get_current_user)):
+async def list_contacts(area: Optional[str] = None, q: Optional[str] = None, group_id: Optional[str] = None, user=Depends(get_current_user)):
     query: Dict[str, Any] = scope_query(user)
     if area in ("energy", "network"):
         query["area"] = area
+    if group_id:
+        query["group_ids"] = group_id
     if q:
         query["$or"] = [
             {"first_name": {"$regex": q, "$options": "i"}},
@@ -852,6 +877,529 @@ async def reports(period: str = "day", user=Depends(get_current_user)):
 
 
 # =========================
+# Groups (custom, per-tenant)
+# =========================
+class GroupIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    color: str = "#1B6CB0"
+    description: str = ""
+
+
+class GroupUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    description: Optional[str] = None
+
+
+@api_router.get("/groups")
+async def list_groups(user=Depends(get_current_user)):
+    q = {"user_id": tenant_id(user)}
+    items = await db.groups.find(q, {"_id": 0}).sort("name", 1).to_list(1000)
+    # Attach member_count
+    for g in items:
+        g["member_count"] = await db.contacts.count_documents({
+            "user_id": tenant_id(user),
+            "group_ids": g["group_id"],
+        })
+    return {"items": items}
+
+
+@api_router.post("/groups")
+async def create_group(body: GroupIn, user=Depends(get_current_user)):
+    gid = f"g_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "group_id": gid,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        **body.model_dump(),
+        "created_at": utcnow(),
+    }
+    await db.groups.insert_one(doc)
+    strip_id(doc)
+    doc["member_count"] = 0
+    return doc
+
+
+@api_router.put("/groups/{group_id}")
+async def update_group(group_id: str, body: GroupUpdate, user=Depends(get_current_user)):
+    upd = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not upd:
+        raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
+    r = await db.groups.update_one(
+        {"user_id": tenant_id(user), "group_id": group_id},
+        {"$set": upd},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Gruppo non trovato")
+    g = await db.groups.find_one({"group_id": group_id}, {"_id": 0})
+    return g
+
+
+@api_router.delete("/groups/{group_id}")
+async def delete_group(group_id: str, user=Depends(get_current_user)):
+    await db.groups.delete_one({"user_id": tenant_id(user), "group_id": group_id})
+    # Remove reference from all contacts
+    await db.contacts.update_many(
+        {"user_id": tenant_id(user), "group_ids": group_id},
+        {"$pull": {"group_ids": group_id}},
+    )
+    return {"ok": True}
+
+
+@api_router.get("/groups/{group_id}/contacts")
+async def group_contacts(group_id: str, user=Depends(get_current_user)):
+    q = scope_query(user, {"group_ids": group_id})
+    items = await db.contacts.find(
+        q,
+        {"_id": 0, "notes": 0, "files": 0},
+    ).sort("last_name", 1).to_list(2000)
+    return {"items": items}
+
+
+# =========================
+# SMTP config (per-tenant)
+# =========================
+class SmtpConfig(BaseModel):
+    host: str = ""
+    port: int = 465
+    username: str = ""
+    password: str = ""
+    sender_name: str = ""
+    sender_email: str = ""
+    use_ssl: bool = True
+
+
+class SmtpConfigOut(BaseModel):
+    host: str = ""
+    port: int = 465
+    username: str = ""
+    sender_name: str = ""
+    sender_email: str = ""
+    use_ssl: bool = True
+    configured: bool = False
+
+
+@api_router.get("/smtp/config", response_model=SmtpConfigOut)
+async def get_smtp_config(user=Depends(get_current_user)):
+    doc = await db.smtp_configs.find_one({"user_id": tenant_id(user)}, {"_id": 0})
+    if not doc:
+        return SmtpConfigOut()
+    return SmtpConfigOut(
+        host=doc.get("host", ""),
+        port=doc.get("port", 465),
+        username=doc.get("username", ""),
+        sender_name=doc.get("sender_name", ""),
+        sender_email=doc.get("sender_email", ""),
+        use_ssl=doc.get("use_ssl", True),
+        configured=bool(doc.get("password")),
+    )
+
+
+@api_router.put("/smtp/config", response_model=SmtpConfigOut)
+async def put_smtp_config(body: SmtpConfig, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo l'owner può modificare le impostazioni email")
+    tid = tenant_id(user)
+    existing = await db.smtp_configs.find_one({"user_id": tid}, {"_id": 0}) or {}
+    upd = body.model_dump()
+    # If password is empty, keep existing
+    if not upd.get("password"):
+        upd["password"] = existing.get("password", "")
+    upd["user_id"] = tid
+    upd["updated_at"] = utcnow()
+    await db.smtp_configs.update_one({"user_id": tid}, {"$set": upd}, upsert=True)
+    return SmtpConfigOut(
+        host=upd.get("host", ""),
+        port=upd.get("port", 465),
+        username=upd.get("username", ""),
+        sender_name=upd.get("sender_name", ""),
+        sender_email=upd.get("sender_email", ""),
+        use_ssl=upd.get("use_ssl", True),
+        configured=bool(upd.get("password")),
+    )
+
+
+def _send_smtp_email(cfg: dict, to_email: str, subject: str, body_text: str, body_html: Optional[str] = None):
+    """Blocking send via SMTP. To be run in a threadpool."""
+    sender_email = cfg.get("sender_email") or cfg.get("username")
+    sender_name = cfg.get("sender_name") or sender_email
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = formataddr((sender_name, sender_email))
+    msg["To"] = to_email
+    msg.attach(MIMEText(body_text or "", "plain", "utf-8"))
+    if body_html:
+        msg.attach(MIMEText(body_html, "html", "utf-8"))
+    host = cfg["host"]
+    port = int(cfg.get("port") or 465)
+    use_ssl = bool(cfg.get("use_ssl", True))
+    if use_ssl:
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(host, port, context=context, timeout=30) as server:
+            server.login(cfg["username"], cfg["password"])
+            server.sendmail(sender_email, [to_email], msg.as_string())
+    else:
+        with smtplib.SMTP(host, port, timeout=30) as server:
+            server.ehlo()
+            try:
+                server.starttls(context=ssl.create_default_context())
+                server.ehlo()
+            except Exception:
+                pass
+            server.login(cfg["username"], cfg["password"])
+            server.sendmail(sender_email, [to_email], msg.as_string())
+
+
+class SmtpTestInput(BaseModel):
+    to_email: EmailStr
+
+
+@api_router.post("/smtp/test")
+async def smtp_test(body: SmtpTestInput, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    cfg = await db.smtp_configs.find_one({"user_id": tenant_id(user)}, {"_id": 0})
+    if not cfg or not cfg.get("password") or not cfg.get("host"):
+        raise HTTPException(status_code=400, detail="Configurazione SMTP mancante")
+    try:
+        await asyncio.get_event_loop().run_in_executor(
+            None,
+            _send_smtp_email,
+            cfg,
+            body.to_email,
+            "Test invio Dal Pastro CRM",
+            "Questa è una email di prova. Se la ricevi, la configurazione SMTP funziona correttamente.",
+            None,
+        )
+    except Exception as e:
+        logger.exception("SMTP test failed")
+        raise HTTPException(status_code=400, detail=f"Errore invio: {e}")
+    return {"ok": True}
+
+
+# =========================
+# Bulk messaging
+# =========================
+class BulkEmailInput(BaseModel):
+    contact_ids: List[str] = Field(default_factory=list)
+    group_id: Optional[str] = None
+    subject: str
+    body_text: str
+    body_html: Optional[str] = None
+
+
+@api_router.post("/bulk/email")
+async def bulk_email(body: BulkEmailInput, user=Depends(get_current_user)):
+    cfg = await db.smtp_configs.find_one({"user_id": tenant_id(user)}, {"_id": 0})
+    if not cfg or not cfg.get("password") or not cfg.get("host"):
+        raise HTTPException(status_code=400, detail="Configurazione SMTP non presente. Configura le credenziali email dalle Impostazioni.")
+    q: Dict[str, Any] = scope_query(user)
+    if body.group_id:
+        q["group_ids"] = body.group_id
+    elif body.contact_ids:
+        q["contact_id"] = {"$in": body.contact_ids}
+    else:
+        raise HTTPException(status_code=400, detail="Nessun destinatario specificato")
+    contacts = await db.contacts.find(q, {"_id": 0, "email": 1, "email_alt": 1, "first_name": 1, "last_name": 1, "contact_id": 1}).to_list(2000)
+    sent, failed = [], []
+    for c in contacts:
+        to = (c.get("email") or c.get("email_alt") or "").strip()
+        if not to:
+            failed.append({"contact_id": c["contact_id"], "reason": "Email mancante"})
+            continue
+        try:
+            personalized = body.body_text.replace("{nome}", c.get("first_name", "")).replace("{cognome}", c.get("last_name", ""))
+            html = body.body_html.replace("{nome}", c.get("first_name", "")).replace("{cognome}", c.get("last_name", "")) if body.body_html else None
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                _send_smtp_email,
+                cfg,
+                to,
+                body.subject,
+                personalized,
+                html,
+            )
+            sent.append({"contact_id": c["contact_id"], "email": to})
+        except Exception as e:
+            logger.exception(f"SMTP send failed for {to}")
+            failed.append({"contact_id": c["contact_id"], "email": to, "reason": str(e)[:200]})
+    return {"sent_count": len(sent), "failed_count": len(failed), "sent": sent, "failed": failed}
+
+
+class BulkPreviewInput(BaseModel):
+    contact_ids: List[str] = Field(default_factory=list)
+    group_id: Optional[str] = None
+    channel: Literal["whatsapp", "telegram", "sms"]
+
+
+@api_router.post("/bulk/preview")
+async def bulk_preview(body: BulkPreviewInput, user=Depends(get_current_user)):
+    """Return ordered list of recipients with deep-link phone/telegram to open sequentially from the client."""
+    q: Dict[str, Any] = scope_query(user)
+    if body.group_id:
+        q["group_ids"] = body.group_id
+    elif body.contact_ids:
+        q["contact_id"] = {"$in": body.contact_ids}
+    else:
+        raise HTTPException(status_code=400, detail="Nessun destinatario")
+    contacts = await db.contacts.find(
+        q,
+        {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "phone": 1, "whatsapp": 1, "telegram": 1},
+    ).sort("last_name", 1).to_list(2000)
+    out = []
+    for c in contacts:
+        entry = {
+            "contact_id": c["contact_id"],
+            "name": f"{c.get('first_name', '')} {c.get('last_name', '')}".strip(),
+        }
+        if body.channel == "whatsapp":
+            phone = (c.get("whatsapp") or c.get("phone") or "").strip()
+            entry["target"] = phone
+            entry["skip"] = not phone
+        elif body.channel == "sms":
+            phone = (c.get("phone") or "").strip()
+            entry["target"] = phone
+            entry["skip"] = not phone
+        else:  # telegram
+            t = (c.get("telegram") or "").strip()
+            entry["target"] = t
+            entry["skip"] = not t
+        out.append(entry)
+    return {"items": out}
+
+
+# =========================
+# Internal team chat
+# =========================
+class ChannelIn(BaseModel):
+    name: str = ""
+    member_user_ids: List[str] = Field(default_factory=list)
+    is_direct: bool = False
+
+
+class ChannelUpdate(BaseModel):
+    name: Optional[str] = None
+    member_user_ids: Optional[List[str]] = None
+
+
+class ChatMessageIn(BaseModel):
+    kind: Literal["text", "audio", "photo", "file", "link"] = "text"
+    text: Optional[str] = None
+    audio_base64: Optional[str] = None
+    audio_mime: Optional[str] = None
+    photo_base64: Optional[str] = None
+    file_base64: Optional[str] = None
+    file_name: Optional[str] = None
+    file_mime: Optional[str] = None
+    file_size: Optional[int] = None
+    link_url: Optional[str] = None
+    link_title: Optional[str] = None
+    duration_ms: Optional[int] = None
+    reply_to: Optional[str] = None
+
+
+async def _validate_channel_members(tid: str, member_ids: List[str]) -> List[str]:
+    """Ensure all provided user_ids belong to same tenant."""
+    if not member_ids:
+        return []
+    users = await db.users.find({
+        "user_id": {"$in": member_ids},
+        "$or": [{"user_id": tid}, {"parent_user_id": tid}],
+    }, {"_id": 0, "user_id": 1}).to_list(1000)
+    return [u["user_id"] for u in users]
+
+
+@api_router.get("/chat/channels")
+async def list_channels(user=Depends(get_current_user)):
+    uid = user["user_id"]
+    tid = tenant_id(user)
+    items = await db.chat_channels.find(
+        {"user_id": tid, "member_user_ids": uid},
+        {"_id": 0},
+    ).sort("last_message_at", -1).to_list(200)
+    # Attach last message + unread count + display info
+    for ch in items:
+        last = await db.chat_messages.find_one(
+            {"channel_id": ch["channel_id"]},
+            {"_id": 0},
+            sort=[("created_at", -1)],
+        )
+        ch["last_message"] = last
+        # Unread: messages after user's last_read_at (per member)
+        read_map = ch.get("read_map") or {}
+        last_read = read_map.get(uid)
+        unread_q = {"channel_id": ch["channel_id"], "sender_id": {"$ne": uid}}
+        if last_read:
+            unread_q["created_at"] = {"$gt": last_read}
+        ch["unread_count"] = await db.chat_messages.count_documents(unread_q)
+    return {"items": items}
+
+
+@api_router.post("/chat/channels")
+async def create_channel(body: ChannelIn, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    uid = user["user_id"]
+    valid_members = await _validate_channel_members(tid, list(set(body.member_user_ids + [uid])))
+    if len(valid_members) < 2:
+        raise HTTPException(status_code=400, detail="Aggiungi almeno un altro utente")
+    # For direct 1-1 chats, reuse existing
+    if body.is_direct and len(valid_members) == 2:
+        existing = await db.chat_channels.find_one({
+            "user_id": tid,
+            "is_direct": True,
+            "member_user_ids": {"$all": valid_members, "$size": 2},
+        }, {"_id": 0})
+        if existing:
+            return existing
+    cid = f"ch_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "channel_id": cid,
+        "user_id": tid,
+        "name": body.name or "",
+        "is_direct": bool(body.is_direct) and len(valid_members) == 2,
+        "member_user_ids": valid_members,
+        "created_by": uid,
+        "created_at": utcnow(),
+        "last_message_at": utcnow(),
+        "read_map": {uid: utcnow()},
+    }
+    await db.chat_channels.insert_one(doc)
+    strip_id(doc)
+    return doc
+
+
+@api_router.put("/chat/channels/{channel_id}")
+async def update_channel(channel_id: str, body: ChannelUpdate, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    uid = user["user_id"]
+    ch = await db.chat_channels.find_one({"channel_id": channel_id, "user_id": tid, "member_user_ids": uid}, {"_id": 0})
+    if not ch:
+        raise HTTPException(status_code=404, detail="Canale non trovato")
+    upd = {}
+    if body.name is not None:
+        upd["name"] = body.name
+    if body.member_user_ids is not None:
+        valid = await _validate_channel_members(tid, list(set(body.member_user_ids + [uid])))
+        upd["member_user_ids"] = valid
+    if not upd:
+        raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
+    await db.chat_channels.update_one({"channel_id": channel_id}, {"$set": upd})
+    ch2 = await db.chat_channels.find_one({"channel_id": channel_id}, {"_id": 0})
+    return ch2
+
+
+@api_router.delete("/chat/channels/{channel_id}")
+async def delete_channel(channel_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    ch = await db.chat_channels.find_one({"channel_id": channel_id, "user_id": tid}, {"_id": 0})
+    if not ch:
+        raise HTTPException(status_code=404, detail="Canale non trovato")
+    if ch["created_by"] != user["user_id"] and not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il creatore o l'owner può eliminare")
+    await db.chat_channels.delete_one({"channel_id": channel_id})
+    await db.chat_messages.delete_many({"channel_id": channel_id})
+    return {"ok": True}
+
+
+@api_router.get("/chat/channels/{channel_id}/messages")
+async def list_messages(channel_id: str, after: Optional[datetime] = None, limit: int = 100, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    uid = user["user_id"]
+    ch = await db.chat_channels.find_one({"channel_id": channel_id, "user_id": tid, "member_user_ids": uid}, {"_id": 0})
+    if not ch:
+        raise HTTPException(status_code=404, detail="Canale non trovato")
+    q: Dict[str, Any] = {"channel_id": channel_id}
+    if after:
+        if after.tzinfo is None:
+            after = after.replace(tzinfo=timezone.utc)
+        q["created_at"] = {"$gt": after}
+    items = await db.chat_messages.find(q, {"_id": 0}).sort("created_at", 1).to_list(limit)
+    # Mark as read
+    await db.chat_channels.update_one(
+        {"channel_id": channel_id},
+        {"$set": {f"read_map.{uid}": utcnow()}},
+    )
+    return {"items": items}
+
+
+@api_router.post("/chat/channels/{channel_id}/messages")
+async def send_message(channel_id: str, body: ChatMessageIn, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    uid = user["user_id"]
+    ch = await db.chat_channels.find_one({"channel_id": channel_id, "user_id": tid, "member_user_ids": uid}, {"_id": 0})
+    if not ch:
+        raise HTTPException(status_code=404, detail="Canale non trovato")
+    mid = f"m_{uuid.uuid4().hex[:12]}"
+    now = utcnow()
+    doc = {
+        "message_id": mid,
+        "channel_id": channel_id,
+        "sender_id": uid,
+        "sender_name": user.get("name", ""),
+        "created_at": now,
+        **body.model_dump(),
+    }
+    await db.chat_messages.insert_one(doc)
+    await db.chat_channels.update_one(
+        {"channel_id": channel_id},
+        {"$set": {"last_message_at": now, f"read_map.{uid}": now}},
+    )
+    strip_id(doc)
+    return doc
+
+
+@api_router.delete("/chat/messages/{message_id}")
+async def delete_message(message_id: str, user=Depends(get_current_user)):
+    m = await db.chat_messages.find_one({"message_id": message_id}, {"_id": 0})
+    if not m:
+        raise HTTPException(status_code=404, detail="Messaggio non trovato")
+    if m["sender_id"] != user["user_id"] and not is_owner(user):
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    await db.chat_messages.delete_one({"message_id": message_id})
+    return {"ok": True}
+
+
+# =========================
+# Contact vCard (share)
+# =========================
+@api_router.get("/contacts/{contact_id}/vcard", response_class=PlainTextResponse)
+async def contact_vcard(contact_id: str, user=Depends(get_current_user)):
+    c = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0})
+    if not c:
+        raise HTTPException(status_code=404, detail="Contatto non trovato")
+    parts = [
+        "BEGIN:VCARD",
+        "VERSION:3.0",
+        f"N:{c.get('last_name', '')};{c.get('first_name', '')};;;",
+        f"FN:{c.get('first_name', '')} {c.get('last_name', '')}".strip(),
+    ]
+    if c.get("phone"):
+        parts.append(f"TEL;TYPE=CELL:{c['phone']}")
+    if c.get("phone_alt"):
+        parts.append(f"TEL;TYPE=HOME:{c['phone_alt']}")
+    if c.get("email"):
+        parts.append(f"EMAIL:{c['email']}")
+    if c.get("email_alt"):
+        parts.append(f"EMAIL:{c['email_alt']}")
+    addr_parts = [c.get("address_street", ""), c.get("address_city", ""), c.get("address_zip", ""), c.get("address_province", "")]
+    if any(addr_parts):
+        parts.append(f"ADR:;;{addr_parts[0]};{addr_parts[1]};{addr_parts[3]};{addr_parts[2]};")
+    if c.get("website"):
+        parts.append(f"URL:{c['website']}")
+    if c.get("birth_date"):
+        try:
+            bd = c["birth_date"]
+            if len(bd) == 10:
+                parts.append(f"BDAY:{bd.replace('-', '')}")
+        except Exception:
+            pass
+    if c.get("general_note"):
+        parts.append(f"NOTE:{c['general_note']}")
+    parts.append("END:VCARD")
+    return "\r\n".join(parts)
+
+
+# =========================
 # Health
 # =========================
 @api_router.get("/")
@@ -885,6 +1433,11 @@ async def _startup():
     await db.appointments.create_index([("user_id", 1), ("start_at", 1)])
     await db.callbacks.create_index([("user_id", 1), ("scheduled_at", 1)])
     await db.users.create_index("parent_user_id")
+    await db.groups.create_index([("user_id", 1), ("group_id", 1)], unique=True)
+    await db.smtp_configs.create_index("user_id", unique=True)
+    await db.chat_channels.create_index([("user_id", 1), ("member_user_ids", 1)])
+    await db.chat_channels.create_index("channel_id", unique=True)
+    await db.chat_messages.create_index([("channel_id", 1), ("created_at", 1)])
 
 
 @app.on_event("shutdown")

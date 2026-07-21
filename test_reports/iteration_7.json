@@ -1,0 +1,35 @@
+{
+  "summary": "v1.7 backend PASSED end-to-end: 35/35 tests green. Verified all requested endpoints: auth login shape ('token' field, not access_token), Groups CRUD + contact.group_ids filter (create/read/update/delete, member_count, group-scoped contacts, delete pulls refs from contacts), SMTP config per-tenant (GET default shape has configured=false and NO password field, PUT with password sets configured=true, subsequent GET does NOT return password; empty password on PUT preserves stored one is implemented in code path), /api/smtp/test with fake creds returns 400 (connection failure), sub-user 403 on /api/smtp/test, bulk email with fake SMTP returns 200 with failed_count>=2 and sent_count=0 (no crash), bulk preview for whatsapp/telegram/sms returns items with target+skip flags and skip=false for populated contacts, chat channels create+dedup for 1-1 (is_direct=true), list channels visible only to members (owner and sub both see the shared channel, both get last_message and unread_count), messages text+link roundtrip, list messages ordered by created_at asc, channel last_message_at updated, 404 for foreign channel, team/members works for both owner and sub-user (sees the other tenant user), contact vCard returns text/plain with BEGIN:VCARD/END:VCARD and contact data, regression on contacts CRUD/appointments/settings all pass. No blocking or minor issues found.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v17_groups_bulk_chat.py",
+    "/app/test_reports/pytest/pytest_v17_results.xml"
+  ],
+  "action_items": [
+    "None required. All v1.7 backend acceptance criteria met. Main agent can proceed with frontend integration verification (self-testable): Groups screens, Chat tab, SMTP screen, Contact form group multi-select, Native share buttons."
+  ],
+  "critical_code_review_comments": [
+    "server.py:894-956 Groups CRUD is clean, tenant-scoped via user_id=tenant_id(user). Delete correctly pulls group_id from contacts.group_ids array. member_count computed via count_documents — fine at low volume; may need an aggregation pipeline if groups become large.",
+    "server.py:982-1019 SMTP config GET uses SmtpConfigOut which whitelists fields (no password leak). PUT preserves existing password when body.password is empty ('' falsy). Owner-only guard on PUT and /smtp/test.",
+    "server.py:1091-1126 bulk_email iterates contacts sequentially awaiting run_in_executor — could be parallelized with asyncio.gather(...) but current sequential design is safer for SMTP rate limits. Placeholder replacement {nome}/{cognome} works both for text and html.",
+    "server.py:1135-1168 bulk_preview correctly returns skip=true when target missing. Sorted by last_name.",
+    "server.py:1212-1268 chat channel dedup for is_direct=true uses $all + $size on member_user_ids — good. last_message_at ordering used for list. read_map initialized with creator only; sub-user unread_count works because sender_id != uid filter.",
+    "server.py:1304-1322 GET messages marks channel as read for caller (updates read_map[uid]). No pagination beyond limit — acceptable for MVP.",
+    "server.py:1365-1399 vCard uses \\r\\n line endings per RFC 6350 (VERSION 3.0). Good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v17_groups_bulk_chat.py (new, 35 tests)"
+  ],
+  "success_rate": {"backend": "100% (35/35)", "frontend": "not tested (backend-only request)"},
+  "seed_data_creation": "Ephemeral TEST_V17_ prefixed groups/contacts/channels/messages, all deleted at end of each test class. SMTP config on owner tenant is left populated with FAKE credentials (host=smtps.aruba.it, username=TEST_V17_user@dalpastro.it, fake password) — this ensures /smtp/test consistently returns 400 auth failure and bulk/email returns all-failed. If main agent needs to restore an empty SMTP config, PUT /api/smtp/config with empty host/username/password.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Env var name is EXPO_PUBLIC_BACKEND_URL (frontend/.env). Login endpoint returns 'token' (not access_token). Sub-user (sub1@dalpastro.it) shares tenant with owner via parent_user_id=owner.user_id. Chat direct-channel dedup only kicks in when is_direct=true AND exactly 2 members. Bulk email requires SMTP configured (password non-empty); if configured with wrong creds returns 200 with failed_count>=N (does NOT raise). SMTP GET never returns password field. Groups delete pulls group_id from contacts.group_ids (verified). Test file left in place for future regression: /app/backend/tests/test_v17_groups_bulk_chat.py.",
+  "rca_of_issue": "N/A — all acceptance criteria met on first run."
+}

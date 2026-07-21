@@ -144,6 +144,26 @@ export default function ImpostazioniScreen() {
           </Pressable>
         )}
 
+        <Pressable testID="groups-link" onPress={() => router.push("/groups")} style={styles.linkCard}>
+          <Ionicons name="people-outline" size={26} color={theme.color.brandPrimary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Gruppi Contatti</Text>
+            <Text style={styles.linkSub}>Crea gruppi personalizzati per invii bulk</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
+        {!user?.parent_user_id && (
+          <Pressable testID="smtp-link" onPress={() => router.push("/smtp")} style={styles.linkCard}>
+            <Ionicons name="mail-open" size={26} color={theme.color.brandPrimary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkTitle}>Configurazione Email (SMTP)</Text>
+              <Text style={styles.linkSub}>Aruba, Gmail o altro provider per invii bulk</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+          </Pressable>
+        )}
+
         {!user?.parent_user_id && (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Personalizza aree</Text>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,8 +10,10 @@ import { theme } from "@/src/theme";
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string;
   area: "energy" | "network"; source: "personal" | "referral"; address: string;
+  group_ids?: string[];
 };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
+type Group = { group_id: string; name: string; color: string; member_count: number };
 
 const AREAS_ALL: { key: "all" | "energy" | "network"; label: string }[] = [
   { key: "all", label: "Tutti" },
@@ -26,20 +28,24 @@ export default function ContattiScreen() {
   const AREAS = AREAS_ALL.filter((a) => a.key === "all" || allowed.includes(a.key));
   const [items, setItems] = useState<Contact[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [q, setQ] = useState("");
   const [area, setArea] = useState<"all" | "energy" | "network">("all");
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api<{ items: Contact[] }>("/contacts", {
-        query: { q: q || undefined, area: area !== "all" ? area : undefined },
+        query: { q: q || undefined, area: area !== "all" ? area : undefined, group_id: groupId || undefined },
       });
       setItems(r.items);
       if (!settings) setSettings(await api<Settings>("/settings"));
+      const gr = await api<{ items: Group[] }>("/groups");
+      setGroups(gr.items || []);
     } finally { setLoading(false); }
-  }, [q, area, settings]);
+  }, [q, area, groupId, settings]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -80,6 +86,33 @@ export default function ContattiScreen() {
           </Pressable>
         ))}
       </View>
+
+      {groups.length > 0 && (
+        <View style={{ maxHeight: 44 }}>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={[{ group_id: "__all__", name: "Tutti gruppi", color: theme.color.brandPrimary, member_count: 0 } as Group, ...groups]}
+            keyExtractor={(g) => g.group_id}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 8 }}
+            renderItem={({ item }) => {
+              const isAll = item.group_id === "__all__";
+              const on = isAll ? groupId === null : groupId === item.group_id;
+              return (
+                <Pressable
+                  testID={`group-filter-${item.group_id}`}
+                  onPress={() => setGroupId(isAll ? null : item.group_id)}
+                  onLongPress={() => !isAll && router.push(`/groups/${item.group_id}`)}
+                  style={[styles.groupChip, on && { backgroundColor: item.color, borderColor: item.color }]}
+                >
+                  {!isAll && <View style={[styles.groupDot, { backgroundColor: on ? "#FFF" : item.color }]} />}
+                  <Text style={[styles.groupChipTxt, on && { color: "#FFF" }]}>{item.name}{!isAll && ` (${item.member_count})`}</Text>
+                </Pressable>
+              );
+            }}
+          />
+        </View>
+      )}
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
@@ -155,4 +188,7 @@ const styles = StyleSheet.create({
   tagDot: { width: 6, height: 6, borderRadius: 3 },
   tagTxt: { fontSize: 11, fontWeight: "700" },
   tagTxtNeutral: { fontSize: 11, fontWeight: "600", color: theme.color.muted },
+  groupChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
+  groupChipTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 12 },
+  groupDot: { width: 8, height: 8, borderRadius: 4 },
 });

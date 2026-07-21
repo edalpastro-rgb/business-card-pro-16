@@ -12,6 +12,7 @@ import { theme } from "@/src/theme";
 import { scheduleBirthdayReminder } from "@/src/notifications";
 
 type ContactLite = { contact_id: string; first_name: string; last_name: string };
+type Group = { group_id: string; name: string; color: string };
 
 export default function NewContactScreen() {
   const router = useRouter();
@@ -21,11 +22,12 @@ export default function NewContactScreen() {
   const isEdit = !!editId;
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
   const [contacts, setContacts] = useState<ContactLite[]>([]);
+  const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
   const [form, setForm] = useState({
     first_name: "", last_name: "",
     phone: "", phone_alt: "", whatsapp: "",
     email: "", email_alt: "", telegram: "",
-    address_street: "", address_zip: "", address_city: "", address_province: "",
+    address_street: "", address_number: "", address_zip: "", address_city: "", address_province: "",
     birth_date: "", fiscal_code: "", vat_number: "",
     website: "", linkedin: "", instagram: "", facebook: "",
     birthday_alert_days_before: 1,
@@ -39,6 +41,7 @@ export default function NewContactScreen() {
     referral_note: "", email_note: "", general_note: "",
     tags: [] as string[],
     tag_input: "",
+    group_ids: [] as string[],
     photos: [] as string[],
     avatar_base64: "",
   });
@@ -47,6 +50,7 @@ export default function NewContactScreen() {
 
   useEffect(() => {
     api<{ items: ContactLite[] }>("/contacts").then((r) => setContacts(r.items)).catch(() => {});
+    api<{ items: Group[] }>("/groups").then((r) => setAvailableGroups(r.items)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -77,6 +81,7 @@ export default function NewContactScreen() {
           email_note: c.email_note || "",
           general_note: c.general_note || "",
           tags: c.tags || [],
+          group_ids: c.group_ids || [],
         }));
       } catch (e) { console.warn(e); }
     })();
@@ -353,6 +358,34 @@ export default function NewContactScreen() {
                 ))}
               </View>
             )}
+
+            <Text style={styles.lbl}>Gruppi</Text>
+            {availableGroups.length === 0 ? (
+              <Pressable onPress={() => router.push("/groups")} style={styles.linkChip}>
+                <Ionicons name="add-circle-outline" size={16} color={theme.color.brandPrimary} />
+                <Text style={styles.linkChipTxt}>Crea prima un gruppo</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.pillsRow}>
+                {availableGroups.map((g) => {
+                  const on = form.group_ids.includes(g.group_id);
+                  return (
+                    <Pressable
+                      key={g.group_id}
+                      testID={`c-group-${g.group_id}`}
+                      onPress={() => setForm({
+                        ...form,
+                        group_ids: on ? form.group_ids.filter((x) => x !== g.group_id) : [...form.group_ids, g.group_id],
+                      })}
+                      style={[styles.pill, { flexDirection: "row", alignItems: "center" }, on && { backgroundColor: g.color, borderColor: g.color }]}
+                    >
+                      <View style={[styles.dot, { backgroundColor: on ? "#FFF" : g.color }]} />
+                      <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{g.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
           </Section>
 
           <Section title="Foto contatto">
@@ -471,6 +504,9 @@ const styles = StyleSheet.create({
   photoThumbRemove: { position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: theme.color.error, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#FFF" },
   saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 20 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
+  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  linkChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandTertiary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill, alignSelf: "flex-start" },
+  linkChipTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
 });
 
 const webDateInputStyle: any = {
