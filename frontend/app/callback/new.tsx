@@ -73,28 +73,47 @@ export default function NewCallbackScreen() {
           ))}
         </ScrollView>
 
-        <View style={styles.dateRow}>
-          <Pressable testID="cb-date-btn" onPress={() => setShowPicker("date")} style={styles.dateBtn}>
-            <Ionicons name="calendar-outline" size={16} color={theme.color.brandPrimary} />
-            <Text style={styles.dateBtnTxt}>{form.scheduled_at.toLocaleDateString("it-IT")}</Text>
-          </Pressable>
-          <Pressable testID="cb-time-btn" onPress={() => setShowPicker("time")} style={styles.dateBtn}>
-            <Ionicons name="time-outline" size={16} color={theme.color.brandPrimary} />
-            <Text style={styles.dateBtnTxt}>{form.scheduled_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
-          </Pressable>
-        </View>
-
-        {showPicker && (Platform.OS === "web" ? (
-          <TextInput
-            testID="cb-datetime-web"
-            value={form.scheduled_at.toISOString().slice(0, 16)}
-            onChangeText={(v) => setForm({ ...form, scheduled_at: new Date(v) })}
-            style={styles.input}
-            placeholder="YYYY-MM-DDTHH:MM"
-          />
+        {Platform.OS === "web" ? (
+          <View style={{ marginTop: 14 }}>
+            {/* @ts-expect-error web-only */}
+            <input
+              type="datetime-local"
+              value={
+                new Date(form.scheduled_at.getTime() - form.scheduled_at.getTimezoneOffset() * 60000)
+                  .toISOString()
+                  .slice(0, 16)
+              }
+              onChange={(e: any) => setForm({ ...form, scheduled_at: new Date(e.target.value) })}
+              style={{
+                width: "100%",
+                backgroundColor: "#FFF",
+                border: `1px solid ${theme.color.border}`,
+                borderRadius: 12,
+                padding: "12px 14px",
+                fontSize: 15,
+                color: theme.color.onSurface,
+                fontFamily: "inherit",
+                outline: "none",
+              } as any}
+            />
+          </View>
         ) : (
-          <DateTimePicker value={form.scheduled_at} mode={showPicker} onChange={(e, d) => { setShowPicker(null); if (d) showPicker === "date" ? setDate(d) : setTime(d); }} />
-        ))}
+          <>
+            <View style={styles.dateRow}>
+              <Pressable testID="cb-date-btn" onPress={() => setShowPicker("date")} style={styles.dateBtn}>
+                <Ionicons name="calendar-outline" size={16} color={theme.color.brandPrimary} />
+                <Text style={styles.dateBtnTxt}>{form.scheduled_at.toLocaleDateString("it-IT")}</Text>
+              </Pressable>
+              <Pressable testID="cb-time-btn" onPress={() => setShowPicker("time")} style={styles.dateBtn}>
+                <Ionicons name="time-outline" size={16} color={theme.color.brandPrimary} />
+                <Text style={styles.dateBtnTxt}>{form.scheduled_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+              </Pressable>
+            </View>
+            {showPicker && (
+              <DateTimePicker value={form.scheduled_at} mode={showPicker} onChange={(e, d) => { setShowPicker(null); if (d) showPicker === "date" ? setDate(d) : setTime(d); }} />
+            )}
+          </>
+        )}
 
         <Text style={styles.lbl}>Nota</Text>
         <TextInput testID="cb-note" value={form.note} onChangeText={(t) => setForm({ ...form, note: t })} style={[styles.input, { minHeight: 70, textAlignVertical: "top" }]} multiline placeholderTextColor="#94A3B8" />

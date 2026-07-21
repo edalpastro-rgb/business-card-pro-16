@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { LogBox } from "react-native";
+import { LogBox, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -10,6 +10,19 @@ import { AuthProvider } from "@/src/auth";
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
+
+// Disable Chrome/Google auto-translate on web preview (it butchers Italian short words like "lun"/"mer" -> "luna"/"sirena")
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  try {
+    document.documentElement.setAttribute("lang", "it");
+    document.documentElement.setAttribute("translate", "no");
+    document.documentElement.classList.add("notranslate");
+    const meta = document.createElement("meta");
+    meta.name = "google";
+    meta.content = "notranslate";
+    document.head.appendChild(meta);
+  } catch {}
+}
 
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();

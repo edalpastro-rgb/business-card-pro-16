@@ -156,31 +156,49 @@ export default function AppointmentDetail() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Sposta / Rinvia</Text>
-          <View style={styles.dateRow}>
-            <Pressable testID="reschedule-date" onPress={() => setShowPicker("date")} style={styles.dateBtn}>
-              <Ionicons name="calendar-outline" size={16} color={theme.color.brandPrimary} />
-              <Text style={styles.dateBtnTxt}>{new Date(a.start_at).toLocaleDateString("it-IT")}</Text>
-            </Pressable>
-            <Pressable testID="reschedule-time" onPress={() => setShowPicker("time")} style={styles.dateBtn}>
-              <Ionicons name="time-outline" size={16} color={theme.color.brandPrimary} />
-              <Text style={styles.dateBtnTxt}>{new Date(a.start_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
-            </Pressable>
-          </View>
-          {showPicker && (Platform.OS === "web" ? (
-            <TextInput
-              testID="reschedule-web"
-              value={new Date(a.start_at).toISOString().slice(0, 16)}
-              onChangeText={(v) => { rescheduleTo(new Date(v), "date"); setShowPicker(null); }}
-              style={styles.input}
-              placeholder="YYYY-MM-DDTHH:MM"
+          {Platform.OS === "web" ? (
+            /* @ts-expect-error web-only */
+            <input
+              type="datetime-local"
+              value={
+                new Date(new Date(a.start_at).getTime() - new Date(a.start_at).getTimezoneOffset() * 60000)
+                  .toISOString()
+                  .slice(0, 16)
+              }
+              onChange={(e: any) => rescheduleTo(new Date(e.target.value), "date")}
+              style={{
+                width: "100%",
+                backgroundColor: theme.color.surface,
+                border: `1px solid ${theme.color.border}`,
+                borderRadius: 12,
+                padding: "10px 14px",
+                fontSize: 14,
+                color: theme.color.onSurface,
+                fontFamily: "inherit",
+                outline: "none",
+              } as any}
             />
           ) : (
-            <DateTimePicker
-              value={new Date(a.start_at)}
-              mode={showPicker}
-              onChange={(e, d) => { setShowPicker(null); if (d) rescheduleTo(d, showPicker); }}
-            />
-          ))}
+            <>
+              <View style={styles.dateRow}>
+                <Pressable testID="reschedule-date" onPress={() => setShowPicker("date")} style={styles.dateBtn}>
+                  <Ionicons name="calendar-outline" size={16} color={theme.color.brandPrimary} />
+                  <Text style={styles.dateBtnTxt}>{new Date(a.start_at).toLocaleDateString("it-IT")}</Text>
+                </Pressable>
+                <Pressable testID="reschedule-time" onPress={() => setShowPicker("time")} style={styles.dateBtn}>
+                  <Ionicons name="time-outline" size={16} color={theme.color.brandPrimary} />
+                  <Text style={styles.dateBtnTxt}>{new Date(a.start_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+                </Pressable>
+              </View>
+              {showPicker && (
+                <DateTimePicker
+                  value={new Date(a.start_at)}
+                  mode={showPicker}
+                  onChange={(e, d) => { setShowPicker(null); if (d) rescheduleTo(d, showPicker); }}
+                />
+              )}
+            </>
+          )}
         </View>
 
         {a.is_phone && (
@@ -194,11 +212,26 @@ export default function AppointmentDetail() {
             ) : (
               <>
                 {Platform.OS === "web" ? (
-                  <TextInput
-                    testID="cb-datetime-web"
-                    value={callbackAt.toISOString().slice(0, 16)}
-                    onChangeText={(v) => setCallbackAt(new Date(v))}
-                    style={styles.input}
+                  /* @ts-expect-error web-only */
+                  <input
+                    type="datetime-local"
+                    value={
+                      new Date(callbackAt.getTime() - callbackAt.getTimezoneOffset() * 60000)
+                        .toISOString()
+                        .slice(0, 16)
+                    }
+                    onChange={(e: any) => setCallbackAt(new Date(e.target.value))}
+                    style={{
+                      width: "100%",
+                      backgroundColor: theme.color.surface,
+                      border: `1px solid ${theme.color.border}`,
+                      borderRadius: 12,
+                      padding: "10px 14px",
+                      fontSize: 14,
+                      color: theme.color.onSurface,
+                      fontFamily: "inherit",
+                      outline: "none",
+                    } as any}
                   />
                 ) : (
                   <DateTimePicker

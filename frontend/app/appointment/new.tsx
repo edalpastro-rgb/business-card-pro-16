@@ -93,35 +93,44 @@ export default function NewAppointmentScreen() {
           ))}
         </ScrollView>
 
-        <View style={styles.dateRow}>
-          <Pressable testID="ap-date-btn" onPress={() => setShowPicker("date")} style={styles.dateBtn}>
-            <Ionicons name="calendar-outline" size={18} color={theme.color.brandPrimary} />
-            <Text style={styles.dateBtnTxt}>{form.start_at.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" })}</Text>
-          </Pressable>
-          <Pressable testID="ap-time-btn" onPress={() => setShowPicker("time")} style={styles.dateBtn}>
-            <Ionicons name="time-outline" size={18} color={theme.color.brandPrimary} />
-            <Text style={styles.dateBtnTxt}>{form.start_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
-          </Pressable>
-        </View>
-
-        {showPicker && (Platform.OS === "web" ? (
-          <TextInput
-            testID="ap-datetime-web"
-            value={form.start_at.toISOString().slice(0, 16)}
-            onChangeText={(v) => setForm({ ...form, start_at: new Date(v) })}
-            style={styles.input}
-            placeholder="YYYY-MM-DDTHH:MM"
-          />
+        {Platform.OS === "web" ? (
+          <View style={styles.webDateRow}>
+            {/* @ts-expect-error web-only */}
+            <input
+              type="datetime-local"
+              value={
+                new Date(form.start_at.getTime() - form.start_at.getTimezoneOffset() * 60000)
+                  .toISOString()
+                  .slice(0, 16)
+              }
+              onChange={(e: any) => setForm({ ...form, start_at: new Date(e.target.value) })}
+              style={webInputStyle}
+            />
+          </View>
         ) : (
-          <DateTimePicker
-            value={form.start_at}
-            mode={showPicker}
-            onChange={(e, d) => {
-              setShowPicker(null);
-              if (d) { showPicker === "date" ? setDate(d) : setTime(d); }
-            }}
-          />
-        ))}
+          <>
+            <View style={styles.dateRow}>
+              <Pressable testID="ap-date-btn" onPress={() => setShowPicker("date")} style={styles.dateBtn}>
+                <Ionicons name="calendar-outline" size={18} color={theme.color.brandPrimary} />
+                <Text style={styles.dateBtnTxt}>{form.start_at.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" })}</Text>
+              </Pressable>
+              <Pressable testID="ap-time-btn" onPress={() => setShowPicker("time")} style={styles.dateBtn}>
+                <Ionicons name="time-outline" size={18} color={theme.color.brandPrimary} />
+                <Text style={styles.dateBtnTxt}>{form.start_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+              </Pressable>
+            </View>
+            {showPicker && (
+              <DateTimePicker
+                value={form.start_at}
+                mode={showPicker}
+                onChange={(e, d) => {
+                  setShowPicker(null);
+                  if (d) { showPicker === "date" ? setDate(d) : setTime(d); }
+                }}
+              />
+            )}
+          </>
+        )}
 
         <View style={styles.switchRow}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
