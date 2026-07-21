@@ -97,8 +97,10 @@ export default function NewContactScreen() {
     try {
       const { tag_input, photos, ...payload } = form;
       const body: any = { ...payload };
-      body.address = [form.address_street, form.address_city, form.address_province, form.address_zip]
-        .filter(Boolean).join(", ");
+      body.address = [
+        [form.address_street, form.address_number].filter(Boolean).join(" "),
+        form.address_city, form.address_province, form.address_zip
+      ].filter(Boolean).join(", ");
       if (!body.referred_by_contact_id) delete body.referred_by_contact_id;
       if (!body.referral_type) delete body.referral_type;
       if (!body.birth_date) delete body.birth_date;
@@ -148,7 +150,33 @@ export default function NewContactScreen() {
               <Field flex={1} label="Nome *" testID="c-first-name" value={form.first_name} onChangeText={(t: string) => setForm({ ...form, first_name: t })} />
               <Field flex={1} label="Cognome" testID="c-last-name" value={form.last_name} onChangeText={(t: string) => setForm({ ...form, last_name: t })} />
             </Row>
-            <Field label="Data di nascita (gg/mm/aaaa)" testID="c-birth-date" value={form.birth_date} onChangeText={(t: string) => setForm({ ...form, birth_date: t })} placeholder="01/01/1980" />
+            <Text style={styles.lbl}>Data di nascita</Text>
+            {Platform.OS === "web" ? (
+              <View style={{ marginBottom: 4 }}>
+                {/* @ts-expect-error web-only */}
+                <input
+                  type="date"
+                  data-testid="c-birth-date-web"
+                  value={(() => {
+                    const p = form.birth_date.split("/");
+                    if (p.length === 3) {
+                      const y = p[2].padStart(4, "0"), m = p[1].padStart(2, "0"), d = p[0].padStart(2, "0");
+                      return `${y}-${m}-${d}`;
+                    }
+                    return "";
+                  })()}
+                  onChange={(e: any) => {
+                    const v = e.target.value;
+                    if (!v) { setForm({ ...form, birth_date: "" }); return; }
+                    const [y, m, d] = v.split("-");
+                    setForm({ ...form, birth_date: `${d}/${m}/${y}` });
+                  }}
+                  style={webDateInputStyle}
+                />
+              </View>
+            ) : (
+              <Field label="" testID="c-birth-date" value={form.birth_date} onChangeText={(t: string) => setForm({ ...form, birth_date: t })} placeholder="gg/mm/aaaa" />
+            )}
 
             {form.birth_date.length >= 5 && (
               <>
@@ -195,7 +223,10 @@ export default function NewContactScreen() {
           </Section>
 
           <Section title="Indirizzo">
-            <Field label="Via e civico" testID="c-street" value={form.address_street} onChangeText={(t: string) => setForm({ ...form, address_street: t })} placeholder="Via Verdi 15" />
+            <Row>
+              <Field flex={3} label="Via" testID="c-street" value={form.address_street} onChangeText={(t: string) => setForm({ ...form, address_street: t })} placeholder="Via Verdi" />
+              <Field flex={1} label="N. civico" testID="c-number" value={form.address_number} onChangeText={(t: string) => setForm({ ...form, address_number: t })} placeholder="15" />
+            </Row>
             <Row>
               <Field flex={2} label="Città" testID="c-city" value={form.address_city} onChangeText={(t: string) => setForm({ ...form, address_city: t })} />
               <Field flex={1} label="CAP" testID="c-zip" value={form.address_zip} onChangeText={(t: string) => setForm({ ...form, address_zip: t })} keyboardType="number-pad" />
@@ -393,3 +424,15 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 20 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
 });
+
+const webDateInputStyle: any = {
+  width: "100%",
+  backgroundColor: theme.color.surface,
+  border: `1px solid ${theme.color.border}`,
+  borderRadius: 12,
+  padding: "10px 12px",
+  fontSize: 15,
+  color: theme.color.onSurface,
+  fontFamily: "inherit",
+  outline: "none",
+};

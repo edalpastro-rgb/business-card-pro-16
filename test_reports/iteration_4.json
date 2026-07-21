@@ -1,0 +1,40 @@
+{
+  "summary": "v1.2 bug-fix testing: ALL 4 reported bugs verified fixed. Backend 17/17 PASS (2 new address_number round-trip tests + 15 v1 regression). Frontend 4/4 flows PASS: (1) Contact new form now has separate 'Via' [c-street] and 'N. civico' [c-number] fields; (2) Birth date on web uses native <input type='date'> [c-birth-date-web] with round-trip to dd/mm/yyyy string in state (fills 1990-05-15 → renders as expected); (3) Contact detail Notes tab has 5 distinct action buttons all visible/tappable: note-add-text (Testo), note-toggle-link (Link → reveals note-add-link + note-link-input), note-photo-camera (Scatta), note-photo-gallery (Galleria), note-record-toggle (Audio); (4) Appointment detail has 'Condividi con il cliente' card with 3 Pressable buttons (share-email, share-whatsapp, share-sms) — visible when contact linked; the Italian warning 'Nessun contatto collegato a questo appuntamento — associane uno per abilitare la condivisione.' appears when contact deleted/orphaned, and buttons render at opacity 0.4 (disabled). Share handlers use correct URL schemes (mailto:/wa.me/sms:) via Linking.openURL with prefilled bodyText containing title, formatted date, location, phone flag, and notes.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "shadow* style props", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' — appears repeatedly from RN Web. Non-blocking but should migrate to boxShadow / elevation for RN 0.76+. Reference: any styled card with shadowColor/shadowOffset/shadowOpacity/shadowRadius across the app."},
+      {"component": "props.pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Non-blocking."},
+      {"component": "contact/new.tsx web date input", "issue": "React warning: 'A component is changing an uncontrolled input to be controlled' on <input type=\"date\"> because value briefly evaluates to '' when birth_date is empty then transitions when set. Cosmetic — set defaultValue or ensure value is always string (already is). Reference: /app/frontend/app/contact/new.tsx:157-175"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bugfixes_v12.py",
+    "/app/backend/tests/test_crm_api.py",
+    "/app/test_reports/pytest/pytest_v12_results.xml"
+  ],
+  "action_items": [
+    "Optional (non-blocking): migrate shadow* style props to boxShadow / elevation to silence RN Web deprecation warnings.",
+    "Optional (non-blocking): make c-birth-date-web input strictly controlled from mount (initialize value to '' explicitly) to remove React uncontrolled→controlled warning."
+  ],
+  "critical_code_review_comments": [
+    "server.py:203-273 ContactIn/ContactUpdate both include address_number: str — persisted and returned unchanged. Good.",
+    "contact/new.tsx:154-179 Web-specific <input type='date'> branch with proper yyyy-mm-dd ↔ dd/mm/yyyy conversion. Correct.",
+    "contact/new.tsx:225-229 Split address row uses flex={3} for Via and flex={1} for N. civico — good responsive layout.",
+    "contact/[id].tsx:277-301 Notes toolbar has 5 distinct Pressables with correct testIDs and disabled-during-busy handling. Correct.",
+    "appointment/[id].tsx:138-181 IIFE builds bodyText once from a.title/start_at/location/is_phone/notes. Email uses mailto:+subject+body; WhatsApp strips non-digits and uses https://wa.me/<num>?text=…; SMS uses platform-aware separator (& on iOS, ? on Android/web). Disabled state ties to presence of contact.email / phone / whatsapp. Warning is rendered when !contact.",
+    "NON-BLOCKING: Share bodyText is not URL-length-capped; on some SMS clients very long notes may be truncated (typical iOS limit ~160 chars per segment)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bugfixes_v12.py (new)"
+  ],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "100% (4/4 bug fixes verified)"},
+  "seed_data_creation": "Temporary PWTEST_ prefixed contacts + appointments created via API and deleted after each test. No persistent seed data added.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 4 v1.2 bugs green. Testing viewport used: 390x844 (mobile). testIDs verified in DOM: c-street, c-number, c-birth-date-web, note-add-text, note-toggle-link, note-add-link, note-link-input, note-photo-camera, note-photo-gallery, note-record-toggle, share-email, share-whatsapp, share-sms. Note: contact detail tab testID is 'tab-notes' (plural), not 'tab-note'. Credentials from /app/memory/test_credentials.md. Camera/gallery/audio actual capture cannot be tested in web preview — only button presence + onPress wiring verified.",
+  "rca_of_issue": "N/A — all reported bugs fixed and verified end-to-end."
+}

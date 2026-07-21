@@ -210,6 +210,7 @@ class ContactIn(BaseModel):
     email_alt: str = ""
     address: str = ""
     address_street: str = ""
+    address_number: str = ""
     address_zip: str = ""
     address_city: str = ""
     address_province: str = ""
@@ -245,6 +246,7 @@ class ContactUpdate(BaseModel):
     email_alt: Optional[str] = None
     address: Optional[str] = None
     address_street: Optional[str] = None
+    address_number: Optional[str] = None
     address_zip: Optional[str] = None
     address_city: Optional[str] = None
     address_province: Optional[str] = None

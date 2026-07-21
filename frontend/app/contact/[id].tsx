@@ -290,7 +290,10 @@ export default function ContactDetail() {
                   </Pressable>
                 )}
                 <Pressable testID="note-photo-camera" onPress={() => addPhotoNote(true)} style={[styles.smallBtn, { backgroundColor: theme.color.brandSecondary }]}>
-                  <Ionicons name="camera" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Foto</Text>
+                  <Ionicons name="camera" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Scatta</Text>
+                </Pressable>
+                <Pressable testID="note-photo-gallery" onPress={() => addPhotoNote(false)} style={[styles.smallBtn, { backgroundColor: "#8B5CF6" }]}>
+                  <Ionicons name="image" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Galleria</Text>
                 </Pressable>
                 <Pressable testID="note-record-toggle" onPress={recording ? stopRecording : startRecording} style={[styles.smallBtn, { backgroundColor: recording ? theme.color.error : theme.color.warning }]}>
                   <Ionicons name={recording ? "stop" : "mic"} size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>{recording ? "Stop" : "Audio"}</Text>
