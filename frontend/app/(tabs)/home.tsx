@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator } from "react-native";
+import { useCallback, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
@@ -39,7 +41,7 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (loading) {
     return (
@@ -54,15 +56,25 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.hi} testID="home-greeting">Ciao, {user?.name?.split(" ")[0] || ""}</Text>
-          <Text style={styles.headerSub}>Panoramica di oggi</Text>
+      <LinearGradient colors={["#0F2438", "#1C4869"]} style={styles.hero}>
+        <View style={styles.heroInner}>
+          <View style={styles.heroTop}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.helloEyebrow}>{new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</Text>
+              <Text style={styles.hi} testID="home-greeting">Ciao, {user?.name?.split(" ")[0] || ""}</Text>
+            </View>
+            {user?.avatar_base64 ? (
+              <Image source={{ uri: user.avatar_base64 }} style={styles.heroAvatar} />
+            ) : (
+              <View style={styles.heroAvatarFallback}><Text style={styles.heroAvatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text></View>
+            )}
+          </View>
+          <Pressable testID="home-add-btn" onPress={() => router.push("/appointment/new")} style={styles.heroCTA}>
+            <Ionicons name="add-circle" size={20} color={theme.color.brandPrimary} />
+            <Text style={styles.heroCTATxt}>Nuovo appuntamento</Text>
+          </Pressable>
         </View>
-        <Pressable testID="home-add-btn" onPress={() => router.push("/contact/new")} style={styles.headerBtn}>
-          <Ionicons name="add" size={22} color="#FFF" />
-        </Pressable>
-      </View>
+      </LinearGradient>
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -70,13 +82,19 @@ export default function HomeScreen() {
       >
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { borderLeftColor: energyColor }]} testID="stat-energy">
-            <Text style={[styles.statTitle, { color: energyColor }]}>{settings?.energy_title}</Text>
+            <View style={[styles.statBadge, { backgroundColor: energyColor + "22" }]}>
+              <Ionicons name="flash" size={16} color={energyColor} />
+            </View>
+            <Text style={[styles.statTitle, { color: energyColor }]} numberOfLines={1}>{settings?.energy_title}</Text>
             <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.energy.appointments_done ?? 0}</Text><Text style={styles.statLbl}>App. fatti</Text></View>
             <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.energy.contracts ?? 0}</Text><Text style={styles.statLbl}>Contratti</Text></View>
             <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.energy.products ?? 0}</Text><Text style={styles.statLbl}>Prodotti</Text></View>
           </View>
           <View style={[styles.statCard, { borderLeftColor: networkColor }]} testID="stat-network">
-            <Text style={[styles.statTitle, { color: networkColor }]}>{settings?.network_title}</Text>
+            <View style={[styles.statBadge, { backgroundColor: networkColor + "22" }]}>
+              <Ionicons name="people" size={16} color={networkColor} />
+            </View>
+            <Text style={[styles.statTitle, { color: networkColor }]} numberOfLines={1}>{settings?.network_title}</Text>
             <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.network.appointments_done ?? 0}</Text><Text style={styles.statLbl}>App. fatti</Text></View>
             <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.network.contracts ?? 0}</Text><Text style={styles.statLbl}>Contratti</Text></View>
             <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.network.products ?? 0}</Text><Text style={styles.statLbl}>Prodotti</Text></View>
@@ -154,17 +172,24 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.surface },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12, backgroundColor: theme.color.surface },
-  hi: { fontSize: 22, fontWeight: "700", color: theme.color.onSurface },
-  headerSub: { fontSize: 13, color: theme.color.muted, marginTop: 2 },
-  headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" },
-  scroll: { paddingHorizontal: 16, paddingTop: 4 },
+  hero: { paddingBottom: 20 },
+  heroInner: { paddingHorizontal: 20, paddingTop: 14, gap: 14 },
+  heroTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  helloEyebrow: { color: "rgba(255,255,255,0.75)", fontSize: 12, textTransform: "capitalize", fontWeight: "600" },
+  hi: { color: "#FFF", fontSize: 24, fontWeight: "700", marginTop: 2 },
+  heroAvatar: { width: 46, height: 46, borderRadius: 23, borderWidth: 2, borderColor: "rgba(255,255,255,0.4)" },
+  heroAvatarFallback: { width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  heroAvatarTxt: { color: "#FFF", fontSize: 18, fontWeight: "700" },
+  heroCTA: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", paddingHorizontal: 16, paddingVertical: 12, borderRadius: theme.radius.md, alignSelf: "flex-start" },
+  heroCTATxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
+  scroll: { paddingHorizontal: 16, paddingTop: 16 },
   statsRow: { flexDirection: "row", gap: 12 },
-  statCard: { flex: 1, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderLeftWidth: 4, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-  statTitle: { fontSize: 12, fontWeight: "700", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
+  statCard: { flex: 1, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderLeftWidth: 4, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  statBadge: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  statTitle: { fontSize: 11, fontWeight: "700", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
   statRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 3 },
   statNum: { fontSize: 20, fontWeight: "700", color: theme.color.onSurface },
-  statLbl: { fontSize: 12, color: theme.color.muted },
+  statLbl: { fontSize: 11, color: theme.color.muted },
   section: { marginTop: 22 },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: theme.color.onSurface },

@@ -38,8 +38,8 @@ export default function LoginScreen() {
       <LinearGradient colors={["#0F2438", "#1C4869", "#3A739C"]} style={styles.hero}>
         <View style={styles.heroContent}>
           <Ionicons name="briefcase" size={44} color="#FFF" />
-          <Text style={styles.title}>ProSync CRM</Text>
-          <Text style={styles.subtitle}>Consulente Energetico · Networker</Text>
+          <Text style={styles.title}>Dal Pastro CRM</Text>
+          <Text style={styles.subtitle}>Consulenza Energetica · Network</Text>
         </View>
       </LinearGradient>
 

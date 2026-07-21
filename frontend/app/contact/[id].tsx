@@ -14,7 +14,12 @@ type Note = { id: string; kind: "text" | "audio"; text?: string; audio_base64?: 
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string; address: string;
+  phone_alt?: string; whatsapp?: string; email_alt?: string;
+  address_street?: string; address_zip?: string; address_city?: string; address_province?: string;
+  birth_date?: string; fiscal_code?: string; vat_number?: string;
+  website?: string; linkedin?: string; instagram?: string; facebook?: string;
   area: "energy" | "network"; source: string; referral_note: string; email_note: string; general_note: string;
+  tags?: string[]; referred_by_contact_id?: string;
   notes: Note[]; files: CFile[]; avatar_base64?: string;
 };
 
@@ -160,9 +165,29 @@ export default function ContactDetail() {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {tab === "info" && (
           <View style={styles.card}>
-            <InfoRow icon="call-outline" label="Telefono" value={c.phone || "—"} />
-            <InfoRow icon="mail-outline" label="Email" value={c.email || "—"} />
-            <InfoRow icon="location-outline" label="Indirizzo" value={c.address || "—"} />
+            {c.tags && c.tags.length > 0 && (
+              <View style={styles.tagsWrap}>
+                {c.tags.map((t) => (
+                  <View key={t} style={styles.tagChip}><Text style={styles.tagChipTxt}>{t}</Text></View>
+                ))}
+              </View>
+            )}
+            <InfoRow icon="call-outline" label="Telefono principale" value={c.phone || "—"} />
+            {c.phone_alt ? <InfoRow icon="call-outline" label="Telefono 2°" value={c.phone_alt} /> : null}
+            {c.whatsapp ? <InfoRow icon="logo-whatsapp" label="WhatsApp" value={c.whatsapp} /> : null}
+            <InfoRow icon="mail-outline" label="Email principale" value={c.email || "—"} />
+            {c.email_alt ? <InfoRow icon="mail-outline" label="Email 2°" value={c.email_alt} /> : null}
+            {(c.address_street || c.address_city) ? (
+              <InfoRow icon="location-outline" label="Indirizzo"
+                value={[c.address_street, [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province].filter(Boolean).join(", ")} />
+            ) : (c.address ? <InfoRow icon="location-outline" label="Indirizzo" value={c.address} /> : null)}
+            {c.birth_date ? <InfoRow icon="gift-outline" label="Data di nascita" value={c.birth_date} /> : null}
+            {c.fiscal_code ? <InfoRow icon="card-outline" label="Codice Fiscale" value={c.fiscal_code} /> : null}
+            {c.vat_number ? <InfoRow icon="business-outline" label="Partita IVA" value={c.vat_number} /> : null}
+            {c.website ? <InfoRow icon="globe-outline" label="Sito web" value={c.website} /> : null}
+            {c.linkedin ? <InfoRow icon="logo-linkedin" label="LinkedIn" value={c.linkedin} /> : null}
+            {c.instagram ? <InfoRow icon="logo-instagram" label="Instagram" value={c.instagram} /> : null}
+            {c.facebook ? <InfoRow icon="logo-facebook" label="Facebook" value={c.facebook} /> : null}
             {c.referral_note ? <InfoRow icon="star-outline" label="Nota referenza" value={c.referral_note} /> : null}
             {c.email_note ? <InfoRow icon="chatbox-outline" label="Nota email" value={c.email_note} /> : null}
             {c.general_note ? <InfoRow icon="document-text-outline" label="Note generali" value={c.general_note} /> : null}

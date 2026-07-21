@@ -198,26 +198,58 @@ class ContactIn(BaseModel):
     first_name: str
     last_name: str = ""
     phone: str = ""
+    phone_alt: str = ""
+    whatsapp: str = ""
     email: str = ""
+    email_alt: str = ""
     address: str = ""
+    address_street: str = ""
+    address_zip: str = ""
+    address_city: str = ""
+    address_province: str = ""
+    birth_date: Optional[str] = None
+    fiscal_code: str = ""
+    vat_number: str = ""
+    website: str = ""
+    linkedin: str = ""
+    instagram: str = ""
+    facebook: str = ""
     area: AreaLiteral = "energy"
     source: Literal["personal", "referral"] = "personal"
+    referred_by_contact_id: Optional[str] = None
     referral_note: str = ""
     email_note: str = ""
     general_note: str = ""
+    tags: List[str] = Field(default_factory=list)
 
 
 class ContactUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone: Optional[str] = None
+    phone_alt: Optional[str] = None
+    whatsapp: Optional[str] = None
     email: Optional[str] = None
+    email_alt: Optional[str] = None
     address: Optional[str] = None
+    address_street: Optional[str] = None
+    address_zip: Optional[str] = None
+    address_city: Optional[str] = None
+    address_province: Optional[str] = None
+    birth_date: Optional[str] = None
+    fiscal_code: Optional[str] = None
+    vat_number: Optional[str] = None
+    website: Optional[str] = None
+    linkedin: Optional[str] = None
+    instagram: Optional[str] = None
+    facebook: Optional[str] = None
     area: Optional[AreaLiteral] = None
     source: Optional[Literal["personal", "referral"]] = None
+    referred_by_contact_id: Optional[str] = None
     referral_note: Optional[str] = None
     email_note: Optional[str] = None
     general_note: Optional[str] = None
+    tags: Optional[List[str]] = None
     avatar_base64: Optional[str] = None
 
 
@@ -232,9 +264,14 @@ class AppointmentIn(BaseModel):
     area: AreaLiteral = "energy"
     start_at: datetime
     end_at: Optional[datetime] = None
+    duration_min: int = 60
     is_phone: bool = False
     location: str = ""
     notes: str = ""
+    reminder_minutes: int = 15
+    recurrence: Literal["none", "weekly", "monthly", "yearly"] = "none"
+    participant_contact_ids: List[str] = Field(default_factory=list)
+    value_amount: float = 0.0
 
 
 class AppointmentUpdate(BaseModel):
@@ -242,6 +279,7 @@ class AppointmentUpdate(BaseModel):
     area: Optional[AreaLiteral] = None
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None
+    duration_min: Optional[int] = None
     is_phone: Optional[bool] = None
     done: Optional[bool] = None
     location: Optional[str] = None
@@ -250,6 +288,10 @@ class AppointmentUpdate(BaseModel):
     outcome_notes: Optional[str] = None
     products_sold: Optional[int] = None
     contract_signed: Optional[bool] = None
+    reminder_minutes: Optional[int] = None
+    recurrence: Optional[Literal["none", "weekly", "monthly", "yearly"]] = None
+    participant_contact_ids: Optional[List[str]] = None
+    value_amount: Optional[float] = None
 
 
 class CallbackIn(BaseModel):

@@ -1,34 +1,48 @@
-# ProSync CRM — PRD
+# Dal Pastro CRM — PRD
 
 ## Overview
-Mobile CRM (React Native / Expo, SDK 54) per un professionista con due ruoli distinti: Consulente Energetico + Networker. Interfaccia italiana, palette azzurro corporate.
+Mobile CRM (React Native / Expo, SDK 54) per un professionista con due ruoli distinti: Consulente Energetico + Networker. Interfaccia italiana, palette azzurro corporate, branding "Dal Pastro CRM".
 
 ## Auth
 - Email/Password (JWT, 30 giorni)
 - Google OAuth (Emergent-managed session, 7 giorni)
-- Endpoint: /api/auth/register, /api/auth/login, /api/auth/google-session, /api/auth/me, /api/auth/logout
+- Endpoint: /api/auth/register, /api/auth/login, /api/auth/google-session, /api/auth/me, /api/auth/logout, /api/auth/profile
 
-## Core Features
-1. **Contatti**: CRUD con area (energy/network), origine (personal/referral), note (referral, email condivisibile, generali), note testuali/vocali collegate, file PDF/JPG (base64 in Mongo).
-2. **Calendario**: appuntamenti color-coded per area, flag telefonico, done checkbox, rinvio data/ora.
-3. **Ritelefonate**: lista giornaliera per area, spuntabili.
-4. **Post-appuntamento**: outcomes area-specifici (Energia: non_interessato/contratto_fatto/richiamare; Network: 9 tag multi-select). Note dettagliate + prodotti venduti.
-5. **Report**: giorno/settimana/mese/anno per area (appuntamenti fatti, contratti, prodotti, telefonate).
-6. **Impostazioni**: personalizzazione titolo + colore delle 2 aree.
-7. **Waze**: link diretto all'indirizzo del contatto/appuntamento.
-8. **WhatsApp / Chiama / Email**: link diretti da scheda contatto.
+## Contatti (v1.2)
+Campi: nome, cognome, telefono principale + secondario + WhatsApp, email principale + secondaria, indirizzo (via/CAP/città/provincia separati + campo legacy), data di nascita, codice fiscale, partita IVA, website, LinkedIn, Instagram, Facebook, area (energy/network), origine (personal/referral), referred_by_contact_id, note referenza/email/generali, avatar_base64, tags[], note testuali/vocali, file PDF/JPG.
 
-## Non incluso (v1)
-- Comandi vocali AI (skip per scelta utente)
-- Notifiche push native (solo in-app / locali)
-- Sincronizzazione Google Calendar / Outlook (opt-in — pianificata prossima iterazione)
+## Appuntamenti (v1.2)
+Campi: titolo, contact_id principale, partecipanti multipli, area, start_at, duration_min, is_phone, luogo, note, reminder_minutes (0/5/15/30/60/1440), recurrence (none/weekly/monthly/yearly), value_amount, esiti area-specifici, outcome_notes, products_sold, contract_signed.
 
-## v1.1 (aggiunta)
-- **Multi-utente**: owner invita membri via `/api/team` con areas specifiche. Sub-user vede solo i propri record (contatti/appuntamenti/callback creati da lui). Owner vede tutti i record del tenant.
-- **Notifiche locali**: promemoria appuntamento (15 min prima + all'ora) e ritelefonata (all'ora), gestiti via expo-notifications. Cancellati automaticamente su done/delete/reschedule.
-- **Deploy Aruba**: guida in `/app/ARUBA_DEPLOY.md`
+## Ritelefonate
+Come v1. Notifica locale al programmato.
 
-## Stack
-- Frontend: Expo Router, expo-audio, expo-document-picker, expo-file-system, @react-native-community/datetimepicker, expo-linear-gradient, expo-secure-store
-- Backend: FastAPI, motor (MongoDB), bcrypt, PyJWT, httpx
-- Storage: MongoDB (file base64)
+## Report giorno/settimana/mese/anno per area
+Come v1: app. fatti/totali, telefonate fatte, contratti, prodotti.
+
+## Impostazioni
+- Avatar personale
+- Titolo + colore aree personalizzabili
+- Gestione Team (owner only): invita membri con aree specifiche
+
+## Team multi-utente
+Owner vede tutto il tenant, sub-user vede solo i propri record. Area enforcement server-side.
+
+## Notifiche locali
+expo-notifications. Personalizzabile per appuntamento (0/5/15/30/60/1440 min prima). Cancellazione automatica su done/delete/reschedule.
+
+## Sync calendario
+- Google Calendar: link URL-based (apre calendario esterno con evento precompilato)
+- Outlook: idem
+- .ics: file universale scaricabile
+- **Full-OAuth bidirezionale**: pianificato per iterazione futura (richiede credenziali Google Cloud + Microsoft Azure fornite dall'utente)
+
+## Deploy
+Guida completa in `/app/ARUBA_DEPLOY.md` — VPS Aruba Cloud PRO + Docker + Nginx + Let's Encrypt.
+
+## Bugfix v1.2
+- Chrome Translate: aggiunto `translate="no"` e `lang="it"` globali per prevenire ri-traduzione automatica dei testi italiani
+- Datetime picker web: sostituito input ISO grezzo con `<input type="datetime-local">` nativo
+- Restyling home: gradiente hero, badge circolari colorati sulle stat card, avatar utente
+- Anagrafica contatti riorganizzata in sezioni chiare (Anagrafica, Contatti, Indirizzo, Classificazione, Note)
+- Rebranding: "ProSync CRM" → "Dal Pastro CRM" ovunque
