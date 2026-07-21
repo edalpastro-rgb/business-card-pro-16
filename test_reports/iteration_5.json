@@ -1,0 +1,39 @@
+{
+  "summary": "v1.5 testing PASSED end-to-end. Backend 21/21 (6 new v1.5 + 15 regression). Frontend 3/3 flows verified: (1) /contact/edit/{id} route: loads contact, header renders 'Modifica contatto', save button labeled 'Salva modifiche', all fields populated (c-first-name, c-last-name, c-phone, c-email, c-street, c-number), submit sends PUT and redirects to /contact/{id}; verified partial update preserves untouched fields (last_name, email) via GET. (2) Settings (owner) shows all 3 new controls: settings-app-name input, apt-type-input + apt-type-add, prod-cat-input + prod-cat-add. Adding an appointment type persists via PUT /api/settings and renders chip; adding a product category renders card with subcategory input. (3) Sub-user (sub1@dalpastro.it) DOES NOT see any of settings-app-name / apt-type-* / prod-cat-* — only profile card + logout. Backend RBAC verified: sub-user PUT /api/settings → 403; sub-user GET /api/settings → 200 (shared tenant). Deprecated shadow*/pointerEvents RN Web console warnings persist (non-blocking, carried over from v1.2).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "shadow* style props", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' persists in RN Web 0.76+. Non-blocking. Reference: card styles across app."},
+      {"component": "props.pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Non-blocking."},
+      {"component": "contact/new.tsx birth-date web input", "issue": "React warning: 'A component is changing an uncontrolled input to be controlled' still appears on <input type=\"date\"> when editing a contact whose birth_date starts empty. Cosmetic; carried over from v1.2. Reference: /app/frontend/app/contact/new.tsx c-birth-date-web branch."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v15_settings_edit.py",
+    "/app/backend/tests/test_crm_api.py",
+    "/app/test_reports/pytest/pytest_v15_results.xml"
+  ],
+  "action_items": [
+    "Optional (non-blocking): migrate shadow* → boxShadow / elevation to silence RN Web deprecation warnings.",
+    "Optional (non-blocking): initialize birth_date state to '' at mount so <input type='date'> is controlled from first render."
+  ],
+  "critical_code_review_comments": [
+    "server.py:168-175 SettingsModel adds app_name (default 'Dal Pastro CRM'), custom_appointment_types: List[str], custom_product_categories: List[Dict[str, Any]] — loose Dict[str,Any] means the FE can store any shape (currently {name, subs:[]}). Fine for now but consider a typed Pydantic sub-model for stronger validation if UI keeps evolving.",
+    "server.py:465-475 PUT /api/settings enforces is_owner(user) → 403 for sub-users; upsert on {user_id: owner.user_id}. Correct multi-tenant behavior.",
+    "contact/edit/[id].tsx is a 7-line thin wrapper importing NewContactScreen — good reuse. new.tsx:19-21 reads useLocalSearchParams<{id?:string}> and toggles isEdit. new.tsx:145-149 branches to PUT vs POST correctly. new.tsx:184 & :404 swap header title and button label based on isEdit.",
+    "impostazioni.tsx:32-82 persistAndReload optimistically updates settings state and PUTs on every add/remove — good UX. All 3 customization sections gated on !user?.parent_user_id which correctly hides them for sub-users.",
+    "MINOR: impostazioni.tsx stores subcategories under key 'subs' while my backend test used 'subcategories'. Backend accepts both since field is List[Dict[str,Any]], but any future analytics/query on that field must know that the FE-canonical key is 'subs'. Suggest documenting the schema in code."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v15_settings_edit.py (new)"
+  ],
+  "success_rate": {"backend": "100% (21/21)", "frontend": "100% (3/3 flows)"},
+  "seed_data_creation": "Ephemeral test data: 1 PWTEST_ contact created + deleted; 1 PWTEST_APT_ appointment type + 1 PWTEST_CAT_ product category added then settings reset to defaults via PUT /api/settings. No persistent seed data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Viewport 390x844. testIDs verified: auth-email-input, auth-password-input, auth-submit-button, logout-btn; edit form: c-first-name, c-last-name, c-birth-date-web, c-phone, c-email, c-street, c-number, c-save-btn; settings: settings-app-name, apt-type-input, apt-type-add, prod-cat-input, prod-cat-add. localStorage token key is 'auth_token_v1' stored as JSON-quoted string (use JSON.parse). Sub-user credentials: sub1@dalpastro.it / Sub12345!. Backend product_categories on Appointment is List[str] (category names only) — do NOT nest objects. Settings.custom_product_categories items use key 'subs' (frontend canonical), not 'subcategories'.",
+  "rca_of_issue": "N/A — all v1.5 acceptance criteria met."
+}

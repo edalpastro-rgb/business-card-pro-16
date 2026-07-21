@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Contacts from "expo-contacts";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -16,6 +16,9 @@ type ContactLite = { contact_id: string; first_name: string; last_name: string }
 export default function NewContactScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const editId = params.id;
+  const isEdit = !!editId;
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
   const [contacts, setContacts] = useState<ContactLite[]>([]);
   const [form, setForm] = useState({
@@ -45,6 +48,39 @@ export default function NewContactScreen() {
   useEffect(() => {
     api<{ items: ContactLite[] }>("/contacts").then((r) => setContacts(r.items)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!isEdit || !editId) return;
+    (async () => {
+      try {
+        const c: any = await api(`/contacts/${editId}`);
+        setForm((f) => ({
+          ...f,
+          first_name: c.first_name || "", last_name: c.last_name || "",
+          phone: c.phone || "", phone_alt: c.phone_alt || "", whatsapp: c.whatsapp || "",
+          email: c.email || "", email_alt: c.email_alt || "",
+          address_street: c.address_street || "", address_number: c.address_number || "",
+          address_zip: c.address_zip || "", address_city: c.address_city || "", address_province: c.address_province || "",
+          birth_date: c.birth_date || "",
+          birthday_alert_days_before: c.birthday_alert_days_before ?? 1,
+          birthday_auto_send: !!c.birthday_auto_send,
+          birthday_message: c.birthday_message || "",
+          birthday_message_link: c.birthday_message_link || "",
+          fiscal_code: c.fiscal_code || "", vat_number: c.vat_number || "",
+          website: c.website || "", linkedin: c.linkedin || "",
+          instagram: c.instagram || "", facebook: c.facebook || "",
+          area: (c.area === "network" ? "network" : "energy"),
+          source: (c.source === "referral" ? "referral" : "personal"),
+          referral_type: c.referral_type || "",
+          referred_by_contact_id: c.referred_by_contact_id || "",
+          referral_note: c.referral_note || "",
+          email_note: c.email_note || "",
+          general_note: c.general_note || "",
+          tags: c.tags || [],
+        }));
+      } catch (e) { console.warn(e); }
+    })();
+  }, [isEdit, editId]);
 
   const importFromPhone = async () => {
     if (Platform.OS === "web") { Alert.alert("Non disponibile", "L'importazione dalla rubrica funziona solo su cellulare (app Expo Go o build nativa)."); return; }
@@ -104,18 +140,29 @@ export default function NewContactScreen() {
       if (!body.referred_by_contact_id) delete body.referred_by_contact_id;
       if (!body.referral_type) delete body.referral_type;
       if (!body.birth_date) delete body.birth_date;
-      const c = await api<{ contact_id: string }>("/contacts", { method: "POST", body });
-      // attach photos as notes with kind="photo"
-      for (const p of photos) {
-        try { await api(`/contacts/${c.contact_id}/notes`, { method: "POST", body: { kind: "photo", photo_base64: p } }); } catch {}
+
+      let contactId: string;
+      if (isEdit && editId) {
+        await api(`/contacts/${editId}`, { method: "PUT", body });
+        contactId = editId;
+      } else {
+        const c = await api<{ contact_id: string }>("/contacts", { method: "POST", body });
+        contactId = c.contact_id;
+      }
+
+      // attach photos as notes with kind="photo" (only new ones during create)
+      if (!isEdit) {
+        for (const p of photos) {
+          try { await api(`/contacts/${contactId}/notes`, { method: "POST", body: { kind: "photo", photo_base64: p } }); } catch {}
+        }
       }
       // schedule birthday reminder if birth_date present
       if (form.birth_date && form.birth_date.length >= 5) {
         try {
-          await scheduleBirthdayReminder(c.contact_id, `${form.first_name} ${form.last_name}`.trim(), form.birth_date, form.birthday_alert_days_before);
+          await scheduleBirthdayReminder(contactId, `${form.first_name} ${form.last_name}`.trim(), form.birth_date, form.birthday_alert_days_before);
         } catch {}
       }
-      router.replace(`/contact/${c.contact_id}`);
+      router.replace(`/contact/${contactId}`);
     } finally { setBusy(false); }
   };
 
@@ -134,7 +181,7 @@ export default function NewContactScreen() {
         <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
         </Pressable>
-        <Text style={styles.title}>Nuovo contatto</Text>
+        <Text style={styles.title}>{isEdit ? "Modifica contatto" : "Nuovo contatto"}</Text>
         <View style={{ width: 26 }} />
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
@@ -354,7 +401,7 @@ export default function NewContactScreen() {
           )}
 
           <Pressable testID="c-save-btn" onPress={submit} style={styles.saveBtn} disabled={busy || !form.first_name.trim()}>
-            {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>Salva contatto</Text>}
+            {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>{isEdit ? "Salva modifiche" : "Salva contatto"}</Text>}
           </Pressable>
           <View style={{ height: 40 }} />
         </ScrollView>

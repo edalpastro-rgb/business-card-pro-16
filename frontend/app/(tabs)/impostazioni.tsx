@@ -8,7 +8,13 @@ import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
 
-type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
+type Settings = {
+  energy_title: string; energy_color: string;
+  network_title: string; network_color: string;
+  app_name?: string;
+  custom_appointment_types?: string[];
+  custom_product_categories?: { name: string; subs?: string[] }[];
+};
 
 const COLOR_SWATCHES = ["#C83232", "#1B6CB0", "#1C4869", "#2D7A5A", "#B77C14", "#7A2E8E", "#0B7285", "#E67700"];
 
@@ -19,6 +25,62 @@ export default function ImpostazioniScreen() {
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [aptTypeInput, setAptTypeInput] = useState("");
+  const [prodCatInput, setProdCatInput] = useState("");
+  const [subInputs, setSubInputs] = useState<Record<number, string>>({});
+
+  const persistAndReload = async (next: Settings) => {
+    setS(next);
+    try { await api("/settings", { method: "PUT", body: next }); } catch {}
+  };
+
+  const addAptType = () => {
+    if (!s) return;
+    const t = aptTypeInput.trim();
+    if (!t) return;
+    const list = s.custom_appointment_types || [];
+    if (list.includes(t)) return;
+    persistAndReload({ ...s, custom_appointment_types: [...list, t] });
+    setAptTypeInput("");
+  };
+  const removeAptType = (t: string) => {
+    if (!s) return;
+    persistAndReload({ ...s, custom_appointment_types: (s.custom_appointment_types || []).filter((x) => x !== t) });
+  };
+  const addProdCat = () => {
+    if (!s) return;
+    const name = prodCatInput.trim();
+    if (!name) return;
+    const list = s.custom_product_categories || [];
+    if (list.some((c) => c.name === name)) return;
+    persistAndReload({ ...s, custom_product_categories: [...list, { name, subs: [] }] });
+    setProdCatInput("");
+  };
+  const removeProdCat = (idx: number) => {
+    if (!s) return;
+    const next = [...(s.custom_product_categories || [])];
+    next.splice(idx, 1);
+    persistAndReload({ ...s, custom_product_categories: next });
+  };
+  const addSub = (idx: number) => {
+    if (!s) return;
+    const v = (subInputs[idx] || "").trim();
+    if (!v) return;
+    const next = [...(s.custom_product_categories || [])];
+    const cat = { ...next[idx] };
+    cat.subs = [...(cat.subs || []), v];
+    next[idx] = cat;
+    persistAndReload({ ...s, custom_product_categories: next });
+    setSubInputs({ ...subInputs, [idx]: "" });
+  };
+  const removeSub = (idx: number, sub: string) => {
+    if (!s) return;
+    const next = [...(s.custom_product_categories || [])];
+    const cat = { ...next[idx] };
+    cat.subs = (cat.subs || []).filter((x) => x !== sub);
+    next[idx] = cat;
+    persistAndReload({ ...s, custom_product_categories: next });
+  };
 
   const changeAvatar = async () => {
     setAvatarBusy(true);
@@ -86,6 +148,16 @@ export default function ImpostazioniScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Personalizza aree</Text>
 
+          <Text style={styles.label}>Nome App</Text>
+          <TextInput
+            testID="settings-app-name"
+            value={s.app_name || "Dal Pastro CRM"}
+            onChangeText={(t) => setS({ ...s, app_name: t })}
+            style={styles.input}
+            placeholder="Nome della tua app"
+            placeholderTextColor="#94A3B8"
+          />
+
           <Text style={styles.label}>Titolo Area 1 (Energia)</Text>
           <TextInput
             testID="settings-energy-title"
@@ -135,6 +207,85 @@ export default function ImpostazioniScreen() {
         </View>
         )}
 
+        {!user?.parent_user_id && (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Tipi appuntamento custom</Text>
+          <Text style={styles.hint}>Aggiungi tipi personalizzati oltre a Piano Marketing / Energia / Ant / Dare seguito / Demo prodotti</Text>
+          <View style={styles.addRow}>
+            <TextInput
+              testID="apt-type-input"
+              value={aptTypeInput}
+              onChangeText={setAptTypeInput}
+              placeholder="Es. Aggiornamento cliente"
+              placeholderTextColor="#94A3B8"
+              style={[styles.input, { flex: 1 }]}
+              onSubmitEditing={() => addAptType()}
+            />
+            <Pressable testID="apt-type-add" onPress={addAptType} style={styles.addBtn}>
+              <Ionicons name="add" size={20} color="#FFF" />
+            </Pressable>
+          </View>
+          {(s.custom_appointment_types || []).length > 0 && (
+            <View style={styles.chipsWrap}>
+              {(s.custom_appointment_types || []).map((t) => (
+                <Pressable key={t} onPress={() => removeAptType(t)} style={styles.chip}>
+                  <Text style={styles.chipTxt}>{t}</Text>
+                  <Ionicons name="close" size={12} color={theme.color.brandPrimary} />
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
+        )}
+
+        {!user?.parent_user_id && (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Categorie prodotti custom</Text>
+          <Text style={styles.hint}>Categorie oltre a &quot;Demo prodotti&quot; (Artistry / Nutrilite / Home). Aggiungi la categoria, poi le sotto-categorie</Text>
+          <View style={styles.addRow}>
+            <TextInput
+              testID="prod-cat-input"
+              value={prodCatInput}
+              onChangeText={setProdCatInput}
+              placeholder="Nome categoria (es. Alta cosmesi)"
+              placeholderTextColor="#94A3B8"
+              style={[styles.input, { flex: 1 }]}
+            />
+            <Pressable testID="prod-cat-add" onPress={addProdCat} style={styles.addBtn}>
+              <Ionicons name="add" size={20} color="#FFF" />
+            </Pressable>
+          </View>
+          {(s.custom_product_categories || []).map((cat, idx) => (
+            <View key={cat.name} style={styles.catCard}>
+              <View style={styles.catHead}>
+                <Text style={styles.catName}>{cat.name}</Text>
+                <Pressable onPress={() => removeProdCat(idx)}><Ionicons name="trash-outline" size={16} color={theme.color.error} /></Pressable>
+              </View>
+              <View style={styles.addRow}>
+                <TextInput
+                  value={subInputs[idx] || ""}
+                  onChangeText={(t) => setSubInputs({ ...subInputs, [idx]: t })}
+                  placeholder="Aggiungi sotto-categoria"
+                  placeholderTextColor="#94A3B8"
+                  style={[styles.input, { flex: 1 }]}
+                />
+                <Pressable onPress={() => addSub(idx)} style={styles.addBtn}>
+                  <Ionicons name="add" size={18} color="#FFF" />
+                </Pressable>
+              </View>
+              <View style={styles.chipsWrap}>
+                {(cat.subs || []).map((sub) => (
+                  <Pressable key={sub} onPress={() => removeSub(idx, sub)} style={styles.chip}>
+                    <Text style={styles.chipTxt}>{sub}</Text>
+                    <Ionicons name="close" size={12} color={theme.color.brandPrimary} />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ))}
+        </View>
+        )}
+
         <Pressable testID="logout-btn" onPress={async () => { await logout(); router.replace("/login"); }} style={styles.logoutBtn}>
           <Ionicons name="log-out-outline" size={20} color={theme.color.error} />
           <Text style={styles.logoutTxt}>Esci</Text>
@@ -171,4 +322,13 @@ const styles = StyleSheet.create({
   saveBtnTxt: { color: "#FFF", fontWeight: "700" },
   logoutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FFF", padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
   logoutTxt: { color: theme.color.error, fontWeight: "700" },
+  hint: { fontSize: 11, color: theme.color.muted, marginBottom: 8, fontStyle: "italic" },
+  addRow: { flexDirection: "row", gap: 8, alignItems: "center", marginTop: 4 },
+  addBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" },
+  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.color.brandTertiary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
+  chipTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
+  catCard: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 10, borderWidth: 1, borderColor: theme.color.border, marginTop: 10 },
+  catHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  catName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
 });
