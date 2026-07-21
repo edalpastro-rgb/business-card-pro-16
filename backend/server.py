@@ -226,6 +226,7 @@ class ContactIn(BaseModel):
     linkedin: str = ""
     instagram: str = ""
     facebook: str = ""
+    telegram: str = ""
     area: AreaLiteral = "energy"
     source: Literal["personal", "referral"] = "personal"
     referred_by_contact_id: Optional[str] = None
@@ -262,6 +263,7 @@ class ContactUpdate(BaseModel):
     linkedin: Optional[str] = None
     instagram: Optional[str] = None
     facebook: Optional[str] = None
+    telegram: Optional[str] = None
     area: Optional[AreaLiteral] = None
     source: Optional[Literal["personal", "referral"]] = None
     referred_by_contact_id: Optional[str] = None

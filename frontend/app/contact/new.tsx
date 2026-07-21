@@ -24,7 +24,7 @@ export default function NewContactScreen() {
   const [form, setForm] = useState({
     first_name: "", last_name: "",
     phone: "", phone_alt: "", whatsapp: "",
-    email: "", email_alt: "",
+    email: "", email_alt: "", telegram: "",
     address_street: "", address_zip: "", address_city: "", address_province: "",
     birth_date: "", fiscal_code: "", vat_number: "",
     website: "", linkedin: "", instagram: "", facebook: "",
@@ -58,7 +58,7 @@ export default function NewContactScreen() {
           ...f,
           first_name: c.first_name || "", last_name: c.last_name || "",
           phone: c.phone || "", phone_alt: c.phone_alt || "", whatsapp: c.whatsapp || "",
-          email: c.email || "", email_alt: c.email_alt || "",
+          email: c.email || "", email_alt: c.email_alt || "", telegram: c.telegram || "",
           address_street: c.address_street || "", address_number: c.address_number || "",
           address_zip: c.address_zip || "", address_city: c.address_city || "", address_province: c.address_province || "",
           birth_date: c.birth_date || "",
@@ -267,6 +267,7 @@ export default function NewContactScreen() {
             </Row>
             <Field label="Email principale" testID="c-email" value={form.email} onChangeText={(t: string) => setForm({ ...form, email: t })} keyboardType="email-address" autoCapitalize="none" />
             <Field label="Email 2°" testID="c-email-alt" value={form.email_alt} onChangeText={(t: string) => setForm({ ...form, email_alt: t })} keyboardType="email-address" autoCapitalize="none" />
+            <Field label="Telegram (username, es. @mario)" testID="c-telegram" value={form.telegram} onChangeText={(t: string) => setForm({ ...form, telegram: t })} autoCapitalize="none" />
           </Section>
 
           <Section title="Indirizzo">

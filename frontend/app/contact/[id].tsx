@@ -15,8 +15,8 @@ type Note = { id: string; kind: "text" | "audio" | "photo" | "link"; text?: stri
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string; address: string;
-  phone_alt?: string; whatsapp?: string; email_alt?: string;
-  address_street?: string; address_zip?: string; address_city?: string; address_province?: string;
+  phone_alt?: string; whatsapp?: string; email_alt?: string; telegram?: string;
+  address_street?: string; address_number?: string; address_zip?: string; address_city?: string; address_province?: string;
   birth_date?: string; fiscal_code?: string; vat_number?: string;
   website?: string; linkedin?: string; instagram?: string; facebook?: string;
   area: "energy" | "network"; source: string; referral_note: string; email_note: string; general_note: string;
@@ -199,7 +199,63 @@ export default function ContactDetail() {
 
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {tab === "info" && (
-          <View style={styles.card}>
+          <>
+            <View style={styles.card}>
+              <Text style={styles.commSectionTitle}>Comunica con {c.first_name}</Text>
+              <View style={styles.commGrid}>
+                {c.phone ? (
+                  <Pressable testID="comm-call" onPress={() => Linking.openURL(`tel:${c.phone.replace(/\s/g, "")}`)} style={[styles.commBtn, { backgroundColor: "#0F766E" }]}>
+                    <Ionicons name="call" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Chiama</Text>
+                  </Pressable>
+                ) : null}
+                {c.phone ? (
+                  <Pressable testID="comm-sms" onPress={() => Linking.openURL(`sms:${c.phone.replace(/\s/g, "")}`)} style={[styles.commBtn, { backgroundColor: theme.color.brandSecondary }]}>
+                    <Ionicons name="chatbubble-ellipses" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>SMS</Text>
+                  </Pressable>
+                ) : null}
+                {(c.whatsapp || c.phone) ? (
+                  <Pressable testID="comm-whatsapp" onPress={() => {
+                    const num = (c.whatsapp || c.phone).replace(/[^\d+]/g, "");
+                    Linking.openURL(`https://wa.me/${num}`);
+                  }} style={[styles.commBtn, { backgroundColor: "#25D366" }]}>
+                    <Ionicons name="logo-whatsapp" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>WhatsApp</Text>
+                  </Pressable>
+                ) : null}
+                {c.telegram ? (
+                  <Pressable testID="comm-telegram" onPress={() => {
+                    const t = c.telegram!.replace(/^@/, "");
+                    Linking.openURL(`https://t.me/${t}`);
+                  }} style={[styles.commBtn, { backgroundColor: "#0088CC" }]}>
+                    <Ionicons name="paper-plane" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Telegram</Text>
+                  </Pressable>
+                ) : null}
+                {c.email ? (
+                  <Pressable testID="comm-email" onPress={() => Linking.openURL(`mailto:${c.email}`)} style={[styles.commBtn, { backgroundColor: "#0F2438" }]}>
+                    <Ionicons name="mail" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Email</Text>
+                  </Pressable>
+                ) : null}
+                {c.linkedin ? (
+                  <Pressable testID="comm-linkedin" onPress={() => Linking.openURL(c.linkedin!.startsWith("http") ? c.linkedin! : `https://linkedin.com/${c.linkedin!.replace(/^\//, "")}`)} style={[styles.commBtn, { backgroundColor: "#0A66C2" }]}>
+                    <Ionicons name="logo-linkedin" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>LinkedIn</Text>
+                  </Pressable>
+                ) : null}
+                {c.instagram ? (
+                  <Pressable testID="comm-instagram" onPress={() => {
+                    const u = c.instagram!.replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "");
+                    Linking.openURL(`https://instagram.com/${u}`);
+                  }} style={[styles.commBtn, { backgroundColor: "#E4405F" }]}>
+                    <Ionicons name="logo-instagram" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Instagram</Text>
+                  </Pressable>
+                ) : null}
+                {c.facebook ? (
+                  <Pressable testID="comm-facebook" onPress={() => Linking.openURL(c.facebook!.startsWith("http") ? c.facebook! : `https://facebook.com/${c.facebook!}`)} style={[styles.commBtn, { backgroundColor: "#1877F2" }]}>
+                    <Ionicons name="logo-facebook" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Facebook</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+
+            <View style={styles.card}>
             {c.tags && c.tags.length > 0 && (
               <View style={styles.tagsWrap}>
                 {c.tags.map((t) => (
@@ -248,6 +304,7 @@ export default function ContactDetail() {
             {c.email_note ? <InfoRow icon="chatbox-outline" label="Nota email" value={c.email_note} /> : null}
             {c.general_note ? <InfoRow icon="document-text-outline" label="Note generali" value={c.general_note} /> : null}
           </View>
+          </>
         )}
 
         {tab === "notes" && (
@@ -277,7 +334,7 @@ export default function ContactDetail() {
               <View style={styles.noteBtnRow}>
                 {!showLinkInput && (
                   <Pressable testID="note-add-text" onPress={addTextNote} style={styles.smallBtn} disabled={busy}>
-                    <Ionicons name="add" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Testo</Text>
+                    <Ionicons name="document-text" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Testo</Text>
                   </Pressable>
                 )}
                 {showLinkInput ? (
@@ -286,17 +343,17 @@ export default function ContactDetail() {
                   </Pressable>
                 ) : (
                   <Pressable testID="note-toggle-link" onPress={() => setShowLinkInput(true)} style={[styles.smallBtn, { backgroundColor: theme.color.info }]}>
-                    <Ionicons name="link" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Link</Text>
+                    <Ionicons name="link" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Link/Video</Text>
                   </Pressable>
                 )}
                 <Pressable testID="note-photo-camera" onPress={() => addPhotoNote(true)} style={[styles.smallBtn, { backgroundColor: theme.color.brandSecondary }]}>
-                  <Ionicons name="camera" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Scatta</Text>
+                  <Ionicons name="camera" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Scatta foto</Text>
                 </Pressable>
                 <Pressable testID="note-photo-gallery" onPress={() => addPhotoNote(false)} style={[styles.smallBtn, { backgroundColor: "#8B5CF6" }]}>
-                  <Ionicons name="image" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Galleria</Text>
+                  <Ionicons name="image" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Importa foto</Text>
                 </Pressable>
                 <Pressable testID="note-record-toggle" onPress={recording ? stopRecording : startRecording} style={[styles.smallBtn, { backgroundColor: recording ? theme.color.error : theme.color.warning }]}>
-                  <Ionicons name={recording ? "stop" : "mic"} size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>{recording ? "Stop" : "Audio"}</Text>
+                  <Ionicons name={recording ? "stop" : "mic"} size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>{recording ? "Stop" : "Registra audio"}</Text>
                 </Pressable>
               </View>
             </View>
@@ -420,4 +477,8 @@ const styles = StyleSheet.create({
   linkTxt: { color: theme.color.brandPrimary, fontWeight: "600", flex: 1 },
   wazeInline: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandPrimary, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill, marginTop: 6, marginLeft: 30 },
   wazeInlineTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  commSectionTitle: { fontSize: 13, fontWeight: "700", color: theme.color.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  commGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  commBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: theme.radius.md, minWidth: 108, flexGrow: 1, justifyContent: "center" },
+  commBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
 });

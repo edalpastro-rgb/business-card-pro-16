@@ -1,0 +1,37 @@
+{
+  "summary": "v1.6 Communications Hub PASSED end-to-end. Backend 8/8 (2 new telegram + 6 regression: contacts list, settings, team, reports, callbacks, appointments). Frontend verified via Playwright at 390x844: (1) Contact detail Info tab renders 'COMUNICA CON {first_name}' card BEFORE the InfoRow card (indexOf comm=97 < phone=199). (2) All 8 comm buttons render for a fully populated contact with correct testIDs: comm-call, comm-sms, comm-whatsapp, comm-telegram, comm-email, comm-linkedin, comm-instagram, comm-facebook. (3) Conditional rendering works: a phone-only contact renders only comm-call + comm-sms + comm-whatsapp; telegram/email/linkedin/instagram/facebook buttons are hidden. (4) comm-telegram click triggers Linking.openURL with 'https://t.me/pw4' (verified by intercepting window.open). (5) /contact/edit/{id} loads telegram value into c-telegram input; PUT persists updated telegram (verified via GET). (6) /contact/new form has c-telegram in Contatti section. Backend POST/PUT /api/contacts accept and return the new 'telegram' string field; partial telegram-only PUT preserves other fields. No blocking issues. Non-blocking RN Web deprecation warnings (shadow*, pointerEvents) persist from prior iterations.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "shadow* style props", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Persists in RN Web 0.76+. Non-blocking. Reference: card/hero styles across app."},
+      {"component": "props.pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v16_telegram_comm.py",
+    "/app/test_reports/pytest/pytest_v16_results.xml"
+  ],
+  "action_items": [
+    "Optional (non-blocking): migrate shadow* -> boxShadow / elevation to silence RN Web deprecation warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.py:229,266 ContactIn/ContactUpdate correctly add optional telegram: str field. Default '' on create; None-guard on update. Roundtrip verified.",
+    "contact/[id].tsx:204-256 Comm card is inside a React fragment before the InfoRow card as expected. Each button has correct testID + conditional {field ? <Pressable/> : null}. WhatsApp button falls back to phone when whatsapp is empty (line 216 (c.whatsapp || c.phone)) which is a nice UX choice — main agent should confirm this is intentional; the review request wording 'buttons only for fields that are present' would imply comm-whatsapp only when c.whatsapp is set, but current logic also shows it when only c.phone is set. Not a bug, just a semantic call.",
+    "contact/[id].tsx:238 LinkedIn deep-link: if value already startsWith('http') opens directly, else prefixes 'https://linkedin.com/'. Works for 'in/user' handles. Same pattern used for Instagram (extracts username) and Facebook.",
+    "contact/[id].tsx:226-227 Telegram deep-link strips leading '@' before appending to 'https://t.me/'. Verified live: '@pw4' -> 'https://t.me/pw4'.",
+    "contact/new.tsx:27,61,270 form.telegram wired for both create and edit; c-telegram field with autoCapitalize='none' in Contatti section. Edit route hydrates value from GET /contacts/{id} correctly.",
+    "MINOR: comm-sms uses `sms:{phone}` without a body. Fine on iOS/Android; some Android launchers may need `smsto:` prefix — evaluate in native build."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v16_telegram_comm.py (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% (all 6 flows)"},
+  "seed_data_creation": "Ephemeral PWTEST_/PWTEST2/PWTEST3/PWTEST4 contacts created + deleted per test run. No persistent seed data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Viewport 390x844. Auth token in localStorage key 'auth_token_v1' as JSON-quoted string. RN Web renders comm section title in UPPERCASE via textTransform, so string searches must compare uppercase (COMUNICA CON). RN Web Linking.openURL for https URLs triggers window.open — intercept by overriding window.open. testIDs verified: comm-call, comm-sms, comm-whatsapp, comm-telegram, comm-email, comm-linkedin, comm-instagram, comm-facebook, c-telegram, c-save-btn. Note: comm-whatsapp is rendered when EITHER c.whatsapp OR c.phone is present (fallback), which slightly differs from a strict 'only when field present' reading of the spec.",
+  "rca_of_issue": "N/A — all v1.6 acceptance criteria met."
+}
