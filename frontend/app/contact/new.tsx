@@ -241,6 +241,53 @@ export default function NewContactScreen() {
     }
   };
 
+  // Groups inline management
+  const [groupModal, setGroupModal] = useState<{ mode: "create" | "edit"; group_id?: string; name: string; color: string } | null>(null);
+
+  const openNewGroup = () => setGroupModal({ mode: "create", name: "", color: AREA_COLOR_SWATCHES[0] });
+  const openEditGroup = (g: Group) => setGroupModal({ mode: "edit", group_id: g.group_id, name: g.name, color: g.color });
+
+  const saveGroupModal = async () => {
+    if (!groupModal || !groupModal.name.trim()) return;
+    try {
+      if (groupModal.mode === "create") {
+        const created = await api<{ group_id: string; name: string; color: string }>("/groups", {
+          method: "POST",
+          body: { name: groupModal.name.trim(), color: groupModal.color, description: "" },
+        });
+        // reload
+        const r = await api<{ items: Group[] }>("/groups");
+        setAvailableGroups(r.items);
+        // auto-assign
+        setForm({ ...form, group_ids: [...form.group_ids, created.group_id] });
+      } else if (groupModal.mode === "edit" && groupModal.group_id) {
+        await api(`/groups/${groupModal.group_id}`, {
+          method: "PUT",
+          body: { name: groupModal.name.trim(), color: groupModal.color },
+        });
+        const r = await api<{ items: Group[] }>("/groups");
+        setAvailableGroups(r.items);
+      }
+      setGroupModal(null);
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || "Salvataggio fallito");
+    }
+  };
+
+  const deleteGroupInline = (g: Group) => {
+    Alert.alert("Elimina gruppo", `Vuoi eliminare "${g.name}"? Tutti i contatti perderanno l'associazione.`, [
+      { text: "Annulla", style: "cancel" },
+      {
+        text: "Elimina", style: "destructive", onPress: async () => {
+          await api(`/groups/${g.group_id}`, { method: "DELETE" });
+          const r = await api<{ items: Group[] }>("/groups");
+          setAvailableGroups(r.items);
+          setForm({ ...form, group_ids: form.group_ids.filter((x) => x !== g.group_id) });
+        },
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
@@ -298,43 +345,49 @@ export default function NewContactScreen() {
           </Section>
 
           <Section title="Gruppi">
-            <Text style={styles.hintTxt}>Assegna il contatto ai gruppi (per invii bulk email/WhatsApp/Telegram)</Text>
-            {availableGroups.length === 0 ? (
-              <Pressable onPress={() => router.push("/groups")} style={styles.linkChip}>
-                <Ionicons name="add-circle-outline" size={16} color={theme.color.brandPrimary} />
-                <Text style={styles.linkChipTxt}>Crea prima un gruppo dalle Impostazioni</Text>
+            <Text style={styles.hintTxt}>Assegna il contatto ai gruppi (per invii bulk email/WhatsApp/Telegram). Tocca a lungo un gruppo per rinominarlo o eliminarlo.</Text>
+            <View style={styles.pillsRow}>
+              {availableGroups.map((g) => {
+                const on = form.group_ids.includes(g.group_id);
+                return (
+                  <Pressable
+                    key={g.group_id}
+                    testID={`c-group-${g.group_id}`}
+                    onPress={() => setForm({
+                      ...form,
+                      group_ids: on ? form.group_ids.filter((x) => x !== g.group_id) : [...form.group_ids, g.group_id],
+                    })}
+                    onLongPress={() => {
+                      Alert.alert(g.name, "Cosa vuoi fare?", [
+                        { text: "Annulla", style: "cancel" },
+                        { text: "Rinomina / colore", onPress: () => openEditGroup(g) },
+                        { text: "Elimina", style: "destructive", onPress: () => deleteGroupInline(g) },
+                      ]);
+                    }}
+                    style={[styles.pill, { flexDirection: "row", alignItems: "center" }, on && { backgroundColor: g.color, borderColor: g.color }]}
+                  >
+                    {on && <Ionicons name="checkmark-circle" size={14} color="#FFF" style={{ marginRight: 4 }} />}
+                    <View style={[styles.dot, { backgroundColor: on ? "#FFF" : g.color }]} />
+                    <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{g.name}</Text>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                testID="c-group-new"
+                onPress={openNewGroup}
+                style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}
+              >
+                <Ionicons name="add" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
+                <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Nuovo gruppo</Text>
               </Pressable>
-            ) : (
-              <>
-                <View style={styles.pillsRow}>
-                  {availableGroups.map((g) => {
-                    const on = form.group_ids.includes(g.group_id);
-                    return (
-                      <Pressable
-                        key={g.group_id}
-                        testID={`c-group-${g.group_id}`}
-                        onPress={() => setForm({
-                          ...form,
-                          group_ids: on ? form.group_ids.filter((x) => x !== g.group_id) : [...form.group_ids, g.group_id],
-                        })}
-                        style={[styles.pill, { flexDirection: "row", alignItems: "center" }, on && { backgroundColor: g.color, borderColor: g.color }]}
-                      >
-                        {on && <Ionicons name="checkmark-circle" size={14} color="#FFF" style={{ marginRight: 4 }} />}
-                        <View style={[styles.dot, { backgroundColor: on ? "#FFF" : g.color }]} />
-                        <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{g.name}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                {form.group_ids.length > 0 && (
-                  <View style={styles.selectedBox}>
-                    <Ionicons name="checkmark-circle" size={16} color={theme.color.success} />
-                    <Text style={styles.selectedTxt}>
-                      Assegnato a {form.group_ids.length} grupp{form.group_ids.length === 1 ? "o" : "i"}: {form.group_ids.map((id) => availableGroups.find((g) => g.group_id === id)?.name).filter(Boolean).join(", ")}
-                    </Text>
-                  </View>
-                )}
-              </>
+            </View>
+            {form.group_ids.length > 0 && (
+              <View style={styles.selectedBox}>
+                <Ionicons name="checkmark-circle" size={16} color={theme.color.success} />
+                <Text style={styles.selectedTxt}>
+                  Assegnato a {form.group_ids.length} grupp{form.group_ids.length === 1 ? "o" : "i"}: {form.group_ids.map((id) => availableGroups.find((g) => g.group_id === id)?.name).filter(Boolean).join(", ")}
+                </Text>
+              </View>
             )}
           </Section>
 
@@ -569,6 +622,46 @@ export default function NewContactScreen() {
               </Pressable>
               <Pressable testID="new-area-save" onPress={saveNewCustomArea} disabled={!newAreaName.trim()} style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary, opacity: newAreaName.trim() ? 1 : 0.5 }]}>
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>Crea</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!groupModal} transparent animationType="fade" onRequestClose={() => setGroupModal(null)}>
+        <View style={styles.modalBack}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{groupModal?.mode === "create" ? "Nuovo gruppo" : "Modifica gruppo"}</Text>
+            <Text style={styles.hintTxt}>Es. Clienti VIP, Prospect, Team, Fornitori...</Text>
+            <Text style={styles.lbl}>Nome</Text>
+            <TextInput
+              testID="c-group-modal-name"
+              value={groupModal?.name || ""}
+              onChangeText={(t) => setGroupModal((m) => m ? { ...m, name: t } : m)}
+              placeholder="Nome del gruppo"
+              placeholderTextColor="#94A3B8"
+              autoFocus
+              style={styles.input}
+            />
+            <Text style={styles.lbl}>Colore</Text>
+            <View style={styles.swatches}>
+              {AREA_COLOR_SWATCHES.map((c) => (
+                <Pressable key={c} onPress={() => setGroupModal((m) => m ? { ...m, color: c } : m)} style={[styles.swatch, { backgroundColor: c }, groupModal?.color === c && styles.swatchActive]}>
+                  {groupModal?.color === c && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                </Pressable>
+              ))}
+            </View>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
+              <Pressable onPress={() => setGroupModal(null)} style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
+                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              </Pressable>
+              <Pressable
+                testID="c-group-modal-save"
+                onPress={saveGroupModal}
+                disabled={!groupModal?.name?.trim()}
+                style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary, opacity: groupModal?.name?.trim() ? 1 : 0.5 }]}
+              >
+                <Text style={{ color: "#FFF", fontWeight: "700" }}>{groupModal?.mode === "create" ? "Crea" : "Salva"}</Text>
               </Pressable>
             </View>
           </View>

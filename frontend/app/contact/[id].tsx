@@ -12,7 +12,7 @@ import { pickAvatarBase64 } from "@/src/image-picker";
 import { shareText, shareDataUri } from "@/src/share";
 import * as ImagePicker from "expo-image-picker";
 
-type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "link"; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
+type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string; address: string;
@@ -200,6 +200,31 @@ export default function ContactDetail() {
     } finally { setBusy(false); }
   };
 
+  const addFileNote = async () => {
+    const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
+    if (res.canceled || !res.assets?.[0]) return;
+    const asset = res.assets[0];
+    setBusy(true);
+    try {
+      const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      if (b64.length > 20 * 1024 * 1024) {
+        alert("File troppo grande (max ~15MB).");
+        return;
+      }
+      await api(`/contacts/${id}/notes`, {
+        method: "POST",
+        body: {
+          kind: "file",
+          file_base64: b64,
+          file_name: asset.name,
+          file_mime: asset.mimeType || "application/octet-stream",
+          file_size: asset.size || 0,
+        },
+      });
+      await load();
+    } finally { setBusy(false); }
+  };
+
   const deleteFile = async (fid: string) => {
     await api(`/contacts/${id}/files/${fid}`, { method: "DELETE" });
     load();
@@ -234,6 +259,7 @@ export default function ContactDetail() {
       else if (n.kind === "audio" && n.audio_base64) await shareDataUri(`data:${n.audio_mime || "audio/m4a"};base64,${n.audio_base64}`, `vocale-${n.id}.m4a`, n.audio_mime || "audio/m4a");
       else if (n.kind === "photo" && n.photo_base64) await shareDataUri(n.photo_base64, `foto-${n.id}.jpg`, "image/jpeg");
       else if (n.kind === "video" && n.video_base64) await shareDataUri(n.video_base64, `video-${n.id}.mp4`, n.video_mime || "video/mp4");
+      else if (n.kind === "file" && n.file_base64) await shareDataUri(`data:${n.file_mime};base64,${n.file_base64}`, n.file_name || `file-${n.id}`, n.file_mime || "application/octet-stream");
     } catch (e) { console.warn(e); }
   };
 
@@ -486,6 +512,9 @@ export default function ContactDetail() {
                 <Pressable testID="note-video-gallery" onPress={() => addVideoNote(false)} style={[styles.smallBtn, { backgroundColor: "#7C3AED" }]}>
                   <Ionicons name="film" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Importa video</Text>
                 </Pressable>
+                <Pressable testID="note-attach-file" onPress={addFileNote} style={[styles.smallBtn, { backgroundColor: "#0891B2" }]}>
+                  <Ionicons name="attach" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Allega file</Text>
+                </Pressable>
                 <Pressable testID="note-record-toggle" onPress={recording ? stopRecording : startRecording} style={[styles.smallBtn, { backgroundColor: recording ? theme.color.error : theme.color.warning }]}>
                   <Ionicons name={recording ? "stop" : "mic"} size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>{recording ? "Stop" : "Registra audio"}</Text>
                 </Pressable>
@@ -495,7 +524,7 @@ export default function ContactDetail() {
               <View key={n.id} style={styles.noteCard}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.noteMeta}>
-                    {n.kind === "audio" ? "Vocale" : n.kind === "photo" ? "Foto" : n.kind === "video" ? "Video" : n.kind === "link" ? "Link" : "Testo"} · {new Date(n.created_at).toLocaleString("it-IT")}
+                    {n.kind === "audio" ? "Vocale" : n.kind === "photo" ? "Foto" : n.kind === "video" ? "Video" : n.kind === "file" ? "File" : n.kind === "link" ? "Link" : "Testo"} · {new Date(n.created_at).toLocaleString("it-IT")}
                   </Text>
                   {n.kind === "text" && <Text style={styles.noteTxt}>{n.text}</Text>}
                   {n.kind === "audio" && (
@@ -532,6 +561,30 @@ export default function ContactDetail() {
                     <Pressable onPress={() => Linking.openURL(n.link_url!)} style={styles.linkBox}>
                       <Ionicons name="link" size={16} color={theme.color.brandPrimary} />
                       <Text style={styles.linkTxt} numberOfLines={2}>{n.link_title || n.link_url}</Text>
+                    </Pressable>
+                  )}
+                  {n.kind === "file" && n.file_base64 && (
+                    <Pressable
+                      onPress={async () => {
+                        try {
+                          if (Platform.OS === "web") {
+                            const uri = `data:${n.file_mime};base64,${n.file_base64}`;
+                            const a = document.createElement("a");
+                            a.href = uri; a.download = n.file_name || "file"; document.body.appendChild(a); a.click(); a.remove();
+                            return;
+                          }
+                          const path = `${FileSystem.cacheDirectory}${n.file_name || "file"}`;
+                          await FileSystem.writeAsStringAsync(path, n.file_base64!, { encoding: FileSystem.EncodingType.Base64 });
+                          await Linking.openURL(path);
+                        } catch (e) { console.warn(e); }
+                      }}
+                      style={styles.linkBox}
+                    >
+                      <Ionicons name={n.file_mime?.includes("pdf") ? "document-text" : "document"} size={20} color={theme.color.brandPrimary} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.linkTxt} numberOfLines={1}>{n.file_name || "File"}</Text>
+                        <Text style={{ fontSize: 11, color: theme.color.muted }}>{Math.round((n.file_size || 0) / 1024)} KB</Text>
+                      </View>
                     </Pressable>
                   )}
                 </View>

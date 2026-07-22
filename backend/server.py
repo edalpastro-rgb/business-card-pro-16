@@ -195,13 +195,17 @@ AreaLiteral = Literal["energy", "network"]
 
 class ContactNote(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    kind: Literal["text", "audio", "photo", "video", "link"] = "text"
+    kind: Literal["text", "audio", "photo", "video", "file", "link"] = "text"
     text: Optional[str] = None
     audio_base64: Optional[str] = None
     audio_mime: Optional[str] = None
     photo_base64: Optional[str] = None
     video_base64: Optional[str] = None
     video_mime: Optional[str] = None
+    file_base64: Optional[str] = None
+    file_name: Optional[str] = None
+    file_mime: Optional[str] = None
+    file_size: Optional[int] = None
     link_url: Optional[str] = None
     link_title: Optional[str] = None
     duration_ms: Optional[int] = None

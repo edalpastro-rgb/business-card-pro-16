@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Alert, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -114,6 +114,48 @@ export default function NewAppointmentScreen() {
     });
   };
 
+  const [typeEditModal, setTypeEditModal] = useState<{ mode: "create" | "rename"; oldName?: string; value: string } | null>(null);
+
+  const saveTypeEdit = async () => {
+    if (!typeEditModal || !settings) return;
+    const val = typeEditModal.value.trim();
+    if (!val) return;
+    if (typeEditModal.mode === "create") {
+      if ([...DEFAULT_APPT_TYPES, ...(settings.custom_appointment_types || [])].includes(val)) {
+        Alert.alert("Nome già esistente");
+        return;
+      }
+      const next = { ...settings, custom_appointment_types: [...(settings.custom_appointment_types || []), val] };
+      const saved = await api<Settings>("/settings", { method: "PUT", body: next });
+      setSettings(saved);
+      // Auto-select
+      setForm((f) => ({ ...f, appointment_type_tags: [...f.appointment_type_tags, val] }));
+    } else if (typeEditModal.mode === "rename" && typeEditModal.oldName) {
+      const list = (settings.custom_appointment_types || []).map((x) => x === typeEditModal.oldName ? val : x);
+      const next = { ...settings, custom_appointment_types: list };
+      const saved = await api<Settings>("/settings", { method: "PUT", body: next });
+      setSettings(saved);
+      // Update any selected tags on this form
+      setForm((f) => ({ ...f, appointment_type_tags: f.appointment_type_tags.map((x) => x === typeEditModal.oldName ? val : x) }));
+    }
+    setTypeEditModal(null);
+  };
+
+  const deleteType = async (name: string) => {
+    if (!settings) return;
+    Alert.alert("Elimina tipo", `Vuoi eliminare "${name}"?`, [
+      { text: "Annulla", style: "cancel" },
+      {
+        text: "Elimina", style: "destructive", onPress: async () => {
+          const list = (settings.custom_appointment_types || []).filter((x) => x !== name);
+          const saved = await api<Settings>("/settings", { method: "PUT", body: { ...settings, custom_appointment_types: list } });
+          setSettings(saved);
+          setForm((f) => ({ ...f, appointment_type_tags: f.appointment_type_tags.filter((x) => x !== name) }));
+        }
+      },
+    ]);
+  };
+
   const toggleProduct = (t: string) => {
     const has = form.product_categories.includes(t);
     setForm({
@@ -151,16 +193,39 @@ export default function NewAppointmentScreen() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Tipo appuntamento (spuntabili più di uno)</Text>
+          <Text style={styles.hint}>Tocca per selezionare · Tocca a lungo un tipo personalizzato per rinominare o eliminare</Text>
           <View style={styles.pillsRow}>
             {allApptTypes.map((t) => {
               const active = form.appointment_type_tags.includes(t);
+              const isCustom = !DEFAULT_APPT_TYPES.includes(t);
               return (
-                <Pressable key={t} testID={`ap-type-${t}`} onPress={() => toggleType(t)} style={[styles.pill, active && styles.pillActive]}>
+                <Pressable
+                  key={t}
+                  testID={`ap-type-${t}`}
+                  onPress={() => toggleType(t)}
+                  onLongPress={isCustom ? () => {
+                    Alert.alert(t, "Cosa vuoi fare?", [
+                      { text: "Annulla", style: "cancel" },
+                      { text: "Rinomina", onPress: () => setTypeEditModal({ mode: "rename", oldName: t, value: t }) },
+                      { text: "Elimina", style: "destructive", onPress: () => deleteType(t) },
+                    ]);
+                  } : undefined}
+                  style={[styles.pill, { flexDirection: "row", alignItems: "center" }, active && styles.pillActive]}
+                >
                   <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={14} color={active ? "#FFF" : theme.color.muted} />
                   <Text style={[styles.pillTxt, active && styles.pillTxtActive, { marginLeft: 4 }]}>{t}</Text>
+                  {isCustom && <Ionicons name="pencil" size={10} color={active ? "#FFF" : theme.color.muted} style={{ marginLeft: 4 }} />}
                 </Pressable>
               );
             })}
+            <Pressable
+              testID="ap-type-new"
+              onPress={() => setTypeEditModal({ mode: "create", value: "" })}
+              style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}
+            >
+              <Ionicons name="add" size={14} color={theme.color.brandPrimary} />
+              <Text style={[styles.pillTxt, { color: theme.color.brandPrimary, marginLeft: 4 }]}>Nuovo tipo</Text>
+            </Pressable>
           </View>
 
           {showDemo && (
@@ -303,9 +368,44 @@ export default function NewAppointmentScreen() {
         </Pressable>
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal visible={!!typeEditModal} transparent animationType="fade" onRequestClose={() => setTypeEditModal(null)}>
+        <View style={mstyles.back}>
+          <View style={mstyles.card}>
+            <Text style={mstyles.title}>{typeEditModal?.mode === "create" ? "Nuovo tipo di appuntamento" : "Rinomina tipo"}</Text>
+            <Text style={mstyles.hint}>Es. Consulenza, Follow-up, Presentazione, Formazione...</Text>
+            <TextInput
+              testID="ap-type-modal-input"
+              value={typeEditModal?.value || ""}
+              onChangeText={(t) => setTypeEditModal((m) => m ? { ...m, value: t } : m)}
+              placeholder="Nome del tipo"
+              placeholderTextColor="#94A3B8"
+              autoFocus
+              style={mstyles.input}
+            />
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+              <Pressable onPress={() => setTypeEditModal(null)} style={[mstyles.btn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
+                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              </Pressable>
+              <Pressable testID="ap-type-modal-save" onPress={saveTypeEdit} disabled={!typeEditModal?.value?.trim()} style={[mstyles.btn, { backgroundColor: theme.color.brandPrimary, opacity: typeEditModal?.value?.trim() ? 1 : 0.5 }]}>
+                <Text style={{ color: "#FFF", fontWeight: "700" }}>{typeEditModal?.mode === "create" ? "Crea" : "Salva"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const mstyles = StyleSheet.create({
+  back: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
+  card: { width: "100%", maxWidth: 420, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 18 },
+  title: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface, marginBottom: 6 },
+  hint: { color: theme.color.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
+  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface, marginTop: 6 },
+  btn: { flex: 1, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center" },
+});
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.surface },
