@@ -1,0 +1,33 @@
+{
+  "summary": "v1.8 backend PASSED end-to-end: 20/20 tests green. Verified all requested items: (1) Settings now exposes and persists custom_areas (list of {id,name,color}) via GET/PUT and sub-user is correctly denied PUT with 403. (2) Contact.additional_areas accepted on POST (with ['network', custom_area_id]), returned on GET single contact, updatable via PUT. (3) GET /api/contacts?area=X now matches both contacts with area=X AND those with X in additional_areas — verified for area='network' (finds native network + energy contacts with 'network' in additional_areas) and for a custom_area_id. Native area filter (?area=energy) also still works. (4) ContactNote kind='video' with video_base64+video_mime works: POST /api/contacts/{id}/notes returns 200, note persisted and appears in the contact's notes list. (5) Backward compat: POST/PUT contact without additional_areas still works, defaulting to []. (6) Combined ?area=X&q=text uses proper $and internally — verified that ?area=network&q=EnergyPlusNetwork returns only the intersecting contact and no false positives. (7) Regression: /api/groups, /api/smtp/config (no password leak), /api/bulk/preview, /api/bulk/email (with body_text+body_html+subject+contact_ids), /api/chat/channels, /api/team/members all respond correctly. No blocking or minor issues found.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v18_areas_video.py",
+    "/app/test_reports/pytest/pytest_v18_results.xml"
+  ],
+  "action_items": [
+    "None required for backend. All v1.8 acceptance criteria met on first run. Main agent can proceed with UI wiring for: (a) Settings screen editor for custom_areas (id/name/color); (b) Contact form multi-area selector using primary area + additional_areas; (c) Contact list area filter must send area query param — backend already returns unified list; (d) Notes UI must render kind='video' entries; (e) Birthday label may need 'Data di nascita / Compleanno' — purely frontend, no backend change needed."
+  ],
+  "critical_code_review_comments": [
+    "server.py:190 SettingsModel.custom_areas typed as List[Dict[str, Any]] — flexible for {id,name,color}; consider a stronger Pydantic sub-model (CustomArea) with validators for id/color to catch typos, but not blocking.",
+    "server.py:591-592 area filter uses $or over area/additional_areas — correct and indexable if you later add compound indexes. Combined with q it goes into and_clauses at line 602-603 with $and, avoiding conflict between the two $or lists. Solid design.",
+    "server.py:198,203-204 ContactNote 'video' kind is a Literal choice and video_base64/video_mime are Optional — POST endpoint just dumps the model into a $push on notes[] which works but does not enforce that video_base64 is present when kind=='video'. Consider a model_validator to require the corresponding payload field per kind (video_base64 for video, audio_base64 for audio, photo_base64 for photo, link_url for link). Non-blocking (frontend controls the flow).",
+    "server.py:488-498 PUT /settings uses body: SettingsModel — if frontend sends a subset (e.g., only custom_areas), Pydantic default values will overwrite other fields (energy_title back to default 'Consulente Energetico'). Recommend switching to a partial-update model (SettingsUpdate with Optional[...]=None + exclude_unset) to avoid clobbering. Currently test does full GET-modify-PUT roundtrip and works, but frontend must do the same or risk data loss.",
+    "server.py:654-661 add_note stores full base64 payloads inside the notes array of the contact document — for many video notes this will blow past MongoDB's 16MB per-document limit. Long-term: store video/audio/photo blobs in a separate collection or GridFS and keep only refs in notes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v18_areas_video.py (new, 20 tests)"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "not tested (backend-only request)"},
+  "seed_data_creation": "Ephemeral: TEST_V18_ prefixed contacts and one TEST_V18_ custom_area in settings. All contacts are deleted at teardown of each test class. The TEST_V18_ custom_area is left in owner settings.custom_areas (harmless, prefixed for future cleanup); the PUT test re-uses/filters TEST_V18_ entries on re-run so it will not accumulate. If main agent wants a pristine settings, PUT /api/settings with custom_areas=[] (owner only).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Env var: EXPO_PUBLIC_BACKEND_URL in frontend/.env. Login returns 'token' (not access_token). Sub-user (sub1@dalpastro.it) shares tenant with owner. New in v1.8: (a) settings.custom_areas List[{id,name,color}] — PUT is owner-only, full-body replace (Pydantic model with defaults, no partial patch); (b) contact.additional_areas List[str] — accepts both built-in area keys ('network','energy') and custom_area ids; (c) GET /api/contacts?area=X now matches area OR additional_areas via a Mongo $or wrapped in $and; (d) ContactNote kind='video' + video_base64 + video_mime. Full-body PUT /settings caveat: frontend MUST send all existing fields to avoid overwriting them with defaults.",
+  "rca_of_issue": "N/A — all acceptance criteria met. Only fix during authoring was a test payload issue for /api/bulk/email (required body_text field was missing in my initial payload); backend correctly returned 422. Fixed the test payload and rerun passed."
+}

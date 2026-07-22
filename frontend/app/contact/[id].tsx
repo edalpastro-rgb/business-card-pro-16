@@ -12,7 +12,7 @@ import { pickAvatarBase64 } from "@/src/image-picker";
 import { shareText, shareDataUri } from "@/src/share";
 import * as ImagePicker from "expo-image-picker";
 
-type Note = { id: string; kind: "text" | "audio" | "photo" | "link"; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
+type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "link"; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string; address: string;
@@ -20,8 +20,8 @@ type Contact = {
   address_street?: string; address_number?: string; address_zip?: string; address_city?: string; address_province?: string;
   birth_date?: string; fiscal_code?: string; vat_number?: string;
   website?: string; linkedin?: string; instagram?: string; facebook?: string;
-  area: "energy" | "network"; source: string; referral_note: string; email_note: string; general_note: string;
-  tags?: string[]; referred_by_contact_id?: string;
+  area: "energy" | "network"; additional_areas?: string[]; source: string; referral_note: string; email_note: string; general_note: string;
+  tags?: string[]; group_ids?: string[]; referred_by_contact_id?: string;
   notes: Note[]; files: CFile[]; avatar_base64?: string;
 };
 
@@ -35,12 +35,24 @@ export default function ContactDetail() {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [groups, setGroups] = useState<Array<{ group_id: string; name: string; color: string }>>([]);
+  const [settings, setSettings] = useState<any>(null);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [playingUri, setPlayingUri] = useState<string | null>(null);
   const player = useAudioPlayer(playingUri);
 
-  const load = useCallback(async () => setC(await api<Contact>(`/contacts/${id}`)), [id]);
+  const load = useCallback(async () => {
+    setC(await api<Contact>(`/contacts/${id}`));
+    try {
+      const [gr, st] = await Promise.all([
+        api<{ items: any[] }>("/groups"),
+        api<any>("/settings"),
+      ]);
+      setGroups(gr.items || []);
+      setSettings(st);
+    } catch {}
+  }, [id]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (!c) return <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} /></SafeAreaView>;
@@ -125,6 +137,44 @@ export default function ContactDetail() {
     } finally { setBusy(false); }
   };
 
+  const addVideoNote = async (fromCamera: boolean) => {
+    const perm = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (Platform.OS !== "web" && !perm.granted) return;
+    const res = fromCamera
+      ? await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+          videoMaxDuration: 60,
+          quality: 0.5,
+          base64: Platform.OS === "web",
+        })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+          videoMaxDuration: 60,
+          quality: 0.5,
+          base64: Platform.OS === "web",
+        });
+    if (res.canceled || !res.assets?.[0]) return;
+    const a = res.assets[0];
+    let b64 = a.base64;
+    if (!b64) {
+      try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); } catch { return; }
+    }
+    // Sanity check size to avoid huge payloads (limit ~15MB base64)
+    if (b64 && b64.length > 20 * 1024 * 1024) {
+      alert("Video troppo grande (max ~15MB). Registra un clip più breve o riduci la qualità.");
+      return;
+    }
+    const mime = a.mimeType || "video/mp4";
+    const uri = `data:${mime};base64,${b64}`;
+    setBusy(true);
+    try {
+      await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "video", video_base64: uri, video_mime: mime } });
+      await load();
+    } finally { setBusy(false); }
+  };
+
   const addLinkNote = async () => {
     if (!linkUrl.trim()) return;
     setBusy(true);
@@ -183,6 +233,7 @@ export default function ContactDetail() {
       else if (n.kind === "link") await shareText(`${n.link_title || ""}\n${n.link_url || ""}`.trim());
       else if (n.kind === "audio" && n.audio_base64) await shareDataUri(`data:${n.audio_mime || "audio/m4a"};base64,${n.audio_base64}`, `vocale-${n.id}.m4a`, n.audio_mime || "audio/m4a");
       else if (n.kind === "photo" && n.photo_base64) await shareDataUri(n.photo_base64, `foto-${n.id}.jpg`, "image/jpeg");
+      else if (n.kind === "video" && n.video_base64) await shareDataUri(n.video_base64, `video-${n.id}.mp4`, n.video_mime || "video/mp4");
     } catch (e) { console.warn(e); }
   };
 
@@ -233,6 +284,50 @@ export default function ContactDetail() {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {tab === "info" && (
           <>
+            {(() => {
+              const areaMap: Record<string, { name: string; color: string }> = {
+                energy: { name: settings?.energy_title || "Consulente Energetico", color: settings?.energy_color || theme.color.energy },
+                network: { name: settings?.network_title || "Networker", color: settings?.network_color || theme.color.network },
+              };
+              (settings?.custom_areas || []).forEach((a: any) => { areaMap[a.id] = { name: a.name, color: a.color }; });
+              const contactAreas: string[] = [c.area, ...(c.additional_areas || [])].filter(Boolean);
+              const contactGroupObjs = (c.group_ids || []).map((gid) => groups.find((g) => g.group_id === gid)).filter(Boolean) as Array<{ group_id: string; name: string; color: string }>;
+              if (contactAreas.length === 0 && contactGroupObjs.length === 0) return null;
+              return (
+                <View style={styles.card}>
+                  {contactAreas.length > 0 && (
+                    <>
+                      <Text style={styles.commSectionTitle}>Aree di appartenenza</Text>
+                      <View style={styles.badgesRow}>
+                        {contactAreas.map((aid, i) => {
+                          const info = areaMap[aid] || { name: aid, color: theme.color.muted };
+                          return (
+                            <View key={`a-${aid}`} style={[styles.areaBadge, { backgroundColor: info.color }]}>
+                              {i === 0 && <Ionicons name="star" size={12} color="#FFF" />}
+                              <Text style={styles.areaBadgeTxt}>{info.name}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </>
+                  )}
+                  {contactGroupObjs.length > 0 && (
+                    <>
+                      <Text style={[styles.commSectionTitle, { marginTop: 12 }]}>Gruppi</Text>
+                      <View style={styles.badgesRow}>
+                        {contactGroupObjs.map((g) => (
+                          <Pressable key={g.group_id} onPress={() => router.push(`/groups/${g.group_id}`)} style={[styles.groupBadge, { borderColor: g.color }]}>
+                            <View style={[styles.groupBadgeDot, { backgroundColor: g.color }]} />
+                            <Text style={[styles.groupBadgeTxt, { color: g.color }]}>{g.name}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </>
+                  )}
+                </View>
+              );
+            })()}
+
             <View style={styles.card}>
               <Text style={styles.commSectionTitle}>Comunica con {c.first_name}</Text>
               <View style={styles.commGrid}>
@@ -385,6 +480,12 @@ export default function ContactDetail() {
                 <Pressable testID="note-photo-gallery" onPress={() => addPhotoNote(false)} style={[styles.smallBtn, { backgroundColor: "#8B5CF6" }]}>
                   <Ionicons name="image" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Importa foto</Text>
                 </Pressable>
+                <Pressable testID="note-video-camera" onPress={() => addVideoNote(true)} style={[styles.smallBtn, { backgroundColor: "#DB2777" }]}>
+                  <Ionicons name="videocam" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Registra video</Text>
+                </Pressable>
+                <Pressable testID="note-video-gallery" onPress={() => addVideoNote(false)} style={[styles.smallBtn, { backgroundColor: "#7C3AED" }]}>
+                  <Ionicons name="film" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Importa video</Text>
+                </Pressable>
                 <Pressable testID="note-record-toggle" onPress={recording ? stopRecording : startRecording} style={[styles.smallBtn, { backgroundColor: recording ? theme.color.error : theme.color.warning }]}>
                   <Ionicons name={recording ? "stop" : "mic"} size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>{recording ? "Stop" : "Registra audio"}</Text>
                 </Pressable>
@@ -394,7 +495,7 @@ export default function ContactDetail() {
               <View key={n.id} style={styles.noteCard}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.noteMeta}>
-                    {n.kind === "audio" ? "Vocale" : n.kind === "photo" ? "Foto" : n.kind === "link" ? "Link" : "Testo"} · {new Date(n.created_at).toLocaleString("it-IT")}
+                    {n.kind === "audio" ? "Vocale" : n.kind === "photo" ? "Foto" : n.kind === "video" ? "Video" : n.kind === "link" ? "Link" : "Testo"} · {new Date(n.created_at).toLocaleString("it-IT")}
                   </Text>
                   {n.kind === "text" && <Text style={styles.noteTxt}>{n.text}</Text>}
                   {n.kind === "audio" && (
@@ -405,6 +506,27 @@ export default function ContactDetail() {
                   )}
                   {n.kind === "photo" && n.photo_base64 && (
                     <Image source={{ uri: n.photo_base64 }} style={styles.notePhoto} />
+                  )}
+                  {n.kind === "video" && n.video_base64 && (
+                    <View style={styles.videoWrap}>
+                      {Platform.OS === "web" ? (
+                        // @ts-expect-error web element
+                        <video src={n.video_base64} controls style={{ width: 240, height: 180, borderRadius: 10, backgroundColor: "#000" }} />
+                      ) : (
+                        <Pressable onPress={async () => {
+                          const uri = n.video_base64!;
+                          const b64 = uri.includes(",") ? uri.split(",")[1] : uri;
+                          const path = `${FileSystem.cacheDirectory}video-${n.id}.mp4`;
+                          try {
+                            await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
+                            await Linking.openURL(path);
+                          } catch (e) { console.warn(e); }
+                        }} style={styles.videoPlaceholder}>
+                          <Ionicons name="play-circle" size={48} color="#FFF" />
+                          <Text style={{ color: "#FFF", fontWeight: "700", marginTop: 4 }}>Riproduci video</Text>
+                        </Pressable>
+                      )}
+                    </View>
                   )}
                   {n.kind === "link" && n.link_url && (
                     <Pressable onPress={() => Linking.openURL(n.link_url!)} style={styles.linkBox}>
@@ -490,7 +612,7 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 11, color: theme.color.muted, textTransform: "uppercase", fontWeight: "700" },
   infoValue: { fontSize: 15, color: theme.color.onSurface, marginTop: 2 },
   input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, padding: 10, color: theme.color.onSurface },
-  noteBtnRow: { flexDirection: "row", gap: 8, marginTop: 10 },
+  noteBtnRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
   smallBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandPrimary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radius.pill },
   smallBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
   noteCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, marginTop: 8 },
@@ -513,6 +635,14 @@ const styles = StyleSheet.create({
   wazeInline: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandPrimary, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill, marginTop: 6, marginLeft: 30 },
   wazeInlineTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
   commSectionTitle: { fontSize: 13, fontWeight: "700", color: theme.color.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  badgesRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  areaBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill },
+  areaBadgeTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  groupBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: theme.radius.pill, borderWidth: 1.5, backgroundColor: "#FFF" },
+  groupBadgeDot: { width: 8, height: 8, borderRadius: 4 },
+  groupBadgeTxt: { fontWeight: "700", fontSize: 12 },
+  videoWrap: { marginTop: 6 },
+  videoPlaceholder: { width: 240, height: 180, borderRadius: 10, backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center" },
   commGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   commBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: theme.radius.md, minWidth: 108, flexGrow: 1, justifyContent: "center" },
   commBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },

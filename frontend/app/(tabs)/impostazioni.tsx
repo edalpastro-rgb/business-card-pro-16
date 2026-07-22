@@ -14,6 +14,7 @@ type Settings = {
   app_name?: string;
   custom_appointment_types?: string[];
   custom_product_categories?: { name: string; subs?: string[] }[];
+  custom_areas?: { id: string; name: string; color: string; icon?: string }[];
 };
 
 const COLOR_SWATCHES = ["#C83232", "#1B6CB0", "#1C4869", "#2D7A5A", "#B77C14", "#7A2E8E", "#0B7285", "#E67700"];
@@ -229,8 +230,34 @@ export default function ImpostazioniScreen() {
 
         {!user?.parent_user_id && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Tipi appuntamento custom</Text>
-          <Text style={styles.hint}>Aggiungi tipi personalizzati oltre a Piano Marketing / Energia / Ant / Dare seguito / Demo prodotti</Text>
+          <Text style={styles.sectionTitle}>Aree contatto personalizzate</Text>
+          <Text style={styles.hint}>Oltre a &quot;Consulente Energetico&quot; e &quot;Networker&quot;, gestisci le aree custom (es. Assicurazioni, Immobiliare). Crea nuove aree direttamente dalla scheda contatto.</Text>
+          {(s.custom_areas || []).length === 0 ? (
+            <Text style={{ color: theme.color.muted, fontSize: 12, fontStyle: "italic", marginTop: 4 }}>Nessuna area personalizzata. Creane dalla schermata Nuovo Contatto → &quot;Nuova area&quot;.</Text>
+          ) : (
+            <View style={styles.chipsWrap}>
+              {(s.custom_areas || []).map((a) => (
+                <Pressable
+                  key={a.id}
+                  onPress={() => {
+                    persistAndReload({ ...s, custom_areas: (s.custom_areas || []).filter((x) => x.id !== a.id) });
+                  }}
+                  style={[styles.chip, { flexDirection: "row", alignItems: "center", backgroundColor: a.color + "33", borderColor: a.color, borderWidth: 1 }]}
+                >
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: a.color, marginRight: 6 }} />
+                  <Text style={[styles.chipTxt, { color: a.color }]}>{a.name}</Text>
+                  <Ionicons name="close" size={12} color={a.color} />
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
+        )}
+
+        {!user?.parent_user_id && (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Aree merceologiche / Tipi di appuntamento</Text>
+          <Text style={styles.hint}>Modifica e crea nuove aree merceologiche degli appuntamenti (Piano Marketing / Energia / Ant / Dare seguito / Demo prodotti sono predefinite). Puoi eliminarle toccandole.</Text>
           <View style={styles.addRow}>
             <TextInput
               testID="apt-type-input"

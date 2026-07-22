@@ -172,6 +172,13 @@ def scope_query(user: dict, extra: Dict[str, Any] = None) -> Dict[str, Any]:
     return q
 
 
+class CustomArea(BaseModel):
+    id: str
+    name: str
+    color: str = "#6B7280"
+    icon: str = "briefcase"
+
+
 class SettingsModel(BaseModel):
     energy_title: str = "Consulente Energetico"
     energy_color: str = "#C83232"
@@ -180,6 +187,7 @@ class SettingsModel(BaseModel):
     app_name: str = "Dal Pastro CRM"
     custom_appointment_types: List[str] = Field(default_factory=list)
     custom_product_categories: List[Dict[str, Any]] = Field(default_factory=list)
+    custom_areas: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 AreaLiteral = Literal["energy", "network"]
@@ -187,11 +195,13 @@ AreaLiteral = Literal["energy", "network"]
 
 class ContactNote(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    kind: Literal["text", "audio", "photo", "link"] = "text"
+    kind: Literal["text", "audio", "photo", "video", "link"] = "text"
     text: Optional[str] = None
     audio_base64: Optional[str] = None
     audio_mime: Optional[str] = None
     photo_base64: Optional[str] = None
+    video_base64: Optional[str] = None
+    video_mime: Optional[str] = None
     link_url: Optional[str] = None
     link_title: Optional[str] = None
     duration_ms: Optional[int] = None
@@ -235,6 +245,7 @@ class ContactIn(BaseModel):
     facebook: str = ""
     telegram: str = ""
     area: AreaLiteral = "energy"
+    additional_areas: List[str] = Field(default_factory=list)
     source: Literal["personal", "referral"] = "personal"
     referred_by_contact_id: Optional[str] = None
     referral_type: Optional[Literal["direct", "from_contact"]] = None
@@ -273,6 +284,7 @@ class ContactUpdate(BaseModel):
     facebook: Optional[str] = None
     telegram: Optional[str] = None
     area: Optional[AreaLiteral] = None
+    additional_areas: Optional[List[str]] = None
     source: Optional[Literal["personal", "referral"]] = None
     referred_by_contact_id: Optional[str] = None
     referral_type: Optional[Literal["direct", "from_contact"]] = None
@@ -575,17 +587,20 @@ async def delete_member(member_id: str, user=Depends(get_current_user)):
 @api_router.get("/contacts")
 async def list_contacts(area: Optional[str] = None, q: Optional[str] = None, group_id: Optional[str] = None, user=Depends(get_current_user)):
     query: Dict[str, Any] = scope_query(user)
-    if area in ("energy", "network"):
-        query["area"] = area
+    and_clauses: List[Dict[str, Any]] = []
+    if area:
+        and_clauses.append({"$or": [{"area": area}, {"additional_areas": area}]})
     if group_id:
         query["group_ids"] = group_id
     if q:
-        query["$or"] = [
+        and_clauses.append({"$or": [
             {"first_name": {"$regex": q, "$options": "i"}},
             {"last_name": {"$regex": q, "$options": "i"}},
             {"phone": {"$regex": q, "$options": "i"}},
             {"email": {"$regex": q, "$options": "i"}},
-        ]
+        ]})
+    if and_clauses:
+        query["$and"] = and_clauses
     items = await db.contacts.find(query, {"_id": 0, "notes": 0, "files": 0}).sort("last_name", 1).to_list(1000)
     return {"items": items}
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Alert } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Alert, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -13,6 +13,10 @@ import { scheduleBirthdayReminder } from "@/src/notifications";
 
 type ContactLite = { contact_id: string; first_name: string; last_name: string };
 type Group = { group_id: string; name: string; color: string };
+type CustomArea = { id: string; name: string; color: string; icon?: string };
+type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_areas: CustomArea[] };
+
+const AREA_COLOR_SWATCHES = ["#1B6CB0", "#C83232", "#2D7A5A", "#B77C14", "#7A2E8E", "#0B7285", "#E67700", "#6B7280"];
 
 export default function NewContactScreen() {
   const router = useRouter();
@@ -23,6 +27,10 @@ export default function NewContactScreen() {
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
   const [contacts, setContacts] = useState<ContactLite[]>([]);
   const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [newAreaModal, setNewAreaModal] = useState(false);
+  const [newAreaName, setNewAreaName] = useState("");
+  const [newAreaColor, setNewAreaColor] = useState(AREA_COLOR_SWATCHES[0]);
   const [form, setForm] = useState({
     first_name: "", last_name: "",
     phone: "", phone_alt: "", whatsapp: "",
@@ -35,6 +43,7 @@ export default function NewContactScreen() {
     birthday_message: "",
     birthday_message_link: "",
     area: (allowed[0] || "energy") as "energy" | "network",
+    additional_areas: [] as string[],
     source: "personal" as "personal" | "referral",
     referral_type: "" as "" | "direct" | "from_contact",
     referred_by_contact_id: "",
@@ -51,6 +60,7 @@ export default function NewContactScreen() {
   useEffect(() => {
     api<{ items: ContactLite[] }>("/contacts").then((r) => setContacts(r.items)).catch(() => {});
     api<{ items: Group[] }>("/groups").then((r) => setAvailableGroups(r.items)).catch(() => {});
+    api<Settings>("/settings").then((s) => setSettings(s)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -74,6 +84,7 @@ export default function NewContactScreen() {
           website: c.website || "", linkedin: c.linkedin || "",
           instagram: c.instagram || "", facebook: c.facebook || "",
           area: (c.area === "network" ? "network" : "energy"),
+          additional_areas: c.additional_areas || [],
           source: (c.source === "referral" ? "referral" : "personal"),
           referral_type: c.referral_type || "",
           referred_by_contact_id: c.referred_by_contact_id || "",
@@ -180,6 +191,56 @@ export default function NewContactScreen() {
 
   const removeTag = (t: string) => setForm({ ...form, tags: form.tags.filter((x) => x !== t) });
 
+  // Build all available areas: built-in + custom from settings
+  const allAreas: { id: string; name: string; color: string; builtin?: boolean }[] = [
+    ...(allowed.includes("energy") ? [{ id: "energy", name: settings?.energy_title || "Consulente Energetico", color: settings?.energy_color || theme.color.energy, builtin: true }] : []),
+    ...(allowed.includes("network") ? [{ id: "network", name: settings?.network_title || "Networker", color: settings?.network_color || theme.color.network, builtin: true }] : []),
+    ...(settings?.custom_areas || []).map((a) => ({ id: a.id, name: a.name, color: a.color })),
+  ];
+
+  const toggleArea = (areaId: string) => {
+    // If it's not selected anywhere, add it. If already selected as primary → do nothing (must have primary). If additional → remove.
+    const isPrimary = form.area === areaId;
+    const isAdditional = form.additional_areas.includes(areaId);
+    if (!isPrimary && !isAdditional) {
+      // Add: first check if we have a primary yet
+      if (!form.area || !allAreas.some((a) => a.id === form.area)) {
+        setForm({ ...form, area: (areaId === "energy" || areaId === "network") ? (areaId as "energy" | "network") : form.area, additional_areas: (areaId !== "energy" && areaId !== "network") ? [...form.additional_areas, areaId] : form.additional_areas });
+      } else {
+        setForm({ ...form, additional_areas: [...form.additional_areas, areaId] });
+      }
+    } else if (isAdditional) {
+      setForm({ ...form, additional_areas: form.additional_areas.filter((x) => x !== areaId) });
+    } else if (isPrimary && form.additional_areas.length > 0) {
+      // Promote another to primary if it's a built-in
+      const nextBuiltIn = form.additional_areas.find((x) => x === "energy" || x === "network");
+      if (nextBuiltIn) {
+        setForm({ ...form, area: nextBuiltIn as "energy" | "network", additional_areas: form.additional_areas.filter((x) => x !== nextBuiltIn) });
+      }
+    }
+  };
+  const isAreaSelected = (areaId: string) => form.area === areaId || form.additional_areas.includes(areaId);
+
+  const saveNewCustomArea = async () => {
+    if (!newAreaName.trim() || !settings) return;
+    const newArea: CustomArea = {
+      id: `area_${Date.now().toString(36)}`,
+      name: newAreaName.trim(),
+      color: newAreaColor,
+    };
+    const updated = { ...settings, custom_areas: [...(settings.custom_areas || []), newArea] };
+    try {
+      const saved = await api<Settings>("/settings", { method: "PUT", body: updated });
+      setSettings(saved);
+      // Auto-select the newly created area
+      setForm({ ...form, additional_areas: [...form.additional_areas, newArea.id] });
+      setNewAreaModal(false);
+      setNewAreaName("");
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || "Impossibile salvare");
+    }
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
@@ -202,7 +263,83 @@ export default function NewContactScreen() {
               <Field flex={1} label="Nome *" testID="c-first-name" value={form.first_name} onChangeText={(t: string) => setForm({ ...form, first_name: t })} />
               <Field flex={1} label="Cognome" testID="c-last-name" value={form.last_name} onChangeText={(t: string) => setForm({ ...form, last_name: t })} />
             </Row>
-            <Text style={styles.lbl}>Data di nascita</Text>
+          </Section>
+
+          <Section title="Aree di appartenenza *">
+            <Text style={styles.hintTxt}>Puoi selezionare più aree contemporaneamente. La prima selezionata è quella principale (colora la scheda).</Text>
+            <View style={styles.pillsRow}>
+              {allAreas.map((a) => {
+                const on = isAreaSelected(a.id);
+                const primary = form.area === a.id;
+                return (
+                  <Pressable
+                    key={a.id}
+                    testID={`c-area-${a.id}`}
+                    onPress={() => toggleArea(a.id)}
+                    style={[styles.pill, { flexDirection: "row", alignItems: "center" }, on && { backgroundColor: a.color, borderColor: a.color }]}
+                  >
+                    {on && <Ionicons name="checkmark" size={14} color="#FFF" style={{ marginRight: 4 }} />}
+                    <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{a.name}{primary ? " ★" : ""}</Text>
+                  </Pressable>
+                );
+              })}
+              <Pressable testID="c-area-new" onPress={() => setNewAreaModal(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}>
+                <Ionicons name="add" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
+                <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Nuova area</Text>
+              </Pressable>
+            </View>
+            {(form.area || form.additional_areas.length > 0) && (
+              <View style={{ marginTop: 10 }}>
+                <Text style={styles.hintTxt}>
+                  {[form.area && allAreas.find((a) => a.id === form.area)?.name, ...form.additional_areas.map((id) => allAreas.find((a) => a.id === id)?.name)].filter(Boolean).join(" · ")}
+                </Text>
+              </View>
+            )}
+          </Section>
+
+          <Section title="Gruppi">
+            <Text style={styles.hintTxt}>Assegna il contatto ai gruppi (per invii bulk email/WhatsApp/Telegram)</Text>
+            {availableGroups.length === 0 ? (
+              <Pressable onPress={() => router.push("/groups")} style={styles.linkChip}>
+                <Ionicons name="add-circle-outline" size={16} color={theme.color.brandPrimary} />
+                <Text style={styles.linkChipTxt}>Crea prima un gruppo dalle Impostazioni</Text>
+              </Pressable>
+            ) : (
+              <>
+                <View style={styles.pillsRow}>
+                  {availableGroups.map((g) => {
+                    const on = form.group_ids.includes(g.group_id);
+                    return (
+                      <Pressable
+                        key={g.group_id}
+                        testID={`c-group-${g.group_id}`}
+                        onPress={() => setForm({
+                          ...form,
+                          group_ids: on ? form.group_ids.filter((x) => x !== g.group_id) : [...form.group_ids, g.group_id],
+                        })}
+                        style={[styles.pill, { flexDirection: "row", alignItems: "center" }, on && { backgroundColor: g.color, borderColor: g.color }]}
+                      >
+                        {on && <Ionicons name="checkmark-circle" size={14} color="#FFF" style={{ marginRight: 4 }} />}
+                        <View style={[styles.dot, { backgroundColor: on ? "#FFF" : g.color }]} />
+                        <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{g.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {form.group_ids.length > 0 && (
+                  <View style={styles.selectedBox}>
+                    <Ionicons name="checkmark-circle" size={16} color={theme.color.success} />
+                    <Text style={styles.selectedTxt}>
+                      Assegnato a {form.group_ids.length} grupp{form.group_ids.length === 1 ? "o" : "i"}: {form.group_ids.map((id) => availableGroups.find((g) => g.group_id === id)?.name).filter(Boolean).join(", ")}
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+          </Section>
+
+          <Section title="Dati anagrafici">
+            <Text style={styles.lbl}>Data di nascita / Compleanno</Text>
             {Platform.OS === "web" ? (
               <View style={{ marginBottom: 4 }}>
                 {/* @ts-expect-error web-only */}
@@ -287,16 +424,7 @@ export default function NewContactScreen() {
             </Row>
           </Section>
 
-          <Section title="Classificazione">
-            <Text style={styles.lbl}>Area</Text>
-            <View style={styles.pillsRow}>
-              {(["energy", "network"] as const).filter((a) => allowed.includes(a)).map((a) => (
-                <Pressable key={a} testID={`c-area-${a}`} onPress={() => setForm({ ...form, area: a })} style={[styles.pill, form.area === a && { backgroundColor: a === "energy" ? theme.color.energy : theme.color.network, borderColor: a === "energy" ? theme.color.energy : theme.color.network }]}>
-                  <Text style={[styles.pillTxt, form.area === a && styles.pillTxtActive]}>{a === "energy" ? "Energia" : "Network"}</Text>
-                </Pressable>
-              ))}
-            </View>
-
+          <Section title="Origine e riferimento">
             <Text style={styles.lbl}>Origine</Text>
             <View style={styles.pillsRow}>
               <Pressable testID="c-source-personal" onPress={() => setForm({ ...form, source: "personal", referral_type: "", referred_by_contact_id: "" })} style={[styles.pill, form.source === "personal" && styles.pillActive]}>
@@ -358,34 +486,6 @@ export default function NewContactScreen() {
                 ))}
               </View>
             )}
-
-            <Text style={styles.lbl}>Gruppi</Text>
-            {availableGroups.length === 0 ? (
-              <Pressable onPress={() => router.push("/groups")} style={styles.linkChip}>
-                <Ionicons name="add-circle-outline" size={16} color={theme.color.brandPrimary} />
-                <Text style={styles.linkChipTxt}>Crea prima un gruppo</Text>
-              </Pressable>
-            ) : (
-              <View style={styles.pillsRow}>
-                {availableGroups.map((g) => {
-                  const on = form.group_ids.includes(g.group_id);
-                  return (
-                    <Pressable
-                      key={g.group_id}
-                      testID={`c-group-${g.group_id}`}
-                      onPress={() => setForm({
-                        ...form,
-                        group_ids: on ? form.group_ids.filter((x) => x !== g.group_id) : [...form.group_ids, g.group_id],
-                      })}
-                      style={[styles.pill, { flexDirection: "row", alignItems: "center" }, on && { backgroundColor: g.color, borderColor: g.color }]}
-                    >
-                      <View style={[styles.dot, { backgroundColor: on ? "#FFF" : g.color }]} />
-                      <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{g.name}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
           </Section>
 
           <Section title="Foto contatto">
@@ -440,6 +540,40 @@ export default function NewContactScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal visible={newAreaModal} transparent animationType="fade" onRequestClose={() => setNewAreaModal(false)}>
+        <View style={styles.modalBack}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Nuova area personalizzata</Text>
+            <Text style={styles.hintTxt}>Es. Assicurazioni, Immobiliare, Formazione...</Text>
+            <Text style={styles.lbl}>Nome area</Text>
+            <TextInput
+              testID="new-area-name"
+              value={newAreaName}
+              onChangeText={setNewAreaName}
+              placeholder="Nome della nuova area"
+              placeholderTextColor="#94A3B8"
+              style={styles.input}
+            />
+            <Text style={styles.lbl}>Colore</Text>
+            <View style={styles.swatches}>
+              {AREA_COLOR_SWATCHES.map((c) => (
+                <Pressable key={c} onPress={() => setNewAreaColor(c)} style={[styles.swatch, { backgroundColor: c }, newAreaColor === c && styles.swatchActive]}>
+                  {newAreaColor === c && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                </Pressable>
+              ))}
+            </View>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
+              <Pressable onPress={() => setNewAreaModal(false)} style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
+                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              </Pressable>
+              <Pressable testID="new-area-save" onPress={saveNewCustomArea} disabled={!newAreaName.trim()} style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary, opacity: newAreaName.trim() ? 1 : 0.5 }]}>
+                <Text style={{ color: "#FFF", fontWeight: "700" }}>Crea</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -507,6 +641,16 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   linkChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandTertiary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill, alignSelf: "flex-start" },
   linkChipTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
+  hintTxt: { color: theme.color.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
+  selectedBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F0FDF4", borderRadius: theme.radius.md, padding: 10, marginTop: 10, borderWidth: 1, borderColor: theme.color.success },
+  selectedTxt: { flex: 1, color: theme.color.success, fontSize: 12, fontWeight: "600" },
+  modalBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
+  modalCard: { width: "100%", maxWidth: 420, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 18 },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface, marginBottom: 8 },
+  swatches: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  swatch: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
+  swatchActive: { borderColor: theme.color.onSurface },
+  modalBtn: { flex: 1, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center" },
 });
 
 const webDateInputStyle: any = {
