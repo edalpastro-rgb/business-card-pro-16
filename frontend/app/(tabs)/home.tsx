@@ -1,17 +1,19 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image, TextInput, Linking, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 
-type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
+type CustomArea = { id: string; name: string; color: string };
+type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_areas?: CustomArea[] };
 type Callback = { callback_id: string; title: string; area: "energy" | "network"; scheduled_at: string; note: string; done: boolean; contact_id?: string };
 type ReportStats = { period: string; stats: { energy: any; network: any } };
+type Contact = { contact_id: string; first_name: string; last_name: string; phone?: string; whatsapp?: string; telegram?: string; email?: string; area: string; additional_areas?: string[]; group_ids?: string[] };
+type Group = { group_id: string; name: string; color: string; member_count: number };
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -19,20 +21,28 @@ export default function HomeScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [callbacks, setCallbacks] = useState<Callback[]>([]);
   const [report, setReport] = useState<ReportStats | null>(null);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [chatQuery, setChatQuery] = useState("");
+  const [chatAreaFilter, setChatAreaFilter] = useState<string>("all");
 
   const load = useCallback(async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const [s, c, r] = await Promise.all([
+      const [s, c, r, ct, gr] = await Promise.all([
         api<Settings>("/settings"),
         api<{ items: Callback[] }>("/callbacks", { query: { day: today, include_done: true } }),
         api<ReportStats>("/reports", { query: { period: "day" } }),
+        api<{ items: Contact[] }>("/contacts"),
+        api<{ items: Group[] }>("/groups"),
       ]);
       setSettings(s);
       setCallbacks(c.items);
       setReport(r);
+      setContacts(ct.items || []);
+      setGroups(gr.items || []);
     } catch (e) {
       console.warn(e);
     } finally {
@@ -98,6 +108,167 @@ export default function HomeScreen() {
             <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.network.appointments_done ?? 0}</Text><Text style={styles.statLbl}>App. fatti</Text></View>
             <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.network.contracts ?? 0}</Text><Text style={styles.statLbl}>Contratti</Text></View>
             <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.network.products ?? 0}</Text><Text style={styles.statLbl}>Prodotti</Text></View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>Chat & Messaggi</Text>
+            <Pressable testID="home-open-chat" onPress={() => router.push("/chat")}>
+              <Text style={styles.linkTxt}>Chat interna →</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.chatCard}>
+            <View style={styles.searchRow}>
+              <Ionicons name="search" size={16} color={theme.color.muted} />
+              <TextInput
+                testID="home-chat-search"
+                value={chatQuery}
+                onChangeText={setChatQuery}
+                placeholder="Cerca contatto o gruppo per nome…"
+                placeholderTextColor="#94A3B8"
+                style={styles.searchInput}
+              />
+              {chatQuery.length > 0 && (
+                <Pressable onPress={() => setChatQuery("")} hitSlop={10}>
+                  <Ionicons name="close-circle" size={16} color={theme.color.muted} />
+                </Pressable>
+              )}
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+              {[
+                { id: "all", name: "Tutti", color: theme.color.brandPrimary },
+                { id: "energy", name: settings?.energy_title || "Consulente Energetico", color: energyColor },
+                { id: "network", name: settings?.network_title || "Networker", color: networkColor },
+                ...(settings?.custom_areas || []),
+              ].map((a) => {
+                const on = chatAreaFilter === a.id;
+                return (
+                  <Pressable
+                    key={a.id}
+                    testID={`home-chat-filter-${a.id}`}
+                    onPress={() => setChatAreaFilter(a.id)}
+                    style={[styles.filterChip, on && { backgroundColor: a.color, borderColor: a.color }]}
+                  >
+                    <Text style={[styles.filterChipTxt, on && { color: "#FFF" }]}>{a.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {(() => {
+              const q = chatQuery.trim().toLowerCase();
+              const filteredGroups = groups.filter((g) => !q || g.name.toLowerCase().includes(q));
+              const filteredContacts = contacts.filter((c) => {
+                if (chatAreaFilter !== "all") {
+                  const inArea = c.area === chatAreaFilter || (c.additional_areas || []).includes(chatAreaFilter);
+                  if (!inArea) return false;
+                }
+                if (!q) return true;
+                return `${c.first_name} ${c.last_name}`.toLowerCase().includes(q) || (c.phone || "").includes(q);
+              });
+              const showGroups = chatAreaFilter === "all" ? filteredGroups : [];
+              const results = [
+                ...showGroups.slice(0, 3).map((g) => ({ type: "group" as const, item: g })),
+                ...filteredContacts.slice(0, 6).map((c) => ({ type: "contact" as const, item: c })),
+              ];
+              if (results.length === 0) {
+                return (
+                  <View style={styles.chatEmpty}>
+                    <Ionicons name="chatbubbles-outline" size={28} color={theme.color.muted} />
+                    <Text style={styles.emptyTxt}>{q ? "Nessun risultato" : "Aggiungi contatti e gruppi per iniziare"}</Text>
+                  </View>
+                );
+              }
+              return (
+                <View style={{ marginTop: 10, gap: 6 }}>
+                  {results.map((r) => {
+                    if (r.type === "group") {
+                      const g = r.item;
+                      return (
+                        <Pressable
+                          key={`g-${g.group_id}`}
+                          testID={`home-chat-group-${g.group_id}`}
+                          onPress={() => router.push(`/groups/${g.group_id}`)}
+                          style={styles.resultCard}
+                        >
+                          <View style={[styles.avatarLg, { backgroundColor: g.color + "22" }]}>
+                            <Ionicons name="people" size={20} color={g.color} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.resultName}>{g.name}</Text>
+                            <Text style={styles.resultSub}>Gruppo · {g.member_count} contatt{g.member_count === 1 ? "o" : "i"}</Text>
+                          </View>
+                          <View style={[styles.grpBadge, { backgroundColor: g.color }]}>
+                            <Text style={styles.grpBadgeTxt}>Bulk</Text>
+                          </View>
+                        </Pressable>
+                      );
+                    }
+                    const c = r.item;
+                    const areaColor = c.area === "energy" ? energyColor : c.area === "network" ? networkColor : (settings?.custom_areas || []).find((x) => x.id === c.area)?.color || theme.color.muted;
+                    return (
+                      <View key={`c-${c.contact_id}`} style={styles.resultCard}>
+                        <Pressable style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 10 }} onPress={() => router.push(`/contact/${c.contact_id}`)}>
+                          <View style={[styles.avatarLg, { backgroundColor: areaColor + "22" }]}>
+                            <Text style={[styles.avatarLgTxt, { color: areaColor }]}>{(c.first_name?.[0] || "").toUpperCase()}{(c.last_name?.[0] || "").toUpperCase()}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.resultName} numberOfLines={1}>{c.first_name} {c.last_name}</Text>
+                            <Text style={styles.resultSub} numberOfLines={1}>{c.phone || c.email || "—"}</Text>
+                          </View>
+                        </Pressable>
+                        <View style={styles.commRow}>
+                          {(c.whatsapp || c.phone) && (
+                            <Pressable
+                              testID={`home-wa-${c.contact_id}`}
+                              onPress={() => Linking.openURL(`https://wa.me/${(c.whatsapp || c.phone || "").replace(/[^\d+]/g, "")}`)}
+                              style={[styles.iconBtn, { backgroundColor: "#25D366" }]}
+                            >
+                              <Ionicons name="logo-whatsapp" size={14} color="#FFF" />
+                            </Pressable>
+                          )}
+                          {c.telegram && (
+                            <Pressable
+                              testID={`home-tg-${c.contact_id}`}
+                              onPress={() => Linking.openURL(`https://t.me/${(c.telegram || "").replace(/^@/, "")}`)}
+                              style={[styles.iconBtn, { backgroundColor: "#0088CC" }]}
+                            >
+                              <Ionicons name="paper-plane" size={14} color="#FFF" />
+                            </Pressable>
+                          )}
+                          {c.email && (
+                            <Pressable
+                              testID={`home-mail-${c.contact_id}`}
+                              onPress={() => Linking.openURL(`mailto:${c.email}`)}
+                              style={[styles.iconBtn, { backgroundColor: "#0F2438" }]}
+                            >
+                              <Ionicons name="mail" size={14} color="#FFF" />
+                            </Pressable>
+                          )}
+                          {c.phone && (
+                            <Pressable
+                              testID={`home-call-${c.contact_id}`}
+                              onPress={() => Linking.openURL(`tel:${c.phone}`)}
+                              style={[styles.iconBtn, { backgroundColor: theme.color.brandPrimary }]}
+                            >
+                              <Ionicons name="call" size={14} color="#FFF" />
+                            </Pressable>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                  {(filteredContacts.length > 6 || filteredGroups.length > 3) && (
+                    <Pressable onPress={() => router.push("/(tabs)/contatti")} style={{ padding: 8, alignItems: "center" }}>
+                      <Text style={styles.linkTxt}>Vedi tutti ({filteredContacts.length} contatti · {filteredGroups.length} gruppi) →</Text>
+                    </Pressable>
+                  )}
+                </View>
+              );
+            })()}
           </View>
         </View>
 
@@ -208,4 +379,20 @@ const styles = StyleSheet.create({
   quickRow: { flexDirection: "row", gap: 12 },
   quick: { flex: 1, backgroundColor: "#FFF", padding: 16, borderRadius: theme.radius.md, alignItems: "center", gap: 8, borderWidth: 1, borderColor: theme.color.border },
   quickTxt: { fontWeight: "600", color: theme.color.onSurface, fontSize: 13, textAlign: "center" },
+  chatCard: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.surface, borderRadius: theme.radius.md, paddingHorizontal: 10, paddingVertical: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: theme.color.onSurface, ...Platform.select({ web: { outlineStyle: "none" as any } }) },
+  filterRow: { gap: 6, paddingVertical: 10 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
+  filterChipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurfaceTertiary },
+  chatEmpty: { alignItems: "center", padding: 22, gap: 6 },
+  resultCard: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: theme.radius.md, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border },
+  avatarLg: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  avatarLgTxt: { fontWeight: "700", fontSize: 13 },
+  resultName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
+  resultSub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  commRow: { flexDirection: "row", gap: 4 },
+  iconBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  grpBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
+  grpBadgeTxt: { color: "#FFF", fontWeight: "700", fontSize: 11 },
 });

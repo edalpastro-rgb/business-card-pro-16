@@ -12,7 +12,7 @@ import { pickAvatarBase64 } from "@/src/image-picker";
 import { shareText, shareDataUri } from "@/src/share";
 import * as ImagePicker from "expo-image-picker";
 
-type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
+type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string; address: string;
@@ -35,6 +35,7 @@ export default function ContactDetail() {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<null | "general" | "email" | "referral">(null);
   const [groups, setGroups] = useState<Array<{ group_id: string; name: string; color: string }>>([]);
   const [settings, setSettings] = useState<any>(null);
 
@@ -72,7 +73,7 @@ export default function ContactDetail() {
     if (!noteText.trim()) return;
     setBusy(true);
     try {
-      await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "text", text: noteText } });
+      await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "text", text: noteText, category: activeCategory } });
       setNoteText(""); await load();
     } finally { setBusy(false); }
   };
@@ -96,7 +97,7 @@ export default function ContactDetail() {
       const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
       await api(`/contacts/${id}/notes`, {
         method: "POST",
-        body: { kind: "audio", audio_base64: b64, audio_mime: "audio/m4a" },
+        body: { kind: "audio", audio_base64: b64, audio_mime: "audio/m4a", category: activeCategory },
       });
       await load();
     } catch (e) { console.warn(e); }
@@ -132,7 +133,7 @@ export default function ContactDetail() {
     const uri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
     setBusy(true);
     try {
-      await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "photo", photo_base64: uri } });
+      await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "photo", photo_base64: uri, category: activeCategory } });
       await load();
     } finally { setBusy(false); }
   };
@@ -170,7 +171,7 @@ export default function ContactDetail() {
     const uri = `data:${mime};base64,${b64}`;
     setBusy(true);
     try {
-      await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "video", video_base64: uri, video_mime: mime } });
+      await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "video", video_base64: uri, video_mime: mime, category: activeCategory } });
       await load();
     } finally { setBusy(false); }
   };
@@ -179,7 +180,7 @@ export default function ContactDetail() {
     if (!linkUrl.trim()) return;
     setBusy(true);
     try {
-      await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "link", link_url: linkUrl, link_title: noteText } });
+      await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "link", link_url: linkUrl, link_title: noteText, category: activeCategory } });
       setLinkUrl(""); setNoteText(""); setShowLinkInput(false);
       await load();
     } finally { setBusy(false); }
@@ -219,6 +220,7 @@ export default function ContactDetail() {
           file_name: asset.name,
           file_mime: asset.mimeType || "application/octet-stream",
           file_size: asset.size || 0,
+          category: activeCategory,
         },
       });
       await load();
@@ -464,6 +466,34 @@ export default function ContactDetail() {
         {tab === "notes" && (
           <>
             <View style={styles.card}>
+              <Text style={styles.categoryTitle}>Categoria della nota</Text>
+              <View style={styles.categoryRow}>
+                {[
+                  { k: null, label: "Nota semplice", color: theme.color.brandPrimary, icon: "document-text" },
+                  { k: "general", label: "Note generali", color: "#2D7A5A", icon: "list" },
+                  { k: "email", label: "Nota email condivisibile", color: "#0F2438", icon: "mail" },
+                  { k: "referral", label: "Referenza", color: "#B77C14", icon: "people" },
+                ].map((c: any) => {
+                  const on = activeCategory === c.k;
+                  return (
+                    <Pressable
+                      key={String(c.k)}
+                      testID={`note-cat-${c.k ?? "all"}`}
+                      onPress={() => setActiveCategory(c.k)}
+                      style={[styles.catChip, { flexDirection: "row", alignItems: "center" }, on && { backgroundColor: c.color, borderColor: c.color }]}
+                    >
+                      <Ionicons name={c.icon} size={12} color={on ? "#FFF" : c.color} style={{ marginRight: 4 }} />
+                      <Text style={[styles.catChipTxt, { color: on ? "#FFF" : c.color }]}>{c.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.catHint}>
+                {activeCategory === "general" ? "Le note salvate qui sono organizzate come Note generali." :
+                 activeCategory === "email" ? "Queste note vengono incluse quando condividi la scheda via email." :
+                 activeCategory === "referral" ? "Note relative a chi ti ha segnalato il contatto." :
+                 "Aggiungi rapidamente una nota. Puoi cambiare categoria in qualsiasi momento."}
+              </Text>
               <TextInput
                 testID="note-text-input"
                 value={noteText}
@@ -524,7 +554,9 @@ export default function ContactDetail() {
               <View key={n.id} style={styles.noteCard}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.noteMeta}>
-                    {n.kind === "audio" ? "Vocale" : n.kind === "photo" ? "Foto" : n.kind === "video" ? "Video" : n.kind === "file" ? "File" : n.kind === "link" ? "Link" : "Testo"} · {new Date(n.created_at).toLocaleString("it-IT")}
+                    {n.kind === "audio" ? "Vocale" : n.kind === "photo" ? "Foto" : n.kind === "video" ? "Video" : n.kind === "file" ? "File" : n.kind === "link" ? "Link" : "Testo"}
+                    {n.category ? ` · ${n.category === "general" ? "🗂️ Generali" : n.category === "email" ? "📧 Email" : "👥 Referenza"}` : ""}
+                    {" · "}{new Date(n.created_at).toLocaleString("it-IT")}
                   </Text>
                   {n.kind === "text" && <Text style={styles.noteTxt}>{n.text}</Text>}
                   {n.kind === "audio" && (
@@ -696,6 +728,11 @@ const styles = StyleSheet.create({
   groupBadgeTxt: { fontWeight: "700", fontSize: 12 },
   videoWrap: { marginTop: 6 },
   videoPlaceholder: { width: 240, height: 180, borderRadius: 10, backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center" },
+  categoryTitle: { fontSize: 11, fontWeight: "700", color: theme.color.onSurfaceTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  categoryRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  catChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
+  catChipTxt: { fontWeight: "700", fontSize: 11 },
+  catHint: { color: theme.color.muted, fontSize: 11, marginTop: 8, marginBottom: 4, fontStyle: "italic" },
   commGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   commBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: theme.radius.md, minWidth: 108, flexGrow: 1, justifyContent: "center" },
   commBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
