@@ -6,10 +6,21 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Contacts from "expo-contacts";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import * as DocumentPicker from "expo-document-picker";
+import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { scheduleBirthdayReminder } from "@/src/notifications";
+
+type PendingAttachment = {
+  local_id: string;
+  kind: "photo" | "audio" | "video" | "file";
+  photo_base64?: string;
+  audio_base64?: string; audio_mime?: string;
+  video_base64?: string; video_mime?: string;
+  file_base64?: string; file_name?: string; file_mime?: string; file_size?: number;
+};
 
 type ContactLite = { contact_id: string; first_name: string; last_name: string };
 type Group = { group_id: string; name: string; color: string };
@@ -28,6 +39,10 @@ export default function NewContactScreen() {
   const [contacts, setContacts] = useState<ContactLite[]>([]);
   const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [emailAttachments, setEmailAttachments] = useState<PendingAttachment[]>([]);
+  const [generalAttachments, setGeneralAttachments] = useState<PendingAttachment[]>([]);
+  const [recordingFor, setRecordingFor] = useState<null | "email" | "general">(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [newAreaModal, setNewAreaModal] = useState(false);
   const [newAreaName, setNewAreaName] = useState("");
   const [newAreaColor, setNewAreaColor] = useState(AREA_COLOR_SWATCHES[0]);
@@ -143,6 +158,71 @@ export default function NewContactScreen() {
     setForm({ ...form, photos: form.photos.filter((_, i) => i !== idx) });
   };
 
+  // Media pickers for note field attachments
+  const addAttachmentFor = (target: "email" | "general", att: PendingAttachment) => {
+    const setter = target === "email" ? setEmailAttachments : setGeneralAttachments;
+    setter((prev) => [...prev, att]);
+  };
+  const removeAttachment = (target: "email" | "general", local_id: string) => {
+    const setter = target === "email" ? setEmailAttachments : setGeneralAttachments;
+    setter((prev) => prev.filter((a) => a.local_id !== local_id));
+  };
+
+  const pickPhotoFor = async (target: "email" | "general", fromCamera: boolean) => {
+    const perm = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (Platform.OS !== "web" && !perm.granted) return;
+    const res = fromCamera
+      ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: Platform.OS === "web" })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: Platform.OS === "web" });
+    if (res.canceled || !res.assets?.[0]) return;
+    const a = res.assets[0];
+    let b64 = a.base64;
+    if (!b64) { try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); } catch { return; } }
+    const uri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
+    addAttachmentFor(target, { local_id: `${Date.now()}`, kind: "photo", photo_base64: uri });
+  };
+
+  const pickFileFor = async (target: "email" | "general") => {
+    const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
+    if (res.canceled || !res.assets?.[0]) return;
+    const asset = res.assets[0];
+    try {
+      const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      if (b64.length > 20 * 1024 * 1024) { Alert.alert("File troppo grande (max ~15MB)"); return; }
+      addAttachmentFor(target, {
+        local_id: `${Date.now()}`,
+        kind: "file",
+        file_base64: b64,
+        file_name: asset.name,
+        file_mime: asset.mimeType || "application/octet-stream",
+        file_size: asset.size || 0,
+      });
+    } catch (e) { console.warn(e); }
+  };
+
+  const startRecFor = async (target: "email" | "general") => {
+    if (Platform.OS === "web") { Alert.alert("Registrazione audio non disponibile su web preview"); return; }
+    const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+    if (!granted) return;
+    await recorder.prepareToRecordAsync();
+    recorder.record();
+    setRecordingFor(target);
+  };
+  const stopRecFor = async () => {
+    if (!recordingFor) return;
+    const target = recordingFor;
+    setRecordingFor(null);
+    await recorder.stop();
+    const uri = recorder.uri;
+    if (!uri) return;
+    try {
+      const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      addAttachmentFor(target, { local_id: `${Date.now()}`, kind: "audio", audio_base64: b64, audio_mime: "audio/m4a" });
+    } catch (e) { console.warn(e); }
+  };
+
   const submit = async () => {
     if (!form.first_name.trim()) return;
     setBusy(true);
@@ -172,6 +252,22 @@ export default function NewContactScreen() {
           try { await api(`/contacts/${contactId}/notes`, { method: "POST", body: { kind: "photo", photo_base64: p } }); } catch {}
         }
       }
+
+      // Upload pending attachments for email_note & general_note
+      const uploadAttachments = async (list: PendingAttachment[], category: "email" | "general") => {
+        for (const att of list) {
+          try {
+            const noteBody: any = { kind: att.kind, category };
+            if (att.kind === "photo") noteBody.photo_base64 = att.photo_base64;
+            if (att.kind === "audio") { noteBody.audio_base64 = att.audio_base64; noteBody.audio_mime = att.audio_mime; }
+            if (att.kind === "video") { noteBody.video_base64 = att.video_base64; noteBody.video_mime = att.video_mime; }
+            if (att.kind === "file") { noteBody.file_base64 = att.file_base64; noteBody.file_name = att.file_name; noteBody.file_mime = att.file_mime; noteBody.file_size = att.file_size; }
+            await api(`/contacts/${contactId}/notes`, { method: "POST", body: noteBody });
+          } catch (e) { console.warn("upload attachment failed", e); }
+        }
+      };
+      await uploadAttachments(emailAttachments, "email");
+      await uploadAttachments(generalAttachments, "general");
       // schedule birthday reminder if birth_date present
       if (form.birth_date && form.birth_date.length >= 5) {
         try {
@@ -582,7 +678,30 @@ export default function NewContactScreen() {
 
               <Section title="Note">
                 <Field label="Nota email condivisibile" testID="c-email-note" value={form.email_note} onChangeText={(t: string) => setForm({ ...form, email_note: t })} multiline />
+                <NoteMediaBar
+                  target="email"
+                  recording={recordingFor === "email"}
+                  onPhotoCam={() => pickPhotoFor("email", true)}
+                  onPhotoGal={() => pickPhotoFor("email", false)}
+                  onFile={() => pickFileFor("email")}
+                  onRecStart={() => startRecFor("email")}
+                  onRecStop={stopRecFor}
+                />
+                <AttachmentsPreview list={emailAttachments} onRemove={(id) => removeAttachment("email", id)} />
+
+                <View style={{ height: 12 }} />
+
                 <Field label="Note generali" testID="c-general-note" value={form.general_note} onChangeText={(t: string) => setForm({ ...form, general_note: t })} multiline />
+                <NoteMediaBar
+                  target="general"
+                  recording={recordingFor === "general"}
+                  onPhotoCam={() => pickPhotoFor("general", true)}
+                  onPhotoGal={() => pickPhotoFor("general", false)}
+                  onFile={() => pickFileFor("general")}
+                  onRecStart={() => startRecFor("general")}
+                  onRecStop={stopRecFor}
+                />
+                <AttachmentsPreview list={generalAttachments} onRemove={(id) => removeAttachment("general", id)} />
               </Section>
             </>
           )}
@@ -671,8 +790,81 @@ export default function NewContactScreen() {
   );
 }
 
-function Section({ title, children }: { title: string; children: any }) {
+function NoteMediaBar({ target, recording, onPhotoCam, onPhotoGal, onFile, onRecStart, onRecStop }: any) {
   return (
+    <View style={mediaBarStyles.row}>
+      <Pressable testID={`att-${target}-camera`} onPress={onPhotoCam} style={[mediaBarStyles.btn, { backgroundColor: theme.color.brandSecondary }]}>
+        <Ionicons name="camera" size={14} color="#FFF" />
+        <Text style={mediaBarStyles.txt}>Scatta foto</Text>
+      </Pressable>
+      <Pressable testID={`att-${target}-gallery`} onPress={onPhotoGal} style={[mediaBarStyles.btn, { backgroundColor: "#8B5CF6" }]}>
+        <Ionicons name="image" size={14} color="#FFF" />
+        <Text style={mediaBarStyles.txt}>Importa foto</Text>
+      </Pressable>
+      <Pressable testID={`att-${target}-file`} onPress={onFile} style={[mediaBarStyles.btn, { backgroundColor: "#0891B2" }]}>
+        <Ionicons name="attach" size={14} color="#FFF" />
+        <Text style={mediaBarStyles.txt}>Allega file</Text>
+      </Pressable>
+      <Pressable
+        testID={`att-${target}-audio`}
+        onPress={recording ? onRecStop : onRecStart}
+        style={[mediaBarStyles.btn, { backgroundColor: recording ? theme.color.error : theme.color.warning }]}
+      >
+        <Ionicons name={recording ? "stop-circle" : "mic"} size={14} color="#FFF" />
+        <Text style={mediaBarStyles.txt}>{recording ? "Stop" : "Registra audio"}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function AttachmentsPreview({ list, onRemove }: { list: PendingAttachment[]; onRemove: (id: string) => void }) {
+  if (list.length === 0) return null;
+  return (
+    <View style={attStyles.wrap}>
+      <Text style={attStyles.hint}>{list.length} allegat{list.length === 1 ? "o" : "i"} pronti da salvare</Text>
+      <View style={attStyles.grid}>
+        {list.map((a) => (
+          <View key={a.local_id} style={attStyles.chip}>
+            {a.kind === "photo" && a.photo_base64 ? (
+              <Image source={{ uri: a.photo_base64 }} style={attStyles.thumb} />
+            ) : (
+              <View style={attStyles.iconBox}>
+                <Ionicons
+                  name={a.kind === "audio" ? "musical-notes" : a.kind === "video" ? "videocam" : "document"}
+                  size={20} color={theme.color.brandPrimary}
+                />
+              </View>
+            )}
+            <Text style={attStyles.name} numberOfLines={1}>
+              {a.kind === "photo" ? "Foto" : a.kind === "audio" ? "Vocale" : a.kind === "video" ? "Video" : (a.file_name || "File")}
+            </Text>
+            <Pressable onPress={() => onRemove(a.local_id)} style={attStyles.rmBtn} hitSlop={8}>
+              <Ionicons name="close-circle" size={16} color={theme.color.error} />
+            </Pressable>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const mediaBarStyles = StyleSheet.create({
+  row: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
+  btn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: theme.radius.pill },
+  txt: { color: "#FFF", fontWeight: "700", fontSize: 11 },
+});
+const attStyles = StyleSheet.create({
+  wrap: { marginTop: 8, padding: 10, backgroundColor: "#F0F9FF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: "#BAE6FD" },
+  hint: { color: theme.color.info, fontSize: 11, fontWeight: "700", marginBottom: 6 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, padding: 6, backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, maxWidth: 200 },
+  thumb: { width: 36, height: 36, borderRadius: 6 },
+  iconBox: { width: 36, height: 36, borderRadius: 6, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
+  name: { fontSize: 12, color: theme.color.onSurface, flex: 1 },
+  rmBtn: { padding: 2 },
+});
+
+function Section({ title, children }: { title: string; children: any }) {  return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {children}
