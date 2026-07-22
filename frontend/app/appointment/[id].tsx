@@ -395,12 +395,28 @@ export default function AppointmentDetail() {
           </View>
         )}
 
-        {a.done && (
-          <View style={[styles.card, { borderLeftColor: theme.color.success, borderLeftWidth: 4 }]}>
+        <View style={[styles.card, { borderLeftColor: theme.color.success, borderLeftWidth: 4 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
             <Text style={styles.sectionTitle}>Esito dell&apos;appuntamento</Text>
-            <Text style={styles.shareHint}>Seleziona uno o più esiti. Se scegli &quot;Rinviato&quot; puoi riprogrammare l&apos;appuntamento.</Text>
-            <View style={styles.outcomesGrid}>
-              {dynamicOutcomes.map((o) => {
+            {a.done ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Ionicons name="checkmark-circle" size={14} color={theme.color.success} />
+                <Text style={{ color: theme.color.success, fontWeight: "700", fontSize: 11 }}>Fatto</Text>
+              </View>
+            ) : (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Ionicons name="time-outline" size={14} color={theme.color.warning} />
+                <Text style={{ color: theme.color.warning, fontWeight: "700", fontSize: 11 }}>Da svolgere</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.shareHint}>
+            {a.done
+              ? "Seleziona uno o più esiti. Se scegli \"Rinviato\" puoi riprogrammare l'appuntamento."
+              : "Segna prima l'appuntamento come \"Fatto\" per registrare gli esiti (Contratto, Nuovo cliente, Rinviato ecc.)"}
+          </Text>
+          <View style={[styles.outcomesGrid, !a.done && { opacity: 0.5 }]} pointerEvents={a.done ? "auto" : "none"}>
+            {dynamicOutcomes.map((o) => {
                 const active = selectedOutcomeIds.includes(o.id);
                 return (
                   <Pressable
@@ -438,7 +454,6 @@ export default function AppointmentDetail() {
               </View>
             )}
           </View>
-        )}
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Dopo l&apos;appuntamento (dettagli)</Text>

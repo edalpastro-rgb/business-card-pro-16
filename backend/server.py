@@ -253,6 +253,7 @@ class ContactIn(BaseModel):
     birthday_message: str = ""
     birthday_message_photo: Optional[str] = None
     birthday_message_link: Optional[str] = None
+    anniversaries: List[Dict[str, Any]] = Field(default_factory=list)
     fiscal_code: str = ""
     vat_number: str = ""
     website: str = ""
@@ -292,6 +293,7 @@ class ContactUpdate(BaseModel):
     birthday_message: Optional[str] = None
     birthday_message_photo: Optional[str] = None
     birthday_message_link: Optional[str] = None
+    anniversaries: Optional[List[Dict[str, Any]]] = None
     fiscal_code: Optional[str] = None
     vat_number: Optional[str] = None
     website: Optional[str] = None

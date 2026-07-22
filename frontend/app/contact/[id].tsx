@@ -18,7 +18,7 @@ type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string; address: string;
   phone_alt?: string; whatsapp?: string; email_alt?: string; telegram?: string;
   address_street?: string; address_number?: string; address_zip?: string; address_city?: string; address_province?: string;
-  birth_date?: string; fiscal_code?: string; vat_number?: string;
+  birth_date?: string; fiscal_code?: string; vat_number?: string; anniversaries?: { name: string; date: string }[];
   website?: string; linkedin?: string; instagram?: string; facebook?: string;
   area: "energy" | "network"; additional_areas?: string[]; source: string; referral_note: string; email_note: string; general_note: string;
   tags?: string[]; group_ids?: string[]; referred_by_contact_id?: string;
@@ -449,7 +449,10 @@ export default function ContactDetail() {
                 </Pressable>
               </View>
             ) : null)}
-            {c.birth_date ? <InfoRow icon="gift-outline" label="Data di nascita" value={c.birth_date} /> : null}
+            {c.birth_date ? <InfoRow icon="gift-outline" label="Data di nascita / Compleanno" value={c.birth_date} /> : null}
+            {(c.anniversaries || []).map((ann: any, i: number) => (
+              <InfoRow key={`ann-${i}`} icon="calendar-outline" label={ann.name || "Ricorrenza"} value={ann.date || "—"} />
+            ))}
             {c.fiscal_code ? <InfoRow icon="card-outline" label="Codice Fiscale" value={c.fiscal_code} /> : null}
             {c.vat_number ? <InfoRow icon="business-outline" label="Partita IVA" value={c.vat_number} /> : null}
             {c.website ? <InfoRow icon="globe-outline" label="Sito web" value={c.website} /> : null}

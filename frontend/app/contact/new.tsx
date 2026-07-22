@@ -57,6 +57,7 @@ export default function NewContactScreen() {
     birthday_auto_send: false,
     birthday_message: "",
     birthday_message_link: "",
+    anniversaries: [] as { name: string; date: string }[],
     area: (allowed[0] || "energy") as "energy" | "network",
     additional_areas: [] as string[],
     source: "personal" as "personal" | "referral",
@@ -108,6 +109,7 @@ export default function NewContactScreen() {
           general_note: c.general_note || "",
           tags: c.tags || [],
           group_ids: c.group_ids || [],
+          anniversaries: c.anniversaries || [],
         }));
       } catch (e) { console.warn(e); }
     })();
@@ -548,6 +550,81 @@ export default function NewContactScreen() {
               <Field flex={1} label="Codice Fiscale" testID="c-fiscal-code" value={form.fiscal_code} onChangeText={(t: string) => setForm({ ...form, fiscal_code: t.toUpperCase() })} />
               <Field flex={1} label="Partita IVA" testID="c-vat" value={form.vat_number} onChangeText={(t: string) => setForm({ ...form, vat_number: t })} />
             </Row>
+
+            <View style={{ marginTop: 12 }}>
+              <Text style={styles.lbl}>Ricorrenze importanti</Text>
+              <Text style={styles.hintTxt}>Es. Data iscrizione, Anniversario matrimonio, Data primo contratto...</Text>
+              {form.anniversaries.map((ann, idx) => (
+                <View key={idx} style={styles.annRow}>
+                  <TextInput
+                    testID={`c-ann-name-${idx}`}
+                    placeholder="Nome ricorrenza"
+                    placeholderTextColor="#94A3B8"
+                    value={ann.name}
+                    onChangeText={(t) => {
+                      const list = [...form.anniversaries];
+                      list[idx] = { ...list[idx], name: t };
+                      setForm({ ...form, anniversaries: list });
+                    }}
+                    style={[styles.input, { flex: 1, marginRight: 6 }]}
+                  />
+                  {Platform.OS === "web" ? (
+                    // @ts-expect-error web
+                    <input
+                      type="date"
+                      data-testid={`c-ann-date-${idx}`}
+                      value={(() => {
+                        const p = (ann.date || "").split("/");
+                        if (p.length === 3) return `${p[2]}-${p[1].padStart(2, "0")}-${p[0].padStart(2, "0")}`;
+                        return "";
+                      })()}
+                      onChange={(e: any) => {
+                        const v = e.target.value;
+                        const list = [...form.anniversaries];
+                        if (!v) { list[idx] = { ...list[idx], date: "" }; }
+                        else {
+                          const [y, m, d] = v.split("-");
+                          list[idx] = { ...list[idx], date: `${d}/${m}/${y}` };
+                        }
+                        setForm({ ...form, anniversaries: list });
+                      }}
+                      style={webDateInputStyle}
+                    />
+                  ) : (
+                    <TextInput
+                      testID={`c-ann-date-${idx}`}
+                      placeholder="gg/mm/aaaa"
+                      placeholderTextColor="#94A3B8"
+                      value={ann.date}
+                      onChangeText={(t) => {
+                        const list = [...form.anniversaries];
+                        list[idx] = { ...list[idx], date: t };
+                        setForm({ ...form, anniversaries: list });
+                      }}
+                      style={[styles.input, { width: 130 }]}
+                    />
+                  )}
+                  <Pressable
+                    testID={`c-ann-remove-${idx}`}
+                    onPress={() => {
+                      const list = form.anniversaries.filter((_, i) => i !== idx);
+                      setForm({ ...form, anniversaries: list });
+                    }}
+                    style={{ padding: 8, marginLeft: 4 }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={theme.color.error} />
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable
+                testID="c-ann-add"
+                onPress={() => setForm({ ...form, anniversaries: [...form.anniversaries, { name: "", date: "" }] })}
+                style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary, alignSelf: "flex-start", marginTop: 6 }]}
+              >
+                <Ionicons name="add" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
+                <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Aggiungi ricorrenza</Text>
+              </Pressable>
+            </View>
           </Section>
 
           <Section title="Contatti">
@@ -927,6 +1004,7 @@ const styles = StyleSheet.create({
   linkChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandTertiary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill, alignSelf: "flex-start" },
   linkChipTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
   hintTxt: { color: theme.color.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
+  annRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
   selectedBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F0FDF4", borderRadius: theme.radius.md, padding: 10, marginTop: 10, borderWidth: 1, borderColor: theme.color.success },
   selectedTxt: { flex: 1, color: theme.color.success, fontSize: 12, fontWeight: "600" },
   modalBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
