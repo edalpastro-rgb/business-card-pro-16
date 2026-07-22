@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, Linking } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, Linking, Alert, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -9,10 +9,13 @@ import { theme } from "@/src/theme";
 import { scheduleAppointmentReminder, cancelAppointmentReminder, scheduleCallbackReminder } from "@/src/notifications";
 import { openGoogleCalendar, openOutlookCalendar, shareIcs } from "@/src/calendar-export";
 
+type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
+type Settings = { appointment_outcomes?: Outcome[] };
 type Appointment = {
   appointment_id: string; title: string; area: "energy" | "network"; start_at: string;
   is_phone: boolean; done: boolean; location: string; notes: string;
   outcome_tags: string[]; outcome_notes: string; products_sold: number; contract_signed: boolean;
+  outcome_ids?: string[]; rescheduled_to?: string;
   contact_id?: string;
   duration_min?: number;
 };
@@ -39,15 +42,21 @@ export default function AppointmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [a, setA] = useState<Appointment | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [contact, setContact] = useState<ContactLite | null>(null);
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [callbackAt, setCallbackAt] = useState<Date>(new Date(Date.now() + 24 * 60 * 60 * 1000));
   const [showCbSection, setShowCbSection] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [outcomeModal, setOutcomeModal] = useState<{ mode: "create" | "rename"; outcome_id?: string; name: string; color: string; counts_as?: string } | null>(null);
 
   const load = useCallback(async () => {
-    const ap = await api<Appointment>(`/appointments/${id}`);
+    const [ap, s] = await Promise.all([
+      api<Appointment>(`/appointments/${id}`),
+      api<Settings>("/settings"),
+    ]);
     setA(ap);
+    setSettings(s);
     if (ap.contact_id) {
       try { setContact(await api<ContactLite>(`/contacts/${ap.contact_id}`)); } catch {}
     }
@@ -58,6 +67,87 @@ export default function AppointmentDetail() {
 
   const color = a.area === "energy" ? theme.color.energy : theme.color.network;
   const outcomes = a.area === "energy" ? ENERGY_OUTCOMES : NETWORK_OUTCOMES;
+  const dynamicOutcomes: Outcome[] = settings?.appointment_outcomes || [];
+  const selectedOutcomeIds: string[] = a.outcome_ids || [];
+
+  const toggleOutcome = async (outcomeId: string) => {
+    const next = selectedOutcomeIds.includes(outcomeId)
+      ? selectedOutcomeIds.filter((x) => x !== outcomeId)
+      : [...selectedOutcomeIds, outcomeId];
+    const outcome = dynamicOutcomes.find((o) => o.id === outcomeId);
+    const patch: any = { outcome_ids: next };
+    // Auto-set contract_signed based on counts_as="contract"
+    const containsContract = next.some((oid) => dynamicOutcomes.find((o) => o.id === oid)?.counts_as === "contract");
+    patch.contract_signed = containsContract || a.contract_signed;
+    // If "rescheduled" outcome toggled ON → prompt to reschedule
+    setA({ ...a, outcome_ids: next, contract_signed: patch.contract_signed });
+    await api(`/appointments/${id}`, { method: "PUT", body: patch });
+    if (outcome?.counts_as === "rescheduled" && !selectedOutcomeIds.includes(outcomeId)) {
+      // Just added rescheduled
+      Alert.alert("Riprogramma appuntamento", "Vuoi creare un nuovo appuntamento con gli stessi dettagli?", [
+        { text: "No, grazie", style: "cancel" },
+        {
+          text: "Sì, riprogramma", onPress: () => {
+            const q = new URLSearchParams({
+              reschedule_from: id as string,
+              title: a.title,
+              area: a.area,
+              location: a.location || "",
+              notes: a.notes || "",
+              contact_id: a.contact_id || "",
+              is_phone: a.is_phone ? "1" : "0",
+            });
+            router.push(`/appointment/new?${q.toString()}`);
+          },
+        },
+      ]);
+    }
+  };
+
+  const saveOutcomeModal = async () => {
+    if (!outcomeModal || !outcomeModal.name.trim() || !settings) return;
+    const list = [...(settings.appointment_outcomes || [])];
+    if (outcomeModal.mode === "create") {
+      const newOutcome: Outcome = {
+        id: `out_${Date.now().toString(36)}`,
+        name: outcomeModal.name.trim(),
+        color: outcomeModal.color,
+        counts_as: outcomeModal.counts_as || "other",
+      };
+      list.push(newOutcome);
+      const saved = await api<Settings>("/settings", { method: "PUT", body: { ...settings, appointment_outcomes: list } });
+      setSettings(saved);
+      // Auto-select the new outcome
+      const next = [...selectedOutcomeIds, newOutcome.id];
+      setA({ ...a, outcome_ids: next });
+      await api(`/appointments/${id}`, { method: "PUT", body: { outcome_ids: next } });
+    } else if (outcomeModal.mode === "rename" && outcomeModal.outcome_id) {
+      const idx = list.findIndex((o) => o.id === outcomeModal.outcome_id);
+      if (idx >= 0) list[idx] = { ...list[idx], name: outcomeModal.name.trim(), color: outcomeModal.color, counts_as: outcomeModal.counts_as || list[idx].counts_as };
+      const saved = await api<Settings>("/settings", { method: "PUT", body: { ...settings, appointment_outcomes: list } });
+      setSettings(saved);
+    }
+    setOutcomeModal(null);
+  };
+
+  const deleteOutcome = (outcome: Outcome) => {
+    if (!settings) return;
+    Alert.alert("Elimina esito", `Vuoi eliminare "${outcome.name}"?`, [
+      { text: "Annulla", style: "cancel" },
+      {
+        text: "Elimina", style: "destructive", onPress: async () => {
+          const list = (settings.appointment_outcomes || []).filter((o) => o.id !== outcome.id);
+          const saved = await api<Settings>("/settings", { method: "PUT", body: { ...settings, appointment_outcomes: list } });
+          setSettings(saved);
+          if (selectedOutcomeIds.includes(outcome.id)) {
+            const next = selectedOutcomeIds.filter((x) => x !== outcome.id);
+            setA({ ...a, outcome_ids: next });
+            await api(`/appointments/${id}`, { method: "PUT", body: { outcome_ids: next } });
+          }
+        },
+      },
+    ]);
+  };
 
   const toggleTag = async (key: string) => {
     const has = a.outcome_tags.includes(key);
@@ -305,8 +395,53 @@ export default function AppointmentDetail() {
           </View>
         )}
 
+        {a.done && (
+          <View style={[styles.card, { borderLeftColor: theme.color.success, borderLeftWidth: 4 }]}>
+            <Text style={styles.sectionTitle}>Esito dell&apos;appuntamento</Text>
+            <Text style={styles.shareHint}>Seleziona uno o più esiti. Se scegli &quot;Rinviato&quot; puoi riprogrammare l&apos;appuntamento.</Text>
+            <View style={styles.outcomesGrid}>
+              {dynamicOutcomes.map((o) => {
+                const active = selectedOutcomeIds.includes(o.id);
+                return (
+                  <Pressable
+                    key={o.id}
+                    testID={`out-${o.id}`}
+                    onPress={() => toggleOutcome(o.id)}
+                    onLongPress={() => {
+                      Alert.alert(o.name, "Cosa vuoi fare?", [
+                        { text: "Annulla", style: "cancel" },
+                        { text: "Rinomina / colore", onPress: () => setOutcomeModal({ mode: "rename", outcome_id: o.id, name: o.name, color: o.color, counts_as: o.counts_as }) },
+                        { text: "Elimina", style: "destructive", onPress: () => deleteOutcome(o) },
+                      ]);
+                    }}
+                    style={[styles.outcomeChip, active && { backgroundColor: o.color, borderColor: o.color }]}
+                  >
+                    <Ionicons name={(o.icon as any) || (active ? "checkmark-circle" : "ellipse-outline")} size={16} color={active ? "#FFF" : o.color} />
+                    <Text style={[styles.outcomeTxt, active && { color: "#FFF" }]}>{o.name}</Text>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                testID="out-new"
+                onPress={() => setOutcomeModal({ mode: "create", name: "", color: "#16A34A", counts_as: "other" })}
+                style={[styles.outcomeChip, { borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}
+              >
+                <Ionicons name="add" size={14} color={theme.color.brandPrimary} />
+                <Text style={[styles.outcomeTxt, { color: theme.color.brandPrimary }]}>Nuovo esito</Text>
+              </Pressable>
+            </View>
+            {selectedOutcomeIds.length > 0 && (
+              <View style={{ marginTop: 10, padding: 10, backgroundColor: "#F0FDF4", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.success }}>
+                <Text style={{ color: theme.color.success, fontWeight: "700", fontSize: 12 }}>
+                  ✓ {selectedOutcomeIds.length} esit{selectedOutcomeIds.length === 1 ? "o registrato" : "i registrati"}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Dopo l&apos;appuntamento</Text>
+          <Text style={styles.sectionTitle}>Dopo l&apos;appuntamento (dettagli)</Text>
           <View style={styles.outcomesGrid}>
             {outcomes.map((o) => {
               const active = a.outcome_tags.includes(o.key);
@@ -353,9 +488,78 @@ export default function AppointmentDetail() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal visible={!!outcomeModal} transparent animationType="fade" onRequestClose={() => setOutcomeModal(null)}>
+        <View style={omstyles.back}>
+          <View style={omstyles.card}>
+            <Text style={omstyles.title}>{outcomeModal?.mode === "create" ? "Nuovo esito appuntamento" : "Modifica esito"}</Text>
+            <Text style={omstyles.hint}>Es. Contratto firmato, Da ricontattare, Nuovo cliente Power...</Text>
+            <Text style={omstyles.lbl}>Nome</Text>
+            <TextInput
+              testID="out-modal-name"
+              value={outcomeModal?.name || ""}
+              onChangeText={(t) => setOutcomeModal((m) => m ? { ...m, name: t } : m)}
+              placeholder="Nome dell'esito"
+              placeholderTextColor="#94A3B8"
+              autoFocus
+              style={omstyles.input}
+            />
+            <Text style={omstyles.lbl}>Colore</Text>
+            <View style={omstyles.swatches}>
+              {["#16A34A", "#C83232", "#1B6CB0", "#B77C14", "#6B7280", "#0891B2", "#7C3AED", "#DB2777"].map((c) => (
+                <Pressable key={c} onPress={() => setOutcomeModal((m) => m ? { ...m, color: c } : m)} style={[omstyles.swatch, { backgroundColor: c }, outcomeModal?.color === c && { borderColor: theme.color.onSurface }]}>
+                  {outcomeModal?.color === c && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                </Pressable>
+              ))}
+            </View>
+            <Text style={omstyles.lbl}>Tipologia (per statistiche report)</Text>
+            <View style={omstyles.typeRow}>
+              {[
+                { k: "contract", label: "Contratto" },
+                { k: "new_energy", label: "Nuovo cliente Power" },
+                { k: "new_network", label: "Nuovo cliente Networker" },
+                { k: "rescheduled", label: "Rinviato" },
+                { k: "followup", label: "Da ricontattare" },
+                { k: "no_interest", label: "Non interessato" },
+                { k: "other", label: "Altro" },
+              ].map((t) => {
+                const on = (outcomeModal?.counts_as || "other") === t.k;
+                return (
+                  <Pressable key={t.k} onPress={() => setOutcomeModal((m) => m ? { ...m, counts_as: t.k } : m)} style={[omstyles.typeChip, on && { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}>
+                    <Text style={[omstyles.typeChipTxt, on && { color: "#FFF" }]}>{t.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+              <Pressable onPress={() => setOutcomeModal(null)} style={[omstyles.btn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
+                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              </Pressable>
+              <Pressable testID="out-modal-save" onPress={saveOutcomeModal} disabled={!outcomeModal?.name?.trim()} style={[omstyles.btn, { backgroundColor: theme.color.brandPrimary, opacity: outcomeModal?.name?.trim() ? 1 : 0.5 }]}>
+                <Text style={{ color: "#FFF", fontWeight: "700" }}>{outcomeModal?.mode === "create" ? "Crea" : "Salva"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const omstyles = StyleSheet.create({
+  back: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
+  card: { width: "100%", maxWidth: 420, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 18 },
+  title: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface, marginBottom: 6 },
+  hint: { color: theme.color.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
+  lbl: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontWeight: "600", marginTop: 10, marginBottom: 4 },
+  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface },
+  swatches: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  swatch: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
+  typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  typeChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
+  typeChipTxt: { fontSize: 11, fontWeight: "700", color: theme.color.onSurfaceTertiary },
+  btn: { flex: 1, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center" },
+});
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.surface },

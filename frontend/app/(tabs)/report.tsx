@@ -5,8 +5,9 @@ import { useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 
-type ReportStats = { period: string; start: string; end: string; stats: { energy: any; network: any } };
-type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
+type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
+type ReportStats = { period: string; start: string; end: string; stats: { energy: any; network: any }; outcomes?: { outcome_id: string; count: number }[] };
+type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; appointment_outcomes?: Outcome[] };
 
 const PERIODS: { key: "day" | "week" | "month" | "year"; label: string }[] = [
   { key: "day", label: "Giorno" }, { key: "week", label: "Settimana" }, { key: "month", label: "Mese" }, { key: "year", label: "Anno" },
@@ -68,6 +69,46 @@ export default function ReportScreen() {
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
           {renderArea("energy")}
           {renderArea("network")}
+
+          {/* Outcomes breakdown */}
+          {settings?.appointment_outcomes && settings.appointment_outcomes.length > 0 && (
+            <View style={styles.areaCard}>
+              <Text style={[styles.areaTitle, { color: theme.color.brandPrimary }]}>Esiti appuntamenti</Text>
+              {(() => {
+                const outMap: Record<string, number> = {};
+                (data?.outcomes || []).forEach((o) => { outMap[o.outcome_id] = o.count; });
+                const rows = (settings.appointment_outcomes || []).map((o) => ({ ...o, count: outMap[o.id] || 0 })).sort((a, b) => b.count - a.count);
+                const totalMarked = rows.reduce((sum, r) => sum + r.count, 0);
+                if (totalMarked === 0) {
+                  return <Text style={{ color: theme.color.muted, fontStyle: "italic", fontSize: 13 }}>Nessun esito registrato nel periodo selezionato.</Text>;
+                }
+                return (
+                  <View style={{ gap: 8 }}>
+                    {rows.map((o) => {
+                      const pct = totalMarked > 0 ? (o.count / totalMarked) : 0;
+                      return (
+                        <View key={o.id} style={styles.outcomeRow}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <View style={[styles.outDot, { backgroundColor: o.color }]} />
+                            <Text style={styles.outName}>{o.name}</Text>
+                            <View style={{ flex: 1 }} />
+                            <Text style={[styles.outCount, { color: o.color }]}>{o.count}</Text>
+                          </View>
+                          <View style={styles.progressTrack}>
+                            <View style={[styles.progressFill, { width: `${Math.round(pct * 100)}%`, backgroundColor: o.color }]} />
+                          </View>
+                        </View>
+                      );
+                    })}
+                    <Text style={{ color: theme.color.muted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>
+                      Totale esiti registrati: {totalMarked}
+                    </Text>
+                  </View>
+                );
+              })()}
+            </View>
+          )}
+
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
@@ -99,4 +140,10 @@ const styles = StyleSheet.create({
   metric: { width: "48%", backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12 },
   metricVal: { fontSize: 26, fontWeight: "700" },
   metricLbl: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  outcomeRow: {},
+  outDot: { width: 10, height: 10, borderRadius: 5 },
+  outName: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface, flex: 1 },
+  outCount: { fontSize: 16, fontWeight: "800" },
+  progressTrack: { height: 6, borderRadius: 3, backgroundColor: theme.color.surfaceTertiary, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 3 },
 });

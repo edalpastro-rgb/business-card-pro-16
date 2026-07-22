@@ -188,6 +188,17 @@ class SettingsModel(BaseModel):
     custom_appointment_types: List[str] = Field(default_factory=list)
     custom_product_categories: List[Dict[str, Any]] = Field(default_factory=list)
     custom_areas: List[Dict[str, Any]] = Field(default_factory=list)
+    appointment_outcomes: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+DEFAULT_APPT_OUTCOMES = [
+    {"id": "out_contract", "name": "Contratto fatto", "color": "#16A34A", "icon": "checkmark-done", "counts_as": "contract"},
+    {"id": "out_new_energy", "name": "Nuovo cliente Consulente Energetico", "color": "#C83232", "icon": "flash", "counts_as": "new_energy"},
+    {"id": "out_new_network", "name": "Nuovo cliente Networker", "color": "#1B6CB0", "icon": "people", "counts_as": "new_network"},
+    {"id": "out_rescheduled", "name": "Rinviato", "color": "#B77C14", "icon": "calendar", "counts_as": "rescheduled"},
+    {"id": "out_no_interest", "name": "Non interessato", "color": "#6B7280", "icon": "close-circle", "counts_as": "no_interest"},
+    {"id": "out_followup", "name": "Da ricontattare", "color": "#0891B2", "icon": "call", "counts_as": "followup"},
+]
 
 
 AreaLiteral = Literal["energy", "network"]
@@ -344,6 +355,8 @@ class AppointmentUpdate(BaseModel):
     value_amount: Optional[float] = None
     appointment_type_tags: Optional[List[str]] = None
     product_categories: Optional[List[str]] = None
+    outcome_ids: Optional[List[str]] = None
+    rescheduled_to: Optional[str] = None
 
 
 class CallbackIn(BaseModel):
@@ -487,6 +500,10 @@ async def get_settings(user=Depends(get_current_user)):
     if not s:
         s = {"user_id": tid, **SettingsModel().model_dump()}
         await db.settings.insert_one(dict(s))
+    # Seed default outcomes for tenants that don't have them yet
+    if not s.get("appointment_outcomes"):
+        s["appointment_outcomes"] = DEFAULT_APPT_OUTCOMES
+        await db.settings.update_one({"user_id": tid}, {"$set": {"appointment_outcomes": DEFAULT_APPT_OUTCOMES}})
     return s
 
 
@@ -893,7 +910,18 @@ async def reports(period: str = "day", user=Depends(get_current_user)):
             "contracts": contracts,
             "products": products,
         }
-    return {"period": period, "start": start.isoformat(), "end": end.isoformat(), "stats": result}
+
+    # Outcome breakdown (across both areas)
+    outcome_pipe = [
+        {"$match": {**base, "done": True, "start_at": {"$gte": start, "$lt": end}, "outcome_ids": {"$exists": True, "$not": {"$size": 0}}}},
+        {"$unwind": "$outcome_ids"},
+        {"$group": {"_id": "$outcome_ids", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]
+    outcome_agg = await db.appointments.aggregate(outcome_pipe).to_list(100)
+    outcomes = [{"outcome_id": o["_id"], "count": o["count"]} for o in outcome_agg]
+
+    return {"period": period, "start": start.isoformat(), "end": end.isoformat(), "stats": result, "outcomes": outcomes}
 
 
 # =========================

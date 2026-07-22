@@ -39,21 +39,23 @@ export default function NewAppointmentScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
-  const { contactId } = useLocalSearchParams<{ contactId?: string }>();
+  const { contactId, reschedule_from, title: prefTitle, area: prefArea, location: prefLoc, notes: prefNotes, contact_id: prefContact, is_phone: prefPhone } = useLocalSearchParams<{
+    contactId?: string; reschedule_from?: string; title?: string; area?: string; location?: string; notes?: string; contact_id?: string; is_phone?: string;
+  }>();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [form, setForm] = useState({
-    title: "",
-    contact_id: contactId || "",
+    title: prefTitle || "",
+    contact_id: contactId || prefContact || "",
     participant_contact_ids: [] as string[],
-    area: (allowed[0] || "energy") as "energy" | "network",
+    area: (prefArea === "network" ? "network" : prefArea === "energy" ? "energy" : (allowed[0] || "energy")) as "energy" | "network",
     start_at: new Date(Date.now() + 60 * 60 * 1000),
     duration_min: 60,
     reminder_minutes: 15,
     recurrence: "none" as "none" | "weekly" | "monthly" | "yearly",
-    is_phone: false,
-    location: "",
-    notes: "",
+    is_phone: prefPhone === "1",
+    location: prefLoc || "",
+    notes: prefNotes || "",
     value_amount: "",
     appointment_type_tags: [] as string[],
     product_categories: [] as string[],
@@ -92,6 +94,12 @@ export default function NewAppointmentScreen() {
       const created = await api<{ appointment_id: string }>("/appointments", { method: "POST", body: payload });
       if (form.reminder_minutes > 0) {
         await scheduleAppointmentReminder(created.appointment_id, form.title, form.start_at);
+      }
+      // If we're rescheduling from an existing appointment, link them
+      if (reschedule_from) {
+        try {
+          await api(`/appointments/${reschedule_from}`, { method: "PUT", body: { rescheduled_to: created.appointment_id } });
+        } catch (e) { console.warn(e); }
       }
       router.back();
     } finally { setBusy(false); }
