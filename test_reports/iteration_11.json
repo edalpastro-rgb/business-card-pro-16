@@ -1,0 +1,45 @@
+{
+  "summary": "V21.a media picker bug-fix verification. Backend: 2/2 pytest cases PASSED (100%) — POST /api/appointments with note_attachments (photo data-URL + file base64) persists and echoes back both attachments; POST /api/contacts still works. Frontend (mobile viewport 390x844): (1) PHOTO upload via ap-media-photo — WORKS: real PNG uploaded via file chooser, chip appears with data:image/png;base64,... src, NO 'Failed to read the selected media' error, 0 pageerrors, 0 'Failed to read' console messages. Confirmed the fix to skip base64:true on web + use uriToBase64DataUrl via fetch+FileReader resolves the ExponentImagePicker.web.js:151 crash. (2) FILE attach via ap-media-file — WORKS: test.txt chip appears with filename, no errors. (3) Save appointment — WORKS: appointment_id a_042e3dffe9ef persisted with 2 attachments [photo, file] verified via GET /api/appointments (deleted after test). Note: router.back() after save logs 'GO_BACK not handled' when the screen is opened via direct URL (no history); via UI navigation this is fine. (4) Contact new — note-media pickers (att-email-camera/gallery/file/audio and att-general-* variants) FOUND and photo/file upload succeed with no error popup. (5) IMPORT PHONE BUTTON — STILL SILENTLY DOES NOTHING ON WEB. Root cause: react-native-web 0.21.0 ships Alert with a no-op body (`static alert() {}` in node_modules/react-native-web/dist/cjs/exports/Alert/index.js). Confirmed by (a) clicking import-phone-btn produces no visible feedback, (b) no browser dialog, (c) window.alert never called (monkey-patched to log). So the Alert.alert('Non disponibile', ...) fallback for web never renders — the button appears broken to the user. Same latent risk affects every other Alert.alert error path (e.g., 'Foto troppo grande', 'Impossibile caricare la foto') on web. Happy paths for media currently succeed silently, so users are not blocked, but any error path is invisible on web.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "contact/new.tsx importFromPhone (Alert.alert web fallback)", "issue": "Clicking 'Importa dalla rubrica telefono' on web produces ZERO visible feedback. Alert.alert is a no-op in react-native-web 0.21.0 (source: node_modules/react-native-web/dist/cjs/exports/Alert/index.js — `class Alert { static alert() {} }`). User's original bug report ('Il bottone importa dalla rubrica telefonica non funziona') is NOT resolved on web. Replace Alert.alert with a Modal or `if (Platform.OS==='web') window.alert(...)`.", "testID": "import-phone-btn", "priority": "HIGH"},
+      {"component": "Global — every Alert.alert() error path", "issue": "Because RN Web 0.21.0 Alert is a no-op, ALL error branches that call Alert.alert (e.g. 'Foto troppo grande', 'Impossibile caricare la foto', 'File troppo grande', 'Microfono non accessibile', 'Permesso microfono negato', etc. in appointment/new.tsx and contact/new.tsx) are invisible on web. Consider a small wrapper util like `notify(title,msg)` that uses window.alert on web and Alert.alert on native.", "testID": "n/a", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "appointment/new → save → back", "issue": "router.back() called after save fails when the screen is reached via direct URL (no history). Console warns 'GO_BACK not handled'. Not a V21a regression — pre-existing pattern; consider router.replace('/(tabs)/agenda') as fallback.", "affected_testIDs": ["ap-save"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "react-native-web Alert", "issue": "react-native-web@0.21.0 ships Alert.alert as a no-op — any UX flow that relies on Alert to signal errors or info is silently broken on web. Reference: /app/frontend/node_modules/react-native-web/dist/cjs/exports/Alert/index.js."},
+      {"component": "Multiple screens", "issue": "Recurring dev console warnings 'Unexpected text node: . A text node cannot be a child of a <View>.' (~13/render) persist from iteration_9/10. Non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v21a_media.py",
+    "/app/test_reports/pytest/pytest_v21a_results.xml"
+  ],
+  "action_items": [
+    "HIGH: Fix import-phone-btn feedback on web. Replace `Alert.alert(...)` with either (a) a small Modal shown when Platform.OS==='web', or (b) `if (Platform.OS==='web') { window.alert('Non disponibile: L'importazione dalla rubrica funziona solo su cellulare.'); return; }`. This unblocks the user's original complaint.",
+    "MEDIUM: Introduce a `src/utils/notify.ts` wrapper that on web calls window.alert (or renders a Modal via a global provider) and on native calls Alert.alert. Replace all Alert.alert usages in appointment/new.tsx and contact/new.tsx so error messages ('Foto troppo grande', 'Impossibile caricare la foto', 'File troppo grande', 'Microfono non accessibile', etc.) are visible on web.",
+    "LOW: In appointment/new.tsx submit(), after successful create, fall back to router.replace('/(tabs)/agenda') if the screen was opened without history so 'GO_BACK not handled' warning goes away."
+  ],
+  "critical_code_review_comments": [
+    "media.ts helper is small and correct. Good separation of native (FileSystem legacy) vs web (fetch+FileReader). Note: on native, mimeFallback default is 'application/octet-stream' but callers pass a hint — fine.",
+    "appointment/new.tsx addPhoto correctly branches on Platform.OS to avoid base64:true on web (root cause of ExponentImagePicker.web.js:151 crash). Good.",
+    "contact/new.tsx pickPhotoFor + importFromPhone follow the same pattern. The fallback to Contacts.getContactsAsync + phoneContactsModal for native is a good improvement, but on web the flow ends silently (see high-priority issue above).",
+    "startRecWeb / stopRecWeb correctly use MediaRecorder + getUserMedia and produce audio/webm base64. Not tested end-to-end (browser mic permission would prompt) — main agent may want to add mock or verify via manual QA."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v21a_media.py (new — 2 test cases)"
+  ],
+  "success_rate": {"backend": "100% (2/2)", "frontend": "Photo upload OK, File upload OK, Save OK, Contact note-media pickers present; Import-phone-btn STILL silent on web (Alert.alert no-op in RN Web 0.21.0)"},
+  "seed_data_creation": "Test creates 1 temporary appointment 'TEST_V21a media attachments' and 1 contact 'TEST_V21a User_<ts>' — both deleted at end of test. The frontend playwright test also created 1 appointment 'Test V21a' with photo+file attachments, which was verified via GET and deleted via cleanup script.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The photo/file media fixes (uriToBase64DataUrl helper, skip base64:true on web) work correctly on web preview — verified with real PNG + real .txt file uploads producing correct chips and no 'Failed to read' errors. Backend persists attachments as expected. Remaining bug: react-native-web 0.21.0 Alert.alert is a no-op so import-phone-btn on web still produces no visible feedback (user's original complaint #4 not fully resolved from a UX standpoint). To re-test after main agent fix: (a) click import-phone-btn on web — should see either a browser alert dialog or a modal with 'Non disponibile'; (b) trigger any photo error path (e.g., upload >8MB image) — should see visible feedback. Audio recording via MediaRecorder was not end-to-end verified (needs browser mic permission) — reserve manual QA.",
+  "rca_of_issue": "Original user bug #3 ('Failed to read the selected media' popup on photo upload): ROOT CAUSE was expo-image-picker 17.x on web reading the picked File as base64 via a broken internal FileReader path (ExponentImagePicker.web.js:151). FIX: skip base64:true on web (Platform.OS==='web' ⇒ opts.base64=false) and read the returned blob:// URI ourselves via fetch(url).blob() + FileReader.readAsDataURL. VERIFIED: real PNG upload now produces data:image/png;base64,... chip with 0 errors. Original bugs #1 (file attach) and #2 (audio) similarly fixed via web-specific paths (fetch+FileReader for files; MediaRecorder+getUserMedia for audio). Original bug #4 (phonebook import): PARTIALLY fixed on native (fallback to getContactsAsync + modal) but on web the Alert.alert('Non disponibile') is silently dropped by react-native-web 0.21.0's no-op Alert implementation, so the button still appears broken from the user's perspective. Requires main agent to use window.alert or a Modal on web."
+}

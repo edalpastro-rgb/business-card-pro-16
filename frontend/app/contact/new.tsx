@@ -1,17 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Alert, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Contacts from "expo-contacts";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system/legacy";
 import * as DocumentPicker from "expo-document-picker";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { scheduleBirthdayReminder } from "@/src/notifications";
+import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
 
 type PendingAttachment = {
   local_id: string;
@@ -43,6 +43,7 @@ export default function NewContactScreen() {
   const [generalAttachments, setGeneralAttachments] = useState<PendingAttachment[]>([]);
   const [recordingFor, setRecordingFor] = useState<null | "email" | "general">(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const webRecRef = useRef<{ mr: MediaRecorder; chunks: Blob[]; stream: MediaStream; target: "email" | "general" } | null>(null);
   const [newAreaModal, setNewAreaModal] = useState(false);
   const [newAreaName, setNewAreaName] = useState("");
   const [newAreaColor, setNewAreaColor] = useState(AREA_COLOR_SWATCHES[0]);
@@ -115,16 +116,51 @@ export default function NewContactScreen() {
     })();
   }, [isEdit, editId]);
 
+  const [phoneContactsModal, setPhoneContactsModal] = useState<Contacts.Contact[] | null>(null);
+
   const importFromPhone = async () => {
-    if (Platform.OS === "web") { Alert.alert("Non disponibile", "L'importazione dalla rubrica funziona solo su cellulare (app Expo Go o build nativa)."); return; }
-    const { status } = await Contacts.requestPermissionsAsync();
-    if (status !== "granted") { Alert.alert("Permesso negato", "Serve accesso alla rubrica per importare."); return; }
-    const c = await (Contacts as any).presentContactPickerAsync?.();
-    if (!c) return;
+    if (Platform.OS === "web") {
+      Alert.alert("Non disponibile", "L'importazione dalla rubrica funziona solo su cellulare (app Expo Go o build nativa).");
+      return;
+    }
+    try {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permesso negato", "Serve accesso alla rubrica per importare.");
+        return;
+      }
+      // Try native picker first (iOS only in current expo-contacts)
+      const anyContacts = Contacts as any;
+      if (typeof anyContacts.presentContactPickerAsync === "function") {
+        try {
+          const c = await anyContacts.presentContactPickerAsync();
+          if (c) { fillFromContact(c); return; }
+        } catch (e) { console.warn("native picker failed, fallback to list", e); }
+      }
+      // Fallback: fetch all contacts and show list modal
+      const { data } = await Contacts.getContactsAsync({
+        fields: [
+          Contacts.Fields.FirstName, Contacts.Fields.LastName,
+          Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails,
+          Contacts.Fields.Addresses, Contacts.Fields.Birthday,
+        ],
+        sort: Contacts.SortTypes.LastName,
+      });
+      if (!data || data.length === 0) {
+        Alert.alert("Nessun contatto", "La tua rubrica risulta vuota.");
+        return;
+      }
+      setPhoneContactsModal(data);
+    } catch (e: any) {
+      Alert.alert("Errore importazione", e?.message || "Impossibile accedere alla rubrica");
+    }
+  };
+
+  const fillFromContact = (c: any) => {
     setForm((f) => ({
       ...f,
-      first_name: c.firstName || f.first_name,
-      last_name: c.lastName || f.last_name,
+      first_name: c.firstName || c.name?.split(" ")[0] || f.first_name,
+      last_name: c.lastName || (c.name?.split(" ").slice(1).join(" ")) || f.last_name,
       phone: c.phoneNumbers?.[0]?.number || f.phone,
       phone_alt: c.phoneNumbers?.[1]?.number || f.phone_alt,
       email: c.emails?.[0]?.email || f.email,
@@ -135,25 +171,31 @@ export default function NewContactScreen() {
       address_province: c.addresses?.[0]?.region || f.address_province,
       birth_date: c.birthday ? `${c.birthday.day || ""}/${c.birthday.month || ""}/${c.birthday.year || ""}` : f.birth_date,
     }));
+    setPhoneContactsModal(null);
   };
 
   const pickPhoto = async (fromCamera: boolean) => {
-    const perm = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (Platform.OS !== "web" && !perm.granted) return;
-    const res = fromCamera
-      ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: Platform.OS === "web" })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: Platform.OS === "web" });
-    if (res.canceled || !res.assets?.[0]) return;
-    const a = res.assets[0];
-    let b64 = a.base64;
-    if (!b64) {
-      try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); }
-      catch { return; }
+    try {
+      const perm = fromCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (Platform.OS !== "web" && !perm.granted) return;
+      const useBase64 = Platform.OS !== "web";
+      const res = fromCamera
+        ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: useBase64 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: useBase64 });
+      if (res.canceled || !res.assets?.[0]) return;
+      const a = res.assets[0];
+      let dataUri: string;
+      if (a.base64) dataUri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
+      else if (a.uri) dataUri = await uriToBase64DataUrl(a.uri, a.mimeType || "image/jpeg");
+      else return;
+      if (base64ByteSize(dataUri) > 8 * 1024 * 1024) { Alert.alert("Foto troppo grande", "Max ~8 MB"); return; }
+      setForm({ ...form, photos: [...form.photos, dataUri] });
+    } catch (e: any) {
+      console.warn("pickPhoto err", e);
+      Alert.alert("Impossibile caricare la foto", e?.message || "");
     }
-    const dataUri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
-    setForm({ ...form, photos: [...form.photos, dataUri] });
   };
 
   const removePhoto = (idx: number) => {
@@ -171,28 +213,36 @@ export default function NewContactScreen() {
   };
 
   const pickPhotoFor = async (target: "email" | "general", fromCamera: boolean) => {
-    const perm = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (Platform.OS !== "web" && !perm.granted) return;
-    const res = fromCamera
-      ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: Platform.OS === "web" })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: Platform.OS === "web" });
-    if (res.canceled || !res.assets?.[0]) return;
-    const a = res.assets[0];
-    let b64 = a.base64;
-    if (!b64) { try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); } catch { return; } }
-    const uri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
-    addAttachmentFor(target, { local_id: `${Date.now()}`, kind: "photo", photo_base64: uri });
+    try {
+      const perm = fromCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (Platform.OS !== "web" && !perm.granted) return;
+      const useBase64 = Platform.OS !== "web";
+      const res = fromCamera
+        ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: useBase64 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: useBase64 });
+      if (res.canceled || !res.assets?.[0]) return;
+      const a = res.assets[0];
+      let uri: string;
+      if (a.base64) uri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
+      else if (a.uri) uri = await uriToBase64DataUrl(a.uri, a.mimeType || "image/jpeg");
+      else return;
+      if (base64ByteSize(uri) > 8 * 1024 * 1024) { Alert.alert("Foto troppo grande", "Max ~8 MB"); return; }
+      addAttachmentFor(target, { local_id: `${Date.now()}`, kind: "photo", photo_base64: uri });
+    } catch (e: any) {
+      console.warn("pickPhotoFor err", e);
+      Alert.alert("Impossibile caricare la foto", e?.message || "");
+    }
   };
 
   const pickFileFor = async (target: "email" | "general") => {
-    const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
-    if (res.canceled || !res.assets?.[0]) return;
-    const asset = res.assets[0];
     try {
-      const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
-      if (b64.length > 20 * 1024 * 1024) { Alert.alert("File troppo grande (max ~15MB)"); return; }
+      const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      const b64 = await uriToBase64(asset.uri);
+      if (base64ByteSize(b64) > 15 * 1024 * 1024) { Alert.alert("File troppo grande", "Max 15 MB"); return; }
       addAttachmentFor(target, {
         local_id: `${Date.now()}`,
         kind: "file",
@@ -201,28 +251,70 @@ export default function NewContactScreen() {
         file_mime: asset.mimeType || "application/octet-stream",
         file_size: asset.size || 0,
       });
-    } catch (e) { console.warn(e); }
+    } catch (e: any) {
+      console.warn("pickFileFor err", e);
+      Alert.alert("Impossibile caricare il file", e?.message || "");
+    }
   };
 
   const startRecFor = async (target: "email" | "general") => {
-    if (Platform.OS === "web") { Alert.alert("Registrazione audio non disponibile su web preview"); return; }
-    const { granted } = await AudioModule.requestRecordingPermissionsAsync();
-    if (!granted) return;
-    await recorder.prepareToRecordAsync();
-    recorder.record();
-    setRecordingFor(target);
+    try {
+      if (Platform.OS === "web") return await startRecWebFor(target);
+      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+      if (!granted) { Alert.alert("Permesso microfono negato"); return; }
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecordingFor(target);
+    } catch (e: any) {
+      console.warn("startRec err", e);
+      Alert.alert("Impossibile registrare", e?.message || "");
+    }
   };
+
   const stopRecFor = async () => {
     if (!recordingFor) return;
-    const target = recordingFor;
-    setRecordingFor(null);
-    await recorder.stop();
-    const uri = recorder.uri;
-    if (!uri) return;
     try {
-      const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      if (Platform.OS === "web") return await stopRecWebFor();
+      const target = recordingFor;
+      setRecordingFor(null);
+      await recorder.stop();
+      const uri = recorder.uri;
+      if (!uri) return;
+      const b64 = await uriToBase64(uri);
       addAttachmentFor(target, { local_id: `${Date.now()}`, kind: "audio", audio_base64: b64, audio_mime: "audio/m4a" });
-    } catch (e) { console.warn(e); }
+    } catch (e: any) { console.warn(e); }
+  };
+
+  const startRecWebFor = async (target: "email" | "general") => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      mr.start();
+      webRecRef.current = { mr, chunks, stream, target };
+      setRecordingFor(target);
+    } catch (e: any) {
+      Alert.alert("Microfono non accessibile", e?.message || "");
+    }
+  };
+
+  const stopRecWebFor = async () => {
+    const st = webRecRef.current;
+    setRecordingFor(null);
+    if (!st) return;
+    await new Promise<void>((resolve) => { st.mr.onstop = () => resolve(); st.mr.stop(); });
+    st.stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+    const blob = new Blob(st.chunks, { type: "audio/webm" });
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("read failed"));
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsDataURL(blob);
+    });
+    const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+    addAttachmentFor(st.target, { local_id: `${Date.now()}`, kind: "audio", audio_base64: b64, audio_mime: "audio/webm" });
+    webRecRef.current = null;
   };
 
   const submit = async () => {
@@ -860,6 +952,28 @@ export default function NewContactScreen() {
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>{groupModal?.mode === "create" ? "Crea" : "Salva"}</Text>
               </Pressable>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Phone contacts picker */}
+      <Modal visible={!!phoneContactsModal} animationType="slide" transparent onRequestClose={() => setPhoneContactsModal(null)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "85%" }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: theme.color.onSurface }}>Scegli dalla rubrica</Text>
+              <Pressable onPress={() => setPhoneContactsModal(null)} hitSlop={8}>
+                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+              </Pressable>
+            </View>
+            <ScrollView>
+              {phoneContactsModal?.map((c) => (
+                <Pressable key={c.id} onPress={() => fillFromContact(c)} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: theme.color.onSurface }}>{c.name || `${c.firstName || ""} ${c.lastName || ""}`.trim() || "(senza nome)"}</Text>
+                  {!!c.phoneNumbers?.[0]?.number && <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>{c.phoneNumbers[0].number}</Text>}
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
         </View>
       </Modal>

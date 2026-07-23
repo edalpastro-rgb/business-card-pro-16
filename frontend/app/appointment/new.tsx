@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Alert, Modal, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,12 +6,12 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system/legacy";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { scheduleAppointmentReminder } from "@/src/notifications";
+import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
 
 type Attachment = {
   id: string;
@@ -81,35 +81,54 @@ export default function NewAppointmentScreen() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [recording, setRecording] = useState(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const webRecRef = useRef<{ mr: MediaRecorder; chunks: Blob[]; stream: MediaStream } | null>(null);
 
   const addPhoto = async (fromCamera: boolean) => {
-    const perm = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (Platform.OS !== "web" && !perm.granted) {
-      Alert.alert("Permesso negato");
-      return;
+    try {
+      const perm = fromCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (Platform.OS !== "web" && !perm.granted) {
+        Alert.alert("Permesso negato");
+        return;
+      }
+      // IMPORTANT: On web, do NOT request base64 (broken in expo-image-picker 17.x web).
+      const useBase64 = Platform.OS !== "web";
+      const opts: any = { quality: 0.5, base64: useBase64, mediaTypes: ImagePicker.MediaTypeOptions.Images };
+      const res = fromCamera
+        ? await ImagePicker.launchCameraAsync(opts)
+        : await ImagePicker.launchImageLibraryAsync(opts);
+      if (res.canceled || !res.assets?.[0]) return;
+      const a = res.assets[0];
+      let dataUrl: string;
+      if (a.base64) {
+        dataUrl = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
+      } else if (a.uri) {
+        dataUrl = await uriToBase64DataUrl(a.uri, a.mimeType || "image/jpeg");
+      } else {
+        return;
+      }
+      if (base64ByteSize(dataUrl) > 8 * 1024 * 1024) {
+        Alert.alert("Foto troppo grande", "Prova con una foto più piccola (max ~8 MB)");
+        return;
+      }
+      setAttachments((p) => [...p, { id: `${Date.now()}`, kind: "photo", photo_base64: dataUrl }]);
+    } catch (e: any) {
+      console.warn("addPhoto err", e);
+      Alert.alert("Impossibile caricare la foto", e?.message || "Riprova con un'altra immagine");
     }
-    const res = fromCamera
-      ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: true });
-    if (res.canceled || !res.assets?.[0]) return;
-    const a = res.assets[0];
-    let b64 = a.base64;
-    if (!b64 && a.uri) {
-      try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); } catch { return; }
-    }
-    const uri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
-    setAttachments((p) => [...p, { id: `${Date.now()}`, kind: "photo", photo_base64: uri }]);
   };
 
   const pickFile = async () => {
-    const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
-    if (res.canceled || !res.assets?.[0]) return;
-    const asset = res.assets[0];
     try {
-      const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
-      if (b64.length > 20 * 1024 * 1024) { Alert.alert("File troppo grande (max ~15MB)"); return; }
+      const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      const b64 = await uriToBase64(asset.uri);
+      if (base64ByteSize(b64) > 15 * 1024 * 1024) {
+        Alert.alert("File troppo grande", "Massimo 15 MB");
+        return;
+      }
       setAttachments((p) => [...p, {
         id: `${Date.now()}`, kind: "file",
         file_base64: b64,
@@ -117,27 +136,78 @@ export default function NewAppointmentScreen() {
         file_mime: asset.mimeType || "application/octet-stream",
         file_size: asset.size || 0,
       }]);
-    } catch (e) { console.warn(e); }
+    } catch (e: any) {
+      console.warn("pickFile err", e);
+      Alert.alert("Impossibile caricare il file", e?.message || "Riprova");
+    }
   };
 
   const startRec = async () => {
-    if (Platform.OS === "web") { Alert.alert("Registrazione audio non disponibile su web preview"); return; }
-    const { granted } = await AudioModule.requestRecordingPermissionsAsync();
-    if (!granted) { Alert.alert("Permesso microfono negato"); return; }
-    await recorder.prepareToRecordAsync();
-    recorder.record();
-    setRecording(true);
+    try {
+      if (Platform.OS === "web") {
+        // Web: use MediaRecorder API directly
+        return await startRecWeb();
+      }
+      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+      if (!granted) { Alert.alert("Permesso microfono negato"); return; }
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecording(true);
+    } catch (e: any) {
+      console.warn("startRec err", e);
+      Alert.alert("Impossibile iniziare la registrazione", e?.message || "");
+    }
   };
 
   const stopRec = async () => {
-    setRecording(false);
-    await recorder.stop();
-    const uri = recorder.uri;
-    if (!uri) return;
     try {
-      const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      if (Platform.OS === "web") {
+        return await stopRecWeb();
+      }
+      setRecording(false);
+      await recorder.stop();
+      const uri = recorder.uri;
+      if (!uri) return;
+      const b64 = await uriToBase64(uri);
       setAttachments((p) => [...p, { id: `${Date.now()}`, kind: "audio", audio_base64: b64, audio_mime: "audio/m4a" }]);
-    } catch (e) { console.warn(e); }
+    } catch (e: any) { console.warn(e); }
+  };
+
+  // ---- Web audio recording (MediaRecorder) ----
+
+  const startRecWeb = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      mr.start();
+      webRecRef.current = { mr, chunks, stream };
+      setRecording(true);
+    } catch (e: any) {
+      Alert.alert("Microfono non accessibile", e?.message || "Autorizza il microfono nel browser");
+    }
+  };
+
+  const stopRecWeb = async () => {
+    const st = webRecRef.current;
+    if (!st) { setRecording(false); return; }
+    await new Promise<void>((resolve) => {
+      st.mr.onstop = () => resolve();
+      st.mr.stop();
+    });
+    st.stream.getTracks().forEach((t) => t.stop());
+    setRecording(false);
+    const blob = new Blob(st.chunks, { type: "audio/webm" });
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("read failed"));
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsDataURL(blob);
+    });
+    const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+    setAttachments((p) => [...p, { id: `${Date.now()}`, kind: "audio", audio_base64: b64, audio_mime: "audio/webm" }]);
+    webRecRef.current = null;
   };
 
   const removeAttachment = (id: string) => setAttachments((p) => p.filter((a) => a.id !== id));
