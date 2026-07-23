@@ -27,22 +27,25 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [chatQuery, setChatQuery] = useState("");
   const [chatAreaFilter, setChatAreaFilter] = useState<string>("all");
+  const [subscription, setSubscription] = useState<{ status: string; days_left?: number | null; is_active: boolean } | null>(null);
 
   const load = useCallback(async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const [s, c, r, ct, gr] = await Promise.all([
+      const [s, c, r, ct, gr, sub] = await Promise.all([
         api<Settings>("/settings"),
         api<{ items: Callback[] }>("/callbacks", { query: { day: today, include_done: true } }),
         api<ReportStats>("/reports", { query: { period: "day" } }),
         api<{ items: Contact[] }>("/contacts"),
         api<{ items: Group[] }>("/groups"),
+        api<any>("/subscription/status").catch(() => null),
       ]);
       setSettings(s);
       setCallbacks(c.items);
       setReport(r);
       setContacts(ct.items || []);
       setGroups(gr.items || []);
+      setSubscription(sub);
     } catch (e) {
       console.warn(e);
     } finally {
@@ -90,6 +93,31 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
       >
+        {subscription?.status === "trial" && (subscription.days_left ?? 999) <= 7 && (
+          <View style={[styles.trialBanner, { backgroundColor: (subscription.days_left ?? 0) <= 3 ? "#FEE2E2" : "#FEF3C7", borderColor: (subscription.days_left ?? 0) <= 3 ? theme.color.error : theme.color.warning }]}>
+            <Ionicons name="time" size={18} color={(subscription.days_left ?? 0) <= 3 ? theme.color.error : theme.color.warning} />
+            <Text style={styles.trialBannerTxt}>
+              Trial in scadenza: {subscription.days_left} giorni residui
+            </Text>
+          </View>
+        )}
+        {subscription?.status === "expired" && (
+          <View style={[styles.trialBanner, { backgroundColor: "#FEE2E2", borderColor: theme.color.error }]}>
+            <Ionicons name="alert-circle" size={18} color={theme.color.error} />
+            <Text style={[styles.trialBannerTxt, { color: theme.color.error }]}>Trial scaduto — contatta chi ti ha invitato per rinnovare</Text>
+          </View>
+        )}
+        {!user?.parent_user_id && (
+          <Pressable testID="home-invite-btn" onPress={() => router.push("/invitati")} style={styles.inviteBtn}>
+            <Ionicons name="person-add" size={20} color="#FFF" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.inviteTitle}>Invita cliente ad usare l&apos;app</Text>
+              <Text style={styles.inviteSub}>Genera link con trial gratuito estensibile</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#FFF" />
+          </Pressable>
+        )}
+
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { borderLeftColor: energyColor }]} testID="stat-energy">
             <View style={[styles.statBadge, { backgroundColor: energyColor + "22" }]}>
@@ -395,4 +423,9 @@ const styles = StyleSheet.create({
   iconBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   grpBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
   grpBadgeTxt: { color: "#FFF", fontWeight: "700", fontSize: 11 },
+  trialBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, marginBottom: 12 },
+  trialBannerTxt: { flex: 1, fontWeight: "700", fontSize: 13, color: theme.color.onSurface },
+  inviteBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: theme.color.brandPrimary, paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
+  inviteTitle: { color: "#FFF", fontWeight: "700", fontSize: 14 },
+  inviteSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },
 });

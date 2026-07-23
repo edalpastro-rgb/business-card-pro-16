@@ -145,11 +145,31 @@ export default function ImpostazioniScreen() {
           </Pressable>
         )}
 
+        {!user?.parent_user_id && (
+          <Pressable testID="invitati-link" onPress={() => router.push("/invitati")} style={styles.linkCard}>
+            <Ionicons name="person-add" size={26} color={theme.color.brandPrimary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkTitle}>Clienti invitati</Text>
+              <Text style={styles.linkSub}>Genera link invito, monitora trial, estendi giorni</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+          </Pressable>
+        )}
+
         <Pressable testID="groups-link" onPress={() => router.push("/groups")} style={styles.linkCard}>
           <Ionicons name="people-outline" size={26} color={theme.color.brandPrimary} />
           <View style={{ flex: 1 }}>
             <Text style={styles.linkTitle}>Gruppi Contatti</Text>
             <Text style={styles.linkSub}>Crea gruppi personalizzati per invii bulk</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
+        <Pressable testID="security-link" onPress={() => router.push("/security")} style={styles.linkCard}>
+          <Ionicons name="shield-checkmark" size={26} color={theme.color.brandPrimary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Sicurezza & 2FA</Text>
+            <Text style={styles.linkSub}>Autenticazione a due fattori, PIN e biometria</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>

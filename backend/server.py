@@ -12,6 +12,11 @@ import httpx
 import smtplib
 import ssl
 import asyncio
+import base64
+import secrets
+import io
+import pyotp
+import qrcode
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
@@ -33,6 +38,11 @@ db = client[os.environ['DB_NAME']]
 JWT_SECRET = os.environ.get('JWT_SECRET', 'dev-secret-change-me-in-prod-9827345')
 JWT_ALG = 'HS256'
 JWT_EXP_DAYS = 30
+
+# 2FA config
+TOTP_ISSUER = os.environ.get('TOTP_ISSUER', 'Dal Pastro CRM')
+TEMP_2FA_TOKEN_MINUTES = 10
+DEVICE_TRUST_HOURS = 24
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -63,6 +73,53 @@ def create_jwt(user_id: str) -> str:
         "exp": int((utcnow() + timedelta(days=JWT_EXP_DAYS)).timestamp()),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+
+
+def create_temp_2fa_token(user_id: str) -> str:
+    payload = {
+        "sub": user_id,
+        "purpose": "2fa_pending",
+        "iat": int(utcnow().timestamp()),
+        "exp": int((utcnow() + timedelta(minutes=TEMP_2FA_TOKEN_MINUTES)).timestamp()),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+
+
+def totp_provisioning_uri(email: str, secret: str) -> str:
+    return pyotp.TOTP(secret).provisioning_uri(name=email, issuer_name=TOTP_ISSUER)
+
+
+def qr_png_data_url(data: str) -> str:
+    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=6, border=2)
+    qr.add_data(data)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#0F2438", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def generate_backup_codes(count: int = 10) -> list[str]:
+    # 10-char, split into 5-5 for display: XXXXX-XXXXX
+    codes = []
+    for _ in range(count):
+        raw = secrets.token_hex(5).upper()  # 10 chars
+        codes.append(f"{raw[:5]}-{raw[5:]}")
+    return codes
+
+
+def hash_backup_code(code: str) -> str:
+    # Normalize by removing dashes/spaces + upper
+    norm = code.replace("-", "").replace(" ", "").upper()
+    return bcrypt.hashpw(norm.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_backup_code(code: str, hashed: str) -> bool:
+    try:
+        norm = code.replace("-", "").replace(" ", "").upper()
+        return bcrypt.checkpw(norm.encode(), hashed.encode())
+    except Exception:
+        return False
 
 
 def strip_id(doc: Optional[dict]) -> Optional[dict]:
@@ -97,7 +154,7 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0, "totp_secret": 0, "totp_secret_pending": 0, "backup_codes": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
@@ -117,6 +174,20 @@ class LoginInput(BaseModel):
     password: str
 
 
+class TwoFAVerifyInput(BaseModel):
+    temp_token: str
+    code: str
+
+
+class TwoFAConfirmInput(BaseModel):
+    code: str
+
+
+class TwoFADisableInput(BaseModel):
+    password: Optional[str] = None
+    code: Optional[str] = None  # TOTP or backup code (alternative to password)
+
+
 class GoogleSessionInput(BaseModel):
     session_id: str
 
@@ -130,6 +201,7 @@ class UserOut(BaseModel):
     areas: List[str] = Field(default_factory=lambda: ["energy", "network"])
     parent_user_id: Optional[str] = None
     avatar_base64: Optional[str] = None
+    two_factor_enabled: bool = False
 
 
 class TeamInviteInput(BaseModel):
@@ -411,10 +483,204 @@ async def login(body: LoginInput):
     user = await db.users.find_one({"email": body.email.lower()})
     if not user or not user.get("password_hash") or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Credenziali non valide")
+
+    # If 2FA enabled, return temp token requiring 2FA
+    if user.get("two_factor_enabled"):
+        return {
+            "requires_2fa": True,
+            "temp_token": create_temp_2fa_token(user["user_id"]),
+        }
+
     token = create_jwt(user["user_id"])
     strip_id(user)
     user.pop("password_hash", None)
-    return {"token": token, "user": UserOut(**user).model_dump()}
+    trust_expires_at = utcnow() + timedelta(hours=DEVICE_TRUST_HOURS)
+    return {
+        "token": token,
+        "user": UserOut(**user).model_dump(),
+        "trust_expires_at": trust_expires_at.isoformat(),
+    }
+
+
+@api_router.post("/auth/login/2fa")
+async def login_2fa(body: TwoFAVerifyInput):
+    try:
+        payload = jwt.decode(body.temp_token, JWT_SECRET, algorithms=[JWT_ALG])
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token temporaneo non valido o scaduto")
+    if payload.get("purpose") != "2fa_pending":
+        raise HTTPException(status_code=401, detail="Token non valido")
+    user_id = payload.get("sub")
+    user = await db.users.find_one({"user_id": user_id})
+    if not user or not user.get("two_factor_enabled"):
+        raise HTTPException(status_code=401, detail="Sessione non valida")
+
+    code = (body.code or "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="Codice mancante")
+
+    verified = False
+    used_backup_index = None
+
+    # Try backup codes first (if code contains letters or dashes, it's likely a backup code)
+    if not code.isdigit() or len(code) >= 8:
+        for idx, item in enumerate(user.get("backup_codes") or []):
+            if item.get("used_at") is None and verify_backup_code(code, item["hash"]):
+                used_backup_index = idx
+                verified = True
+                break
+
+    # Try TOTP
+    if not verified and code.isdigit() and len(code) == 6:
+        try:
+            totp = pyotp.TOTP(user["totp_secret"])
+            timecode = totp.verify(code, valid_window=1)
+            if timecode:
+                # Prevent replay: check last used
+                last = user.get("totp_last_code")
+                if last == code:
+                    raise HTTPException(status_code=401, detail="Codice già utilizzato, attendi il prossimo")
+                verified = True
+                await db.users.update_one(
+                    {"user_id": user_id},
+                    {"$set": {"totp_last_code": code, "totp_last_verified_at": utcnow()}},
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            verified = False
+
+    if not verified:
+        raise HTTPException(status_code=401, detail="Codice 2FA non valido")
+
+    # Mark backup code as used
+    if used_backup_index is not None:
+        codes_list = user.get("backup_codes") or []
+        codes_list[used_backup_index]["used_at"] = utcnow()
+        await db.users.update_one({"user_id": user_id}, {"$set": {"backup_codes": codes_list}})
+
+    token = create_jwt(user_id)
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0, "totp_secret": 0, "backup_codes": 0})
+    trust_expires_at = utcnow() + timedelta(hours=DEVICE_TRUST_HOURS)
+    return {
+        "token": token,
+        "user": UserOut(**user).model_dump(),
+        "trust_expires_at": trust_expires_at.isoformat(),
+        "used_backup_code": used_backup_index is not None,
+    }
+
+
+@api_router.post("/auth/2fa/setup/start")
+async def twofa_setup_start(user=Depends(get_current_user)):
+    """Generate a fresh TOTP secret (not activated until confirmed)."""
+    secret = pyotp.random_base32()
+    uri = totp_provisioning_uri(user["email"], secret)
+    # Store as pending secret (does NOT enable yet)
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"totp_secret_pending": secret}},
+    )
+    return {
+        "otpauth_uri": uri,
+        "qr_code_data_url": qr_png_data_url(uri),
+        "secret": secret,  # Show once for manual entry
+    }
+
+
+@api_router.post("/auth/2fa/setup/confirm")
+async def twofa_setup_confirm(body: TwoFAConfirmInput, user=Depends(get_current_user)):
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    secret = fresh.get("totp_secret_pending")
+    if not secret:
+        raise HTTPException(status_code=400, detail="Nessun setup 2FA in corso. Ricomincia.")
+    code = (body.code or "").strip()
+    if not code.isdigit() or len(code) != 6:
+        raise HTTPException(status_code=400, detail="Codice deve essere 6 cifre")
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(code, valid_window=1):
+        raise HTTPException(status_code=400, detail="Codice non valido, riprova")
+
+    # Generate backup codes
+    backup_codes = generate_backup_codes(10)
+    backup_hashed = [{"hash": hash_backup_code(c), "used_at": None} for c in backup_codes]
+
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            "two_factor_enabled": True,
+            "totp_secret": secret,
+            "totp_last_code": code,
+            "totp_enabled_at": utcnow(),
+            "backup_codes": backup_hashed,
+        }, "$unset": {"totp_secret_pending": ""}},
+    )
+    return {"ok": True, "backup_codes": backup_codes}
+
+
+@api_router.post("/auth/2fa/disable")
+async def twofa_disable(body: TwoFADisableInput, user=Depends(get_current_user)):
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    if not fresh.get("two_factor_enabled"):
+        return {"ok": True}
+
+    verified = False
+    if body.password and fresh.get("password_hash") and verify_password(body.password, fresh["password_hash"]):
+        verified = True
+    elif body.code:
+        code = body.code.strip()
+        # Try TOTP
+        if code.isdigit() and len(code) == 6:
+            totp = pyotp.TOTP(fresh["totp_secret"])
+            if totp.verify(code, valid_window=1):
+                verified = True
+        # Try backup code
+        if not verified:
+            for item in fresh.get("backup_codes") or []:
+                if item.get("used_at") is None and verify_backup_code(code, item["hash"]):
+                    verified = True
+                    break
+
+    if not verified:
+        raise HTTPException(status_code=401, detail="Password o codice non validi")
+
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"two_factor_enabled": False}, "$unset": {"totp_secret": "", "totp_secret_pending": "", "backup_codes": "", "totp_last_code": ""}},
+    )
+    return {"ok": True}
+
+
+@api_router.post("/auth/2fa/regenerate-backup-codes")
+async def twofa_regen_backup(body: TwoFAConfirmInput, user=Depends(get_current_user)):
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    if not fresh.get("two_factor_enabled"):
+        raise HTTPException(status_code=400, detail="2FA non attivo")
+    code = (body.code or "").strip()
+    if not (code.isdigit() and len(code) == 6):
+        raise HTTPException(status_code=400, detail="Serve codice TOTP a 6 cifre")
+    totp = pyotp.TOTP(fresh["totp_secret"])
+    if not totp.verify(code, valid_window=1):
+        raise HTTPException(status_code=401, detail="Codice TOTP non valido")
+
+    backup_codes = generate_backup_codes(10)
+    backup_hashed = [{"hash": hash_backup_code(c), "used_at": None} for c in backup_codes]
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"backup_codes": backup_hashed}},
+    )
+    return {"backup_codes": backup_codes}
+
+
+@api_router.get("/auth/2fa/status")
+async def twofa_status(user=Depends(get_current_user)):
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    codes = fresh.get("backup_codes") or []
+    unused = sum(1 for c in codes if c.get("used_at") is None)
+    return {
+        "enabled": bool(fresh.get("two_factor_enabled")),
+        "backup_codes_remaining": unused,
+        "enabled_at": fresh.get("totp_enabled_at").isoformat() if fresh.get("totp_enabled_at") else None,
+    }
 
 
 @api_router.post("/auth/google-session")
@@ -924,6 +1190,184 @@ async def reports(period: str = "day", user=Depends(get_current_user)):
     outcomes = [{"outcome_id": o["_id"], "count": o["count"]} for o in outcome_agg]
 
     return {"period": period, "start": start.isoformat(), "end": end.isoformat(), "stats": result, "outcomes": outcomes}
+
+
+# =========================
+# Invites & Trial subscription
+# =========================
+class InviteIn(BaseModel):
+    trial_days: int = 30
+    note: str = ""
+
+
+class InviteRegisterIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6)
+    name: str = Field(min_length=1, max_length=100)
+
+
+class ExtendTrialIn(BaseModel):
+    add_days: int = Field(ge=1, le=3650)
+
+
+def _subscription_state(user: dict) -> Dict[str, Any]:
+    """Compute the subscription state (owner + trial + expiry) for a user."""
+    if user.get("parent_user_id"):
+        # sub-user inherits from parent
+        return {"status": "sub_user", "expires_at": None, "days_left": None, "is_active": True}
+    status_str = user.get("subscription_status") or "active"
+    exp = user.get("trial_expires_at")
+    days_left = None
+    if exp:
+        if isinstance(exp, str):
+            try: exp = datetime.fromisoformat(exp.replace("Z", "+00:00"))
+            except Exception: exp = None
+        if exp:
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            days_left = int((exp - utcnow()).total_seconds() // 86400)
+            if status_str == "trial" and days_left < 0:
+                status_str = "expired"
+    return {
+        "status": status_str,
+        "expires_at": exp.isoformat() if isinstance(exp, datetime) else None,
+        "days_left": days_left,
+        "is_active": status_str in ("active", "trial") and (days_left is None or days_left >= 0),
+    }
+
+
+@api_router.get("/subscription/status")
+async def get_subscription_status(user=Depends(get_current_user)):
+    # Refresh from DB in case of updates
+    tid = tenant_id(user)
+    parent = await db.users.find_one({"user_id": tid}, {"_id": 0, "password_hash": 0}) or user
+    state = _subscription_state(parent)
+    return state
+
+
+@api_router.post("/invites")
+async def create_invite(body: InviteIn, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo l'owner può creare inviti")
+    tok = uuid.uuid4().hex[:20]
+    doc = {
+        "invite_token": tok,
+        "created_by": user["user_id"],
+        "trial_days": body.trial_days,
+        "note": body.note,
+        "created_at": utcnow(),
+        "used_at": None,
+        "used_by_user_id": None,
+    }
+    await db.invites.insert_one(doc)
+    strip_id(doc)
+    return doc
+
+
+@api_router.get("/invites")
+async def list_invites(user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    items = await db.invites.find({"created_by": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    # Enrich with invited user info + subscription state
+    for inv in items:
+        if inv.get("used_by_user_id"):
+            u = await db.users.find_one({"user_id": inv["used_by_user_id"]}, {"_id": 0, "password_hash": 0})
+            if u:
+                inv["invited_user"] = {
+                    "user_id": u["user_id"],
+                    "name": u.get("name"),
+                    "email": u.get("email"),
+                    "subscription": _subscription_state(u),
+                }
+    return {"items": items}
+
+
+@api_router.delete("/invites/{token}")
+async def delete_invite(token: str, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    await db.invites.delete_one({"invite_token": token, "created_by": user["user_id"]})
+    return {"ok": True}
+
+
+@api_router.get("/invites/{token}/info")
+async def invite_info(token: str):
+    """Public endpoint: get invite info before registering."""
+    inv = await db.invites.find_one({"invite_token": token}, {"_id": 0, "created_by": 0})
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invito non trovato")
+    if inv.get("used_at"):
+        raise HTTPException(status_code=410, detail="Questo invito è già stato utilizzato")
+    return {"trial_days": inv["trial_days"], "note": inv.get("note", "")}
+
+
+@api_router.post("/invites/{token}/register")
+async def register_via_invite(token: str, body: InviteRegisterIn):
+    """Public endpoint: register a new tenant using an invite token."""
+    inv = await db.invites.find_one({"invite_token": token})
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invito non trovato")
+    if inv.get("used_at"):
+        raise HTTPException(status_code=410, detail="Invito già utilizzato")
+    # Check email uniqueness
+    existing = await db.users.find_one({"email": body.email.lower().strip()})
+    if existing:
+        raise HTTPException(status_code=409, detail="Email già registrata")
+    uid = f"user_{uuid.uuid4().hex[:12]}"
+    trial_days = int(inv.get("trial_days") or 30)
+    trial_expires_at = utcnow() + timedelta(days=trial_days)
+    pw_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+    now = utcnow()
+    user_doc = {
+        "user_id": uid,
+        "email": body.email.lower().strip(),
+        "password_hash": pw_hash,
+        "name": body.name,
+        "role": "owner",
+        "areas": ["energy", "network"],
+        "parent_user_id": None,
+        "subscription_status": "trial",
+        "trial_expires_at": trial_expires_at,
+        "created_at": now,
+        "invited_by": inv["created_by"],
+    }
+    await db.users.insert_one(user_doc)
+    # Mark invite used
+    await db.invites.update_one(
+        {"invite_token": token},
+        {"$set": {"used_at": now, "used_by_user_id": uid}},
+    )
+    token_jwt = jwt.encode({"sub": uid, "email": user_doc["email"]}, JWT_SECRET, algorithm=JWT_ALG)
+    return {
+        "token": token_jwt,
+        "user": {"user_id": uid, "email": user_doc["email"], "name": user_doc["name"], "role": "owner", "areas": user_doc["areas"]},
+        "subscription": _subscription_state(user_doc),
+    }
+
+
+@api_router.put("/users/{user_id}/extend-trial")
+async def extend_trial(user_id: str, body: ExtendTrialIn, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    # Ensure the target user was invited by this owner
+    target = await db.users.find_one({"user_id": user_id, "invited_by": user["user_id"]})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utente non trovato o non invitato da te")
+    exp = target.get("trial_expires_at") or utcnow()
+    if isinstance(exp, str):
+        try: exp = datetime.fromisoformat(exp.replace("Z", "+00:00"))
+        except Exception: exp = utcnow()
+    if exp.tzinfo is None: exp = exp.replace(tzinfo=timezone.utc)
+    # If already expired, start from now
+    base = exp if exp > utcnow() else utcnow()
+    new_exp = base + timedelta(days=body.add_days)
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"trial_expires_at": new_exp, "subscription_status": "trial"}},
+    )
+    fresh = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return {"user_id": user_id, "subscription": _subscription_state(fresh), "trial_expires_at": new_exp.isoformat()}
 
 
 # =========================
@@ -1483,6 +1927,8 @@ async def _startup():
     await db.appointments.create_index([("user_id", 1), ("start_at", 1)])
     await db.callbacks.create_index([("user_id", 1), ("scheduled_at", 1)])
     await db.users.create_index("parent_user_id")
+    await db.invites.create_index("invite_token", unique=True)
+    await db.invites.create_index("created_by")
     await db.groups.create_index([("user_id", 1), ("group_id", 1)], unique=True)
     await db.smtp_configs.create_index("user_id", unique=True)
     await db.chat_channels.create_index([("user_id", 1), ("member_user_ids", 1)])

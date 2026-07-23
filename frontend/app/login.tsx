@@ -8,7 +8,7 @@ import { theme } from "@/src/theme";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { loginEmail, loginGoogle, register } = useAuth();
+  const { loginEmail, loginGoogle, register, verify2FA } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,12 +16,21 @@ export default function LoginScreen() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // 2FA state
+  const [twoFAToken, setTwoFAToken] = useState<string | null>(null);
+  const [twoFACode, setTwoFACode] = useState("");
+
   const doAuth = async () => {
     setErr(null);
     setBusy(true);
     try {
       if (mode === "login") {
-        await loginEmail(email.trim(), password);
+        const r = await loginEmail(email.trim(), password);
+        if (r.requires_2fa) {
+          setTwoFAToken(r.temp_token);
+          setBusy(false);
+          return;
+        }
       } else {
         await register(email.trim(), password, name.trim() || email.split("@")[0]);
       }
@@ -32,6 +41,60 @@ export default function LoginScreen() {
       setBusy(false);
     }
   };
+
+  const doVerify2FA = async () => {
+    if (!twoFAToken) return;
+    setErr(null);
+    setBusy(true);
+    try {
+      await verify2FA(twoFAToken, twoFACode.trim());
+      router.replace("/(tabs)/home");
+    } catch (e: any) {
+      setErr(e.message || "Codice non valido");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (twoFAToken) {
+    return (
+      <View style={styles.root}>
+        <LinearGradient colors={["#0F2438", "#1C4869", "#3A739C"]} style={styles.hero}>
+          <View style={styles.heroContent}>
+            <Ionicons name="shield-checkmark" size={44} color="#FFF" />
+            <Text style={styles.title}>Verifica in 2 passaggi</Text>
+            <Text style={styles.subtitle}>Inserisci il codice della tua app Authenticator</Text>
+          </View>
+        </LinearGradient>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.formWrap}>
+          <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+            <View style={styles.field}>
+              <Text style={styles.label}>Codice a 6 cifre (o codice di recupero)</Text>
+              <TextInput
+                testID="2fa-code-input"
+                value={twoFACode}
+                onChangeText={setTwoFACode}
+                autoCapitalize="characters"
+                keyboardType="default"
+                placeholder="123456 o XXXXX-XXXXX"
+                placeholderTextColor="#94A3B8"
+                style={[styles.input, { textAlign: "center", fontSize: 20, letterSpacing: 3 }]}
+                maxLength={20}
+                autoFocus
+              />
+            </View>
+            {err && <Text style={styles.err} testID="auth-error">{err}</Text>}
+            <Pressable testID="2fa-verify-btn" onPress={doVerify2FA} style={styles.primaryBtn} disabled={busy || !twoFACode.trim()}>
+              {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryBtnText}>Verifica</Text>}
+            </Pressable>
+            <Pressable onPress={() => { setTwoFAToken(null); setTwoFACode(""); setErr(null); }} style={styles.linkBtn}>
+              <Text style={styles.linkBtnTxt}>Annulla e torna all&apos;accesso</Text>
+            </Pressable>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -150,4 +213,6 @@ const styles = StyleSheet.create({
   googleBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#FFF", borderRadius: theme.radius.md, paddingVertical: 12, borderWidth: 1, borderColor: theme.color.border },
   googleBtnText: { color: theme.color.brandPrimary, fontWeight: "700" },
   err: { color: theme.color.error, fontSize: 13 },
+  linkBtn: { alignItems: "center", paddingVertical: 12 },
+  linkBtnTxt: { color: theme.color.brandPrimary, fontWeight: "600", fontSize: 13 },
 });
