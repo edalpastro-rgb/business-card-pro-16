@@ -1,0 +1,25 @@
+{
+  "summary": "V21.a Retest — Bug #4 (import-from-phonebook web feedback). PASS. The new cross-platform notify() wrapper (src/utils/notify.ts) correctly surfaces alerts on react-native-web via window.alert. Import-phonebook button on web now displays 'Non disponibile — L\\'importazione dalla rubrica funziona solo su cellulare (app Expo Go o build nativa).' Non-regression on Bug #2/#3 also holds: photo upload via ap-media-photo produces the 'Foto' chip and file upload via ap-media-file produces a 'test_file.txt' chip, with 0 pageerrors and 0 error dialogs. Frontend only tested at 390x844.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_12.json"],
+  "action_items": [
+    "OPTIONAL cleanup (non-blocking): several callsites still pass a 3rd 'buttons' argument to notify() (e.g. appointment/new.tsx L305/L366 and contact/new.tsx L469/L552 confirm-style prompts). Current notify() signature only accepts (title, message?), so on web those extra button arrays are silently ignored — the confirm still no-ops. Consider migrating those confirmation dialogs to confirmAsync() (already exported from utils/notify.ts) for full web parity."
+  ],
+  "critical_code_review_comments": [
+    "notify() is a clean, minimal cross-platform wrapper — good design.",
+    "confirmAsync() is present in utils/notify.ts but not yet adopted; multi-button Alert.alert callsites that were converted to notify(...) with 3+ args will do nothing on web."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "notify() wrapper works on web. Photo/file media flows in appointment/new are stable. If main agent migrates 3-arg notify() calls to confirmAsync(), retest by clicking 'Elimina tipo' pill long-press (ap-type long-press) and 'Elimina gruppo' (contact/new group long-press) on web to verify confirm dialogs appear.",
+  "rca_of_issue": "Previously Alert.alert was a no-op on react-native-web@0.21.0 — silent UX. Fix wraps Alert with a Platform.OS==='web' branch that calls window.alert(). Verified end-to-end: dialog event fires, message content matches spec, no pageerrors."
+}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Alert, Modal, Image } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Modal, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -12,6 +12,7 @@ import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { scheduleAppointmentReminder } from "@/src/notifications";
 import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
+import { notify } from "@/src/utils/notify";
 
 type Attachment = {
   id: string;
@@ -89,7 +90,7 @@ export default function NewAppointmentScreen() {
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (Platform.OS !== "web" && !perm.granted) {
-        Alert.alert("Permesso negato");
+        notify("Permesso negato");
         return;
       }
       // IMPORTANT: On web, do NOT request base64 (broken in expo-image-picker 17.x web).
@@ -109,13 +110,13 @@ export default function NewAppointmentScreen() {
         return;
       }
       if (base64ByteSize(dataUrl) > 8 * 1024 * 1024) {
-        Alert.alert("Foto troppo grande", "Prova con una foto più piccola (max ~8 MB)");
+        notify("Foto troppo grande", "Prova con una foto più piccola (max ~8 MB)");
         return;
       }
       setAttachments((p) => [...p, { id: `${Date.now()}`, kind: "photo", photo_base64: dataUrl }]);
     } catch (e: any) {
       console.warn("addPhoto err", e);
-      Alert.alert("Impossibile caricare la foto", e?.message || "Riprova con un'altra immagine");
+      notify("Impossibile caricare la foto", e?.message || "Riprova con un'altra immagine");
     }
   };
 
@@ -126,7 +127,7 @@ export default function NewAppointmentScreen() {
       const asset = res.assets[0];
       const b64 = await uriToBase64(asset.uri);
       if (base64ByteSize(b64) > 15 * 1024 * 1024) {
-        Alert.alert("File troppo grande", "Massimo 15 MB");
+        notify("File troppo grande", "Massimo 15 MB");
         return;
       }
       setAttachments((p) => [...p, {
@@ -138,7 +139,7 @@ export default function NewAppointmentScreen() {
       }]);
     } catch (e: any) {
       console.warn("pickFile err", e);
-      Alert.alert("Impossibile caricare il file", e?.message || "Riprova");
+      notify("Impossibile caricare il file", e?.message || "Riprova");
     }
   };
 
@@ -149,13 +150,13 @@ export default function NewAppointmentScreen() {
         return await startRecWeb();
       }
       const { granted } = await AudioModule.requestRecordingPermissionsAsync();
-      if (!granted) { Alert.alert("Permesso microfono negato"); return; }
+      if (!granted) { notify("Permesso microfono negato"); return; }
       await recorder.prepareToRecordAsync();
       recorder.record();
       setRecording(true);
     } catch (e: any) {
       console.warn("startRec err", e);
-      Alert.alert("Impossibile iniziare la registrazione", e?.message || "");
+      notify("Impossibile iniziare la registrazione", e?.message || "");
     }
   };
 
@@ -185,7 +186,7 @@ export default function NewAppointmentScreen() {
       webRecRef.current = { mr, chunks, stream };
       setRecording(true);
     } catch (e: any) {
-      Alert.alert("Microfono non accessibile", e?.message || "Autorizza il microfono nel browser");
+      notify("Microfono non accessibile", e?.message || "Autorizza il microfono nel browser");
     }
   };
 
@@ -280,7 +281,7 @@ export default function NewAppointmentScreen() {
     if (!val) return;
     if (typeEditModal.mode === "create") {
       if ([...DEFAULT_APPT_TYPES, ...(settings.custom_appointment_types || [])].includes(val)) {
-        Alert.alert("Nome già esistente");
+        notify("Nome già esistente");
         return;
       }
       const next = { ...settings, custom_appointment_types: [...(settings.custom_appointment_types || []), val] };
@@ -301,7 +302,7 @@ export default function NewAppointmentScreen() {
 
   const deleteType = async (name: string) => {
     if (!settings) return;
-    Alert.alert("Elimina tipo", `Vuoi eliminare "${name}"?`, [
+    notify("Elimina tipo", `Vuoi eliminare "${name}"?`, [
       { text: "Annulla", style: "cancel" },
       {
         text: "Elimina", style: "destructive", onPress: async () => {
@@ -362,7 +363,7 @@ export default function NewAppointmentScreen() {
                   testID={`ap-type-${t}`}
                   onPress={() => toggleType(t)}
                   onLongPress={isCustom ? () => {
-                    Alert.alert(t, "Cosa vuoi fare?", [
+                    notify(t, "Cosa vuoi fare?", [
                       { text: "Annulla", style: "cancel" },
                       { text: "Rinomina", onPress: () => setTypeEditModal({ mode: "rename", oldName: t, value: t }) },
                       { text: "Elimina", style: "destructive", onPress: () => deleteType(t) },

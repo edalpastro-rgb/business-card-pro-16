@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Alert, Modal } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -12,6 +12,7 @@ import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { scheduleBirthdayReminder } from "@/src/notifications";
 import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
+import { notify } from "@/src/utils/notify";
 
 type PendingAttachment = {
   local_id: string;
@@ -120,13 +121,13 @@ export default function NewContactScreen() {
 
   const importFromPhone = async () => {
     if (Platform.OS === "web") {
-      Alert.alert("Non disponibile", "L'importazione dalla rubrica funziona solo su cellulare (app Expo Go o build nativa).");
+      notify("Non disponibile", "L'importazione dalla rubrica funziona solo su cellulare (app Expo Go o build nativa).");
       return;
     }
     try {
       const { status } = await Contacts.requestPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permesso negato", "Serve accesso alla rubrica per importare.");
+        notify("Permesso negato", "Serve accesso alla rubrica per importare.");
         return;
       }
       // Try native picker first (iOS only in current expo-contacts)
@@ -147,12 +148,12 @@ export default function NewContactScreen() {
         sort: Contacts.SortTypes.LastName,
       });
       if (!data || data.length === 0) {
-        Alert.alert("Nessun contatto", "La tua rubrica risulta vuota.");
+        notify("Nessun contatto", "La tua rubrica risulta vuota.");
         return;
       }
       setPhoneContactsModal(data);
     } catch (e: any) {
-      Alert.alert("Errore importazione", e?.message || "Impossibile accedere alla rubrica");
+      notify("Errore importazione", e?.message || "Impossibile accedere alla rubrica");
     }
   };
 
@@ -190,11 +191,11 @@ export default function NewContactScreen() {
       if (a.base64) dataUri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
       else if (a.uri) dataUri = await uriToBase64DataUrl(a.uri, a.mimeType || "image/jpeg");
       else return;
-      if (base64ByteSize(dataUri) > 8 * 1024 * 1024) { Alert.alert("Foto troppo grande", "Max ~8 MB"); return; }
+      if (base64ByteSize(dataUri) > 8 * 1024 * 1024) { notify("Foto troppo grande", "Max ~8 MB"); return; }
       setForm({ ...form, photos: [...form.photos, dataUri] });
     } catch (e: any) {
       console.warn("pickPhoto err", e);
-      Alert.alert("Impossibile caricare la foto", e?.message || "");
+      notify("Impossibile caricare la foto", e?.message || "");
     }
   };
 
@@ -228,11 +229,11 @@ export default function NewContactScreen() {
       if (a.base64) uri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
       else if (a.uri) uri = await uriToBase64DataUrl(a.uri, a.mimeType || "image/jpeg");
       else return;
-      if (base64ByteSize(uri) > 8 * 1024 * 1024) { Alert.alert("Foto troppo grande", "Max ~8 MB"); return; }
+      if (base64ByteSize(uri) > 8 * 1024 * 1024) { notify("Foto troppo grande", "Max ~8 MB"); return; }
       addAttachmentFor(target, { local_id: `${Date.now()}`, kind: "photo", photo_base64: uri });
     } catch (e: any) {
       console.warn("pickPhotoFor err", e);
-      Alert.alert("Impossibile caricare la foto", e?.message || "");
+      notify("Impossibile caricare la foto", e?.message || "");
     }
   };
 
@@ -242,7 +243,7 @@ export default function NewContactScreen() {
       if (res.canceled || !res.assets?.[0]) return;
       const asset = res.assets[0];
       const b64 = await uriToBase64(asset.uri);
-      if (base64ByteSize(b64) > 15 * 1024 * 1024) { Alert.alert("File troppo grande", "Max 15 MB"); return; }
+      if (base64ByteSize(b64) > 15 * 1024 * 1024) { notify("File troppo grande", "Max 15 MB"); return; }
       addAttachmentFor(target, {
         local_id: `${Date.now()}`,
         kind: "file",
@@ -253,7 +254,7 @@ export default function NewContactScreen() {
       });
     } catch (e: any) {
       console.warn("pickFileFor err", e);
-      Alert.alert("Impossibile caricare il file", e?.message || "");
+      notify("Impossibile caricare il file", e?.message || "");
     }
   };
 
@@ -261,13 +262,13 @@ export default function NewContactScreen() {
     try {
       if (Platform.OS === "web") return await startRecWebFor(target);
       const { granted } = await AudioModule.requestRecordingPermissionsAsync();
-      if (!granted) { Alert.alert("Permesso microfono negato"); return; }
+      if (!granted) { notify("Permesso microfono negato"); return; }
       await recorder.prepareToRecordAsync();
       recorder.record();
       setRecordingFor(target);
     } catch (e: any) {
       console.warn("startRec err", e);
-      Alert.alert("Impossibile registrare", e?.message || "");
+      notify("Impossibile registrare", e?.message || "");
     }
   };
 
@@ -295,7 +296,7 @@ export default function NewContactScreen() {
       webRecRef.current = { mr, chunks, stream, target };
       setRecordingFor(target);
     } catch (e: any) {
-      Alert.alert("Microfono non accessibile", e?.message || "");
+      notify("Microfono non accessibile", e?.message || "");
     }
   };
 
@@ -427,7 +428,7 @@ export default function NewContactScreen() {
       setNewAreaModal(false);
       setNewAreaName("");
     } catch (e: any) {
-      Alert.alert("Errore", e?.message || "Impossibile salvare");
+      notify("Errore", e?.message || "Impossibile salvare");
     }
   };
 
@@ -460,12 +461,12 @@ export default function NewContactScreen() {
       }
       setGroupModal(null);
     } catch (e: any) {
-      Alert.alert("Errore", e?.message || "Salvataggio fallito");
+      notify("Errore", e?.message || "Salvataggio fallito");
     }
   };
 
   const deleteGroupInline = (g: Group) => {
-    Alert.alert("Elimina gruppo", `Vuoi eliminare "${g.name}"? Tutti i contatti perderanno l'associazione.`, [
+    notify("Elimina gruppo", `Vuoi eliminare "${g.name}"? Tutti i contatti perderanno l'associazione.`, [
       { text: "Annulla", style: "cancel" },
       {
         text: "Elimina", style: "destructive", onPress: async () => {
@@ -548,7 +549,7 @@ export default function NewContactScreen() {
                       group_ids: on ? form.group_ids.filter((x) => x !== g.group_id) : [...form.group_ids, g.group_id],
                     })}
                     onLongPress={() => {
-                      Alert.alert(g.name, "Cosa vuoi fare?", [
+                      notify(g.name, "Cosa vuoi fare?", [
                         { text: "Annulla", style: "cancel" },
                         { text: "Rinomina / colore", onPress: () => openEditGroup(g) },
                         { text: "Elimina", style: "destructive", onPress: () => deleteGroupInline(g) },
