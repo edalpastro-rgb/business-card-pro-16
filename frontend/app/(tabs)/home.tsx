@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
+import { openTelegram } from "@/src/utils/telegram";
 
 type CustomArea = { id: string; name: string; color: string };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_areas?: CustomArea[] };
@@ -302,7 +303,7 @@ export default function HomeScreen() {
                           {c.telegram && (
                             <Pressable
                               testID={`home-tg-${c.contact_id}`}
-                              onPress={() => Linking.openURL(`https://t.me/${(c.telegram || "").replace(/^@/, "")}`)}
+                              onPress={() => openTelegram(c.telegram || "")}
                               style={[styles.iconBtn, { backgroundColor: "#0088CC" }]}
                             >
                               <Ionicons name="paper-plane" size={14} color="#FFF" />

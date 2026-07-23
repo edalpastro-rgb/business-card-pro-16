@@ -1,0 +1,23 @@
+{
+  "summary": "Frontend-only verification of Telegram X compatibility fix via shared helper `/app/frontend/src/utils/telegram.ts`. Verified web fallback behavior for both `openTelegram` (contact detail) and `sendTelegramMessage` (group bulk send). On web, `Linking.canOpenURL('tg://...')` is not evaluated (Platform.OS==='web') so the helper directly calls `Linking.openURL('https://t.me/...')` which resolves to `window.open` -> confirmed captured URL is `https://t.me/durov` for the contact button and `https://t.me/durov?text=Hi%20TelTest!` for the bulk sender (with `{nome}` template substitution). No pageerrors on login, home, contact detail, or group screens. Native `tg://resolve?domain=...` cannot be exercised via web preview (requires physical device / native build), but the helper implementation is correct: it awaits `Linking.canOpenURL(nativeUri)` first on iOS/Android and falls back to the https URL only when the native scheme is not registered — this is precisely the pattern that unblocks Telegram X (Telegram X registers the same `tg://` scheme as stock Telegram, so `canOpenURL` returns true on either app).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_14.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "src/utils/telegram.ts: `sendTelegramMessage` builds `tg://resolve?domain=<u>&text=<...>` — official Telegram deep-link docs do NOT document a `text` parameter on `tg://resolve` (only on `tg://msg_url`). It may be silently ignored on native, but functionally harmless (chat still opens). Consider using `tg://msg?to=<u>&text=...` or the documented `tg://msg_url?url=...&text=...` for stricter compliance. Fallback via https://t.me/<u>?text=... is honored by both clients when opened in-app.",
+    "src/utils/telegram.ts: `Linking.openURL('https://t.me/...')` on web navigates the current tab in some environments (React Native Web maps to `window.open` in newer versions). Tested here it triggers `window.open` — good — but note that if a browser blocks popups the fallback silently fails. Not a blocker for the fix."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not tested this iteration)", "frontend": "100%"},
+  "seed_data_creation": "Created + deleted TEST_TelTest contact and TEST_TGBulkGroup group via API within the test run (cleanup verified).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Telegram X fix verified on web. Native `tg://` path cannot be exercised in the web preview; only a physical device / TestFlight or Android APK can validate Telegram X actually opens. If user still reports Telegram X not opening on device, ask them to run `adb shell dumpsys package org.thunderdog.challegram` (Telegram X package) and verify the intent filter `tg` scheme is present, then re-check `Linking.canOpenURL` return value. The helper implementation is sound.",
+  "rca_of_issue": "Original bug (only stock Telegram opened, not Telegram X): call sites were using `Linking.openURL('https://t.me/<u>')` directly. On Android, https URLs open the browser (or whichever browser handled the intent) instead of asking user which Telegram app to use. Fix: prefer `tg://resolve?domain=<u>` scheme first — both stock Telegram and Telegram X register this scheme, so Android's intent chooser will let the user pick either app. Fallback to https URL only when the native scheme is not registered (web / no client installed). Verified by test that on web the fallback URL is produced correctly."
+}

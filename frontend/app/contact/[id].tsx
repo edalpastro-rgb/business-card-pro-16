@@ -10,6 +10,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { shareText, shareDataUri } from "@/src/share";
+import { openTelegram } from "@/src/utils/telegram";
 import * as ImagePicker from "expo-image-picker";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
@@ -378,10 +379,7 @@ export default function ContactDetail() {
                   </Pressable>
                 ) : null}
                 {c.telegram ? (
-                  <Pressable testID="comm-telegram" onPress={() => {
-                    const t = c.telegram!.replace(/^@/, "");
-                    Linking.openURL(`https://t.me/${t}`);
-                  }} style={[styles.commBtn, { backgroundColor: "#0088CC" }]}>
+                  <Pressable testID="comm-telegram" onPress={() => openTelegram(c.telegram || "")} style={[styles.commBtn, { backgroundColor: "#0088CC" }]}>
                     <Ionicons name="paper-plane" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Telegram</Text>
                   </Pressable>
                 ) : null}

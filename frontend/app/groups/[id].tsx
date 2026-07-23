@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { sendTelegramMessage } from "@/src/utils/telegram";
 
 type Contact = { contact_id: string; first_name: string; last_name: string; phone?: string; email?: string; whatsapp?: string; telegram?: string; area: string };
 type BulkPreviewItem = { contact_id: string; name: string; target: string; skip: boolean };
@@ -96,8 +97,15 @@ export default function GroupDetailScreen() {
       const num = it.target.replace(/[^\d+]/g, "");
       url = `https://wa.me/${num}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
     } else if (seqModal.channel === "telegram") {
-      const u = it.target.replace(/^@/, "");
-      url = `https://t.me/${u}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+      // Use tg:// scheme first (works with both Telegram and Telegram X), fallback to https://t.me/
+      setSeqBusy(true);
+      try {
+        await sendTelegramMessage(it.target, text);
+        setSeqBusy(false);
+        return;
+      } catch {
+        setSeqBusy(false);
+      }
     } else if (seqModal.channel === "sms") {
       const num = it.target.replace(/[^\d+]/g, "");
       const sep = Platform.OS === "ios" ? "&" : "?";
