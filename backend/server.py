@@ -225,6 +225,83 @@ def is_owner(user: dict) -> bool:
     return user.get("role") == "owner" and not user.get("parent_user_id")
 
 
+def is_admin_or_owner(user: dict) -> bool:
+    """True if user is owner OR promoted admin (regardless of level in hierarchy)."""
+    return is_owner(user) or user.get("role") == "admin"
+
+
+async def descendant_user_ids(user_id: str) -> List[str]:
+    """Return all user_ids that directly or transitively descend from `user_id` (BFS)."""
+    result: List[str] = []
+    queue = [user_id]
+    seen = {user_id}
+    while queue:
+        current = queue.pop(0)
+        children = await db.users.find({"parent_user_id": current}, {"user_id": 1, "_id": 0}).to_list(1000)
+        for c in children:
+            uid = c["user_id"]
+            if uid in seen:
+                continue
+            seen.add(uid)
+            result.append(uid)
+            queue.append(uid)
+    return result
+
+
+async def resolve_broadcast_recipients(creator: dict, scope: str, custom_ids: Optional[List[str]] = None) -> List[str]:
+    """Compute recipient user_ids for a broadcast event.
+    - "all": all users under the tenant (owner + all sub-users)
+    - "subtree": creator's direct and transitive descendants (creator NOT included)
+    - "custom": explicit list, filtered to tenant members
+    Owner (creator) is always excluded from recipient list.
+    """
+    tid = tenant_id(creator)
+    # Get all tenant member IDs
+    if scope == "all":
+        all_users = await db.users.find(
+            {"$or": [{"user_id": tid}, {"parent_user_id": tid}]},
+            {"user_id": 1, "_id": 0},
+        ).to_list(2000)
+        # For a nested hierarchy, also include descendants beyond direct children
+        # (currently parent_user_id points to any ancestor, but conservative: also traverse)
+        ids = {u["user_id"] for u in all_users}
+        # Expand via descendants of tenant root
+        for uid in await descendant_user_ids(tid):
+            ids.add(uid)
+        ids.discard(creator["user_id"])
+        return list(ids)
+    if scope == "subtree":
+        ids = set(await descendant_user_ids(creator["user_id"]))
+        ids.discard(creator["user_id"])
+        return list(ids)
+    if scope == "custom":
+        req = set(custom_ids or [])
+        # Filter to same tenant
+        allowed = await db.users.find(
+            {"$or": [{"user_id": tid}, {"parent_user_id": {"$exists": True}}],
+             "user_id": {"$in": list(req)}},
+            {"user_id": 1, "parent_user_id": 1, "_id": 0},
+        ).to_list(2000)
+        # keep only those in tenant
+        result = []
+        for u in allowed:
+            if u["user_id"] == tid or u.get("parent_user_id") == tid:
+                result.append(u["user_id"])
+            else:
+                # deep descendant: verify by walking up
+                cur = u
+                while cur.get("parent_user_id"):
+                    if cur["parent_user_id"] == tid:
+                        result.append(u["user_id"])
+                        break
+                    cur = await db.users.find_one({"user_id": cur["parent_user_id"]}, {"parent_user_id": 1, "user_id": 1, "_id": 0})
+                    if not cur: break
+        if creator["user_id"] in result:
+            result.remove(creator["user_id"])
+        return list(set(result))
+    return []
+
+
 def check_area_allowed(user: dict, area: str):
     allowed = user.get("areas") or ["energy", "network"]
     if area not in allowed:
@@ -424,6 +501,7 @@ class AppointmentIn(BaseModel):
     duration_min: int = 60
     is_phone: bool = False
     location: str = ""
+    map_address: str = ""
     notes: str = ""
     note_attachments: List[Dict[str, Any]] = Field(default_factory=list)
     reminder_minutes: int = 15
@@ -432,6 +510,11 @@ class AppointmentIn(BaseModel):
     value_amount: float = 0.0
     appointment_type_tags: List[str] = Field(default_factory=list)
     product_categories: List[str] = Field(default_factory=list)
+    # Broadcast fields (admin/owner only)
+    is_broadcast: bool = False
+    broadcast_scope: Optional[Literal["all", "subtree", "custom"]] = None
+    broadcast_to_user_ids: List[str] = Field(default_factory=list)
+    broadcast_notify_advance_min: int = 15
 
 
 class AppointmentUpdate(BaseModel):
@@ -443,9 +526,11 @@ class AppointmentUpdate(BaseModel):
     is_phone: Optional[bool] = None
     done: Optional[bool] = None
     location: Optional[str] = None
+    map_address: Optional[str] = None
     notes: Optional[str] = None
     note_attachments: Optional[List[Dict[str, Any]]] = None
     outcome_tags: Optional[List[str]] = None
+    broadcast_notify_advance_min: Optional[int] = None
     outcome_notes: Optional[str] = None
     products_sold: Optional[int] = None
     contract_signed: Optional[bool] = None
@@ -904,10 +989,22 @@ async def list_team_members(user=Depends(get_current_user)):
     return {"items": members}
 
 
+async def _is_ancestor_of(caller_user_id: str, target_user_id: str) -> bool:
+    """Return True if caller is (transitively) parent of target."""
+    if caller_user_id == target_user_id:
+        return False
+    cur = await db.users.find_one({"user_id": target_user_id}, {"parent_user_id": 1, "_id": 0})
+    while cur and cur.get("parent_user_id"):
+        if cur["parent_user_id"] == caller_user_id:
+            return True
+        cur = await db.users.find_one({"user_id": cur["parent_user_id"]}, {"parent_user_id": 1, "_id": 0})
+    return False
+
+
 @api_router.post("/team")
 async def invite_member(body: TeamInviteInput, user=Depends(get_current_user)):
-    if not is_owner(user):
-        raise HTTPException(status_code=403, detail="Solo l'owner può invitare utenti")
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo owner o admin possono invitare utenti")
     if not body.areas:
         raise HTTPException(status_code=400, detail="Assegna almeno un'area")
     existing = await db.users.find_one({"email": body.email.lower()})
@@ -921,6 +1018,7 @@ async def invite_member(body: TeamInviteInput, user=Depends(get_current_user)):
         "password_hash": hash_password(body.password),
         "role": "member",
         "areas": body.areas,
+        # Parent = the caller (nested hierarchy). Members created by admins become their children.
         "parent_user_id": user["user_id"],
         "picture": None,
         "created_at": utcnow(),
@@ -933,15 +1031,17 @@ async def invite_member(body: TeamInviteInput, user=Depends(get_current_user)):
 
 @api_router.put("/team/{member_id}")
 async def update_member(member_id: str, body: TeamUpdateInput, user=Depends(get_current_user)):
-    if not is_owner(user):
+    # Owner can update anyone in tenant; admins can update their own descendants
+    if is_owner(user):
+        can = True
+    else:
+        can = await _is_ancestor_of(user["user_id"], member_id)
+    if not can:
         raise HTTPException(status_code=403, detail="Non autorizzato")
     upd = {k: v for k, v in body.model_dump().items() if v is not None}
     if not upd:
         raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
-    r = await db.users.update_one(
-        {"user_id": member_id, "parent_user_id": user["user_id"]},
-        {"$set": upd},
-    )
+    r = await db.users.update_one({"user_id": member_id}, {"$set": upd})
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail="Membro non trovato")
     m = await db.users.find_one({"user_id": member_id}, {"_id": 0, "password_hash": 0})
@@ -950,13 +1050,77 @@ async def update_member(member_id: str, body: TeamUpdateInput, user=Depends(get_
 
 @api_router.delete("/team/{member_id}")
 async def delete_member(member_id: str, user=Depends(get_current_user)):
-    if not is_owner(user):
+    if is_owner(user):
+        can = True
+    else:
+        can = await _is_ancestor_of(user["user_id"], member_id)
+    if not can:
         raise HTTPException(status_code=403, detail="Non autorizzato")
-    r = await db.users.delete_one({"user_id": member_id, "parent_user_id": user["user_id"]})
+    r = await db.users.delete_one({"user_id": member_id})
     if r.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Membro non trovato")
     await db.user_sessions.delete_many({"user_id": member_id})
     return {"ok": True}
+
+
+class RoleInput(BaseModel):
+    role: Literal["admin", "member"]
+
+
+@api_router.put("/team/{member_id}/role")
+async def set_member_role(member_id: str, body: RoleInput, user=Depends(get_current_user)):
+    """Promote/demote a member to admin or plain member.
+    Only owner OR an ancestor admin can change roles of a descendant.
+    """
+    if is_owner(user):
+        can = True
+    else:
+        can = await _is_ancestor_of(user["user_id"], member_id)
+    if not can:
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    target = await db.users.find_one({"user_id": member_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="Membro non trovato")
+    if target.get("role") == "owner":
+        raise HTTPException(status_code=400, detail="Impossibile modificare il ruolo del proprietario")
+    await db.users.update_one({"user_id": member_id}, {"$set": {"role": body.role}})
+    return {"user_id": member_id, "role": body.role}
+
+
+@api_router.get("/team/hierarchy")
+async def team_hierarchy(user=Depends(get_current_user)):
+    """Return the team as a tree rooted at the tenant owner."""
+    tid = tenant_id(user)
+    users = await db.users.find(
+        {"$or": [{"user_id": tid}, {"parent_user_id": {"$exists": True, "$ne": None}}]},
+        {"_id": 0, "password_hash": 0, "totp_secret": 0, "backup_codes": 0},
+    ).to_list(2000)
+    # Filter to tenant only
+    tenant_users = []
+    for u in users:
+        if u.get("user_id") == tid:
+            tenant_users.append(u)
+        else:
+            # Walk up to check tenant membership
+            cur = u
+            while cur.get("parent_user_id"):
+                if cur["parent_user_id"] == tid:
+                    tenant_users.append(u)
+                    break
+                cur = await db.users.find_one({"user_id": cur["parent_user_id"]}, {"parent_user_id": 1, "user_id": 1, "_id": 0})
+                if not cur: break
+    # Build tree
+    by_id: Dict[str, Dict[str, Any]] = {u["user_id"]: {**u, "children": []} for u in tenant_users}
+    root = None
+    for uid, node in by_id.items():
+        pid = node.get("parent_user_id")
+        if pid and pid in by_id:
+            by_id[pid]["children"].append(node)
+        elif uid == tid:
+            root = node
+    return {"root": root, "flat": tenant_users}
+
+
 
 
 # =========================
@@ -1139,26 +1303,57 @@ async def list_appointments(
     area: Optional[str] = None,
     user=Depends(get_current_user),
 ):
-    q: Dict[str, Any] = scope_query(user)
+    tid = tenant_id(user)
+    # Base scope: own records + broadcast events I'm a recipient of
+    scope_filter: Dict[str, Any] = {"user_id": tid}
+    if is_owner(user):
+        # Owner sees everything in tenant
+        base = {"user_id": tid}
+    else:
+        base = {
+            "user_id": tid,
+            "$or": [
+                {"created_by": user["user_id"]},
+                {"is_broadcast": True, "broadcast_to_user_ids": user["user_id"]},
+            ],
+        }
+    q: Dict[str, Any] = base
+    date_filter: Dict[str, Any] = {}
     if start and end:
-        q["start_at"] = {"$gte": start, "$lte": end}
+        date_filter = {"$gte": start, "$lte": end}
     elif start:
-        q["start_at"] = {"$gte": start}
+        date_filter = {"$gte": start}
+    if date_filter:
+        q["start_at"] = date_filter
     if area in ("energy", "network"):
         q["area"] = area
     items = await db.appointments.find(q, {"_id": 0}).sort("start_at", 1).to_list(1000)
+    # Attach read_only flag for broadcast recipients (creator != me)
+    for it in items:
+        it["read_only"] = bool(it.get("is_broadcast") and it.get("created_by") != user["user_id"] and not is_owner(user))
     return {"items": items}
+    _ = scope_filter  # placeholder to avoid unused warnings
 
 
 @api_router.post("/appointments")
 async def create_appointment(body: AppointmentIn, user=Depends(get_current_user)):
     check_area_allowed(user, body.area)
     aid = f"a_{uuid.uuid4().hex[:12]}"
+    payload = body.model_dump()
+    # Broadcast: only owners or admins can broadcast
+    if payload.get("is_broadcast"):
+        if not is_admin_or_owner(user):
+            raise HTTPException(status_code=403, detail="Solo owner o admin possono creare eventi broadcast")
+        scope = payload.get("broadcast_scope") or "all"
+        # "all" is restricted to owner
+        if scope == "all" and not is_owner(user):
+            raise HTTPException(status_code=403, detail="Solo l'owner può inviare a tutta l'azienda")
+        payload["broadcast_to_user_ids"] = await resolve_broadcast_recipients(user, scope, payload.get("broadcast_to_user_ids"))
     doc = {
         "appointment_id": aid,
         "user_id": tenant_id(user),
         "created_by": user["user_id"],
-        **body.model_dump(),
+        **payload,
         "done": False,
         "outcome_tags": [],
         "outcome_notes": "",
@@ -1174,31 +1369,55 @@ async def create_appointment(body: AppointmentIn, user=Depends(get_current_user)
 
 @api_router.get("/appointments/{appointment_id}")
 async def get_appointment(appointment_id: str, user=Depends(get_current_user)):
-    a = await db.appointments.find_one(scope_query(user, {"appointment_id": appointment_id}), {"_id": 0})
+    # Fetch within tenant (allow broadcast visibility)
+    a = await db.appointments.find_one({
+        "user_id": tenant_id(user),
+        "appointment_id": appointment_id,
+    }, {"_id": 0})
     if not a:
         raise HTTPException(status_code=404, detail="Appuntamento non trovato")
+    # Non-owner: must be creator or broadcast recipient
+    if not is_owner(user):
+        allowed = a.get("created_by") == user["user_id"] or (
+            a.get("is_broadcast") and user["user_id"] in (a.get("broadcast_to_user_ids") or [])
+        )
+        if not allowed:
+            raise HTTPException(status_code=404, detail="Appuntamento non trovato")
+    a["read_only"] = bool(a.get("is_broadcast") and a.get("created_by") != user["user_id"] and not is_owner(user))
     return a
 
 
 @api_router.put("/appointments/{appointment_id}")
 async def update_appointment(appointment_id: str, body: AppointmentUpdate, user=Depends(get_current_user)):
+    # Only creator (or owner) can update
+    existing = await db.appointments.find_one({
+        "user_id": tenant_id(user),
+        "appointment_id": appointment_id,
+    })
+    if not existing:
+        raise HTTPException(status_code=404, detail="Appuntamento non trovato")
+    if not is_owner(user) and existing.get("created_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Non puoi modificare un evento broadcast: sola lettura")
     upd = {k: v for k, v in body.model_dump().items() if v is not None}
     if "area" in upd:
         check_area_allowed(user, upd["area"])
     upd["updated_at"] = utcnow()
-    r = await db.appointments.update_one(
-        scope_query(user, {"appointment_id": appointment_id}),
-        {"$set": upd},
-    )
-    if r.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Appuntamento non trovato")
+    await db.appointments.update_one({"appointment_id": appointment_id}, {"$set": upd})
     a = await db.appointments.find_one({"appointment_id": appointment_id}, {"_id": 0})
     return a
 
 
 @api_router.delete("/appointments/{appointment_id}")
 async def delete_appointment(appointment_id: str, user=Depends(get_current_user)):
-    await db.appointments.delete_one(scope_query(user, {"appointment_id": appointment_id}))
+    existing = await db.appointments.find_one({
+        "user_id": tenant_id(user),
+        "appointment_id": appointment_id,
+    })
+    if not existing:
+        return {"ok": True}
+    if not is_owner(user) and existing.get("created_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Non puoi eliminare un evento broadcast di cui non sei creatore")
+    await db.appointments.delete_one({"appointment_id": appointment_id})
     return {"ok": True}
 
 

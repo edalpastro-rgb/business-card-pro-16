@@ -18,6 +18,10 @@ type Appointment = {
   outcome_ids?: string[]; rescheduled_to?: string;
   contact_id?: string;
   duration_min?: number;
+  is_broadcast?: boolean;
+  broadcast_notify_advance_min?: number;
+  read_only?: boolean;
+  created_by?: string;
 };
 type ContactLite = { contact_id: string; first_name: string; last_name: string; phone?: string; whatsapp?: string; email?: string };
 
@@ -202,6 +206,18 @@ export default function AppointmentDetail() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+        {a.read_only && (
+          <View style={styles.roBanner}>
+            <Ionicons name="lock-closed" size={16} color="#FFF" />
+            <Text style={styles.roBannerTxt}>Evento condiviso dal team — sola lettura</Text>
+          </View>
+        )}
+        {a.is_broadcast && !a.read_only && (
+          <View style={styles.bcBanner}>
+            <Ionicons name="megaphone" size={16} color="#FFF" />
+            <Text style={styles.roBannerTxt}>Evento inviato ai collaboratori</Text>
+          </View>
+        )}
         <View style={[styles.titleCard, { borderLeftColor: color }]}>
           <Text style={styles.apTitle}>{a.title}</Text>
           <View style={styles.metaRow}>
@@ -210,11 +226,18 @@ export default function AppointmentDetail() {
             {a.is_phone && <><Ionicons name="call" size={14} color={color} /><Text style={[styles.metaTxt, { color }]}>Telefonico</Text></>}
           </View>
           {a.location ? (
-            <Pressable testID="waze-btn" onPress={() => Linking.openURL(`https://www.waze.com/ul?q=${encodeURIComponent(a.location)}&navigate=yes`)} style={styles.wazeBtn}>
-              <Ionicons name="navigate" size={16} color={theme.color.brandPrimary} />
-              <Text style={styles.wazeTxt}>{a.location}</Text>
-            </Pressable>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              <Pressable testID="waze-btn" onPress={() => Linking.openURL(`https://www.waze.com/ul?q=${encodeURIComponent(a.location)}&navigate=yes`)} style={[styles.wazeBtn, { flex: 1 }]}>
+                <Ionicons name="navigate" size={16} color={theme.color.brandPrimary} />
+                <Text style={styles.wazeTxt} numberOfLines={1}>Waze</Text>
+              </Pressable>
+              <Pressable testID="gmaps-btn" onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location)}`)} style={[styles.wazeBtn, { flex: 1, borderColor: "#34A853" }]}>
+                <Ionicons name="map" size={16} color="#34A853" />
+                <Text style={[styles.wazeTxt, { color: "#34A853" }]} numberOfLines={1}>Google Maps</Text>
+              </Pressable>
+            </View>
           ) : null}
+          {a.location ? <Text style={styles.addrTxt}>{a.location}</Text> : null}
         </View>
 
         <Pressable testID="done-btn" onPress={() => savePartial({ done: !a.done })} style={[styles.doneBtn, a.done && { backgroundColor: theme.color.success }]}>
@@ -584,8 +607,12 @@ const styles = StyleSheet.create({
   apTitle: { fontSize: 20, fontWeight: "700", color: theme.color.onSurface },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" },
   metaTxt: { fontSize: 13, color: theme.color.muted },
-  wazeBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, backgroundColor: theme.color.brandTertiary, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill },
-  wazeTxt: { color: theme.color.brandPrimary, fontWeight: "600" },
+  wazeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, backgroundColor: theme.color.brandTertiary, paddingHorizontal: 10, paddingVertical: 8, borderRadius: theme.radius.pill, borderWidth: 1, borderColor: theme.color.brandPrimary },
+  wazeTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
+  addrTxt: { color: theme.color.muted, fontSize: 12, marginTop: 6 },
+  roBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.muted, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  bcBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#7A2E8E", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  roBannerTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
   doneBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.brandPrimary, padding: 14, borderRadius: theme.radius.md },
   doneBtnTxt: { color: "#FFF", fontWeight: "700" },
   card: { backgroundColor: "#FFF", padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },

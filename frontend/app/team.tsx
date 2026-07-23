@@ -57,6 +57,14 @@ export default function TeamScreen() {
     load();
   };
 
+  const toggleAdmin = async (m: Member) => {
+    const nextRole = m.role === "admin" ? "member" : "admin";
+    try {
+      await api(`/team/${m.user_id}/role`, { method: "PUT", body: { role: nextRole } });
+      load();
+    } catch (e: any) { setErr(e.message); }
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
@@ -79,9 +87,24 @@ export default function TeamScreen() {
               <View style={styles.rowHead}>
                 <View style={styles.avatar}><Text style={styles.avatarTxt}>{m.name[0]?.toUpperCase()}</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.name}>{m.name}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={styles.name}>{m.name}</Text>
+                    {m.role === "admin" && (
+                      <View style={styles.adminBadge}>
+                        <Ionicons name="star" size={10} color="#FFF" />
+                        <Text style={styles.adminBadgeTxt}>Admin</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.email}>{m.email}</Text>
                 </View>
+                <Pressable
+                  testID={`member-role-${m.user_id}`}
+                  onPress={() => toggleAdmin(m)}
+                  style={styles.roleBtn}
+                >
+                  <Ionicons name={m.role === "admin" ? "star" : "star-outline"} size={18} color={m.role === "admin" ? "#F59E0B" : theme.color.muted} />
+                </Pressable>
                 <Pressable testID={`member-del-${m.user_id}`} onPress={() => remove(m)}>
                   <Ionicons name="trash-outline" size={20} color={theme.color.error} />
                 </Pressable>
@@ -142,6 +165,9 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", padding: 40, gap: 12 },
   emptyTxt: { color: theme.color.muted, textAlign: "center" },
   card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: theme.color.border, gap: 12 },
+  adminBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F59E0B", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
+  adminBadgeTxt: { color: "#FFF", fontWeight: "800", fontSize: 10 },
+  roleBtn: { padding: 4 },
   rowHead: { flexDirection: "row", alignItems: "center", gap: 12 },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
   avatarTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 18 },

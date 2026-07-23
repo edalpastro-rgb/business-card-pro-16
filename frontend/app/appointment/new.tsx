@@ -72,11 +72,30 @@ export default function NewAppointmentScreen() {
     recurrence: "none" as "none" | "weekly" | "monthly" | "yearly",
     is_phone: prefPhone === "1",
     location: prefLoc || "",
+    map_address: "",
     notes: prefNotes || "",
     value_amount: "",
     appointment_type_tags: [] as string[],
     product_categories: [] as string[],
   });
+  const [broadcast, setBroadcast] = useState({
+    enabled: false,
+    scope: "subtree" as "all" | "subtree" | "custom",
+    notify_min: 30,
+    custom_ids: [] as string[],
+  });
+  const [teamMembers, setTeamMembers] = useState<{ user_id: string; name: string; role: string }[]>([]);
+
+  const canBroadcast = user?.role === "owner" || user?.role === "admin";
+  useEffect(() => {
+    if (!canBroadcast) return;
+    (async () => {
+      try {
+        const r = await api<{ items: { user_id: string; name: string; role: string }[] }>("/team/members");
+        setTeamMembers((r.items || []).filter((m) => m.user_id !== user?.user_id));
+      } catch {}
+    })();
+  }, [canBroadcast, user?.user_id]);
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [busy, setBusy] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -240,6 +259,10 @@ export default function NewAppointmentScreen() {
         start_at: form.start_at.toISOString(),
         value_amount: form.value_amount ? parseFloat(form.value_amount) : 0,
         note_attachments: attachments,
+        is_broadcast: broadcast.enabled && canBroadcast,
+        broadcast_scope: broadcast.enabled && canBroadcast ? broadcast.scope : null,
+        broadcast_to_user_ids: broadcast.enabled && broadcast.scope === "custom" ? broadcast.custom_ids : [],
+        broadcast_notify_advance_min: broadcast.notify_min,
       };
       delete payload.value_amount_str;
       const created = await api<{ appointment_id: string }>("/appointments", { method: "POST", body: payload });
@@ -570,6 +593,101 @@ export default function NewAppointmentScreen() {
           </View>
         </View>
 
+        {canBroadcast && (
+          <View style={styles.card}>
+            <View style={styles.rowBetween}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.lbl}>Evento condiviso con team</Text>
+                <Text style={styles.hint}>Attivalo per inviare questo evento anche ai calendari dei collaboratori.</Text>
+              </View>
+              <Switch
+                testID="ap-broadcast-toggle"
+                value={broadcast.enabled}
+                onValueChange={(v) => setBroadcast({ ...broadcast, enabled: v })}
+                trackColor={{ true: theme.color.brandPrimary, false: "#E2E8F0" }}
+              />
+            </View>
+
+            {broadcast.enabled && (
+              <View style={{ marginTop: 10, gap: 10 }}>
+                <Text style={styles.lbl}>Destinatari</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {user?.role === "owner" && (
+                    <Pressable
+                      testID="ap-broadcast-scope-all"
+                      onPress={() => setBroadcast({ ...broadcast, scope: "all" })}
+                      style={[styles.pill, broadcast.scope === "all" && styles.pillOn]}
+                    >
+                      <Ionicons name="business" size={12} color={broadcast.scope === "all" ? "#FFF" : theme.color.muted} />
+                      <Text style={[styles.pillTxt, broadcast.scope === "all" && { color: "#FFF" }]}>Tutta l&apos;azienda</Text>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    testID="ap-broadcast-scope-subtree"
+                    onPress={() => setBroadcast({ ...broadcast, scope: "subtree" })}
+                    style={[styles.pill, broadcast.scope === "subtree" && styles.pillOn]}
+                  >
+                    <Ionicons name="people" size={12} color={broadcast.scope === "subtree" ? "#FFF" : theme.color.muted} />
+                    <Text style={[styles.pillTxt, broadcast.scope === "subtree" && { color: "#FFF" }]}>Il mio team</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="ap-broadcast-scope-custom"
+                    onPress={() => setBroadcast({ ...broadcast, scope: "custom" })}
+                    style={[styles.pill, broadcast.scope === "custom" && styles.pillOn]}
+                  >
+                    <Ionicons name="checkmark-done" size={12} color={broadcast.scope === "custom" ? "#FFF" : theme.color.muted} />
+                    <Text style={[styles.pillTxt, broadcast.scope === "custom" && { color: "#FFF" }]}>Selezione</Text>
+                  </Pressable>
+                </View>
+
+                {broadcast.scope === "custom" && (
+                  <View style={{ gap: 6 }}>
+                    <Text style={styles.hint}>Tocca i collaboratori da avvisare:</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                      {teamMembers.length === 0 ? (
+                        <Text style={styles.hint}>Nessun collaboratore disponibile</Text>
+                      ) : teamMembers.map((m) => {
+                        const on = broadcast.custom_ids.includes(m.user_id);
+                        return (
+                          <Pressable
+                            key={m.user_id}
+                            testID={`ap-broadcast-member-${m.user_id}`}
+                            onPress={() => {
+                              setBroadcast({
+                                ...broadcast,
+                                custom_ids: on
+                                  ? broadcast.custom_ids.filter((x) => x !== m.user_id)
+                                  : [...broadcast.custom_ids, m.user_id],
+                              });
+                            }}
+                            style={[styles.pill, on && styles.pillOn]}
+                          >
+                            <Text style={[styles.pillTxt, on && { color: "#FFF" }]}>{m.name}{m.role === "admin" ? " ★" : ""}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                <Text style={styles.lbl}>Anticipo notifica (minuti prima dell&apos;evento)</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  {[5, 15, 30, 60, 120].map((n) => (
+                    <Pressable
+                      key={n}
+                      testID={`ap-broadcast-notify-${n}`}
+                      onPress={() => setBroadcast({ ...broadcast, notify_min: n })}
+                      style={[styles.pill, broadcast.notify_min === n && styles.pillOn]}
+                    >
+                      <Text style={[styles.pillTxt, broadcast.notify_min === n && { color: "#FFF" }]}>{n}min</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
         <Pressable testID="ap-save" onPress={submit} style={styles.saveBtn} disabled={busy || !form.title.trim()}>
           {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>Crea appuntamento</Text>}
         </Pressable>
@@ -624,9 +742,11 @@ const styles = StyleSheet.create({
   lbl: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary, marginTop: 10, marginBottom: 4 },
   input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: theme.color.onSurface },
   pillsRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  pill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0 },
-  pillActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
+  pill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 4 },
+  pillOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
   pillTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 12 },
+  rowBetween: { flexDirection: "row", alignItems: "center", gap: 12 },
+  pillActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
   pillTxtActive: { color: "#FFF" },
   dateRow: { flexDirection: "row", gap: 10, marginTop: 4 },
   dateBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.surface, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },

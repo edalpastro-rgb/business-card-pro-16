@@ -1,0 +1,34 @@
+{
+  "summary": "V22 — Team Broadcast Events + Multi-level Admin Roles. FULL PASS. Backend: 14/14 pytest cases pass (test_v22_broadcast_hierarchy.py). Owner scope=all recipient resolution, member 403 on broadcast=all attempt, read_only=true flag on recipient GET, PUT/DELETE 403 on recipient with 'sola lettura' msg, owner PUT ok, scope=subtree and scope=custom recipient lists correct, PUT /team/{id}/role owner→admin promotion & demote-back, admin scope=subtree ok, admin scope=all forbidden (403), admin POST /team creates nested user (parent_user_id=admin.user_id), GET /team/hierarchy returns {root:{children:[...]}, flat:[...]}. Cleanup verified: sub1@dalpastro.it re-verified as role=member post-run, all test appointments and nested user deleted. Frontend smoke (mobile 390x844, owner login): ap-broadcast-toggle visible on /appointment/new, toggling shows all 3 scope pills (all/subtree/custom), all 5 notify pills (5/15/30/60/120), custom scope reveals ap-broadcast-member-{uid} pills. No pageerrors on the flow. Non-blocking noise: 13x console warning 'Unexpected text node: . A text node cannot be a child of a <View>' — pre-existing stray text node somewhere in the tab layout, not introduced by V22.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "global (visible on /home & /appointment/new)", "issues": ["React Native Web console warning repeated 13x: 'Unexpected text node: . A text node cannot be a child of a <View>'. Pre-existing — indicates a bare whitespace/period string rendered outside a <Text> component. Grep for stray '.' or template-literal whitespace inside <View> in tabs/layout files. Low priority, harmless on native but noisy on web."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v22_broadcast_hierarchy.py",
+    "/app/test_reports/pytest/pytest_v22_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Track down 'Unexpected text node: .' warning source — likely a stray `.` or unwrapped text between <View> children in a shared layout/header. Non-blocking."
+  ],
+  "critical_code_review_comments": [
+    "server.py: list_appointments has dead code after `return {\"items\": items}` (line 1335: `_ = scope_filter`) — unreachable, harmless. Consider removing.",
+    "resolve_broadcast_recipients scope='custom' filter clause is slightly convoluted (`$or` with `{parent_user_id:{$exists:true}}` combined with `user_id:{$in:req}`), but the post-loop check enforces tenant membership correctly. Test confirms behavior is right.",
+    "team_hierarchy walks up parent chain via extra DB round-trips per user (potential N+1 for deep trees). Fine for current scale.",
+    "server.py is now 2586 lines — flagged in prior iterations; still a candidate for module split (broadcast/team/hierarchy helpers into their own module)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v22_broadcast_hierarchy.py (new)"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% (smoke)"},
+  "seed_data_creation": "None persisted — all TEST_ appointments, TEST_Nested_User, and sub1 admin promotion were cleaned up within the test run and verified.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "V22 broadcast + role features are stable and fully cleaned up. sub1@dalpastro.it is back at role=member; test verified via a re-login. All broadcast fields (is_broadcast, broadcast_scope, broadcast_to_user_ids, broadcast_notify_advance_min) are present in AppointmentIn/Update. Endpoints: POST /api/appointments (broadcast), PUT /api/team/{id}/role, GET /api/team/hierarchy. Frontend testIDs verified: ap-broadcast-toggle, ap-broadcast-scope-{all|subtree|custom}, ap-broadcast-notify-{5|15|30|60|120}, ap-broadcast-member-{uid}. For deeper regression, re-run: pytest /app/backend/tests/test_v22_broadcast_hierarchy.py.",
+  "rca_of_issue": "N/A — no bugs found."
+}
