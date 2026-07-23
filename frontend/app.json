@@ -10,7 +10,12 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.consulenteapp.zkleir"
+      "bundleIdentifier": "com.emergent.consulenteapp.zkleir",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Sblocca rapidamente Dal Pastro CRM",
+        "NSPhotoLibraryUsageDescription": "Aggiungi immagini motivazionali al tuo spazio personale",
+        "NSCameraUsageDescription": "Scatta foto da aggiungere al tuo spazio personale"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +23,14 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.consulenteapp.zkleir"
+      "package": "com.emergent.consulenteapp.zkleir",
+      "permissions": [
+        "SCHEDULE_EXACT_ALARM",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "web": {
       "bundler": "metro",

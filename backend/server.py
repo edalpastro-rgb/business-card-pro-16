@@ -449,6 +449,37 @@ class CallbackUpdate(BaseModel):
     done: Optional[bool] = None
 
 
+# ============ MY THING (personal space) ============
+MyThingKind = Literal["message", "image", "event", "anniversary"]
+
+
+class MyThingIn(BaseModel):
+    kind: MyThingKind
+    title: str = ""
+    body: str = ""
+    image_base64: Optional[str] = None
+    scheduled_at: Optional[datetime] = None      # events / anniversaries
+    daily_time: Optional[str] = None             # HH:MM for scheduled daily messages
+    recurring: Literal["none", "daily", "yearly"] = "none"
+    display_mode: Literal["random", "scheduled"] = "random"
+    notify: bool = False
+    active: bool = True
+    color: str = "#3A739C"
+
+
+class MyThingUpdate(BaseModel):
+    title: Optional[str] = None
+    body: Optional[str] = None
+    image_base64: Optional[str] = None
+    scheduled_at: Optional[datetime] = None
+    daily_time: Optional[str] = None
+    recurring: Optional[Literal["none", "daily", "yearly"]] = None
+    display_mode: Optional[Literal["random", "scheduled"]] = None
+    notify: Optional[bool] = None
+    active: Optional[bool] = None
+    color: Optional[str] = None
+
+
 # =========================
 # Auth
 # =========================
@@ -1894,6 +1925,144 @@ async def contact_vcard(contact_id: str, user=Depends(get_current_user)):
 
 
 # =========================
+# MY THING (personal, private per user)
+# =========================
+def _mt_scope(user: dict) -> Dict[str, Any]:
+    # Strictly private: only items owned by the caller (not tenant-wide)
+    return {"owner_user_id": user["user_id"]}
+
+
+def _serialize_mt(doc: dict) -> dict:
+    if not doc:
+        return doc
+    doc.pop("_id", None)
+    if isinstance(doc.get("scheduled_at"), datetime):
+        doc["scheduled_at"] = doc["scheduled_at"].isoformat()
+    if isinstance(doc.get("created_at"), datetime):
+        doc["created_at"] = doc["created_at"].isoformat()
+    if isinstance(doc.get("updated_at"), datetime):
+        doc["updated_at"] = doc["updated_at"].isoformat()
+    return doc
+
+
+@api_router.get("/my-thing")
+async def my_thing_list(kind: Optional[str] = None, user=Depends(get_current_user)):
+    q = _mt_scope(user)
+    if kind:
+        q["kind"] = kind
+    docs = await db.my_thing.find(q).sort("created_at", -1).to_list(500)
+    return {"items": [_serialize_mt(d) for d in docs]}
+
+
+@api_router.post("/my-thing")
+async def my_thing_create(body: MyThingIn, user=Depends(get_current_user)):
+    item_id = f"mt_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "item_id": item_id,
+        "owner_user_id": user["user_id"],
+        "kind": body.kind,
+        "title": body.title,
+        "body": body.body,
+        "image_base64": body.image_base64,
+        "scheduled_at": body.scheduled_at,
+        "daily_time": body.daily_time,
+        "recurring": body.recurring,
+        "display_mode": body.display_mode,
+        "notify": body.notify,
+        "active": body.active,
+        "color": body.color,
+        "created_at": utcnow(),
+        "updated_at": utcnow(),
+    }
+    await db.my_thing.insert_one(doc)
+    return {"item": _serialize_mt(doc)}
+
+
+@api_router.put("/my-thing/{item_id}")
+async def my_thing_update(item_id: str, body: MyThingUpdate, user=Depends(get_current_user)):
+    existing = await db.my_thing.find_one({"item_id": item_id, **_mt_scope(user)})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Elemento non trovato")
+    upd = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    if not upd:
+        raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
+    upd["updated_at"] = utcnow()
+    await db.my_thing.update_one({"item_id": item_id}, {"$set": upd})
+    doc = await db.my_thing.find_one({"item_id": item_id})
+    return {"item": _serialize_mt(doc)}
+
+
+@api_router.delete("/my-thing/{item_id}")
+async def my_thing_delete(item_id: str, user=Depends(get_current_user)):
+    r = await db.my_thing.delete_one({"item_id": item_id, **_mt_scope(user)})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Elemento non trovato")
+    return {"ok": True}
+
+
+@api_router.get("/my-thing/random-banner")
+async def my_thing_random_banner(user=Depends(get_current_user)):
+    """Random active message or image for the home splash banner."""
+    q = {**_mt_scope(user), "active": True, "kind": {"$in": ["message", "image"]}}
+    # Prefer scheduled messages if current time matches HH:MM
+    now = utcnow()
+    now_it = now.astimezone(timezone(timedelta(hours=2)))  # rough Italy TZ; TZ-agnostic OK for HH:MM
+    hhmm = now_it.strftime("%H:%M")
+    scheduled = await db.my_thing.find_one({**q, "display_mode": "scheduled", "daily_time": hhmm})
+    if scheduled:
+        return {"item": _serialize_mt(scheduled)}
+    # Otherwise: random pick among random-mode items
+    import random as _random
+    items = await db.my_thing.find({**q, "display_mode": "random"}).to_list(200)
+    if not items:
+        return {"item": None}
+    return {"item": _serialize_mt(_random.choice(items))}
+
+
+@api_router.get("/my-thing/upcoming-events")
+async def my_thing_upcoming_events(user=Depends(get_current_user)):
+    """Return events + anniversaries in next 30 days."""
+    now = utcnow()
+    horizon = now + timedelta(days=30)
+    # Events with scheduled_at in [now, horizon]
+    events = await db.my_thing.find({
+        **_mt_scope(user),
+        "active": True,
+        "kind": {"$in": ["event", "anniversary"]},
+    }).to_list(500)
+    upcoming = []
+    for e in events:
+        sched = e.get("scheduled_at")
+        if not sched:
+            continue
+        if e.get("kind") == "anniversary":
+            # Compute next yearly occurrence
+            try:
+                base = sched if isinstance(sched, datetime) else datetime.fromisoformat(str(sched))
+                if base.tzinfo is None:
+                    base = base.replace(tzinfo=timezone.utc)
+                next_year = base.replace(year=now.year)
+                if next_year < now:
+                    next_year = next_year.replace(year=now.year + 1)
+                if next_year <= horizon:
+                    ee = _serialize_mt(dict(e))
+                    ee["next_occurrence"] = next_year.isoformat()
+                    upcoming.append(ee)
+            except Exception:
+                pass
+        else:
+            base = sched if isinstance(sched, datetime) else datetime.fromisoformat(str(sched))
+            if base.tzinfo is None:
+                base = base.replace(tzinfo=timezone.utc)
+            if now <= base <= horizon:
+                ee = _serialize_mt(dict(e))
+                ee["next_occurrence"] = base.isoformat()
+                upcoming.append(ee)
+    upcoming.sort(key=lambda x: x.get("next_occurrence") or "")
+    return {"items": upcoming}
+
+
+# =========================
 # Health
 # =========================
 @api_router.get("/")
@@ -1934,6 +2103,7 @@ async def _startup():
     await db.chat_channels.create_index([("user_id", 1), ("member_user_ids", 1)])
     await db.chat_channels.create_index("channel_id", unique=True)
     await db.chat_messages.create_index([("channel_id", 1), ("created_at", 1)])
+    await db.my_thing.create_index([("owner_user_id", 1), ("kind", 1), ("active", 1)])
 
 
 @app.on_event("shutdown")

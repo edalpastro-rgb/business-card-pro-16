@@ -9,6 +9,9 @@ import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth, isAppLockEnabled, isTrustStillValid } from "@/src/auth";
 import { AppLockOverlay } from "@/src/AppLock";
 import { storage } from "@/src/utils/storage";
+import { configureNotifHandler } from "@/src/notifs";
+
+configureNotifHandler();
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();

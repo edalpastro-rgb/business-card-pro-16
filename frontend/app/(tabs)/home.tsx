@@ -28,17 +28,20 @@ export default function HomeScreen() {
   const [chatQuery, setChatQuery] = useState("");
   const [chatAreaFilter, setChatAreaFilter] = useState<string>("all");
   const [subscription, setSubscription] = useState<{ status: string; days_left?: number | null; is_active: boolean } | null>(null);
+  const [banner, setBanner] = useState<{ item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const [s, c, r, ct, gr, sub] = await Promise.all([
+      const [s, c, r, ct, gr, sub, mt] = await Promise.all([
         api<Settings>("/settings"),
         api<{ items: Callback[] }>("/callbacks", { query: { day: today, include_done: true } }),
         api<ReportStats>("/reports", { query: { period: "day" } }),
         api<{ items: Contact[] }>("/contacts"),
         api<{ items: Group[] }>("/groups"),
         api<any>("/subscription/status").catch(() => null),
+        api<{ item: any }>("/my-thing/random-banner").catch(() => ({ item: null })),
       ]);
       setSettings(s);
       setCallbacks(c.items);
@@ -46,6 +49,7 @@ export default function HomeScreen() {
       setContacts(ct.items || []);
       setGroups(gr.items || []);
       setSubscription(sub);
+      setBanner(mt.item || null);
     } catch (e) {
       console.warn(e);
     } finally {
@@ -115,6 +119,41 @@ export default function HomeScreen() {
               <Text style={styles.inviteSub}>Genera link con trial gratuito estensibile</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#FFF" />
+          </Pressable>
+        )}
+
+        <Pressable testID="home-my-thing-btn" onPress={() => router.push("/my-thing")} style={styles.myThingBtn}>
+          <View style={styles.myThingIcon}>
+            <Ionicons name="sparkles" size={22} color="#FFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.myThingTitle}>My Thing</Text>
+            <Text style={styles.myThingSub}>Il tuo spazio personale · messaggi, immagini, ricorrenze</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#FFF" />
+        </Pressable>
+
+        {banner && !bannerDismissed && (
+          <Pressable
+            testID="home-mt-banner"
+            onPress={() => router.push("/my-thing")}
+            style={[styles.mtBanner, { backgroundColor: (banner.color || "#3A739C") + "18", borderColor: banner.color || "#3A739C" }]}
+          >
+            {banner.image_base64 ? (
+              <Image source={{ uri: banner.image_base64 }} style={styles.mtBannerImg} />
+            ) : (
+              <View style={[styles.mtBannerIcon, { backgroundColor: banner.color || "#3A739C" }]}>
+                <Ionicons name="sparkles" size={22} color="#FFF" />
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              {!!banner.title && <Text style={[styles.mtBannerTitle, { color: banner.color || "#0F2438" }]} numberOfLines={1}>{banner.title}</Text>}
+              {!!banner.body && <Text style={styles.mtBannerBody} numberOfLines={2}>{banner.body}</Text>}
+              {!banner.title && !banner.body && banner.image_base64 && <Text style={styles.mtBannerBody}>Tocca per aprire My Thing</Text>}
+            </View>
+            <Pressable onPress={() => setBannerDismissed(true)} hitSlop={8}>
+              <Ionicons name="close" size={18} color={theme.color.muted} />
+            </Pressable>
           </Pressable>
         )}
 
@@ -428,4 +467,13 @@ const styles = StyleSheet.create({
   inviteBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: theme.color.brandPrimary, paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
   inviteTitle: { color: "#FFF", fontWeight: "700", fontSize: 14 },
   inviteSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },
+  myThingBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#7A2E8E", paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
+  myThingIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  myThingTitle: { color: "#FFF", fontWeight: "800", fontSize: 15 },
+  myThingSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },
+  mtBanner: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, marginBottom: 12 },
+  mtBannerImg: { width: 52, height: 52, borderRadius: 8 },
+  mtBannerIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  mtBannerTitle: { fontSize: 14, fontWeight: "800" },
+  mtBannerBody: { fontSize: 12, color: theme.color.onSurface, marginTop: 2 },
 });
