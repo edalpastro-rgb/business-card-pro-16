@@ -1,0 +1,66 @@
+{
+  "summary": "V23 AI Contact Helpers tested — backend 8/10 pass, frontend URL flow works end-to-end. CRITICAL: /api/ai/contact-from-voice endpoint is broken — imports non-existent module `emergentintegrations.llm.stt.WhisperTranscription` and returns 500 on ALL requests (even the invalid-b64 case that should return 400). URL extraction (Claude Haiku) confirmed working with real data from emergent.sh (returns company=Emergent, website, notes). Card endpoint (Gemini vision) plumbing works. Frontend: all 3 AI buttons visible, URL modal opens, preview shows extracted fields, apply closes modal.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/ai/contact-from-voice",
+        "issue": "ModuleNotFoundError: `emergentintegrations.llm.stt` does not exist. Endpoint returns HTTP 500 for every request, including bad-b64 (which should return 400). Correct import path is `from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText`. Also, the b64 validation happens AFTER the import at line 2639, so even reordering imports won't help without fixing the module reference. File: /app/backend/server.py:2639",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "applyAIFields in /app/frontend/app/contact/new.tsx:134-154",
+        "issue": "AI-extracted `company` and `website` fields are shown in preview but NOT written to form state (`c-company`, `c-website`). Only names/phones/emails/addresses/notes are mapped. Users see 'company: Emergent' in preview then no company field is filled after Applica.",
+        "testID": "c-company, c-website",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Voice AI (ai-voice-btn → record → send)",
+        "issue": "Even if the frontend records audio and posts valid base64 to /api/ai/contact-from-voice, the backend crashes with 500 (ModuleNotFoundError). The whole voice feature is unusable end-to-end.",
+        "affected_testIDs": ["ai-voice-btn", "ai-voice-go"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "contact/new",
+        "issues": [
+          "Multiple React Native web warnings: 'Unexpected text node: . A text node cannot be a child of a <View>.' — likely stray whitespace between JSX tags in nested Views (cosmetic, does not break flow)."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v23_ai_contact_helpers.py",
+    "/app/test_reports/pytest/pytest_v23_results.xml"
+  ],
+  "action_items": [
+    "FIX (backend): In /app/backend/server.py:2639 replace `from emergentintegrations.llm.stt import WhisperTranscription` with `from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText` and update the call site (~line 2656) accordingly. Additionally move the base64 validation and try/except decode BEFORE the LLM import so the 400 'Audio base64 non valido' path returns 400 instead of 500.",
+    "FIX (frontend): Extend `applyAIFields` in /app/frontend/app/contact/new.tsx:136-152 to also copy `data.company` → `form.company` and `data.website` → `form.website` (and optionally role, linkedin) so preview fields actually populate the form.",
+    "CLEANUP (frontend): Investigate and remove the stray whitespace/text nodes inside <View> children on contact/new that produce 13× 'Unexpected text node' warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.py: `_llm_extract_contact` (line 2572) hard-codes model `claude-haiku-4-5-20251001` — OK for now but consider moving to constants.",
+    "server.py:2690 uses `'ImageContent' in dir()` which is always True inside the function scope because `ImageContent` was just imported at line 2670 — the ternary is effectively always the True branch. If ImageContent import fails, `except Exception` catches ImportError but only around `chat.send_message`, not the import statement itself (fine, but confusing).",
+    "server.py: server.py has 2759 lines — exceeds the 700-line guideline and should be split into routers per domain."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v23_ai_contact_helpers.py (new)",
+    "/app/test_reports/pytest/pytest_v23_results.xml (new)"
+  ],
+  "success_rate": {
+    "backend": "80% (8/10 tests pass; 2 voice tests fail due to broken import)",
+    "frontend": "100% for URL AI flow (login → contact/new → 3 AI buttons visible → URL modal → extract → preview → apply → modal closes)"
+  },
+  "seed_data_creation": "None — used existing test@dalpastro.it account.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent fixes the voice endpoint import + b64-validation order, rerun `pytest /app/backend/tests/test_v23_ai_contact_helpers.py -v`. The 2 currently-failing voice tests expect: invalid b64 → 400 'Audio base64 non valido'; valid tiny b64 → 200 or 502 (Whisper may reject). URL and Card tests are stable. Frontend URL flow already fully verified.",
+  "rca_of_issue": "Voice endpoint author assumed the emergentintegrations package exposes an `llm.stt.WhisperTranscription` — actual package layout (verified via filesystem inspection at /root/.venv/lib/python3.11/site-packages/emergentintegrations/llm/openai/speech_to_text.py) exposes `OpenAISpeechToText` under `emergentintegrations.llm.openai.speech_to_text`. Reproduction: `curl -X POST $URL/api/ai/contact-from-voice -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' -d '{\"audio_base64\":\"anything\"}'` → HTTP 500. Backend log shows `ModuleNotFoundError: No module named 'emergentintegrations.llm.stt'`. Mitigation: correct the import and refactor the endpoint to call OpenAISpeechToText's transcribe method (check its actual signature)."
+}

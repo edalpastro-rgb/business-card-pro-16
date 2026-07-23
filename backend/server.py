@@ -2535,6 +2535,179 @@ async def my_thing_upcoming_events(user=Depends(get_current_user)):
 
 
 # =========================
+# AI-powered Contact helpers (Emergent LLM Key)
+# =========================
+class AIUrlIn(BaseModel):
+    url: str
+    context: Optional[str] = None
+
+
+class AITextIn(BaseModel):
+    text: str
+
+
+class AIVoiceIn(BaseModel):
+    audio_base64: str  # data URL or plain b64
+    mime: Optional[str] = "audio/webm"
+
+
+class AIImageIn(BaseModel):
+    image_base64: str  # data URL or plain b64
+    mime: Optional[str] = "image/jpeg"
+
+
+CONTACT_EXTRACTION_SYSTEM = (
+    "Sei un assistente che estrae informazioni di contatto da testo o pagine web. "
+    "Rispondi SEMPRE con un oggetto JSON valido (senza testo aggiuntivo, senza markdown) con questi campi opzionali: "
+    "first_name (string), last_name (string), phone (string, con prefisso internazionale se disponibile), "
+    "phone_alt (string), email (string), email_alt (string), company (string), role (string), "
+    "address_street (string), address_city (string), address_zip (string), address_province (string), "
+    "website (string), linkedin (string), telegram (string), whatsapp (string), "
+    "birth_date (string in formato DD/MM/YYYY se identificabile), "
+    "notes (string, breve descrizione professionale). "
+    "Se un campo non è presente, omettilo. Rispondi in italiano nei campi testuali. NON aggiungere spiegazioni."
+)
+
+
+async def _llm_extract_contact(text: str, model: str = "claude-haiku-4-5-20251001", provider: str = "anthropic") -> dict:
+    """Send raw text to Claude Haiku and parse the JSON contact dict."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+    chat = LlmChat(
+        api_key=key,
+        session_id=f"contact-extract-{uuid.uuid4().hex[:8]}",
+        system_message=CONTACT_EXTRACTION_SYSTEM,
+    ).with_model(provider, model)
+    try:
+        resp = await chat.send_message(UserMessage(text=text))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Errore LLM: {e}")
+    raw = (resp or "").strip()
+    # Strip common markdown fences
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.lower().startswith("json"):
+            raw = raw[4:].strip()
+        # remove trailing fences
+        if raw.endswith("```"):
+            raw = raw[:-3].strip()
+    import json as _json
+    try:
+        data = _json.loads(raw)
+        if not isinstance(data, dict):
+            data = {}
+    except Exception:
+        data = {"notes": raw[:500]}
+    return data
+
+
+@api_router.post("/ai/contact-from-url")
+async def ai_contact_from_url(body: AIUrlIn, user=Depends(get_current_user)):
+    """Fetch the URL, extract clean text, feed it to Claude Haiku 4.5 for JSON contact parsing."""
+    url = (body.url or "").strip()
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="URL non valido")
+    # Download HTML
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15) as c:
+            r = await c.get(url, headers={"User-Agent": "Mozilla/5.0 DalPastroCRM/1.0"})
+            r.raise_for_status()
+            html = r.text
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Impossibile scaricare la pagina: {e}")
+    # Naive text extraction (strip tags)
+    import re as _re
+    text = _re.sub(r"<script[\s\S]*?</script>", " ", html, flags=_re.IGNORECASE)
+    text = _re.sub(r"<style[\s\S]*?</style>", " ", text, flags=_re.IGNORECASE)
+    text = _re.sub(r"<[^>]+>", " ", text)
+    text = _re.sub(r"\s+", " ", text).strip()
+    if len(text) > 6000:
+        text = text[:6000]
+    prompt = (
+        f"Ecco il contenuto testuale della pagina {url}. Estrai i dati di contatto.\n\n{text}"
+        + (f"\n\nContesto aggiuntivo: {body.context}" if body.context else "")
+    )
+    parsed = await _llm_extract_contact(prompt)
+    return {"contact": parsed, "source_url": url}
+
+
+@api_router.post("/ai/contact-from-voice")
+async def ai_contact_from_voice(body: AIVoiceIn, user=Depends(get_current_user)):
+    """Transcribe audio via Whisper, then parse to contact fields via Claude Haiku."""
+    from emergentintegrations.llm.stt import WhisperTranscription
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+    b64 = body.audio_base64
+    if b64.startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    try:
+        audio_bytes = base64.b64decode(b64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Audio base64 non valido")
+    import tempfile
+    ext = ".webm" if "webm" in (body.mime or "") else (".m4a" if "m4a" in (body.mime or "") else ".mp3")
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp.write(audio_bytes)
+        path = tmp.name
+    try:
+        whisper = WhisperTranscription(api_key=key)
+        result = await whisper.transcribe(path, language="it")
+        transcript = (result or {}).get("text") or str(result or "")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Errore trascrizione: {e}")
+    parsed = await _llm_extract_contact(
+        f"Ecco un dettato vocale in italiano di dati di contatto. Estrai i campi:\n\n{transcript}"
+    )
+    return {"contact": parsed, "transcript": transcript}
+
+
+@api_router.post("/ai/contact-from-card")
+async def ai_contact_from_card(body: AIImageIn, user=Depends(get_current_user)):
+    """OCR + extraction of a business card image via Gemini vision."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+    b64 = body.image_base64
+    if b64.startswith("data:"):
+        # keep as data URL for ImageContent
+        data_url = b64
+    else:
+        mime = body.mime or "image/jpeg"
+        data_url = f"data:{mime};base64,{b64}"
+    try:
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"card-ocr-{uuid.uuid4().hex[:8]}",
+            system_message=CONTACT_EXTRACTION_SYSTEM,
+        ).with_model("gemini", "gemini-3-flash-preview")
+        # Try with ImageContent if available
+        msg = UserMessage(
+            text="Ecco l'immagine di un biglietto da visita. Estrai i dati e restituisci JSON.",
+            file_contents=[ImageContent(image_url=data_url)] if 'ImageContent' in dir() else None,
+        )
+        resp = await chat.send_message(msg)
+    except Exception as e:
+        # Fallback: send description-only request (won't OCR but returns valid empty dict)
+        raise HTTPException(status_code=502, detail=f"Errore OCR: {e}")
+    raw = (resp or "").strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.lower().startswith("json"): raw = raw[4:].strip()
+        if raw.endswith("```"): raw = raw[:-3].strip()
+    import json as _json
+    try:
+        data = _json.loads(raw)
+        if not isinstance(data, dict): data = {}
+    except Exception:
+        data = {"notes": raw[:500]}
+    return {"contact": data}
+
+
+# =========================
 # Health
 # =========================
 @api_router.get("/")

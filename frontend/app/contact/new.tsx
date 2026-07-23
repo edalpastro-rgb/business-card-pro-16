@@ -119,6 +119,127 @@ export default function NewContactScreen() {
 
   const [phoneContactsModal, setPhoneContactsModal] = useState<Contacts.Contact[] | null>(null);
 
+  // AI helper state
+  const [aiMode, setAiMode] = useState<null | "card" | "url" | "voice">(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiUrl, setAiUrl] = useState("");
+  const [aiPreview, setAiPreview] = useState<Record<string, string> | null>(null);
+  const [aiTranscript, setAiTranscript] = useState<string>("");
+
+  const openAI = (m: "card" | "url" | "voice") => {
+    setAiMode(m); setAiUrl(""); setAiPreview(null); setAiTranscript("");
+  };
+  const closeAI = () => { setAiMode(null); setAiPreview(null); };
+
+  const applyAIFields = (data: Record<string, string>) => {
+    const notesPart = data.notes ? (form.general_note ? form.general_note + "\n" + data.notes : data.notes) : form.general_note;
+    setForm((f) => ({
+      ...f,
+      first_name: data.first_name || f.first_name,
+      last_name: data.last_name || f.last_name,
+      phone: data.phone || f.phone,
+      phone_alt: data.phone_alt || f.phone_alt,
+      email: data.email || f.email,
+      email_alt: data.email_alt || f.email_alt,
+      address_street: data.address_street || f.address_street,
+      address_city: data.address_city || f.address_city,
+      address_zip: data.address_zip || f.address_zip,
+      address_province: data.address_province || f.address_province,
+      whatsapp: data.whatsapp || f.whatsapp,
+      telegram: data.telegram || f.telegram,
+      birth_date: data.birth_date || f.birth_date,
+      general_note: notesPart,
+    }));
+    closeAI();
+  };
+
+  const runAIUrl = async () => {
+    if (!aiUrl.trim()) { notify("Inserisci un URL"); return; }
+    setAiBusy(true);
+    try {
+      const r = await api<{ contact: Record<string, string> }>("/ai/contact-from-url", { method: "POST", body: { url: aiUrl.trim() } });
+      setAiPreview(r.contact || {});
+    } catch (e: any) {
+      notify("Errore AI", e?.message || "Impossibile estrarre dati");
+    } finally { setAiBusy(false); }
+  };
+
+  const runAICard = async () => {
+    const useBase64 = Platform.OS !== "web";
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (Platform.OS !== "web" && !perm.granted) return;
+    const res = await ImagePicker.launchCameraAsync({ quality: 0.6, base64: useBase64 });
+    if (res.canceled || !res.assets?.[0]) return;
+    const a = res.assets[0];
+    let dataUrl: string;
+    if (a.base64) dataUrl = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
+    else if (a.uri) dataUrl = await uriToBase64DataUrl(a.uri, a.mimeType || "image/jpeg");
+    else return;
+    setAiBusy(true);
+    try {
+      const r = await api<{ contact: Record<string, string> }>("/ai/contact-from-card", { method: "POST", body: { image_base64: dataUrl } });
+      setAiPreview(r.contact || {});
+    } catch (e: any) {
+      notify("Errore OCR", e?.message || "Impossibile leggere il biglietto");
+    } finally { setAiBusy(false); }
+  };
+
+  const runAIVoice = async () => {
+    if (Platform.OS === "web") {
+      // Reuse web recorder (already defined)
+      if (recordingFor !== "general") {
+        await startRecWebFor("general");
+        notify("Registrazione", "Parla ora — tocca ancora il bottone per fermare.");
+        return;
+      }
+      const st = webRecRef.current;
+      setRecordingFor(null);
+      if (!st) return;
+      await new Promise<void>((resolve) => { st.mr.onstop = () => resolve(); st.mr.stop(); });
+      st.stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(st.chunks, { type: "audio/webm" });
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("read failed"));
+        reader.onload = () => resolve(String(reader.result));
+        reader.readAsDataURL(blob);
+      });
+      webRecRef.current = null;
+      setAiBusy(true);
+      try {
+        const r = await api<{ contact: Record<string, string>; transcript: string }>("/ai/contact-from-voice", { method: "POST", body: { audio_base64: dataUrl, mime: "audio/webm" } });
+        setAiTranscript(r.transcript || "");
+        setAiPreview(r.contact || {});
+      } catch (e: any) {
+        notify("Errore trascrizione", e?.message || "");
+      } finally { setAiBusy(false); }
+      return;
+    }
+    // Native path
+    if (recordingFor === "general") {
+      // stop and transcribe
+      setRecordingFor(null);
+      await recorder.stop();
+      const uri = recorder.uri;
+      if (!uri) return;
+      const b64 = await uriToBase64(uri);
+      setAiBusy(true);
+      try {
+        const r = await api<{ contact: Record<string, string>; transcript: string }>("/ai/contact-from-voice", { method: "POST", body: { audio_base64: b64, mime: "audio/m4a" } });
+        setAiTranscript(r.transcript || "");
+        setAiPreview(r.contact || {});
+      } catch (e: any) { notify("Errore", e?.message || ""); }
+      finally { setAiBusy(false); }
+    } else {
+      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+      if (!granted) { notify("Permesso microfono negato"); return; }
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecordingFor("general");
+      notify("Registrazione", "Parla ora — tocca ancora il bottone per fermare.");
+    }
+  };
+
   const importFromPhone = async () => {
     if (Platform.OS === "web") {
       notify("Non disponibile", "L'importazione dalla rubrica funziona solo su cellulare (app Expo Go o build nativa).");
@@ -495,6 +616,21 @@ export default function NewContactScreen() {
             <Ionicons name="download-outline" size={18} color={theme.color.brandPrimary} />
             <Text style={styles.importBtnTxt}>Importa dalla rubrica telefono</Text>
           </Pressable>
+
+          <View style={{ flexDirection: "row", gap: 6, marginBottom: 10 }}>
+            <Pressable testID="ai-card-btn" onPress={() => openAI("card")} style={[styles.aiBtn, { backgroundColor: "#8B5CF6" }]}>
+              <Ionicons name="scan" size={16} color="#FFF" />
+              <Text style={styles.aiBtnTxt}>Biglietto</Text>
+            </Pressable>
+            <Pressable testID="ai-url-btn" onPress={() => openAI("url")} style={[styles.aiBtn, { backgroundColor: "#0891B2" }]}>
+              <Ionicons name="link" size={16} color="#FFF" />
+              <Text style={styles.aiBtnTxt}>Da URL</Text>
+            </Pressable>
+            <Pressable testID="ai-voice-btn" onPress={() => openAI("voice")} style={[styles.aiBtn, { backgroundColor: "#DC2626" }]}>
+              <Ionicons name="mic" size={16} color="#FFF" />
+              <Text style={styles.aiBtnTxt}>Dettato</Text>
+            </Pressable>
+          </View>
 
           <Section title="Anagrafica">
             <Row>
@@ -978,6 +1114,80 @@ export default function NewContactScreen() {
           </View>
         </View>
       </Modal>
+      {/* AI helper modal */}
+      <Modal visible={!!aiMode} animationType="slide" transparent onRequestClose={closeAI}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "88%" }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ fontSize: 17, fontWeight: "800", color: theme.color.onSurface }}>
+                {aiMode === "card" ? "📸 Scanner biglietto" : aiMode === "url" ? "🔗 Estrai da URL" : "🎤 Dettato vocale"}
+              </Text>
+              <Pressable onPress={closeAI} hitSlop={8}>
+                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+              {aiMode === "url" && (
+                <>
+                  <Text style={{ fontSize: 13, color: theme.color.muted }}>Incolla un URL (LinkedIn, sito aziendale, profilo…). L&apos;AI estrae i dati.</Text>
+                  <TextInput
+                    testID="ai-url-input"
+                    value={aiUrl}
+                    onChangeText={setAiUrl}
+                    placeholder="https://…"
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize="none"
+                    keyboardType="url"
+                    style={{ backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, color: theme.color.onSurface }}
+                  />
+                  <Pressable testID="ai-url-go" onPress={runAIUrl} disabled={aiBusy} style={{ backgroundColor: theme.color.brandPrimary, padding: 12, borderRadius: 10, alignItems: "center" }}>
+                    {aiBusy ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: "#FFF", fontWeight: "800" }}>Estrai dati</Text>}
+                  </Pressable>
+                </>
+              )}
+              {aiMode === "card" && (
+                <>
+                  <Text style={{ fontSize: 13, color: theme.color.muted }}>Scatta una foto del biglietto da visita. L&apos;AI riconosce i campi.</Text>
+                  <Pressable testID="ai-card-go" onPress={runAICard} disabled={aiBusy} style={{ backgroundColor: "#8B5CF6", padding: 14, borderRadius: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}>
+                    <Ionicons name="camera" size={18} color="#FFF" />
+                    {aiBusy ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: "#FFF", fontWeight: "800" }}>Scatta biglietto</Text>}
+                  </Pressable>
+                </>
+              )}
+              {aiMode === "voice" && (
+                <>
+                  <Text style={{ fontSize: 13, color: theme.color.muted }}>Tocca per iniziare/fermare. Es: &quot;Mario Rossi, telefono 335 1234567, email mario@rossi.it, indirizzo via Roma 10 Milano&quot;.</Text>
+                  <Pressable testID="ai-voice-go" onPress={runAIVoice} disabled={aiBusy} style={{ backgroundColor: recordingFor === "general" ? "#DC2626" : "#16A34A", padding: 14, borderRadius: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}>
+                    <Ionicons name={recordingFor === "general" ? "stop-circle" : "mic"} size={20} color="#FFF" />
+                    <Text style={{ color: "#FFF", fontWeight: "800" }}>{recordingFor === "general" ? "Ferma registrazione" : (aiBusy ? "Elaborazione…" : "Inizia dettato")}</Text>
+                  </Pressable>
+                  {aiTranscript ? <Text style={{ fontSize: 12, color: theme.color.muted, fontStyle: "italic" }}>&quot;{aiTranscript}&quot;</Text> : null}
+                </>
+              )}
+
+              {aiPreview && (
+                <View style={{ marginTop: 12, backgroundColor: "#F1F5F9", borderRadius: 12, padding: 12, gap: 6 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: theme.color.brandPrimary }}>🤖 Anteprima AI — verifica prima di salvare</Text>
+                  {Object.entries(aiPreview).map(([k, v]) => (
+                    <View key={k} style={{ flexDirection: "row", gap: 8 }}>
+                      <Text style={{ fontSize: 12, color: theme.color.muted, fontWeight: "700", width: 100 }}>{k}</Text>
+                      <Text style={{ fontSize: 12, color: theme.color.onSurface, flex: 1 }}>{String(v)}</Text>
+                    </View>
+                  ))}
+                  <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                    <Pressable onPress={closeAI} style={{ flex: 1, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, alignItems: "center" }}>
+                      <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+                    </Pressable>
+                    <Pressable testID="ai-apply-btn" onPress={() => applyAIFields(aiPreview)} style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: theme.color.success, alignItems: "center" }}>
+                      <Text style={{ color: "#FFF", fontWeight: "800" }}>Applica al form</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1106,6 +1316,8 @@ const styles = StyleSheet.create({
   toggleMore: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 14, paddingVertical: 10 },
   toggleMoreTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
   importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FFF", padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.brandPrimary, borderStyle: "dashed" },
+  aiBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: theme.radius.md },
+  aiBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
   importBtnTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
   photoRow: { flexDirection: "row", gap: 10 },
   photoAddBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.surface, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
