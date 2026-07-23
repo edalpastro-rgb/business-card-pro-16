@@ -264,6 +264,7 @@ class SettingsModel(BaseModel):
     call_outcomes: List[Dict[str, Any]] = Field(default_factory=list)
     callback_notify_default_advance_min: int = 10
     disable_callback_notifications: bool = False
+    contact_source_options: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 DEFAULT_CALL_OUTCOMES = [
@@ -283,6 +284,15 @@ DEFAULT_APPT_OUTCOMES = [
     {"id": "out_rescheduled", "name": "Rinviato", "color": "#B77C14", "icon": "calendar", "counts_as": "rescheduled"},
     {"id": "out_no_interest", "name": "Non interessato", "color": "#6B7280", "icon": "close-circle", "counts_as": "no_interest"},
     {"id": "out_followup", "name": "Da ricontattare", "color": "#0891B2", "icon": "call", "counts_as": "followup"},
+]
+
+
+DEFAULT_SOURCE_OPTIONS = [
+    {"id": "personal", "name": "Personale", "icon": "person", "color": "#2563EB", "note": ""},
+    {"id": "referral", "name": "Referenza", "icon": "share-social", "color": "#10B981", "note": ""},
+    {"id": "web", "name": "Sito Web", "icon": "globe", "color": "#8B5CF6", "note": ""},
+    {"id": "social", "name": "Social Media", "icon": "logo-instagram", "color": "#EC4899", "note": ""},
+    {"id": "event", "name": "Evento/Fiera", "icon": "calendar", "color": "#F59E0B", "note": ""},
 ]
 
 
@@ -321,6 +331,7 @@ class ContactFile(BaseModel):
 class ContactIn(BaseModel):
     first_name: str
     last_name: str = ""
+    contact_code: Optional[str] = None  # e.g. "EN-0042" auto-assigned if empty
     phone: str = ""
     phone_alt: str = ""
     whatsapp: str = ""
@@ -846,6 +857,9 @@ async def get_settings(user=Depends(get_current_user)):
         s["callback_notify_default_advance_min"] = 10
     if "disable_callback_notifications" not in s:
         s["disable_callback_notifications"] = False
+    if not s.get("contact_source_options"):
+        s["contact_source_options"] = DEFAULT_SOURCE_OPTIONS
+        await db.settings.update_one({"user_id": tid}, {"$set": {"contact_source_options": DEFAULT_SOURCE_OPTIONS}})
     return s
 
 
@@ -969,15 +983,55 @@ async def list_contacts(area: Optional[str] = None, q: Optional[str] = None, gro
     return {"items": items}
 
 
+AREA_PREFIX_DEFAULT = {"energy": "EN", "network": "NW"}
+
+
+def _prefix_for_area(area: str, settings: Optional[dict] = None) -> str:
+    if area in AREA_PREFIX_DEFAULT:
+        return AREA_PREFIX_DEFAULT[area]
+    # Try custom_areas
+    if settings:
+        for a in settings.get("custom_areas") or []:
+            if a.get("id") == area:
+                p = (a.get("prefix") or a.get("name") or a.get("id") or "")[:2].upper()
+                return p or "XX"
+    return (area or "XX")[:2].upper()
+
+
+async def _next_contact_code(user: dict, area: str) -> str:
+    """Generate the next sequential code for the user's tenant + area: `<PFX>-0001`."""
+    tid = tenant_id(user)
+    settings = await db.settings.find_one({"user_id": tid}) or {}
+    prefix = _prefix_for_area(area, settings)
+    # Find current max seq for this prefix
+    last = await db.contacts.find_one(
+        {"user_id": tid, "contact_code": {"$regex": f"^{prefix}-\\d+$"}},
+        sort=[("contact_code", -1)],
+        projection={"contact_code": 1},
+    )
+    if last and last.get("contact_code"):
+        try:
+            n = int(last["contact_code"].split("-", 1)[1])
+        except Exception:
+            n = 0
+    else:
+        n = 0
+    return f"{prefix}-{n + 1:04d}"
+
+
 @api_router.post("/contacts")
 async def create_contact(body: ContactIn, user=Depends(get_current_user)):
     check_area_allowed(user, body.area)
     cid = f"c_{uuid.uuid4().hex[:12]}"
+    payload = body.model_dump()
+    # Auto-assign contact_code if not provided
+    if not payload.get("contact_code"):
+        payload["contact_code"] = await _next_contact_code(user, body.area)
     doc = {
         "contact_id": cid,
         "user_id": tenant_id(user),
         "created_by": user["user_id"],
-        **body.model_dump(),
+        **payload,
         "notes": [],
         "files": [],
         "created_at": utcnow(),
@@ -986,6 +1040,27 @@ async def create_contact(body: ContactIn, user=Depends(get_current_user)):
     await db.contacts.insert_one(doc)
     strip_id(doc)
     return doc
+
+
+@api_router.get("/contacts/{contact_id}/referrals")
+async def get_contact_referrals(contact_id: str, user=Depends(get_current_user)):
+    """Returns contacts referred BY this contact (reverse lookup on referred_by_contact_id)."""
+    # Ensure contact belongs to tenant
+    parent = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0})
+    if not parent:
+        raise HTTPException(status_code=404, detail="Contatto non trovato")
+    referrals = await db.contacts.find(
+        scope_query(user, {"referred_by_contact_id": contact_id}),
+        {"_id": 0, "notes": 0, "files": 0},
+    ).sort("created_at", -1).to_list(500)
+    # And the "referred by" info for parent
+    referred_by = None
+    if parent.get("referred_by_contact_id"):
+        referred_by = await db.contacts.find_one(
+            scope_query(user, {"contact_id": parent["referred_by_contact_id"]}),
+            {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "contact_code": 1, "area": 1},
+        )
+    return {"referred_by": referred_by, "referrals": referrals}
 
 
 @api_router.get("/contacts/{contact_id}")
@@ -2282,6 +2357,8 @@ async def _startup():
     await db.chat_channels.create_index("channel_id", unique=True)
     await db.chat_messages.create_index([("channel_id", 1), ("created_at", 1)])
     await db.my_thing.create_index([("owner_user_id", 1), ("kind", 1), ("active", 1)])
+    await db.contacts.create_index([("user_id", 1), ("contact_code", 1)])
+    await db.contacts.create_index([("user_id", 1), ("referred_by_contact_id", 1)])
 
 
 @app.on_event("shutdown")
