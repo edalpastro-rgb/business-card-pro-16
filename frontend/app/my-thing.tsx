@@ -427,20 +427,44 @@ export default function MyThingScreen() {
               {(active === "event" || active === "anniversary") && (
                 <View style={styles.card}>
                   <Text style={styles.label}>Data{active === "event" ? " e ora" : ""}</Text>
-                  <Pressable onPress={() => setDatePickerOpen(true)} style={styles.dateBtn}>
-                    <Ionicons name="calendar" size={16} color={theme.color.brandPrimary} />
-                    <Text style={styles.dateBtnTxt}>{dateLabel}</Text>
-                  </Pressable>
-                  {datePickerOpen && (
-                    <DateTimePicker
-                      value={scheduledAt || new Date()}
-                      mode={active === "event" ? "datetime" : "date"}
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                      onChange={(_e, d) => {
-                        if (Platform.OS === "android") setDatePickerOpen(false);
-                        if (d) setScheduledAt(d);
-                      }}
-                    />
+                  {Platform.OS === "web" ? (
+                    <View style={{ marginTop: 4 }}>
+                      {/* @ts-expect-error web-only */}
+                      <input
+                        type={active === "event" ? "datetime-local" : "date"}
+                        value={
+                          scheduledAt
+                            ? (active === "event"
+                                ? new Date(scheduledAt.getTime() - scheduledAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+                                : new Date(scheduledAt.getTime() - scheduledAt.getTimezoneOffset() * 60000).toISOString().slice(0, 10))
+                            : ""
+                        }
+                        onChange={(e: any) => {
+                          const v = e.target.value;
+                          if (!v) { setScheduledAt(null); return; }
+                          setScheduledAt(new Date(v));
+                        }}
+                        style={webInputStyle}
+                      />
+                    </View>
+                  ) : (
+                    <>
+                      <Pressable onPress={() => setDatePickerOpen(true)} style={styles.dateBtn}>
+                        <Ionicons name="calendar" size={16} color={theme.color.brandPrimary} />
+                        <Text style={styles.dateBtnTxt}>{dateLabel}</Text>
+                      </Pressable>
+                      {datePickerOpen && (
+                        <DateTimePicker
+                          value={scheduledAt || new Date()}
+                          mode={active === "event" ? "datetime" : "date"}
+                          display={Platform.OS === "ios" ? "spinner" : "default"}
+                          onChange={(_e, d) => {
+                            if (Platform.OS === "android") setDatePickerOpen(false);
+                            if (d) setScheduledAt(d);
+                          }}
+                        />
+                      )}
+                    </>
                   )}
                   {active === "anniversary" && (
                     <Text style={styles.hint}>Le ricorrenze si ripetono ogni anno automaticamente.</Text>
@@ -550,3 +574,15 @@ const styles = StyleSheet.create({
   linkBtn: { paddingVertical: 8 },
   linkBtnTxt: { color: theme.color.error, fontWeight: "600", fontSize: 13 },
 });
+
+const webInputStyle: any = {
+  width: "100%",
+  backgroundColor: theme.color.surface,
+  border: `1px solid ${theme.color.border}`,
+  borderRadius: 12,
+  padding: "12px 14px",
+  fontSize: 15,
+  color: theme.color.onSurface,
+  fontFamily: "inherit",
+  outline: "none",
+};

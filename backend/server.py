@@ -253,14 +253,27 @@ class CustomArea(BaseModel):
 
 class SettingsModel(BaseModel):
     energy_title: str = "Consulente Energetico"
-    energy_color: str = "#C83232"
+    energy_color: str = "#EF4444"
     network_title: str = "Networker"
-    network_color: str = "#1B6CB0"
+    network_color: str = "#2563EB"
     app_name: str = "Dal Pastro CRM"
     custom_appointment_types: List[str] = Field(default_factory=list)
     custom_product_categories: List[Dict[str, Any]] = Field(default_factory=list)
     custom_areas: List[Dict[str, Any]] = Field(default_factory=list)
     appointment_outcomes: List[Dict[str, Any]] = Field(default_factory=list)
+    call_outcomes: List[Dict[str, Any]] = Field(default_factory=list)
+    callback_notify_default_advance_min: int = 10
+    disable_callback_notifications: bool = False
+
+
+DEFAULT_CALL_OUTCOMES = [
+    {"id": "call_ok", "name": "Chiamata completata", "color": "#16A34A", "icon": "checkmark-circle"},
+    {"id": "call_no_answer", "name": "Non risponde", "color": "#B77C14", "icon": "call"},
+    {"id": "call_recall", "name": "Richiamare più tardi", "color": "#0891B2", "icon": "time"},
+    {"id": "call_wrong_number", "name": "Numero errato", "color": "#6B7280", "icon": "warning"},
+    {"id": "call_busy", "name": "Occupato", "color": "#C83232", "icon": "call-outline"},
+    {"id": "call_not_interested", "name": "Non interessato", "color": "#DC2626", "icon": "close-circle"},
+]
 
 
 DEFAULT_APPT_OUTCOMES = [
@@ -401,6 +414,7 @@ class AppointmentIn(BaseModel):
     is_phone: bool = False
     location: str = ""
     notes: str = ""
+    note_attachments: List[Dict[str, Any]] = Field(default_factory=list)
     reminder_minutes: int = 15
     recurrence: Literal["none", "weekly", "monthly", "yearly"] = "none"
     participant_contact_ids: List[str] = Field(default_factory=list)
@@ -419,6 +433,7 @@ class AppointmentUpdate(BaseModel):
     done: Optional[bool] = None
     location: Optional[str] = None
     notes: Optional[str] = None
+    note_attachments: Optional[List[Dict[str, Any]]] = None
     outcome_tags: Optional[List[str]] = None
     outcome_notes: Optional[str] = None
     products_sold: Optional[int] = None
@@ -439,6 +454,9 @@ class CallbackIn(BaseModel):
     area: AreaLiteral = "energy"
     scheduled_at: datetime
     note: str = ""
+    phone: Optional[str] = None
+    notify: bool = True
+    notify_advance_min: Optional[int] = None  # None = use user default
 
 
 class CallbackUpdate(BaseModel):
@@ -447,6 +465,24 @@ class CallbackUpdate(BaseModel):
     scheduled_at: Optional[datetime] = None
     note: Optional[str] = None
     done: Optional[bool] = None
+    phone: Optional[str] = None
+    notify: Optional[bool] = None
+    notify_advance_min: Optional[int] = None
+    last_call_outcome_id: Optional[str] = None
+    last_call_at: Optional[datetime] = None
+
+
+class CallLogIn(BaseModel):
+    contact_id: Optional[str] = None
+    callback_id: Optional[str] = None
+    appointment_id: Optional[str] = None
+    phone: Optional[str] = None
+    outcome_id: str
+    note: str = ""
+    duration_sec: int = 0
+    # If outcome triggers a reschedule
+    reschedule_at: Optional[datetime] = None
+    reschedule_delta_min: Optional[int] = None  # Alternative to reschedule_at
 
 
 # ============ MY THING (personal space) ============
@@ -803,6 +839,13 @@ async def get_settings(user=Depends(get_current_user)):
     if not s.get("appointment_outcomes"):
         s["appointment_outcomes"] = DEFAULT_APPT_OUTCOMES
         await db.settings.update_one({"user_id": tid}, {"$set": {"appointment_outcomes": DEFAULT_APPT_OUTCOMES}})
+    if not s.get("call_outcomes"):
+        s["call_outcomes"] = DEFAULT_CALL_OUTCOMES
+        await db.settings.update_one({"user_id": tid}, {"$set": {"call_outcomes": DEFAULT_CALL_OUTCOMES}})
+    if "callback_notify_default_advance_min" not in s:
+        s["callback_notify_default_advance_min"] = 10
+    if "disable_callback_notifications" not in s:
+        s["disable_callback_notifications"] = False
     return s
 
 
@@ -1148,6 +1191,99 @@ async def delete_callback(callback_id: str, user=Depends(get_current_user)):
 
 
 # =========================
+# Call logs & outcomes
+# =========================
+@api_router.post("/calls/log")
+async def log_call(body: CallLogIn, user=Depends(get_current_user)):
+    """Records the outcome of a phone call. Optionally creates a follow-up callback
+    if the outcome indicates a reschedule (reschedule_at or reschedule_delta_min).
+    """
+    log_id = f"cl_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "log_id": log_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "contact_id": body.contact_id,
+        "callback_id": body.callback_id,
+        "appointment_id": body.appointment_id,
+        "phone": body.phone,
+        "outcome_id": body.outcome_id,
+        "note": body.note,
+        "duration_sec": body.duration_sec,
+        "created_at": utcnow(),
+    }
+    await db.call_logs.insert_one(doc)
+    strip_id(doc)
+
+    # Update the source callback (mark done + outcome)
+    if body.callback_id:
+        await db.callbacks.update_one(
+            scope_query(user, {"callback_id": body.callback_id}),
+            {"$set": {
+                "last_call_outcome_id": body.outcome_id,
+                "last_call_at": utcnow(),
+                "done": True,  # by default; a reschedule creates a new callback
+            }},
+        )
+
+    # Create a follow-up callback if requested
+    new_callback = None
+    reschedule_time: Optional[datetime] = None
+    if body.reschedule_at:
+        reschedule_time = body.reschedule_at
+    elif body.reschedule_delta_min is not None:
+        reschedule_time = utcnow() + timedelta(minutes=int(body.reschedule_delta_min))
+
+    if reschedule_time:
+        # Fetch original callback for context
+        original = None
+        if body.callback_id:
+            original = await db.callbacks.find_one({"callback_id": body.callback_id})
+
+        # Also fetch contact for name/phone if provided
+        contact = None
+        cid = body.contact_id or (original.get("contact_id") if original else None)
+        if cid:
+            contact = await db.contacts.find_one({"contact_id": cid})
+
+        cb_id = f"cb_{uuid.uuid4().hex[:12]}"
+        settings = await db.settings.find_one({"user_id": tenant_id(user)}) or {}
+        area = (original or {}).get("area") or "energy"
+        phone = body.phone or (original or {}).get("phone") or (contact or {}).get("phone")
+        title = (original or {}).get("title") or (contact and f"{contact.get('first_name','')} {contact.get('last_name','')}".strip()) or "Ritelefonata"
+        cb_doc = {
+            "callback_id": cb_id,
+            "user_id": tenant_id(user),
+            "created_by": user["user_id"],
+            "contact_id": cid,
+            "title": title,
+            "area": area,
+            "scheduled_at": reschedule_time,
+            "note": body.note or "",
+            "phone": phone,
+            "notify": True,
+            "notify_advance_min": (original or {}).get("notify_advance_min") or settings.get("callback_notify_default_advance_min", 10),
+            "done": False,
+            "created_at": utcnow(),
+            "parent_call_log_id": log_id,
+        }
+        await db.callbacks.insert_one(cb_doc)
+        strip_id(cb_doc)
+        new_callback = cb_doc
+
+    return {"log": doc, "new_callback": new_callback}
+
+
+@api_router.get("/calls/log")
+async def list_call_logs(contact_id: Optional[str] = None, limit: int = 50, user=Depends(get_current_user)):
+    q = scope_query(user)
+    if contact_id:
+        q["contact_id"] = contact_id
+    items = await db.call_logs.find(q, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    return {"items": items}
+
+
+# =========================
 # Reports
 # =========================
 def _period_range(period: str) -> tuple:
@@ -1247,6 +1383,9 @@ def _subscription_state(user: dict) -> Dict[str, Any]:
         # sub-user inherits from parent
         return {"status": "sub_user", "expires_at": None, "days_left": None, "is_active": True}
     status_str = user.get("subscription_status") or "active"
+    # Free-forever bypass trial logic
+    if status_str == "free_forever":
+        return {"status": "free_forever", "expires_at": None, "days_left": None, "is_active": True}
     exp = user.get("trial_expires_at")
     days_left = None
     if exp:
@@ -1399,6 +1538,45 @@ async def extend_trial(user_id: str, body: ExtendTrialIn, user=Depends(get_curre
     )
     fresh = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     return {"user_id": user_id, "subscription": _subscription_state(fresh), "trial_expires_at": new_exp.isoformat()}
+
+
+@api_router.put("/users/{user_id}/free-forever")
+async def set_free_forever(user_id: str, user=Depends(get_current_user)):
+    """Owner marks an invited user as Free Sempre (indefinite free access)."""
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    target = await db.users.find_one({"user_id": user_id, "invited_by": user["user_id"]})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utente non trovato o non invitato da te")
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"subscription_status": "free_forever"}, "$unset": {"trial_expires_at": ""}},
+    )
+    fresh = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return {"user_id": user_id, "subscription": _subscription_state(fresh)}
+
+
+class RevokeFreeForeverIn(BaseModel):
+    mode: Literal["trial", "expired"] = "trial"
+    trial_days: int = 30
+
+
+@api_router.put("/users/{user_id}/revoke-free-forever")
+async def revoke_free_forever(user_id: str, body: RevokeFreeForeverIn, user=Depends(get_current_user)):
+    """Owner revokes Free Sempre and moves user back to trial (or marks expired to force upgrade)."""
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    target = await db.users.find_one({"user_id": user_id, "invited_by": user["user_id"]})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utente non trovato o non invitato da te")
+    if body.mode == "expired":
+        upd = {"subscription_status": "expired", "trial_expires_at": utcnow() - timedelta(days=1)}
+    else:
+        new_exp = utcnow() + timedelta(days=max(1, int(body.trial_days)))
+        upd = {"subscription_status": "trial", "trial_expires_at": new_exp}
+    await db.users.update_one({"user_id": user_id}, {"$set": upd})
+    fresh = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return {"user_id": user_id, "subscription": _subscription_state(fresh)}
 
 
 # =========================

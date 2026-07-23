@@ -76,6 +76,36 @@ export default function InvitatiScreen() {
     }
   };
 
+  const setFreeForever = async (userId: string) => {
+    try {
+      await api(`/users/${userId}/free-forever`, { method: "PUT" });
+      Alert.alert("Free Sempre attivato", "L'utente ora ha accesso gratuito illimitato.");
+      load();
+    } catch (e: any) { Alert.alert("Errore", e?.message || "Operazione fallita"); }
+  };
+
+  const revokeFreeForever = (userId: string) => {
+    Alert.alert(
+      "Rimuovere Free Sempre?",
+      "L'utente tornerà a un trial. Al termine dovrà pagare per continuare.",
+      [
+        { text: "Annulla", style: "cancel" },
+        { text: "Trial 30 gg", onPress: async () => {
+          try {
+            await api(`/users/${userId}/revoke-free-forever`, { method: "PUT", body: { mode: "trial", trial_days: 30 } });
+            load();
+          } catch (e: any) { Alert.alert("Errore", e?.message || ""); }
+        }},
+        { text: "Scaduto (richiede pagamento subito)", style: "destructive", onPress: async () => {
+          try {
+            await api(`/users/${userId}/revoke-free-forever`, { method: "PUT", body: { mode: "expired" } });
+            load();
+          } catch (e: any) { Alert.alert("Errore", e?.message || ""); }
+        }},
+      ],
+    );
+  };
+
   const copyInviteLink = async (token: string) => {
     const url = `${getPublicOrigin()}/invite/${token}`;
     await Clipboard.setStringAsync(url);
@@ -126,7 +156,13 @@ export default function InvitatiScreen() {
           const invited = i.invited_user;
           const daysLeft = invited?.subscription?.days_left ?? null;
           const status = invited?.subscription?.status || (used ? "expired" : "pending");
-          const statusColor = status === "trial" && (daysLeft ?? 0) > 5 ? theme.color.success : status === "trial" ? theme.color.warning : status === "expired" ? theme.color.error : theme.color.info;
+          const isFreeForever = status === "free_forever";
+          const statusColor =
+            isFreeForever ? "#7A2E8E"
+            : status === "trial" && (daysLeft ?? 0) > 5 ? theme.color.success
+            : status === "trial" ? theme.color.warning
+            : status === "expired" ? theme.color.error
+            : theme.color.info;
           return (
             <View key={i.invite_token} style={styles.inviteCard}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
@@ -134,7 +170,7 @@ export default function InvitatiScreen() {
                   <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
                   <Text style={styles.statusLabel}>
                     {used ? (invited ? invited.name : "Utilizzato") : "In attesa"}
-                    {daysLeft !== null && ` · ${daysLeft} gg residui`}
+                    {isFreeForever ? " · Free Sempre ∞" : daysLeft !== null ? ` · ${daysLeft} gg residui` : ""}
                   </Text>
                 </View>
                 <Pressable onPress={() => deleteInvite(i.invite_token)} hitSlop={8}>
@@ -150,12 +186,33 @@ export default function InvitatiScreen() {
                   <Text style={styles.copyBtnTxt}>Copia link invito</Text>
                 </Pressable>
               ) : invited && (
-                <View style={styles.extendRow}>
-                  <Text style={styles.extendLbl}>Estendi trial:</Text>
-                  <Pressable onPress={() => extendTrial(invited.user_id, 7)} style={styles.extendBtn}><Text style={styles.extendBtnTxt}>+7</Text></Pressable>
-                  <Pressable onPress={() => extendTrial(invited.user_id, 15)} style={styles.extendBtn}><Text style={styles.extendBtnTxt}>+15</Text></Pressable>
-                  <Pressable onPress={() => extendTrial(invited.user_id, 30)} style={styles.extendBtn}><Text style={styles.extendBtnTxt}>+30</Text></Pressable>
-                  <Pressable onPress={() => extendCustom(invited.user_id)} style={[styles.extendBtn, { backgroundColor: theme.color.brandPrimary }]}><Text style={[styles.extendBtnTxt, { color: "#FFF" }]}>Custom</Text></Pressable>
+                <View style={{ gap: 8 }}>
+                  {!isFreeForever ? (
+                    <>
+                      <View style={styles.extendRow}>
+                        <Text style={styles.extendLbl}>Estendi trial:</Text>
+                        <Pressable onPress={() => extendTrial(invited.user_id, 7)} style={styles.extendBtn}><Text style={styles.extendBtnTxt}>+7</Text></Pressable>
+                        <Pressable onPress={() => extendTrial(invited.user_id, 15)} style={styles.extendBtn}><Text style={styles.extendBtnTxt}>+15</Text></Pressable>
+                        <Pressable onPress={() => extendTrial(invited.user_id, 30)} style={styles.extendBtn}><Text style={styles.extendBtnTxt}>+30</Text></Pressable>
+                        <Pressable onPress={() => extendCustom(invited.user_id)} style={[styles.extendBtn, { backgroundColor: theme.color.brandPrimary }]}><Text style={[styles.extendBtnTxt, { color: "#FFF" }]}>Custom</Text></Pressable>
+                      </View>
+                      <Pressable
+                        testID={`inv-free-forever-${invited.user_id}`}
+                        onPress={() => setFreeForever(invited.user_id)}
+                        style={[styles.extendBtn, { backgroundColor: "#7A2E8E", alignSelf: "flex-start", paddingHorizontal: 14 }]}
+                      >
+                        <Text style={[styles.extendBtnTxt, { color: "#FFF" }]}>♾️ Attiva Free Sempre</Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <Pressable
+                      testID={`inv-revoke-free-forever-${invited.user_id}`}
+                      onPress={() => revokeFreeForever(invited.user_id)}
+                      style={[styles.extendBtn, { backgroundColor: theme.color.error, alignSelf: "flex-start", paddingHorizontal: 14 }]}
+                    >
+                      <Text style={[styles.extendBtnTxt, { color: "#FFF" }]}>Rimuovi Free Sempre → Passa a pagamento</Text>
+                    </Pressable>
+                  )}
                 </View>
               )}
             </View>

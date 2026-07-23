@@ -1,13 +1,29 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Alert, Modal } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Alert, Modal, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { scheduleAppointmentReminder } from "@/src/notifications";
+
+type Attachment = {
+  id: string;
+  kind: "photo" | "audio" | "file";
+  photo_base64?: string;
+  audio_base64?: string;
+  audio_mime?: string;
+  file_base64?: string;
+  file_name?: string;
+  file_mime?: string;
+  file_size?: number;
+};
 
 type Contact = { contact_id: string; first_name: string; last_name: string; area: string; address: string };
 type Settings = {
@@ -62,6 +78,69 @@ export default function NewAppointmentScreen() {
   });
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [recording, setRecording] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+
+  const addPhoto = async (fromCamera: boolean) => {
+    const perm = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (Platform.OS !== "web" && !perm.granted) {
+      Alert.alert("Permesso negato");
+      return;
+    }
+    const res = fromCamera
+      ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: true });
+    if (res.canceled || !res.assets?.[0]) return;
+    const a = res.assets[0];
+    let b64 = a.base64;
+    if (!b64 && a.uri) {
+      try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); } catch { return; }
+    }
+    const uri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
+    setAttachments((p) => [...p, { id: `${Date.now()}`, kind: "photo", photo_base64: uri }]);
+  };
+
+  const pickFile = async () => {
+    const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
+    if (res.canceled || !res.assets?.[0]) return;
+    const asset = res.assets[0];
+    try {
+      const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      if (b64.length > 20 * 1024 * 1024) { Alert.alert("File troppo grande (max ~15MB)"); return; }
+      setAttachments((p) => [...p, {
+        id: `${Date.now()}`, kind: "file",
+        file_base64: b64,
+        file_name: asset.name,
+        file_mime: asset.mimeType || "application/octet-stream",
+        file_size: asset.size || 0,
+      }]);
+    } catch (e) { console.warn(e); }
+  };
+
+  const startRec = async () => {
+    if (Platform.OS === "web") { Alert.alert("Registrazione audio non disponibile su web preview"); return; }
+    const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+    if (!granted) { Alert.alert("Permesso microfono negato"); return; }
+    await recorder.prepareToRecordAsync();
+    recorder.record();
+    setRecording(true);
+  };
+
+  const stopRec = async () => {
+    setRecording(false);
+    await recorder.stop();
+    const uri = recorder.uri;
+    if (!uri) return;
+    try {
+      const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      setAttachments((p) => [...p, { id: `${Date.now()}`, kind: "audio", audio_base64: b64, audio_mime: "audio/m4a" }]);
+    } catch (e) { console.warn(e); }
+  };
+
+  const removeAttachment = (id: string) => setAttachments((p) => p.filter((a) => a.id !== id));
 
   useEffect(() => {
     api<{ items: Contact[] }>("/contacts").then((r) => setContacts(r.items));
@@ -89,6 +168,7 @@ export default function NewAppointmentScreen() {
         ...form,
         start_at: form.start_at.toISOString(),
         value_amount: form.value_amount ? parseFloat(form.value_amount) : 0,
+        note_attachments: attachments,
       };
       delete payload.value_amount_str;
       const created = await api<{ appointment_id: string }>("/appointments", { method: "POST", body: payload });
@@ -369,6 +449,54 @@ export default function NewAppointmentScreen() {
 
           <Text style={styles.lbl}>Note</Text>
           <TextInput testID="ap-notes" value={form.notes} onChangeText={(t) => setForm({ ...form, notes: t })} style={[styles.input, { minHeight: 70, textAlignVertical: "top" }]} multiline placeholder="Note" placeholderTextColor="#94A3B8" />
+
+          <View style={{ marginTop: 8 }}>
+            <Text style={styles.lbl}>Allegati (foto, audio, file)</Text>
+            <View style={styles.mediaRow}>
+              <Pressable testID="ap-media-camera" onPress={() => addPhoto(true)} style={[styles.mediaBtn, { backgroundColor: "#E67700" }]}>
+                <Ionicons name="camera" size={16} color="#FFF" />
+                <Text style={styles.mediaBtnTxt}>Scatta</Text>
+              </Pressable>
+              <Pressable testID="ap-media-photo" onPress={() => addPhoto(false)} style={[styles.mediaBtn, { backgroundColor: "#7A2E8E" }]}>
+                <Ionicons name="images" size={16} color="#FFF" />
+                <Text style={styles.mediaBtnTxt}>Foto</Text>
+              </Pressable>
+              {!recording ? (
+                <Pressable testID="ap-media-audio" onPress={startRec} style={[styles.mediaBtn, { backgroundColor: "#C83232" }]}>
+                  <Ionicons name="mic" size={16} color="#FFF" />
+                  <Text style={styles.mediaBtnTxt}>Registra</Text>
+                </Pressable>
+              ) : (
+                <Pressable testID="ap-media-audio-stop" onPress={stopRec} style={[styles.mediaBtn, { backgroundColor: "#DC2626" }]}>
+                  <Ionicons name="stop-circle" size={16} color="#FFF" />
+                  <Text style={styles.mediaBtnTxt}>Stop</Text>
+                </Pressable>
+              )}
+              <Pressable testID="ap-media-file" onPress={pickFile} style={[styles.mediaBtn, { backgroundColor: "#0B7285" }]}>
+                <Ionicons name="attach" size={16} color="#FFF" />
+                <Text style={styles.mediaBtnTxt}>File</Text>
+              </Pressable>
+            </View>
+            {attachments.length > 0 && (
+              <View style={styles.attRow}>
+                {attachments.map((a) => (
+                  <View key={a.id} style={styles.attChip}>
+                    {a.kind === "photo" ? (
+                      <Image source={{ uri: a.photo_base64 }} style={styles.attThumb} />
+                    ) : (
+                      <View style={[styles.attThumb, { alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surfaceTertiary }]}>
+                        <Ionicons name={a.kind === "audio" ? "musical-notes" : "document"} size={22} color={theme.color.muted} />
+                      </View>
+                    )}
+                    <Text style={styles.attLabel} numberOfLines={1}>{a.kind === "audio" ? "Audio" : a.kind === "photo" ? "Foto" : (a.file_name || "File")}</Text>
+                    <Pressable onPress={() => removeAttachment(a.id)} style={styles.attRm}>
+                      <Ionicons name="close-circle" size={18} color={theme.color.error} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
 
         <Pressable testID="ap-save" onPress={submit} style={styles.saveBtn} disabled={busy || !form.title.trim()}>
@@ -438,6 +566,14 @@ const styles = StyleSheet.create({
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
   subCat: { fontSize: 12, fontWeight: "700", color: theme.color.onSurfaceTertiary, marginBottom: 6 },
   hint: { fontSize: 11, color: theme.color.muted, marginTop: 8, fontStyle: "italic" },
+  mediaRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 },
+  mediaBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  mediaBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  attRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
+  attChip: { flexDirection: "column", alignItems: "center", gap: 4, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 6, width: 82 },
+  attThumb: { width: 68, height: 68, borderRadius: 8, backgroundColor: theme.color.surfaceTertiary },
+  attLabel: { fontSize: 10, color: theme.color.muted, textAlign: "center" },
+  attRm: { position: "absolute", top: -6, right: -6, backgroundColor: "#FFF", borderRadius: 10 },
 });
 
 const webInputStyle: any = {

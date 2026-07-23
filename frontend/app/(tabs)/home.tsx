@@ -7,10 +7,11 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 
 type CustomArea = { id: string; name: string; color: string };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_areas?: CustomArea[] };
-type Callback = { callback_id: string; title: string; area: "energy" | "network"; scheduled_at: string; note: string; done: boolean; contact_id?: string };
+type Callback = { callback_id: string; title: string; area: "energy" | "network"; scheduled_at: string; note: string; done: boolean; contact_id?: string; phone?: string };
 type ReportStats = { period: string; stats: { energy: any; network: any } };
 type Contact = { contact_id: string; first_name: string; last_name: string; phone?: string; whatsapp?: string; telegram?: string; email?: string; area: string; additional_areas?: string[]; group_ids?: string[] };
 type Group = { group_id: string; name: string; color: string; member_count: number };
@@ -30,6 +31,7 @@ export default function HomeScreen() {
   const [subscription, setSubscription] = useState<{ status: string; days_left?: number | null; is_active: boolean } | null>(null);
   const [banner, setBanner] = useState<{ item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -369,6 +371,24 @@ export default function HomeScreen() {
                       <Text style={[styles.cbTitle, cb.done && { textDecorationLine: "line-through" }]}>{cb.title}</Text>
                       <Text style={styles.cbTime}>{new Date(cb.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} {cb.note ? "· " + cb.note : ""}</Text>
                     </View>
+                    {(!cb.done && (cb.phone || (contacts.find((x) => x.contact_id === cb.contact_id)?.phone))) ? (
+                      <Pressable
+                        testID={`callback-call-${cb.callback_id}`}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          const contact = contacts.find((x) => x.contact_id === cb.contact_id);
+                          setCallTarget({
+                            phone: cb.phone || contact?.phone || null,
+                            contact_id: cb.contact_id || null,
+                            callback_id: cb.callback_id,
+                            display_name: cb.title,
+                          });
+                        }}
+                        style={styles.callIconBtn}
+                      >
+                        <Ionicons name="call" size={18} color="#FFF" />
+                      </Pressable>
+                    ) : null}
                     <Pressable
                       testID={`callback-toggle-${cb.callback_id}`}
                       onPress={async (e) => {
@@ -403,6 +423,12 @@ export default function HomeScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      <CallActionSheet
+        visible={!!callTarget}
+        target={callTarget}
+        onClose={() => setCallTarget(null)}
+        onCompleted={() => { setCallTarget(null); load(); }}
+      />
     </SafeAreaView>
   );
 }
@@ -443,6 +469,7 @@ const styles = StyleSheet.create({
   cbTitle: { fontSize: 15, fontWeight: "600", color: theme.color.onSurface, paddingHorizontal: 12, paddingTop: 12 },
   cbTime: { fontSize: 12, color: theme.color.muted, paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2 },
   checkBtn: { padding: 12 },
+  callIconBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#16A34A", alignItems: "center", justifyContent: "center", marginRight: 4 },
   quickRow: { flexDirection: "row", gap: 12 },
   quick: { flex: 1, backgroundColor: "#FFF", padding: 16, borderRadius: theme.radius.md, alignItems: "center", gap: 8, borderWidth: 1, borderColor: theme.color.border },
   quickTxt: { fontWeight: "600", color: theme.color.onSurface, fontSize: 13, textAlign: "center" },

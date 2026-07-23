@@ -17,7 +17,7 @@ type Settings = {
   custom_areas?: { id: string; name: string; color: string; icon?: string }[];
 };
 
-const COLOR_SWATCHES = ["#C83232", "#1B6CB0", "#1C4869", "#2D7A5A", "#B77C14", "#7A2E8E", "#0B7285", "#E67700"];
+const COLOR_SWATCHES = ["#EF4444", "#F97316", "#F59E0B", "#22C55E", "#10B981", "#06B6D4", "#3B82F6", "#2563EB", "#8B5CF6", "#EC4899", "#F43F5E", "#84CC16"];
 
 export default function ImpostazioniScreen() {
   const { user, logout, refresh } = useAuth();
@@ -219,6 +219,19 @@ export default function ImpostazioniScreen() {
               </Pressable>
             ))}
           </View>
+          <View style={styles.hexRow}>
+            <View style={[styles.hexPreview, { backgroundColor: s.energy_color }]} />
+            <TextInput
+              testID="settings-energy-hex"
+              value={s.energy_color}
+              onChangeText={(t) => setS({ ...s, energy_color: t.startsWith("#") ? t : "#" + t.replace(/[^0-9a-fA-F]/g, "").slice(0, 6) })}
+              style={[styles.input, { flex: 1 }]}
+              placeholder="#RRGGBB"
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="characters"
+              maxLength={7}
+            />
+          </View>
 
           <View style={{ height: 12 }} />
           <Text style={styles.label}>Titolo Area 2 (Network)</Text>
@@ -240,6 +253,19 @@ export default function ImpostazioniScreen() {
                 {s.network_color === c && <Ionicons name="checkmark" size={16} color="#FFF" />}
               </Pressable>
             ))}
+          </View>
+          <View style={styles.hexRow}>
+            <View style={[styles.hexPreview, { backgroundColor: s.network_color }]} />
+            <TextInput
+              testID="settings-network-hex"
+              value={s.network_color}
+              onChangeText={(t) => setS({ ...s, network_color: t.startsWith("#") ? t : "#" + t.replace(/[^0-9a-fA-F]/g, "").slice(0, 6) })}
+              style={[styles.input, { flex: 1 }]}
+              placeholder="#RRGGBB"
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="characters"
+              maxLength={7}
+            />
           </View>
 
           <Pressable testID="settings-save" onPress={save} style={styles.saveBtn} disabled={saving}>
@@ -385,6 +411,8 @@ const styles = StyleSheet.create({
   swatches: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   swatch: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
   swatchActive: { borderColor: theme.color.onSurface },
+  hexRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  hexPreview: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: theme.color.border },
   saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center", marginTop: 16 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700" },
   logoutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FFF", padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
