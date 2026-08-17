@@ -30,21 +30,18 @@ export default function HomeScreen() {
   const [chatQuery, setChatQuery] = useState("");
   const [chatAreaFilter, setChatAreaFilter] = useState<string>("all");
   const [subscription, setSubscription] = useState<{ status: string; days_left?: number | null; is_active: boolean } | null>(null);
-  const [banner, setBanner] = useState<{ item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null>(null);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
 
   const load = useCallback(async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const [s, c, r, ct, gr, sub, mt] = await Promise.all([
+      const [s, c, r, ct, gr, sub] = await Promise.all([
         api<Settings>("/settings"),
         api<{ items: Callback[] }>("/callbacks", { query: { day: today, include_done: true } }),
         api<ReportStats>("/reports", { query: { period: "day" } }),
         api<{ items: Contact[] }>("/contacts"),
         api<{ items: Group[] }>("/groups"),
         api<any>("/subscription/status").catch(() => null),
-        api<{ item: any }>("/my-thing/random-banner").catch(() => ({ item: null })),
       ]);
       setSettings(s);
       setCallbacks(c.items);
@@ -52,7 +49,6 @@ export default function HomeScreen() {
       setContacts(ct.items || []);
       setGroups(gr.items || []);
       setSubscription(sub);
-      setBanner(mt.item || null);
     } catch (e) {
       console.warn(e);
     } finally {
@@ -89,10 +85,6 @@ export default function HomeScreen() {
               <View style={styles.heroAvatarFallback}><Text style={styles.heroAvatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text></View>
             )}
           </View>
-          <Pressable testID="home-add-btn" onPress={() => router.push("/appointment/new")} style={styles.heroCTA}>
-            <Ionicons name="add-circle" size={20} color={theme.color.brandPrimary} />
-            <Text style={styles.heroCTATxt}>Nuovo appuntamento</Text>
-          </Pressable>
         </View>
       </LinearGradient>
 
@@ -137,30 +129,6 @@ export default function HomeScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color="#FFF" />
         </Pressable>
-
-        {banner && !bannerDismissed && (
-          <Pressable
-            testID="home-mt-banner"
-            onPress={() => router.push("/my-thing")}
-            style={[styles.mtBanner, { backgroundColor: (banner.color || "#3A739C") + "18", borderColor: banner.color || "#3A739C" }]}
-          >
-            {banner.image_base64 ? (
-              <Image source={{ uri: banner.image_base64 }} style={styles.mtBannerImg} />
-            ) : (
-              <View style={[styles.mtBannerIcon, { backgroundColor: banner.color || "#3A739C" }]}>
-                <Ionicons name="sparkles" size={22} color="#FFF" />
-              </View>
-            )}
-            <View style={{ flex: 1 }}>
-              {!!banner.title && <Text style={[styles.mtBannerTitle, { color: banner.color || "#0F2438" }]} numberOfLines={1}>{banner.title}</Text>}
-              {!!banner.body && <Text style={styles.mtBannerBody} numberOfLines={2}>{banner.body}</Text>}
-              {!banner.title && !banner.body && banner.image_base64 && <Text style={styles.mtBannerBody}>Tocca per aprire My Thing</Text>}
-            </View>
-            <Pressable onPress={() => setBannerDismissed(true)} hitSlop={8}>
-              <Ionicons name="close" size={18} color={theme.color.muted} />
-            </Pressable>
-          </Pressable>
-        )}
 
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { borderLeftColor: energyColor }]} testID="stat-energy">
@@ -447,8 +415,6 @@ const styles = StyleSheet.create({
   heroAvatar: { width: 46, height: 46, borderRadius: 23, borderWidth: 2, borderColor: "rgba(255,255,255,0.4)" },
   heroAvatarFallback: { width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
   heroAvatarTxt: { color: "#FFF", fontSize: 18, fontWeight: "700" },
-  heroCTA: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", paddingHorizontal: 16, paddingVertical: 12, borderRadius: theme.radius.md, alignSelf: "flex-start" },
-  heroCTATxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
   scroll: { paddingHorizontal: 16, paddingTop: 16 },
   statsRow: { flexDirection: "row", gap: 12 },
   statCard: { flex: 1, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderLeftWidth: 4, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
