@@ -3841,6 +3841,18 @@ async def get_audio_record(audio_id: str, user=Depends(get_current_user)):
     return a
 
 
+@api_router.put("/audio-records/{audio_id}/title")
+async def rename_audio_record(audio_id: str, body: dict, user=Depends(get_current_user)):
+    a = await db.audio_records.find_one({"user_id": tenant_id(user), "audio_id": audio_id})
+    if not a:
+        raise HTTPException(status_code=404, detail="Audio non trovato")
+    if not is_owner(user) and a.get("created_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    new_title = (body.get("title") or "").strip()[:200]
+    await db.audio_records.update_one({"audio_id": audio_id}, {"$set": {"title": new_title or None, "updated_at": utcnow()}})
+    return {"ok": True, "title": new_title or None}
+
+
 @api_router.delete("/audio-records/{audio_id}")
 async def delete_audio_record(audio_id: str, user=Depends(get_current_user)):
     a = await db.audio_records.find_one({"user_id": tenant_id(user), "audio_id": audio_id})

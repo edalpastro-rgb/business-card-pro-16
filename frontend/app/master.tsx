@@ -129,12 +129,18 @@ export default function MasterScreen() {
           ))}
         </View>
         <MasterVoiceRecorder />
+        <Pressable onPress={() => router.push("/my-audios" as any)} style={styles.myAudiosLink} testID="master-my-audios-link">
+          <Ionicons name="folder-open" size={18} color="#7C3AED" />
+          <Text style={styles.myAudiosLinkTxt}>I miei audio</Text>
+          <Ionicons name="chevron-forward" size={16} color="#7C3AED" />
+        </Pressable>
       </ScrollView>
 
       {/* 3-dot menu */}
       <Modal transparent visible={menuOpen} onRequestClose={() => setMenuOpen(false)} animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setMenuOpen(false)}>
           <View style={styles.menuBox} onStartShouldSetResponder={() => true}>
+            <MenuItem icon="folder-open" color="#7C3AED" label="I miei audio" hint="Cartella personale del Master" onPress={() => goto("/my-audios")} testID="menu-my-audios" />
             <MenuItem icon="color-palette" color="#7C3AED" label="Setting App" hint="Cambia tema e colori" onPress={() => goto("/settings-app")} testID="menu-settings" />
             <MenuItem icon="business" color="#059669" label="New Corporate" hint="Crea nuova area business" onPress={() => goto("/corporate/new")} testID="menu-corporate" />
             <MenuItem icon="person-add" color="#DB2777" label="Invita Collaboratore" hint="Genera link / QR con ruolo" onPress={() => goto("/invite-collaborator")} testID="menu-invite" />
@@ -364,6 +370,8 @@ const styles = StyleSheet.create({
   btnLabel: { marginTop: 8, fontSize: 12, fontWeight: "700", color: theme.color.onSurface, textAlign: "center" },
   badgeDot: { position: "absolute", top: -4, right: -4, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: "#16A34A", justifyContent: "center", alignItems: "center", paddingHorizontal: 5, borderWidth: 2, borderColor: "#FFF" },
   badgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "800" },
+  myAudiosLink: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", paddingVertical: 10, paddingHorizontal: 16, backgroundColor: "#F5F3FF", borderRadius: 20, borderWidth: 1, borderColor: "#DDD6FE" },
+  myAudiosLinkTxt: { color: "#7C3AED", fontWeight: "800", fontSize: 13 },
 
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   menuBox: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 30 },
