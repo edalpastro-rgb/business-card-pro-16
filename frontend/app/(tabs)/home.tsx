@@ -115,6 +115,19 @@ export default function HomeScreen() {
           </View>
         )}
         {!user?.parent_user_id && (
+          <Pressable testID="home-master-btn" onPress={() => router.push("/master" as any)} style={styles.masterBtn}>
+            <View style={styles.masterIcon}>
+              <Ionicons name="grid" size={22} color="#FFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.masterTitle}>Interfaccia Master</Text>
+              <Text style={styles.masterSub}>Accesso rapido: Agenda, Contatti, Contratti, Team</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#FFF" />
+          </Pressable>
+        )}
+
+        {!user?.parent_user_id && (
           <Pressable testID="home-invite-btn" onPress={() => router.push("/invitati")} style={styles.inviteBtn}>
             <Ionicons name="person-add" size={20} color="#FFF" />
             <View style={{ flex: 1 }}>
@@ -496,6 +509,10 @@ const styles = StyleSheet.create({
   inviteTitle: { color: "#FFF", fontWeight: "700", fontSize: 14 },
   inviteSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },
   myThingBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#7A2E8E", paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
+  masterBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#1E3A8A", paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
+  masterIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  masterTitle: { color: "#FFF", fontWeight: "800", fontSize: 15 },
+  masterSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },
   myThingIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   myThingTitle: { color: "#FFF", fontWeight: "800", fontSize: 15 },
   myThingSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },

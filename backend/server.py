@@ -1742,6 +1742,7 @@ async def reports(period: str = "day", user=Depends(get_current_user)):
 class InviteIn(BaseModel):
     trial_days: int = 30
     note: str = ""
+    role: Optional[str] = None  # "basic" | "manager" | "master_figlio" (mapped to member/admin/owner)
 
 
 class InviteRegisterIn(BaseModel):
@@ -1797,11 +1798,22 @@ async def create_invite(body: InviteIn, user=Depends(get_current_user)):
     if not is_owner(user):
         raise HTTPException(status_code=403, detail="Solo l'owner può creare inviti")
     tok = uuid.uuid4().hex[:20]
+    # Normalize role (Basic/Manager/Master figlio → member/admin/owner)
+    role_map = {
+        "basic": "member",
+        "manager": "admin",
+        "master_figlio": "owner",
+        "member": "member",
+        "admin": "admin",
+        "owner": "owner",
+    }
+    invite_role = role_map.get((body.role or "").lower(), "member") if body.role else None
     doc = {
         "invite_token": tok,
         "created_by": user["user_id"],
         "trial_days": body.trial_days,
         "note": body.note,
+        "invite_role": invite_role,  # role to assign upon acceptance
         "created_at": utcnow(),
         "used_at": None,
         "used_by_user_id": None,
@@ -1866,14 +1878,30 @@ async def register_via_invite(token: str, body: InviteRegisterIn):
     trial_expires_at = utcnow() + timedelta(days=trial_days)
     pw_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
     now = utcnow()
+    # Support role-based invites (Basic/Manager/Master figlio)
+    invite_role = inv.get("invite_role")  # "member" | "admin" | "owner" | None
+    creator_id = inv.get("created_by")
+    if invite_role == "member":
+        role = "member"
+        parent_user_id = creator_id
+    elif invite_role == "admin":
+        role = "admin"
+        parent_user_id = creator_id
+    elif invite_role == "owner":
+        role = "owner"
+        parent_user_id = creator_id  # sub-master (Master figlio) — separate tenant with lineage
+    else:
+        # Default legacy behavior: new independent owner
+        role = "owner"
+        parent_user_id = None
     user_doc = {
         "user_id": uid,
         "email": body.email.lower().strip(),
         "password_hash": pw_hash,
         "name": body.name,
-        "role": "owner",
+        "role": role,
         "areas": ["energy", "network"],
-        "parent_user_id": None,
+        "parent_user_id": parent_user_id,
         "subscription_status": "trial",
         "trial_expires_at": trial_expires_at,
         "created_at": now,
@@ -1888,7 +1916,7 @@ async def register_via_invite(token: str, body: InviteRegisterIn):
     token_jwt = jwt.encode({"sub": uid, "email": user_doc["email"]}, JWT_SECRET, algorithm=JWT_ALG)
     return {
         "token": token_jwt,
-        "user": {"user_id": uid, "email": user_doc["email"], "name": user_doc["name"], "role": "owner", "areas": user_doc["areas"]},
+        "user": {"user_id": uid, "email": user_doc["email"], "name": user_doc["name"], "role": user_doc["role"], "areas": user_doc["areas"]},
         "subscription": _subscription_state(user_doc),
     }
 
@@ -3534,6 +3562,223 @@ async def bills_comparison(
 
 
 # =========================
+# V26 — Master Interface support: Contracts, Web Links, User Settings
+# =========================
+
+class ContractIn(BaseModel):
+    contact_id: Optional[str] = None
+    contract_number: Optional[str] = None
+    contract_type: str = "energy"  # energy | luce | gas | telco | other
+    supplier: Optional[str] = None
+    signed_date: Optional[str] = None
+    activation_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    amount_eur: Optional[float] = None
+    status: str = "active"  # draft | active | expired | cancelled
+    notes: Optional[str] = ""
+
+
+class ContractUpdate(BaseModel):
+    contact_id: Optional[str] = None
+    contract_number: Optional[str] = None
+    contract_type: Optional[str] = None
+    supplier: Optional[str] = None
+    signed_date: Optional[str] = None
+    activation_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    amount_eur: Optional[float] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class WebLinkIn(BaseModel):
+    title: str
+    url: str
+    icon: Optional[str] = None  # emoji or url
+
+
+class UserSettingsIn(BaseModel):
+    theme: Optional[str] = None  # "light" | "dark" | "auto"
+    accent_color: Optional[str] = None  # hex e.g. "#7C3AED"
+    banner_image_url: Optional[str] = None  # Master banner override
+
+
+@api_router.post("/contracts")
+async def create_contract(body: ContractIn, user=Depends(get_current_user)):
+    if body.contact_id:
+        c = await db.contacts.find_one(tenant_scope(user, {"contact_id": body.contact_id}))
+        if not c:
+            raise HTTPException(status_code=404, detail="Contatto non trovato")
+    contract_id = f"ctr_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "contract_id": contract_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "contact_id": body.contact_id,
+        "contract_number": body.contract_number,
+        "contract_type": body.contract_type,
+        "supplier": body.supplier,
+        "signed_date": body.signed_date,
+        "activation_date": body.activation_date,
+        "expiry_date": body.expiry_date,
+        "amount_eur": body.amount_eur,
+        "status": body.status,
+        "notes": body.notes or "",
+        "created_at": utcnow(),
+    }
+    await db.contracts.insert_one(doc)
+    strip_id(doc)
+    return doc
+
+
+@api_router.get("/contracts")
+async def list_contracts(user=Depends(get_current_user)):
+    q: Dict[str, Any] = {"user_id": tenant_id(user)}
+    vis = await contact_visibility_filter(user)
+    if vis:
+        # Same visibility rules as contacts: non-admin sees only own (created_by)
+        q["created_by"] = user["user_id"]
+    items = await db.contracts.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # Enrich with contact name (small)
+    contact_ids = [c["contact_id"] for c in items if c.get("contact_id")]
+    if contact_ids:
+        contacts = await db.contacts.find(
+            {"contact_id": {"$in": contact_ids}, "user_id": tenant_id(user)},
+            {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "contact_code": 1},
+        ).to_list(500)
+        cmap = {c["contact_id"]: c for c in contacts}
+        for it in items:
+            it["contact"] = cmap.get(it.get("contact_id"))
+    return {"items": items}
+
+
+@api_router.get("/contracts/new-alerts")
+async def contracts_new_alerts(user=Depends(get_current_user)):
+    """Returns unread contracts created by OTHER team members in the same tenant.
+    A user's last-seen timestamp is stored in user_settings.contracts_last_seen_at."""
+    tid = tenant_id(user)
+    settings = await db.user_settings.find_one({"user_id": user["user_id"]}) or {}
+    last_seen = settings.get("contracts_last_seen_at") or datetime(1970, 1, 1)
+    if isinstance(last_seen, str):
+        try:
+            last_seen = datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
+        except Exception:
+            last_seen = datetime(1970, 1, 1)
+    count = await db.contracts.count_documents({
+        "user_id": tid,
+        "created_by": {"$ne": user["user_id"]},
+        "created_at": {"$gt": last_seen},
+    })
+    latest = await db.contracts.find({
+        "user_id": tid,
+        "created_by": {"$ne": user["user_id"]},
+        "created_at": {"$gt": last_seen},
+    }, {"_id": 0}).sort("created_at", -1).to_list(10)
+    return {"unread": count, "latest": latest}
+
+
+@api_router.post("/contracts/mark-seen")
+async def contracts_mark_seen(user=Depends(get_current_user)):
+    now = utcnow()
+    await db.user_settings.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"contracts_last_seen_at": now, "updated_at": now}, "$setOnInsert": {"user_id": user["user_id"], "created_at": now}},
+        upsert=True,
+    )
+    return {"ok": True, "seen_at": now}
+
+
+@api_router.get("/contracts/{contract_id}")
+async def get_contract(contract_id: str, user=Depends(get_current_user)):
+    c = await db.contracts.find_one({"user_id": tenant_id(user), "contract_id": contract_id}, {"_id": 0})
+    if not c:
+        raise HTTPException(status_code=404, detail="Contratto non trovato")
+    return c
+
+
+@api_router.put("/contracts/{contract_id}")
+async def update_contract(contract_id: str, body: ContractUpdate, user=Depends(get_current_user)):
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
+    updates["updated_at"] = utcnow()
+    r = await db.contracts.update_one({"user_id": tenant_id(user), "contract_id": contract_id}, {"$set": updates})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Contratto non trovato")
+    return {"ok": True}
+
+
+@api_router.delete("/contracts/{contract_id}")
+async def delete_contract(contract_id: str, user=Depends(get_current_user)):
+    r = await db.contracts.delete_one({"user_id": tenant_id(user), "contract_id": contract_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Contratto non trovato")
+    return {"ok": True}
+
+
+# ---- Web Links (My Web) ----
+@api_router.get("/web-links")
+async def list_web_links(user=Depends(get_current_user)):
+    items = await db.web_links.find({"user_id": user["user_id"]}, {"_id": 0}).sort("order", 1).to_list(200)
+    return {"items": items}
+
+
+@api_router.post("/web-links")
+async def create_web_link(body: WebLinkIn, user=Depends(get_current_user)):
+    link_id = f"lnk_{uuid.uuid4().hex[:10]}"
+    order_max = await db.web_links.find_one({"user_id": user["user_id"]}, sort=[("order", -1)])
+    order = int(order_max.get("order", 0)) + 1 if order_max else 1
+    url = body.url.strip()
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = "https://" + url
+    doc = {
+        "link_id": link_id,
+        "user_id": user["user_id"],
+        "title": body.title.strip()[:120],
+        "url": url,
+        "icon": body.icon or "🔗",
+        "order": order,
+        "created_at": utcnow(),
+    }
+    await db.web_links.insert_one(doc)
+    strip_id(doc)
+    return doc
+
+
+@api_router.delete("/web-links/{link_id}")
+async def delete_web_link(link_id: str, user=Depends(get_current_user)):
+    r = await db.web_links.delete_one({"user_id": user["user_id"], "link_id": link_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Link non trovato")
+    return {"ok": True}
+
+
+# ---- User Settings (theme / accent / banner) ----
+@api_router.get("/user-settings")
+async def get_user_settings(user=Depends(get_current_user)):
+    s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"_id": 0}) or {
+        "user_id": user["user_id"], "theme": "light", "accent_color": "#7C3AED", "banner_image_url": None
+    }
+    return s
+
+
+@api_router.put("/user-settings")
+async def update_user_settings(body: UserSettingsIn, user=Depends(get_current_user)):
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        return {"ok": True}
+    updates["updated_at"] = utcnow()
+    now = utcnow()
+    await db.user_settings.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": updates, "$setOnInsert": {"user_id": user["user_id"], "created_at": now}},
+        upsert=True,
+    )
+    s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return s
+
+
+# =========================
 # Health
 # =========================
 @api_router.get("/")
@@ -3582,6 +3827,11 @@ async def _startup():
     await db.energy_bills.create_index("bill_id", unique=True)
     await db.company_offers.create_index([("user_id", 1), ("bill_type", 1)])
     await db.company_offers.create_index("offer_id", unique=True)
+    await db.contracts.create_index([("user_id", 1), ("created_at", -1)])
+    await db.contracts.create_index("contract_id", unique=True)
+    await db.web_links.create_index([("user_id", 1), ("order", 1)])
+    await db.web_links.create_index("link_id", unique=True)
+    await db.user_settings.create_index("user_id", unique=True)
     # V24 migration: back-fill assigned_to_user_id from created_by for legacy contacts
     try:
         result = await db.contacts.update_many(
