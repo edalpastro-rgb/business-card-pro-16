@@ -2831,7 +2831,7 @@ Schema JSON atteso:
   "prezzo_energia_eur_kwh": 0.145,
   "importo_totale_eur": 145.30,
   "periodo_fattura": "01/09/2024 - 31/10/2024",
-  "note_ai": "eventuali osservazioni utili"
+  "note_ai": ["punto 1", "punto 2", "punto 3"]
 }"""
 
 BILL_SYSTEM_PROMPT_GAS = """Sei un analista esperto di bollette gas italiane. Analizza il testo estratto da una fattura GAS e restituisci ESCLUSIVAMENTE un JSON valido, senza testo introduttivo, senza markdown.
@@ -2858,7 +2858,7 @@ Schema JSON atteso:
   "prezzo_gas_eur_smc": 0.42,
   "importo_totale_eur": 245.30,
   "periodo_fattura": "01/09/2024 - 31/10/2024",
-  "note_ai": "eventuali osservazioni utili"
+  "note_ai": ["punto 1", "punto 2", "punto 3"]
 }"""
 
 BILL_SYSTEM_PROMPT_TELCO = """Sei un analista esperto di bollette telefoniche/internet italiane. Analizza il testo estratto da una fattura TELCO e restituisci ESCLUSIVAMENTE un JSON valido, senza testo introduttivo, senza markdown.
@@ -2885,7 +2885,7 @@ Schema JSON atteso:
   "iva_percentuale": 22,
   "importo_totale_eur": 32.90,
   "periodo_fattura": "01/09/2024 - 31/10/2024",
-  "note_ai": "eventuali osservazioni utili"
+  "note_ai": ["punto 1", "punto 2", "punto 3"]
 }"""
 
 
@@ -3085,7 +3085,7 @@ async def reanalyze_bill(contact_id: str, bill_id: str, background: BackgroundTa
 BILL_REPORT_SYSTEM = """Sei un consulente energetico esperto italiano. Analizzi bollette LUCE, GAS e TELCO e produci consigli concreti in italiano.
 Rispondi ESCLUSIVAMENTE con JSON valido (nessun markdown, nessuna intro):
 {
-  "riepilogo_generale": "2-3 righe di overview complessivo",
+  "riepilogo_generale": ["punto 1 di overview", "punto 2", "punto 3"],
   "punti_forza": ["...", "..."],
   "punti_debolezza": ["...", "..."],
   "suggerimenti_luce": ["..."],
@@ -3165,6 +3165,312 @@ async def bills_report(contact_id: str, user=Depends(get_current_user)):
 
 
 # =========================
+# Company Offers + Comparison (V25.b)
+# Each user (tenant owner) can upload company offer PDFs (luce/gas/telco). AI extracts
+# offer parameters, then the /bills/comparison endpoint compares any client's bill vs an offer.
+# =========================
+
+class CompanyOfferIn(BaseModel):
+    bill_type: str  # luce | gas | telco
+    pdf_base64: str
+    pdf_name: Optional[str] = None
+    pdf_mime: Optional[str] = "application/pdf"
+    label: Optional[str] = None  # short label like "Offerta Fibra 24m"
+
+
+COMPANY_OFFER_PROMPT = """Sei un analista esperto di offerte commerciali italiane per energia elettrica, gas e telecomunicazioni.
+Analizza il testo estratto dal documento delle CONDIZIONI ECONOMICHE di un'offerta commerciale e restituisci ESCLUSIVAMENTE un JSON valido.
+
+Schema atteso (ometti chiavi mancanti):
+{
+  "fornitore": "Nome azienda che propone l'offerta",
+  "tipo": "luce" | "gas" | "telco",
+  "nome_offerta": "es. Placet Fisso Business",
+  "tipologia_prezzo": "fisso" | "variabile" | "indicizzato",
+  "durata_contratto_mesi": 24,
+  "prezzo_energia_eur_kwh": 0.13,
+  "prezzo_gas_eur_smc": 0.38,
+  "spread_eur_kwh": 0.008,
+  "spread_eur_smc": 0.015,
+  "quota_fissa_mensile_eur": 5.0,
+  "costo_mensile_eur": 24.90,
+  "costo_annuale_eur": 298.80,
+  "penale_uscita_anticipata_eur": 0,
+  "servizi_extra": ["..."],
+  "condizioni_particolari": ["..."],
+  "target_cliente": "residenziale" | "business" | "misto",
+  "note_ai": ["punto 1", "punto 2"]
+}"""
+
+
+async def _llm_analyze_offer_text(text: str) -> dict:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise Exception("EMERGENT_LLM_KEY non configurato")
+    chat = LlmChat(
+        api_key=key,
+        session_id=f"offer-{uuid.uuid4().hex[:8]}",
+        system_message=COMPANY_OFFER_PROMPT,
+    ).with_model("anthropic", "claude-sonnet-5")
+    snippet = text[:18000]
+    resp = await chat.send_message(UserMessage(text=f"Testo delle condizioni economiche:\n\n{snippet}"))
+    raw = (resp or "").strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.lower().startswith("json"):
+            raw = raw[4:].strip()
+        if raw.endswith("```"):
+            raw = raw[:-3].strip()
+    import json as _json
+    try:
+        data = _json.loads(raw)
+        if not isinstance(data, dict):
+            data = {"note_ai": [str(data)[:500]]}
+    except Exception:
+        data = {"note_ai": [raw[:500]], "parse_error": True}
+    return data
+
+
+async def _analyze_offer_task(offer_id: str):
+    o = await db.company_offers.find_one({"offer_id": offer_id})
+    if not o:
+        return
+    try:
+        await db.company_offers.update_one({"offer_id": offer_id}, {"$set": {"status": "analyzing"}})
+        text = _extract_pdf_text(o["pdf_base64"])
+        if not text or len(text.strip()) < 20:
+            await db.company_offers.update_one({"offer_id": offer_id}, {"$set": {
+                "status": "error",
+                "error_message": "PDF vuoto o non leggibile (potrebbe essere scansione senza OCR).",
+                "analyzed_at": utcnow(),
+            }})
+            return
+        extracted = await _llm_analyze_offer_text(text)
+        await db.company_offers.update_one({"offer_id": offer_id}, {"$set": {
+            "status": "done",
+            "extracted": extracted,
+            "analyzed_at": utcnow(),
+            "error_message": None,
+        }})
+    except Exception as e:
+        logger.exception(f"offer analysis failed for {offer_id}: {e}")
+        await db.company_offers.update_one({"offer_id": offer_id}, {"$set": {
+            "status": "error",
+            "error_message": str(e)[:400],
+            "analyzed_at": utcnow(),
+        }})
+
+
+@api_router.post("/company-offers")
+async def create_company_offer(body: CompanyOfferIn, background: BackgroundTasks, user=Depends(get_current_user)):
+    if body.bill_type not in BILL_TYPES:
+        raise HTTPException(status_code=400, detail=f"bill_type non valido: usa {BILL_TYPES}")
+    b64 = body.pdf_base64
+    if b64.startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    approx = int(len(b64) * 0.75)
+    if approx > 12 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="PDF troppo grande (max ~12 MB)")
+    offer_id = f"offer_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "offer_id": offer_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "bill_type": body.bill_type,
+        "label": body.label or f"Offerta {body.bill_type}",
+        "pdf_base64": body.pdf_base64,
+        "pdf_name": body.pdf_name or f"offerta-{body.bill_type}.pdf",
+        "pdf_mime": body.pdf_mime or "application/pdf",
+        "pdf_size": approx,
+        "status": "pending",
+        "extracted": None,
+        "error_message": None,
+        "created_at": utcnow(),
+        "analyzed_at": None,
+    }
+    await db.company_offers.insert_one(doc)
+    background.add_task(_analyze_offer_task, offer_id)
+    strip_id(doc)
+    doc.pop("pdf_base64", None)
+    return doc
+
+
+@api_router.get("/company-offers")
+async def list_company_offers(user=Depends(get_current_user)):
+    items = await db.company_offers.find(
+        {"user_id": tenant_id(user)},
+        {"_id": 0, "pdf_base64": 0},
+    ).sort("created_at", -1).to_list(50)
+    grouped: Dict[str, List[Dict[str, Any]]] = {"luce": [], "gas": [], "telco": []}
+    for it in items:
+        bt = it.get("bill_type") or "luce"
+        grouped.setdefault(bt, []).append(it)
+    return {"items": items, "grouped": grouped}
+
+
+@api_router.get("/company-offers/{offer_id}/pdf")
+async def get_offer_pdf(offer_id: str, user=Depends(get_current_user)):
+    o = await db.company_offers.find_one({"user_id": tenant_id(user), "offer_id": offer_id}, {"_id": 0})
+    if not o:
+        raise HTTPException(status_code=404, detail="Offerta non trovata")
+    return {"pdf_base64": o.get("pdf_base64"), "pdf_name": o.get("pdf_name"), "pdf_mime": o.get("pdf_mime")}
+
+
+@api_router.delete("/company-offers/{offer_id}")
+async def delete_company_offer(offer_id: str, user=Depends(get_current_user)):
+    r = await db.company_offers.delete_one({"user_id": tenant_id(user), "offer_id": offer_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Offerta non trovata")
+    return {"ok": True}
+
+
+@api_router.post("/company-offers/{offer_id}/reanalyze")
+async def reanalyze_offer(offer_id: str, background: BackgroundTasks, user=Depends(get_current_user)):
+    o = await db.company_offers.find_one({"user_id": tenant_id(user), "offer_id": offer_id})
+    if not o:
+        raise HTTPException(status_code=404, detail="Offerta non trovata")
+    await db.company_offers.update_one({"offer_id": offer_id}, {"$set": {"status": "pending", "error_message": None}})
+    background.add_task(_analyze_offer_task, offer_id)
+    return {"ok": True, "status": "pending"}
+
+
+COMPARISON_PROMPT = """Sei un consulente energetico italiano esperto in analisi comparativa di offerte per luce, gas e telco.
+Ti fornisco l'offerta attuale del CLIENTE (estratta da una fattura reale) e l'offerta AZIENDALE che vogliamo proporgli.
+Confronta le due offerte in modo obiettivo, quantitativo e in italiano.
+
+Rispondi ESCLUSIVAMENTE con JSON valido (nessun markdown):
+{
+  "tipo_fornitura": "luce" | "gas" | "telco",
+  "sintesi": ["punto 1", "punto 2", "punto 3"],
+  "vantaggi_offerta_aziendale": ["vantaggio economico 1", "vantaggio 2", ...],
+  "svantaggi_offerta_aziendale": ["eventuali punti a sfavore", ...],
+  "differenza_prezzo_energia_eur_kwh": 0.015,
+  "differenza_prezzo_gas_eur_smc": 0.03,
+  "differenza_costo_mensile_eur": 5.0,
+  "risparmio_annuo_stimato_eur": 180,
+  "risparmio_percentuale": 15,
+  "raccomandazione": "consigliato" | "neutro" | "sconsigliato",
+  "motivazione_raccomandazione": ["motivo 1", "motivo 2"],
+  "azione_consigliata": ["passo 1", "passo 2", "passo 3"]
+}
+Basa i calcoli sui consumi reali del cliente se disponibili."""
+
+
+async def _llm_compare_offers(bill_extracted: dict, offer_extracted: dict, bill_type: str) -> dict:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise Exception("EMERGENT_LLM_KEY non configurato")
+    chat = LlmChat(
+        api_key=key,
+        session_id=f"compare-{uuid.uuid4().hex[:8]}",
+        system_message=COMPARISON_PROMPT,
+    ).with_model("anthropic", "claude-sonnet-5")
+    import json as _json
+    prompt = (
+        f"Tipo fornitura: {bill_type.upper()}\n\n"
+        f"=== OFFERTA ATTUALE DEL CLIENTE (dalla fattura) ===\n"
+        f"{_json.dumps(bill_extracted, ensure_ascii=False, indent=2)[:8000]}\n\n"
+        f"=== OFFERTA AZIENDALE DA PROPORRE ===\n"
+        f"{_json.dumps(offer_extracted, ensure_ascii=False, indent=2)[:8000]}\n\n"
+        f"Confronta le due offerte e produci il JSON strutturato."
+    )
+    resp = await chat.send_message(UserMessage(text=prompt))
+    raw = (resp or "").strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.lower().startswith("json"):
+            raw = raw[4:].strip()
+        if raw.endswith("```"):
+            raw = raw[:-3].strip()
+    try:
+        data = _json.loads(raw)
+        if not isinstance(data, dict):
+            data = {"sintesi": [str(data)[:500]]}
+    except Exception:
+        data = {"sintesi": [raw[:500]], "parse_error": True}
+    return data
+
+
+@api_router.get("/contacts/{contact_id}/bills/comparison")
+async def bills_comparison(
+    contact_id: str,
+    bill_id: Optional[str] = None,
+    offer_id: Optional[str] = None,
+    user=Depends(get_current_user),
+):
+    """Compare a client bill vs a company offer. If bill_id/offer_id omitted, use latest done for
+    matching bill_type per section (creates one comparison per fornitura where both exist)."""
+    contact = await _ensure_contact_owned(contact_id, user)
+    # Fetch bills done
+    bills = await db.energy_bills.find(
+        {"user_id": tenant_id(user), "contact_id": contact_id, "status": "done"},
+        {"_id": 0, "pdf_base64": 0, "raw_text_preview": 0},
+    ).sort("created_at", -1).to_list(200)
+    offers = await db.company_offers.find(
+        {"user_id": tenant_id(user), "status": "done"},
+        {"_id": 0, "pdf_base64": 0},
+    ).sort("created_at", -1).to_list(50)
+    if not bills:
+        raise HTTPException(status_code=400, detail="Nessuna fattura analizzata disponibile")
+    if not offers:
+        raise HTTPException(status_code=400, detail="Nessuna offerta aziendale analizzata disponibile")
+
+    # If specific ids given, compare just those
+    if bill_id and offer_id:
+        bill = next((b for b in bills if b["bill_id"] == bill_id), None)
+        offer = next((o for o in offers if o["offer_id"] == offer_id), None)
+        if not bill or not offer:
+            raise HTTPException(status_code=404, detail="Fattura o offerta non trovata")
+        comparison = await _llm_compare_offers(bill.get("extracted") or {}, offer.get("extracted") or {}, bill.get("bill_type") or "luce")
+        return {
+            "contact": {
+                "contact_id": contact["contact_id"],
+                "first_name": contact.get("first_name"),
+                "last_name": contact.get("last_name"),
+                "contact_code": contact.get("contact_code"),
+            },
+            "items": [{
+                "bill_type": bill.get("bill_type"),
+                "bill": {"bill_id": bill["bill_id"], "pdf_name": bill.get("pdf_name"), "extracted": bill.get("extracted")},
+                "offer": {"offer_id": offer["offer_id"], "label": offer.get("label"), "extracted": offer.get("extracted")},
+                "comparison": comparison,
+            }],
+            "generated_at": utcnow(),
+        }
+
+    # Auto-match: latest bill and latest offer per bill_type
+    results: List[Dict[str, Any]] = []
+    for bt in BILL_TYPES:
+        latest_bill = next((b for b in bills if b.get("bill_type") == bt), None)
+        latest_offer = next((o for o in offers if o.get("bill_type") == bt), None)
+        if not latest_bill or not latest_offer:
+            continue
+        comparison = await _llm_compare_offers(latest_bill.get("extracted") or {}, latest_offer.get("extracted") or {}, bt)
+        results.append({
+            "bill_type": bt,
+            "bill": {"bill_id": latest_bill["bill_id"], "pdf_name": latest_bill.get("pdf_name"), "extracted": latest_bill.get("extracted")},
+            "offer": {"offer_id": latest_offer["offer_id"], "label": latest_offer.get("label"), "extracted": latest_offer.get("extracted")},
+            "comparison": comparison,
+        })
+    if not results:
+        raise HTTPException(status_code=400, detail="Nessuna coppia fattura/offerta corrispondente. Carica un'offerta aziendale dello stesso tipo (luce/gas/telco).")
+    total_risparmio = sum(float(r["comparison"].get("risparmio_annuo_stimato_eur") or 0) for r in results)
+    return {
+        "contact": {
+            "contact_id": contact["contact_id"],
+            "first_name": contact.get("first_name"),
+            "last_name": contact.get("last_name"),
+            "contact_code": contact.get("contact_code"),
+        },
+        "items": results,
+        "risparmio_totale_annuo_eur": total_risparmio,
+        "generated_at": utcnow(),
+    }
+
+
+# =========================
 # Health
 # =========================
 @api_router.get("/")
@@ -3211,6 +3517,8 @@ async def _startup():
     await db.contacts.create_index([("user_id", 1), ("assigned_to_user_id", 1)])
     await db.energy_bills.create_index([("user_id", 1), ("contact_id", 1)])
     await db.energy_bills.create_index("bill_id", unique=True)
+    await db.company_offers.create_index([("user_id", 1), ("bill_type", 1)])
+    await db.company_offers.create_index("offer_id", unique=True)
     # V24 migration: back-fill assigned_to_user_id from created_by for legacy contacts
     try:
         result = await db.contacts.update_many(
