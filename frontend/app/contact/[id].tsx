@@ -14,6 +14,7 @@ import { shareText, shareDataUri } from "@/src/share";
 import { openTelegram } from "@/src/utils/telegram";
 import { BillsSection } from "@/src/BillsSection";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
+import { ContactAudioSection } from "@/src/ContactAudioSection";
 import * as ImagePicker from "expo-image-picker";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
@@ -35,7 +36,7 @@ export default function ContactDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [c, setC] = useState<Contact | null>(null);
-  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills">("info");
+  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio">("info");
   const [noteText, setNoteText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
@@ -360,15 +361,17 @@ export default function ContactDetail() {
       </View>
 
       <View style={styles.tabs}>
-        {(["info", "notes", "files", "bills"] as const).map((t) => (
+        {(["info", "notes", "files", "bills", "audio"] as const).map((t) => (
           <Pressable key={t} testID={`tab-${t}`} onPress={() => setTab(t)} style={[styles.tab, tab === t && styles.tabActive]}>
-            <Text style={[styles.tabTxt, tab === t && styles.tabTxtActive]}>{t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : "Fatture"}</Text>
+            <Text style={[styles.tabTxt, tab === t && styles.tabTxtActive]}>{t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : "Audio"}</Text>
           </Pressable>
         ))}
       </View>
 
       {tab === "bills" ? (
         <BillsSection contactId={id} contactName={`${c.first_name} ${c.last_name}`.trim()} />
+      ) : tab === "audio" ? (
+        <ContactAudioSection contactId={id} />
       ) : (
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {tab === "info" && (
@@ -767,7 +770,7 @@ const styles = StyleSheet.create({
   tabs: { flexDirection: "row", backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: theme.color.border },
   tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
   tabActive: { borderBottomWidth: 2, borderBottomColor: theme.color.brandPrimary },
-  tabTxt: { fontWeight: "600", color: theme.color.muted },
+  tabTxt: { fontWeight: "600", color: theme.color.muted, fontSize: 12 },
   tabTxtActive: { color: theme.color.brandPrimary },
   card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: theme.color.border, gap: 12 },
   infoRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
