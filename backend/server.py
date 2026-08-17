@@ -1743,6 +1743,7 @@ class InviteIn(BaseModel):
     trial_days: int = 30
     note: str = ""
     role: Optional[str] = None  # "basic" | "manager" | "master_figlio" (mapped to member/admin/owner)
+    collaborator_name: Optional[str] = None  # display name of the invited collaborator
 
 
 class InviteRegisterIn(BaseModel):
@@ -1814,6 +1815,7 @@ async def create_invite(body: InviteIn, user=Depends(get_current_user)):
         "trial_days": body.trial_days,
         "note": body.note,
         "invite_role": invite_role,  # role to assign upon acceptance
+        "collaborator_name": (body.collaborator_name or "").strip() or None,
         "created_at": utcnow(),
         "used_at": None,
         "used_by_user_id": None,

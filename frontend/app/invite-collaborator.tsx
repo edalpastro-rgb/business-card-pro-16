@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Share, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
 import * as Clipboard from "expo-clipboard";
 import { api } from "@/src/api";
@@ -18,20 +18,50 @@ const ROLES: { id: Role; label: string; icon: IconName; color: string; desc: str
   { id: "master_figlio", label: "Master figlio", icon: "star", color: "#7C3AED", desc: "Sotto-master: gestisce il proprio sotto-team" },
 ];
 
+type Invite = {
+  invite_token: string;
+  invite_role?: string | null;
+  collaborator_name?: string | null;
+  note?: string;
+  created_at: string;
+  used_at?: string | null;
+  used_by_user_id?: string | null;
+  invited_user?: { user_id: string; name?: string; email?: string; subscription?: { status: string } };
+};
+
 export default function InviteCollaboratorScreen() {
   const router = useRouter();
   const [role, setRole] = useState<Role>("basic");
-  const [trialDays, setTrialDays] = useState("30");
+  const [collaboratorName, setCollaboratorName] = useState("");
   const [note, setNote] = useState("");
   const [generating, setGenerating] = useState(false);
   const [invite, setInvite] = useState<{ invite_token: string; role?: string | null } | null>(null);
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+
+  const loadInvites = useCallback(async () => {
+    try {
+      const r = await api<{ items: Invite[] }>("/invites");
+      setInvites(r.items || []);
+    } catch (e: any) {
+      console.warn("invites list", e?.message);
+    } finally {
+      setLoadingList(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadInvites(); }, [loadInvites]));
 
   const generate = async () => {
+    if (!collaboratorName.trim()) { notify("Nome richiesto", "Inserisci il nome del collaboratore."); return; }
     try {
       setGenerating(true);
-      const days = Math.max(1, parseInt(trialDays) || 30);
-      const r = await api<{ invite_token: string; invite_role?: string }>("/invites", { method: "POST", body: { trial_days: days, note, role } });
+      const r = await api<{ invite_token: string; invite_role?: string }>("/invites", {
+        method: "POST",
+        body: { trial_days: 30, note, role, collaborator_name: collaboratorName.trim() },
+      });
       setInvite({ invite_token: r.invite_token, role: r.invite_role });
+      await loadInvites();
     } catch (e: any) { notify("Errore", e?.message || ""); } finally { setGenerating(false); }
   };
 
@@ -53,19 +83,52 @@ export default function InviteCollaboratorScreen() {
       }
     } catch {}
   };
-  const openInviteList = () => router.push("/invitati" as any);
+
+  const deleteInvite = (inv: Invite) => notify(
+    "Elimina invito",
+    inv.used_at ? `Vuoi rimuovere il collaboratore "${inv.collaborator_name || inv.invited_user?.name || '?'}"?` : `Revocare l'invito a "${inv.collaborator_name || '?'}"?`,
+    [
+      { text: "Annulla", style: "cancel" },
+      { text: "Elimina", style: "destructive", onPress: async () => {
+        try { await api(`/invites/${inv.invite_token}`, { method: "DELETE" }); await loadInvites(); }
+        catch (e: any) { notify("Errore", e?.message || ""); }
+      }},
+    ]
+  );
+
+  const roleLabel = (backendRole?: string | null) => {
+    if (backendRole === "member") return "Basic";
+    if (backendRole === "admin") return "Manager";
+    if (backendRole === "owner") return "Master figlio";
+    return backendRole || "—";
+  };
+  const roleColor = (backendRole?: string | null) => {
+    if (backendRole === "member") return "#0891B2";
+    if (backendRole === "admin") return "#F59E0B";
+    if (backendRole === "owner") return "#7C3AED";
+    return "#6B7280";
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.background }} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
         <Text style={styles.headerTitle}>Invita Collaboratore</Text>
-        <Pressable onPress={openInviteList} style={styles.headerBtn}><Ionicons name="list" size={22} color={theme.color.onSurface} /></Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
         {!invite ? (
           <>
+            <Text style={styles.label}>Nome collaboratore</Text>
+            <TextInput
+              value={collaboratorName}
+              onChangeText={setCollaboratorName}
+              style={styles.input}
+              placeholder="Es. Mario Rossi"
+              autoCapitalize="words"
+              testID="invite-name"
+            />
+
             <Text style={styles.label}>Ruolo</Text>
             {ROLES.map((r) => (
               <Pressable key={r.id} onPress={() => setRole(r.id)} testID={`role-${r.id}`} style={[styles.roleCard, role === r.id && { borderColor: r.color, backgroundColor: r.color + "12" }]}>
@@ -78,9 +141,6 @@ export default function InviteCollaboratorScreen() {
               </Pressable>
             ))}
 
-            <Text style={styles.label}>Giorni di prova</Text>
-            <TextInput value={trialDays} onChangeText={setTrialDays} keyboardType="numeric" style={styles.input} placeholder="30" testID="trial-days" />
-
             <Text style={styles.label}>Nota (opzionale)</Text>
             <TextInput value={note} onChangeText={setNote} style={[styles.input, { height: 60, textAlignVertical: "top" }]} multiline placeholder="Es. Team Milano" testID="invite-note" />
 
@@ -91,10 +151,10 @@ export default function InviteCollaboratorScreen() {
         ) : (
           <View style={styles.resultCard}>
             <Text style={styles.resultTitle}>🎉 Invito generato</Text>
+            <Text style={styles.resultSub}>Per <Text style={{ fontWeight: "800" }}>{collaboratorName}</Text> · Ruolo <Text style={{ fontWeight: "800" }}>{ROLES.find(r => r.id === role)?.label}</Text></Text>
             <View style={styles.qrWrap}>
               <QRCode value={inviteUrl} size={200} backgroundColor="#FFF" color="#0F172A" />
             </View>
-            <Text style={styles.roleTag}>Ruolo: <Text style={{ fontWeight: "800" }}>{ROLES.find(r => (r.id === "basic" && invite.role === "member") || (r.id === "manager" && invite.role === "admin") || (r.id === "master_figlio" && invite.role === "owner"))?.label || invite.role}</Text></Text>
             <View style={styles.linkBox}>
               <Text style={styles.linkTxt} numberOfLines={1} selectable>{inviteUrl}</Text>
             </View>
@@ -102,14 +162,60 @@ export default function InviteCollaboratorScreen() {
               <Pressable onPress={copy} style={[styles.actBtn, { backgroundColor: "#F1F5F9" }]} testID="copy-link"><Ionicons name="copy-outline" size={18} color={theme.color.onSurface} /><Text style={styles.actTxt}>Copia</Text></Pressable>
               <Pressable onPress={shareLink} style={[styles.actBtn, { backgroundColor: "#7C3AED" }]} testID="share-link"><Ionicons name="share-social" size={18} color="#FFF" /><Text style={[styles.actTxt, { color: "#FFF" }]}>Condividi</Text></Pressable>
             </View>
-            <Pressable onPress={() => setInvite(null)} style={{ marginTop: 16, alignSelf: "center" }}>
+            <Pressable onPress={() => { setInvite(null); setCollaboratorName(""); setNote(""); }} style={{ marginTop: 16, alignSelf: "center" }}>
               <Text style={{ color: theme.color.brandPrimary, fontWeight: "700" }}>← Genera un altro invito</Text>
             </Pressable>
           </View>
         )}
+
+        {/* Lista collaboratori invitati */}
+        <View style={styles.listSection}>
+          <Text style={styles.sectionTitle}>Collaboratori invitati ({invites.length})</Text>
+          {loadingList ? (
+            <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
+          ) : invites.length === 0 ? (
+            <Text style={styles.emptyTxt}>Nessun invito ancora generato.</Text>
+          ) : (
+            invites.map((inv) => {
+              const active = !!inv.used_at;
+              const displayName = inv.invited_user?.name || inv.collaborator_name || "—";
+              const rColor = roleColor(inv.invite_role);
+              return (
+                <View key={inv.invite_token} style={styles.inviteRow} testID={`invite-row-${inv.invite_token}`}>
+                  <View style={[styles.avatar, { backgroundColor: rColor + "22" }]}>
+                    <Ionicons name={active ? "checkmark-circle" : "hourglass-outline"} size={22} color={rColor} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.inviteName}>{displayName}</Text>
+                    <View style={styles.inviteMetaRow}>
+                      <View style={[styles.rolePill, { backgroundColor: rColor + "22" }]}>
+                        <Text style={[styles.rolePillTxt, { color: rColor }]}>{roleLabel(inv.invite_role)}</Text>
+                      </View>
+                      <View style={[styles.statusPill, { backgroundColor: active ? "#DCFCE7" : "#FEF3C7" }]}>
+                        <Text style={[styles.statusPillTxt, { color: active ? "#166534" : "#92400E" }]}>{active ? "● Attivo" : "○ In attesa"}</Text>
+                      </View>
+                    </View>
+                    {inv.invited_user?.email && <Text style={styles.inviteEmail}>{inv.invited_user.email}</Text>}
+                    <Text style={styles.inviteDate}>Invitato {fmtDate(inv.created_at)}{active && inv.used_at ? ` · Registrato ${fmtDate(inv.used_at)}` : ""}</Text>
+                  </View>
+                  <Pressable onPress={() => deleteInvite(inv)} style={styles.trashBtn} testID={`invite-delete-${inv.invite_token}`}>
+                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                  </Pressable>
+                </View>
+              );
+            })
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function fmtDate(iso?: string) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+  } catch { return iso; }
 }
 
 const styles = StyleSheet.create({
@@ -122,15 +228,29 @@ const styles = StyleSheet.create({
   roleTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
   roleDesc: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
   input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surface },
-  submitBtn: { marginTop: 30, backgroundColor: "#DB2777", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 12 },
+  submitBtn: { marginTop: 24, backgroundColor: "#DB2777", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 12 },
   submitTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   resultCard: { padding: 20, backgroundColor: theme.color.surface, borderRadius: 16, alignItems: "center", borderWidth: 1, borderColor: theme.color.border },
-  resultTitle: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, marginBottom: 16 },
+  resultTitle: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, marginBottom: 6 },
+  resultSub: { fontSize: 13, color: theme.color.muted, marginBottom: 12, textAlign: "center" },
   qrWrap: { padding: 12, backgroundColor: "#FFF", borderRadius: 12, marginBottom: 12 },
-  roleTag: { fontSize: 13, color: theme.color.muted, marginBottom: 10 },
   linkBox: { padding: 10, backgroundColor: "#F1F5F9", borderRadius: 8, width: "100%" },
   linkTxt: { fontSize: 11, color: theme.color.onSurface, fontFamily: Platform.OS === "web" ? "monospace" : undefined },
   actionsRow: { flexDirection: "row", gap: 10, marginTop: 14, width: "100%" },
   actBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 12, borderRadius: 10 },
   actTxt: { fontWeight: "800", fontSize: 13, color: theme.color.onSurface },
+  listSection: { marginTop: 28 },
+  sectionTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 },
+  emptyTxt: { fontSize: 12, color: theme.color.muted, fontStyle: "italic", textAlign: "center", paddingVertical: 20 },
+  inviteRow: { flexDirection: "row", alignItems: "flex-start", backgroundColor: theme.color.surface, padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border },
+  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  inviteName: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
+  inviteMetaRow: { flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" },
+  rolePill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  rolePillTxt: { fontSize: 10, fontWeight: "800" },
+  statusPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  statusPillTxt: { fontSize: 10, fontWeight: "800" },
+  inviteEmail: { fontSize: 11, color: theme.color.muted, marginTop: 4 },
+  inviteDate: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
+  trashBtn: { padding: 6, marginLeft: 4 },
 });
