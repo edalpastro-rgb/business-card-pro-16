@@ -12,6 +12,7 @@ import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { shareText, shareDataUri } from "@/src/share";
 import { openTelegram } from "@/src/utils/telegram";
+import { BillsSection } from "@/src/BillsSection";
 import * as ImagePicker from "expo-image-picker";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
@@ -33,7 +34,7 @@ export default function ContactDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [c, setC] = useState<Contact | null>(null);
-  const [tab, setTab] = useState<"info" | "notes" | "files">("info");
+  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills">("info");
   const [noteText, setNoteText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
@@ -358,13 +359,16 @@ export default function ContactDetail() {
       </View>
 
       <View style={styles.tabs}>
-        {(["info", "notes", "files"] as const).map((t) => (
+        {(["info", "notes", "files", "bills"] as const).map((t) => (
           <Pressable key={t} testID={`tab-${t}`} onPress={() => setTab(t)} style={[styles.tab, tab === t && styles.tabActive]}>
-            <Text style={[styles.tabTxt, tab === t && styles.tabTxtActive]}>{t === "info" ? "Info" : t === "notes" ? "Note" : "File"}</Text>
+            <Text style={[styles.tabTxt, tab === t && styles.tabTxtActive]}>{t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : "Fatture"}</Text>
           </Pressable>
         ))}
       </View>
 
+      {tab === "bills" ? (
+        <BillsSection contactId={id} contactName={`${c.first_name} ${c.last_name}`.trim()} />
+      ) : (
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {tab === "info" && (
           <>
@@ -704,6 +708,7 @@ export default function ContactDetail() {
         )}
         <View style={{ height: 40 }} />
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }

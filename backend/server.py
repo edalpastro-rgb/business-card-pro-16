@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, Header, status
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Header, status, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -2793,6 +2793,378 @@ async def ai_contact_from_card(body: AIImageIn, user=Depends(get_current_user)):
 
 
 # =========================
+# Energy Bills (Fatture Energia) — V25
+# Multi-section (luce/gas/telco) PDF upload + Claude Sonnet 5 background AI analysis
+# =========================
+
+BILL_TYPES = ("luce", "gas", "telco")
+
+class EnergyBillIn(BaseModel):
+    bill_type: str  # luce | gas | telco
+    pdf_base64: str
+    pdf_name: Optional[str] = None
+    pdf_mime: Optional[str] = "application/pdf"
+
+
+BILL_SYSTEM_PROMPT_LUCE = """Sei un analista esperto di bollette elettriche italiane. Analizza il testo estratto da una fattura LUCE e restituisci ESCLUSIVAMENTE un JSON valido, senza testo introduttivo, senza markdown.
+
+Estrai TUTTI i campi disponibili. Se un campo NON è presente, ometti la chiave (non usare null/N.D.).
+
+Schema JSON atteso:
+{
+  "fornitore": "Nome azienda fornitrice",
+  "cliente": "Nome intestatario",
+  "codice_cliente": "codice cliente",
+  "pod": "IT001E12345678",
+  "pod_count": 1,
+  "tensione": "bassa" | "media",
+  "potenza_impegnata_kw": 3.0,
+  "consumo_totale_12m_kwh": 2450,
+  "consumo_medio_mensile_kwh": 204,
+  "consumi_mensili_kwh": [{"mese":"gen","kwh":180}, ...],
+  "nome_offerta": "Placet Fisso Luce",
+  "data_attivazione": "01/03/2024",
+  "data_scadenza": "01/03/2026",
+  "durata_contratto_mesi": 24,
+  "iva_percentuale": 10,
+  "spread_eur_kwh": 0.015,
+  "prezzo_energia_eur_kwh": 0.145,
+  "importo_totale_eur": 145.30,
+  "periodo_fattura": "01/09/2024 - 31/10/2024",
+  "note_ai": "eventuali osservazioni utili"
+}"""
+
+BILL_SYSTEM_PROMPT_GAS = """Sei un analista esperto di bollette gas italiane. Analizza il testo estratto da una fattura GAS e restituisci ESCLUSIVAMENTE un JSON valido, senza testo introduttivo, senza markdown.
+
+Estrai TUTTI i campi disponibili. Se un campo NON è presente, ometti la chiave.
+
+Schema JSON atteso:
+{
+  "fornitore": "Nome azienda fornitrice",
+  "cliente": "Nome intestatario",
+  "codice_cliente": "codice cliente",
+  "pdr": "01234567890123",
+  "pdr_count": 1,
+  "consumo_totale_12m_smc": 850,
+  "consumo_medio_mensile_smc": 71,
+  "consumi_mensili_smc": [{"mese":"gen","smc":120}, ...],
+  "nome_offerta": "Placet Fisso Gas",
+  "data_attivazione": "01/03/2024",
+  "data_scadenza": "01/03/2026",
+  "durata_contratto_mesi": 24,
+  "iva_percentuale": 22,
+  "accisa_eur_smc": 0.044,
+  "spread_eur_smc": 0.02,
+  "prezzo_gas_eur_smc": 0.42,
+  "importo_totale_eur": 245.30,
+  "periodo_fattura": "01/09/2024 - 31/10/2024",
+  "note_ai": "eventuali osservazioni utili"
+}"""
+
+BILL_SYSTEM_PROMPT_TELCO = """Sei un analista esperto di bollette telefoniche/internet italiane. Analizza il testo estratto da una fattura TELCO e restituisci ESCLUSIVAMENTE un JSON valido, senza testo introduttivo, senza markdown.
+
+Estrai TUTTI i campi disponibili. Se un campo NON è presente, ometti la chiave.
+
+Schema JSON atteso:
+{
+  "fornitore": "Nome azienda fornitrice (TIM, Vodafone, Fastweb, ...)",
+  "cliente": "Nome intestatario",
+  "codice_cliente": "codice cliente",
+  "tipo_connessione": "Fibra" | "ADSL" | "FWA" | "Mobile",
+  "velocita_download_mbps": 1000,
+  "velocita_upload_mbps": 300,
+  "numero_telefono": "0245XXXX",
+  "servizi_inclusi": ["Chiamate illimitate","IPTV"],
+  "costo_mensile_eur": 29.90,
+  "costo_annuale_eur": 358.80,
+  "durata_contratto_mesi": 24,
+  "data_attivazione": "01/03/2024",
+  "data_scadenza": "01/03/2026",
+  "codice_migrazione": "CM123456",
+  "penale_disdetta_eur": 49.90,
+  "iva_percentuale": 22,
+  "importo_totale_eur": 32.90,
+  "periodo_fattura": "01/09/2024 - 31/10/2024",
+  "note_ai": "eventuali osservazioni utili"
+}"""
+
+
+def _extract_pdf_text(pdf_base64: str) -> str:
+    """Extract text from a base64-encoded PDF using pypdf."""
+    b64 = pdf_base64
+    if b64.startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    try:
+        raw = base64.b64decode(b64)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"PDF base64 non valido: {e}")
+    try:
+        from pypdf import PdfReader
+        from io import BytesIO
+        reader = PdfReader(BytesIO(raw))
+        parts: List[str] = []
+        for page in reader.pages[:20]:  # cap first 20 pages
+            try:
+                parts.append(page.extract_text() or "")
+            except Exception:
+                continue
+        text = "\n".join(parts).strip()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Impossibile leggere PDF: {e}")
+    return text
+
+
+async def _llm_analyze_bill_text(bill_type: str, text: str) -> dict:
+    """Send extracted PDF text to Claude Sonnet 5 and get structured JSON."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise Exception("EMERGENT_LLM_KEY non configurato")
+    system = {
+        "luce": BILL_SYSTEM_PROMPT_LUCE,
+        "gas": BILL_SYSTEM_PROMPT_GAS,
+        "telco": BILL_SYSTEM_PROMPT_TELCO,
+    }.get(bill_type, BILL_SYSTEM_PROMPT_LUCE)
+    chat = LlmChat(
+        api_key=key,
+        session_id=f"bill-{bill_type}-{uuid.uuid4().hex[:8]}",
+        system_message=system,
+    ).with_model("anthropic", "claude-sonnet-5")
+    # cap text length
+    snippet = text[:18000]
+    resp = await chat.send_message(UserMessage(
+        text=f"Testo della fattura {bill_type.upper()}:\n\n{snippet}"
+    ))
+    raw = (resp or "").strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.lower().startswith("json"):
+            raw = raw[4:].strip()
+        if raw.endswith("```"):
+            raw = raw[:-3].strip()
+    import json as _json
+    try:
+        data = _json.loads(raw)
+        if not isinstance(data, dict):
+            data = {"note_ai": str(data)[:500]}
+    except Exception:
+        data = {"note_ai": raw[:500], "parse_error": True}
+    return data
+
+
+async def _analyze_bill_task(bill_id: str):
+    """Background task: extract PDF text + call Claude, then update bill status."""
+    bill = await db.energy_bills.find_one({"bill_id": bill_id})
+    if not bill:
+        return
+    try:
+        await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {"status": "analyzing"}})
+        text = _extract_pdf_text(bill["pdf_base64"])
+        if not text or len(text.strip()) < 20:
+            await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {
+                "status": "error",
+                "error_message": "PDF vuoto o non leggibile (potrebbe essere scansione senza OCR).",
+                "analyzed_at": utcnow(),
+            }})
+            return
+        extracted = await _llm_analyze_bill_text(bill["bill_type"], text)
+        await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {
+            "status": "done",
+            "extracted": extracted,
+            "raw_text_preview": text[:800],
+            "analyzed_at": utcnow(),
+            "error_message": None,
+        }})
+    except Exception as e:
+        logger.exception(f"bill analysis failed for {bill_id}: {e}")
+        await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {
+            "status": "error",
+            "error_message": str(e)[:400],
+            "analyzed_at": utcnow(),
+        }})
+
+
+async def _ensure_contact_owned(contact_id: str, user: dict) -> dict:
+    c = await db.contacts.find_one(tenant_scope(user, {"contact_id": contact_id}))
+    if not c:
+        raise HTTPException(status_code=404, detail="Contatto non trovato")
+    # Also apply visibility filter
+    vis = await contact_visibility_filter(user)
+    if vis:
+        # cheap re-check
+        recheck = await db.contacts.find_one({**tenant_scope(user, {"contact_id": contact_id}), **vis})
+        if not recheck:
+            raise HTTPException(status_code=403, detail="Non autorizzato su questo contatto")
+    return c
+
+
+@api_router.post("/contacts/{contact_id}/bills")
+async def create_bill(contact_id: str, body: EnergyBillIn, background: BackgroundTasks, user=Depends(get_current_user)):
+    if body.bill_type not in BILL_TYPES:
+        raise HTTPException(status_code=400, detail=f"bill_type non valido: usa {BILL_TYPES}")
+    await _ensure_contact_owned(contact_id, user)
+    # rough size check to avoid huge PDFs
+    b64 = body.pdf_base64
+    if b64.startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    approx_size = int(len(b64) * 0.75)
+    if approx_size > 12 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="PDF troppo grande (max ~12 MB)")
+    bill_id = f"bill_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "bill_id": bill_id,
+        "contact_id": contact_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "bill_type": body.bill_type,
+        "pdf_base64": body.pdf_base64,
+        "pdf_name": body.pdf_name or f"fattura-{body.bill_type}.pdf",
+        "pdf_mime": body.pdf_mime or "application/pdf",
+        "pdf_size": approx_size,
+        "status": "pending",
+        "extracted": None,
+        "error_message": None,
+        "created_at": utcnow(),
+        "analyzed_at": None,
+    }
+    await db.energy_bills.insert_one(doc)
+    background.add_task(_analyze_bill_task, bill_id)
+    strip_id(doc)
+    # Do not return the huge base64 in the response
+    doc.pop("pdf_base64", None)
+    return doc
+
+
+@api_router.get("/contacts/{contact_id}/bills")
+async def list_bills(contact_id: str, user=Depends(get_current_user)):
+    await _ensure_contact_owned(contact_id, user)
+    items = await db.energy_bills.find(
+        {"user_id": tenant_id(user), "contact_id": contact_id},
+        {"_id": 0, "pdf_base64": 0},
+    ).sort("created_at", -1).to_list(200)
+    grouped: Dict[str, List[Dict[str, Any]]] = {"luce": [], "gas": [], "telco": []}
+    for it in items:
+        bt = it.get("bill_type") or "luce"
+        grouped.setdefault(bt, []).append(it)
+    return {"items": items, "grouped": grouped}
+
+
+@api_router.get("/contacts/{contact_id}/bills/{bill_id}/pdf")
+async def get_bill_pdf(contact_id: str, bill_id: str, user=Depends(get_current_user)):
+    """Return the raw base64 PDF (for viewing/downloading)."""
+    await _ensure_contact_owned(contact_id, user)
+    b = await db.energy_bills.find_one(
+        {"user_id": tenant_id(user), "contact_id": contact_id, "bill_id": bill_id},
+        {"_id": 0},
+    )
+    if not b:
+        raise HTTPException(status_code=404, detail="Fattura non trovata")
+    return {"pdf_base64": b.get("pdf_base64"), "pdf_name": b.get("pdf_name"), "pdf_mime": b.get("pdf_mime")}
+
+
+@api_router.delete("/contacts/{contact_id}/bills/{bill_id}")
+async def delete_bill(contact_id: str, bill_id: str, user=Depends(get_current_user)):
+    await _ensure_contact_owned(contact_id, user)
+    r = await db.energy_bills.delete_one({"user_id": tenant_id(user), "contact_id": contact_id, "bill_id": bill_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Fattura non trovata")
+    return {"ok": True}
+
+
+@api_router.post("/contacts/{contact_id}/bills/{bill_id}/reanalyze")
+async def reanalyze_bill(contact_id: str, bill_id: str, background: BackgroundTasks, user=Depends(get_current_user)):
+    await _ensure_contact_owned(contact_id, user)
+    b = await db.energy_bills.find_one({"user_id": tenant_id(user), "contact_id": contact_id, "bill_id": bill_id})
+    if not b:
+        raise HTTPException(status_code=404, detail="Fattura non trovata")
+    await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {"status": "pending", "error_message": None}})
+    background.add_task(_analyze_bill_task, bill_id)
+    return {"ok": True, "status": "pending"}
+
+
+BILL_REPORT_SYSTEM = """Sei un consulente energetico esperto italiano. Analizzi bollette LUCE, GAS e TELCO e produci consigli concreti in italiano.
+Rispondi ESCLUSIVAMENTE con JSON valido (nessun markdown, nessuna intro):
+{
+  "riepilogo_generale": "2-3 righe di overview complessivo",
+  "punti_forza": ["...", "..."],
+  "punti_debolezza": ["...", "..."],
+  "suggerimenti_luce": ["..."],
+  "suggerimenti_gas": ["..."],
+  "suggerimenti_telco": ["..."],
+  "risparmio_stimato_annuo_eur": 240,
+  "priorita_azione": "alta" | "media" | "bassa"
+}"""
+
+
+async def _llm_bill_suggestions(summary_data: dict) -> dict:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return {"error": "EMERGENT_LLM_KEY non configurato"}
+    chat = LlmChat(
+        api_key=key,
+        session_id=f"bill-report-{uuid.uuid4().hex[:8]}",
+        system_message=BILL_REPORT_SYSTEM,
+    ).with_model("anthropic", "claude-sonnet-5")
+    import json as _json
+    prompt = (
+        "Ecco i dati estratti dalle fatture del cliente. Fornisci analisi e consigli come da schema:\n\n"
+        + _json.dumps(summary_data, ensure_ascii=False, indent=2)[:15000]
+    )
+    try:
+        resp = await chat.send_message(UserMessage(text=prompt))
+    except Exception as e:
+        return {"error": f"Errore LLM: {e}"}
+    raw = (resp or "").strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.lower().startswith("json"):
+            raw = raw[4:].strip()
+        if raw.endswith("```"):
+            raw = raw[:-3].strip()
+    try:
+        data = _json.loads(raw)
+        if not isinstance(data, dict):
+            data = {"riepilogo_generale": str(data)[:500]}
+    except Exception:
+        data = {"riepilogo_generale": raw[:500], "parse_error": True}
+    return data
+
+
+@api_router.get("/contacts/{contact_id}/bills/report")
+async def bills_report(contact_id: str, user=Depends(get_current_user)):
+    contact = await _ensure_contact_owned(contact_id, user)
+    items = await db.energy_bills.find(
+        {"user_id": tenant_id(user), "contact_id": contact_id, "status": "done"},
+        {"_id": 0, "pdf_base64": 0, "raw_text_preview": 0},
+    ).sort("created_at", -1).to_list(200)
+    if not items:
+        raise HTTPException(status_code=400, detail="Nessuna fattura analizzata disponibile")
+    # Group extracted data per type
+    grouped: Dict[str, List[Dict[str, Any]]] = {"luce": [], "gas": [], "telco": []}
+    for it in items:
+        bt = it.get("bill_type") or "luce"
+        grouped.setdefault(bt, []).append({
+            "pdf_name": it.get("pdf_name"),
+            "extracted": it.get("extracted") or {},
+        })
+    ai_suggestions = await _llm_bill_suggestions(grouped)
+    return {
+        "contact": {
+            "contact_id": contact["contact_id"],
+            "first_name": contact.get("first_name"),
+            "last_name": contact.get("last_name"),
+            "contact_code": contact.get("contact_code"),
+            "phone": contact.get("phone"),
+            "email": contact.get("email"),
+        },
+        "grouped": grouped,
+        "ai_suggestions": ai_suggestions,
+        "generated_at": utcnow(),
+    }
+
+
+# =========================
 # Health
 # =========================
 @api_router.get("/")
@@ -2837,6 +3209,8 @@ async def _startup():
     await db.contacts.create_index([("user_id", 1), ("contact_code", 1)])
     await db.contacts.create_index([("user_id", 1), ("referred_by_contact_id", 1)])
     await db.contacts.create_index([("user_id", 1), ("assigned_to_user_id", 1)])
+    await db.energy_bills.create_index([("user_id", 1), ("contact_id", 1)])
+    await db.energy_bills.create_index("bill_id", unique=True)
     # V24 migration: back-fill assigned_to_user_id from created_by for legacy contacts
     try:
         result = await db.contacts.update_many(
