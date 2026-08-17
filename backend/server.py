@@ -321,6 +321,16 @@ def scope_query(user: dict, extra: Dict[str, Any] = None) -> Dict[str, Any]:
     return q
 
 
+def tenant_scope(user: dict, extra: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Tenant-only scope (no created_by restriction). Used by contact endpoints
+    where role-based visibility is controlled by `contact_visibility_filter`.
+    """
+    q: Dict[str, Any] = {"user_id": tenant_id(user)}
+    if extra:
+        q.update(extra)
+    return q
+
+
 class CustomArea(BaseModel):
     id: str
     name: str
@@ -408,7 +418,8 @@ class ContactFile(BaseModel):
 class ContactIn(BaseModel):
     first_name: str
     last_name: str = ""
-    contact_code: Optional[str] = None  # e.g. "EN-0042" auto-assigned if empty
+    contact_code: Optional[str] = None
+    assigned_to_user_id: Optional[str] = None  # V24: assignment for visibility filtering
     phone: str = ""
     phone_alt: str = ""
     whatsapp: str = ""
@@ -449,6 +460,8 @@ class ContactIn(BaseModel):
 class ContactUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    contact_code: Optional[str] = None
+    assigned_to_user_id: Optional[str] = None
     phone: Optional[str] = None
     phone_alt: Optional[str] = None
     whatsapp: Optional[str] = None
@@ -1126,10 +1139,36 @@ async def team_hierarchy(user=Depends(get_current_user)):
 # =========================
 # Contacts
 # =========================
+async def contact_visibility_filter(user: dict) -> Dict[str, Any]:
+    """V24: role-based contact visibility filter to be $and-merged with tenant scope.
+    - Owner or non-nested admin (top-level tenant admin): see all → return {}.
+    - Group manager (admin with parent): see contacts assigned to self OR descendants OR unassigned.
+    - Standard member: see only contacts assigned to self.
+    """
+    if is_owner(user):
+        return {}
+    role = user.get("role") or "member"
+    uid = user["user_id"]
+    if role == "admin":
+        # Group manager scope: self + descendants + unassigned (orphans)
+        descendants = await descendant_user_ids(uid)
+        pool = [uid] + descendants
+        return {"$or": [
+            {"assigned_to_user_id": {"$in": pool}},
+            {"assigned_to_user_id": {"$exists": False}},
+            {"assigned_to_user_id": None},
+        ]}
+    # member
+    return {"assigned_to_user_id": uid}
+
+
 @api_router.get("/contacts")
 async def list_contacts(area: Optional[str] = None, q: Optional[str] = None, group_id: Optional[str] = None, user=Depends(get_current_user)):
-    query: Dict[str, Any] = scope_query(user)
+    query: Dict[str, Any] = tenant_scope(user)
     and_clauses: List[Dict[str, Any]] = []
+    vis = await contact_visibility_filter(user)
+    if vis:
+        and_clauses.append(vis)
     if area:
         and_clauses.append({"$or": [{"area": area}, {"additional_areas": area}]})
     if group_id:
@@ -1145,6 +1184,36 @@ async def list_contacts(area: Optional[str] = None, q: Optional[str] = None, gro
         query["$and"] = and_clauses
     items = await db.contacts.find(query, {"_id": 0, "notes": 0, "files": 0}).sort("last_name", 1).to_list(1000)
     return {"items": items}
+
+
+class ContactAssignIn(BaseModel):
+    assignee_user_id: Optional[str] = None  # None = unassign
+
+
+@api_router.put("/contacts/{contact_id}/assign")
+async def assign_contact(contact_id: str, body: ContactAssignIn, user=Depends(get_current_user)):
+    # Owner: can assign to any tenant member
+    # Group manager (admin non-owner): only to self or descendants
+    # Member: not allowed
+    if user.get("role") == "member":
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    existing = await db.contacts.find_one(tenant_scope(user, {"contact_id": contact_id}))
+    if not existing:
+        raise HTTPException(status_code=404, detail="Contatto non trovato")
+    assignee = body.assignee_user_id
+    if assignee is not None and not is_owner(user):
+        # Verify assignee is self or descendant
+        allowed = [user["user_id"]] + await descendant_user_ids(user["user_id"])
+        if assignee not in allowed:
+            raise HTTPException(status_code=403, detail="Puoi assegnare solo ai tuoi collaboratori")
+    upd: Dict[str, Any] = {"updated_at": utcnow()}
+    if assignee is None:
+        await db.contacts.update_one({"contact_id": contact_id}, {"$unset": {"assigned_to_user_id": ""}, "$set": upd})
+    else:
+        upd["assigned_to_user_id"] = assignee
+        await db.contacts.update_one({"contact_id": contact_id}, {"$set": upd})
+    c = await db.contacts.find_one({"contact_id": contact_id}, {"_id": 0, "notes": 0, "files": 0})
+    return c
 
 
 AREA_PREFIX_DEFAULT = {"energy": "EN", "network": "NW"}
@@ -1191,6 +1260,9 @@ async def create_contact(body: ContactIn, user=Depends(get_current_user)):
     # Auto-assign contact_code if not provided
     if not payload.get("contact_code"):
         payload["contact_code"] = await _next_contact_code(user, body.area)
+    # V24: auto-assign to creator if not explicitly assigned
+    if not payload.get("assigned_to_user_id"):
+        payload["assigned_to_user_id"] = user["user_id"]
     doc = {
         "contact_id": cid,
         "user_id": tenant_id(user),
@@ -1229,9 +1301,20 @@ async def get_contact_referrals(contact_id: str, user=Depends(get_current_user))
 
 @api_router.get("/contacts/{contact_id}")
 async def get_contact(contact_id: str, user=Depends(get_current_user)):
-    c = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0})
+    c = await db.contacts.find_one(tenant_scope(user, {"contact_id": contact_id}), {"_id": 0})
     if not c:
         raise HTTPException(status_code=404, detail="Contatto non trovato")
+    # V24: enforce role-based visibility
+    role = user.get("role") or "member"
+    if not is_owner(user):
+        assignee = c.get("assigned_to_user_id")
+        if role == "admin":
+            allowed = [user["user_id"]] + await descendant_user_ids(user["user_id"])
+            if assignee and assignee not in allowed:
+                raise HTTPException(status_code=404, detail="Contatto non trovato")
+        else:  # member
+            if assignee != user["user_id"]:
+                raise HTTPException(status_code=404, detail="Contatto non trovato")
     return c
 
 
@@ -2636,7 +2719,6 @@ async def ai_contact_from_url(body: AIUrlIn, user=Depends(get_current_user)):
 @api_router.post("/ai/contact-from-voice")
 async def ai_contact_from_voice(body: AIVoiceIn, user=Depends(get_current_user)):
     """Transcribe audio via Whisper, then parse to contact fields via Claude Haiku."""
-    from emergentintegrations.llm.stt import WhisperTranscription
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
         raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
@@ -2653,9 +2735,12 @@ async def ai_contact_from_voice(body: AIVoiceIn, user=Depends(get_current_user))
         tmp.write(audio_bytes)
         path = tmp.name
     try:
-        whisper = WhisperTranscription(api_key=key)
-        result = await whisper.transcribe(path, language="it")
-        transcript = (result or {}).get("text") or str(result or "")
+        from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
+        stt = OpenAISpeechToText(api_key=key)
+        result = await stt.transcribe(file_path=path, model="whisper-1", language="it")
+        transcript = (result or {}).get("text") if isinstance(result, dict) else str(result or "")
+        if not transcript and isinstance(result, dict):
+            transcript = result.get("transcript") or ""
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Errore trascrizione: {e}")
     parsed = await _llm_extract_contact(
@@ -2751,6 +2836,17 @@ async def _startup():
     await db.my_thing.create_index([("owner_user_id", 1), ("kind", 1), ("active", 1)])
     await db.contacts.create_index([("user_id", 1), ("contact_code", 1)])
     await db.contacts.create_index([("user_id", 1), ("referred_by_contact_id", 1)])
+    await db.contacts.create_index([("user_id", 1), ("assigned_to_user_id", 1)])
+    # V24 migration: back-fill assigned_to_user_id from created_by for legacy contacts
+    try:
+        result = await db.contacts.update_many(
+            {"assigned_to_user_id": {"$exists": False}, "created_by": {"$exists": True}},
+            [{"$set": {"assigned_to_user_id": "$created_by"}}],
+        )
+        if result.modified_count:
+            logger.info(f"V24 migration: assigned {result.modified_count} legacy contacts to their creator")
+    except Exception as e:
+        logger.warning(f"V24 legacy contact assignment migration skipped: {e}")
 
 
 @app.on_event("shutdown")

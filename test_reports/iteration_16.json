@@ -1,0 +1,64 @@
+{
+  "summary": "V24 role-based contact visibility tested — backend 9/12 pass, frontend smoke PASS. CRITICAL bug found: pre-existing scope_query() (server.py:311) filters non-owners by created_by == user_id, which SHADOWS V24's contact_visibility_filter. Consequences: (a) members cannot see contacts assigned to them but created by owner (returned 0/expected 1); (b) group-manager admins cannot see contacts assigned to them but created by owner; (c) admins get 404 instead of 403 when trying to reassign a foreign-tenant contact assigned to them. Migration + owner-visibility + POST auto-assign + member-cannot-assign 403 + owner assign/unassign + member GET-forbidden 404 + frontend badge/dropdown/hidden-for-member all verified WORKING.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/contacts, GET /api/contacts/{id}, PUT /api/contacts/{id}/assign",
+        "issue": "scope_query() at server.py:311-321 injects `created_by == user_id` for every non-owner. list_contacts (line 1157), get_contact (line 1294) and assign_contact (line 1190) all call scope_query() BEFORE (or instead of) V24's contact_visibility_filter, so a contact assigned to a member/admin but CREATED BY the owner is invisible/404 to the assignee. Reproduction: owner POST /api/contacts {assigned_to_user_id: sub1_uid} → 200 saved; sub1 GET /api/contacts returns 0 items containing that contact; sub1 GET /api/contacts/{cid} → 404. Fix: for the three contact endpoints, drop the created_by clause and rely on contact_visibility_filter (still keep tenant scoping via `user_id: tenant_id(user)`). Verified with debug script — bug is 100% reproducible.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "PUT /api/contacts/{id}/assign",
+        "issue": "When called by a group-manager admin on a contact the admin cannot even see under current scope_query behavior, the endpoint returns 404 instead of the semantically-correct 403. Will auto-resolve once the scope_query bug above is fixed."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Member list contacts",
+        "issue": "Because of the backend scope_query bug, the Contatti tab for a member user shows 0 items instead of contacts assigned to them by the owner. Frontend code is correct — the empty list originates from the API. Once backend fix lands, the frontend will automatically populate.",
+        "affected_testIDs": ["contact-<id>"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "contact/[id]",
+        "issues": [
+          "13x console warning 'Unexpected text node: . A text node cannot be a child of a <View>' (already reported in iteration_15 for contact/new — same class of issue exists on contact/[id]). Cosmetic; does not block flow."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v24_contact_visibility.py",
+    "/app/test_reports/pytest/pytest_v24_results.xml"
+  ],
+  "action_items": [
+    "FIX (backend, CRITICAL): In /app/backend/server.py update list_contacts (line 1155), get_contact (line 1292) and assign_contact (line 1183) so that non-owner queries do NOT inherit `created_by == user_id` from scope_query. Option A: introduce a `contact_scope_query(user)` helper that only sets `{user_id: tenant_id(user)}` (tenant scope) and let contact_visibility_filter handle role logic. Option B: modify scope_query to skip created_by when the collection is contacts (less clean). Also apply the same review to update_contact/delete_contact/notes/files endpoints if the intent is that assignees can edit assigned contacts.",
+    "AFTER FIX: rerun pytest /app/backend/tests/test_v24_contact_visibility.py -v ; expected 12/12 pass.",
+    "CLEANUP (frontend, low prio): investigate 'Unexpected text node' warnings on contact/[id] (same pattern as iteration_15 recommendation)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:311 scope_query() conflates tenant scoping with per-user created_by filter. V24 role-based visibility should have replaced the created_by clause for contacts. This is a design-level oversight — the assigned_to_user_id filter can never take effect for sub-users on contacts they didn't create.",
+    "server.py:1183 assign_contact returns 404 (via scope_query) before it can enforce the group-manager/member 403 logic — the error semantics leak information (404 for something that would otherwise be 403).",
+    "server.py: still 2845 lines, exceeds 700-line guideline (was 2759 in iteration_15; growing)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v24_contact_visibility.py (new — 12 tests)",
+    "/app/test_reports/pytest/pytest_v24_results.xml (new)"
+  ],
+  "success_rate": {
+    "backend": "75% (9/12) — 3 failures share a single RCA (scope_query created_by clause)",
+    "frontend": "100% for V24 UI surface (assign-btn visible for owner, dropdown lists assign-none + team members, badge hidden for member on own contact)"
+  },
+  "seed_data_creation": "Test module creates ~10 TEST_V24_* contacts and cleans them up in module teardown. Post-cleanup verified: 1 leftover UI-test contact (c_4f60079dcc42 TEST_UI) was manually deleted. sub1 was explicitly demoted back to `member` at end of test run — confirmed via re-login.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "After main agent fixes scope_query behavior for contact endpoints, rerun the same pytest file. All 3 failing tests are named test_member_sees_only_own_contacts, test_admin_sees_orphans_and_own, test_group_manager_cannot_assign_non_descendant — they exhaustively cover the RCA. sub1 credentials remain member/Sub12345!. The pytest cleanup fixture auto-deletes TEST_V24_* contacts and demotes sub1 to member even on failure.",
+  "rca_of_issue": "ROOT CAUSE: /app/backend/server.py:311-321 `scope_query(user)` adds `created_by == user[\"user_id\"]` for every non-owner. V24 added `contact_visibility_filter(user)` (line 1132) which correctly implements assigned_to_user_id logic, but list_contacts (line 1157), get_contact (line 1294), assign_contact (line 1190) all start from `scope_query(user)` and then $and-merge the visibility filter. Because scope_query already restricts to `created_by == self` for sub-users, a contact whose `created_by = owner_uid` and `assigned_to_user_id = sub1_uid` is filtered out at the scope_query step — the visibility filter never gets a chance to include it. REPRODUCTION: (1) POST /api/auth/login as owner → token_o; (2) POST /api/auth/login as sub1 → sub1_uid; (3) POST /api/contacts with header Auth: token_o and body {first_name:'X', area:'network', source:'personal', assigned_to_user_id: sub1_uid} → 200; (4) GET /api/contacts as sub1 → response.items does NOT contain the just-created contact; (5) GET /api/contacts/{cid} as sub1 → 404. MITIGATION: replace scope_query() calls in the three contact endpoints with a version that only scopes by tenant (`{user_id: tenant_id(user)}`), letting contact_visibility_filter handle role-based access. After that fix, expected: sub1 member sees exactly the contacts assigned to them; admin sees self+descendants+orphans; assign endpoint returns 403 (not 404) when a manager tries to reassign to non-descendant."
+}

@@ -7,6 +7,7 @@ import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer } from 
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
+import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { shareText, shareDataUri } from "@/src/share";
@@ -24,6 +25,8 @@ type Contact = {
   area: "energy" | "network"; additional_areas?: string[]; source: string; referral_note: string; email_note: string; general_note: string;
   tags?: string[]; group_ids?: string[]; referred_by_contact_id?: string;
   notes: Note[]; files: CFile[]; avatar_base64?: string;
+  assigned_to_user_id?: string;
+  contact_code?: string;
 };
 
 export default function ContactDetail() {
@@ -39,6 +42,10 @@ export default function ContactDetail() {
   const [activeCategory, setActiveCategory] = useState<null | "general" | "email" | "referral">(null);
   const [groups, setGroups] = useState<Array<{ group_id: string; name: string; color: string }>>([]);
   const [settings, setSettings] = useState<any>(null);
+  const [team, setTeam] = useState<Array<{ user_id: string; name: string; role: string }>>([]);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const { user } = useAuth();
+  const canAssign = user?.role === "owner" || user?.role === "admin";
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [playingUri, setPlayingUri] = useState<string | null>(null);
@@ -54,7 +61,24 @@ export default function ContactDetail() {
       setGroups(gr.items || []);
       setSettings(st);
     } catch {}
-  }, [id]);
+    if (canAssign) {
+      try {
+        const t = await api<{ items: { user_id: string; name: string; role: string }[] }>("/team/members");
+        setTeam(t.items || []);
+      } catch {}
+    }
+  }, [id, canAssign]);
+
+  const doAssign = async (assignee: string | null) => {
+    try {
+      await api(`/contacts/${id}/assign`, { method: "PUT", body: { assignee_user_id: assignee } });
+      setAssignOpen(false);
+      load();
+    } catch (e: any) {
+      // eslint-disable-next-line no-alert
+      if (typeof window !== "undefined") window.alert("Errore: " + (e?.message || ""));
+    }
+  };
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (!c) return <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} /></SafeAreaView>;
@@ -292,8 +316,39 @@ export default function ContactDetail() {
             <Ionicons name="camera" size={12} color="#FFF" />
           </View>
         </Pressable>
-        <Text style={styles.name}>{c.first_name} {c.last_name}</Text>
+        <Text style={styles.name}>{c.first_name} {c.last_name}{c.contact_code ? ` · ${c.contact_code}` : ""}</Text>
         <Text style={styles.areaTag}>{c.area === "energy" ? "Consulente Energetico" : "Networker"} · {c.source === "referral" ? "Referenza" : "Conoscenza"}</Text>
+
+        {canAssign && (
+          <Pressable testID="assign-btn" onPress={() => setAssignOpen(!assignOpen)} style={{ marginTop: 6, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: theme.color.brandTertiary, borderRadius: 20 }}>
+            <Ionicons name="person" size={12} color={theme.color.brandPrimary} />
+            <Text style={{ fontSize: 11, color: theme.color.brandPrimary, fontWeight: "700" }}>
+              {c.assigned_to_user_id
+                ? "Assegnato: " + (team.find((m) => m.user_id === c.assigned_to_user_id)?.name || (c.assigned_to_user_id === user?.user_id ? "Te stesso" : c.assigned_to_user_id.slice(0, 8)))
+                : "Non assegnato — tocca per assegnare"}
+            </Text>
+            <Ionicons name={assignOpen ? "chevron-up" : "chevron-down"} size={12} color={theme.color.brandPrimary} />
+          </Pressable>
+        )}
+        {canAssign && assignOpen && (
+          <View style={{ marginTop: 6, backgroundColor: "#FFF", borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, padding: 6, width: "100%" }}>
+            <Pressable testID="assign-none" onPress={() => doAssign(null)} style={{ padding: 8 }}>
+              <Text style={{ color: theme.color.muted, fontStyle: "italic" }}>— Nessuno (orfano) —</Text>
+            </Pressable>
+            {team.map((m) => (
+              <Pressable
+                key={m.user_id}
+                testID={`assign-to-${m.user_id}`}
+                onPress={() => doAssign(m.user_id)}
+                style={{ padding: 8, borderTopWidth: 1, borderTopColor: theme.color.border }}
+              >
+                <Text style={{ color: theme.color.onSurface, fontWeight: c.assigned_to_user_id === m.user_id ? "800" : "500" }}>
+                  {c.assigned_to_user_id === m.user_id ? "✓ " : ""}{m.name}{m.role === "admin" ? " ★" : m.role === "owner" ? " 👑" : ""}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
         <View style={styles.actionsRow}>
           {c.phone ? <QuickAct icon="call" label="Chiama" onPress={callPhone} testID="act-call" /> : null}
           {c.phone ? <QuickAct icon="logo-whatsapp" label="WhatsApp" onPress={sendWhatsApp} testID="act-wa" /> : null}

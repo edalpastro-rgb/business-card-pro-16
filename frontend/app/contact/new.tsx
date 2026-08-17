@@ -132,7 +132,16 @@ export default function NewContactScreen() {
   const closeAI = () => { setAiMode(null); setAiPreview(null); };
 
   const applyAIFields = (data: Record<string, string>) => {
-    const notesPart = data.notes ? (form.general_note ? form.general_note + "\n" + data.notes : data.notes) : form.general_note;
+    // Merge company/role/website/linkedin into general_note if not empty
+    const extras: string[] = [];
+    if (data.company) extras.push(`Azienda: ${data.company}`);
+    if (data.role) extras.push(`Ruolo: ${data.role}`);
+    if (data.website) extras.push(`Sito: ${data.website}`);
+    if (data.linkedin) extras.push(`LinkedIn: ${data.linkedin}`);
+    if (data.notes) extras.push(data.notes);
+    const notesPart = extras.length
+      ? (form.general_note ? form.general_note + "\n" + extras.join("\n") : extras.join("\n"))
+      : form.general_note;
     setForm((f) => ({
       ...f,
       first_name: data.first_name || f.first_name,
