@@ -136,6 +136,7 @@ export default function MasterScreen() {
             <MenuItem icon="color-palette" color="#7C3AED" label="Setting App" hint="Cambia tema e colori" onPress={() => goto("/settings-app")} testID="menu-settings" />
             <MenuItem icon="business" color="#059669" label="New Corporate" hint="Crea nuova area business" onPress={() => goto("/corporate/new")} testID="menu-corporate" />
             <MenuItem icon="person-add" color="#DB2777" label="Invita Collaboratore" hint="Genera link / QR con ruolo" onPress={() => goto("/invite-collaborator")} testID="menu-invite" />
+            <MenuItem icon="gift" color="#F59E0B" label="Invita Cliente" hint="Trial gratuito con link estensibile" onPress={() => goto("/invitati")} testID="menu-invite-client" />
           </View>
         </Pressable>
       </Modal>

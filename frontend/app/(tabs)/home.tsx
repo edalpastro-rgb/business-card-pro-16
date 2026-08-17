@@ -127,17 +127,6 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
-        {!user?.parent_user_id && (
-          <Pressable testID="home-invite-btn" onPress={() => router.push("/invitati")} style={styles.inviteBtn}>
-            <Ionicons name="person-add" size={20} color="#FFF" />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.inviteTitle}>Invita cliente ad usare l&apos;app</Text>
-              <Text style={styles.inviteSub}>Genera link con trial gratuito estensibile</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#FFF" />
-          </Pressable>
-        )}
-
         <Pressable testID="home-my-thing-btn" onPress={() => router.push("/my-thing")} style={styles.myThingBtn}>
           <View style={styles.myThingIcon}>
             <Ionicons name="sparkles" size={22} color="#FFF" />
