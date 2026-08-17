@@ -3597,6 +3597,15 @@ class WebLinkIn(BaseModel):
     icon: Optional[str] = None  # emoji or url
 
 
+class AudioRecordIn(BaseModel):
+    target_type: str  # "personal" | "contact" | "group"
+    target_id: Optional[str] = None  # contact_id or group_id
+    audio_base64: str
+    mime: Optional[str] = "audio/webm"
+    duration_sec: Optional[float] = None
+    title: Optional[str] = None
+
+
 class UserSettingsIn(BaseModel):
     theme: Optional[str] = None  # "light" | "dark" | "auto"
     accent_color: Optional[str] = None  # hex e.g. "#7C3AED"
@@ -3753,6 +3762,97 @@ async def delete_web_link(link_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 
+# ---- Audio Records (Master recorder) ----
+ALLOWED_TARGETS = ("personal", "contact", "group")
+
+
+@api_router.post("/audio-records")
+async def create_audio_record(body: AudioRecordIn, user=Depends(get_current_user)):
+    if body.target_type not in ALLOWED_TARGETS:
+        raise HTTPException(status_code=400, detail=f"target_type non valido: {ALLOWED_TARGETS}")
+    b64 = body.audio_base64
+    if b64.startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    approx = int(len(b64) * 0.75)
+    if approx < 512:
+        raise HTTPException(status_code=400, detail="Audio troppo corto")
+    if approx > 30 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio troppo grande (max ~30 MB)")
+
+    if body.target_type == "contact":
+        if not body.target_id:
+            raise HTTPException(status_code=400, detail="target_id (contact_id) richiesto")
+        c = await db.contacts.find_one(tenant_scope(user, {"contact_id": body.target_id}))
+        if not c:
+            raise HTTPException(status_code=404, detail="Contatto non trovato")
+    elif body.target_type == "group":
+        if not body.target_id:
+            raise HTTPException(status_code=400, detail="target_id (group_id) richiesto")
+        g = await db.groups.find_one({"group_id": body.target_id, "user_id": tenant_id(user)})
+        if not g:
+            raise HTTPException(status_code=404, detail="Gruppo non trovato")
+
+    audio_id = f"aud_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "audio_id": audio_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "target_type": body.target_type,
+        "target_id": body.target_id,
+        "audio_base64": body.audio_base64,
+        "mime": body.mime or "audio/webm",
+        "duration_sec": body.duration_sec,
+        "size_bytes": approx,
+        "title": body.title or None,
+        "created_at": utcnow(),
+    }
+    await db.audio_records.insert_one(doc)
+    strip_id(doc)
+    doc.pop("audio_base64", None)
+    return doc
+
+
+@api_router.get("/audio-records")
+async def list_audio_records(target_type: Optional[str] = None, target_id: Optional[str] = None, user=Depends(get_current_user)):
+    q: Dict[str, Any] = {"user_id": tenant_id(user)}
+    if target_type:
+        if target_type not in ALLOWED_TARGETS:
+            raise HTTPException(status_code=400, detail="target_type non valido")
+        q["target_type"] = target_type
+    if target_id:
+        q["target_id"] = target_id
+    # personal recordings scoped to the creator
+    if target_type == "personal" or (target_type is None and not target_id):
+        # If listing personal, restrict to created_by
+        if target_type == "personal":
+            q["created_by"] = user["user_id"]
+    items = await db.audio_records.find(q, {"_id": 0, "audio_base64": 0}).sort("created_at", -1).to_list(200)
+    return {"items": items}
+
+
+@api_router.get("/audio-records/{audio_id}")
+async def get_audio_record(audio_id: str, user=Depends(get_current_user)):
+    a = await db.audio_records.find_one({"user_id": tenant_id(user), "audio_id": audio_id}, {"_id": 0})
+    if not a:
+        raise HTTPException(status_code=404, detail="Audio non trovato")
+    # For personal, only creator can access
+    if a.get("target_type") == "personal" and a.get("created_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    return a
+
+
+@api_router.delete("/audio-records/{audio_id}")
+async def delete_audio_record(audio_id: str, user=Depends(get_current_user)):
+    a = await db.audio_records.find_one({"user_id": tenant_id(user), "audio_id": audio_id})
+    if not a:
+        raise HTTPException(status_code=404, detail="Audio non trovato")
+    # Only creator (or owner) can delete
+    if not is_owner(user) and a.get("created_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Solo il creatore può eliminare")
+    await db.audio_records.delete_one({"audio_id": audio_id})
+    return {"ok": True}
+
+
 # ---- User Settings (theme / accent / banner) ----
 @api_router.get("/user-settings")
 async def get_user_settings(user=Depends(get_current_user)):
@@ -3832,6 +3932,8 @@ async def _startup():
     await db.web_links.create_index([("user_id", 1), ("order", 1)])
     await db.web_links.create_index("link_id", unique=True)
     await db.user_settings.create_index("user_id", unique=True)
+    await db.audio_records.create_index([("user_id", 1), ("target_type", 1), ("target_id", 1)])
+    await db.audio_records.create_index("audio_id", unique=True)
     # V24 migration: back-fill assigned_to_user_id from created_by for legacy contacts
     try:
         result = await db.contacts.update_many(

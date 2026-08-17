@@ -7,6 +7,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
 
@@ -127,6 +128,7 @@ export default function MasterScreen() {
             <MasterButton key={b.label} {...b} pulseAnim={pulseAnim} />
           ))}
         </View>
+        <MasterVoiceRecorder />
       </ScrollView>
 
       {/* 3-dot menu */}
