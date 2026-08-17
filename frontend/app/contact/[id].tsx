@@ -13,6 +13,7 @@ import { pickAvatarBase64 } from "@/src/image-picker";
 import { shareText, shareDataUri } from "@/src/share";
 import { openTelegram } from "@/src/utils/telegram";
 import { BillsSection } from "@/src/BillsSection";
+import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import * as ImagePicker from "expo-image-picker";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
@@ -563,6 +564,21 @@ export default function ContactDetail() {
                 style={[styles.input, { minHeight: showLinkInput ? 44 : 80, textAlignVertical: "top" }]}
                 multiline={!showLinkInput}
               />
+              {!showLinkInput && (
+                <VoiceDictationButton
+                  testID="voice-dictation-note"
+                  label="Detta la nota"
+                  onTranscript={(txt) => {
+                    setNoteText((prev) => {
+                      const clean = txt.trim();
+                      if (!prev) return clean;
+                      // Append with space, avoiding double punctuation
+                      const sep = /[\s\.\,\;\:\!\?]$/.test(prev) ? " " : " ";
+                      return prev + sep + clean;
+                    });
+                  }}
+                />
+              )}
               {showLinkInput && (
                 <TextInput
                   testID="note-link-input"

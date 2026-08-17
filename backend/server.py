@@ -2716,6 +2716,69 @@ async def ai_contact_from_url(body: AIUrlIn, user=Depends(get_current_user)):
     return {"contact": parsed, "source_url": url}
 
 
+@api_router.post("/ai/transcribe")
+async def ai_transcribe(body: AIVoiceIn, user=Depends(get_current_user)):
+    """Transcribe audio to text via OpenAI Whisper (Italian language).
+    Returns just the raw transcript — used by the microphone button on the contact card notes.
+    """
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+    b64 = body.audio_base64
+    if b64.startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    try:
+        audio_bytes = base64.b64decode(b64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Audio base64 non valido")
+    if len(audio_bytes) < 1024:
+        raise HTTPException(status_code=400, detail="Audio troppo corto o vuoto")
+    if len(audio_bytes) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio troppo grande (max 25 MB)")
+    import tempfile
+    mime = (body.mime or "").lower()
+    if "webm" in mime:
+        ext = ".webm"
+    elif "m4a" in mime or "mp4" in mime or "aac" in mime:
+        ext = ".m4a"
+    elif "wav" in mime:
+        ext = ".wav"
+    elif "ogg" in mime:
+        ext = ".webm"  # litellm expects webm/ogg family
+    else:
+        ext = ".mp3"
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp.write(audio_bytes)
+        path = tmp.name
+    try:
+        from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
+        stt = OpenAISpeechToText(api_key=key)
+        with open(path, "rb") as _fh:
+            result = await stt.transcribe(
+                file=_fh,
+                model="whisper-1",
+                language="it",
+                response_format="text",
+            )
+        # response can be a plain string when response_format=text, or an object with .text
+        if isinstance(result, str):
+            transcript = result.strip()
+        elif isinstance(result, dict):
+            transcript = (result.get("text") or result.get("transcript") or "").strip()
+        else:
+            transcript = str(getattr(result, "text", result) or "").strip()
+    except Exception as e:
+        logger.exception(f"transcribe error: {e}")
+        raise HTTPException(status_code=502, detail=f"Errore trascrizione: {str(e)[:300]}")
+    finally:
+        try:
+            import os as _os
+            _os.unlink(path)
+        except Exception:
+            pass
+    return {"transcript": transcript, "language": "it", "model": "whisper-1"}
+
+
 @api_router.post("/ai/contact-from-voice")
 async def ai_contact_from_voice(body: AIVoiceIn, user=Depends(get_current_user)):
     """Transcribe audio via Whisper, then parse to contact fields via Claude Haiku."""
