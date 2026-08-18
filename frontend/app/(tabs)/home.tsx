@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image, Platform, Animated, Easing } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image, ImageBackground, Platform, Animated, Easing } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -60,14 +60,20 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Auto-cycle My Thing images every 5s
+  // Auto-cycle My Thing images every 4s with crossfade
+  const myThingFade = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (myThingImages.length < 2) return;
     const id = setInterval(() => {
-      setMyThingIdx((n) => (n + 1) % myThingImages.length);
-    }, 5000);
+      // Fade out
+      Animated.timing(myThingFade, { toValue: 0, duration: 350, useNativeDriver: true }).start(() => {
+        setMyThingIdx((n) => (n + 1) % myThingImages.length);
+        // Fade in
+        Animated.timing(myThingFade, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+      });
+    }, 4000);
     return () => clearInterval(id);
-  }, [myThingImages]);
+  }, [myThingImages, myThingFade]);
 
   const myThingImg = myThingImages.length > 0 ? myThingImages[myThingIdx] : null;
 
@@ -133,7 +139,14 @@ export default function HomeScreen() {
 
         <Pressable testID="home-my-thing-btn" onPress={() => router.push("/my-thing")} style={styles.myThingBtn}>
           {myThingImg ? (
-            <Image source={{ uri: myThingImg }} style={styles.myThingBgImg} />
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: myThingFade }]} pointerEvents="none">
+              <ImageBackground
+                source={{ uri: myThingImg }}
+                resizeMode="cover"
+                style={StyleSheet.absoluteFill}
+                imageStyle={Platform.OS === "web" ? ({ objectFit: "cover", width: "100%", height: "100%" } as any) : undefined}
+              />
+            </Animated.View>
           ) : null}
         </Pressable>
 
@@ -181,7 +194,9 @@ export default function HomeScreen() {
                     key={cb.callback_id}
                     cb={cb}
                     color={color}
-                    onOpen={() => cb.contact_id && router.push(`/contact/${cb.contact_id}`)}
+                    onOpen={() => {
+                      if (cb.contact_id) router.push(`/contact/${cb.contact_id}`);
+                    }}
                     onToggleDone={async () => {
                       try {
                         await api(`/callbacks/${cb.callback_id}`, { method: "PUT", body: { done: !cb.done } });
@@ -248,27 +263,36 @@ function CallbackRow({ cb, color, onOpen, onToggleDone }: { cb: Callback; color:
 
   return (
     <Animated.View style={{ opacity: cb.done ? 0.55 : blink }} testID={`callback-${cb.callback_id}`}>
-      <Pressable
-        onPress={onOpen}
-        style={[
-          { flexDirection: "row", backgroundColor: bg, borderRadius: 12, marginBottom: 8, alignItems: "center", overflow: "hidden", borderWidth: 1.5, borderColor: border },
-        ]}
+      <View
+        style={{ flexDirection: "row", backgroundColor: bg, borderRadius: 12, marginBottom: 8, alignItems: "stretch", overflow: "hidden", borderWidth: 1.5, borderColor: border }}
       >
-        <View style={{ width: 5, backgroundColor: color, alignSelf: "stretch" }} />
-        <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 10 }}>
-          <Text style={[{ fontSize: 15, fontWeight: "700", color: theme.color.onSurface }, cb.done && { textDecorationLine: "line-through" }]}>{cb.title}</Text>
-          <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
-            {new Date(cb.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            {!cb.done && !past && urgent ? "  ⚠ tra pochi minuti" : ""}
-            {!cb.done && !past && soon ? "  ⏰ tra meno di 30 min" : ""}
-            {!cb.done && past ? "  · in ritardo" : ""}
-            {cb.note ? "  · " + cb.note : ""}
-          </Text>
-        </View>
-        <Pressable testID={`callback-toggle-${cb.callback_id}`} onPress={(e) => { e.stopPropagation(); onToggleDone(); }} hitSlop={8} style={{ padding: 10 }}>
+        <Pressable
+          testID={`callback-open-${cb.callback_id}`}
+          onPress={() => { if (typeof onOpen === "function") onOpen(); }}
+          android_ripple={{ color: "rgba(0,0,0,0.06)" }}
+          style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", opacity: pressed ? 0.75 : 1 }]}
+        >
+          <View style={{ width: 5, backgroundColor: color, alignSelf: "stretch" }} />
+          <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 10 }}>
+            <Text style={[{ fontSize: 15, fontWeight: "700", color: theme.color.onSurface }, cb.done && { textDecorationLine: "line-through" }]}>{cb.title}</Text>
+            <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
+              {new Date(cb.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              {!cb.done && !past && urgent ? "  ⚠ tra pochi minuti" : ""}
+              {!cb.done && !past && soon ? "  ⏰ tra meno di 30 min" : ""}
+              {!cb.done && past ? "  · in ritardo" : ""}
+              {cb.note ? "  · " + cb.note : ""}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          testID={`callback-toggle-${cb.callback_id}`}
+          onPress={onToggleDone}
+          hitSlop={8}
+          style={({ pressed }) => [{ paddingHorizontal: 12, justifyContent: "center", opacity: pressed ? 0.6 : 1 }]}
+        >
           <Ionicons name={cb.done ? "checkmark-circle" : "ellipse-outline"} size={26} color={cb.done ? theme.color.success : theme.color.muted} />
         </Pressable>
-      </Pressable>
+      </View>
     </Animated.View>
   );
 }
