@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image, TextInput, Linking, Platform, Animated, Easing } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image, Platform, Animated, Easing } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,14 +7,12 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
-import { openTelegram } from "@/src/utils/telegram";
 
 type CustomArea = { id: string; name: string; color: string };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_areas?: CustomArea[] };
 type Callback = { callback_id: string; title: string; area: "energy" | "network"; scheduled_at: string; note: string; done: boolean; contact_id?: string; phone?: string };
 type ReportStats = { period: string; stats: { energy: any; network: any } };
-type Contact = { contact_id: string; first_name: string; last_name: string; phone?: string; whatsapp?: string; telegram?: string; email?: string; area: string; additional_areas?: string[]; group_ids?: string[] };
-type Group = { group_id: string; name: string; color: string; member_count: number };
+type MyThingImage = { item_id: string; image_base64?: string | null };
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -22,31 +20,36 @@ export default function HomeScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [callbacks, setCallbacks] = useState<Callback[]>([]);
   const [report, setReport] = useState<ReportStats | null>(null);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [chatQuery, setChatQuery] = useState("");
-  const [chatAreaFilter, setChatAreaFilter] = useState<string>("all");
   const [subscription, setSubscription] = useState<{ status: string; days_left?: number | null; is_active: boolean } | null>(null);
+  const [myThingImages, setMyThingImages] = useState<string[]>([]);
+  const [myThingIdx, setMyThingIdx] = useState(0);
 
   const load = useCallback(async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const [s, c, r, ct, gr, sub] = await Promise.all([
+      const [s, c, r, sub, mt] = await Promise.all([
         api<Settings>("/settings"),
         api<{ items: Callback[] }>("/callbacks", { query: { day: today, include_done: true } }),
         api<ReportStats>("/reports", { query: { period: "day" } }),
-        api<{ items: Contact[] }>("/contacts"),
-        api<{ items: Group[] }>("/groups"),
         api<any>("/subscription/status").catch(() => null),
+        api<{ items: MyThingImage[] }>("/my-thing", { query: { kind: "image" } }).catch(() => ({ items: [] })),
       ]);
       setSettings(s);
       setCallbacks(c.items);
       setReport(r);
-      setContacts(ct.items || []);
-      setGroups(gr.items || []);
       setSubscription(sub);
+      const imgs = (mt.items || [])
+        .map((it) => it.image_base64)
+        .filter((v): v is string => !!v && v.length > 20);
+      // Shuffle for random rotation
+      for (let i = imgs.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [imgs[i], imgs[j]] = [imgs[j], imgs[i]];
+      }
+      setMyThingImages(imgs);
+      setMyThingIdx(0);
     } catch (e) {
       console.warn(e);
     } finally {
@@ -56,6 +59,17 @@ export default function HomeScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Auto-cycle My Thing images every 5s
+  useEffect(() => {
+    if (myThingImages.length < 2) return;
+    const id = setInterval(() => {
+      setMyThingIdx((n) => (n + 1) % myThingImages.length);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [myThingImages]);
+
+  const myThingImg = myThingImages.length > 0 ? myThingImages[myThingIdx] : null;
 
   if (loading) {
     return (
@@ -118,6 +132,12 @@ export default function HomeScreen() {
         )}
 
         <Pressable testID="home-my-thing-btn" onPress={() => router.push("/my-thing")} style={styles.myThingBtn}>
+          {myThingImg ? (
+            <>
+              <Image source={{ uri: myThingImg }} style={styles.myThingBgImg} />
+              <View style={styles.myThingScrim} />
+            </>
+          ) : null}
           <View style={styles.myThingIcon}>
             <Ionicons name="sparkles" size={22} color="#FFF" />
           </View>
@@ -151,167 +171,6 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Chat & Messaggi</Text>
-            <Pressable testID="home-open-chat" onPress={() => router.push("/chat")}>
-              <Text style={styles.linkTxt}>Chat interna →</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.chatCard}>
-            <View style={styles.searchRow}>
-              <Ionicons name="search" size={16} color={theme.color.muted} />
-              <TextInput
-                testID="home-chat-search"
-                value={chatQuery}
-                onChangeText={setChatQuery}
-                placeholder="Cerca contatto o gruppo per nome…"
-                placeholderTextColor="#94A3B8"
-                style={styles.searchInput}
-              />
-              {chatQuery.length > 0 && (
-                <Pressable onPress={() => setChatQuery("")} hitSlop={10}>
-                  <Ionicons name="close-circle" size={16} color={theme.color.muted} />
-                </Pressable>
-              )}
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              {[
-                { id: "all", name: "Tutti", color: theme.color.brandPrimary },
-                { id: "energy", name: settings?.energy_title || "Consulente Energetico", color: energyColor },
-                { id: "network", name: settings?.network_title || "Networker", color: networkColor },
-                ...(settings?.custom_areas || []),
-              ].map((a) => {
-                const on = chatAreaFilter === a.id;
-                return (
-                  <Pressable
-                    key={a.id}
-                    testID={`home-chat-filter-${a.id}`}
-                    onPress={() => setChatAreaFilter(a.id)}
-                    style={[styles.filterChip, on && { backgroundColor: a.color, borderColor: a.color }]}
-                  >
-                    <Text style={[styles.filterChipTxt, on && { color: "#FFF" }]}>{a.name}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {(() => {
-              const q = chatQuery.trim().toLowerCase();
-              const filteredGroups = groups.filter((g) => !q || g.name.toLowerCase().includes(q));
-              const filteredContacts = contacts.filter((c) => {
-                if (chatAreaFilter !== "all") {
-                  const inArea = c.area === chatAreaFilter || (c.additional_areas || []).includes(chatAreaFilter);
-                  if (!inArea) return false;
-                }
-                if (!q) return true;
-                return `${c.first_name} ${c.last_name}`.toLowerCase().includes(q) || (c.phone || "").includes(q);
-              });
-              const showGroups = chatAreaFilter === "all" ? filteredGroups : [];
-              const results = [
-                ...showGroups.slice(0, 3).map((g) => ({ type: "group" as const, item: g })),
-                ...filteredContacts.slice(0, 6).map((c) => ({ type: "contact" as const, item: c })),
-              ];
-              if (results.length === 0) {
-                return (
-                  <View style={styles.chatEmpty}>
-                    <Ionicons name="chatbubbles-outline" size={28} color={theme.color.muted} />
-                    <Text style={styles.emptyTxt}>{q ? "Nessun risultato" : "Aggiungi contatti e gruppi per iniziare"}</Text>
-                  </View>
-                );
-              }
-              return (
-                <View style={{ marginTop: 10, gap: 6 }}>
-                  {results.map((r) => {
-                    if (r.type === "group") {
-                      const g = r.item;
-                      return (
-                        <Pressable
-                          key={`g-${g.group_id}`}
-                          testID={`home-chat-group-${g.group_id}`}
-                          onPress={() => router.push(`/groups/${g.group_id}`)}
-                          style={styles.resultCard}
-                        >
-                          <View style={[styles.avatarLg, { backgroundColor: g.color + "22" }]}>
-                            <Ionicons name="people" size={20} color={g.color} />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.resultName}>{g.name}</Text>
-                            <Text style={styles.resultSub}>Gruppo · {g.member_count} contatt{g.member_count === 1 ? "o" : "i"}</Text>
-                          </View>
-                          <View style={[styles.grpBadge, { backgroundColor: g.color }]}>
-                            <Text style={styles.grpBadgeTxt}>Bulk</Text>
-                          </View>
-                        </Pressable>
-                      );
-                    }
-                    const c = r.item;
-                    const areaColor = c.area === "energy" ? energyColor : c.area === "network" ? networkColor : (settings?.custom_areas || []).find((x) => x.id === c.area)?.color || theme.color.muted;
-                    return (
-                      <View key={`c-${c.contact_id}`} style={styles.resultCard}>
-                        <Pressable style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 10 }} onPress={() => router.push(`/contact/${c.contact_id}`)}>
-                          <View style={[styles.avatarLg, { backgroundColor: areaColor + "22" }]}>
-                            <Text style={[styles.avatarLgTxt, { color: areaColor }]}>{(c.first_name?.[0] || "").toUpperCase()}{(c.last_name?.[0] || "").toUpperCase()}</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.resultName} numberOfLines={1}>{c.first_name} {c.last_name}</Text>
-                            <Text style={styles.resultSub} numberOfLines={1}>{c.phone || c.email || "—"}</Text>
-                          </View>
-                        </Pressable>
-                        <View style={styles.commRow}>
-                          {(c.whatsapp || c.phone) && (
-                            <Pressable
-                              testID={`home-wa-${c.contact_id}`}
-                              onPress={() => Linking.openURL(`https://wa.me/${(c.whatsapp || c.phone || "").replace(/[^\d+]/g, "")}`)}
-                              style={[styles.iconBtn, { backgroundColor: "#25D366" }]}
-                            >
-                              <Ionicons name="logo-whatsapp" size={14} color="#FFF" />
-                            </Pressable>
-                          )}
-                          {c.telegram && (
-                            <Pressable
-                              testID={`home-tg-${c.contact_id}`}
-                              onPress={() => openTelegram(c.telegram || "")}
-                              style={[styles.iconBtn, { backgroundColor: "#0088CC" }]}
-                            >
-                              <Ionicons name="paper-plane" size={14} color="#FFF" />
-                            </Pressable>
-                          )}
-                          {c.email && (
-                            <Pressable
-                              testID={`home-mail-${c.contact_id}`}
-                              onPress={() => Linking.openURL(`mailto:${c.email}`)}
-                              style={[styles.iconBtn, { backgroundColor: "#0F2438" }]}
-                            >
-                              <Ionicons name="mail" size={14} color="#FFF" />
-                            </Pressable>
-                          )}
-                          {c.phone && (
-                            <Pressable
-                              testID={`home-call-${c.contact_id}`}
-                              onPress={() => Linking.openURL(`tel:${c.phone}`)}
-                              style={[styles.iconBtn, { backgroundColor: theme.color.brandPrimary }]}
-                            >
-                              <Ionicons name="call" size={14} color="#FFF" />
-                            </Pressable>
-                          )}
-                        </View>
-                      </View>
-                    );
-                  })}
-                  {(filteredContacts.length > 6 || filteredGroups.length > 3) && (
-                    <Pressable onPress={() => router.push("/(tabs)/contatti")} style={{ padding: 8, alignItems: "center" }}>
-                      <Text style={styles.linkTxt}>Vedi tutti ({filteredContacts.length} contatti · {filteredGroups.length} gruppi) →</Text>
-                    </Pressable>
-                  )}
-                </View>
-              );
-            })()}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Ritelefonate di oggi</Text>
             <Pressable testID="add-callback-btn" onPress={() => router.push("/callback/new")}>
               <Text style={styles.linkTxt}>+ Aggiungi</Text>
@@ -338,7 +197,7 @@ export default function HomeScreen() {
                       try {
                         await api(`/callbacks/${cb.callback_id}`, { method: "PUT", body: { done: !cb.done } });
                         await load();
-                      } catch (e: any) { notify("Errore", e?.message || ""); }
+                      } catch (e: any) { console.warn("Errore toggle callback:", e?.message || e); }
                     }}
                   />
                 ))}
@@ -484,7 +343,9 @@ const styles = StyleSheet.create({
   inviteBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: theme.color.brandPrimary, paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
   inviteTitle: { color: "#FFF", fontWeight: "700", fontSize: 14 },
   inviteSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },
-  myThingBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#7A2E8E", paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
+  myThingBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#7A2E8E", paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12, overflow: "hidden", position: "relative", minHeight: 72 },
+  myThingBgImg: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%", resizeMode: "cover" },
+  myThingScrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(122,46,142,0.55)" },
   masterBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#1E3A8A", paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
   masterIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   masterTitle: { color: "#FFF", fontWeight: "800", fontSize: 15 },

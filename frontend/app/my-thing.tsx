@@ -387,7 +387,7 @@ export default function MyThingScreen() {
               )}
 
               {active === "message" && (
-                <View style={styles.card}>
+                <View style={styles.formCard}>
                   <Text style={styles.label}>Modalità di visualizzazione</Text>
                   <View style={styles.segment}>
                     <Pressable
@@ -425,7 +425,7 @@ export default function MyThingScreen() {
               )}
 
               {(active === "event" || active === "anniversary") && (
-                <View style={styles.card}>
+                <View style={styles.formCard}>
                   <Text style={styles.label}>Data{active === "event" ? " e ora" : ""}</Text>
                   {Platform.OS === "web" ? (
                     <View style={{ marginTop: 4 }}>
@@ -472,7 +472,7 @@ export default function MyThingScreen() {
                 </View>
               )}
 
-              <View style={styles.card}>
+              <View style={styles.formCard}>
                 <View style={styles.rowBetween}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.label}>Notifica / Pop-up</Text>
@@ -493,7 +493,7 @@ export default function MyThingScreen() {
                 </View>
               </View>
 
-              <View style={styles.card}>
+              <View style={styles.formCard}>
                 <Text style={styles.label}>Colore</Text>
                 <View style={styles.swatches}>
                   {COLORS.map((c) => (
@@ -539,6 +539,7 @@ const styles = StyleSheet.create({
   emptyBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, backgroundColor: theme.color.brandPrimary },
   emptyBtnTxt: { color: "#FFF", fontWeight: "700" },
   card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, flexDirection: "row", gap: 12 },
+  formCard: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, gap: 8 },
   cardImg: { width: 70, height: 70, borderRadius: 8 },
   cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   cardTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface, flex: 1 },

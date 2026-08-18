@@ -1,0 +1,27 @@
+{
+  "summary": "V26.j — 4 UI/layout fixes on Dal Pastro CRM. All 4 features verified via mobile E2E (390x844). (1) My Thing form: color swatches wrap onto 2 rows (8 circles, uniqueYs=[668,712], maxRight=329 <= 390) in ALL three modals (Nuovo messaggio, Nuova ricorrenza, Nuovo evento). Confirmed on tabs Messaggi, Ricorrenze, Eventi. (2) Nuovo messaggio layout: 'Ora (HH:MM)' TextInput [data-testid=mt-daily-time] fits within screen (x=29, w=332, right=361); segment control [mt-mode-random]/[mt-mode-scheduled] fills width evenly (163/163px, total=358<=390); Notifica/Pop-up row fits (right=390). (3) Home 'Chat & Messaggi' section fully removed: no testIDs matching /^home-(chat|call|wa|mail|tg)-/ exist; 'Chat & Messaggi' string absent from DOM. Kept elements verified: home-my-thing-btn, home-master-btn, stat-energy, stat-network, add-callback-btn all present. (4) My Thing banner slideshow: With 3 uploaded images, an <img> element renders inside [home-my-thing-btn] with src=data:image/png;base64,..., and img.src CHANGES across 6s intervals (setInterval 5000ms verified twice: initial→+6s→+12s all different, confirming both rotation and continued cycling). With 0 images (post-cleanup), banner shows NO <img> element and solid purple bg rgb(122,46,142) — matches #7A2E8E. Random shuffle uses Fisher-Yates + Math.random() (code review confirmed at home.tsx L47-50). Scrim overlay verified visually (banner appears purple-tinted over image) — RN Web renders style via CSS class so inline-style probe returned false, but visual confirmation + code review of styles.myThingScrim rgba(122,46,142,0.55) at home.tsx L348 confirm implementation.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "home.tsx L26-52 correctly fetches /my-thing?kind=image, filters to image_base64 items, and applies Fisher-Yates shuffle before setState. Auto-cycle useEffect (L64-70) uses setInterval 5000ms and correctly clears on unmount / array change.",
+    "home.tsx L134-149 renders <Image source={{uri:myThingImg}}> only when myThingImg is truthy; myThingScrim view rendered inside the same conditional block; banner content (icon + title + chevron) sits above scrim in stacking order.",
+    "home.tsx no longer contains the Chat & Messaggi section, search input, filter chips, contact list, or group list — cleanly removed.",
+    "my-thing.tsx L497-509 uses new styles.formCard wrapper with column direction; styles.swatches uses flexDirection:'row' + flexWrap:'wrap' + gap:8 so 8x36px swatches wrap on narrow viewports.",
+    "my-thing.tsx L410-423 places mt-daily-time inside formCard, so it inherits card padding and stays within card width, avoiding lateral cut-off.",
+    "Note: home.tsx L200 references undefined helper `notify(...)` in the CallbackRow catch block; this is pre-existing (out of scope) but would throw on callback toggle errors — recommend main agent replace with console.warn or a proper toast helper."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "seed_data_creation": "3 test my-thing image items created (mt_98b848e37df2, mt_3f4c4048c5cf, mt_d8ac4dd04410) to verify slideshow rotation, then all 3 deleted via DELETE /api/my-thing/{id} (200 OK each). Final image count verified = 0.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Owner login: test@dalpastro.it / Test1234!. IMPORTANT for login: the login screen shows TWO 'Accedi' texts (tab + submit) PLUS 'Accedi con Google' — target the SECOND occurrence (index 1) of `text=Accedi`. My Thing testIDs: mt-add-btn, mt-empty-add, mt-tab-{message|image|event|anniversary}, mt-title-input, mt-body-input, mt-mode-random, mt-mode-scheduled, mt-daily-time, mt-notify-switch, mt-save-btn. Home slideshow rotates every 5000ms via useEffect + setInterval; verify by capturing img.src at 0s/6s/12s and asserting all three differ. Banner scrim uses RN Web CSS class (not inline style) so inline-style probes fail — check via getComputedStyle or visual verification instead.",
+  "rca_of_issue": "N/A — all 4 features work as specified."
+}
