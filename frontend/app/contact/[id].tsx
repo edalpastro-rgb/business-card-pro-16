@@ -18,6 +18,7 @@ import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ContactAudioSection } from "@/src/ContactAudioSection";
 import { ContactCallsSection } from "@/src/ContactCallsSection";
 import { ContactAppointmentsSection } from "@/src/ContactAppointmentsSection";
+import { ContactReferralsSection } from "@/src/ContactReferralsSection";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import * as ImagePicker from "expo-image-picker";
 
@@ -477,6 +478,11 @@ export default function ContactDetail() {
                 </View>
               );
             })()}
+
+            <ContactReferralsSection
+              contactId={id}
+              contactName={`${c.first_name} ${c.last_name}`.trim()}
+            />
 
             <View style={styles.card}>
               <Text style={styles.commSectionTitle}>Comunica con {c.first_name}</Text>

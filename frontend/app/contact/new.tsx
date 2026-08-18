@@ -75,6 +75,7 @@ export default function NewContactScreen() {
   });
   const [busy, setBusy] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [postCreateModal, setPostCreateModal] = useState<{ contact_id: string; name: string } | null>(null);
 
   useEffect(() => {
     api<{ items: ContactLite[] }>("/contacts").then((r) => setContacts(r.items)).catch(() => {});
@@ -501,7 +502,15 @@ export default function NewContactScreen() {
           await scheduleBirthdayReminder(contactId, `${form.first_name} ${form.last_name}`.trim(), form.birth_date, form.birthday_alert_days_before);
         } catch {}
       }
-      router.replace(`/contact/${contactId}`);
+      if (isEdit) {
+        router.replace(`/contact/${contactId}`);
+      } else {
+        // Show post-creation modal offering to create an appointment right away
+        setPostCreateModal({
+          contact_id: contactId,
+          name: `${form.first_name} ${form.last_name}`.trim() || "il nuovo contatto",
+        });
+      }
     } finally { setBusy(false); }
   };
 
@@ -1139,6 +1148,62 @@ export default function NewContactScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Post-creation success modal: offer to create an appointment for the new contact */}
+      <Modal
+        visible={!!postCreateModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => {
+          const id = postCreateModal?.contact_id;
+          setPostCreateModal(null);
+          if (id) router.replace(`/contact/${id}`);
+        }}
+      >
+        <View style={styles.modalBack}>
+          <View style={styles.modalCard}>
+            <View style={{ alignItems: "center", marginBottom: 10 }}>
+              <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#DCFCE7", justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
+                <Ionicons name="checkmark-circle" size={40} color="#16A34A" />
+              </View>
+              <Text style={[styles.modalTitle, { textAlign: "center" }]}>Contatto salvato ✅</Text>
+              <Text style={{ fontSize: 13, color: theme.color.muted, textAlign: "center", marginTop: 4 }}>
+                Vuoi programmare subito un appuntamento con {postCreateModal?.name}?
+              </Text>
+            </View>
+            <View style={{ gap: 10, marginTop: 8 }}>
+              <Pressable
+                testID="post-create-appt-btn"
+                onPress={() => {
+                  const id = postCreateModal?.contact_id;
+                  const name = postCreateModal?.name || "";
+                  setPostCreateModal(null);
+                  if (id) {
+                    router.replace(`/appointment/new?contact_id=${encodeURIComponent(id)}&contact_name=${encodeURIComponent(name)}`);
+                  }
+                }}
+                style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary, flexDirection: "row", justifyContent: "center", gap: 8 }]}
+              >
+                <Ionicons name="calendar" size={18} color="#FFF" />
+                <Text style={{ color: "#FFF", fontWeight: "700" }}>Crea appuntamento per questo contatto</Text>
+              </Pressable>
+              <Pressable
+                testID="post-create-skip-btn"
+                onPress={() => {
+                  const id = postCreateModal?.contact_id;
+                  setPostCreateModal(null);
+                  if (id) router.replace(`/contact/${id}`);
+                }}
+                style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, flexDirection: "row", justifyContent: "center", gap: 8 }]}
+              >
+                <Ionicons name="arrow-forward" size={18} color={theme.color.onSurface} />
+                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Salta, vai alla scheda</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* AI helper modal */}
       <Modal visible={!!aiMode} animationType="slide" transparent onRequestClose={closeAI}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>

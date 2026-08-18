@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 33 — Tested both features end-to-end. Backend GET /api/contacts/{id}/referrals: 5/5 pytest tests PASS (empty, parent+children shape, tenant isolation, PUT re-linking, 404 for missing contact). Frontend: (1) Post-Create modal ('Contatto salvato ✅' with post-create-appt-btn + post-create-skip-btn) appears ONLY on create, NOT on edit — verified. Skip navigates to /contact/{id}; Appt navigates to /appointment/new?contact_id=X&contact_name=Y with the appointment form pre-populated. (2) 'Anagrafiche collegate' card: hidden for orphan contacts; on child detail shows 'Riferito da' with parent name+code (testID=referral-parent) and tap navigates to parent; on parent detail shows 'Ha segnalato (N)' with per-child rows (testID=referral-child-{id}) and tap navigates to child. All flows work as specified. No deprecated Expo packages introduced by this feature (ContactReferralsSection uses only View/Text/Pressable + Ionicons + expo-router). No react-native red screen errors during the tested flows.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v27b_referrals.py",
+    "/app/test_reports/pytest/pytest_v27b_referrals.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ContactReferralsSection cleanly handles the empty-state (returns null when no parent and no children) — matches spec.",
+    "Backend endpoint scopes both parent lookup and the reverse-lookup query with scope_query(user, ...), so multi-tenant isolation is enforced end-to-end (verified in test).",
+    "PUT /api/contacts/{id} allows partial update of referred_by_contact_id and the change is reflected in both sides of the /referrals response — no orphan links observed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v27b_referrals.py (new pytest file)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "During testing, created 2 owner-tenant contacts (parent 'TESTParent*' and child 'TESTChild*'), plus 1 fresh isolated tenant account 'tester_*@example.com' for cross-tenant isolation assertion. Owner-side pytest data was cleaned up in teardown; the manual UI-created parent/child pair remains in the DB for possible follow-up regression.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Auth: use test@dalpastro.it / Test1234! and login via testIDs auth-email-input / auth-password-input / auth-submit-button. To reach the post-create modal, /contact/new must be visited WITHOUT ?id=... (edit mode skips the modal). For referrals: select origin via testID c-source-ref-contact and then tap the parent's name pill (rendered as an inline Pressable list). Endpoint returns {referred_by, referrals} where referred_by is null for orphan contacts and referrals is an empty array.",
+  "rca_of_issue": "N/A — no bugs found for the two features under test."
+}
