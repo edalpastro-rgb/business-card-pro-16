@@ -15,6 +15,8 @@ import { openTelegram } from "@/src/utils/telegram";
 import { BillsSection } from "@/src/BillsSection";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ContactAudioSection } from "@/src/ContactAudioSection";
+import { ContactCallsSection } from "@/src/ContactCallsSection";
+import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import * as ImagePicker from "expo-image-picker";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
@@ -23,6 +25,7 @@ type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string; address: string;
   phone_alt?: string; whatsapp?: string; email_alt?: string; telegram?: string;
   address_street?: string; address_number?: string; address_zip?: string; address_city?: string; address_province?: string;
+  work_address?: string; residence_address?: string;
   birth_date?: string; fiscal_code?: string; vat_number?: string; anniversaries?: { name: string; date: string }[];
   website?: string; linkedin?: string; instagram?: string; facebook?: string;
   area: "energy" | "network"; additional_areas?: string[]; source: string; referral_note: string; email_note: string; general_note: string;
@@ -36,7 +39,7 @@ export default function ContactDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [c, setC] = useState<Contact | null>(null);
-  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio">("info");
+  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio" | "calls">("info");
   const [noteText, setNoteText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
@@ -47,6 +50,8 @@ export default function ContactDetail() {
   const [settings, setSettings] = useState<any>(null);
   const [team, setTeam] = useState<Array<{ user_id: string; name: string; role: string }>>([]);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
+  const [callsRefreshTick, setCallsRefreshTick] = useState(0);
   const { user } = useAuth();
   const canAssign = user?.role === "owner" || user?.role === "admin";
 
@@ -88,14 +93,15 @@ export default function ContactDetail() {
 
   const color = c.area === "energy" ? theme.color.energy : theme.color.network;
 
-  const openWaze = () => {
-    if (!c.address) return;
-    const url = `https://www.waze.com/ul?q=${encodeURIComponent(c.address)}&navigate=yes`;
-    Linking.openURL(url);
+  // Helpers per aprire navigazione con Waze e Google Maps su qualsiasi indirizzo (stringa libera)
+  const openWazeAddr = (addr: string) => {
+    if (!addr) return;
+    Linking.openURL(`https://www.waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`);
   };
-  const callPhone = () => { if (c.phone) Linking.openURL(`tel:${c.phone.replace(/\s/g, "")}`); };
-  const sendWhatsApp = () => { if (c.phone) Linking.openURL(`https://wa.me/${c.phone.replace(/[^\d+]/g, "")}`); };
-  const sendEmail = () => { if (c.email) Linking.openURL(`mailto:${c.email}`); };
+  const openGoogleMapsAddr = (addr: string) => {
+    if (!addr) return;
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`);
+  };
 
   const addTextNote = async () => {
     if (!noteText.trim()) return;
@@ -295,60 +301,71 @@ export default function ContactDetail() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      <View style={[styles.header, { backgroundColor: color }]}>
-        <Pressable
-          testID="back-btn"
-          onPress={() => {
-            try {
-              if (router.canGoBack && router.canGoBack()) router.back();
-              else router.replace("/(tabs)/contatti");
-            } catch {
-              router.replace("/(tabs)/contatti");
-            }
-          }}
-          hitSlop={12}
-          style={{ padding: 6 }}
-        >
-          <Ionicons name="chevron-back" size={26} color="#FFF" />
-        </Pressable>
-        <View style={{ flex: 1 }} />
-        <Pressable testID="share-contact" onPress={shareContact} style={{ marginRight: 12 }}><Ionicons name="share-social-outline" size={22} color="#FFF" /></Pressable>
-        <Pressable testID="edit-contact" onPress={() => router.push(`/contact/edit/${id}`)}><Ionicons name="create-outline" size={22} color="#FFF" /></Pressable>
-      </View>
-      <View style={[styles.hero, { backgroundColor: color }]}>
-        <Pressable
-          testID="contact-avatar-btn"
-          onPress={async () => {
-            const b64 = await pickAvatarBase64();
-            if (b64) { await api(`/contacts/${id}`, { method: "PUT", body: { avatar_base64: b64 } }); await load(); }
-          }}
-          style={styles.avatarWrap}
-        >
-          {c.avatar_base64 ? (
-            <Image source={{ uri: c.avatar_base64 }} style={styles.avatarImg} />
-          ) : (
-            <View style={styles.avatar}><Text style={styles.avatarTxt}>{c.first_name[0]?.toUpperCase()}{c.last_name[0]?.toUpperCase()}</Text></View>
-          )}
-          <View style={styles.avatarBadge}>
-            <Ionicons name="camera" size={12} color="#FFF" />
+      <View style={[styles.heroCompact, { backgroundColor: color }]}>
+        <View style={styles.heroTopRow}>
+          <Pressable
+            testID="back-btn"
+            onPress={() => {
+              try {
+                if (router.canGoBack && router.canGoBack()) router.back();
+                else router.replace("/(tabs)/contatti");
+              } catch {
+                router.replace("/(tabs)/contatti");
+              }
+            }}
+            hitSlop={12}
+            style={{ padding: 4 }}
+          >
+            <Ionicons name="chevron-back" size={24} color="#FFF" />
+          </Pressable>
+          <Pressable
+            testID="contact-avatar-btn"
+            onPress={async () => {
+              const b64 = await pickAvatarBase64();
+              if (b64) { await api(`/contacts/${id}`, { method: "PUT", body: { avatar_base64: b64 } }); await load(); }
+            }}
+            style={styles.avatarWrapCompact}
+          >
+            {c.avatar_base64 ? (
+              <Image source={{ uri: c.avatar_base64 }} style={styles.avatarImgCompact} />
+            ) : (
+              <View style={styles.avatarCompact}>
+                <Text style={styles.avatarTxtCompact}>{c.first_name[0]?.toUpperCase()}{c.last_name[0]?.toUpperCase()}</Text>
+              </View>
+            )}
+            <View style={styles.avatarBadgeCompact}>
+              <Ionicons name="camera" size={9} color="#FFF" />
+            </View>
+          </Pressable>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.nameCompact} numberOfLines={1} ellipsizeMode="tail">
+              {c.first_name} {c.last_name}{c.contact_code ? ` · ${c.contact_code}` : ""}
+            </Text>
+            <Text style={styles.areaTagCompact} numberOfLines={1}>
+              {c.area === "energy" ? "Consulente Energetico" : "Networker"} · {c.source === "referral" ? "Referenza" : "Conoscenza"}
+            </Text>
           </View>
-        </Pressable>
-        <Text style={styles.name}>{c.first_name} {c.last_name}{c.contact_code ? ` · ${c.contact_code}` : ""}</Text>
-        <Text style={styles.areaTag}>{c.area === "energy" ? "Consulente Energetico" : "Networker"} · {c.source === "referral" ? "Referenza" : "Conoscenza"}</Text>
+          <Pressable testID="share-contact" onPress={shareContact} hitSlop={8} style={{ padding: 6 }}>
+            <Ionicons name="share-social-outline" size={20} color="#FFF" />
+          </Pressable>
+          <Pressable testID="edit-contact" onPress={() => router.push(`/contact/edit/${id}`)} hitSlop={8} style={{ padding: 6 }}>
+            <Ionicons name="create-outline" size={20} color="#FFF" />
+          </Pressable>
+        </View>
 
         {canAssign && (
-          <Pressable testID="assign-btn" onPress={() => setAssignOpen(!assignOpen)} style={{ marginTop: 6, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: theme.color.brandTertiary, borderRadius: 20 }}>
-            <Ionicons name="person" size={12} color={theme.color.brandPrimary} />
-            <Text style={{ fontSize: 11, color: theme.color.brandPrimary, fontWeight: "700" }}>
+          <Pressable testID="assign-btn" onPress={() => setAssignOpen(!assignOpen)} style={styles.assignPill}>
+            <Ionicons name="person" size={11} color={theme.color.brandPrimary} />
+            <Text style={styles.assignPillTxt}>
               {c.assigned_to_user_id
                 ? "Assegnato: " + (team.find((m) => m.user_id === c.assigned_to_user_id)?.name || (c.assigned_to_user_id === user?.user_id ? "Te stesso" : c.assigned_to_user_id.slice(0, 8)))
                 : "Non assegnato — tocca per assegnare"}
             </Text>
-            <Ionicons name={assignOpen ? "chevron-up" : "chevron-down"} size={12} color={theme.color.brandPrimary} />
+            <Ionicons name={assignOpen ? "chevron-up" : "chevron-down"} size={11} color={theme.color.brandPrimary} />
           </Pressable>
         )}
         {canAssign && assignOpen && (
-          <View style={{ marginTop: 6, backgroundColor: "#FFF", borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, padding: 6, width: "100%" }}>
+          <View style={{ marginTop: 6, backgroundColor: "#FFF", borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, padding: 6 }}>
             <Pressable testID="assign-none" onPress={() => doAssign(null)} style={{ padding: 8 }}>
               <Text style={{ color: theme.color.muted, fontStyle: "italic" }}>— Nessuno (orfano) —</Text>
             </Pressable>
@@ -366,18 +383,14 @@ export default function ContactDetail() {
             ))}
           </View>
         )}
-        <View style={styles.actionsRow}>
-          {c.phone ? <QuickAct icon="call" label="Chiama" onPress={callPhone} testID="act-call" /> : null}
-          {c.phone ? <QuickAct icon="logo-whatsapp" label="WhatsApp" onPress={sendWhatsApp} testID="act-wa" /> : null}
-          {c.email ? <QuickAct icon="mail" label="Email" onPress={sendEmail} testID="act-mail" /> : null}
-          {c.address ? <QuickAct icon="navigate" label="Waze" onPress={openWaze} testID="act-waze" /> : null}
-        </View>
       </View>
 
       <View style={styles.tabs}>
-        {(["info", "notes", "files", "bills", "audio"] as const).map((t) => (
+        {(["info", "notes", "files", "bills", "audio", "calls"] as const).map((t) => (
           <Pressable key={t} testID={`tab-${t}`} onPress={() => setTab(t)} style={[styles.tab, tab === t && styles.tabActive]}>
-            <Text style={[styles.tabTxt, tab === t && styles.tabTxtActive]}>{t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : "Audio"}</Text>
+            <Text style={[styles.tabTxt, tab === t && styles.tabTxtActive]}>
+              {t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : "Telefonate"}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -386,6 +399,18 @@ export default function ContactDetail() {
         <BillsSection contactId={id} contactName={`${c.first_name} ${c.last_name}`.trim()} />
       ) : tab === "audio" ? (
         <ContactAudioSection contactId={id} />
+      ) : tab === "calls" ? (
+        <ContactCallsSection
+          contactId={id}
+          contactName={`${c.first_name} ${c.last_name}`.trim()}
+          contactPhone={c.phone}
+          refreshTick={callsRefreshTick}
+          onCallStarted={() => setCallTarget({
+            phone: c.phone || null,
+            contact_id: id,
+            display_name: `${c.first_name} ${c.last_name}`.trim(),
+          })}
+        />
       ) : (
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {tab === "info" && (
@@ -438,7 +463,15 @@ export default function ContactDetail() {
               <Text style={styles.commSectionTitle}>Comunica con {c.first_name}</Text>
               <View style={styles.commGrid}>
                 {c.phone ? (
-                  <Pressable testID="comm-call" onPress={() => Linking.openURL(`tel:${c.phone.replace(/\s/g, "")}`)} style={[styles.commBtn, { backgroundColor: "#0F766E" }]}>
+                  <Pressable
+                    testID="comm-call"
+                    onPress={() => setCallTarget({
+                      phone: c.phone || null,
+                      contact_id: id,
+                      display_name: `${c.first_name} ${c.last_name}`.trim(),
+                    })}
+                    style={[styles.commBtn, { backgroundColor: "#0F766E" }]}
+                  >
                     <Ionicons name="call" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Chiama</Text>
                   </Pressable>
                 ) : null}
@@ -503,27 +536,86 @@ export default function ContactDetail() {
               <View>
                 <InfoRow icon="location-outline" label="Indirizzo"
                   value={[c.address_street, [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province].filter(Boolean).join(", ")} />
-                <Pressable
-                  testID="address-waze-btn"
-                  onPress={() => {
-                    const addr = [c.address_street, c.address_city, c.address_province].filter(Boolean).join(", ");
-                    if (addr) Linking.openURL(`https://www.waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`);
-                  }}
-                  style={styles.wazeInline}
-                >
-                  <Ionicons name="navigate" size={14} color="#FFF" />
-                  <Text style={styles.wazeInlineTxt}>Naviga con Waze</Text>
-                </Pressable>
+                <View style={styles.navBtnRow}>
+                  <Pressable
+                    testID="address-waze-btn"
+                    onPress={() => openWazeAddr([c.address_street, c.address_city, c.address_province].filter(Boolean).join(", "))}
+                    style={styles.wazeInline}
+                  >
+                    <Ionicons name="navigate" size={14} color="#FFF" />
+                    <Text style={styles.wazeInlineTxt}>Waze</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="address-maps-btn"
+                    onPress={() => openGoogleMapsAddr([c.address_street, c.address_city, c.address_province].filter(Boolean).join(", "))}
+                    style={[styles.wazeInline, { backgroundColor: "#4285F4" }]}
+                  >
+                    <Ionicons name="map" size={14} color="#FFF" />
+                    <Text style={styles.wazeInlineTxt}>Google Maps</Text>
+                  </Pressable>
+                </View>
               </View>
             ) : (c.address ? (
               <View>
                 <InfoRow icon="location-outline" label="Indirizzo" value={c.address} />
-                <Pressable testID="address-waze-btn" onPress={() => Linking.openURL(`https://www.waze.com/ul?q=${encodeURIComponent(c.address)}&navigate=yes`)} style={styles.wazeInline}>
-                  <Ionicons name="navigate" size={14} color="#FFF" />
-                  <Text style={styles.wazeInlineTxt}>Naviga con Waze</Text>
-                </Pressable>
+                <View style={styles.navBtnRow}>
+                  <Pressable testID="address-waze-btn" onPress={() => openWazeAddr(c.address)} style={styles.wazeInline}>
+                    <Ionicons name="navigate" size={14} color="#FFF" />
+                    <Text style={styles.wazeInlineTxt}>Waze</Text>
+                  </Pressable>
+                  <Pressable testID="address-maps-btn" onPress={() => openGoogleMapsAddr(c.address)} style={[styles.wazeInline, { backgroundColor: "#4285F4" }]}>
+                    <Ionicons name="map" size={14} color="#FFF" />
+                    <Text style={styles.wazeInlineTxt}>Google Maps</Text>
+                  </Pressable>
+                </View>
               </View>
             ) : null)}
+            {c.work_address ? (
+              <View>
+                <InfoRow icon="briefcase-outline" label="Indirizzo di lavoro" value={c.work_address} />
+                <View style={styles.navBtnRow}>
+                  <Pressable
+                    testID="work-address-waze-btn"
+                    onPress={() => openWazeAddr(c.work_address || "")}
+                    style={styles.wazeInline}
+                  >
+                    <Ionicons name="navigate" size={14} color="#FFF" />
+                    <Text style={styles.wazeInlineTxt}>Waze</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="work-address-maps-btn"
+                    onPress={() => openGoogleMapsAddr(c.work_address || "")}
+                    style={[styles.wazeInline, { backgroundColor: "#4285F4" }]}
+                  >
+                    <Ionicons name="map" size={14} color="#FFF" />
+                    <Text style={styles.wazeInlineTxt}>Google Maps</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+            {c.residence_address ? (
+              <View>
+                <InfoRow icon="home-outline" label="Indirizzo di residenza" value={c.residence_address} />
+                <View style={styles.navBtnRow}>
+                  <Pressable
+                    testID="residence-address-waze-btn"
+                    onPress={() => openWazeAddr(c.residence_address || "")}
+                    style={styles.wazeInline}
+                  >
+                    <Ionicons name="navigate" size={14} color="#FFF" />
+                    <Text style={styles.wazeInlineTxt}>Waze</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="residence-address-maps-btn"
+                    onPress={() => openGoogleMapsAddr(c.residence_address || "")}
+                    style={[styles.wazeInline, { backgroundColor: "#4285F4" }]}
+                  >
+                    <Ionicons name="map" size={14} color="#FFF" />
+                    <Text style={styles.wazeInlineTxt}>Google Maps</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
             {c.birth_date ? <InfoRow icon="gift-outline" label="Data di nascita / Compleanno" value={c.birth_date} /> : null}
             {(c.anniversaries || []).map((ann: any, i: number) => (
               <InfoRow key={`ann-${i}`} icon="calendar-outline" label={ann.name || "Ricorrenza"} value={ann.date || "—"} />
@@ -742,16 +834,18 @@ export default function ContactDetail() {
         <View style={{ height: 40 }} />
       </ScrollView>
       )}
+      <CallActionSheet
+        visible={!!callTarget}
+        target={callTarget}
+        onClose={() => setCallTarget(null)}
+        onCompleted={() => {
+          setCallTarget(null);
+          setCallsRefreshTick((n) => n + 1);
+          // If user is on Calls tab, force re-render; else load contact anyway
+          load();
+        }}
+      />
     </SafeAreaView>
-  );
-}
-
-function QuickAct({ icon, label, onPress, testID }: any) {
-  return (
-    <Pressable onPress={onPress} testID={testID} style={styles.quickAct}>
-      <Ionicons name={icon} size={18} color="#FFF" />
-      <Text style={styles.quickActTxt}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -771,16 +865,24 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.surface },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
   hero: { padding: 20, paddingTop: 4, alignItems: "center" },
+  heroCompact: { paddingHorizontal: 12, paddingVertical: 10 },
+  heroTopRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   avatarWrap: { position: "relative", marginBottom: 10 },
+  avatarWrapCompact: { position: "relative", marginLeft: 4 },
   avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center" },
+  avatarCompact: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center" },
   avatarImg: { width: 72, height: 72, borderRadius: 36 },
+  avatarImgCompact: { width: 44, height: 44, borderRadius: 22 },
   avatarBadge: { position: "absolute", right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#FFF" },
+  avatarBadgeCompact: { position: "absolute", right: -1, bottom: -1, width: 16, height: 16, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#FFF" },
   avatarTxt: { color: "#FFF", fontSize: 26, fontWeight: "700" },
+  avatarTxtCompact: { color: "#FFF", fontSize: 16, fontWeight: "700" },
   name: { color: "#FFF", fontSize: 22, fontWeight: "700" },
+  nameCompact: { color: "#FFF", fontSize: 17, fontWeight: "700" },
   areaTag: { color: "rgba(255,255,255,0.85)", marginTop: 4, fontSize: 12 },
-  actionsRow: { flexDirection: "row", gap: 10, marginTop: 14, flexWrap: "wrap", justifyContent: "center" },
-  quickAct: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill },
-  quickActTxt: { color: "#FFF", fontWeight: "600", fontSize: 12 },
+  areaTagCompact: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 1 },
+  assignPill: { marginTop: 8, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: theme.color.brandTertiary, borderRadius: 20 },
+  assignPillTxt: { fontSize: 11, color: theme.color.brandPrimary, fontWeight: "700" },
   tabs: { flexDirection: "row", backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: theme.color.border },
   tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
   tabActive: { borderBottomWidth: 2, borderBottomColor: theme.color.brandPrimary },
@@ -811,8 +913,9 @@ const styles = StyleSheet.create({
   notePhoto: { width: "100%", height: 180, borderRadius: theme.radius.md, marginTop: 6 },
   linkBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.brandTertiary, padding: 10, borderRadius: theme.radius.md, marginTop: 6 },
   linkTxt: { color: theme.color.brandPrimary, fontWeight: "600", flex: 1 },
-  wazeInline: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandPrimary, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill, marginTop: 6, marginLeft: 30 },
+  wazeInline: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandPrimary, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill },
   wazeInlineTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  navBtnRow: { flexDirection: "row", gap: 8, marginLeft: 30, marginTop: 6, flexWrap: "wrap" },
   commSectionTitle: { fontSize: 13, fontWeight: "700", color: theme.color.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
   badgesRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   areaBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill },

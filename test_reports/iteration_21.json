@@ -1,0 +1,32 @@
+{
+  "summary": "V26.h — Contact detail hero cleanup + new work/residence address fields with Waze/Google Maps. Backend: 4/4 pytest passed for POST/GET/PUT with new fields + defaults. Frontend: hero row (act-call/act-wa/act-mail/act-waze) confirmed removed; Info tab keeps comm-* buttons (comm-call, comm-sms, comm-whatsapp, comm-email verified); new INDIRIZZO DI LAVORO / DI RESIDENZA rows display with both testID Waze and Google Maps buttons; primary INDIRIZZO also shows address-waze-btn + address-maps-btn. All 6 map buttons open the correct URLs (https://www.waze.com/ul?q=<encoded>&navigate=yes and https://www.google.com/maps/search/?api=1&query=<encoded>). Edit form (/contact/edit/{id}) exposes c-work-address and c-residence-address inputs; fill + Salva persists to backend and GET returns the updated values.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v26h_contact_addresses.py",
+    "/app/test_reports/pytest/pytest_v26h_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py Contact model correctly extends work_address/residence_address as free-text (default ''); ContactUpdate makes them Optional[str]. PUT partial update preserves untouched field.",
+    "contact/[id].tsx: hero no longer renders QuickAct row. openWazeAddr/openGoogleMapsAddr use encodeURIComponent — verified with UI taps producing expected URLs.",
+    "contact/new.tsx: new inputs correctly wired to form state and included in create/update payload."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v26h_contact_addresses.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Created and deleted test contact c_940112eb2c4c during UI verification. Backend pytest creates/cleans up its own TEST_V26H contacts.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Owner login: test@dalpastro.it / Test1234!. New Contact fields: work_address, residence_address. Frontend testIDs to keep: comm-* (in Info tab), work-address-waze-btn, work-address-maps-btn, residence-address-waze-btn, residence-address-maps-btn, address-waze-btn, address-maps-btn, c-work-address, c-residence-address. Hero row must NOT contain act-call/act-wa/act-mail/act-waze.",
+  "rca_of_issue": "N/A — feature implemented correctly on first pass."
+}

@@ -431,6 +431,8 @@ class ContactIn(BaseModel):
     address_zip: str = ""
     address_city: str = ""
     address_province: str = ""
+    work_address: str = ""       # V26.h: indirizzo di lavoro (free text)
+    residence_address: str = ""  # V26.h: indirizzo di residenza (free text)
     birth_date: Optional[str] = None
     birthday_alert_days_before: int = 1
     birthday_auto_send: bool = False
@@ -473,6 +475,8 @@ class ContactUpdate(BaseModel):
     address_zip: Optional[str] = None
     address_city: Optional[str] = None
     address_province: Optional[str] = None
+    work_address: Optional[str] = None       # V26.h
+    residence_address: Optional[str] = None  # V26.h
     birth_date: Optional[str] = None
     birthday_alert_days_before: Optional[int] = None
     birthday_auto_send: Optional[bool] = None

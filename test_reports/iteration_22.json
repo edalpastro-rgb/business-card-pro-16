@@ -1,0 +1,30 @@
+{
+  "summary": "V26.i — Three bug fixes on Ritelefonate + Contact Detail. Backend: 5/5 pytest passed (POST /callbacks with contact_id, POST /calls/log with call_appointment, POST /calls/log with call_no_answer + reschedule_at creates follow-up callback with parent_call_log_id linkage, GET /calls/log?contact_id=X, settings has 6 default outcomes including call_appointment). Frontend E2E confirmed: (1) CallbackRow no longer shows callback-call-* phone icon, tapping row body navigates to /contact/{contact_id}, tapping callback-toggle-* only toggles done (no outcome sheet opens, URL stays on home). (2) Contact detail comm-call opens CallActionSheet with call-dial-btn + call-skip-btn; skip shows 6 outcomes (call_busy, call_recall, call_no_answer, call_appointment, call_wrong_number, call_not_interested); selecting call_appointment closes the sheet cleanly. Selecting call_no_answer opens reschedule step with 5 quick presets ('+15 min', '+30 min', '+1 ora', '+3 ore', 'Domani 9:00'), custom datetime picker, and 'Programma richiamata' confirm button — save works and creates the follow-up callback + call log persisted server-side. (3) New 6th tab tab-calls labeled 'Telefonate' fetches GET /calls/log?contact_id={id}&limit=200 and renders log cards with outcome chip (colored, icon+name), date (it-IT format 'DD MMM YYYY'), time, phone, note; empty state 'Nessuna chiamata registrata' shown otherwise; calls-tab-dial-btn opens the same CallActionSheet; list refreshes automatically after saving. (4) Compact hero verified: 44x44 avatar, name numberOfLines=1, area tag underneath, share-contact + edit-contact on same top row, assignPill visible below top row for owner, all 6 tabs (Info/Note/File/Fatture/Audio/Telefonate) visible without scrolling on 390x844 viewport. Pre-existing 'Unexpected text node' warning still present (P1, ignored per request).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v26i_callbacks_calls.py",
+    "/app/test_reports/pytest/pytest_v26i_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "home.tsx CallbackRow correctly exposes only onOpen (row press) + onToggleDone (right circle), with e.stopPropagation() on the toggle so it does not bubble to row press. No callback-call-* testID rendered.",
+    "contact/[id].tsx correctly renders 6 tabs in a single map, uses callsRefreshTick prop threaded into ContactCallsSection to re-fetch after CallActionSheet.onCompleted, and Chiama button wires setCallTarget with phone + contact_id + display_name.",
+    "ContactCallsSection.tsx correctly performs Promise.all([calls/log, settings]) to color-code outcomes, formats dates in it-IT, and disables the dial button when phone missing.",
+    "CallActionSheet outcome trigger for reschedule uses /recall|non_risp|busy/ against outcome id/name — verified via UI that call_no_answer + call_recall + call_busy all open reschedule step."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v26i_callbacks_calls.py (new)"
+  ],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "seed_data_creation": "Two test contacts (c_bb497c8ba082, c_a7073a544c06) + one callback + two call logs created and cleaned up during UI verification. Backend pytest creates and deletes its own TEST_V26I contact + callback + follow-up.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Owner login: test@dalpastro.it / Test1234!. Key testIDs on contact detail: tab-info, tab-notes, tab-files, tab-bills, tab-audio, tab-calls, comm-call (opens CallActionSheet), calls-tab-dial-btn (same). CallActionSheet flow: call-dial-btn → dials; call-skip-btn → outcomes list (call-outcome-{id} for call_busy, call_recall, call_no_answer, call_appointment, call_wrong_number, call_not_interested); outcomes matching /recall|non_risp|busy/ open reschedule step with quick-'+15 min'/'+30 min'/'+1 ora'/'+3 ore'/'Domani 9:00', ISO datetime input, and call-reschedule-confirm. Home CallbackRow uses callback-{id} for row and callback-toggle-{id} for done-check only. Note: default outcomes seed name is 'call_appointment' (Appuntamento preso), NOT 'call_ok'.",
+  "rca_of_issue": "N/A — all three bugs fixed correctly on first review pass."
+}

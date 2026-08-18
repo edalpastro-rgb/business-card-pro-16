@@ -53,6 +53,7 @@ export default function NewContactScreen() {
     phone: "", phone_alt: "", whatsapp: "",
     email: "", email_alt: "", telegram: "",
     address_street: "", address_number: "", address_zip: "", address_city: "", address_province: "",
+    work_address: "", residence_address: "",
     birth_date: "", fiscal_code: "", vat_number: "",
     website: "", linkedin: "", instagram: "", facebook: "",
     birthday_alert_days_before: 1,
@@ -93,6 +94,7 @@ export default function NewContactScreen() {
           email: c.email || "", email_alt: c.email_alt || "", telegram: c.telegram || "",
           address_street: c.address_street || "", address_number: c.address_number || "",
           address_zip: c.address_zip || "", address_city: c.address_city || "", address_province: c.address_province || "",
+          work_address: c.work_address || "", residence_address: c.residence_address || "",
           birth_date: c.birth_date || "",
           birthday_alert_days_before: c.birthday_alert_days_before ?? 1,
           birthday_auto_send: !!c.birthday_auto_send,
@@ -886,6 +888,20 @@ export default function NewContactScreen() {
               <Field flex={1} label="CAP" testID="c-zip" value={form.address_zip} onChangeText={(t: string) => setForm({ ...form, address_zip: t })} keyboardType="number-pad" />
               <Field flex={1} label="Prov." testID="c-prov" value={form.address_province} onChangeText={(t: string) => setForm({ ...form, address_province: t.toUpperCase().slice(0, 2) })} />
             </Row>
+            <Field
+              label="Indirizzo di lavoro"
+              testID="c-work-address"
+              value={form.work_address}
+              onChangeText={(t: string) => setForm({ ...form, work_address: t })}
+              placeholder="Es. Via Roma 10, 20100 Milano MI"
+            />
+            <Field
+              label="Indirizzo di residenza"
+              testID="c-residence-address"
+              value={form.residence_address}
+              onChangeText={(t: string) => setForm({ ...form, residence_address: t })}
+              placeholder="Es. Via Dante 5, 35100 Padova PD"
+            />
           </Section>
 
           <Section title="Origine e riferimento">
