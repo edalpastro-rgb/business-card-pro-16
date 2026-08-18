@@ -1,0 +1,38 @@
+{
+  "summary": "V26.n Home callback row tap behavior — all 5 items verified end-to-end via Playwright + backend seeding. Row Pressable now routes to /contact/{contact_id} when contact_id is truthy, and fires a native alert 'Nessun contatto collegato' otherwise (no navigation). Pencil icon (callback-edit-{id}) correctly opens /callback/{id} with prefilled 'Modifica ritelefonata' form. Toggle checkmark (callback-toggle-{id}) toggles done via PUT /api/callbacks/{id} without navigation. Contact detail Info tab shows phone number + Chiama button that opens CallActionSheet (visually confirmed with 'Chiama ora' + 'Salta e registra solo l'esito').",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_scenarios_executed": [
+    {"id": "T1a", "desc": "Tap callback-open-{id} with contact_id → URL /contact/{contact_id}", "result": "PASS"},
+    {"id": "T1a2", "desc": "No alert dialog fires when contact_id present", "result": "PASS"},
+    {"id": "T1b", "desc": "Contact detail Info tab shows phone (+393331234567)", "result": "PASS"},
+    {"id": "T1c", "desc": "comm-call button present in contact Info tab", "result": "PASS"},
+    {"id": "T1d", "desc": "Chiama button opens CallActionSheet (Chiamata / Chiama ora / Salta e registra solo l'esito)", "result": "PASS (visual)"},
+    {"id": "T2a", "desc": "Tap callback-open-{id} WITHOUT contact_id → URL unchanged (stays on /home)", "result": "PASS"},
+    {"id": "T2b", "desc": "Native alert with message 'Nessun contatto collegato a questa ritelefonata.' captured via page.on('dialog')", "result": "PASS"},
+    {"id": "T3a", "desc": "Tap callback-edit-{id} → URL /callback/{callback_id}", "result": "PASS"},
+    {"id": "T3b", "desc": "Edit screen shows title 'Modifica ritelefonata'", "result": "PASS"},
+    {"id": "T3c", "desc": "Edit form prefilled with callback title", "result": "PASS"},
+    {"id": "T4a", "desc": "Tap callback-toggle-{id} → no navigation (URL unchanged)", "result": "PASS"},
+    {"id": "T4b", "desc": "PUT /api/callbacks/{id} toggled done=true (verified via GET)", "result": "PASS"},
+    {"id": "T5", "desc": "Row body tap (with contact) goes to /contact/{id} NOT /callback/{id}", "result": "PASS"}
+  ],
+  "test_report_links": ["/app/test_reports/iteration_27.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "home.tsx CallbackRow (lines 274-315) has clean separation: 3 sibling Pressables — callback-open-{id}, callback-edit-{id}, callback-toggle-{id}. Good use of hitSlop=8 on edit/toggle for 44px effective touch target despite compact icon size.",
+    "onOpen handler (lines 197-208) correctly branches web vs native (window.alert vs Alert.alert) — both paths tested."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only iteration)", "frontend": "100% (13/13 scenarios)"},
+  "seed_data_creation": "Created via API during test: 1 contact (TESTRitel Contact, phone +393331234567), 2 callbacks (one WITH contact_id + one WITHOUT). All cleaned up after run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "V26.n Home callback row behavior is complete and stable. Row tap → contact detail (or alert if no contact). Pencil icon → edit route. Checkmark → toggle done. Dialog handler in Playwright must be registered BEFORE the click via page.on('dialog', ...); tested at 390x844 mobile viewport.",
+  "rca_of_issue": "N/A — no bugs found in this iteration."
+}

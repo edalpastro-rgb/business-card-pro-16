@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image, ImageBackground, Platform, Animated, Easing } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image, ImageBackground, Platform, Animated, Easing, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -195,9 +195,18 @@ export default function HomeScreen() {
                     cb={cb}
                     color={color}
                     onOpen={() => {
-                      if (cb.contact_id) router.push(`/contact/${cb.contact_id}`);
-                      else router.push(`/callback/${cb.callback_id}`);
+                      if (cb.contact_id) {
+                        router.push(`/contact/${cb.contact_id}`);
+                      } else {
+                        // Nessun contatto collegato: mostrare avviso
+                        if (Platform.OS === "web") {
+                          window.alert("Nessun contatto collegato a questa ritelefonata.");
+                        } else {
+                          Alert.alert("Nessun contatto collegato", "Questa ritelefonata non ha un contatto collegato. Usa l'icona matita per modificarla o collegare un contatto.");
+                        }
+                      }
                     }}
+                    onEdit={() => router.push(`/callback/${cb.callback_id}`)}
                     onToggleDone={async () => {
                       try {
                         await api(`/callbacks/${cb.callback_id}`, { method: "PUT", body: { done: !cb.done } });
@@ -231,7 +240,7 @@ export default function HomeScreen() {
   );
 }
 
-function CallbackRow({ cb, color, onOpen, onToggleDone }: { cb: Callback; color: string; onOpen: () => void; onToggleDone: () => void }) {
+function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback; color: string; onOpen: () => void; onEdit: () => void; onToggleDone: () => void }) {
   const [now, setNow] = useState(Date.now());
   const blink = useRef(new Animated.Value(1)).current;
 
@@ -284,6 +293,14 @@ function CallbackRow({ cb, color, onOpen, onToggleDone }: { cb: Callback; color:
               {cb.note ? "  · " + cb.note : ""}
             </Text>
           </View>
+        </Pressable>
+        <Pressable
+          testID={`callback-edit-${cb.callback_id}`}
+          onPress={onEdit}
+          hitSlop={8}
+          style={({ pressed }) => [{ paddingHorizontal: 8, justifyContent: "center", opacity: pressed ? 0.55 : 1 }]}
+        >
+          <Ionicons name="pencil" size={18} color={theme.color.brandPrimary} />
         </Pressable>
         <Pressable
           testID={`callback-toggle-${cb.callback_id}`}
