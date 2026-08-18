@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
-import { scheduleCallbackReminder } from "@/src/notifications";
+import { scheduleCallbackReminder, cancelByTag } from "@/src/notifications";
 
 type Contact = { contact_id: string; first_name: string; last_name: string; area: string };
 
 export default function NewCallbackScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const editId = params?.id && params.id !== "new" ? String(params.id) : null;
   const { user } = useAuth();
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -25,28 +27,89 @@ export default function NewCallbackScreen() {
   });
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(!!editId);
 
   useEffect(() => { api<{ items: Contact[] }>("/contacts").then((r) => setContacts(r.items)); }, []);
+
+  useEffect(() => {
+    if (!editId) return;
+    (async () => {
+      try {
+        const cb = await api<any>(`/callbacks/${editId}`);
+        setForm({
+          title: cb.title || "",
+          area: cb.area || "energy",
+          scheduled_at: new Date(cb.scheduled_at),
+          note: cb.note || "",
+          contact_id: cb.contact_id || "",
+        });
+      } catch (e: any) {
+        if (Platform.OS === "web") window.alert("Impossibile caricare la ritelefonata: " + (e?.message || ""));
+        else Alert.alert("Errore", e?.message || "Impossibile caricare");
+      } finally { setLoading(false); }
+    })();
+  }, [editId]);
 
   const submit = async () => {
     if (!form.title.trim()) return;
     setBusy(true);
     try {
-      const cb = await api<{ callback_id: string }>("/callbacks", { method: "POST", body: { ...form, scheduled_at: form.scheduled_at.toISOString() } });
-      await scheduleCallbackReminder(cb.callback_id, form.title, form.scheduled_at);
+      const body = { ...form, scheduled_at: form.scheduled_at.toISOString() };
+      if (editId) {
+        await api(`/callbacks/${editId}`, { method: "PUT", body });
+        await scheduleCallbackReminder(editId, form.title, form.scheduled_at);
+      } else {
+        const cb = await api<{ callback_id: string }>("/callbacks", { method: "POST", body });
+        await scheduleCallbackReminder(cb.callback_id, form.title, form.scheduled_at);
+      }
       router.back();
     } finally { setBusy(false); }
+  };
+
+  const doDelete = () => {
+    if (!editId) return;
+    const doIt = async () => {
+      setBusy(true);
+      try {
+        await api(`/callbacks/${editId}`, { method: "DELETE" });
+        await cancelByTag(`cb_${editId}`);
+        router.back();
+      } catch (e: any) {
+        if (Platform.OS === "web") window.alert("Impossibile eliminare: " + (e?.message || ""));
+        else Alert.alert("Errore", e?.message || "Impossibile eliminare");
+      } finally { setBusy(false); }
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm("Confermi eliminazione della ritelefonata?")) doIt();
+    } else {
+      Alert.alert("Elimina", "Confermi eliminazione della ritelefonata?", [
+        { text: "Annulla", style: "cancel" },
+        { text: "Elimina", style: "destructive", onPress: doIt },
+      ]);
+    }
   };
 
   const setDate = (d: Date) => { const n = new Date(form.scheduled_at); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); setForm({ ...form, scheduled_at: n }); };
   const setTime = (d: Date) => { const n = new Date(form.scheduled_at); n.setHours(d.getHours(), d.getMinutes()); setForm({ ...form, scheduled_at: n }); };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.root} edges={["top"]}>
+        <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="back-btn" onPress={() => router.back()}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
-        <Text style={styles.title}>Nuova ritelefonata</Text>
-        <View style={{ width: 26 }} />
+        <Text style={styles.title}>{editId ? "Modifica ritelefonata" : "Nuova ritelefonata"}</Text>
+        {editId ? (
+          <Pressable testID="cb-delete" onPress={doDelete} hitSlop={10}>
+            <Ionicons name="trash-outline" size={22} color="#DC2626" />
+          </Pressable>
+        ) : <View style={{ width: 26 }} />}
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.lbl}>Titolo *</Text>
@@ -110,7 +173,7 @@ export default function NewCallbackScreen() {
               </Pressable>
             </View>
             {showPicker && (
-              <DateTimePicker value={form.scheduled_at} mode={showPicker} onChange={(e, d) => { setShowPicker(null); if (d) showPicker === "date" ? setDate(d) : setTime(d); }} />
+              <DateTimePicker value={form.scheduled_at} mode={showPicker} onChange={(e, d) => { setShowPicker(null); if (d) { if (showPicker === "date") setDate(d); else setTime(d); } }} />
             )}
           </>
         )}
@@ -119,7 +182,7 @@ export default function NewCallbackScreen() {
         <TextInput testID="cb-note" value={form.note} onChangeText={(t) => setForm({ ...form, note: t })} style={[styles.input, { minHeight: 70, textAlignVertical: "top" }]} multiline placeholderTextColor="#94A3B8" />
 
         <Pressable testID="cb-save" onPress={submit} style={styles.saveBtn} disabled={busy}>
-          {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>Salva ritelefonata</Text>}
+          {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>{editId ? "Salva modifiche" : "Salva ritelefonata"}</Text>}
         </Pressable>
         <View style={{ height: 40 }} />
       </ScrollView>

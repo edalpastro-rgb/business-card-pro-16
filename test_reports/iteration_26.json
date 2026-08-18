@@ -1,0 +1,28 @@
+{
+  "summary": "V26.m callback edit route + tap fallback verified end-to-end. Backend 7/7 pytest passed: NEW GET /api/callbacks/{id} returns callback data (title, area, note, scheduled_at, contact_id) and 404 for missing; PUT persists note update; DELETE removes; 404 confirmed after delete. Frontend 5/5 tests passed on mobile viewport (390x844): (T1) tapping callback-open-{id} with linked contact_id routes to /contact/{contact_id} and shows comm-call button; (T2) tapping callback-open-{id} WITHOUT contact_id routes to /callback/{id} — edit screen shows title 'Modifica ritelefonata', cb-delete trash icon, pre-filled title/note/area, Save button labeled 'Salva modifiche'; changing note to 'MODIFIED_NOTE' + tap Save fires PUT and navigates back; (T3) reloaded Home shows MODIFIED_NOTE as subtitle after ' · '; (T4) tapping callback-toggle-{id} keeps URL on /home and toggles done=true via PUT (isolation confirmed — no bubble to row Pressable); (T5) delete via cb-delete + auto-accepted confirm → callback GET returns 404 and row disappears from Home. No red screens, no blocking errors. Ignored benign shadow*/pointerEvents deprecation warnings per request.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v26m_callback_edit.py",
+    "/app/test_reports/pytest/pytest_v26m_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "callback/[id].tsx correctly re-exports NewCallbackScreen; NewCallbackScreen uses useLocalSearchParams and treats id!=='new' as edit mode with GET/PUT/DELETE — clean pattern, no duplication.",
+    "home.tsx CallbackRow onOpen fallback (`if (cb.contact_id) router.push(/contact/...); else router.push(/callback/{callback_id})`) is exactly the required fix and works for both scenarios."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v26m_callback_edit.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (5/5: row-with-contact nav, row-without-contact edit, save updates, note reflected in home, toggle isolation, delete via edit)"},
+  "seed_data_creation": "Ephemeral only — 1 contact + 2 callbacks created & cleaned up per test run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "V26.m callback tap fallback + edit route (GET/PUT/DELETE) fully verified. TestIDs: callback-open-{id}, callback-toggle-{id}, cb-delete, cb-title, cb-note, cb-save. Edit route: /callback/{id} where id!='new' switches NewCallbackScreen into edit mode.",
+  "rca_of_issue": "V26.l addressed row tap for callbacks WITH contact_id. Remaining gap: callbacks with contact_id=null (quick reminders) had a no-op tap. V26.m fixes this by (a) adding fallback router.push(`/callback/${cb.callback_id}`) in home.tsx CallbackRow onOpen, (b) new dynamic route /callback/[id].tsx that re-exports NewCallbackScreen, (c) enhancing NewCallbackScreen to detect editId via useLocalSearchParams and to GET/PUT/DELETE via the new `GET /api/callbacks/{callback_id}` backend endpoint. All verified working."
+}

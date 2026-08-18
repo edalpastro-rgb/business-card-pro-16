@@ -1569,6 +1569,14 @@ async def create_callback(body: CallbackIn, user=Depends(get_current_user)):
     return doc
 
 
+@api_router.get("/callbacks/{callback_id}")
+async def get_callback(callback_id: str, user=Depends(get_current_user)):
+    c = await db.callbacks.find_one(scope_query(user, {"callback_id": callback_id}), {"_id": 0})
+    if not c:
+        raise HTTPException(status_code=404, detail="Ritelefonata non trovata")
+    return c
+
+
 @api_router.put("/callbacks/{callback_id}")
 async def update_callback(callback_id: str, body: CallbackUpdate, user=Depends(get_current_user)):
     upd = {k: v for k, v in body.model_dump().items() if v is not None}

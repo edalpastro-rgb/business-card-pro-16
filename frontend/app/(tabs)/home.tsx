@@ -196,6 +196,7 @@ export default function HomeScreen() {
                     color={color}
                     onOpen={() => {
                       if (cb.contact_id) router.push(`/contact/${cb.contact_id}`);
+                      else router.push(`/callback/${cb.callback_id}`);
                     }}
                     onToggleDone={async () => {
                       try {
