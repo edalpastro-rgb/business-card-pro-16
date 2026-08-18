@@ -355,10 +355,10 @@ class SettingsModel(BaseModel):
 
 
 DEFAULT_CALL_OUTCOMES = [
+    {"id": "call_appointment", "name": "Presa Appuntamento", "color": "#16A34A", "icon": "calendar"},
     {"id": "call_busy", "name": "Occupato", "color": "#C83232", "icon": "call-outline"},
     {"id": "call_recall", "name": "Mi richiama", "color": "#0891B2", "icon": "time"},
     {"id": "call_no_answer", "name": "Nessuna risposta", "color": "#B77C14", "icon": "call"},
-    {"id": "call_appointment", "name": "Appuntamento preso", "color": "#16A34A", "icon": "checkmark-circle"},
     {"id": "call_wrong_number", "name": "Numero errato", "color": "#6B7280", "icon": "warning"},
     {"id": "call_not_interested", "name": "Non interessato", "color": "#DC2626", "icon": "close-circle"},
 ]
@@ -955,6 +955,22 @@ async def get_settings(user=Depends(get_current_user)):
     if not s.get("call_outcomes"):
         s["call_outcomes"] = DEFAULT_CALL_OUTCOMES
         await db.settings.update_one({"user_id": tid}, {"$set": {"call_outcomes": DEFAULT_CALL_OUTCOMES}})
+    else:
+        # V26.k migration: ensure "Presa Appuntamento" (call_appointment) is FIRST and renamed
+        existing = s["call_outcomes"]
+        needs_migration = False
+        if not existing or existing[0].get("id") != "call_appointment":
+            needs_migration = True
+        else:
+            # Also migrate if name is still old
+            if existing[0].get("name") == "Appuntamento preso":
+                needs_migration = True
+        if needs_migration:
+            # Keep any custom outcomes user added, but ensure call_appointment is first with new name
+            keep = [o for o in existing if o.get("id") != "call_appointment"]
+            new_head = {"id": "call_appointment", "name": "Presa Appuntamento", "color": "#16A34A", "icon": "calendar"}
+            s["call_outcomes"] = [new_head] + keep
+            await db.settings.update_one({"user_id": tid}, {"$set": {"call_outcomes": s["call_outcomes"]}})
     if "callback_notify_default_advance_min" not in s:
         s["callback_notify_default_advance_min"] = 10
     if "disable_callback_notifications" not in s:

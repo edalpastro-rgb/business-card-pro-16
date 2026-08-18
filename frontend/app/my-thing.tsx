@@ -199,16 +199,27 @@ export default function MyThingScreen() {
   };
 
   const doDelete = (it: MyThingItem) => {
-    Alert.alert("Elimina", "Confermi eliminazione?", [
-      { text: "Annulla", style: "cancel" },
-      { text: "Elimina", style: "destructive", onPress: async () => {
-        try {
-          await api(`/my-thing/${it.item_id}`, { method: "DELETE" });
-          await cancelByTag(`mt_${it.item_id}`);
-          load();
-        } catch {}
-      }},
-    ]);
+    const doIt = async () => {
+      try {
+        await api(`/my-thing/${it.item_id}`, { method: "DELETE" });
+        await cancelByTag(`mt_${it.item_id}`);
+        load();
+      } catch (e: any) {
+        if (Platform.OS === "web") {
+          window.alert("Impossibile eliminare: " + (e?.message || ""));
+        } else {
+          Alert.alert("Errore", e?.message || "Impossibile eliminare");
+        }
+      }
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm("Confermi eliminazione?")) doIt();
+    } else {
+      Alert.alert("Elimina", "Confermi eliminazione?", [
+        { text: "Annulla", style: "cancel" },
+        { text: "Elimina", style: "destructive", onPress: doIt },
+      ]);
+    }
   };
 
   const toggleActive = async (it: MyThingItem) => {

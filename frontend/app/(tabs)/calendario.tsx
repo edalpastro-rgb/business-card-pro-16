@@ -283,7 +283,14 @@ export default function CalendarioScreen() {
         visible={!!callTarget}
         target={callTarget}
         onClose={() => setCallTarget(null)}
-        onCompleted={() => { setCallTarget(null); load(); }}
+        onCompleted={(res) => {
+          const contactId = callTarget?.contact_id || null;
+          setCallTarget(null);
+          load();
+          if (res?.outcome_id === "call_appointment" && contactId) {
+            router.push(`/appointment/new?contact_id=${contactId}`);
+          }
+        }}
       />
     </SafeAreaView>
   );

@@ -133,19 +133,8 @@ export default function HomeScreen() {
 
         <Pressable testID="home-my-thing-btn" onPress={() => router.push("/my-thing")} style={styles.myThingBtn}>
           {myThingImg ? (
-            <>
-              <Image source={{ uri: myThingImg }} style={styles.myThingBgImg} />
-              <View style={styles.myThingScrim} />
-            </>
+            <Image source={{ uri: myThingImg }} style={styles.myThingBgImg} />
           ) : null}
-          <View style={styles.myThingIcon}>
-            <Ionicons name="sparkles" size={22} color="#FFF" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.myThingTitle}>My Thing</Text>
-            <Text style={styles.myThingSub}>Il tuo spazio personale · messaggi, immagini, ricorrenze</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#FFF" />
         </Pressable>
 
         <View style={styles.statsRow}>
@@ -343,16 +332,12 @@ const styles = StyleSheet.create({
   inviteBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: theme.color.brandPrimary, paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
   inviteTitle: { color: "#FFF", fontWeight: "700", fontSize: 14 },
   inviteSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },
-  myThingBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#7A2E8E", paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12, overflow: "hidden", position: "relative", minHeight: 72 },
+  myThingBtn: { backgroundColor: "#F1F5F9", borderRadius: theme.radius.md, marginBottom: 12, overflow: "hidden", position: "relative", height: 120 },
   myThingBgImg: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%", resizeMode: "cover" },
-  myThingScrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(122,46,142,0.55)" },
   masterBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#1E3A8A", paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
   masterIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   masterTitle: { color: "#FFF", fontWeight: "800", fontSize: 15 },
   masterSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },
-  myThingIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  myThingTitle: { color: "#FFF", fontWeight: "800", fontSize: 15 },
-  myThingSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },
   mtBanner: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, marginBottom: 12 },
   mtBannerImg: { width: 52, height: 52, borderRadius: 8 },
   mtBannerIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },

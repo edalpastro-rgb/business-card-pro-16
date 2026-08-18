@@ -838,11 +838,15 @@ export default function ContactDetail() {
         visible={!!callTarget}
         target={callTarget}
         onClose={() => setCallTarget(null)}
-        onCompleted={() => {
+        onCompleted={(res) => {
+          const contactId = callTarget?.contact_id || null;
           setCallTarget(null);
           setCallsRefreshTick((n) => n + 1);
-          // If user is on Calls tab, force re-render; else load contact anyway
           load();
+          // Se l'esito è "Presa Appuntamento", apri Nuovo Appuntamento pre-compilato
+          if (res?.outcome_id === "call_appointment" && contactId) {
+            router.push(`/appointment/new?contact_id=${contactId}`);
+          }
         }}
       />
     </SafeAreaView>

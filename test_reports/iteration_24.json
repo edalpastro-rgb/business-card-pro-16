@@ -1,0 +1,31 @@
+{
+  "summary": "V26.k — 4 bug fixes verified on Dal Pastro CRM (390x844 mobile viewport). Backend 4/4 pytest passed (test_v26k_bugfixes.py). Frontend E2E all 4 flows verified. (1) Home callback row body press → /contact/{contact_id} (verified: callback-cb_1ec7f60bf82e → /contact/c_bb497c8ba082). Tapping right-side callback-toggle-{id} only toggles done, stays on /home, DOES NOT open outcome sheet (asserted no [data-testid^=call-outcome-] visible). (2) GET /api/settings returns call_outcomes[0]={id:call_appointment, name:'Presa Appuntamento', color:#16A34A, icon:calendar}; migration applied for existing tenant. Frontend: contact detail → comm-call → call-skip-btn → outcomes rendered in order [call_appointment, call_busy, call_recall, call_no_answer, call_wrong_number, call_not_interested] — FIRST card labelled 'Presa Appuntamento'. Tapping call-outcome-call_appointment closes sheet + posts /calls/log (outcome_id=call_appointment) + router.push('/appointment/new?contact_id=c_3b5435a0569e'); the [data-testid=ap-contact-c_3b5435a0569e] chip is rendered (contact preselected) with active bg rgb(28,72,105). (3) My Thing Immagini tab: POST /my-thing (200) with title='TESTIMG_1' → card visible with Modifica + Elimina. Tap Modifica → editor opens with mt-title-input prefilled → change to 'TESTIMG_1_MOD' → tap mt-save-btn → PUT /my-thing/{id} (200) → modal closes, GET /my-thing?kind=image (200) refresh → card now shows 'TESTIMG_1_MOD'. Tap Elimina → window.confirm auto-accepted via page.on('dialog') → DELETE /my-thing/{id} (200) → GET /my-thing?kind=image (200) refresh → item removed. (4) home-my-thing-btn Pressable contains ONLY <Image> when myThingImg truthy; no <Text>, no <svg>, no chevron/sparkles Ionicon (verified via DOM: innerText='', svgs=0, imgs=1). Height=120px, width=358px (fills content area with margin). No overlay text/arrow. Cleanup: 1 leftover TEST_V26K_IMG_1 item (from initial pytest run that failed on response-shape assertion before DELETE finally block) was removed manually. No react-native or expo deprecated-package issues detected in the touched files.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v26k_bugfixes.py",
+    "/app/test_reports/pytest/pytest_v26k_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/server.py L957-973 migration for call_outcomes correctly detects old order OR old name ('Appuntamento preso') and rewrites list so 'Presa Appuntamento' (call_appointment) is FIRST while preserving any user-added custom outcomes.",
+    "frontend/app/contact/[id].tsx L841-849 CallActionSheet.onCompleted correctly branches on outcome_id === 'call_appointment' and router.push(`/appointment/new?contact_id=${contactId}`); same handler mirrored in (tabs)/calendario.tsx L286-292.",
+    "frontend/app/my-thing.tsx L201-223 doDelete uses cross-platform confirm: window.confirm on web (Platform.OS==='web'), Alert.alert on native. Both call the same doIt() closure that awaits DELETE then cancelByTag + load(). Modifica flow uses mt-save-btn which triggers PUT /my-thing/{id} then load() refresh.",
+    "frontend/app/(tabs)/home.tsx L134-138 home-my-thing-btn Pressable renders ONLY <Image source={{uri:myThingImg}}> conditionally — no Text, no Ionicon, no chevron. styles.myThingBtn L335 uses backgroundColor:#F1F5F9 gray fallback when no image, height 120, borderRadius theme.radius.md, overflow:'hidden'.",
+    "Pre-existing (out of scope) — Iteration 23 flagged notify(...) helper missing in home.tsx CallbackRow catch block; still present. Recommend main agent replace with console.warn."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v26k_bugfixes.py (new)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (4/4 fixes)"},
+  "seed_data_creation": "One TESTIMG_1 image created via POST /api/my-thing during UI flow, edited to TESTIMG_1_MOD, then deleted via UI (all via 200 OK). Pytest suite creates+deletes its own TEST_V26K_* contacts, callback, image, and call-log. One leftover TEST_V26K_IMG_1 from initial failing pytest run cleaned up manually post-test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Owner login: test@dalpastro.it / Test1234!. Auth token stored in localStorage as auth_token_v1 (JSON-quoted). Contact list testID pattern: contact-{contact_id} (NOT contact-card-*). My Thing testIDs: mt-tab-image, mt-title-input, mt-save-btn, mt-add-btn. Note: NO testID on Modifica/Elimina buttons per card — locate by text=Modifica/Elimina.first. Callback testIDs: callback-{id} for row body press (→/contact/{cid}), callback-toggle-{id} for done-check circle (stays on home, no sheet). Call outcome order (post-migration): call_appointment, call_busy, call_recall, call_no_answer, call_wrong_number, call_not_interested. Presa Appuntamento tap → /appointment/new?contact_id={cid} with chip [data-testid=ap-contact-{cid}] preselected. Web delete confirm: attach page.on('dialog', lambda d: asyncio.create_task(d.accept())) BEFORE clicking Elimina.",
+  "rca_of_issue": "N/A — all 4 bug fixes work as specified on first review pass."
+}
