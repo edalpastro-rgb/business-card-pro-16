@@ -355,11 +355,11 @@ class SettingsModel(BaseModel):
 
 
 DEFAULT_CALL_OUTCOMES = [
-    {"id": "call_ok", "name": "Chiamata completata", "color": "#16A34A", "icon": "checkmark-circle"},
-    {"id": "call_no_answer", "name": "Non risponde", "color": "#B77C14", "icon": "call"},
-    {"id": "call_recall", "name": "Richiamare più tardi", "color": "#0891B2", "icon": "time"},
-    {"id": "call_wrong_number", "name": "Numero errato", "color": "#6B7280", "icon": "warning"},
     {"id": "call_busy", "name": "Occupato", "color": "#C83232", "icon": "call-outline"},
+    {"id": "call_recall", "name": "Mi richiama", "color": "#0891B2", "icon": "time"},
+    {"id": "call_no_answer", "name": "Nessuna risposta", "color": "#B77C14", "icon": "call"},
+    {"id": "call_appointment", "name": "Appuntamento preso", "color": "#16A34A", "icon": "checkmark-circle"},
+    {"id": "call_wrong_number", "name": "Numero errato", "color": "#6B7280", "icon": "warning"},
     {"id": "call_not_interested", "name": "Non interessato", "color": "#DC2626", "icon": "close-circle"},
 ]
 
@@ -1077,12 +1077,12 @@ async def delete_member(member_id: str, user=Depends(get_current_user)):
 
 
 class RoleInput(BaseModel):
-    role: Literal["admin", "member"]
+    role: Literal["admin", "member", "owner"]
 
 
 @api_router.put("/team/{member_id}/role")
 async def set_member_role(member_id: str, body: RoleInput, user=Depends(get_current_user)):
-    """Promote/demote a member to admin or plain member.
+    """Promote/demote a member to owner (Master figlio), admin (Manager) or member (Basic).
     Only owner OR an ancestor admin can change roles of a descendant.
     """
     if is_owner(user):
@@ -1094,8 +1094,11 @@ async def set_member_role(member_id: str, body: RoleInput, user=Depends(get_curr
     target = await db.users.find_one({"user_id": member_id})
     if not target:
         raise HTTPException(status_code=404, detail="Membro non trovato")
-    if target.get("role") == "owner":
-        raise HTTPException(status_code=400, detail="Impossibile modificare il ruolo del proprietario")
+    # Cannot change your own role or the top-level tenant owner's role
+    if target.get("user_id") == user["user_id"]:
+        raise HTTPException(status_code=400, detail="Non puoi modificare il tuo ruolo")
+    if target.get("role") == "owner" and not target.get("parent_user_id"):
+        raise HTTPException(status_code=400, detail="Impossibile modificare il ruolo del proprietario principale")
     await db.users.update_one({"user_id": member_id}, {"$set": {"role": body.role}})
     return {"user_id": member_id, "role": body.role}
 

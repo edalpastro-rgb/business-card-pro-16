@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Share, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Share, Platform, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -38,6 +38,8 @@ export default function InviteCollaboratorScreen() {
   const [invite, setInvite] = useState<{ invite_token: string; role?: string | null } | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [editRole, setEditRole] = useState<Invite | null>(null);
+  const [savingRole, setSavingRole] = useState(false);
 
   const loadInvites = useCallback(async () => {
     try {
@@ -96,6 +98,21 @@ export default function InviteCollaboratorScreen() {
     ]
   );
 
+  const changeRole = async (newRole: "member" | "admin" | "owner") => {
+    if (!editRole?.invited_user?.user_id) return;
+    try {
+      setSavingRole(true);
+      await api(`/team/${editRole.invited_user.user_id}/role`, { method: "PUT", body: { role: newRole } });
+      notify("Ruolo aggiornato", `Il ruolo è stato modificato con successo.`);
+      setEditRole(null);
+      await loadInvites();
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
   const roleLabel = (backendRole?: string | null) => {
     if (backendRole === "member") return "Basic";
     if (backendRole === "admin") return "Manager";
@@ -112,7 +129,7 @@ export default function InviteCollaboratorScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.background }} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.replace("/(tabs)/home" as any)} style={styles.headerBtn} testID="invite-back-home"><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
         <Text style={styles.headerTitle}>Invita Collaboratore</Text>
       </View>
 
@@ -198,6 +215,11 @@ export default function InviteCollaboratorScreen() {
                     {inv.invited_user?.email && <Text style={styles.inviteEmail}>{inv.invited_user.email}</Text>}
                     <Text style={styles.inviteDate}>Invitato {fmtDate(inv.created_at)}{active && inv.used_at ? ` · Registrato ${fmtDate(inv.used_at)}` : ""}</Text>
                   </View>
+                  {active && (
+                    <Pressable onPress={() => setEditRole(inv)} style={styles.trashBtn} testID={`invite-edit-role-${inv.invite_token}`}>
+                      <Ionicons name="create-outline" size={18} color="#0891B2" />
+                    </Pressable>
+                  )}
                   <Pressable onPress={() => deleteInvite(inv)} style={styles.trashBtn} testID={`invite-delete-${inv.invite_token}`}>
                     <Ionicons name="trash-outline" size={18} color="#DC2626" />
                   </Pressable>
@@ -207,6 +229,34 @@ export default function InviteCollaboratorScreen() {
           )}
         </View>
       </ScrollView>
+
+      <Modal transparent visible={!!editRole} animationType="fade" onRequestClose={() => setEditRole(null)}>
+        <View style={styles.backdrop}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalT}>Modifica ruolo</Text>
+            <Text style={styles.modalSub}>{editRole?.invited_user?.name || editRole?.collaborator_name}</Text>
+            {(["member","admin","owner"] as const).map((r) => {
+              const info = r === "member" ? { label: "Basic", color: "#0891B2", icon: "person" as const, desc: "Vede solo i propri contatti" }
+                : r === "admin" ? { label: "Manager", color: "#F59E0B", icon: "people" as const, desc: "Vede il proprio gruppo" }
+                : { label: "Master figlio", color: "#7C3AED", icon: "star" as const, desc: "Sotto-master del proprio team" };
+              const isCurrent = editRole?.invite_role === r;
+              return (
+                <Pressable key={r} onPress={() => changeRole(r)} disabled={savingRole || isCurrent} style={[styles.roleCard, { marginBottom: 8 }, isCurrent && { borderColor: info.color, backgroundColor: info.color + "12" }]} testID={`edit-role-${r}`}>
+                  <View style={[styles.roleIcon, { backgroundColor: info.color }]}><Ionicons name={info.icon} size={20} color="#FFF" /></View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.roleTitle}>{info.label} {isCurrent && "(attuale)"}</Text>
+                    <Text style={styles.roleDesc}>{info.desc}</Text>
+                  </View>
+                  {savingRole ? <ActivityIndicator color={info.color} /> : isCurrent && <Ionicons name="checkmark-circle" size={20} color={info.color} />}
+                </Pressable>
+              );
+            })}
+            <Pressable onPress={() => setEditRole(null)} style={{ marginTop: 8, alignItems: "center", padding: 10 }} testID="edit-role-cancel">
+              <Text style={{ color: theme.color.muted, fontWeight: "700" }}>Annulla</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -253,4 +303,8 @@ const styles = StyleSheet.create({
   inviteEmail: { fontSize: 11, color: theme.color.muted, marginTop: 4 },
   inviteDate: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
   trashBtn: { padding: 6, marginLeft: 4 },
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+  modalBox: { backgroundColor: "#FFF", borderRadius: 18, padding: 18 },
+  modalT: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
+  modalSub: { fontSize: 13, color: theme.color.muted, textAlign: "center", marginBottom: 14, marginTop: 4 },
 });
