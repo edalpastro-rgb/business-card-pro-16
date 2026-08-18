@@ -1415,6 +1415,7 @@ async def list_appointments(
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     area: Optional[str] = None,
+    contact_id: Optional[str] = None,
     user=Depends(get_current_user),
 ):
     tid = tenant_id(user)
@@ -1441,6 +1442,8 @@ async def list_appointments(
         q["start_at"] = date_filter
     if area in ("energy", "network"):
         q["area"] = area
+    if contact_id:
+        q["contact_id"] = contact_id
     items = await db.appointments.find(q, {"_id": 0}).sort("start_at", 1).to_list(1000)
     # Attach read_only flag for broadcast recipients (creator != me)
     for it in items:
@@ -3304,10 +3307,11 @@ async def bills_report(contact_id: str, user=Depends(get_current_user)):
 
 class CompanyOfferIn(BaseModel):
     bill_type: str  # luce | gas | telco
-    pdf_base64: str
+    pdf_base64: Optional[str] = None
     pdf_name: Optional[str] = None
     pdf_mime: Optional[str] = "application/pdf"
     label: Optional[str] = None  # short label like "Offerta Fibra 24m"
+    manual_text: Optional[str] = None  # V26.q: testo condizioni economiche inserito manualmente
 
 
 COMPANY_OFFER_PROMPT = """Sei un analista esperto di offerte commerciali italiane per energia elettrica, gas e telecomunicazioni.
@@ -3370,11 +3374,17 @@ async def _analyze_offer_task(offer_id: str):
         return
     try:
         await db.company_offers.update_one({"offer_id": offer_id}, {"$set": {"status": "analyzing"}})
-        text = _extract_pdf_text(o["pdf_base64"])
+        # V26.q: se abbiamo manual_text usiamo quello, altrimenti estraiamo dal PDF
+        if o.get("manual_text"):
+            text = o["manual_text"]
+        elif o.get("pdf_base64"):
+            text = _extract_pdf_text(o["pdf_base64"])
+        else:
+            text = ""
         if not text or len(text.strip()) < 20:
             await db.company_offers.update_one({"offer_id": offer_id}, {"$set": {
                 "status": "error",
-                "error_message": "PDF vuoto o non leggibile (potrebbe essere scansione senza OCR).",
+                "error_message": "Testo vuoto o troppo corto (min 20 caratteri) per essere analizzato dall'AI.",
                 "analyzed_at": utcnow(),
             }})
             return
@@ -3398,10 +3408,12 @@ async def _analyze_offer_task(offer_id: str):
 async def create_company_offer(body: CompanyOfferIn, background: BackgroundTasks, user=Depends(get_current_user)):
     if body.bill_type not in BILL_TYPES:
         raise HTTPException(status_code=400, detail=f"bill_type non valido: usa {BILL_TYPES}")
-    b64 = body.pdf_base64
+    if not body.pdf_base64 and not body.manual_text:
+        raise HTTPException(status_code=400, detail="Fornisci un PDF (pdf_base64) o un testo manuale (manual_text)")
+    b64 = body.pdf_base64 or ""
     if b64.startswith("data:"):
         b64 = b64.split(",", 1)[1]
-    approx = int(len(b64) * 0.75)
+    approx = int(len(b64) * 0.75) if b64 else 0
     if approx > 12 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="PDF troppo grande (max ~12 MB)")
     offer_id = f"offer_{uuid.uuid4().hex[:12]}"
@@ -3411,10 +3423,12 @@ async def create_company_offer(body: CompanyOfferIn, background: BackgroundTasks
         "created_by": user["user_id"],
         "bill_type": body.bill_type,
         "label": body.label or f"Offerta {body.bill_type}",
-        "pdf_base64": body.pdf_base64,
-        "pdf_name": body.pdf_name or f"offerta-{body.bill_type}.pdf",
+        "pdf_base64": body.pdf_base64 or None,
+        "pdf_name": body.pdf_name or (f"offerta-{body.bill_type}.pdf" if body.pdf_base64 else f"offerta-manuale-{body.bill_type}.txt"),
         "pdf_mime": body.pdf_mime or "application/pdf",
         "pdf_size": approx,
+        "manual_text": body.manual_text or None,  # V26.q
+        "source": "pdf" if body.pdf_base64 else "manual",
         "status": "pending",
         "extracted": None,
         "error_message": None,

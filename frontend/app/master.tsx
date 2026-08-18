@@ -114,7 +114,7 @@ export default function MasterScreen() {
               <LinearGradient colors={["transparent", "rgba(0,0,0,0.55)"]} style={styles.bannerOverlay}>
                 <Text style={styles.bannerLabel}>My Thing</Text>
                 {banner.title ? <Text style={styles.bannerTitle} numberOfLines={1}>{banner.title}</Text> : null}
-                {banner.body ? <Text style={styles.bannerBody} numberOfLines={2}>{banner.body}</Text> : null}
+                {banner.body ? <Text style={styles.bannerBody} numberOfLines={1}>{banner.body}</Text> : null}
               </LinearGradient>
             </ImageBackground>
           ) : (
@@ -389,13 +389,13 @@ const styles = StyleSheet.create({
   clockTime: { color: "#FFF", fontSize: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },
   clockDate: { color: "rgba(255,255,255,0.75)", fontSize: 10, textTransform: "capitalize" },
 
-  bannerWrap: { marginTop: 14, height: 120, borderRadius: 16, overflow: "hidden" },
+  bannerWrap: { marginTop: 8, height: 64, borderRadius: 12, overflow: "hidden" },
   bannerImg: { flex: 1 },
-  bannerOverlay: { flex: 1, padding: 14, justifyContent: "flex-end" },
+  bannerOverlay: { flex: 1, paddingHorizontal: 12, paddingVertical: 8, justifyContent: "center" },
   bannerFallback: { flex: 1, borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center" },
-  bannerLabel: { color: "#FFF", fontSize: 10, fontWeight: "800", letterSpacing: 1, opacity: 0.85 },
-  bannerTitle: { color: "#FFF", fontSize: 16, fontWeight: "800", marginTop: 2 },
-  bannerBody: { color: "rgba(255,255,255,0.9)", fontSize: 12, marginTop: 2 },
+  bannerLabel: { color: "#FFF", fontSize: 9, fontWeight: "800", letterSpacing: 1, opacity: 0.85 },
+  bannerTitle: { color: "#FFF", fontSize: 13, fontWeight: "800", marginTop: 1 },
+  bannerBody: { color: "rgba(255,255,255,0.9)", fontSize: 11, marginTop: 1 },
 
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   btnCell: { width: "31%", alignItems: "center", marginBottom: 18 },

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform, Linking } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform, Linking, TextInput } from "react-native";
 import Svg, { Rect, Text as SvgText, Line } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -10,6 +10,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { uriToBase64 } from "@/src/utils/media";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
+import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 
 type BillType = "luce" | "gas" | "telco";
 
@@ -59,6 +60,9 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<BillType | null>(null);
   const [uploadingOffer, setUploadingOffer] = useState<BillType | null>(null);
+  // V26.q — testo condizioni economiche manuale + microfono per categoria
+  const [manualTxt, setManualTxt] = useState<Record<BillType, string>>({ luce: "", gas: "", telco: "" });
+  const [savingManual, setSavingManual] = useState<BillType | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [reportBusy, setReportBusy] = useState(false);
   const [comparisonBusy, setComparisonBusy] = useState(false);
@@ -122,6 +126,33 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
       setUploadingOffer(null);
     }
   };
+
+  // V26.q — salva un'offerta con testo manuale (senza PDF)
+  const saveManualOffer = async (bill_type: BillType) => {
+    const text = (manualTxt[bill_type] || "").trim();
+    if (text.length < 20) {
+      notify("Testo troppo corto", "Inserisci almeno 20 caratteri per l'analisi AI.");
+      return;
+    }
+    setSavingManual(bill_type);
+    try {
+      await api("/company-offers", {
+        method: "POST",
+        body: {
+          bill_type,
+          manual_text: text,
+          label: `Offerta ${bill_type} (manuale)`,
+        },
+      });
+      setManualTxt((m) => ({ ...m, [bill_type]: "" }));
+      await load();
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile salvare");
+    } finally {
+      setSavingManual(null);
+    }
+  };
+
 
   const deleteOffer = (offer: Offer) => {
     notify("Elimina offerta", `Rimuovere "${offer.label || offer.pdf_name}"?`, [
@@ -361,6 +392,43 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
                       </>
                     )}
                   </Pressable>
+                  {/* V26.q — Testo manuale + Dettatura vocale */}
+                  <View style={{ marginTop: 8, gap: 6 }}>
+                    <TextInput
+                      testID={`offer-manual-text-${bt}`}
+                      value={manualTxt[bt]}
+                      onChangeText={(t) => setManualTxt((m) => ({ ...m, [bt]: t }))}
+                      placeholder="…oppure inserisci qui le condizioni economiche (prezzi €/kWh, quota fissa, servizi extra, penali…)"
+                      placeholderTextColor="#94A3B8"
+                      style={{ backgroundColor: "#FFF", borderRadius: 8, padding: 8, borderWidth: 1, borderColor: "#DDD6FE", minHeight: 70, textAlignVertical: "top", color: theme.color.onSurface, fontSize: 12 }}
+                      multiline
+                    />
+                    <View style={{ flexDirection: "row", gap: 6 }}>
+                      <View style={{ flex: 1 }}>
+                        <VoiceDictationButton
+                          compact
+                          testID={`offer-manual-mic-${bt}`}
+                          label="Detta"
+                          onTranscript={(txt) => setManualTxt((m) => ({ ...m, [bt]: (m[bt] ? m[bt] + " " : "") + txt }))}
+                        />
+                      </View>
+                      <Pressable
+                        testID={`offer-manual-save-${bt}`}
+                        onPress={() => saveManualOffer(bt)}
+                        disabled={savingManual === bt || !manualTxt[bt]?.trim()}
+                        style={[styles.uploadBtn, { flex: 1, borderColor: "#16A34A", backgroundColor: manualTxt[bt]?.trim() ? "#16A34A" : "#94A3B8", paddingVertical: 8 }]}
+                      >
+                        {savingManual === bt ? (
+                          <ActivityIndicator color="#FFF" />
+                        ) : (
+                          <>
+                            <Ionicons name="save-outline" size={14} color="#FFF" />
+                            <Text style={[styles.uploadTxt, { color: "#FFF", fontSize: 12 }]}>Salva testo</Text>
+                          </>
+                        )}
+                      </Pressable>
+                    </View>
+                  </View>
                   {myOffers.map((o) => {
                     const st = STATUS_META[o.status] || STATUS_META.pending;
                     return (

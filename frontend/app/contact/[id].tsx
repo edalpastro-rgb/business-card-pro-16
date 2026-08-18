@@ -10,12 +10,14 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
+import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { shareText, shareDataUri } from "@/src/share";
 import { openTelegram } from "@/src/utils/telegram";
 import { BillsSection } from "@/src/BillsSection";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ContactAudioSection } from "@/src/ContactAudioSection";
 import { ContactCallsSection } from "@/src/ContactCallsSection";
+import { ContactAppointmentsSection } from "@/src/ContactAppointmentsSection";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import * as ImagePicker from "expo-image-picker";
 
@@ -39,7 +41,7 @@ export default function ContactDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [c, setC] = useState<Contact | null>(null);
-  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio" | "calls">("info");
+  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio" | "calls" | "appts">("info");
   const [noteText, setNoteText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
@@ -386,13 +388,28 @@ export default function ContactDetail() {
       </View>
 
       <View style={styles.tabs}>
-        {(["info", "notes", "files", "bills", "audio", "calls"] as const).map((t) => (
-          <Pressable key={t} testID={`tab-${t}`} onPress={() => setTab(t)} style={[styles.tab, tab === t && styles.tabActive]}>
-            <Text style={[styles.tabTxt, tab === t && styles.tabTxtActive]}>
-              {t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : "Telefonate"}
-            </Text>
-          </Pressable>
-        ))}
+        {(["info", "notes", "files", "bills", "audio", "calls", "appts"] as const).map((t) => {
+          const iconName: any = t === "info" ? "person"
+            : t === "notes" ? "create"
+            : t === "files" ? "folder"
+            : t === "bills" ? "document-text"
+            : t === "audio" ? "mic"
+            : t === "calls" ? "call"
+            : "calendar";
+          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Telefonate" : "Appuntamenti";
+          const active = tab === t;
+          return (
+            <Pressable
+              key={t}
+              testID={`tab-${t}`}
+              onPress={() => setTab(t)}
+              accessibilityLabel={label}
+              style={[styles.tabIcon, active && styles.tabIconActive]}
+            >
+              <Ionicons name={iconName} size={20} color={active ? theme.color.brandPrimary : theme.color.muted} />
+            </Pressable>
+          );
+        })}
       </View>
 
       {tab === "bills" ? (
@@ -411,6 +428,8 @@ export default function ContactDetail() {
             display_name: `${c.first_name} ${c.last_name}`.trim(),
           })}
         />
+      ) : tab === "appts" ? (
+        <ContactAppointmentsSection contactId={id} />
       ) : (
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {tab === "info" && (
@@ -849,6 +868,7 @@ export default function ContactDetail() {
           }
         }}
       />
+      {(tab === "notes" || tab === "files") && <CalculatorFAB />}
     </SafeAreaView>
   );
 }
@@ -888,6 +908,8 @@ const styles = StyleSheet.create({
   assignPill: { marginTop: 8, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: theme.color.brandTertiary, borderRadius: 20 },
   assignPillTxt: { fontSize: 11, color: theme.color.brandPrimary, fontWeight: "700" },
   tabs: { flexDirection: "row", backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  tabIcon: { flex: 1, paddingVertical: 10, alignItems: "center", justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
+  tabIconActive: { borderBottomColor: theme.color.brandPrimary, backgroundColor: theme.color.brandPrimary + "10" },
   tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
   tabActive: { borderBottomWidth: 2, borderBottomColor: theme.color.brandPrimary },
   tabTxt: { fontWeight: "600", color: theme.color.muted, fontSize: 12 },

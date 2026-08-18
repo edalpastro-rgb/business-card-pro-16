@@ -1,0 +1,33 @@
+{
+  "summary": "V26.q 4-feature testing. Backend 7/7 pytest passed (manual_text offers, contact_id filter on /appointments, reschedule linkage). Frontend: (1) Bills manual text + mic + save buttons present for luce/gas/telco, POST /company-offers 200 with manual_text -> offer 'Offerta luce (manuale)' appears in list with source=manual. (2) 7th 'Appuntamenti' tab renders with 'In programma' + 'Effettuati' lists; 'Nuovo' button navigates to /appointment/new?contactId=... correctly. (3) calc-fab present on tab-notes and tab-files, absent on tab-info and tab-appts. tab-bills has its own calc-fab (embedded inside BillsSection, pre-existing). (4) Reschedule modal code + testIDs present in /app/frontend/app/appointment/[id].tsx (rescheduleModal state, resched-datetime, resched-notes, resched-cancel, resched-confirm, resched-type-presence, resched-type-phone). Automated UI verification of the modal opening on Rinviato/Da ricontattare toggle could not be completed via Playwright on the RN Pressable (3-attempt loop-prevention triggered). Backend flow (POST new appt + PUT rescheduled_to on old) verified via pytest.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Reschedule modal open on outcome tap (Rinviato/Followup)", "issue": "Could not verify via headless automation — clicking the outcome chip via text locator did not toggle selectedOutcomeIds nor open the modal after 'Segna come fatto' was applied. Backend and testIDs are correctly wired; the code path exists. Recommend E1 verify manually or self-test in browser: mark appt as Fatto -> tap 'Rinviato' -> modal 'Rinvia appuntamento' should appear.", "affected_testIDs": ["resched-datetime","resched-notes","resched-cancel","resched-confirm","resched-type-presence","resched-type-phone"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v26q_features.py",
+    "/app/test_reports/pytest/pytest_v26q_results.xml"
+  ],
+  "action_items": [
+    "E1: manually verify reschedule modal (Feature 4) opens when tapping 'Rinviato' or 'Da ricontattare' on a Fatto appointment. Code inspection confirms logic and testIDs are present.",
+    "Consider adding testID directly on each outcome Pressable (e.g. outcome-chip-{o.id}) to make the modal-open behavior more reliably testable."
+  ],
+  "critical_code_review_comments": [
+    "server.py CompanyOfferIn: /company-offers rejects when both pdf_base64 and manual_text are missing (400) — good.",
+    "BillsSection saveManualOffer client-side enforces min 20 chars with a notify('Testo troppo corto') — good UX; backend also downgrades to status=error if <20 chars.",
+    "ContactAppointmentsSection uses 'query' param on api() for /appointments?contact_id=... — matches backend Optional[str] filter."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v26q_features.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "~85% (Features 1,2,3 fully verified; Feature 4 code-inspection + backend-verified)"},
+  "seed_data_creation": "Created TEST_V26q Cliente contact + TEST_V26q Reschedule Src appointment during tests; test fixtures self-clean.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login flow: on /login there are 3 'Accedi' occurrences (tab + submit + Google). Use text='Accedi' exact and click index 1. Outcome chips on /appointment/[id] are only interactive after 'Segna come fatto' toggle. To open reschedule modal use testID hooks, but Pressable text click may not fire toggleOutcome in headless Playwright — consider dispatching onPress synthetic events or adding per-outcome testIDs."
+}

@@ -53,6 +53,15 @@ export default function AppointmentDetail() {
   const [showCbSection, setShowCbSection] = useState(false);
   const [busy, setBusy] = useState(false);
   const [outcomeModal, setOutcomeModal] = useState<{ mode: "create" | "rename"; outcome_id?: string; name: string; color: string; counts_as?: string } | null>(null);
+  // V26.q — Modale inline per Rinviato/Da ricontattare
+  const [rescheduleModal, setRescheduleModal] = useState<{
+    kind: "rescheduled" | "followup";
+    outcomeName: string;
+    date: Date;
+    showPicker: null | "date" | "time";
+    isPhone: boolean;
+    notes: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     const [ap, s] = await Promise.all([
@@ -86,25 +95,58 @@ export default function AppointmentDetail() {
     // If "rescheduled" outcome toggled ON → prompt to reschedule
     setA({ ...a, outcome_ids: next, contract_signed: patch.contract_signed });
     await api(`/appointments/${id}`, { method: "PUT", body: patch });
+    // V26.q: Rinviato → apri modal per fissare nuova data
     if (outcome?.counts_as === "rescheduled" && !selectedOutcomeIds.includes(outcomeId)) {
-      // Just added rescheduled
-      Alert.alert("Riprogramma appuntamento", "Vuoi creare un nuovo appuntamento con gli stessi dettagli?", [
-        { text: "No, grazie", style: "cancel" },
-        {
-          text: "Sì, riprogramma", onPress: () => {
-            const q = new URLSearchParams({
-              reschedule_from: id as string,
-              title: a.title,
-              area: a.area,
-              location: a.location || "",
-              notes: a.notes || "",
-              contact_id: a.contact_id || "",
-              is_phone: a.is_phone ? "1" : "0",
-            });
-            router.push(`/appointment/new?${q.toString()}`);
-          },
-        },
-      ]);
+      setRescheduleModal({
+        kind: "rescheduled",
+        outcomeName: outcome.name,
+        date: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        showPicker: null,
+        isPhone: a.is_phone,
+        notes: "",
+      });
+    }
+    // V26.q: Da ricontattare → apri modal per fissare nuova data + tipo
+    if (outcome?.counts_as === "followup" && !selectedOutcomeIds.includes(outcomeId)) {
+      setRescheduleModal({
+        kind: "followup",
+        outcomeName: outcome.name,
+        date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        showPicker: null,
+        isPhone: false,
+        notes: "",
+      });
+    }
+  };
+
+  const confirmReschedule = async () => {
+    if (!rescheduleModal || !a) return;
+    try {
+      // Crea nuovo appuntamento
+      const payload: any = {
+        contact_id: a.contact_id || null,
+        title: a.title,
+        area: a.area,
+        start_at: rescheduleModal.date.toISOString(),
+        duration_min: a.duration_min || 60,
+        is_phone: rescheduleModal.isPhone,
+        location: a.location || "",
+        notes: (rescheduleModal.notes ? rescheduleModal.notes + "\n\n" : "") + `Ri-programmato da: ${a.title} (${new Date(a.start_at).toLocaleString("it-IT")})`,
+        reminder_minutes: a.reminder_minutes ?? 15,
+        recurrence: "none",
+        participant_contact_ids: [],
+        value_amount: a.value_amount || 0,
+        appointment_type_tags: a.appointment_type_tags || [],
+        product_categories: a.product_categories || [],
+      };
+      const newAp = await api<{ appointment_id: string }>("/appointments", { method: "POST", body: payload });
+      // Link il vecchio → nuovo
+      await api(`/appointments/${id}`, { method: "PUT", body: { rescheduled_to: newAp.appointment_id } });
+      setRescheduleModal(null);
+      router.push(`/appointment/${newAp.appointment_id}`);
+    } catch (e: any) {
+      if (Platform.OS === "web") window.alert("Errore: " + (e?.message || ""));
+      else Alert.alert("Errore", e?.message || "Impossibile creare");
     }
   };
 
@@ -527,6 +569,101 @@ export default function AppointmentDetail() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
+      {/* V26.q — Modal Rinviato/Da ricontattare */}
+      <Modal visible={!!rescheduleModal} transparent animationType="fade" onRequestClose={() => setRescheduleModal(null)}>
+        <View style={omstyles.back}>
+          <View style={omstyles.card}>
+            <Text style={omstyles.title}>{rescheduleModal?.kind === "rescheduled" ? "Rinvia appuntamento" : "Programma ricontatto"}</Text>
+            <Text style={omstyles.hint}>Fissa una nuova data e ora.</Text>
+
+            <Text style={omstyles.lbl}>Data e ora</Text>
+            {Platform.OS === "web" ? (
+              <input
+                type="datetime-local"
+                data-testid="resched-datetime"
+                value={rescheduleModal ? new Date(rescheduleModal.date.getTime() - rescheduleModal.date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""}
+                onChange={(e: any) => { if (rescheduleModal && e.target.value) setRescheduleModal({ ...rescheduleModal, date: new Date(e.target.value) }); }}
+                style={{ width: "100%", border: `1px solid ${theme.color.border}`, borderRadius: 10, padding: "10px 12px", fontSize: 15, marginBottom: 8 } as any}
+              />
+            ) : (
+              <>
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+                  <Pressable testID="resched-date-btn" onPress={() => setRescheduleModal((m) => m ? { ...m, showPicker: "date" } : m)} style={[omstyles.input, { flexDirection: "row", alignItems: "center", gap: 6 }]}>
+                    <Ionicons name="calendar-outline" size={16} color={theme.color.brandPrimary} />
+                    <Text>{rescheduleModal?.date.toLocaleDateString("it-IT")}</Text>
+                  </Pressable>
+                  <Pressable testID="resched-time-btn" onPress={() => setRescheduleModal((m) => m ? { ...m, showPicker: "time" } : m)} style={[omstyles.input, { flexDirection: "row", alignItems: "center", gap: 6 }]}>
+                    <Ionicons name="time-outline" size={16} color={theme.color.brandPrimary} />
+                    <Text>{rescheduleModal?.date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+                  </Pressable>
+                </View>
+                {rescheduleModal?.showPicker ? (
+                  <DateTimePicker
+                    value={rescheduleModal.date}
+                    mode={rescheduleModal.showPicker}
+                    onChange={(_, d) => {
+                      setRescheduleModal((m) => {
+                        if (!m) return m;
+                        if (!d) return { ...m, showPicker: null };
+                        const nd = new Date(m.date);
+                        if (m.showPicker === "date") nd.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+                        else nd.setHours(d.getHours(), d.getMinutes());
+                        return { ...m, date: nd, showPicker: null };
+                      });
+                    }}
+                  />
+                ) : null}
+              </>
+            )}
+
+            {rescheduleModal?.kind === "followup" ? (
+              <>
+                <Text style={omstyles.lbl}>Tipo appuntamento</Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    testID="resched-type-presence"
+                    onPress={() => setRescheduleModal((m) => m ? { ...m, isPhone: false } : m)}
+                    style={[omstyles.typeChip, !rescheduleModal.isPhone && { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}
+                  >
+                    <Ionicons name="location" size={14} color={!rescheduleModal.isPhone ? "#FFF" : theme.color.onSurface} />
+                    <Text style={[omstyles.typeChipTxt, !rescheduleModal.isPhone && { color: "#FFF" }]}>In presenza</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="resched-type-phone"
+                    onPress={() => setRescheduleModal((m) => m ? { ...m, isPhone: true } : m)}
+                    style={[omstyles.typeChip, rescheduleModal.isPhone && { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}
+                  >
+                    <Ionicons name="call" size={14} color={rescheduleModal.isPhone ? "#FFF" : theme.color.onSurface} />
+                    <Text style={[omstyles.typeChipTxt, rescheduleModal.isPhone && { color: "#FFF" }]}>Telefonico</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+
+            <Text style={omstyles.lbl}>Note (opzionale)</Text>
+            <TextInput
+              testID="resched-notes"
+              value={rescheduleModal?.notes || ""}
+              onChangeText={(t) => setRescheduleModal((m) => m ? { ...m, notes: t } : m)}
+              style={[omstyles.input, { minHeight: 60, textAlignVertical: "top" }]}
+              multiline
+              placeholderTextColor="#94A3B8"
+            />
+
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+              <Pressable testID="resched-cancel" onPress={() => setRescheduleModal(null)} style={[omstyles.btn, { backgroundColor: "#E5E7EB" }]}>
+                <Text style={[omstyles.btnTxt, { color: theme.color.onSurface }]}>Annulla</Text>
+              </Pressable>
+              <Pressable testID="resched-confirm" onPress={confirmReschedule} style={omstyles.btn}>
+                <Ionicons name="checkmark" size={16} color="#FFF" />
+                <Text style={omstyles.btnTxt}>{rescheduleModal?.kind === "rescheduled" ? "Rinvia" : "Programma"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+
       <Modal visible={!!outcomeModal} transparent animationType="fade" onRequestClose={() => setOutcomeModal(null)}>
         <View style={omstyles.back}>
           <View style={omstyles.card}>
@@ -594,9 +731,10 @@ const omstyles = StyleSheet.create({
   swatches: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   swatch: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
   typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  typeChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
-  typeChipTxt: { fontSize: 11, fontWeight: "700", color: theme.color.onSurfaceTertiary },
-  btn: { flex: 1, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center" },
+  typeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flex: 1, justifyContent: "center" },
+  typeChipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurfaceTertiary },
+  btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: theme.radius.md, backgroundColor: theme.color.brandPrimary },
+  btnTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
 });
 
 const styles = StyleSheet.create({
