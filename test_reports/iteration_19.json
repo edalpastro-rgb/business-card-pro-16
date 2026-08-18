@@ -1,0 +1,37 @@
+{
+  "summary": "Frontend UI verification for 3 bug fixes: (1) Callback row colors by scheduled_at proximity, (2) Smaller calendar appointment cards, (3) Area filter always visible across Week/Month/Year views. All 3 bugs confirmed fixed. Seeded 3 test callbacks (urgent <15min, soon <30min, later >30min) and 1 test appointment. Test 1 verified: red row #FEE2E2 + border #DC2626 + 'tra pochi minuti' text; orange row #FFEDD5 + border #F59E0B + 'tra meno di 30 min' text; yellow row #FEF9C3 + border #EAB308; borderWidth 1.5 on all; urgent row observed with opacity 0.72 (animated blink). Test 2 verified: card minHeight=44px, borderRadius=10px, apptTitle font-size 13px weight 700. Test 3 verified: [data-testid=cal-area-filters] visible in Settimana/Mese/Anno; all 4 chips (all/energy/network/birthday) reachable & clickable in every view. Minor cosmetic side effect: filter chip row appears vertically stretched (tall pills) in all views because the horizontal ScrollView lacks a fixed height and children have flexShrink:0.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "calendario", "issues": ["Area-filter horizontal ScrollView (testID cal-area-filters) renders as very tall pills (chips stretch vertically) — likely missing an explicit height/maxHeight on the ScrollView or an alignItems:'center' on contentContainerStyle. Visible in all 3 views (Settimana/Mese/Anno). Reference: /app/frontend/app/(tabs)/calendario.tsx:143 (styles.filtersRow at line 291)."]}
+    ],
+    "react_native_issues": [
+      {"component": "Text nodes", "issue": "Multiple 'Unexpected text node: . A text node cannot be a child of a <View>' warnings in the console after login. Likely a whitespace text node in some (tabs) screen JSX. Reference: repeatedly logged during Home render."},
+      {"component": "shadow* deprecation", "issue": "'shadow*' style props are deprecated. Use 'boxShadow' — appears at app start (react-native-web). Multiple files use shadowColor/shadowOpacity/shadowRadius/shadowOffset (e.g., home.tsx:469 styles.statCard)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/home_callbacks.png",
+    "/app/test_reports/pytest/cal_week.png",
+    "/app/test_reports/pytest/cal_month.png",
+    "/app/test_reports/pytest/cal_year.png"
+  ],
+  "action_items": [
+    "OPTIONAL: constrain the cal-area-filters horizontal ScrollView height (e.g., style={{maxHeight: 44}} or wrap in a View with fixed height) so filter chips don't stretch vertically in the Year/Month views.",
+    "OPTIONAL: migrate shadow* style props to boxShadow to remove deprecation warnings.",
+    "OPTIONAL: track down and remove the stray whitespace text nodes that trigger 'Unexpected text node' warnings on the Home screen."
+  ],
+  "critical_code_review_comments": [
+    "home.tsx CallbackRow: setInterval fires every 20s but the animated blink loop restarts only when urgent/soon flags change — acceptable but means a callback crossing the 15/30 min threshold may take up to 20s to re-render the color, which is fine.",
+    "calendario.tsx: styles.card now has minHeight:44 which meets the 44px touch-target guideline for the Pressable — good."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not tested)", "frontend": "100% (3/3 bugs verified fixed)"},
+  "seed_data_creation": "Via /api/callbacks and /api/appointments (owner test@dalpastro.it): 3 callbacks (TEST_urgent +8m, TEST_soon +22m, TEST_later +90m, all area=energy) + 1 appointment (TEST_appt_today, +2h, area=energy).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Seed callbacks/appointments prefixed TEST_ still exist in the DB for owner test@dalpastro.it — clean them via DELETE /api/callbacks/{id} and /api/appointments/{id} if desired.",
+  "rca_of_issue": "N/A — all 3 fixes verified working end-to-end."
+}

@@ -139,6 +139,17 @@ export default function CalendarioScreen() {
         ))}
       </View>
 
+      {/* Area/merceologica filter — always visible in every view */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow} style={{ maxHeight: 44 }} testID="cal-area-filters">
+        {(["all", "energy", "network", "birthday"] as const).map((f) => (
+          <Pressable key={f} testID={`cal-filter-${f}`} onPress={() => setFilter(f)} style={[styles.chip, filter === f && styles.chipActive]}>
+            <Text style={[styles.chipTxt, filter === f && styles.chipTxtActive]}>
+              {f === "all" ? "Tutti" : f === "energy" ? (settings?.energy_title || "Energia") : f === "network" ? (settings?.network_title || "Network") : "Compleanni"}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
       {viewMode === "week" && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.daysRow}>
           {days.map((d) => {
@@ -191,16 +202,6 @@ export default function CalendarioScreen() {
           }}
         />
       )}
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
-        {(["all", "energy", "network", "birthday"] as const).map((f) => (
-          <Pressable key={f} testID={`cal-filter-${f}`} onPress={() => setFilter(f)} style={[styles.chip, filter === f && styles.chipActive]}>
-            <Text style={[styles.chipTxt, filter === f && styles.chipTxtActive]}>
-              {f === "all" ? "Tutti" : f === "energy" ? (settings?.energy_title || "Energia") : f === "network" ? (settings?.network_title || "Network") : "Compleanni"}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
 
       <View style={styles.dateHeader}>
         <Text style={styles.dateTxt}>{selectedDate.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</Text>
@@ -304,14 +305,14 @@ const styles = StyleSheet.create({
   dateSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, gap: 8 },
   emptyTxt: { color: theme.color.muted },
-  card: { flexDirection: "row", backgroundColor: "#FFF", borderRadius: theme.radius.md, marginBottom: 8, overflow: "hidden", borderWidth: 1, borderColor: theme.color.border, alignItems: "center" },
-  leftBar: { width: 4, alignSelf: "stretch" },
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
-  time: { fontSize: 13, color: theme.color.muted, fontWeight: "600" },
-  apptTitle: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface, marginTop: 4 },
-  loc: { fontSize: 12, color: theme.color.muted, marginTop: 4 },
-  checkBtn: { padding: 14 },
-  callBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#16A34A", alignItems: "center", justifyContent: "center", marginRight: 4, alignSelf: "center" },
+  card: { flexDirection: "row", backgroundColor: "#FFF", borderRadius: 10, marginBottom: 5, overflow: "hidden", borderWidth: 1, borderColor: theme.color.border, alignItems: "center", minHeight: 44 },
+  leftBar: { width: 3, alignSelf: "stretch" },
+  row: { flexDirection: "row", alignItems: "center", gap: 6 },
+  time: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
+  apptTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface, marginTop: 2 },
+  loc: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
+  checkBtn: { padding: 10 },
+  callBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#16A34A", alignItems: "center", justifyContent: "center", marginRight: 4, alignSelf: "center" },
   segment: { flexDirection: "row", marginHorizontal: 16, marginBottom: 8, backgroundColor: theme.color.surfaceTertiary, borderRadius: 20, padding: 3 },
   segBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 16 },
   segBtnOn: { backgroundColor: theme.color.brandPrimary },

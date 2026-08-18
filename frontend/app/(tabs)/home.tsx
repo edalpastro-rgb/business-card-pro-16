@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image, TextInput, Linking, Platform } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image, TextInput, Linking, Platform, Animated, Easing } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -331,47 +331,28 @@ export default function HomeScreen() {
               <View key={area} style={styles.areaBlock}>
                 <View style={styles.areaHead}><View style={[styles.dot, { backgroundColor: color }]} /><Text style={styles.areaTitle}>{title}</Text></View>
                 {list.map((cb) => (
-                  <Pressable
+                  <CallbackRow
                     key={cb.callback_id}
-                    testID={`callback-${cb.callback_id}`}
-                    onPress={() => cb.contact_id && router.push(`/contact/${cb.contact_id}`)}
-                    style={[styles.cbCard, cb.done && { opacity: 0.55 }]}
-                  >
-                    <View style={[styles.cbBar, { backgroundColor: color }]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.cbTitle, cb.done && { textDecorationLine: "line-through" }]}>{cb.title}</Text>
-                      <Text style={styles.cbTime}>{new Date(cb.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} {cb.note ? "· " + cb.note : ""}</Text>
-                    </View>
-                    {(!cb.done && (cb.phone || (contacts.find((x) => x.contact_id === cb.contact_id)?.phone))) ? (
-                      <Pressable
-                        testID={`callback-call-${cb.callback_id}`}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          const contact = contacts.find((x) => x.contact_id === cb.contact_id);
-                          setCallTarget({
-                            phone: cb.phone || contact?.phone || null,
-                            contact_id: cb.contact_id || null,
-                            callback_id: cb.callback_id,
-                            display_name: cb.title,
-                          });
-                        }}
-                        style={styles.callIconBtn}
-                      >
-                        <Ionicons name="call" size={18} color="#FFF" />
-                      </Pressable>
-                    ) : null}
-                    <Pressable
-                      testID={`callback-toggle-${cb.callback_id}`}
-                      onPress={async (e) => {
-                        e.stopPropagation();
+                    cb={cb}
+                    color={color}
+                    contacts={contacts}
+                    onOpen={() => cb.contact_id && router.push(`/contact/${cb.contact_id}`)}
+                    onCall={() => {
+                      const contact = contacts.find((x) => x.contact_id === cb.contact_id);
+                      setCallTarget({
+                        phone: cb.phone || contact?.phone || null,
+                        contact_id: cb.contact_id || null,
+                        callback_id: cb.callback_id,
+                        display_name: cb.title,
+                      });
+                    }}
+                    onToggleDone={async () => {
+                      try {
                         await api(`/callbacks/${cb.callback_id}`, { method: "PUT", body: { done: !cb.done } });
-                        load();
-                      }}
-                      style={styles.checkBtn}
-                    >
-                      <Ionicons name={cb.done ? "checkmark-circle" : "ellipse-outline"} size={26} color={cb.done ? theme.color.success : theme.color.muted} />
-                    </Pressable>
-                  </Pressable>
+                        await load();
+                      } catch (e: any) { notify("Errore", e?.message || ""); }
+                    }}
+                  />
                 ))}
               </View>
             );
@@ -401,6 +382,74 @@ export default function HomeScreen() {
         onCompleted={() => { setCallTarget(null); load(); }}
       />
     </SafeAreaView>
+  );
+}
+
+function CallbackRow({ cb, color, contacts, onOpen, onCall, onToggleDone }: { cb: Callback; color: string; contacts: Contact[]; onOpen: () => void; onCall: () => void; onToggleDone: () => void }) {
+  const [now, setNow] = useState(Date.now());
+  const blink = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 20000);
+    return () => clearInterval(t);
+  }, []);
+
+  const dueAt = new Date(cb.scheduled_at).getTime();
+  const diffMin = (dueAt - now) / 60000;
+  const past = diffMin < 0;
+  const urgent = !cb.done && diffMin <= 15;
+  const soon = !cb.done && !urgent && diffMin <= 30;
+  const upcoming = !cb.done && !urgent && !soon;
+
+  useEffect(() => {
+    if (!urgent && !soon) { blink.setValue(1); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(blink, { toValue: 0.35, duration: urgent ? 400 : 700, useNativeDriver: false, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(blink, { toValue: 1, duration: urgent ? 400 : 700, useNativeDriver: false, easing: Easing.inOut(Easing.ease) }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [urgent, soon, blink]);
+
+  const bg = cb.done ? "#FFF" : urgent ? "#FEE2E2" : soon ? "#FFEDD5" : upcoming ? "#FEF9C3" : "#FFF";
+  const border = cb.done ? "transparent" : urgent ? "#DC2626" : soon ? "#F59E0B" : upcoming ? "#EAB308" : "transparent";
+  const hasPhone = !cb.done && (cb.phone || contacts.find((x) => x.contact_id === cb.contact_id)?.phone);
+
+  return (
+    <Animated.View style={{ opacity: cb.done ? 0.55 : blink }} testID={`callback-${cb.callback_id}`}>
+      <Pressable
+        onPress={onOpen}
+        style={[
+          { flexDirection: "row", backgroundColor: bg, borderRadius: 12, marginBottom: 8, alignItems: "center", overflow: "hidden", borderWidth: 1.5, borderColor: border },
+        ]}
+      >
+        <View style={{ width: 5, backgroundColor: color, alignSelf: "stretch" }} />
+        <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 10 }}>
+          <Text style={[{ fontSize: 15, fontWeight: "700", color: theme.color.onSurface }, cb.done && { textDecorationLine: "line-through" }]}>{cb.title}</Text>
+          <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
+            {new Date(cb.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {!cb.done && !past && urgent && "  ⚠ tra pochi minuti"}
+            {!cb.done && !past && soon && "  ⏰ tra meno di 30 min"}
+            {!cb.done && past && "  · in ritardo"}
+            {cb.note ? "  · " + cb.note : ""}
+          </Text>
+        </View>
+        {hasPhone ? (
+          <Pressable
+            testID={`callback-call-${cb.callback_id}`}
+            onPress={(e) => { e.stopPropagation(); onCall(); }}
+            style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#16A34A", justifyContent: "center", alignItems: "center", marginHorizontal: 8 }}
+          >
+            <Ionicons name="call" size={18} color="#FFF" />
+          </Pressable>
+        ) : null}
+        <Pressable testID={`callback-toggle-${cb.callback_id}`} onPress={(e) => { e.stopPropagation(); onToggleDone(); }} style={{ padding: 10 }}>
+          <Ionicons name={cb.done ? "checkmark-circle" : "ellipse-outline"} size={26} color={cb.done ? theme.color.success : theme.color.muted} />
+        </Pressable>
+      </Pressable>
+    </Animated.View>
   );
 }
 
