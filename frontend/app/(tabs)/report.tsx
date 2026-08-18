@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { CalculatorFAB } from "@/src/CalculatorFAB";
 
 type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
 type ReportStats = { period: string; start: string; end: string; stats: { energy: any; network: any }; outcomes?: { outcome_id: string; count: number }[] };
@@ -112,6 +113,7 @@ export default function ReportScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
+      <CalculatorFAB />
     </SafeAreaView>
   );
 }

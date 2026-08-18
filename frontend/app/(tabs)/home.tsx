@@ -7,11 +7,11 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 
 type CustomArea = { id: string; name: string; color: string };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_areas?: CustomArea[] };
 type Callback = { callback_id: string; title: string; area: "energy" | "network"; scheduled_at: string; note: string; done: boolean; contact_id?: string; phone?: string };
-type ReportStats = { period: string; stats: { energy: any; network: any } };
 type MyThingImage = { item_id: string; image_base64?: string | null };
 
 export default function HomeScreen() {
@@ -19,26 +19,24 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [callbacks, setCallbacks] = useState<Callback[]>([]);
-  const [report, setReport] = useState<ReportStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [subscription, setSubscription] = useState<{ status: string; days_left?: number | null; is_active: boolean } | null>(null);
   const [myThingImages, setMyThingImages] = useState<string[]>([]);
   const [myThingIdx, setMyThingIdx] = useState(0);
+  const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
 
   const load = useCallback(async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const [s, c, r, sub, mt] = await Promise.all([
+      const [s, c, sub, mt] = await Promise.all([
         api<Settings>("/settings"),
         api<{ items: Callback[] }>("/callbacks", { query: { day: today, include_done: true } }),
-        api<ReportStats>("/reports", { query: { period: "day" } }),
         api<any>("/subscription/status").catch(() => null),
         api<{ items: MyThingImage[] }>("/my-thing", { query: { kind: "image" } }).catch(() => ({ items: [] })),
       ]);
       setSettings(s);
       setCallbacks(c.items);
-      setReport(r);
       setSubscription(sub);
       const imgs = (mt.items || [])
         .map((it) => it.image_base64)
@@ -150,27 +148,6 @@ export default function HomeScreen() {
           ) : null}
         </Pressable>
 
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, { borderLeftColor: energyColor }]} testID="stat-energy">
-            <View style={[styles.statBadge, { backgroundColor: energyColor + "22" }]}>
-              <Ionicons name="flash" size={16} color={energyColor} />
-            </View>
-            <Text style={[styles.statTitle, { color: energyColor }]} numberOfLines={1}>{settings?.energy_title}</Text>
-            <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.energy.appointments_done ?? 0}</Text><Text style={styles.statLbl}>App. fatti</Text></View>
-            <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.energy.contracts ?? 0}</Text><Text style={styles.statLbl}>Contratti</Text></View>
-            <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.energy.products ?? 0}</Text><Text style={styles.statLbl}>Prodotti</Text></View>
-          </View>
-          <View style={[styles.statCard, { borderLeftColor: networkColor }]} testID="stat-network">
-            <View style={[styles.statBadge, { backgroundColor: networkColor + "22" }]}>
-              <Ionicons name="people" size={16} color={networkColor} />
-            </View>
-            <Text style={[styles.statTitle, { color: networkColor }]} numberOfLines={1}>{settings?.network_title}</Text>
-            <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.network.appointments_done ?? 0}</Text><Text style={styles.statLbl}>App. fatti</Text></View>
-            <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.network.contracts ?? 0}</Text><Text style={styles.statLbl}>Contratti</Text></View>
-            <View style={styles.statRow}><Text style={styles.statNum}>{report?.stats.network.products ?? 0}</Text><Text style={styles.statLbl}>Prodotti</Text></View>
-          </View>
-        </View>
-
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Ritelefonate di oggi</Text>
@@ -197,12 +174,20 @@ export default function HomeScreen() {
                     onOpen={() => {
                       if (cb.contact_id) {
                         router.push(`/contact/${cb.contact_id}`);
+                      } else if (cb.phone) {
+                        // Nessun contatto ma abbiamo un telefono: apri CallActionSheet direttamente
+                        setCallTarget({
+                          phone: cb.phone,
+                          contact_id: null,
+                          callback_id: cb.callback_id,
+                          display_name: cb.title,
+                        });
                       } else {
-                        // Nessun contatto collegato: mostrare avviso
+                        // Né contatto né telefono
                         if (Platform.OS === "web") {
-                          window.alert("Nessun contatto collegato a questa ritelefonata.");
+                          window.alert("Questa ritelefonata non ha un contatto collegato né un numero di telefono. Usa l'icona matita per aggiungerlo.");
                         } else {
-                          Alert.alert("Nessun contatto collegato", "Questa ritelefonata non ha un contatto collegato. Usa l'icona matita per modificarla o collegare un contatto.");
+                          Alert.alert("Nessun numero disponibile", "Questa ritelefonata non ha né contatto collegato né numero di telefono. Usa l'icona matita per modificarla.");
                         }
                       }
                     }}
@@ -236,13 +221,27 @@ export default function HomeScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      <CallActionSheet
+        visible={!!callTarget}
+        target={callTarget}
+        onClose={() => setCallTarget(null)}
+        onCompleted={(res) => {
+          setCallTarget(null);
+          load();
+          if (res?.outcome_id === "call_appointment") {
+            // Se il callback aveva un contatto, apri new appt per quel contatto
+            const cid = callTarget?.contact_id;
+            if (cid) router.push(`/appointment/new?contact_id=${cid}`);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
 
 function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback; color: string; onOpen: () => void; onEdit: () => void; onToggleDone: () => void }) {
   const [now, setNow] = useState(Date.now());
-  const blink = useRef(new Animated.Value(1)).current;
+  const sweep = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 20000);
@@ -256,31 +255,48 @@ function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback
   const soon = !cb.done && !urgent && diffMin <= 30;
   const upcoming = !cb.done && !urgent && !soon;
 
+  // V26.o: progress sweep animation (left → right) instead of blink
   useEffect(() => {
-    if (!urgent && !soon) { blink.setValue(1); return; }
+    if (!urgent && !soon) { sweep.setValue(0); return; }
+    const cycle = urgent ? 2000 : 3200;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(blink, { toValue: 0.35, duration: urgent ? 400 : 700, useNativeDriver: false, easing: Easing.inOut(Easing.ease) }),
-        Animated.timing(blink, { toValue: 1, duration: urgent ? 400 : 700, useNativeDriver: false, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(sweep, { toValue: 1, duration: cycle, useNativeDriver: false, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(sweep, { toValue: 0, duration: 0, useNativeDriver: false }),
       ])
     );
     loop.start();
     return () => loop.stop();
-  }, [urgent, soon, blink]);
+  }, [urgent, soon, sweep]);
 
   const bg = cb.done ? "#FFF" : urgent ? "#FEE2E2" : soon ? "#FFEDD5" : upcoming ? "#FEF9C3" : "#FFF";
   const border = cb.done ? "transparent" : urgent ? "#DC2626" : soon ? "#F59E0B" : upcoming ? "#EAB308" : "transparent";
+  const sweepColor = urgent ? "rgba(220,38,38,0.28)" : "rgba(245,158,11,0.22)";
 
   return (
-    <Animated.View style={{ opacity: cb.done ? 0.55 : blink }} testID={`callback-${cb.callback_id}`}>
+    <View style={{ opacity: cb.done ? 0.55 : 1 }} testID={`callback-${cb.callback_id}`}>
       <View
-        style={{ flexDirection: "row", backgroundColor: bg, borderRadius: 12, marginBottom: 8, alignItems: "stretch", overflow: "hidden", borderWidth: 1.5, borderColor: border }}
+        style={{ flexDirection: "row", backgroundColor: bg, borderRadius: 12, marginBottom: 8, alignItems: "stretch", overflow: "hidden", borderWidth: 1.5, borderColor: border, position: "relative" }}
       >
+        {(urgent || soon) && !cb.done ? (
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: sweep.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
+              backgroundColor: sweepColor,
+              zIndex: 0,
+            }}
+          />
+        ) : null}
         <Pressable
           testID={`callback-open-${cb.callback_id}`}
           onPress={() => { if (typeof onOpen === "function") onOpen(); }}
           android_ripple={{ color: "rgba(0,0,0,0.06)" }}
-          style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", opacity: pressed ? 0.75 : 1 }]}
+          style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", opacity: pressed ? 0.75 : 1, zIndex: 1 }]}
         >
           <View style={{ width: 5, backgroundColor: color, alignSelf: "stretch" }} />
           <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 10 }}>
@@ -298,7 +314,7 @@ function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback
           testID={`callback-edit-${cb.callback_id}`}
           onPress={onEdit}
           hitSlop={8}
-          style={({ pressed }) => [{ paddingHorizontal: 8, justifyContent: "center", opacity: pressed ? 0.55 : 1 }]}
+          style={({ pressed }) => [{ paddingHorizontal: 8, justifyContent: "center", opacity: pressed ? 0.55 : 1, zIndex: 1 }]}
         >
           <Ionicons name="pencil" size={18} color={theme.color.brandPrimary} />
         </Pressable>
@@ -306,12 +322,12 @@ function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback
           testID={`callback-toggle-${cb.callback_id}`}
           onPress={onToggleDone}
           hitSlop={8}
-          style={({ pressed }) => [{ paddingHorizontal: 12, justifyContent: "center", opacity: pressed ? 0.6 : 1 }]}
+          style={({ pressed }) => [{ paddingHorizontal: 12, justifyContent: "center", opacity: pressed ? 0.6 : 1, zIndex: 1 }]}
         >
           <Ionicons name={cb.done ? "checkmark-circle" : "ellipse-outline"} size={26} color={cb.done ? theme.color.success : theme.color.muted} />
         </Pressable>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 

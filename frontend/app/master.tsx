@@ -10,8 +10,9 @@ import { theme } from "@/src/theme";
 import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
-
 type Alerts = { unread: number; latest: { contract_id: string; contract_number?: string; supplier?: string; created_by?: string; created_at?: string }[] };
+type ReportStats = { period: string; stats: { energy: any; network: any } };
+type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
 
 export default function MasterScreen() {
   const router = useRouter();
@@ -22,6 +23,8 @@ export default function MasterScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
   const [chatPickerOpen, setChatPickerOpen] = useState(false);
+  const [report, setReport] = useState<ReportStats | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const pulseAnim = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -31,12 +34,16 @@ export default function MasterScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [mt, al] = await Promise.all([
+      const [mt, al, r, s] = await Promise.all([
         api<{ item: Banner }>("/my-thing/random-banner").catch(() => ({ item: null })),
         api<Alerts>("/contracts/new-alerts").catch(() => ({ unread: 0, latest: [] })),
+        api<ReportStats>("/reports", { query: { period: "day" } }).catch(() => null),
+        api<Settings>("/settings").catch(() => null),
       ]);
       setBanner(mt.item || null);
       setAlerts(al);
+      setReport(r);
+      setSettings(s);
     } catch (e) {
       console.warn("master load", e);
     }
@@ -128,6 +135,32 @@ export default function MasterScreen() {
             <MasterButton key={b.label} {...b} pulseAnim={pulseAnim} />
           ))}
         </View>
+
+        {/* V26.o — Statistiche giornaliere (spostate da Home) */}
+        <View style={styles.statsSection}>
+          <Text style={styles.statsHeader}>Statistiche di oggi</Text>
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, { borderLeftColor: settings?.energy_color || theme.color.energy }]} testID="master-stat-energy">
+              <View style={[styles.statBadge, { backgroundColor: (settings?.energy_color || theme.color.energy) + "22" }]}>
+                <Ionicons name="flash" size={16} color={settings?.energy_color || theme.color.energy} />
+              </View>
+              <Text style={[styles.statTitle, { color: settings?.energy_color || theme.color.energy }]} numberOfLines={1}>{settings?.energy_title || "Consulente Energetico"}</Text>
+              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.energy?.appointments_done ?? 0}</Text><Text style={styles.statLbl}>App. fatti</Text></View>
+              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.energy?.contracts ?? 0}</Text><Text style={styles.statLbl}>Contratti</Text></View>
+              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.energy?.products ?? 0}</Text><Text style={styles.statLbl}>Prodotti</Text></View>
+            </View>
+            <View style={[styles.statCard, { borderLeftColor: settings?.network_color || theme.color.network }]} testID="master-stat-network">
+              <View style={[styles.statBadge, { backgroundColor: (settings?.network_color || theme.color.network) + "22" }]}>
+                <Ionicons name="people" size={16} color={settings?.network_color || theme.color.network} />
+              </View>
+              <Text style={[styles.statTitle, { color: settings?.network_color || theme.color.network }]} numberOfLines={1}>{settings?.network_title || "Networker"}</Text>
+              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.network?.appointments_done ?? 0}</Text><Text style={styles.statLbl}>App. fatti</Text></View>
+              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.network?.contracts ?? 0}</Text><Text style={styles.statLbl}>Contratti</Text></View>
+              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.network?.products ?? 0}</Text><Text style={styles.statLbl}>Prodotti</Text></View>
+            </View>
+          </View>
+        </View>
+
         <MasterVoiceRecorder />
         <Pressable onPress={() => router.push("/my-audios" as any)} style={styles.myAudiosLink} testID="master-my-audios-link">
           <Ionicons name="folder-open" size={18} color="#7C3AED" />
@@ -372,6 +405,15 @@ const styles = StyleSheet.create({
   badgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "800" },
   myAudiosLink: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", paddingVertical: 10, paddingHorizontal: 16, backgroundColor: "#F5F3FF", borderRadius: 20, borderWidth: 1, borderColor: "#DDD6FE" },
   myAudiosLinkTxt: { color: "#7C3AED", fontWeight: "800", fontSize: 13 },
+  statsSection: { marginTop: 6, marginBottom: 16 },
+  statsHeader: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface, marginBottom: 10, letterSpacing: 0.3, textTransform: "uppercase" },
+  statsRow: { flexDirection: "row", gap: 8 },
+  statCard: { flex: 1, backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, borderLeftWidth: 4, padding: 10, gap: 4 },
+  statBadge: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  statTitle: { fontSize: 12, fontWeight: "800", marginBottom: 4 },
+  statRowLine: { flexDirection: "row", alignItems: "baseline", gap: 4 },
+  statNum: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, minWidth: 22 },
+  statLbl: { fontSize: 11, color: theme.color.muted },
 
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   menuBox: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 30 },

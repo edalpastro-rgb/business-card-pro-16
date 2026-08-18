@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { uriToBase64 } from "@/src/utils/media";
+import { CalculatorFAB } from "@/src/CalculatorFAB";
 
 type BillType = "luce" | "gas" | "telco";
 
@@ -314,14 +315,15 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
     + grouped.telco.filter((b) => b.status === "done").length;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
-      <View style={styles.introCard}>
-        <Ionicons name="sparkles" size={20} color={theme.color.brandPrimary} />
-        <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={styles.introTitle}>Fatture Energia · AI Claude Sonnet 5</Text>
-          <Text style={styles.introTxt}>Carica le fatture in PDF: Luce, Gas o Telco. L&apos;AI estrae automaticamente POD/PDR, consumi, offerte, scadenze, IVA e altro.</Text>
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+        <View style={styles.introCard}>
+          <Ionicons name="sparkles" size={20} color={theme.color.brandPrimary} />
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.introTitle}>Fatture Energia · AI Claude Sonnet 5</Text>
+            <Text style={styles.introTxt}>Carica le fatture in PDF: Luce, Gas o Telco. L&apos;AI estrae automaticamente POD/PDR, consumi, offerte, scadenze, IVA e altro.</Text>
+          </View>
         </View>
-      </View>
 
       {/* Company Offers accordion */}
       <View style={styles.offersCard}>
@@ -577,7 +579,9 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
           </>
         );
       })()}
-    </ScrollView>
+      </ScrollView>
+      <CalculatorFAB />
+    </View>
   );
 }
 
