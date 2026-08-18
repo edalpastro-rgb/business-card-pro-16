@@ -24,6 +24,7 @@ export default function NewCallbackScreen() {
     scheduled_at: new Date(Date.now() + 60 * 60 * 1000),
     note: "",
     contact_id: "",
+    phone: "",
   });
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,6 +43,7 @@ export default function NewCallbackScreen() {
           scheduled_at: new Date(cb.scheduled_at),
           note: cb.note || "",
           contact_id: cb.contact_id || "",
+          phone: cb.phone || "",
         });
       } catch (e: any) {
         if (Platform.OS === "web") window.alert("Impossibile caricare la ritelefonata: " + (e?.message || ""));
@@ -177,6 +179,20 @@ export default function NewCallbackScreen() {
             )}
           </>
         )}
+
+        <Text style={styles.lbl}>Telefono (opzionale)</Text>
+        <TextInput
+          testID="cb-phone"
+          value={form.phone}
+          onChangeText={(t) => setForm({ ...form, phone: t })}
+          style={styles.input}
+          keyboardType="phone-pad"
+          placeholder="Es. +39 333 1234567"
+          placeholderTextColor="#94A3B8"
+        />
+        <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: -6, marginBottom: 6 }}>
+          Inserisci un numero per creare la ritelefonata anche senza un contatto in anagrafica.
+        </Text>
 
         <Text style={styles.lbl}>Nota</Text>
         <TextInput testID="cb-note" value={form.note} onChangeText={(t) => setForm({ ...form, note: t })} style={[styles.input, { minHeight: 70, textAlignVertical: "top" }]} multiline placeholderTextColor="#94A3B8" />

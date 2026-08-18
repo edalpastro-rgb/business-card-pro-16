@@ -26,7 +26,12 @@ type Attachment = {
   file_size?: number;
 };
 
-type Contact = { contact_id: string; first_name: string; last_name: string; area: string; address: string };
+type Contact = {
+  contact_id: string; first_name: string; last_name: string; area: string;
+  address: string; phone?: string; phone_alt?: string;
+  address_street?: string; address_number?: string; address_zip?: string; address_city?: string; address_province?: string;
+  work_address?: string; residence_address?: string;
+};
 type Settings = {
   energy_title: string; network_title: string;
   custom_appointment_types?: string[];
@@ -71,8 +76,12 @@ export default function NewAppointmentScreen() {
     reminder_minutes: 15,
     recurrence: "none" as "none" | "weekly" | "monthly" | "yearly",
     is_phone: prefPhone === "1",
+    phone_mobile: "",
+    phone_work: "",
+    phone_target: "" as "" | "mobile" | "work",
     location: prefLoc || "",
     map_address: "",
+    full_address: "",
     notes: prefNotes || "",
     value_amount: "",
     appointment_type_tags: [] as string[],
@@ -240,13 +249,23 @@ export default function NewAppointmentScreen() {
   useEffect(() => {
     if (contactId && contacts.length) {
       const c = contacts.find((x) => x.contact_id === contactId);
-      if (c) setForm((f) => ({
-        ...f,
-        contact_id: c.contact_id,
-        area: ((c.area as any) || f.area) as any,
-        title: f.title || `Appuntamento ${c.first_name} ${c.last_name}`,
-        location: c.address || f.location,
-      }));
+      if (c) {
+        // Compute full structured address if available, else fallback to raw
+        const structured = [c.address_street, c.address_number ? c.address_number : "", [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province]
+          .filter(Boolean).join(", ");
+        const fullAddr = structured || c.work_address || c.residence_address || c.address || "";
+        setForm((f) => ({
+          ...f,
+          contact_id: c.contact_id,
+          area: ((c.area as any) || f.area) as any,
+          title: f.title || `Appuntamento ${c.first_name} ${c.last_name}`,
+          location: c.address || f.location,
+          phone_mobile: c.phone || f.phone_mobile,
+          phone_work: c.phone_alt || f.phone_work,
+          full_address: fullAddr || f.full_address,
+          phone_target: !f.phone_target && c.phone ? "mobile" : (f.phone_target || (c.phone_alt ? "work" : "")),
+        }));
+      }
     }
   }, [contacts, contactId]);
 
@@ -463,7 +482,7 @@ export default function NewAppointmentScreen() {
               </View>
               {showPicker && (
                 <DateTimePicker value={form.start_at} mode={showPicker}
-                  onChange={(e, d) => { setShowPicker(null); if (d) { showPicker === "date" ? setDate(d) : setTime(d); } }} />
+                  onChange={(e, d) => { setShowPicker(null); if (d) { if (showPicker === "date") setDate(d); else setTime(d); } }} />
               )}
             </>
           )}
@@ -499,11 +518,33 @@ export default function NewAppointmentScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Contatto principale</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            <Pressable testID="ap-contact-none" onPress={() => setForm({ ...form, contact_id: "" })} style={[styles.pill, !form.contact_id && styles.pillActive]}>
+            <Pressable
+              testID="ap-contact-none"
+              onPress={() => setForm({ ...form, contact_id: "", phone_mobile: "", phone_work: "", full_address: "", phone_target: "" })}
+              style={[styles.pill, !form.contact_id && styles.pillActive]}
+            >
               <Text style={[styles.pillTxt, !form.contact_id && styles.pillTxtActive]}>Nessuno</Text>
             </Pressable>
             {contacts.map((c) => (
-              <Pressable key={c.contact_id} testID={`ap-contact-${c.contact_id}`} onPress={() => setForm({ ...form, contact_id: c.contact_id })} style={[styles.pill, form.contact_id === c.contact_id && styles.pillActive]}>
+              <Pressable
+                key={c.contact_id}
+                testID={`ap-contact-${c.contact_id}`}
+                onPress={() => {
+                  const structured = [c.address_street, c.address_number, [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province].filter(Boolean).join(", ");
+                  const fullAddr = structured || c.work_address || c.residence_address || c.address || "";
+                  setForm({
+                    ...form,
+                    contact_id: c.contact_id,
+                    area: (c.area === "energy" || c.area === "network") ? c.area : form.area,
+                    location: c.address || form.location,
+                    phone_mobile: c.phone || "",
+                    phone_work: c.phone_alt || "",
+                    full_address: fullAddr,
+                    phone_target: c.phone ? "mobile" : (c.phone_alt ? "work" : ""),
+                  });
+                }}
+                style={[styles.pill, form.contact_id === c.contact_id && styles.pillActive]}
+              >
                 <Text style={[styles.pillTxt, form.contact_id === c.contact_id && styles.pillTxtActive]}>{c.first_name} {c.last_name}</Text>
               </Pressable>
             ))}
@@ -535,7 +576,76 @@ export default function NewAppointmentScreen() {
             <Switch testID="ap-phone-switch" value={form.is_phone} onValueChange={(v) => setForm({ ...form, is_phone: v })} />
           </View>
 
-          <Text style={styles.lbl}>Luogo</Text>
+          {/* V26.p — Campi telefono e indirizzo pre-compilati dal contatto */}
+          <Text style={styles.lbl}>Telefono cellulare</Text>
+          <TextInput
+            testID="ap-phone-mobile"
+            value={form.phone_mobile}
+            onChangeText={(t) => setForm({ ...form, phone_mobile: t })}
+            style={styles.input}
+            keyboardType="phone-pad"
+            placeholder="+39 333 1234567"
+            placeholderTextColor="#94A3B8"
+          />
+
+          <Text style={styles.lbl}>Telefono aziendale</Text>
+          <TextInput
+            testID="ap-phone-work"
+            value={form.phone_work}
+            onChangeText={(t) => setForm({ ...form, phone_work: t })}
+            style={styles.input}
+            keyboardType="phone-pad"
+            placeholder="+39 02 12345678"
+            placeholderTextColor="#94A3B8"
+          />
+
+          {form.is_phone ? (
+            <>
+              <Text style={styles.lbl}>Chiama a quale numero?</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable
+                  testID="ap-phone-target-mobile"
+                  onPress={() => setForm({ ...form, phone_target: "mobile" })}
+                  style={[styles.phoneTargetChip, form.phone_target === "mobile" && styles.phoneTargetChipActive, !form.phone_mobile && { opacity: 0.4 }]}
+                  disabled={!form.phone_mobile}
+                >
+                  <Ionicons name="phone-portrait" size={14} color={form.phone_target === "mobile" ? "#FFF" : theme.color.onSurface} />
+                  <Text style={[styles.phoneTargetTxt, form.phone_target === "mobile" && { color: "#FFF" }]}>
+                    Cellulare{form.phone_mobile ? "\n" + form.phone_mobile : ""}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  testID="ap-phone-target-work"
+                  onPress={() => setForm({ ...form, phone_target: "work" })}
+                  style={[styles.phoneTargetChip, form.phone_target === "work" && styles.phoneTargetChipActive, !form.phone_work && { opacity: 0.4 }]}
+                  disabled={!form.phone_work}
+                >
+                  <Ionicons name="business" size={14} color={form.phone_target === "work" ? "#FFF" : theme.color.onSurface} />
+                  <Text style={[styles.phoneTargetTxt, form.phone_target === "work" && { color: "#FFF" }]}>
+                    Aziendale{form.phone_work ? "\n" + form.phone_work : ""}
+                  </Text>
+                </Pressable>
+              </View>
+              {!form.phone_mobile && !form.phone_work ? (
+                <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 6 }}>
+                  Inserisci almeno un numero sopra per selezionare quale chiamare.
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+
+          <Text style={styles.lbl}>Indirizzo completo</Text>
+          <TextInput
+            testID="ap-full-address"
+            value={form.full_address}
+            onChangeText={(t) => setForm({ ...form, full_address: t })}
+            style={[styles.input, { minHeight: 50, textAlignVertical: "top" }]}
+            multiline
+            placeholder="Es. Via Roma 10, 20100 Milano MI"
+            placeholderTextColor="#94A3B8"
+          />
+
+          <Text style={styles.lbl}>Luogo (visualizzato in agenda)</Text>
           <TextInput testID="ap-location" value={form.location} onChangeText={(t) => setForm({ ...form, location: t })} style={styles.input} placeholder="Indirizzo o link videochiamata" placeholderTextColor="#94A3B8" />
 
           <Text style={styles.lbl}>Valore stimato (€)</Text>
@@ -747,6 +857,9 @@ const styles = StyleSheet.create({
   pillTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 12 },
   rowBetween: { flexDirection: "row", alignItems: "center", gap: 12 },
   pillActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
+  phoneTargetChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 10, backgroundColor: "#F1F5F9", borderWidth: 1.5, borderColor: theme.color.border },
+  phoneTargetChipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
+  phoneTargetTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface, textAlign: "center" },
   pillTxtActive: { color: "#FFF" },
   dateRow: { flexDirection: "row", gap: 10, marginTop: 4 },
   dateBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.surface, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },

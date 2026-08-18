@@ -69,7 +69,7 @@ export default function HomeScreen() {
         // Fade in
         Animated.timing(myThingFade, { toValue: 1, duration: 350, useNativeDriver: true }).start();
       });
-    }, 4000);
+    }, 10000);
     return () => clearInterval(id);
   }, [myThingImages, myThingFade]);
 

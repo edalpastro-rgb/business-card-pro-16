@@ -517,8 +517,12 @@ class AppointmentIn(BaseModel):
     end_at: Optional[datetime] = None
     duration_min: int = 60
     is_phone: bool = False
+    phone_mobile: str = ""  # V26.p: numero cellulare per chiamata
+    phone_work: str = ""    # V26.p: numero aziendale per chiamata
+    phone_target: Literal["mobile", "work", ""] = ""  # V26.p: quale numero usare
     location: str = ""
     map_address: str = ""
+    full_address: str = ""  # V26.p: indirizzo completo (auto-fill dal contatto)
     notes: str = ""
     note_attachments: List[Dict[str, Any]] = Field(default_factory=list)
     reminder_minutes: int = 15
@@ -541,9 +545,13 @@ class AppointmentUpdate(BaseModel):
     end_at: Optional[datetime] = None
     duration_min: Optional[int] = None
     is_phone: Optional[bool] = None
+    phone_mobile: Optional[str] = None
+    phone_work: Optional[str] = None
+    phone_target: Optional[Literal["mobile", "work", ""]] = None
     done: Optional[bool] = None
     location: Optional[str] = None
     map_address: Optional[str] = None
+    full_address: Optional[str] = None
     notes: Optional[str] = None
     note_attachments: Optional[List[Dict[str, Any]]] = None
     outcome_tags: Optional[List[str]] = None
