@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -171,20 +171,6 @@ export default function CalendarioScreen() {
         </ScrollView>
       )}
 
-      {viewMode === "month" && (
-        <MonthGrid
-          selectedDate={selectedDate}
-          onSelectDay={(d) => { setSelectedDate(d); }}
-          items={filteredItems}
-          colorFor={colorFor}
-          onNavMonth={(delta) => {
-            const d = new Date(selectedDate);
-            d.setMonth(d.getMonth() + delta);
-            setSelectedDate(d);
-          }}
-        />
-      )}
-
       {viewMode === "year" && (
         <YearGrid
           year={selectedDate.getFullYear()}
@@ -203,75 +189,96 @@ export default function CalendarioScreen() {
         />
       )}
 
-      <View style={styles.dateHeader}>
-        <Text style={styles.dateTxt}>{selectedDate.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</Text>
-        <Text style={styles.dateSub}>{dayItems.length} {dayItems.length === 1 ? "evento" : "eventi"}</Text>
-      </View>
-
-      {viewMode !== "year" && (loading ? (
-        <ActivityIndicator color={theme.color.brandPrimary} style={{ marginTop: 40 }} />
-      ) : dayItems.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="calendar-outline" size={40} color={theme.color.muted} />
-          <Text style={styles.emptyTxt}>Nessun appuntamento</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={dayItems}
-          keyExtractor={(i) => i.id}
-          contentContainerStyle={{ padding: 16 }}
-          renderItem={({ item }) => (
-            <Pressable
-              testID={`appt-${item.id}`}
-              onPress={() => {
-                if (item.kind === "appt") router.push(`/appointment/${item.id}`);
-                else if (item.contact_id) router.push(`/contact/${item.contact_id}`);
+      {viewMode !== "year" && (
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 60 }}
+          showsVerticalScrollIndicator={true}
+          testID="cal-scroll"
+        >
+          {viewMode === "month" && (
+            <MonthGrid
+              selectedDate={selectedDate}
+              onSelectDay={(d) => { setSelectedDate(d); }}
+              items={filteredItems}
+              colorFor={colorFor}
+              onNavMonth={(delta) => {
+                const d = new Date(selectedDate);
+                d.setMonth(d.getMonth() + delta);
+                setSelectedDate(d);
               }}
-              style={styles.card}
-            >
-              <View style={[styles.leftBar, { backgroundColor: colorFor(item.area) }]} />
-              <View style={{ flex: 1, padding: 12 }}>
-                <View style={styles.row}>
-                  <Text style={styles.time}>{item.start_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
-                  {item.kind === "birthday" && <Ionicons name="gift" size={14} color={colorFor(item.area)} />}
-                  {item.is_phone && <Ionicons name="call" size={14} color={colorFor(item.area)} />}
-                </View>
-                <Text style={[styles.apptTitle, item.done && { textDecorationLine: "line-through", color: theme.color.muted }]}>{item.title}</Text>
-                {item.location ? <Text style={styles.loc} numberOfLines={1}><Ionicons name="location-outline" size={11} color={theme.color.muted} /> {item.location}</Text> : null}
-              </View>
-              {item.kind === "appt" && (
-                <>
-                  {(() => {
+            />
+          )}
+
+          <View style={styles.dateHeader}>
+            <Text style={styles.dateTxt}>{selectedDate.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</Text>
+            <Text style={styles.dateSub}>{dayItems.length} {dayItems.length === 1 ? "evento" : "eventi"}</Text>
+          </View>
+
+          {loading ? (
+            <ActivityIndicator color={theme.color.brandPrimary} style={{ marginTop: 40 }} />
+          ) : dayItems.length === 0 ? (
+            <View style={styles.empty}>
+              <Ionicons name="calendar-outline" size={40} color={theme.color.muted} />
+              <Text style={styles.emptyTxt}>Nessun appuntamento</Text>
+            </View>
+          ) : (
+            <View style={{ padding: 16 }}>
+              {dayItems.map((item) => (
+                <Pressable
+                  key={item.id}
+                  testID={`appt-${item.id}`}
+                  onPress={() => {
+                    if (item.kind === "appt") router.push(`/appointment/${item.id}`);
+                    else if (item.contact_id) router.push(`/contact/${item.contact_id}`);
+                  }}
+                  style={styles.card}
+                >
+                  <View style={[styles.leftBar, { backgroundColor: colorFor(item.area) }]} />
+                  <View style={{ flex: 1, padding: 12 }}>
+                    <View style={styles.row}>
+                      <Text style={styles.time}>{item.start_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+                      {item.kind === "birthday" ? <Ionicons name="gift" size={14} color={colorFor(item.area)} /> : null}
+                      {item.is_phone ? <Ionicons name="call" size={14} color={colorFor(item.area)} /> : null}
+                    </View>
+                    <Text style={[styles.apptTitle, item.done && { textDecorationLine: "line-through", color: theme.color.muted }]}>{item.title}</Text>
+                    {item.location ? <Text style={styles.loc} numberOfLines={1}><Ionicons name="location-outline" size={11} color={theme.color.muted} /> {item.location}</Text> : null}
+                  </View>
+                  {item.kind === "appt" && (() => {
                     const contact = item.contact_id ? contacts.find((c) => c.contact_id === item.contact_id) : null;
-                    if (!contact?.phone && !item.original?.notes?.match(/(\+?\d[\d\s]{6,})/)) return null;
+                    const hasPhone = !!(contact?.phone || item.original?.notes?.match(/(\+?\d[\d\s]{6,})/));
                     return (
-                      <Pressable
-                        testID={`appt-call-${item.id}`}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          const phone = contact?.phone || null;
-                          setCallTarget({
-                            phone,
-                            contact_id: item.contact_id || null,
-                            appointment_id: item.id,
-                            display_name: item.title,
-                          });
-                        }}
-                        style={styles.callBtn}
-                      >
-                        <Ionicons name="call" size={18} color="#FFF" />
-                      </Pressable>
+                      <>
+                        {hasPhone ? (
+                          <Pressable
+                            testID={`appt-call-${item.id}`}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              const phone = contact?.phone || null;
+                              setCallTarget({
+                                phone,
+                                contact_id: item.contact_id || null,
+                                appointment_id: item.id,
+                                display_name: item.title,
+                              });
+                            }}
+                            style={styles.callBtn}
+                          >
+                            <Ionicons name="call" size={18} color="#FFF" />
+                          </Pressable>
+                        ) : null}
+                        <Pressable testID={`appt-done-${item.id}`} onPress={() => toggleDone(item.id, !!item.done)} style={styles.checkBtn}>
+                          <Ionicons name={item.done ? "checkmark-circle" : "ellipse-outline"} size={26} color={item.done ? theme.color.success : theme.color.muted} />
+                        </Pressable>
+                      </>
                     );
                   })()}
-                  <Pressable testID={`appt-done-${item.id}`} onPress={() => toggleDone(item.id, !!item.done)} style={styles.checkBtn}>
-                    <Ionicons name={item.done ? "checkmark-circle" : "ellipse-outline"} size={26} color={item.done ? theme.color.success : theme.color.muted} />
-                  </Pressable>
-                </>
-              )}
-            </Pressable>
+                </Pressable>
+              ))}
+            </View>
           )}
-        />
-      ))}
+        </ScrollView>
+      )}
       <CallActionSheet
         visible={!!callTarget}
         target={callTarget}

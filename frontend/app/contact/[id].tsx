@@ -296,7 +296,21 @@ export default function ContactDetail() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={[styles.header, { backgroundColor: color }]}>
-        <Pressable testID="back-btn" onPress={() => router.back()}><Ionicons name="chevron-back" size={26} color="#FFF" /></Pressable>
+        <Pressable
+          testID="back-btn"
+          onPress={() => {
+            try {
+              if (router.canGoBack && router.canGoBack()) router.back();
+              else router.replace("/(tabs)/contatti");
+            } catch {
+              router.replace("/(tabs)/contatti");
+            }
+          }}
+          hitSlop={12}
+          style={{ padding: 6 }}
+        >
+          <Ionicons name="chevron-back" size={26} color="#FFF" />
+        </Pressable>
         <View style={{ flex: 1 }} />
         <Pressable testID="share-contact" onPress={shareContact} style={{ marginRight: 12 }}><Ionicons name="share-social-outline" size={22} color="#FFF" /></Pressable>
         <Pressable testID="edit-contact" onPress={() => router.push(`/contact/edit/${id}`)}><Ionicons name="create-outline" size={22} color="#FFF" /></Pressable>

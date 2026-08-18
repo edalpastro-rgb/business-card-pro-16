@@ -1,0 +1,39 @@
+{
+  "summary": "Frontend UI verification of 2 P0 bug fixes reported by the Italian user. BOTH BUGS VERIFIED FIXED. (1) Contact detail back button (testID back-btn) at /contact/[id]: correctly navigates back to /contatti when history exists AND correctly falls back to router.replace('/(tabs)/contatti') when deep-linked. (2) Calendar Month view layout refactor (FlatList → ScrollView): area filter row (testID cal-area-filters) stays visible above the month grid at y=108,h=44 and does NOT move on scroll (scrollTop=400 → filter y unchanged at 108). Month grid renders all 31 days of Aug 2026 in a 5-week layout inside cal-scroll (testID). Date header 'Sabato 15 Agosto' + event card 'Demo prodotti Artistry' render below the grid and are fully visible. No content is cut off. Week view (view-week) and Year view (view-year) tested — no regression (12 year month-cells; week days render; filter row visible in every view). Tapping day 15 in Month view correctly selects it and displays that day's events. Pre-existing 'Unexpected text node' warnings (P1) still present but not blockers per request.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "Text nodes", "issue": "Pre-existing 'Unexpected text node: . A text node cannot be a child of a <View>' warnings still appear ~12 times in console after login. Unchanged from iteration 19. Not related to the 2 P0 bugs tested here. Reference: home.tsx / contact/[id].tsx (previous iterations)."},
+      {"component": "shadow* deprecation", "issue": "'shadow*' style props are deprecated; use 'boxShadow'. Pre-existing warning, unchanged."}
+    ]
+  },
+  "test_report_links": [
+    "/tmp/t1_contatti.png",
+    "/tmp/t1_detail.png",
+    "/tmp/t1_afterback.png",
+    "/tmp/t2_month_top.png",
+    "/tmp/t2_month_scrolled.png",
+    "/tmp/t2_month_day15.png",
+    "/tmp/t3_week.png",
+    "/tmp/t3_year.png"
+  ],
+  "action_items": [
+    "OPTIONAL (P1, pre-existing): track down and remove the stray whitespace text nodes that trigger 'Unexpected text node' warnings on the Home screen and elsewhere (not a blocker for the current bugs).",
+    "OPTIONAL (P1, pre-existing): migrate remaining shadow* style props to boxShadow to silence RN-web deprecation warnings."
+  ],
+  "critical_code_review_comments": [
+    "contact/[id].tsx line 299-313: back-btn Pressable correctly uses try/catch around router.canGoBack + router.back, with router.replace('/(tabs)/contatti') as safe fallback. hitSlop=12 gives good tap target for the small chevron.",
+    "calendario.tsx line 143-151: cal-area-filters ScrollView has maxHeight:44 in inline style — good, keeps chips from stretching (was the design-issue callout in iteration 19).",
+    "calendario.tsx line 192-281: viewMode !== 'year' branch wraps MonthGrid + dateHeader + event cards in a single ScrollView (cal-scroll) with paddingBottom:60 so nothing is cut. Correct refactor from FlatList."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only request)", "frontend": "100% (both P0 bugs verified fixed; no regression in Week/Year views)"},
+  "seed_data_creation": "None new. Pre-existing test contacts + TEST_appt_today from iteration 19 were reused for the tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Both P0 bugs from the Italian user's report are resolved on branch. Iteration 19 seed data (TEST_urgent / TEST_soon / TEST_later callbacks, TEST_appt_today appointment) still present for owner test@dalpastro.it. 'Unexpected text node' console warnings are known/pre-existing (P1) — do not treat as regression.",
+  "rca_of_issue": "N/A — both fixes verified end-to-end via mobile-viewport Playwright: (1) router.canGoBack + fallback works, (2) FlatList→ScrollView refactor keeps area filter pinned above the scrollable content."
+}
