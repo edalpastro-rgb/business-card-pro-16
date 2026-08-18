@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -29,6 +29,9 @@ export default function ImpostazioniScreen() {
   const [aptTypeInput, setAptTypeInput] = useState("");
   const [prodCatInput, setProdCatInput] = useState("");
   const [subInputs, setSubInputs] = useState<Record<number, string>>({});
+  const [assistantName, setAssistantName] = useState<string>("Neo");
+  const [assistantNameSaved, setAssistantNameSaved] = useState(false);
+  const assistantSaveTimer = React.useRef<any>(null);
 
   const persistAndReload = async (next: Settings) => {
     setS(next);
@@ -96,6 +99,30 @@ export default function ImpostazioniScreen() {
 
   const load = useCallback(async () => setS(await api<Settings>("/settings")), []);
   useEffect(() => { load(); }, [load]);
+
+  // Load user-level settings (assistant name)
+  useEffect(() => {
+    (async () => {
+      try {
+        const us = await api<{ assistant_name?: string }>("/user-settings");
+        if (us?.assistant_name) setAssistantName(us.assistant_name);
+      } catch {}
+    })();
+  }, []);
+
+  const saveAssistantName = (name: string) => {
+    setAssistantName(name);
+    setAssistantNameSaved(false);
+    if (assistantSaveTimer.current) clearTimeout(assistantSaveTimer.current);
+    assistantSaveTimer.current = setTimeout(async () => {
+      const trimmed = (name || "").trim().slice(0, 40) || "Neo";
+      try {
+        await api("/user-settings", { method: "PUT", body: { assistant_name: trimmed } });
+        setAssistantNameSaved(true);
+        setTimeout(() => setAssistantNameSaved(false), 1800);
+      } catch {}
+    }, 600);
+  };
 
   const save = async () => {
     if (!s) return;
@@ -173,6 +200,34 @@ export default function ImpostazioniScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>
+
+        {/* AI Assistant customization — available to all users */}
+        <View style={styles.card} testID="assistant-name-card">
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#F1EEFF", justifyContent: "center", alignItems: "center" }}>
+              <Ionicons name="sparkles" size={20} color="#7C3AED" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Assistente AI</Text>
+              <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
+                Personalizza il nome del tuo assistente personale
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.label, { marginTop: 12 }]}>Nome dell&apos;assistente</Text>
+          <TextInput
+            testID="assistant-name-input"
+            value={assistantName}
+            onChangeText={saveAssistantName}
+            style={styles.input}
+            placeholder="Neo"
+            placeholderTextColor="#94A3B8"
+            maxLength={40}
+          />
+          <Text style={{ fontSize: 11, color: assistantNameSaved ? "#16A34A" : theme.color.muted, marginTop: 4 }}>
+            {assistantNameSaved ? "✓ Salvato" : `Tocca il pulsante viola con il robot in basso a destra per chattare con ${assistantName || "Neo"}.`}
+          </Text>
+        </View>
 
         {!user?.parent_user_id && (
           <Pressable testID="smtp-link" onPress={() => router.push("/smtp")} style={styles.linkCard}>

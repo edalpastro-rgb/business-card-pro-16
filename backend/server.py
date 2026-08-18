@@ -3665,6 +3665,12 @@ class UserSettingsIn(BaseModel):
     theme: Optional[str] = None  # "light" | "dark" | "auto"
     accent_color: Optional[str] = None  # hex e.g. "#7C3AED"
     banner_image_url: Optional[str] = None  # Master banner override
+    assistant_name: Optional[str] = None  # AI assistant custom name (default "Neo")
+
+
+class AssistantChatIn(BaseModel):
+    message: str
+    session_id: Optional[str] = None
 
 
 @api_router.post("/contracts")
@@ -3924,8 +3930,10 @@ async def delete_audio_record(audio_id: str, user=Depends(get_current_user)):
 @api_router.get("/user-settings")
 async def get_user_settings(user=Depends(get_current_user)):
     s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"_id": 0}) or {
-        "user_id": user["user_id"], "theme": "light", "accent_color": "#7C3AED", "banner_image_url": None
+        "user_id": user["user_id"], "theme": "light", "accent_color": "#7C3AED", "banner_image_url": None, "assistant_name": "Neo"
     }
+    if not s.get("assistant_name"):
+        s["assistant_name"] = "Neo"
     return s
 
 
@@ -3943,6 +3951,299 @@ async def update_user_settings(body: UserSettingsIn, user=Depends(get_current_us
     )
     s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"_id": 0})
     return s
+
+
+# =========================
+# AI Personal Assistant (Neo)
+# =========================
+def _fmt_dt_it(dt: Optional[datetime]) -> str:
+    if not dt:
+        return ""
+    try:
+        return dt.strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return str(dt)
+
+
+async def _build_assistant_context(user: dict) -> dict:
+    """Fetch a compact snapshot of the user's CRM data to feed to the LLM."""
+    now = utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+    week_end = today_start + timedelta(days=7)
+
+    tid = tenant_id(user)
+    uid = user["user_id"]
+    vis = await contact_visibility_filter(user)
+
+    # Base query for user-scoped data (appointments/calls/callbacks: creator or assignee)
+    def _own(extra: Dict[str, Any] = None) -> Dict[str, Any]:
+        base = {"user_id": tid}
+        if not is_owner(user):
+            base["$or"] = [{"created_by": uid}, {"assignee_user_id": uid}, {"broadcast_to_user_ids": uid}]
+        if extra:
+            base.update(extra)
+        return base
+
+    # Upcoming appointments (next 7 days)
+    appts_cursor = db.appointments.find(
+        _own({"start_at": {"$gte": today_start, "$lte": week_end}}),
+        {"_id": 0, "appointment_id": 1, "title": 1, "start_at": 1, "end_at": 1, "contact_id": 1, "location": 1, "area": 1, "notes": 1},
+    ).sort("start_at", 1).limit(15)
+    upcoming_appts = []
+    async for a in appts_cursor:
+        cname = None
+        if a.get("contact_id"):
+            c = await db.contacts.find_one({"contact_id": a["contact_id"]}, {"first_name": 1, "last_name": 1, "phone_mobile": 1})
+            if c:
+                cname = f"{c.get('first_name','')} {c.get('last_name','')}".strip()
+        upcoming_appts.append({
+            "id": a.get("appointment_id"),
+            "titolo": a.get("title") or "",
+            "quando": _fmt_dt_it(a.get("start_at")),
+            "cliente": cname,
+            "luogo": a.get("location") or "",
+            "area": a.get("area") or "",
+            "note": (a.get("notes") or "")[:200],
+        })
+
+    # Today's call logs
+    calls_today = await db.call_logs.count_documents(_own({"created_at": {"$gte": today_start, "$lt": today_end}}))
+    # Aggregate by outcome
+    outcome_agg = db.call_logs.aggregate([
+        {"$match": _own({"created_at": {"$gte": today_start, "$lt": today_end}})},
+        {"$group": {"_id": "$outcome_id", "count": {"$sum": 1}}},
+    ])
+    calls_by_outcome: Dict[str, int] = {}
+    async for row in outcome_agg:
+        calls_by_outcome[row["_id"] or "sconosciuto"] = row["count"]
+
+    # Active/pending callbacks (not done, sorted by priority/next_at)
+    cb_cursor = db.callbacks.find(
+        _own({"$or": [{"done": False}, {"done": {"$exists": False}}]}),
+        {"_id": 0, "callback_id": 1, "title": 1, "next_at": 1, "phone": 1, "priority": 1, "contact_id": 1, "notes": 1},
+    ).sort([("priority", -1), ("next_at", 1)]).limit(20)
+    callbacks_list = []
+    async for cb in cb_cursor:
+        cname = None
+        if cb.get("contact_id"):
+            c = await db.contacts.find_one({"contact_id": cb["contact_id"]}, {"first_name": 1, "last_name": 1})
+            if c:
+                cname = f"{c.get('first_name','')} {c.get('last_name','')}".strip()
+        callbacks_list.append({
+            "id": cb.get("callback_id"),
+            "titolo": cb.get("title") or "",
+            "quando": _fmt_dt_it(cb.get("next_at")),
+            "telefono": cb.get("phone") or "",
+            "priorita": cb.get("priority") or "normale",
+            "cliente": cname,
+            "note": (cb.get("notes") or "")[:150],
+        })
+
+    # Contacts summary
+    contacts_query = tenant_scope(user)
+    if vis:
+        contacts_query = {"$and": [contacts_query, vis]}
+    total_contacts = await db.contacts.count_documents(contacts_query)
+    recent_cursor = db.contacts.find(contacts_query, {
+        "_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "phone_mobile": 1, "phone_work": 1, "email": 1, "city": 1, "area": 1,
+    }).sort("created_at", -1).limit(15)
+    recent_contacts = [c async for c in recent_cursor]
+
+    # Contacts without any appointment scheduled (future)
+    # Efficient: get contact_ids referenced by future appointments, then contacts NOT in that set
+    future_appt_contact_ids = set()
+    async for a in db.appointments.find(_own({"start_at": {"$gte": today_start}}), {"contact_id": 1}):
+        if a.get("contact_id"):
+            future_appt_contact_ids.add(a["contact_id"])
+    orphan_query = dict(contacts_query)
+    orphan_query["contact_id"] = {"$nin": list(future_appt_contact_ids)}
+    orphan_count = await db.contacts.count_documents(orphan_query)
+    orphan_cursor = db.contacts.find(orphan_query, {
+        "_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "phone_mobile": 1, "phone_work": 1,
+    }).sort("last_name", 1).limit(15)
+    orphans_sample = [c async for c in orphan_cursor]
+
+    # Contracts (last 30 days)
+    since = today_start - timedelta(days=30)
+    contracts_cursor = db.contracts.find(
+        _own({"created_at": {"$gte": since}}),
+        {"_id": 0, "contract_id": 1, "title": 1, "amount": 1, "status": 1, "created_at": 1, "contact_id": 1, "area": 1},
+    ).sort("created_at", -1).limit(15)
+    recent_contracts = []
+    async for ct in contracts_cursor:
+        cname = None
+        if ct.get("contact_id"):
+            c = await db.contacts.find_one({"contact_id": ct["contact_id"]}, {"first_name": 1, "last_name": 1})
+            if c:
+                cname = f"{c.get('first_name','')} {c.get('last_name','')}".strip()
+        recent_contracts.append({
+            "id": ct.get("contract_id"),
+            "titolo": ct.get("title") or "",
+            "importo": ct.get("amount"),
+            "stato": ct.get("status") or "",
+            "creato": _fmt_dt_it(ct.get("created_at")),
+            "cliente": cname,
+            "area": ct.get("area") or "",
+        })
+    contracts_total = await db.contracts.count_documents(_own({}))
+
+    return {
+        "ora_attuale": _fmt_dt_it(now),
+        "utente": {
+            "nome": user.get("name") or "",
+            "email": user.get("email") or "",
+            "ruolo": user.get("role") or "member",
+        },
+        "appuntamenti_prossimi_7gg": upcoming_appts,
+        "telefonate_oggi": {"totale": calls_today, "per_esito": calls_by_outcome},
+        "ritelefonate_attive": callbacks_list,
+        "clienti": {
+            "totale": total_contacts,
+            "recenti": recent_contacts,
+            "senza_appuntamento_futuro_totale": orphan_count,
+            "senza_appuntamento_futuro_esempio": orphans_sample,
+        },
+        "contratti": {
+            "totale": contracts_total,
+            "ultimi_30_giorni": recent_contracts,
+        },
+    }
+
+
+async def _get_assistant_name(user: dict) -> str:
+    s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_name": 1}) or {}
+    name = (s.get("assistant_name") or "").strip()
+    return name or "Neo"
+
+
+@api_router.post("/assistant/chat")
+async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
+    """Personal AI assistant. Uses Claude Sonnet 5 via Emergent LLM Key.
+    Fetches user's CRM snapshot and answers questions in Italian.
+    """
+    msg = (body.message or "").strip()
+    if not msg:
+        raise HTTPException(status_code=400, detail="Messaggio vuoto")
+    if len(msg) > 4000:
+        raise HTTPException(status_code=400, detail="Messaggio troppo lungo (max 4000 caratteri)")
+
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+
+    assistant_name = await _get_assistant_name(user)
+    session_id = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
+
+    # Load recent conversation history from DB (last 12 messages)
+    hist_cursor = db.assistant_messages.find(
+        {"user_id": user["user_id"], "session_id": session_id},
+        {"_id": 0, "role": 1, "content": 1, "created_at": 1},
+    ).sort("created_at", -1).limit(12)
+    history = [h async for h in hist_cursor]
+    history.reverse()
+
+    # Build CRM context snapshot
+    try:
+        context = await _build_assistant_context(user)
+    except Exception as e:
+        context = {"error": f"Impossibile caricare i dati CRM: {e}"}
+
+    import json as _json
+    ctx_json = _json.dumps(context, ensure_ascii=False, default=str)
+    # Trim if too large (Claude Sonnet accepts a lot but let's be safe)
+    if len(ctx_json) > 25000:
+        ctx_json = ctx_json[:25000] + "\n... (dati troncati)"
+
+    system_message = (
+        f"Sei {assistant_name}, l'assistente personale AI del CRM di {user.get('name', 'utente')}, "
+        "consulente energetico e networker in Italia.\n\n"
+        "REGOLE:\n"
+        "- Rispondi SEMPRE in italiano, tono professionale ma amichevole.\n"
+        "- Usa esclusivamente i dati forniti qui sotto (SNAPSHOT_CRM). Non inventare informazioni.\n"
+        "- Se un dato non è nello snapshot, dillo chiaramente (es. 'Non trovo appuntamenti per questa settimana nei tuoi dati').\n"
+        "- Formatta le liste con elenchi puntati chiari; usa nomi, orari, telefoni quando disponibili.\n"
+        "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
+        "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
+        "- Puoi dare consigli operativi basati sui dati (es. suggerire di chiamare clienti senza appuntamento).\n\n"
+        f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
+        "SNAPSHOT_CRM (JSON):\n"
+        f"{ctx_json}\n"
+    )
+
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    chat = LlmChat(
+        api_key=key,
+        session_id=session_id,
+        system_message=system_message,
+    ).with_model("anthropic", "claude-sonnet-5")
+
+    # Replay history so multi-turn works (LlmChat keeps internal state but we start fresh each request)
+    # We prepend history summary to the current user message for continuity
+    if history:
+        convo_text = ""
+        for h in history[-10:]:
+            role = "Utente" if h["role"] == "user" else assistant_name
+            convo_text += f"{role}: {h['content']}\n"
+        user_prompt = (
+            f"Conversazione precedente:\n{convo_text}\n"
+            f"---\nNuovo messaggio dell'utente: {msg}"
+        )
+    else:
+        user_prompt = msg
+
+    try:
+        reply = await chat.send_message(UserMessage(text=user_prompt))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Errore LLM: {e}")
+
+    reply_text = (reply or "").strip() or "Non ho ricevuto una risposta. Riprova."
+
+    now = utcnow()
+    # Persist both messages
+    await db.assistant_messages.insert_many([
+        {"user_id": user["user_id"], "session_id": session_id, "role": "user", "content": msg, "created_at": now},
+        {"user_id": user["user_id"], "session_id": session_id, "role": "assistant", "content": reply_text, "created_at": utcnow()},
+    ])
+
+    return {
+        "session_id": session_id,
+        "reply": reply_text,
+        "assistant_name": assistant_name,
+    }
+
+
+@api_router.get("/assistant/history")
+async def assistant_history(session_id: Optional[str] = None, user=Depends(get_current_user)):
+    """Load conversation history. If session_id not given, returns latest session."""
+    if not session_id:
+        # Find latest session
+        latest = await db.assistant_messages.find_one(
+            {"user_id": user["user_id"]},
+            {"session_id": 1},
+            sort=[("created_at", -1)],
+        )
+        if not latest:
+            return {"session_id": None, "messages": [], "assistant_name": await _get_assistant_name(user)}
+        session_id = latest["session_id"]
+
+    cursor = db.assistant_messages.find(
+        {"user_id": user["user_id"], "session_id": session_id},
+        {"_id": 0, "role": 1, "content": 1, "created_at": 1},
+    ).sort("created_at", 1).limit(100)
+    msgs = [m async for m in cursor]
+    return {
+        "session_id": session_id,
+        "messages": msgs,
+        "assistant_name": await _get_assistant_name(user),
+    }
+
+
+@api_router.post("/assistant/reset")
+async def assistant_reset(user=Depends(get_current_user)):
+    """Start a new conversation. Old sessions remain in DB but a new session_id is issued."""
+    session_id = f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
+    return {"session_id": session_id, "assistant_name": await _get_assistant_name(user)}
 
 
 # =========================
@@ -4001,6 +4302,7 @@ async def _startup():
     await db.user_settings.create_index("user_id", unique=True)
     await db.audio_records.create_index([("user_id", 1), ("target_type", 1), ("target_id", 1)])
     await db.audio_records.create_index("audio_id", unique=True)
+    await db.assistant_messages.create_index([("user_id", 1), ("session_id", 1), ("created_at", 1)])
     # V24 migration: back-fill assigned_to_user_id from created_by for legacy contacts
     try:
         result = await db.contacts.update_many(

@@ -5,6 +5,7 @@ import { useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
+import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
 
 type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
 type ReportStats = { period: string; start: string; end: string; stats: { energy: any; network: any }; outcomes?: { outcome_id: string; count: number }[] };
@@ -19,6 +20,7 @@ export default function ReportScreen() {
   const [data, setData] = useState<ReportStats | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [drill, setDrill] = useState<{ metric: MetricKey; area: "energy" | "network" | null; color: string; title: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,15 +36,16 @@ export default function ReportScreen() {
     const s = data?.stats[areaKey];
     const title = areaKey === "energy" ? settings?.energy_title : settings?.network_title;
     const color = areaKey === "energy" ? (settings?.energy_color || theme.color.energy) : (settings?.network_color || theme.color.network);
+    const openDrill = (m: MetricKey) => setDrill({ metric: m, area: areaKey, color, title: title || "" });
     return (
       <View style={[styles.areaCard, { borderTopColor: color }]} testID={`report-${areaKey}`}>
         <Text style={[styles.areaTitle, { color }]}>{title}</Text>
         <View style={styles.grid}>
-          <MetricBox label="Appuntamenti fatti" value={s?.appointments_done ?? 0} color={color} />
-          <MetricBox label="Totale programmati" value={s?.appointments_total ?? 0} color={color} />
-          <MetricBox label="Telefonate fatte" value={s?.phone_done ?? 0} color={color} />
-          <MetricBox label="Contratti" value={s?.contracts ?? 0} color={color} />
-          <MetricBox label="Prodotti venduti" value={s?.products ?? 0} color={color} />
+          <MetricBoxClickable testID={`report-${areaKey}-appointments_done`} label="Appuntamenti fatti" value={s?.appointments_done ?? 0} color={color} onPress={() => openDrill("appointments_done")} />
+          <MetricBoxClickable testID={`report-${areaKey}-appointments_total`} label="Totale programmati" value={s?.appointments_total ?? 0} color={color} onPress={() => openDrill("appointments_total")} />
+          <MetricBoxClickable testID={`report-${areaKey}-phone_done`} label="Telefonate fatte" value={s?.phone_done ?? 0} color={color} onPress={() => openDrill("phone_done")} />
+          <MetricBoxClickable testID={`report-${areaKey}-contracts`} label="Contratti" value={s?.contracts ?? 0} color={color} onPress={() => openDrill("contracts")} />
+          <MetricBoxClickable testID={`report-${areaKey}-products`} label="Prodotti venduti" value={s?.products ?? 0} color={color} onPress={() => openDrill("products")} />
         </View>
       </View>
     );
@@ -114,11 +117,21 @@ export default function ReportScreen() {
         </ScrollView>
       )}
       <CalculatorFAB />
+      <MetricDrillModal
+        visible={!!drill}
+        onClose={() => setDrill(null)}
+        metric={drill?.metric || null}
+        area={drill?.area || null}
+        startIso={data?.start || ""}
+        endIso={data?.end || ""}
+        color={drill?.color || theme.color.brandPrimary}
+        title={drill?.title || "Dettaglio"}
+      />
     </SafeAreaView>
   );
 }
 
-function MetricBox({ label, value, color }: { label: string; value: number; color: string }) {
+function _UnusedMetricBox({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <View style={styles.metric}>
       <Text style={[styles.metricVal, { color }]}>{value}</Text>
@@ -126,6 +139,7 @@ function MetricBox({ label, value, color }: { label: string; value: number; colo
     </View>
   );
 }
+void _UnusedMetricBox;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.surface },

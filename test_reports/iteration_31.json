@@ -1,0 +1,36 @@
+{
+  "summary": "V26.s — Tested 3 bug fixes: (1) Master 'Statistiche di oggi' now shows the same 5 metrics per area (appointments_done, appointments_total, phone_done, contracts, products) as Report, with matching values fetched from GET /api/reports?period=day. (2) All 5 numbers on both Master and Report screens are clickable and open MetricDrillModal that fetches /api/appointments filtered by area+start+end; tapping a drill-item navigates to /appointment/{id}; contracts/products correctly show info-note (no dedicated endpoint). (3) Home midnight refresh: verified via code inspection (setInterval 60s → load() when hours=0 & mins<2) + backend test that /api/callbacks?day=YYYY-MM-DD excludes yesterday's callbacks (uses scheduled_at >= day & < day+1 in UTC). Backend: 5/5 pytest passed. Frontend: All 10 master-*-* + 10 report-*-* testIDs visible, drill modal opens, items load, drill-close works, navigation to appointment/{id} confirmed. Values Master vs Report perfectly aligned (both show 1/2/0/0/0 for energy on the day period).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/reports vs /api/appointments",
+        "issue": "Minor boundary difference: /reports uses start_at $gte start & $lt end (exclusive end); /appointments drill uses $gte start & $lte end (inclusive end). An appointment scheduled exactly at midnight of the next day would appear in drill but not in reports count. Edge case only; not blocking."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v26s_stats_drill.py",
+    "/app/test_reports/pytest/pytest_v26s_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "StatMetrics.tsx correctly shares MetricBoxClickable + MetricDrillModal between Master and Report — good DRY.",
+    "Home midnight refresh interval is defensive (60s poll, 00:00-00:01 window) — works even if the app has been open past midnight; verified /callbacks?day=today filter already correctly bounds to today's UTC day, so yesterday callbacks disappear on next load()."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v26s_stats_drill.py"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (all critical paths)"},
+  "seed_data_creation": "Created 4 TEST_V26s energy appointments (3 done: 2 in-person + 1 phone, 1 pending) and 1 TEST_V26s callback yesterday-23:00 UTC; all cleaned up by fixture teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "V26.s fixes verified end-to-end. Master + Report use shared StatMetrics component with drill-down. Home has midnight refresh interval. If future changes touch drill modal, note that contracts/products currently show only an info-note (no dedicated backend endpoint yet).",
+  "rca_of_issue": "N/A — this iteration verified previously-implemented fixes."
+}

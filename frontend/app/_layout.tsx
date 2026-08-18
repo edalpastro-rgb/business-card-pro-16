@@ -8,6 +8,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth, isAppLockEnabled, isTrustStillValid } from "@/src/auth";
 import { AppLockOverlay } from "@/src/AppLock";
+import { AssistantFAB } from "@/src/AssistantChat";
 import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
 
@@ -69,7 +70,12 @@ function LockGate() {
       </View>
     );
   }
-  return <Stack screenOptions={{ headerShown: false, animation: "fade" }} />;
+  return (
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+      <AssistantFAB />
+    </View>
+  );
 }
 
 export default function RootLayout() {

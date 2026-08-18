@@ -8,10 +8,11 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
+import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
 type Alerts = { unread: number; latest: { contract_id: string; contract_number?: string; supplier?: string; created_by?: string; created_at?: string }[] };
-type ReportStats = { period: string; stats: { energy: any; network: any } };
+type ReportStats = { period: string; start?: string; end?: string; stats: { energy: any; network: any } };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
 
 export default function MasterScreen() {
@@ -25,6 +26,7 @@ export default function MasterScreen() {
   const [chatPickerOpen, setChatPickerOpen] = useState(false);
   const [report, setReport] = useState<ReportStats | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [drill, setDrill] = useState<{ metric: MetricKey; area: "energy" | "network" | null; color: string; title: string } | null>(null);
   const pulseAnim = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -139,26 +141,30 @@ export default function MasterScreen() {
         {/* V26.o — Statistiche giornaliere (spostate da Home) */}
         <View style={styles.statsSection}>
           <Text style={styles.statsHeader}>Statistiche di oggi</Text>
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { borderLeftColor: settings?.energy_color || theme.color.energy }]} testID="master-stat-energy">
-              <View style={[styles.statBadge, { backgroundColor: (settings?.energy_color || theme.color.energy) + "22" }]}>
-                <Ionicons name="flash" size={16} color={settings?.energy_color || theme.color.energy} />
+          {(["energy", "network"] as const).map((areaKey) => {
+            const s = (report?.stats as any)?.[areaKey];
+            const color = areaKey === "energy" ? (settings?.energy_color || theme.color.energy) : (settings?.network_color || theme.color.network);
+            const title = areaKey === "energy" ? (settings?.energy_title || "Consulente Energetico") : (settings?.network_title || "Networker");
+            const iconName: any = areaKey === "energy" ? "flash" : "people";
+            const openDrill = (m: MetricKey) => setDrill({ metric: m, area: areaKey, color, title });
+            return (
+              <View key={areaKey} style={[styles.statCardV, { borderLeftColor: color }]} testID={`master-stat-${areaKey}`}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                  <View style={[styles.statBadge, { backgroundColor: color + "22" }]}>
+                    <Ionicons name={iconName} size={14} color={color} />
+                  </View>
+                  <Text style={[styles.statTitle, { color }]} numberOfLines={1}>{title}</Text>
+                </View>
+                <View style={styles.metricsGrid}>
+                  <MetricBoxClickable testID={`master-${areaKey}-appointments_done`} label="Appuntamenti fatti" value={s?.appointments_done ?? 0} color={color} onPress={() => openDrill("appointments_done")} />
+                  <MetricBoxClickable testID={`master-${areaKey}-appointments_total`} label="Totale programmati" value={s?.appointments_total ?? 0} color={color} onPress={() => openDrill("appointments_total")} />
+                  <MetricBoxClickable testID={`master-${areaKey}-phone_done`} label="Telefonate fatte" value={s?.phone_done ?? 0} color={color} onPress={() => openDrill("phone_done")} />
+                  <MetricBoxClickable testID={`master-${areaKey}-contracts`} label="Contratti" value={s?.contracts ?? 0} color={color} onPress={() => openDrill("contracts")} />
+                  <MetricBoxClickable testID={`master-${areaKey}-products`} label="Prodotti venduti" value={s?.products ?? 0} color={color} onPress={() => openDrill("products")} />
+                </View>
               </View>
-              <Text style={[styles.statTitle, { color: settings?.energy_color || theme.color.energy }]} numberOfLines={1}>{settings?.energy_title || "Consulente Energetico"}</Text>
-              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.energy?.appointments_done ?? 0}</Text><Text style={styles.statLbl}>App. fatti</Text></View>
-              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.energy?.contracts ?? 0}</Text><Text style={styles.statLbl}>Contratti</Text></View>
-              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.energy?.products ?? 0}</Text><Text style={styles.statLbl}>Prodotti</Text></View>
-            </View>
-            <View style={[styles.statCard, { borderLeftColor: settings?.network_color || theme.color.network }]} testID="master-stat-network">
-              <View style={[styles.statBadge, { backgroundColor: (settings?.network_color || theme.color.network) + "22" }]}>
-                <Ionicons name="people" size={16} color={settings?.network_color || theme.color.network} />
-              </View>
-              <Text style={[styles.statTitle, { color: settings?.network_color || theme.color.network }]} numberOfLines={1}>{settings?.network_title || "Networker"}</Text>
-              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.network?.appointments_done ?? 0}</Text><Text style={styles.statLbl}>App. fatti</Text></View>
-              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.network?.contracts ?? 0}</Text><Text style={styles.statLbl}>Contratti</Text></View>
-              <View style={styles.statRowLine}><Text style={styles.statNum}>{report?.stats.network?.products ?? 0}</Text><Text style={styles.statLbl}>Prodotti</Text></View>
-            </View>
-          </View>
+            );
+          })}
         </View>
 
         <MasterVoiceRecorder />
@@ -208,6 +214,16 @@ export default function MasterScreen() {
           </View>
         </Pressable>
       </Modal>
+      <MetricDrillModal
+        visible={!!drill}
+        onClose={() => setDrill(null)}
+        metric={drill?.metric || null}
+        area={drill?.area || null}
+        startIso={report?.start || ""}
+        endIso={report?.end || ""}
+        color={drill?.color || theme.color.brandPrimary}
+        title={drill?.title || "Dettaglio"}
+      />
     </SafeAreaView>
   );
 }
@@ -409,6 +425,8 @@ const styles = StyleSheet.create({
   statsHeader: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface, marginBottom: 10, letterSpacing: 0.3, textTransform: "uppercase" },
   statsRow: { flexDirection: "row", gap: 8 },
   statCard: { flex: 1, backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, borderLeftWidth: 4, padding: 10, gap: 4 },
+  statCardV: { backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, borderLeftWidth: 4, padding: 10, marginBottom: 10 },
+  metricsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   statBadge: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   statTitle: { fontSize: 12, fontWeight: "800", marginBottom: 4 },
   statRowLine: { flexDirection: "row", alignItems: "baseline", gap: 4 },

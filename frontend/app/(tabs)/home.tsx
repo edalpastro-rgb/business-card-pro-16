@@ -58,6 +58,16 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // V26.s — Refresh a mezzanotte per svuotare le ritelefonate del giorno precedente
+  useEffect(() => {
+    const t = setInterval(() => {
+      const d = new Date();
+      // Se sono le 00:00-00:01, forziamo un reload per aggiornare "oggi"
+      if (d.getHours() === 0 && d.getMinutes() < 2) load();
+    }, 60000);
+    return () => clearInterval(t);
+  }, [load]);
+
   // Auto-cycle My Thing images every 4s with crossfade
   const myThingFade = useRef(new Animated.Value(1)).current;
   useEffect(() => {
