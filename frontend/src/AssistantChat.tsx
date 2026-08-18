@@ -21,6 +21,8 @@ import { theme } from "@/src/theme";
 const ASSISTANT_COLOR = "#8B5CF6"; // violet — distinct from red mic and blue brand
 const ASSISTANT_COLOR_DARK = "#6D28D9";
 
+type ResponseMode = "text" | "voice" | "both";
+
 type ChatMsg = { role: "user" | "assistant"; content: string; created_at?: string };
 
 type AssistantChatProps = {
@@ -41,6 +43,46 @@ async function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+const MODE_ORDER: ResponseMode[] = ["text", "voice", "both"];
+const MODE_LABEL: Record<ResponseMode, string> = {
+  text: "Solo testo",
+  voice: "Solo voce",
+  both: "Voce e testo",
+};
+const MODE_ICON: Record<ResponseMode, keyof typeof Ionicons.glyphMap> = {
+  text: "chatbox-ellipses",
+  voice: "volume-high",
+  both: "megaphone",
+};
+
+/**
+ * Cross-platform audio player. Uses <audio> on web, expo-audio on native.
+ * Returns a cleanup function.
+ */
+async function playAudioBase64(b64: string, mime: string = "audio/mpeg"): Promise<() => void> {
+  if (Platform.OS === "web") {
+    const dataUri = `data:${mime};base64,${b64}`;
+    const audio = new Audio(dataUri);
+    try { await audio.play(); } catch {}
+    return () => {
+      try { audio.pause(); } catch {}
+    };
+  }
+  // Native — dynamic import so web bundle doesn't try to load it
+  try {
+    const AudioMod: any = await import("expo-audio");
+    const { createAudioPlayer } = AudioMod;
+    const player = createAudioPlayer({ uri: `data:${mime};base64,${b64}` });
+    try { player.play(); } catch {}
+    return () => {
+      try { player.pause?.(); } catch {}
+      try { player.release?.(); } catch {}
+    };
+  } catch {
+    return () => {};
+  }
+}
+
 export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [assistantName, setAssistantName] = useState("Neo");
@@ -51,22 +93,31 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [recDuration, setRecDuration] = useState(0);
+  const [responseMode, setResponseMode] = useState<ResponseMode>("text");
+  const [assistantVoice, setAssistantVoice] = useState<string>("nova");
+  const [playingIdx, setPlayingIdx] = useState<number | null>(null);
+  const [showModeMenu, setShowModeMenu] = useState(false);
   const scrollRef = useRef<ScrollView | null>(null);
   const mrRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<any>(null);
   const durRef = useRef(0);
+  const cleanupAudioRef = useRef<(() => void) | null>(null);
 
   const loadHistory = useCallback(async () => {
     setLoadingHist(true);
     try {
-      const r = await api<{ session_id: string | null; messages: ChatMsg[]; assistant_name: string }>(
-        "/assistant/history"
-      );
-      setAssistantName(r?.assistant_name || "Neo");
-      setSessionId(r?.session_id || null);
-      setMessages(Array.isArray(r?.messages) ? r.messages : []);
+      const [hist, us] = await Promise.all([
+        api<{ session_id: string | null; messages: ChatMsg[]; assistant_name: string }>("/assistant/history"),
+        api<{ assistant_name?: string; assistant_response_mode?: string; assistant_voice?: string }>("/user-settings").catch(() => ({} as any)),
+      ]);
+      setAssistantName(hist?.assistant_name || us?.assistant_name || "Neo");
+      setSessionId(hist?.session_id || null);
+      setMessages(Array.isArray(hist?.messages) ? hist.messages : []);
+      const m = (us?.assistant_response_mode || "text") as ResponseMode;
+      setResponseMode(MODE_ORDER.includes(m) ? m : "text");
+      if (us?.assistant_voice) setAssistantVoice(us.assistant_voice);
     } catch {
       // ignore
     } finally {
@@ -114,8 +165,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       setAssistantName(r.assistant_name || assistantName);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: r.reply, created_at: new Date().toISOString() },
+        { role: "assistant" as const, content: r.reply, created_at: new Date().toISOString() },
       ]);
+      // Auto-play voice if mode requires
+      if (responseMode === "voice" || responseMode === "both") {
+        void speakReply(r.reply);
+      }
     } catch (e: any) {
       setMessages((prev) => [
         ...prev,
@@ -126,11 +181,52 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     }
   };
 
+  const speakReply = async (text: string, forceIdx?: number) => {
+    try {
+      // Stop any previous playback
+      if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
+      const targetIdx = typeof forceIdx === "number" ? forceIdx : -1;
+      setPlayingIdx(targetIdx);
+      const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", {
+        method: "POST",
+        body: { text, voice: assistantVoice },
+      });
+      if (!r?.audio_base64) { setPlayingIdx(null); return; }
+      const cleanup = await playAudioBase64(r.audio_base64, r.mime || "audio/mpeg");
+      // Estimate duration by resetting after ~ (chars * 60ms) as fallback
+      cleanupAudioRef.current = () => { cleanup(); setPlayingIdx(null); };
+      // Auto-clear indicator after estimated duration
+      const dur = Math.max(2000, Math.min(60000, text.length * 55));
+      setTimeout(() => { setPlayingIdx((v) => (v === targetIdx ? null : v)); }, dur);
+    } catch {
+      setPlayingIdx(null);
+    }
+  };
+
+  const cycleMode = async () => {
+    const idx = MODE_ORDER.indexOf(responseMode);
+    const next = MODE_ORDER[(idx + 1) % MODE_ORDER.length];
+    setResponseMode(next);
+    try {
+      await api("/user-settings", { method: "PUT", body: { assistant_response_mode: next } });
+    } catch {}
+  };
+
+  const setMode = async (m: ResponseMode) => {
+    setShowModeMenu(false);
+    setResponseMode(m);
+    try {
+      await api("/user-settings", { method: "PUT", body: { assistant_response_mode: m } });
+    } catch {}
+  };
+
   const resetSession = async () => {
     try {
       const r = await api<{ session_id: string; assistant_name: string }>("/assistant/reset", { method: "POST" });
       setSessionId(r.session_id);
       setMessages([]);
+      if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
+      setPlayingIdx(null);
     } catch {}
   };
 
@@ -234,8 +330,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.headerTitle}>{assistantName}</Text>
-                <Text style={styles.headerSub}>Il tuo assistente AI</Text>
+                <Text style={styles.headerSub}>{MODE_LABEL[responseMode]}</Text>
               </View>
+              <Pressable
+                onPress={cycleMode}
+                onLongPress={() => setShowModeMenu(true)}
+                style={styles.iconBtn}
+                accessibilityLabel="Cambia modalità di risposta"
+                testID="assistant-mode-toggle"
+              >
+                <Ionicons name={MODE_ICON[responseMode]} size={20} color="#FFF" />
+              </Pressable>
               <Pressable onPress={resetSession} style={styles.iconBtn} accessibilityLabel="Nuova conversazione">
                 <Ionicons name="refresh" size={20} color="#FFF" />
               </Pressable>
@@ -243,6 +348,24 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 <Ionicons name="close" size={22} color="#FFF" />
               </Pressable>
             </View>
+
+            {/* Mode menu (long-press header toggle) */}
+            {showModeMenu && (
+              <View style={styles.modeMenu}>
+                {MODE_ORDER.map((m) => (
+                  <Pressable
+                    key={m}
+                    onPress={() => setMode(m)}
+                    style={[styles.modeItem, responseMode === m && { backgroundColor: "#F1EEFF" }]}
+                    testID={`mode-item-${m}`}
+                  >
+                    <Ionicons name={MODE_ICON[m]} size={18} color={ASSISTANT_COLOR_DARK} />
+                    <Text style={styles.modeItemTxt}>{MODE_LABEL[m]}</Text>
+                    {responseMode === m && <Ionicons name="checkmark" size={18} color={ASSISTANT_COLOR_DARK} />}
+                  </Pressable>
+                ))}
+              </View>
+            )}
 
             {/* Messages */}
             <ScrollView
@@ -281,7 +404,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 </View>
               )}
               {messages.map((m, i) => (
-                <MessageBubble key={i} msg={m} assistantName={assistantName} />
+                <MessageBubble
+                  key={i}
+                  msg={m}
+                  assistantName={assistantName}
+                  onPlay={m.role === "assistant" ? () => void speakReply(m.content, i) : undefined}
+                  isPlaying={playingIdx === i || (playingIdx === -1 && i === messages.length - 1 && m.role === "assistant")}
+                />
               ))}
               {sending && (
                 <View style={styles.typingBubble}>
@@ -347,7 +476,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   );
 }
 
-function MessageBubble({ msg, assistantName }: { msg: ChatMsg; assistantName: string }) {
+function MessageBubble({ msg, assistantName, onPlay, isPlaying }: { msg: ChatMsg; assistantName: string; onPlay?: () => void; isPlaying?: boolean }) {
   const isUser = msg.role === "user";
   return (
     <View style={[styles.bubbleRow, { justifyContent: isUser ? "flex-end" : "flex-start" }]}>
@@ -357,7 +486,26 @@ function MessageBubble({ msg, assistantName }: { msg: ChatMsg; assistantName: st
         </View>
       )}
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAsst]}>
-        {!isUser && <Text style={styles.bubbleWho}>{assistantName}</Text>}
+        {!isUser && (
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+            <Text style={styles.bubbleWho}>{assistantName}</Text>
+            {onPlay && (
+              <Pressable
+                onPress={onPlay}
+                hitSlop={8}
+                accessibilityLabel="Ascolta risposta"
+                testID="msg-play-btn"
+                style={{ padding: 2 }}
+              >
+                <Ionicons
+                  name={isPlaying ? "volume-high" : "play-circle"}
+                  size={18}
+                  color={isPlaying ? "#DC2626" : ASSISTANT_COLOR_DARK}
+                />
+              </Pressable>
+            )}
+          </View>
+        )}
         <Text style={[styles.bubbleText, isUser && { color: "#FFF" }]}>{msg.content}</Text>
       </View>
     </View>
@@ -523,6 +671,32 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+
+  modeMenu: {
+    position: "absolute",
+    top: 72,
+    right: 10,
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    paddingVertical: 6,
+    minWidth: 180,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+    zIndex: 20,
+    borderWidth: 1,
+    borderColor: "#EDE9FE",
+  },
+  modeItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  modeItemTxt: { flex: 1, fontSize: 13, color: theme.color.onSurface, fontWeight: "600" },
 
   chatArea: { flex: 1, backgroundColor: "#FAF9FF" },
 

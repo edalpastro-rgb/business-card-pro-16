@@ -3666,11 +3666,18 @@ class UserSettingsIn(BaseModel):
     accent_color: Optional[str] = None  # hex e.g. "#7C3AED"
     banner_image_url: Optional[str] = None  # Master banner override
     assistant_name: Optional[str] = None  # AI assistant custom name (default "Neo")
+    assistant_response_mode: Optional[str] = None  # "text" | "voice" | "both" (default "text")
+    assistant_voice: Optional[str] = None  # OpenAI TTS voice: alloy | echo | fable | onyx | nova | shimmer
 
 
 class AssistantChatIn(BaseModel):
     message: str
     session_id: Optional[str] = None
+
+
+class AssistantTTSIn(BaseModel):
+    text: str
+    voice: Optional[str] = None
 
 
 @api_router.post("/contracts")
@@ -3930,10 +3937,14 @@ async def delete_audio_record(audio_id: str, user=Depends(get_current_user)):
 @api_router.get("/user-settings")
 async def get_user_settings(user=Depends(get_current_user)):
     s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"_id": 0}) or {
-        "user_id": user["user_id"], "theme": "light", "accent_color": "#7C3AED", "banner_image_url": None, "assistant_name": "Neo"
+        "user_id": user["user_id"], "theme": "light", "accent_color": "#7C3AED", "banner_image_url": None, "assistant_name": "Neo", "assistant_response_mode": "text", "assistant_voice": "nova"
     }
     if not s.get("assistant_name"):
         s["assistant_name"] = "Neo"
+    if not s.get("assistant_response_mode"):
+        s["assistant_response_mode"] = "text"
+    if not s.get("assistant_voice"):
+        s["assistant_voice"] = "nova"
     return s
 
 
@@ -3956,6 +3967,218 @@ async def update_user_settings(body: UserSettingsIn, user=Depends(get_current_us
 # =========================
 # AI Personal Assistant (Neo)
 # =========================
+_WEATHER_KEYWORDS = [
+    "tempo", "meteo", "pioggia", "piove", "piover", "sole", "soleggiato", "sereno",
+    "temperatura", "gradi", "nevica", "neve", "vento", "nuvoloso", "nuvole", "nebbia",
+    "clima", "umidità", "afoso", "caldo", "freddo", "temporale",
+]
+
+_WEATHER_CODES_IT = {
+    0: "sereno", 1: "prevalentemente sereno", 2: "parzialmente nuvoloso", 3: "coperto",
+    45: "nebbia", 48: "nebbia con brina",
+    51: "pioviggine leggera", 53: "pioviggine", 55: "pioviggine intensa",
+    56: "pioviggine gelata leggera", 57: "pioviggine gelata intensa",
+    61: "pioggia leggera", 63: "pioggia", 65: "pioggia intensa",
+    66: "pioggia gelata leggera", 67: "pioggia gelata intensa",
+    71: "neve leggera", 73: "neve", 75: "neve intensa", 77: "granuli di neve",
+    80: "rovesci leggeri", 81: "rovesci", 82: "rovesci intensi",
+    85: "rovesci di neve leggeri", 86: "rovesci di neve intensi",
+    95: "temporale", 96: "temporale con grandine leggera", 99: "temporale con grandine intensa",
+}
+
+
+def _detect_weather_query(text: str) -> Optional[str]:
+    """Return the city name if the message looks like a weather query, else None."""
+    if not text:
+        return None
+    lower = text.lower()
+    if not any(kw in lower for kw in _WEATHER_KEYWORDS):
+        return None
+    # Try to extract "a <City>" / "in <City>" / "di <City>" / "per <City>" / "su <City>"
+    # Capture up to 4 tokens; stop at time words or punctuation
+    import re
+    # Words that indicate end of city name
+    stop = r"(?:oggi|domani|dopodomani|stamattina|stanotte|pomeriggio|sera|mattina|adesso|ora|questa|questo|nel|nella|dalle|alle|verso|tra|tra\s+\w+|entro|prossim\w+|\?|\.|,|!|$)"
+    # City must start with capital in original text (best-effort)
+    m = re.search(
+        r"\b(?:a|ad|in|di|per|su)\s+([A-ZÀ-Ú][\wÀ-úà-ú'\-]*(?:\s+(?!" + stop + r"\b)[A-ZÀ-Ú]?[\wÀ-úà-ú'\-]+){0,3})",
+        text,
+    )
+    if m:
+        city = m.group(1).strip().rstrip(",.;:!?").strip()
+        # Cleanup: drop trailing time words that slipped in
+        parts = city.split()
+        while parts and parts[-1].lower() in {
+            "oggi", "domani", "dopodomani", "stamattina", "stanotte", "pomeriggio",
+            "sera", "mattina", "adesso", "ora", "questa", "questo",
+        }:
+            parts.pop()
+        city = " ".join(parts).strip()
+        if len(city) >= 2:
+            return city
+    return "?"  # weather query but no city detected
+
+
+async def _fetch_weather(city: str) -> Optional[dict]:
+    """Fetch weather via wttr.in (no key required, Italian localized). Falls back to Open-Meteo on failure."""
+    from urllib.parse import quote
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as hx:
+            r = await hx.get(
+                f"https://wttr.in/{quote(city)}",
+                params={"format": "j1", "lang": "it"},
+                headers={"User-Agent": "curl/8.0"},
+            )
+            if r.status_code == 200 and r.text.strip().startswith("{"):
+                data = r.json()
+                cur_list = data.get("current_condition") or []
+                weather_days = data.get("weather") or []
+                area = (data.get("nearest_area") or [{}])[0]
+
+                resolved = ""
+                try:
+                    resolved = area.get("areaName", [{}])[0].get("value", "")
+                    reg = area.get("region", [{}])[0].get("value", "")
+                    country = area.get("country", [{}])[0].get("value", "")
+                    if reg:
+                        resolved += f", {reg}"
+                    if country:
+                        resolved += f" ({country})"
+                except Exception:
+                    resolved = city
+
+                current = {}
+                if cur_list:
+                    c = cur_list[0]
+                    desc_it = ""
+                    try:
+                        desc_it = c.get("lang_it", [{}])[0].get("value") or c.get("weatherDesc", [{}])[0].get("value", "")
+                    except Exception:
+                        desc_it = ""
+                    current = {
+                        "condizione": desc_it or "sconosciuta",
+                        "temp_c": _to_num(c.get("temp_C")),
+                        "percepita_c": _to_num(c.get("FeelsLikeC")),
+                        "umidita_pct": _to_num(c.get("humidity")),
+                        "vento_kmh": _to_num(c.get("windspeedKmph")),
+                        "pioggia_mm": _to_num(c.get("precipMM")),
+                        "cielo_pct_nuvole": _to_num(c.get("cloudcover")),
+                    }
+
+                # Group hourly buckets — wttr.in provides 8 slots (every 3h) per day
+                hourly = []
+                prossimi_giorni = []
+                today = datetime.now().strftime("%Y-%m-%d")
+                for day in weather_days[:3]:
+                    d_date = day.get("date")
+                    prossimi_giorni.append({
+                        "giorno": d_date,
+                        "max_c": _to_num(day.get("maxtempC")),
+                        "min_c": _to_num(day.get("mintempC")),
+                        "prob_pioggia_max_pct": max(
+                            [_to_num(h.get("chanceofrain")) or 0 for h in (day.get("hourly") or [])],
+                            default=0,
+                        ),
+                        "sunrise": (day.get("astronomy") or [{}])[0].get("sunrise"),
+                        "sunset": (day.get("astronomy") or [{}])[0].get("sunset"),
+                    })
+                    for h in day.get("hourly") or []:
+                        # h.time is "0","300","600","900","1200","1500","1800","2100"
+                        try:
+                            t = int(h.get("time", "0"))
+                            hh = t // 100
+                            slot = f"{d_date} {hh:02d}:00"
+                        except Exception:
+                            slot = f"{d_date}"
+                        desc = ""
+                        try:
+                            desc = h.get("lang_it", [{}])[0].get("value") or h.get("weatherDesc", [{}])[0].get("value", "")
+                        except Exception:
+                            pass
+                        hourly.append({
+                            "ora": slot,
+                            "temp_c": _to_num(h.get("tempC")),
+                            "prob_pioggia_pct": _to_num(h.get("chanceofrain")),
+                            "condizione": desc or "?",
+                        })
+
+                # Trim hourly to next ~24h from now
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                hourly = [h for h in hourly if h["ora"] >= now_str.split(":")[0]]
+                if len(hourly) > 12:
+                    hourly = hourly[:12]
+
+                return {
+                    "citta_richiesta": city,
+                    "localita_trovata": resolved or city,
+                    "fonte": "wttr.in",
+                    "aggiornato_alle": today,
+                    "adesso": current,
+                    "prossime_ore": hourly,
+                    "prossimi_giorni": prossimi_giorni,
+                }
+    except Exception:
+        pass
+
+    # Fallback: Open-Meteo
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as hx:
+            g = await hx.get(
+                "https://geocoding-api.open-meteo.com/v1/search",
+                params={"name": city, "count": 1, "language": "it", "format": "json"},
+            )
+            gj = g.json() if g.status_code == 200 else {}
+            results = gj.get("results") or []
+            if not results:
+                return {"error": f"città '{city}' non trovata"}
+            loc = results[0]
+            lat, lon = loc.get("latitude"), loc.get("longitude")
+            resolved = f"{loc.get('name','')}"
+            if loc.get("admin1"):
+                resolved += f", {loc['admin1']}"
+            if loc.get("country"):
+                resolved += f" ({loc['country']})"
+
+            w = await hx.get(
+                "https://api.open-meteo.com/v1/forecast",
+                params={
+                    "latitude": lat, "longitude": lon,
+                    "current": "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,relative_humidity_2m",
+                    "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+                    "timezone": "Europe/Rome", "forecast_days": 3,
+                },
+            )
+            if w.status_code != 200:
+                return {"error": "meteo non disponibile"}
+            wj = w.json()
+            cur = wj.get("current") or {}
+            return {
+                "citta_richiesta": city, "localita_trovata": resolved, "fonte": "open-meteo",
+                "adesso": {
+                    "condizione": _WEATHER_CODES_IT.get(cur.get("weather_code"), "sconosciuta"),
+                    "temp_c": cur.get("temperature_2m"),
+                    "percepita_c": cur.get("apparent_temperature"),
+                    "vento_kmh": cur.get("wind_speed_10m"),
+                    "pioggia_mm": cur.get("precipitation"),
+                    "umidita_pct": cur.get("relative_humidity_2m"),
+                },
+            }
+    except Exception as e:
+        return {"error": f"errore recupero meteo: {e}"}
+
+
+def _to_num(v):
+    try:
+        if v is None or v == "":
+            return None
+        return float(v) if "." in str(v) else int(v)
+    except Exception:
+        try:
+            return float(v)
+        except Exception:
+            return None
+
+
 def _fmt_dt_it(dt: Optional[datetime]) -> str:
     if not dt:
         return ""
@@ -4149,19 +4372,41 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception as e:
         context = {"error": f"Impossibile caricare i dati CRM: {e}"}
 
+    # Detect weather intent and prefetch data if a city is mentioned
+    weather_ctx: Optional[dict] = None
+    weather_city = _detect_weather_query(msg)
+    if weather_city and weather_city != "?":
+        weather_ctx = await _fetch_weather(weather_city)
+
     import json as _json
     ctx_json = _json.dumps(context, ensure_ascii=False, default=str)
     # Trim if too large (Claude Sonnet accepts a lot but let's be safe)
     if len(ctx_json) > 25000:
         ctx_json = ctx_json[:25000] + "\n... (dati troncati)"
 
+    weather_section = ""
+    if weather_ctx is not None:
+        weather_section = (
+            "\n\nMETEO (dati aggiornati, timezone Europe/Rome):\n"
+            f"{_json.dumps(weather_ctx, ensure_ascii=False, default=str)}\n"
+            "Usa questi dati per rispondere in modo naturale alla domanda meteo. "
+            "Se l'utente chiede un momento specifico (oggi pomeriggio, domani mattina, ecc.) "
+            "cita la temperatura, la condizione (es. sereno, pioggia leggera) e la probabilità di pioggia se rilevante.\n"
+        )
+    elif weather_city == "?":
+        weather_section = (
+            "\n\nAVVISO: L'utente sembra chiedere del meteo ma non ha specificato una città. "
+            "Chiedi cortesemente per quale città.\n"
+        )
+
     system_message = (
         f"Sei {assistant_name}, l'assistente personale AI del CRM di {user.get('name', 'utente')}, "
         "consulente energetico e networker in Italia.\n\n"
         "REGOLE:\n"
         "- Rispondi SEMPRE in italiano, tono professionale ma amichevole.\n"
-        "- Usa esclusivamente i dati forniti qui sotto (SNAPSHOT_CRM). Non inventare informazioni.\n"
-        "- Se un dato non è nello snapshot, dillo chiaramente (es. 'Non trovo appuntamenti per questa settimana nei tuoi dati').\n"
+        "- Per domande CRM usa esclusivamente i dati forniti (SNAPSHOT_CRM). Non inventare.\n"
+        "- Se un dato non è nello snapshot, dillo chiaramente.\n"
+        "- Per domande sul meteo usa i dati della sezione METEO (se presente).\n"
         "- Formatta le liste con elenchi puntati chiari; usa nomi, orari, telefoni quando disponibili.\n"
         "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
@@ -4169,6 +4414,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
+        f"{weather_section}"
     )
 
     from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -4244,6 +4490,33 @@ async def assistant_reset(user=Depends(get_current_user)):
     """Start a new conversation. Old sessions remain in DB but a new session_id is issued."""
     session_id = f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
     return {"session_id": session_id, "assistant_name": await _get_assistant_name(user)}
+
+
+@api_router.post("/assistant/tts")
+async def assistant_tts(body: AssistantTTSIn, user=Depends(get_current_user)):
+    """Convert assistant reply text to speech using OpenAI TTS via Emergent LLM Key."""
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Testo mancante")
+    if len(text) > 4000:
+        text = text[:4000]
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+    voice = (body.voice or "").strip().lower()
+    if voice not in {"alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"}:
+        # try user setting fallback
+        s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_voice": 1}) or {}
+        voice = (s.get("assistant_voice") or "nova").lower()
+        if voice not in {"alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"}:
+            voice = "nova"
+    try:
+        from emergentintegrations.llm.openai.text_to_speech import OpenAITextToSpeech
+        tts = OpenAITextToSpeech(api_key=key)
+        b64 = await tts.generate_speech_base64(text=text, model="tts-1", voice=voice, response_format="mp3")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Errore TTS: {e}")
+    return {"audio_base64": b64, "mime": "audio/mpeg", "voice": voice}
 
 
 # =========================

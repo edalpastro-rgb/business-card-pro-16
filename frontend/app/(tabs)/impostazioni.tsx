@@ -31,6 +31,8 @@ export default function ImpostazioniScreen() {
   const [subInputs, setSubInputs] = useState<Record<number, string>>({});
   const [assistantName, setAssistantName] = useState<string>("Neo");
   const [assistantNameSaved, setAssistantNameSaved] = useState(false);
+  const [assistantMode, setAssistantMode] = useState<"text" | "voice" | "both">("text");
+  const [assistantVoice, setAssistantVoice] = useState<string>("nova");
   const assistantSaveTimer = React.useRef<any>(null);
 
   const persistAndReload = async (next: Settings) => {
@@ -100,15 +102,31 @@ export default function ImpostazioniScreen() {
   const load = useCallback(async () => setS(await api<Settings>("/settings")), []);
   useEffect(() => { load(); }, [load]);
 
-  // Load user-level settings (assistant name)
+  // Load user-level settings (assistant name / mode / voice)
   useEffect(() => {
     (async () => {
       try {
-        const us = await api<{ assistant_name?: string }>("/user-settings");
+        const us = await api<{ assistant_name?: string; assistant_response_mode?: string; assistant_voice?: string }>("/user-settings");
         if (us?.assistant_name) setAssistantName(us.assistant_name);
+        if (us?.assistant_response_mode) setAssistantMode(us.assistant_response_mode as any);
+        if (us?.assistant_voice) setAssistantVoice(us.assistant_voice);
       } catch {}
     })();
   }, []);
+
+  const saveAssistantMode = async (m: "text" | "voice" | "both") => {
+    setAssistantMode(m);
+    try {
+      await api("/user-settings", { method: "PUT", body: { assistant_response_mode: m } });
+    } catch {}
+  };
+
+  const saveAssistantVoice = async (v: string) => {
+    setAssistantVoice(v);
+    try {
+      await api("/user-settings", { method: "PUT", body: { assistant_voice: v } });
+    } catch {}
+  };
 
   const saveAssistantName = (name: string) => {
     setAssistantName(name);
@@ -227,6 +245,71 @@ export default function ImpostazioniScreen() {
           <Text style={{ fontSize: 11, color: assistantNameSaved ? "#16A34A" : theme.color.muted, marginTop: 4 }}>
             {assistantNameSaved ? "✓ Salvato" : `Tocca il pulsante viola con il robot in basso a destra per chattare con ${assistantName || "Neo"}.`}
           </Text>
+
+          {/* Response mode picker */}
+          <Text style={[styles.label, { marginTop: 14 }]}>Modalità di risposta</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+            {([
+              { key: "text", label: "Solo testo", icon: "chatbox-ellipses" },
+              { key: "voice", label: "Solo voce", icon: "volume-high" },
+              { key: "both", label: "Voce e testo", icon: "megaphone" },
+            ] as const).map((opt) => {
+              const active = assistantMode === opt.key;
+              return (
+                <Pressable
+                  key={opt.key}
+                  testID={`assistant-mode-${opt.key}`}
+                  onPress={() => saveAssistantMode(opt.key)}
+                  style={[
+                    { flex: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8, alignItems: "center", borderWidth: 1 },
+                    active
+                      ? { backgroundColor: "#F1EEFF", borderColor: "#7C3AED" }
+                      : { backgroundColor: theme.color.surface, borderColor: theme.color.border },
+                  ]}
+                >
+                  <Ionicons name={opt.icon as any} size={18} color={active ? "#7C3AED" : theme.color.muted} />
+                  <Text style={{ fontSize: 11, marginTop: 4, color: active ? "#7C3AED" : theme.color.onSurface, fontWeight: active ? "700" : "500", textAlign: "center" }}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {(assistantMode === "voice" || assistantMode === "both") && (
+            <>
+              <Text style={[styles.label, { marginTop: 14 }]}>Voce dell&apos;assistente</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                {[
+                  { key: "nova", label: "Nova (F, chiara)" },
+                  { key: "shimmer", label: "Shimmer (F, calda)" },
+                  { key: "alloy", label: "Alloy (neutra)" },
+                  { key: "onyx", label: "Onyx (M, grave)" },
+                  { key: "echo", label: "Echo (M, morbida)" },
+                  { key: "fable", label: "Fable (narrativa)" },
+                ].map((v) => {
+                  const active = assistantVoice === v.key;
+                  return (
+                    <Pressable
+                      key={v.key}
+                      testID={`assistant-voice-${v.key}`}
+                      onPress={() => saveAssistantVoice(v.key)}
+                      style={[
+                        { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1 },
+                        active
+                          ? { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }
+                          : { backgroundColor: theme.color.surface, borderColor: theme.color.border },
+                      ]}
+                    >
+                      <Text style={{ fontSize: 12, color: active ? "#FFF" : theme.color.onSurface, fontWeight: "600" }}>
+                        {v.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
         </View>
 
         {!user?.parent_user_id && (

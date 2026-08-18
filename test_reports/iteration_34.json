@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 34 — Voice response mode + TTS + Weather Q&A + Contact/new bottom clearance. Backend: 21/21 pytest tests PASS (test_v34_voice_weather.py) — GET /api/user-settings returns defaults assistant_response_mode='text' + assistant_voice='nova'; PUT accepts all 3 modes (text/voice/both) and all 9 OpenAI voices (alloy/ash/coral/echo/fable/nova/onyx/sage/shimmer), values persist; POST /api/assistant/tts returns 200 with audio_base64 (>>1000 chars), mime='audio/mpeg', voice echoed — verified for 'nova' and 'alloy'; empty text → 400; no-auth → 401; weather 'Com'è il tempo a Padova oggi pomeriggio?' returns a reply mentioning 'padova' + numeric temperature via wttr.in; weather without city → assistant asks which city; non-weather question regression OK. Frontend: In Profilo → 'Assistente AI' card, all three testIDs assistant-mode-text/voice/both are present and tapping fires PUT /api/user-settings; voice picker (testID assistant-voice-nova/alloy/echo/…) appears when mode is voice/both; tapping a voice fires PUT; page reload preserves the choice. In AssistantChat modal, header shows current mode subtitle ('Voce e testo'), testID='assistant-mode-toggle' present and cycles modes on tap. After sending 'Com'è il tempo a Padova oggi pomeriggio?' with mode='both', the reply bubble contains 'Oggi pomeriggio a Padova è coperto, circa 32°C…' AND /api/assistant/tts is auto-called (verified network). Every assistant bubble has testID='msg-play-btn' (2 bubbles → 2 play buttons); tapping one fires an additional /api/assistant/tts request. Contact/new: scrolled to bottom, 'Salva contatto' at y=2257 (fully visible), AssistantFAB at y=698 in the viewport — NO overlap (paddingBottom:140 is sufficient). No deprecated Expo packages introduced by these changes. No React Native red-screen errors during the flows. Only pre-existing console warnings (shadow*, useNativeDriver on web, pointerEvents) unrelated to this feature bundle.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v34_voice_weather.py",
+    "/app/test_reports/pytest/pytest_v34_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Weather section injected into system prompt is labeled 'METEO (dati Open-Meteo, timezone Europe/Rome)' even though wttr.in is now the primary source. Cosmetic label mismatch inside the LLM prompt — doesn't affect user-facing reply quality but could be renamed to 'METEO (dati wttr.in / Open-Meteo)' for accuracy. Reference: /app/backend/server.py:4390.",
+    "assistant_tts endpoint truncates text >4000 chars silently — consider adding X-Truncated header or returning warning field. Non-blocking.",
+    "_detect_weather_query returns '?' when a weather keyword is present but no city was extracted. The chat handler correctly uses this to add a 'ask for city' hint. Solid design.",
+    "wttr.in dependency has no explicit rate-limit handling; if wttr fails, the Open-Meteo fallback kicks in — verified via code path, both integrations gracefully degrade."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v34_voice_weather.py (new pytest — 21 tests, all pass)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None — used existing owner test@dalpastro.it. During testing, PUT /api/user-settings mutated assistant_response_mode/assistant_voice; a final PUT resets them back to defaults ('text' + 'nova') in the cleanup test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "wttr.in is the primary weather source (query: https://wttr.in/{city}?format=j1&lang=it). If wttr.in ever rate-limits, the code falls back to Open-Meteo. The system prompt section is labeled 'METEO (dati Open-Meteo, timezone Europe/Rome)' even for wttr.in results — the label is a cosmetic remnant, only inside the LLM prompt. TTS uses OpenAI tts-1 via emergentintegrations.llm.openai.text_to_speech.OpenAITextToSpeech and requires EMERGENT_LLM_KEY. AssistantChat mode-toggle single-tap cycles modes (text→voice→both→text); long-press opens the menu with testIDs mode-item-text/voice/both. Every assistant bubble carries testID='msg-play-btn'. AssistantFAB pulses so Playwright clicks need force=True. Contact/new ScrollView contentContainerStyle.paddingBottom=140 provides clear separation from the FAB.",
+  "rca_of_issue": "N/A — all specified backend and frontend behaviors verified working."
+}
