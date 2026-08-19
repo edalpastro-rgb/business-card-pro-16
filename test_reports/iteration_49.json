@@ -1,0 +1,39 @@
+{
+  "summary": "V38O Master Files (backend + frontend) + bill-quick viz + calc-fab on contact-bills: all tests passed. Backend pytest 13/13 for /api/master-files CRUD (POST/GET-list/GET-single/PATCH/DELETE, invalid category → 400, unauth → 401, >20MB → 400, tenant behavior verified, delete → 404). Frontend UI: /master-files screen loads with header 'I miei file', 4 category tabs (Note/Fatture/Audio/File — testIDs present), correct color per category, Nuova nota flow creates + persists a note via POST /api/master-files, add-bill/add-audio/add-file/add-image buttons present on their respective tabs. Calculator FAB correctly ABSENT on /master-files and correctly PRESENT on /bill-quick and contact/[id] bills tab (and notes tab), correctly ABSENT on info tab. bill-quick render code for consumi_mensili_kwh (ConsumptionBarChart with Totale/Max + horizontal bars), parametri_richiesti (label+value sub-rows), note_ai (bulleted list) inspected in code and structurally correct. Live PDF-upload end-to-end skipped (needs file dialog / ~30s AI call). Tenant-isolation test was inverted in the request: since tenant_id() maps sub-user → owner user_id (same tenant), sub-user DOES see owner's master-files by design — behavior confirmed & documented.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38o_master_files.py",
+    "/app/test_reports/pytest/v38o_master_files.xml"
+  ],
+  "action_items": [
+    "Clarify tenant scoping for master-files: request stated 'sub-user cannot see owner's master-files' but implementation uses tenant_id() which maps sub → owner (same tenant), so sub-user DOES see them. Either update spec or change filter to user_id==user['user_id'] (owner-only) if isolation is really required.",
+    "Optional (out of scope): add an end-to-end live PDF upload test for bill-quick that mocks Claude response so bar-chart / bulleted-list / param-sub-rows are asserted in DOM instead of code review only."
+  ],
+  "critical_code_review_comments": [
+    "server.py POST /master-files: size check uses len(b64)*0.75 estimate BEFORE stripping duplicated b64 chars — accurate enough for the 20MB gate (30MB b64 blob correctly rejected).",
+    "server.py GET /master-files strips _id and data_base64 in list projection — good.",
+    "master-files.tsx: note-save calls API with title,body,name and reloads — works.",
+    "contact/[id].tsx line 918: CalculatorFAB rendered on notes/files/bills tabs — matches spec ('bill-analyzed sections + reports').",
+    "bill-quick.tsx FieldRow: note_ai handles both array and newline-separated strings, parametri_richiesti handles only object (not array) — matches spec.",
+    "ConsumptionBarChart uses horizontal ScrollView with bars — mobile-friendly.",
+    "master-files.tsx file 443 lines — under 700 threshold, OK.",
+    "bill-quick.tsx 664 lines — under 700 threshold, OK."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v38o_master_files.py (NEW — 13 tests, all pass)"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100% on tested flows (master-files tabs/CRUD, calc-fab visibility on all 3 target sections)"},
+  "seed_data_creation": "Test-scoped: created + deleted 4 master-files during pytest (all cleaned up). Created + deleted 1 note via UI (cleaned up).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend test file: /app/backend/tests/test_v38o_master_files.py. Auto-loads EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env. Uses owner test@dalpastro.it/Test1234!. Frontend testIDs for master-files: master-files-tab-{notes|bills|audio|files}, master-files-add-{note|bill|audio|file|image}, master-note-{title|body|save|cancel}, master-files-{item|rename|del}-{file_id}. Calc-fab testID = calc-fab. Contact detail tab testIDs = tab-{info|notes|files|bills|audio|calls|appts}. Login testIDs = auth-{email-input|password-input|submit-button}."
+}

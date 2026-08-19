@@ -9,6 +9,7 @@ import { theme } from "@/src/theme";
 import { uriToBase64 } from "@/src/utils/media";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { DEFAULT_PARAMS, QuickBillType } from "@/src/BillsSection";
+import { CalculatorFAB } from "@/src/CalculatorFAB";
 
 type Draft = {
   draft_id: string;
@@ -287,12 +288,9 @@ export default function BillQuickScreen() {
                       </View>
                     ) : null}
                     {d.status === "done" && Object.keys(ext).length > 0 && (
-                      <View style={{ gap: 4 }}>
+                      <View style={{ gap: 6 }}>
                         {Object.entries(ext).map(([k, v]) => (
-                          <View key={k} style={styles.kvRow}>
-                            <Text style={styles.kvKey}>{humanizeKey(k)}</Text>
-                            <Text style={styles.kvVal}>{formatVal(v)}</Text>
-                          </View>
+                          <FieldRow key={k} name={k} value={v} accent={meta.color} />
                         ))}
                       </View>
                     )}
@@ -488,6 +486,9 @@ export default function BillQuickScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* V38O — Always-visible calculator FAB */}
+      <CalculatorFAB />
     </SafeAreaView>
   );
 }
@@ -499,6 +500,107 @@ function formatVal(v: any): string {
   if (v == null) return "—";
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
+}
+
+// V38O — Field renderers for the extracted-data KV list.
+//
+//   - Monthly-consumption arrays (`consumi_mensili_kwh` / `consumi_mensili_smc`)
+//     render as a horizontal bar chart (month labels on X, value on Y).
+//   - `parametri_richiesti` renders as an inline mini-list of label:value rows.
+//   - `note_ai` renders as a bulleted list, one bullet per array entry.
+//   - Everything else falls back to a plain KV row.
+type FieldRowProps = { name: string; value: any; accent: string };
+
+function FieldRow({ name, value, accent }: FieldRowProps) {
+  const label = humanizeKey(name);
+  // Consumi mensili — bar chart
+  if ((name === "consumi_mensili_kwh" || name === "consumi_mensili_smc") && Array.isArray(value) && value.length > 0) {
+    const key: "kwh" | "smc" = name === "consumi_mensili_kwh" ? "kwh" : "smc";
+    return (
+      <View style={styles.blockRow}>
+        <Text style={styles.blockLabel}>{label}</Text>
+        <ConsumptionBarChart data={value as any[]} valueKey={key} accent={accent} />
+      </View>
+    );
+  }
+  // Parametri richiesti — vertical sub-rows
+  if (name === "parametri_richiesti" && value && typeof value === "object" && !Array.isArray(value)) {
+    const entries = Object.entries(value as Record<string, any>);
+    if (entries.length === 0) return null;
+    return (
+      <View style={styles.blockRow}>
+        <Text style={styles.blockLabel}>{label}</Text>
+        <View style={styles.paramSubBox}>
+          {entries.map(([k, v]) => (
+            <View key={k} style={styles.paramSubRow}>
+              <Text style={styles.paramSubKey} numberOfLines={2}>{humanizeKey(k)}</Text>
+              <Text style={styles.paramSubVal} numberOfLines={3}>{formatVal(v)}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  }
+  // Note AI — bulleted list
+  if (name === "note_ai") {
+    let items: string[] = [];
+    if (Array.isArray(value)) items = value.map((x) => String(x).trim()).filter(Boolean);
+    else if (typeof value === "string") items = value.split(/[\r\n]+/).map((s) => s.replace(/^[-•*]\s*/, "").trim()).filter(Boolean);
+    if (items.length === 0) return null;
+    return (
+      <View style={styles.blockRow}>
+        <Text style={styles.blockLabel}>{label}</Text>
+        <View style={{ gap: 4, marginTop: 4 }}>
+          {items.map((t, i) => (
+            <View key={i} style={styles.bulletRow}>
+              <View style={[styles.bulletDot, { backgroundColor: accent }]} />
+              <Text style={styles.bulletTxt}>{t}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  }
+  // Fallback KV row
+  return (
+    <View style={styles.kvRow}>
+      <Text style={styles.kvKey}>{label}</Text>
+      <Text style={styles.kvVal}>{formatVal(value)}</Text>
+    </View>
+  );
+}
+
+function ConsumptionBarChart({ data, valueKey, accent }: { data: any[]; valueKey: "kwh" | "smc"; accent: string }) {
+  const items = data
+    .map((it) => ({ mese: String(it?.mese ?? "").slice(0, 3), value: Number(it?.[valueKey] ?? 0) }))
+    .filter((it) => it.mese && Number.isFinite(it.value));
+  if (items.length === 0) return <Text style={styles.kvVal}>—</Text>;
+  const maxV = Math.max(...items.map((it) => it.value), 1);
+  const CHART_H = 120;
+  const unit = valueKey === "kwh" ? "kWh" : "Smc";
+  const totalV = items.reduce((s, it) => s + it.value, 0);
+  return (
+    <View style={styles.chartWrap}>
+      <View style={styles.chartHeader}>
+        <Text style={styles.chartTotal}>Totale: {Math.round(totalV).toLocaleString("it-IT")} {unit}</Text>
+        <Text style={styles.chartMax}>Max: {Math.round(maxV).toLocaleString("it-IT")} {unit}</Text>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 6 }}>
+        {items.map((it, idx) => {
+          const h = Math.max(2, Math.round((it.value / maxV) * CHART_H));
+          return (
+            <View key={idx} style={styles.barCol}>
+              <Text style={styles.barValue}>{Math.round(it.value)}</Text>
+              <View style={styles.barTrack}>
+                <View style={[styles.barFill, { height: h, backgroundColor: accent }]} />
+              </View>
+              <Text style={styles.barLabel}>{it.mese}</Text>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -523,6 +625,24 @@ const styles = StyleSheet.create({
   kvRow: { flexDirection: "row", paddingVertical: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.color.border },
   kvKey: { flex: 1, fontSize: 12, fontWeight: "600", color: theme.color.muted },
   kvVal: { flex: 2, fontSize: 12, color: theme.color.onSurface },
+  blockRow: { paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.color.border },
+  blockLabel: { fontSize: 12, fontWeight: "700", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4 },
+  paramSubBox: { gap: 3, backgroundColor: "#F8FAFC", borderRadius: 8, padding: 8, borderWidth: 1, borderColor: theme.color.border },
+  paramSubRow: { flexDirection: "row", paddingVertical: 3 },
+  paramSubKey: { flex: 1, fontSize: 11, fontWeight: "600", color: theme.color.muted },
+  paramSubVal: { flex: 2, fontSize: 12, color: theme.color.onSurface },
+  bulletRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingRight: 4 },
+  bulletDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
+  bulletTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: theme.color.onSurface },
+  chartWrap: { marginTop: 4, backgroundColor: "#F8FAFC", borderRadius: 8, padding: 8, borderWidth: 1, borderColor: theme.color.border },
+  chartHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  chartTotal: { fontSize: 11, fontWeight: "700", color: theme.color.onSurface },
+  chartMax: { fontSize: 10, color: theme.color.muted },
+  barCol: { alignItems: "center", marginHorizontal: 3, width: 34 },
+  barValue: { fontSize: 9, color: theme.color.muted, marginBottom: 2, minHeight: 12 },
+  barTrack: { width: 26, height: 120, backgroundColor: "#E2E8F0", borderRadius: 4, justifyContent: "flex-end", overflow: "hidden" },
+  barFill: { width: "100%", borderTopLeftRadius: 4, borderTopRightRadius: 4 },
+  barLabel: { fontSize: 10, color: theme.color.muted, marginTop: 3, fontWeight: "600" },
   errorBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, backgroundColor: "#FEE2E2", borderRadius: 8 },
   errorTxt: { flex: 1, fontSize: 12, color: "#991B1B" },
   actionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 },

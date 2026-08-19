@@ -915,7 +915,7 @@ export default function ContactDetail() {
           }
         }}
       />
-      {(tab === "notes" || tab === "files") && <CalculatorFAB />}
+      {(tab === "notes" || tab === "files" || tab === "bills") && <CalculatorFAB />}
       <ShareSheet
         visible={!!shareTarget}
         target={shareTarget}

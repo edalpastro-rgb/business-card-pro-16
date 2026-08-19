@@ -3820,6 +3820,106 @@ async def create_contact_from_draft(draft_id: str, user=Depends(get_current_user
 
 
 # =========================
+# Master Files (V38O) — personal file cabinet for the Master (owner) that
+# mirrors the client-side files section. Categories: notes, bills, audio, files.
+# Files are stored inline (data_base64) — same pattern as ContactFile.
+# =========================
+
+class MasterFileIn(BaseModel):
+    category: str  # notes | bills | audio | files
+    name: str
+    mime: str = "application/octet-stream"
+    data_base64: str = ""            # for binary files (audio/bills/generic)
+    body: Optional[str] = None       # for text notes — rich text markdown-ish
+    title: Optional[str] = None      # for notes
+    size: Optional[int] = None
+
+
+class MasterFileRenameIn(BaseModel):
+    name: Optional[str] = None
+    title: Optional[str] = None
+    body: Optional[str] = None
+
+
+ALLOWED_MASTER_CATS = {"notes", "bills", "audio", "files"}
+
+
+@api_router.post("/master-files")
+async def add_master_file(body: MasterFileIn, user=Depends(get_current_user)):
+    if body.category not in ALLOWED_MASTER_CATS:
+        raise HTTPException(status_code=400, detail=f"category deve essere: {sorted(ALLOWED_MASTER_CATS)}")
+    file_id = f"mf_{uuid.uuid4().hex[:12]}"
+    b64 = body.data_base64 or ""
+    if b64.startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    est_size = int(len(b64) * 0.75) if b64 else 0
+    if est_size > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File troppo grande (max ~20 MB)")
+    doc = {
+        "file_id": file_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "category": body.category,
+        "name": (body.name or "").strip() or (body.title or "senza titolo"),
+        "title": (body.title or "").strip() or None,
+        "body": body.body if body.category == "notes" else None,
+        "mime": body.mime or "application/octet-stream",
+        "data_base64": b64,
+        "size": body.size if body.size is not None else est_size,
+        "created_at": utcnow(),
+        "updated_at": utcnow(),
+    }
+    await db.master_files.insert_one(doc)
+    out = {k: v for k, v in doc.items() if k not in {"_id", "data_base64"}}
+    return out
+
+
+@api_router.get("/master-files")
+async def list_master_files(category: Optional[str] = None, user=Depends(get_current_user)):
+    q = {"user_id": tenant_id(user)}
+    if category:
+        if category not in ALLOWED_MASTER_CATS:
+            raise HTTPException(status_code=400, detail=f"category invalida")
+        q["category"] = category
+    items = await db.master_files.find(q, {"_id": 0, "data_base64": 0}).sort("created_at", -1).to_list(500)
+    return {"items": items}
+
+
+@api_router.get("/master-files/{file_id}")
+async def get_master_file(file_id: str, user=Depends(get_current_user)):
+    d = await db.master_files.find_one({"user_id": tenant_id(user), "file_id": file_id}, {"_id": 0})
+    if not d:
+        raise HTTPException(status_code=404, detail="File non trovato")
+    return d
+
+
+@api_router.patch("/master-files/{file_id}")
+async def rename_master_file(file_id: str, body: MasterFileRenameIn, user=Depends(get_current_user)):
+    patch: Dict[str, Any] = {"updated_at": utcnow()}
+    if body.name is not None:
+        nm = body.name.strip()
+        if not nm:
+            raise HTTPException(status_code=400, detail="Nome non valido")
+        patch["name"] = nm
+    if body.title is not None:
+        patch["title"] = body.title.strip() or None
+    if body.body is not None:
+        patch["body"] = body.body
+    r = await db.master_files.update_one({"user_id": tenant_id(user), "file_id": file_id}, {"$set": patch})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="File non trovato")
+    return {"ok": True}
+
+
+@api_router.delete("/master-files/{file_id}")
+async def delete_master_file(file_id: str, user=Depends(get_current_user)):
+    r = await db.master_files.delete_one({"user_id": tenant_id(user), "file_id": file_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="File non trovato")
+    return {"ok": True}
+
+
+# =========================
 # Company Offers + Comparison (V25.b)
 # Each user (tenant owner) can upload company offer PDFs (luce/gas/telco). AI extracts
 # offer parameters, then the /bills/comparison endpoint compares any client's bill vs an offer.
