@@ -104,9 +104,10 @@ export function MetricDrillModal({
                   key={it.id}
                   testID={`drill-item-${it.id}`}
                   onPress={() => {
-                    onClose();
+                    // Navigate FIRST, then close on next tick to avoid Modal intercepting the router push
                     if (it.kind === "appt") router.push(`/appointment/${it.id}`);
                     else if (it.contact_id) router.push(`/contact/${it.contact_id}`);
+                    setTimeout(() => onClose(), 0);
                   }}
                   style={styles.itemRow}
                 >

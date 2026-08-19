@@ -1213,7 +1213,7 @@ async def list_contacts(area: Optional[str] = None, q: Optional[str] = None, gro
         ]})
     if and_clauses:
         query["$and"] = and_clauses
-    items = await db.contacts.find(query, {"_id": 0, "notes": 0, "files": 0}).sort("last_name", 1).to_list(1000)
+    items = await db.contacts.find(query, {"_id": 0, "notes": 0, "files": 0}).sort([("created_at", -1)]).to_list(1000)
     return {"items": items}
 
 

@@ -1,0 +1,34 @@
+{
+  "summary": "V36 bug-fix verification. Backend regression suite (6/6 PASS) proves the /api/contacts sort was changed to created_at DESC and that q/area/group_id filters and multi-tenant isolation still work. Backend fix confirmed working. Frontend E2E was blocked in this Playwright session: repeated logins from the web preview did not persist an auth token to localStorage (SecureStore on web) — after clicking [data-testid=\"login-submit\"] the URL stays on /login and subsequent /api/* calls return 401 across contact/new, /contatti, /calendario and /master. I could not verify the two frontend fixes end-to-end. Code review of the two frontend changes shows both fixes are correctly implemented (StatMetrics.tsx:106-112 navigates first then closes modal via setTimeout(0); server.py:1216 sort is `('created_at', -1)`). Note: iteration 35 successfully logged in with the same credentials/testIDs, so this may be a transient environment issue rather than a real regression, but a next run should verify.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "login (web preview) → token persistence", "issue": "In this Playwright session, login POST appears to not persist the JWT (localStorage contains only 'app_bg_at_v1', no token key). Any full page reload / page.goto after login redirects back to /login and all API calls return 401. Not reproduced via curl (backend /api/auth/login returns 200 with token). Likely transient — iteration 35 saw the same UI login work — but flagging for main-agent verification.", "affected_testIDs": ["login-email", "login-password", "login-submit"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v36_bugfixes.py",
+    "/app/test_reports/pytest/pytest_v36_results.xml"
+  ],
+  "action_items": [
+    "Main agent should manually verify the two frontend fixes in a live browser (not Playwright) since backend is proven correct and code review of StatMetrics.tsx + created_at DESC sort both look right.",
+    "Investigate why the web login flow did not persist a token in a fresh Playwright browser context — check whether expo-secure-store on web correctly writes to localStorage during automated runs (may relate to CORS, cookie policy, or async race between setToken() and page.goto)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:1216 — sort correctly changed to `.sort([('created_at', -1)])`. Verified by pytest that a newer contact appears at index 0 while an older one appears below. ✓",
+    "StatMetrics.tsx:106-112 — onPress now correctly does router.push FIRST, then setTimeout(() => onClose(), 0). This matches the fix description and is the recommended pattern for iOS/Android Modal + router race. ✓",
+    "contact/new.tsx:1190-1201 — post-create-skip-btn navigates via router.replace('/contact/{id}') as expected; user then relies on useFocusEffect in /contatti to refetch. Since backend now returns newest-first, the newly created contact WILL appear at index 0 once /contatti is re-rendered. Logically correct."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v36_bugfixes.py (new backend regression tests)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "N/A — login blocked in Playwright session (see integration_issues)"},
+  "seed_data_creation": "Backend test creates 2 contacts (TESTNEW_A_*, TESTNEW_B_*), 1 group (TESTGRP_*), 1 group-contact (TESTGRPC_*), 1 search contact (TESTSRC_*), 1 isolation contact (TESTISO_*). All are deleted at the end of their respective test methods. No stale data left behind.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend fix is fully verified — do not re-run backend unless code changes. For frontend: the seeded appointment `a_36d21b162f6f` (TEST_APPT_CLICK_v36 at today 15:00, area=energy, owner test@) is confirmed to exist via curl. The two flows to re-verify are: (1) login → /contact/new → fill NEWCT_<ts>+Zulu → save → click post-create-skip-btn → click Contatti tab → assert data-testid^='contact-' first card contains NEWCT_<ts>. (2) login → /master → tap [data-testid='master-energy-appointments_total'] → wait 2-3s for modal → find [data-testid^='drill-item-'] → click → assert URL contains /appointment/ AND modal closed. If Playwright login still can't persist token, try: (a) use in-app navigation only after login (no page.goto), or (b) inject the token directly via `page.evaluate` into localStorage under the expo-secure-store keyspace before navigating.",
+  "rca_of_issue": "Bug 1 RCA (already fixed by main agent): backend GET /api/contacts sorted by last_name asc caused newly created contacts (esp. with last_name 'Zulu') to appear far down the scroll. Verified pytest confirms new fix `sort([('created_at', -1)])` returns newest first. Bug 2 RCA (already fixed): drill onPress closed modal before router.push, and on some platforms the Modal's unmount cancelled the pending navigation. Fixed by pushing first, then setTimeout(0) close. Code inspection confirms fix in StatMetrics.tsx:106-112."
+}
