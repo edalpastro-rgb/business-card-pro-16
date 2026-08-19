@@ -266,7 +266,7 @@ Certbot configura HTTPS automaticamente. Ora prova nel browser: `https://api.dal
 
 **Nel pannello Emergent** (dove chatti con me):
 1. Vai a **Deployments → Environment Variables** (oppure chiedimelo, lo aggiorno io)
-2. Modifica `EXPO_PUBLIC_BACKEND_URL` da `https://consulente-app.preview.emergentagent.com` a `https://api.dalpastro.it`
+2. Modifica `EXPO_PUBLIC_BACKEND_URL` da `https://contact-hub-italy.preview.emergentagent.com` a `https://api.dalpastro.it`
 3. Clicca **Publish** in alto a destra → Deploy
 4. Emergent rigenera la build. Poi genera **APK Android / IPA iOS** da "Build"
 

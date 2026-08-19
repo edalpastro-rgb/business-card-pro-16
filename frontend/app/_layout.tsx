@@ -9,6 +9,7 @@ import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth, isAppLockEnabled, isTrustStillValid } from "@/src/auth";
 import { AppLockOverlay } from "@/src/AppLock";
 import { AssistantFAB } from "@/src/AssistantChat";
+import { FabStackProvider } from "@/src/FabStack";
 import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
 
@@ -72,8 +73,10 @@ function LockGate() {
   }
   return (
     <View style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
-      <AssistantFAB />
+      <FabStackProvider>
+        <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+        <AssistantFAB />
+      </FabStackProvider>
     </View>
   );
 }

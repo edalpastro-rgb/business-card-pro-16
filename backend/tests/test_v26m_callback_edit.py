@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 BASE_URL = (
     os.environ.get("EXPO_PUBLIC_BACKEND_URL")
     or os.environ.get("EXPO_BACKEND_URL")
-    or "https://consulente-app.preview.emergentagent.com"
+    or "https://contact-hub-italy.preview.emergentagent.com"
 ).rstrip("/")
 API = f"{BASE_URL}/api"
 EMAIL = "test@dalpastro.it"

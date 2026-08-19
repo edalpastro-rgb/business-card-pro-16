@@ -1,0 +1,29 @@
+{
+  "summary": "V37 frontend testing complete. All 4 features verified working on mobile web preview: (1) FAB stack fix — Calculator FAB (bottom 24, y=696) and Assistant AI FAB (y=628) are vertically stacked with NO overlap and ~12px visible gap on the Report tab. (2) AI Continuous Conversation Mode — headset toggle in header opens the ConversationPanel with animated orb, 'In ascolto…' phase label, 'Parla pure, ti sto ascoltando' subtitle, plus Muto/Termina buttons. Normal input bar hides. Muto → 'Microfono muto'+'Riprendi'; Riprendi returns to listening. Termina fully closes the panel and restores the input bar. (3) Wheel Picker for Appointments — pill row is gone; both `ap-duration-picker` (shows '1 ora ›') and `ap-reminder-picker` (shows '15 min prima ›') open the WheelPickerModal with title, scrollable options, blue-highlighted center row, and Annulla/Conferma buttons; Conferma closes the modal. (4) Phonebook Import on web still shows the expected 'Non disponibile … solo su cellulare' native alert and the app does NOT crash (form remains rendered). No React Native red-screen, no deprecated packages, no new expo/react-native issues detected in the modified files.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Report tab (FAB stack)", "issues": ["Vertical gap between Assistant FAB (y+h=684) and Calculator FAB (y=696) is only ~12px. Comment in code says 'calc FAB = 56 + 16 gap = 72' → the expected gap is 16px. This is a very minor visual nit (12 vs 16 px) — likely caused by the Calculator FAB using bottom:24 while Assistant baseBottom on web is 88, so 88+72 = 160 vs calc bottom 24+56=80 → gap 24. Actual observed gap 12px (still no overlap). Not a functional issue."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL/COSMETIC: If the intended 16px gap between the Calculator FAB and Assistant FAB matters, bump the Assistant `baseBottom + 72` offset to `baseBottom + 76` (or align both FAB bottoms to the same base). Current gap is ~12px, not an overlap so it's safe to ship as-is."
+  ],
+  "critical_code_review_comments": [
+    "AssistantChat.tsx (~1230 lines) is getting large. Consider extracting ConversationPanel + VAD loop into a dedicated hook/component (`useContinuousConversation`) for maintainability — file > 700-line guideline breach.",
+    "Continuous conversation loop is web-only (uses `navigator.mediaDevices` + AudioContext + AnalyserNode). On native Expo Go the headset button is correctly hidden by the `voiceSupported` guard, so no crash risk. Good.",
+    "`playAudioBase64` native branch uses a fixed 4000ms setTimeout as onEnded — will miss actual completion for long TTS on native. Consider using expo-audio player events instead. (Not blocking on web.)",
+    "WheelPicker uses `snapToInterval` — good; onScrollEndDrag also snaps on web which is correct. No issues found."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not tested per request)", "frontend": "100% (4/4 features verified)"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "V37 (4 improvements) all verified. Backend was not modified this iteration; skipped. Login flow: 3 'Accedi' texts on /login (tab, submit button, Google button) — use `page.get_by_text('Accedi').nth(1)` for submit. Mic permissions must be granted via `context.grant_permissions(['microphone'], origin=...)` for the continuous conversation panel to fully activate (otherwise startConversation catches the error and never enters convMode).",
+  "rca_of_issue": "n/a — no bugs found."
+}

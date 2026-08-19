@@ -13,6 +13,7 @@ import { theme } from "@/src/theme";
 import { scheduleAppointmentReminder } from "@/src/notifications";
 import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
 import { notify } from "@/src/utils/notify";
+import { WheelPickerModal, WheelItem } from "@/src/WheelPicker";
 
 type Attachment = {
   id: string;
@@ -43,15 +44,44 @@ const DEFAULT_PRODUCT_CATS = [
   { name: "Demo prodotti", subs: ["Artistry", "Nutrilite", "Home"] },
 ];
 
-const DURATIONS = [
-  { m: 15, label: "15m" }, { m: 30, label: "30m" }, { m: 60, label: "1h" },
-  { m: 90, label: "1h30" }, { m: 120, label: "2h" }, { m: 180, label: "3h" },
+const DURATIONS: WheelItem<number>[] = [
+  { value: 5, label: "5 min" },
+  { value: 10, label: "10 min" },
+  { value: 15, label: "15 min" },
+  { value: 20, label: "20 min" },
+  { value: 30, label: "30 min" },
+  { value: 45, label: "45 min" },
+  { value: 60, label: "1 ora" },
+  { value: 75, label: "1 ora 15 min" },
+  { value: 90, label: "1 ora 30 min" },
+  { value: 105, label: "1 ora 45 min" },
+  { value: 120, label: "2 ore" },
+  { value: 150, label: "2 ore 30 min" },
+  { value: 180, label: "3 ore" },
+  { value: 240, label: "4 ore" },
+  { value: 300, label: "5 ore" },
+  { value: 360, label: "6 ore" },
+  { value: 480, label: "8 ore (giornata)" },
 ];
-const REMINDERS = [
-  { m: 0, label: "Nessuno" }, { m: 5, label: "5m prima" },
-  { m: 15, label: "15m prima" }, { m: 30, label: "30m prima" },
-  { m: 60, label: "1h prima" }, { m: 1440, label: "1 giorno prima" },
+const REMINDERS: WheelItem<number>[] = [
+  { value: 0, label: "Nessuno" },
+  { value: 5, label: "5 min prima" },
+  { value: 10, label: "10 min prima" },
+  { value: 15, label: "15 min prima" },
+  { value: 20, label: "20 min prima" },
+  { value: 30, label: "30 min prima" },
+  { value: 45, label: "45 min prima" },
+  { value: 60, label: "1 ora prima" },
+  { value: 120, label: "2 ore prima" },
+  { value: 180, label: "3 ore prima" },
+  { value: 360, label: "6 ore prima" },
+  { value: 720, label: "12 ore prima" },
+  { value: 1440, label: "1 giorno prima" },
+  { value: 2880, label: "2 giorni prima" },
+  { value: 10080, label: "1 settimana prima" },
 ];
+const labelFor = <T,>(items: WheelItem<T>[], v: T, fallback = "-") =>
+  (items.find((it) => it.value === v)?.label) ?? fallback;
 const RECURRENCES = [
   { k: "none", label: "Nessuna" }, { k: "weekly", label: "Settimanale" },
   { k: "monthly", label: "Mensile" }, { k: "yearly", label: "Annuale" },
@@ -106,6 +136,7 @@ export default function NewAppointmentScreen() {
     })();
   }, [canBroadcast, user?.user_id]);
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
+  const [wheelPicker, setWheelPicker] = useState<null | "duration" | "reminder">(null);
   const [busy, setBusy] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [recording, setRecording] = useState(false);
@@ -488,22 +519,26 @@ export default function NewAppointmentScreen() {
           )}
 
           <Text style={styles.lbl}>Durata prevista</Text>
-          <View style={styles.pillsRow}>
-            {DURATIONS.map((d) => (
-              <Pressable key={d.m} onPress={() => setForm({ ...form, duration_min: d.m })} style={[styles.pill, form.duration_min === d.m && styles.pillActive]}>
-                <Text style={[styles.pillTxt, form.duration_min === d.m && styles.pillTxtActive]}>{d.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <Pressable
+            testID="ap-duration-picker"
+            onPress={() => setWheelPicker("duration")}
+            style={styles.pickerBtn}
+          >
+            <Ionicons name="hourglass-outline" size={18} color={theme.color.brandPrimary} />
+            <Text style={styles.pickerBtnTxt}>{labelFor(DURATIONS, form.duration_min, `${form.duration_min} min`)}</Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+          </Pressable>
 
           <Text style={styles.lbl}>Promemoria</Text>
-          <View style={styles.pillsRow}>
-            {REMINDERS.map((r) => (
-              <Pressable key={r.m} onPress={() => setForm({ ...form, reminder_minutes: r.m })} style={[styles.pill, form.reminder_minutes === r.m && styles.pillActive]}>
-                <Text style={[styles.pillTxt, form.reminder_minutes === r.m && styles.pillTxtActive]}>{r.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <Pressable
+            testID="ap-reminder-picker"
+            onPress={() => setWheelPicker("reminder")}
+            style={styles.pickerBtn}
+          >
+            <Ionicons name="notifications-outline" size={18} color={theme.color.brandPrimary} />
+            <Text style={styles.pickerBtnTxt}>{labelFor(REMINDERS, form.reminder_minutes, "Nessuno")}</Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+          </Pressable>
 
           <Text style={styles.lbl}>Ricorrenza</Text>
           <View style={styles.pillsRow}>
@@ -829,6 +864,25 @@ export default function NewAppointmentScreen() {
           </View>
         </View>
       </Modal>
+
+      <WheelPickerModal
+        visible={wheelPicker === "duration"}
+        title="Durata prevista"
+        items={DURATIONS}
+        value={form.duration_min}
+        onConfirm={(v) => setForm({ ...form, duration_min: v })}
+        onClose={() => setWheelPicker(null)}
+        testID="ap-duration-modal"
+      />
+      <WheelPickerModal
+        visible={wheelPicker === "reminder"}
+        title="Promemoria"
+        items={REMINDERS}
+        value={form.reminder_minutes}
+        onConfirm={(v) => setForm({ ...form, reminder_minutes: v })}
+        onClose={() => setWheelPicker(null)}
+        testID="ap-reminder-modal"
+      />
     </SafeAreaView>
   );
 }
@@ -852,6 +906,19 @@ const styles = StyleSheet.create({
   lbl: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary, marginTop: 10, marginBottom: 4 },
   input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: theme.color.onSurface },
   pillsRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  pickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: theme.color.surface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    marginTop: 2,
+  },
+  pickerBtnTxt: { flex: 1, fontSize: 15, color: theme.color.onSurface, fontWeight: "600" },
   pill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 4 },
   pillOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
   pillTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 12 },

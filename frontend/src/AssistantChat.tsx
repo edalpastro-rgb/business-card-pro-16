@@ -17,6 +17,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { useFabStack } from "@/src/FabStack";
 
 const ASSISTANT_COLOR = "#8B5CF6"; // violet — distinct from red mic and blue brand
 const ASSISTANT_COLOR_DARK = "#6D28D9";
@@ -57,12 +58,19 @@ const MODE_ICON: Record<ResponseMode, keyof typeof Ionicons.glyphMap> = {
 
 /**
  * Cross-platform audio player. Uses <audio> on web, expo-audio on native.
- * Returns a cleanup function.
+ * Returns a cleanup function. Calls onEnded when playback naturally completes.
  */
-async function playAudioBase64(b64: string, mime: string = "audio/mpeg"): Promise<() => void> {
+async function playAudioBase64(
+  b64: string,
+  mime: string = "audio/mpeg",
+  onEnded?: () => void
+): Promise<() => void> {
   if (Platform.OS === "web") {
     const dataUri = `data:${mime};base64,${b64}`;
     const audio = new Audio(dataUri);
+    if (onEnded) {
+      audio.addEventListener("ended", () => { try { onEnded(); } catch {} }, { once: true });
+    }
     try { await audio.play(); } catch {}
     return () => {
       try { audio.pause(); } catch {}
@@ -74,6 +82,11 @@ async function playAudioBase64(b64: string, mime: string = "audio/mpeg"): Promis
     const { createAudioPlayer } = AudioMod;
     const player = createAudioPlayer({ uri: `data:${mime};base64,${b64}` });
     try { player.play(); } catch {}
+    if (onEnded) {
+      // Best-effort duration-based fallback for native
+      const est = 4000;
+      setTimeout(() => { try { onEnded(); } catch {} }, est);
+    }
     return () => {
       try { player.pause?.(); } catch {}
       try { player.release?.(); } catch {}
@@ -97,6 +110,24 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [assistantVoice, setAssistantVoice] = useState<string>("nova");
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
   const [showModeMenu, setShowModeMenu] = useState(false);
+  // ---- Continuous conversation mode ----
+  const [convMode, setConvMode] = useState(false); // true = session active
+  const [convPhase, setConvPhase] = useState<
+    "idle" | "listening" | "transcribing" | "thinking" | "speaking"
+  >("idle");
+  const [convMuted, setConvMuted] = useState(false);
+  const convModeRef = useRef(false);
+  const convMutedRef = useRef(false);
+  const convStreamRef = useRef<MediaStream | null>(null);
+  const convRecorderRef = useRef<MediaRecorder | null>(null);
+  const convChunksRef = useRef<Blob[]>([]);
+  const convMimeRef = useRef<string>("");
+  const convAudioCtxRef = useRef<AudioContext | null>(null);
+  const convAnalyserRef = useRef<AnalyserNode | null>(null);
+  const convRafRef = useRef<number | null>(null);
+  const convSpeechDetectedRef = useRef(false);
+  const convLastVoiceMsRef = useRef<number>(0);
+  const convCycleStartRef = useRef<number>(0);
   const scrollRef = useRef<ScrollView | null>(null);
   const mrRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -139,6 +170,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       }
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       setRecording(false);
+      // Also end continuous conversation
+      if (convModeRef.current) {
+        if (cleanupAudioRef.current) { try { cleanupAudioRef.current(); } catch {} cleanupAudioRef.current = null; }
+        cleanupConversation();
+        setConvMode(false);
+        setConvMuted(false);
+      }
     }
   }, [visible, loadHistory]);
 
@@ -148,7 +186,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     return () => clearTimeout(t);
   }, [messages.length, sending]);
 
-  const send = async (text?: string) => {
+  const send = async (text?: string, opts?: { forceSpeak?: boolean; onSpoken?: () => void }) => {
     const msg = (text ?? input).trim();
     if (!msg || sending) return;
     setSending(true);
@@ -167,21 +205,25 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         ...prev,
         { role: "assistant" as const, content: r.reply, created_at: new Date().toISOString() },
       ]);
-      // Auto-play voice if mode requires
-      if (responseMode === "voice" || responseMode === "both") {
-        void speakReply(r.reply);
+      // Auto-play voice if mode requires (or forced by conversation mode)
+      const shouldSpeak = opts?.forceSpeak || responseMode === "voice" || responseMode === "both";
+      if (shouldSpeak) {
+        void speakReply(r.reply, undefined, opts?.onSpoken);
+      } else if (opts?.onSpoken) {
+        opts.onSpoken();
       }
     } catch (e: any) {
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: `⚠️ Errore: ${e?.message || "Impossibile contattare l'assistente"}`, created_at: new Date().toISOString() },
       ]);
+      if (opts?.onSpoken) opts.onSpoken();
     } finally {
       setSending(false);
     }
   };
 
-  const speakReply = async (text: string, forceIdx?: number) => {
+  const speakReply = async (text: string, forceIdx?: number, onEnded?: () => void) => {
     try {
       // Stop any previous playback
       if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
@@ -191,15 +233,33 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         method: "POST",
         body: { text, voice: assistantVoice },
       });
-      if (!r?.audio_base64) { setPlayingIdx(null); return; }
-      const cleanup = await playAudioBase64(r.audio_base64, r.mime || "audio/mpeg");
-      // Estimate duration by resetting after ~ (chars * 60ms) as fallback
-      cleanupAudioRef.current = () => { cleanup(); setPlayingIdx(null); };
-      // Auto-clear indicator after estimated duration
+      if (!r?.audio_base64) { setPlayingIdx(null); if (onEnded) onEnded(); return; }
+      let ended = false;
+      const cleanup = await playAudioBase64(r.audio_base64, r.mime || "audio/mpeg", () => {
+        if (ended) return;
+        ended = true;
+        setPlayingIdx(null);
+        if (onEnded) onEnded();
+      });
+      cleanupAudioRef.current = () => {
+        cleanup();
+        setPlayingIdx(null);
+        if (!ended) {
+          ended = true;
+          if (onEnded) onEnded();
+        }
+      };
+      // Fallback timer in case 'ended' event never fires
       const dur = Math.max(2000, Math.min(60000, text.length * 55));
-      setTimeout(() => { setPlayingIdx((v) => (v === targetIdx ? null : v)); }, dur);
+      setTimeout(() => {
+        if (ended) return;
+        ended = true;
+        setPlayingIdx((v) => (v === targetIdx ? null : v));
+        if (onEnded) onEnded();
+      }, dur + 500);
     } catch {
       setPlayingIdx(null);
+      if (onEnded) onEnded();
     }
   };
 
@@ -228,6 +288,204 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
       setPlayingIdx(null);
     } catch {}
+  };
+
+  // ---- Continuous conversation mode (client-side VAD loop) ----
+  const SILENCE_MS = 1500; // silence needed after speech to trigger stop
+  const MAX_LISTEN_MS = 30000; // hard cap per cycle
+  const MIN_SPEECH_MS = 300; // ignore blips shorter than this
+  const RMS_THRESHOLD = 0.02; // voice activity threshold
+
+  const cleanupConversation = () => {
+    convModeRef.current = false;
+    if (convRafRef.current != null) {
+      try { cancelAnimationFrame(convRafRef.current); } catch {}
+      convRafRef.current = null;
+    }
+    if (convRecorderRef.current && convRecorderRef.current.state !== "inactive") {
+      try { convRecorderRef.current.stop(); } catch {}
+    }
+    convRecorderRef.current = null;
+    convChunksRef.current = [];
+    if (convStreamRef.current) {
+      try { convStreamRef.current.getTracks().forEach((t) => t.stop()); } catch {}
+      convStreamRef.current = null;
+    }
+    if (convAudioCtxRef.current) {
+      try { convAudioCtxRef.current.close(); } catch {}
+      convAudioCtxRef.current = null;
+    }
+    convAnalyserRef.current = null;
+    setConvPhase("idle");
+  };
+
+  const startConversation = async () => {
+    if (!voiceSupported || convMode) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      convStreamRef.current = stream;
+      // Setup AudioContext + Analyser for VAD (kept alive for whole session)
+      const AC: any = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
+      const audioCtx = new AC();
+      convAudioCtxRef.current = audioCtx;
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+      convAnalyserRef.current = analyser;
+      convModeRef.current = true;
+      convMutedRef.current = false;
+      setConvMuted(false);
+      setConvMode(true);
+      // Start listening cycle
+      startListeningCycle();
+    } catch (e) {
+      // Permission denied or unsupported
+      cleanupConversation();
+      setConvMode(false);
+    }
+  };
+
+  const endConversation = () => {
+    // Stop any in-flight TTS playback too
+    if (cleanupAudioRef.current) { try { cleanupAudioRef.current(); } catch {} cleanupAudioRef.current = null; }
+    setPlayingIdx(null);
+    cleanupConversation();
+    setConvMode(false);
+    setConvMuted(false);
+    convMutedRef.current = false;
+  };
+
+  const toggleMute = () => {
+    const next = !convMutedRef.current;
+    convMutedRef.current = next;
+    setConvMuted(next);
+    if (next) {
+      // stop current recorder + VAD loop, keep stream open
+      if (convRafRef.current != null) { cancelAnimationFrame(convRafRef.current); convRafRef.current = null; }
+      if (convRecorderRef.current && convRecorderRef.current.state !== "inactive") {
+        try { convRecorderRef.current.stop(); } catch {}
+      }
+      setConvPhase("idle");
+    } else {
+      // resume listening
+      if (convModeRef.current) startListeningCycle();
+    }
+  };
+
+  const startListeningCycle = () => {
+    if (!convModeRef.current || convMutedRef.current) return;
+    const stream = convStreamRef.current;
+    const analyser = convAnalyserRef.current;
+    if (!stream || !analyser) return;
+    // Fresh MediaRecorder per cycle
+    let mimeType = "audio/webm;codecs=opus";
+    const MR: any = (globalThis as any).MediaRecorder;
+    if (MR?.isTypeSupported && !MR.isTypeSupported(mimeType)) {
+      if (MR.isTypeSupported("audio/webm")) mimeType = "audio/webm";
+      else if (MR.isTypeSupported("audio/mp4")) mimeType = "audio/mp4";
+      else mimeType = "";
+    }
+    const rec = mimeType ? new MR(stream, { mimeType }) : new MR(stream);
+    convRecorderRef.current = rec;
+    convChunksRef.current = [];
+    convMimeRef.current = mimeType || "audio/webm";
+    convSpeechDetectedRef.current = false;
+    convLastVoiceMsRef.current = 0;
+    convCycleStartRef.current = Date.now();
+    rec.ondataavailable = (ev: BlobEvent) => {
+      if (ev.data && ev.data.size > 0) convChunksRef.current.push(ev.data);
+    };
+    rec.onstop = () => { void handleConvCycleStop(); };
+    try { rec.start(); } catch { cleanupConversation(); setConvMode(false); return; }
+    setConvPhase("listening");
+    // VAD loop
+    const buffer = new Uint8Array(analyser.fftSize);
+    const tick = () => {
+      if (!convModeRef.current || convMutedRef.current) return;
+      const recNow = convRecorderRef.current;
+      if (!recNow || recNow.state !== "recording") return;
+      analyser.getByteTimeDomainData(buffer);
+      // Compute RMS around 128 baseline
+      let sum = 0;
+      for (let i = 0; i < buffer.length; i++) {
+        const v = (buffer[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / buffer.length);
+      const now = Date.now();
+      const cycleElapsed = now - convCycleStartRef.current;
+      if (rms > RMS_THRESHOLD) {
+        convLastVoiceMsRef.current = now;
+        if (!convSpeechDetectedRef.current && cycleElapsed > MIN_SPEECH_MS) {
+          convSpeechDetectedRef.current = true;
+        }
+      }
+      // Stop conditions
+      if (convSpeechDetectedRef.current && convLastVoiceMsRef.current > 0) {
+        const silenceFor = now - convLastVoiceMsRef.current;
+        if (silenceFor > SILENCE_MS) {
+          try { recNow.stop(); } catch {}
+          return;
+        }
+      }
+      if (cycleElapsed > MAX_LISTEN_MS) {
+        try { recNow.stop(); } catch {}
+        return;
+      }
+      convRafRef.current = requestAnimationFrame(tick);
+    };
+    convRafRef.current = requestAnimationFrame(tick);
+  };
+
+  const handleConvCycleStop = async () => {
+    if (convRafRef.current != null) { cancelAnimationFrame(convRafRef.current); convRafRef.current = null; }
+    const parts = convChunksRef.current;
+    convChunksRef.current = [];
+    const hadSpeech = convSpeechDetectedRef.current;
+    convSpeechDetectedRef.current = false;
+    if (!convModeRef.current) return; // ended during processing
+    // No speech detected → just restart listening
+    if (!hadSpeech || !parts.length) {
+      if (convModeRef.current && !convMutedRef.current) startListeningCycle();
+      return;
+    }
+    setConvPhase("transcribing");
+    try {
+      const blob = new Blob(parts, { type: convMimeRef.current || parts[0].type || "audio/webm" });
+      if (blob.size < 512) {
+        if (convModeRef.current && !convMutedRef.current) startListeningCycle();
+        return;
+      }
+      const b64 = await blobToBase64(blob);
+      const r = await api<{ transcript: string }>("/ai/transcribe", {
+        method: "POST",
+        body: { audio_base64: b64, mime: blob.type || "audio/webm" },
+      });
+      const t = (r?.transcript || "").trim();
+      if (!t) {
+        if (convModeRef.current && !convMutedRef.current) startListeningCycle();
+        return;
+      }
+      if (!convModeRef.current) return;
+      setConvPhase("thinking");
+      await send(t, {
+        forceSpeak: true,
+        onSpoken: () => {
+          setConvPhase("idle");
+          if (convModeRef.current && !convMutedRef.current) {
+            // small delay so mic isn't picking up the tail of TTS
+            setTimeout(() => {
+              if (convModeRef.current && !convMutedRef.current) startListeningCycle();
+            }, 300);
+          }
+        },
+      });
+      // The send() promise resolves after chat; TTS runs async. Update phase on TTS start.
+      if (convModeRef.current) setConvPhase("speaking");
+    } catch {
+      if (convModeRef.current && !convMutedRef.current) startListeningCycle();
+    }
   };
 
   // ---- Voice input (web MediaRecorder → /api/ai/transcribe) ----
@@ -341,6 +599,16 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               >
                 <Ionicons name={MODE_ICON[responseMode]} size={20} color="#FFF" />
               </Pressable>
+              {voiceSupported && (
+                <Pressable
+                  onPress={convMode ? endConversation : startConversation}
+                  style={[styles.iconBtn, convMode && { backgroundColor: "#EF4444" }]}
+                  accessibilityLabel={convMode ? "Termina conversazione" : "Inizia conversazione continua"}
+                  testID="assistant-conv-toggle"
+                >
+                  <Ionicons name={convMode ? "call" : "headset"} size={20} color="#FFF" />
+                </Pressable>
+              )}
               <Pressable onPress={resetSession} style={styles.iconBtn} accessibilityLabel="Nuova conversazione">
                 <Ionicons name="refresh" size={20} color="#FFF" />
               </Pressable>
@@ -420,7 +688,19 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               )}
             </ScrollView>
 
-            {/* Input bar */}
+            {/* Continuous conversation panel */}
+            {convMode && (
+              <ConversationPanel
+                phase={convPhase}
+                muted={convMuted}
+                onToggleMute={toggleMute}
+                onEnd={endConversation}
+                assistantName={assistantName}
+              />
+            )}
+
+            {/* Input bar (hidden while in conversation mode) */}
+            {!convMode && (
             <View style={styles.inputBar}>
               {voiceSupported && (
                 <Pressable
@@ -469,10 +749,100 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 )}
               </Pressable>
             </View>
+            )}
           </KeyboardAvoidingView>
         </View>
       </View>
     </Modal>
+  );
+}
+
+
+type ConvPhase = "idle" | "listening" | "transcribing" | "thinking" | "speaking";
+
+function ConversationPanel({
+  phase,
+  muted,
+  onToggleMute,
+  onEnd,
+  assistantName,
+}: {
+  phase: ConvPhase;
+  muted: boolean;
+  onToggleMute: () => void;
+  onEnd: () => void;
+  assistantName: string;
+}) {
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    // Pulse only when actively engaged (not idle-muted)
+    if (muted) { pulse.setValue(0); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+        Animated.timing(pulse, { toValue: 0, duration: 900, useNativeDriver: true, easing: Easing.in(Easing.ease) }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [muted, pulse]);
+
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
+
+  let color = "#8B5CF6"; // idle / speaking
+  let icon: keyof typeof Ionicons.glyphMap = "mic";
+  let label = "In ascolto…";
+  let subLabel = "Parla pure, ti sto ascoltando";
+  if (muted) {
+    color = "#6B7280"; icon = "mic-off"; label = "Microfono muto"; subLabel = "Tocca il microfono per riprendere";
+  } else if (phase === "transcribing") {
+    color = "#F59E0B"; icon = "cloud-upload"; label = "Ti sto capendo…"; subLabel = "Sto trascrivendo";
+  } else if (phase === "thinking") {
+    color = "#8B5CF6"; icon = "sparkles"; label = `${assistantName} sta pensando…`; subLabel = "Attendi la risposta";
+  } else if (phase === "speaking") {
+    color = "#22C55E"; icon = "volume-high"; label = `${assistantName} sta parlando…`; subLabel = "Ti risponde ora";
+  } else if (phase === "listening") {
+    color = "#DC2626"; icon = "mic"; label = "In ascolto…"; subLabel = "Parla pure, ti sto ascoltando";
+  } else {
+    color = "#8B5CF6"; icon = "hourglass"; label = "Pausa"; subLabel = "Un attimo…";
+  }
+
+  return (
+    <View style={styles.convPanel} testID="assistant-conv-panel">
+      <View style={styles.convVisual}>
+        <Animated.View
+          style={[
+            styles.convOrb,
+            { backgroundColor: color, transform: [{ scale }], opacity },
+          ]}
+        >
+          <Ionicons name={icon} size={34} color="#FFF" />
+        </Animated.View>
+      </View>
+      <Text style={styles.convLabel}>{label}</Text>
+      <Text style={styles.convSubLabel}>{subLabel}</Text>
+      <View style={styles.convBtnRow}>
+        <Pressable
+          onPress={onToggleMute}
+          style={[styles.convBtn, { backgroundColor: muted ? "#DC2626" : "#F1F0FF" }]}
+          testID="assistant-conv-mute"
+          accessibilityLabel={muted ? "Riattiva microfono" : "Silenzia microfono"}
+        >
+          <Ionicons name={muted ? "mic-off" : "mic"} size={22} color={muted ? "#FFF" : ASSISTANT_COLOR_DARK} />
+          <Text style={[styles.convBtnTxt, muted && { color: "#FFF" }]}>{muted ? "Riprendi" : "Muto"}</Text>
+        </Pressable>
+        <Pressable
+          onPress={onEnd}
+          style={[styles.convBtn, { backgroundColor: "#EF4444" }]}
+          testID="assistant-conv-end"
+          accessibilityLabel="Termina conversazione"
+        >
+          <Ionicons name="call" size={22} color="#FFF" style={{ transform: [{ rotate: "135deg" }] }} />
+          <Text style={[styles.convBtnTxt, { color: "#FFF" }]}>Termina</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -558,6 +928,7 @@ function TypingDots() {
  */
 export function AssistantFAB() {
   const { user } = useAuth();
+  const { present } = useFabStack();
   const [open, setOpen] = useState(false);
   const pulse = useRef(new Animated.Value(1)).current;
 
@@ -575,13 +946,18 @@ export function AssistantFAB() {
   // Hide when not logged in
   if (!user) return null;
 
+  // Base bottom (above tab bar). If Calculator FAB is on the same screen,
+  // stack the Assistant FAB above it (calc FAB height 56 + 20px gap = 76).
+  const baseBottom = Platform.select({ ios: 96, android: 88, default: 88 }) as number;
+  const bottom = present.calculator ? baseBottom + 76 : baseBottom;
+
   return (
     <>
       <Animated.View
         pointerEvents="box-none"
         style={[
           styles.fabWrap,
-          { transform: [{ scale: pulse }] },
+          { bottom, transform: [{ scale: pulse }] },
         ]}
       >
         <Pressable
@@ -813,4 +1189,41 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  // Conversation panel
+  convPanel: {
+    backgroundColor: "#FFF",
+    borderTopWidth: 1,
+    borderTopColor: "#EDE9FE",
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    alignItems: "center",
+    gap: 6,
+  },
+  convVisual: { alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  convOrb: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  convLabel: { fontSize: 16, fontWeight: "700", color: theme.color.onSurface, marginTop: 4 },
+  convSubLabel: { fontSize: 12, color: theme.color.muted, marginBottom: 10, textAlign: "center" },
+  convBtnRow: { flexDirection: "row", gap: 14, marginTop: 4 },
+  convBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 24,
+    minWidth: 120,
+    justifyContent: "center",
+  },
+  convBtnTxt: { fontSize: 14, fontWeight: "700", color: ASSISTANT_COLOR_DARK },
 });

@@ -3,11 +3,14 @@ import { useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
+import { useRegisterFab } from "@/src/FabStack";
 
 type Op = "+" | "-" | "×" | "÷" | null;
 
 export function CalculatorFAB() {
   const [open, setOpen] = useState(false);
+  // Register presence so the AI Assistant FAB can shift to avoid overlap
+  useRegisterFab("calculator", true);
   return (
     <>
       <Pressable

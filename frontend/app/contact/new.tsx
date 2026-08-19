@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -121,6 +121,21 @@ export default function NewContactScreen() {
   }, [isEdit, editId]);
 
   const [phoneContactsModal, setPhoneContactsModal] = useState<Contacts.Contact[] | null>(null);
+  const [phoneImportSearch, setPhoneImportSearch] = useState("");
+  const [phoneImportSelected, setPhoneImportSelected] = useState<Set<string>>(new Set());
+  const [phoneImportBusy, setPhoneImportBusy] = useState(false);
+  const [phoneImportProgress, setPhoneImportProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const filteredPhoneContacts = useMemo(() => {
+    const src = phoneContactsModal || [];
+    const q = phoneImportSearch.trim().toLowerCase();
+    if (!q) return src;
+    return src.filter((c: any) => {
+      const fullName = (c.name || `${c.firstName || ""} ${c.lastName || ""}`).toLowerCase();
+      const phone = (c.phoneNumbers?.[0]?.number || "").toLowerCase();
+      return fullName.includes(q) || phone.includes(q);
+    });
+  }, [phoneContactsModal, phoneImportSearch]);
 
   // AI helper state
   const [aiMode, setAiMode] = useState<null | "card" | "url" | "voice">(null);
@@ -284,9 +299,101 @@ export default function NewContactScreen() {
         notify("Nessun contatto", "La tua rubrica risulta vuota.");
         return;
       }
+      setPhoneImportSearch("");
+      setPhoneImportSelected(new Set());
       setPhoneContactsModal(data);
     } catch (e: any) {
       notify("Errore importazione", e?.message || "Impossibile accedere alla rubrica");
+    }
+  };
+
+  // Build a minimal contact payload from a phone Contacts entry
+  const contactToPayload = (c: any) => {
+    const first_name = c.firstName || c.name?.split(" ")[0] || "";
+    const last_name = c.lastName || (c.name?.split(" ").slice(1).join(" ")) || "";
+    return {
+      first_name: first_name.trim(),
+      last_name: last_name.trim(),
+      phone: c.phoneNumbers?.[0]?.number || "",
+      phone_alt: c.phoneNumbers?.[1]?.number || "",
+      email: c.emails?.[0]?.email || "",
+      email_alt: c.emails?.[1]?.email || "",
+      address_street: c.addresses?.[0]?.street || "",
+      address_city: c.addresses?.[0]?.city || "",
+      address_zip: c.addresses?.[0]?.postalCode || "",
+      address_province: c.addresses?.[0]?.region || "",
+      birth_date: c.birthday ? `${c.birthday.day || ""}/${c.birthday.month || ""}/${c.birthday.year || ""}` : "",
+      area: (form.area || "energy"),
+    };
+  };
+
+  const togglePhoneSelected = (id: string) => {
+    setPhoneImportSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisible = () => {
+    const visible = filteredPhoneContacts;
+    setPhoneImportSelected((prev) => {
+      const allSelected = visible.length > 0 && visible.every((c) => c.id && prev.has(c.id));
+      const next = new Set(prev);
+      if (allSelected) {
+        visible.forEach((c) => c.id && next.delete(c.id));
+      } else {
+        visible.forEach((c) => c.id && next.add(c.id));
+      }
+      return next;
+    });
+  };
+
+  const commitMultiImport = async () => {
+    if (!phoneContactsModal) return;
+    const selectedIds = phoneImportSelected;
+    if (selectedIds.size === 0) return;
+    const selected = phoneContactsModal.filter((c) => c.id && selectedIds.has(c.id));
+    if (selected.length === 0) return;
+    // Single selection → keep classic behavior (fill current form)
+    if (selected.length === 1) {
+      fillFromContact(selected[0]);
+      return;
+    }
+    // Multi selection → create N contacts in parallel (bounded), then navigate to list
+    setPhoneImportBusy(true);
+    setPhoneImportProgress({ done: 0, total: selected.length });
+    let created = 0;
+    let failed = 0;
+    try {
+      // Create sequentially to keep it simple + show progress; typical N <= 50
+      for (const c of selected) {
+        const payload = contactToPayload(c);
+        if (!payload.first_name && !payload.last_name && !payload.phone) {
+          failed += 1;
+        } else {
+          try {
+            await api("/contacts", { method: "POST", body: payload });
+            created += 1;
+          } catch {
+            failed += 1;
+          }
+        }
+        setPhoneImportProgress({ done: created + failed, total: selected.length });
+      }
+      notify(
+        "Importazione completata",
+        failed > 0
+          ? `Creati ${created} contatti (${failed} falliti).`
+          : `Creati ${created} nuovi contatti dalla rubrica.`
+      );
+      setPhoneContactsModal(null);
+      setPhoneImportSelected(new Set());
+      // Navigate to contacts list to show them
+      router.replace("/(tabs)/contatti");
+    } finally {
+      setPhoneImportBusy(false);
+      setPhoneImportProgress(null);
     }
   };
 
@@ -1127,24 +1234,130 @@ export default function NewContactScreen() {
         </View>
       </Modal>
 
-      {/* Phone contacts picker */}
+      {/* Phone contacts multi-select picker */}
       <Modal visible={!!phoneContactsModal} animationType="slide" transparent onRequestClose={() => setPhoneContactsModal(null)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "85%" }}>
+          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" }}>
             <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ fontSize: 17, fontWeight: "700", color: theme.color.onSurface }}>Scegli dalla rubrica</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 17, fontWeight: "700", color: theme.color.onSurface }}>Importa dalla rubrica</Text>
+                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>Seleziona uno o più contatti</Text>
+              </View>
               <Pressable onPress={() => setPhoneContactsModal(null)} hitSlop={8}>
                 <Ionicons name="close" size={22} color={theme.color.onSurface} />
               </Pressable>
             </View>
-            <ScrollView>
-              {phoneContactsModal?.map((c) => (
-                <Pressable key={c.id} onPress={() => fillFromContact(c)} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
-                  <Text style={{ fontSize: 14, fontWeight: "600", color: theme.color.onSurface }}>{c.name || `${c.firstName || ""} ${c.lastName || ""}`.trim() || "(senza nome)"}</Text>
-                  {!!c.phoneNumbers?.[0]?.number && <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>{c.phoneNumbers[0].number}</Text>}
+            {/* Search */}
+            <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.color.border, gap: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 10 }}>
+                <Ionicons name="search" size={16} color={theme.color.muted} />
+                <TextInput
+                  value={phoneImportSearch}
+                  onChangeText={setPhoneImportSearch}
+                  placeholder="Cerca per nome o numero…"
+                  placeholderTextColor={theme.color.muted}
+                  style={{ flex: 1, paddingVertical: 8, paddingHorizontal: 8, color: theme.color.onSurface, fontSize: 14 }}
+                  testID="phone-import-search"
+                />
+                {!!phoneImportSearch && (
+                  <Pressable hitSlop={8} onPress={() => setPhoneImportSearch("")}>
+                    <Ionicons name="close-circle" size={18} color={theme.color.muted} />
+                  </Pressable>
+                )}
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Pressable
+                  onPress={toggleSelectAllVisible}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 }}
+                  testID="phone-import-select-all"
+                >
+                  <Ionicons
+                    name={
+                      filteredPhoneContacts.length > 0 &&
+                      filteredPhoneContacts.every((c: any) => c.id && phoneImportSelected.has(c.id))
+                        ? "checkbox"
+                        : "square-outline"
+                    }
+                    size={20}
+                    color={theme.color.brandPrimary}
+                  />
+                  <Text style={{ fontSize: 13, color: theme.color.brandPrimary, fontWeight: "600" }}>
+                    Seleziona tutti ({filteredPhoneContacts.length})
+                  </Text>
                 </Pressable>
-              ))}
+                <Text style={{ fontSize: 12, color: theme.color.muted }}>
+                  Selezionati: {phoneImportSelected.size}
+                </Text>
+              </View>
+            </View>
+            <ScrollView>
+              {filteredPhoneContacts.map((c: any) => {
+                const selected = c.id ? phoneImportSelected.has(c.id) : false;
+                const displayName = c.name || `${c.firstName || ""} ${c.lastName || ""}`.trim() || "(senza nome)";
+                return (
+                  <Pressable
+                    key={c.id}
+                    onPress={() => c.id && togglePhoneSelected(c.id)}
+                    style={{
+                      padding: 14,
+                      borderBottomWidth: 1,
+                      borderBottomColor: theme.color.border,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 12,
+                      backgroundColor: selected ? "#EFF6FF" : "transparent",
+                    }}
+                    testID={c.id ? `phone-import-row-${c.id}` : undefined}
+                  >
+                    <Ionicons
+                      name={selected ? "checkbox" : "square-outline"}
+                      size={22}
+                      color={selected ? theme.color.brandPrimary : theme.color.muted}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: theme.color.onSurface }}>{displayName}</Text>
+                      {!!c.phoneNumbers?.[0]?.number && (
+                        <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>{c.phoneNumbers[0].number}</Text>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
+              {filteredPhoneContacts.length === 0 && (
+                <View style={{ padding: 24, alignItems: "center" }}>
+                  <Text style={{ color: theme.color.muted, fontSize: 13 }}>Nessun contatto trovato</Text>
+                </View>
+              )}
             </ScrollView>
+            {/* Footer with Import button */}
+            <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF" }}>
+              {phoneImportBusy && phoneImportProgress ? (
+                <View style={{ alignItems: "center", gap: 6 }}>
+                  <ActivityIndicator color={theme.color.brandPrimary} />
+                  <Text style={{ fontSize: 12, color: theme.color.muted }}>
+                    Importazione in corso… {phoneImportProgress.done}/{phoneImportProgress.total}
+                  </Text>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={commitMultiImport}
+                  disabled={phoneImportSelected.size === 0}
+                  style={{
+                    backgroundColor: phoneImportSelected.size === 0 ? "#CBD5E1" : theme.color.brandPrimary,
+                    paddingVertical: 12,
+                    borderRadius: 12,
+                    alignItems: "center",
+                  }}
+                  testID="phone-import-confirm"
+                >
+                  <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 15 }}>
+                    {phoneImportSelected.size <= 1
+                      ? `Importa contatto`
+                      : `Crea ${phoneImportSelected.size} nuovi contatti`}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
