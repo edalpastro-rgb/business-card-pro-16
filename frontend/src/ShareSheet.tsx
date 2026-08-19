@@ -46,18 +46,27 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
     setEmailSubject(`File condiviso: ${target.name}`);
     setEmailMessage(suggestedMessage || `Ti condivido in allegato il file: ${target.name}.`);
     setEmailTo("");
-    // Pre-fetch share URL when opened (only if we can — contact file)
-    if (!target.contactId) return;
-    setLoadingLink(true);
-    api<{ url: string; expires_at: string }>(
-      `/contacts/${target.contactId}/files/${target.id}/share-link`,
-      { method: "POST" }
-    )
-      .then((r) => setShareUrl(r.url))
-      .catch((e: any) => {
-        console.warn("share link err", e);
-      })
-      .finally(() => setLoadingLink(false));
+    // V38R — Pre-fetch share URL for CONTACT files (via /contacts/.../share-link)
+    // OR for MASTER files (via /master-files/{id}/share-link).
+    if (target.contactId) {
+      setLoadingLink(true);
+      api<{ url: string; expires_at: string }>(
+        `/contacts/${target.contactId}/files/${target.id}/share-link`,
+        { method: "POST" }
+      )
+        .then((r) => setShareUrl(r.url))
+        .catch((e: any) => { console.warn("share link err", e); })
+        .finally(() => setLoadingLink(false));
+    } else if (target.masterFileId) {
+      setLoadingLink(true);
+      api<{ url: string; expires_at: string }>(
+        `/master-files/${target.masterFileId}/share-link`,
+        { method: "POST" }
+      )
+        .then((r) => setShareUrl(r.url))
+        .catch((e: any) => { console.warn("master share link err", e); })
+        .finally(() => setLoadingLink(false));
+    }
   }, [visible, target, suggestedMessage]);
 
   if (!target) return null;

@@ -876,7 +876,7 @@ export default function ContactDetail() {
                 <Ionicons name={f.mime.startsWith("image/") ? "image-outline" : "document-outline"} size={22} color={theme.color.brandPrimary} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fileName} numberOfLines={1}>{f.name}</Text>
-                  <Text style={styles.fileMeta}>{Math.round((f.size || 0) / 1024)} KB · {new Date(f.created_at).toLocaleDateString("it-IT")}</Text>
+                  <Text style={styles.fileMeta}>{Math.round((f.size || 0) / 1024)} KB · {new Date(f.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
                 </View>
                 <Pressable
                   testID={`share-file-${f.id}`}

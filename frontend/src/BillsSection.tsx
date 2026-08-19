@@ -13,6 +13,7 @@ import { uriToBase64 } from "@/src/utils/media";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
+import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 
 type BillType = "luce" | "gas" | "telco";
 export type QuickBillType = BillType;
@@ -134,6 +135,15 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   const [loadingContactFiles, setLoadingContactFiles] = useState(false);
   // V38I — Branding (logo + agency name) applied to generated PDFs
   const [branding, setBranding] = useState<{ agency_name: string; logo_base64: string }>({ agency_name: "", logo_base64: "" });
+  // V38R — Save-confirm modal state (name confirmation before writing to files)
+  const [saveConfirm, setSaveConfirm] = useState<null | {
+    kind: "bill-analysis" | "report" | "comparison";
+    defaultName: string;
+    ext: string;
+    color: string;
+    subtitle: string;
+    run: (name: string) => Promise<void>;
+  }>(null);
 
   // Load user branding once — used in cover of comparison PDF and header of report PDF.
   useEffect(() => {
@@ -177,16 +187,9 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
     return () => clearInterval(t);
   }, [grouped, offers, load]);
 
-  // V38G — Auto-save analysis PDF for each bill that reaches status="done".
-  useEffect(() => {
-    const flatBills: Bill[] = [...grouped.luce, ...grouped.gas, ...grouped.telco];
-    for (const b of flatBills) {
-      if (b.status === "done" && !analysisSavedRef.current.has(b.bill_id)) {
-        void autoSaveBillAnalysis(b);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grouped]);
+  // V38R — Removed auto-save on effect. Saving to the contact's file cabinet
+  // is now an EXPLICIT action via the "Salva sul cliente" button per bill
+  // (opens SaveConfirmModal so the user can rename before persisting).
 
   const uploadOffer = async (bill_type: BillType) => {
     try {
@@ -435,16 +438,14 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   // V38Q — mark the ref BEFORE the async save so concurrent effect fires don't
   // schedule the same save twice (previously the ref was updated after await,
   // causing duplicate copies to appear in the contact's file section).
+  // V38R — Save the analysis HTML/PDF using a user-provided filename.
+  // Called from the SaveConfirmModal ("Salva sul cliente" button).
   const analysisSavedRef = useRef<Set<string>>(new Set());
-  // V38Q — Guard set for autoSaveToContactFiles to prevent double reports.
   const autoSaveGuardRef = useRef<Set<string>>(new Set());
-  const autoSaveBillAnalysis = async (bill: Bill) => {
-    if (!contactId || bill.status !== "done") return;
-    if (analysisSavedRef.current.has(bill.bill_id)) return;
-    analysisSavedRef.current.add(bill.bill_id); // optimistic guard
-    const baseName = bill.pdf_name.replace(/\.pdf$/i, "");
-    const fileName = `Analisi-${baseName}.pdf`;
-    // Skip if already exists in contact files
+  const saveBillAnalysisWithName = async (bill: Bill, chosenName: string) => {
+    if (!contactId || bill.status !== "done") return false;
+    // Do not trip the guard here — the modal is explicit, user may want to
+    // re-save with a different name.
     try {
       if (Platform.OS === "web") {
         const html = buildBillAnalysisHtml(bill, contactName || "Cliente");
@@ -452,40 +453,35 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         let bin = "";
         for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
         const b64 = (globalThis as any).btoa(bin);
-        const saved = await saveFileToContactIfNew(fileName.replace(/\.pdf$/i, ".html"), "text/html", b64);
-        if (saved) notify("Analisi salvata", `${fileName.replace(/\.pdf$/i, ".html")} è ora nei File del cliente.`);
+        const name = chosenName.toLowerCase().endsWith(".html") ? chosenName : chosenName.replace(/\.pdf$/i, "") + ".html";
+        const saved = await saveFileToContactIfNew(name, "text/html", b64);
+        if (saved) notify("Analisi salvata ✅", `${name} è nei File del cliente.`);
+        return saved;
       } else {
         const html = buildBillAnalysisHtml(bill, contactName || "Cliente");
         const { uri } = await Print.printToFileAsync({ html });
         const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-        const saved = await saveFileToContactIfNew(fileName, "application/pdf", b64);
-        if (saved) notify("Analisi salvata", `${fileName} è ora nei File del cliente.`);
+        const name = chosenName.toLowerCase().endsWith(".pdf") ? chosenName : `${chosenName}.pdf`;
+        const saved = await saveFileToContactIfNew(name, "application/pdf", b64);
+        if (saved) notify("Analisi salvata ✅", `${name} è nei File del cliente.`);
+        return saved;
       }
     } catch (e) {
-      // Roll back the guard so the effect can retry later.
-      analysisSavedRef.current.delete(bill.bill_id);
-      console.warn("autoSaveBillAnalysis err", e);
+      console.warn("saveBillAnalysisWithName err", e);
+      notify("Errore salvataggio", (e as any)?.message || "");
+      return false;
     }
   };
 
-  // V38F — Save generated HTML/PDF to contact files automatically.
-  // On native, we get a real PDF via Print.printToFileAsync + FileSystem.readAsString.
-  // On web, we save the HTML string as text/html (browser can re-open and re-print).
-  // V38G — respects name uniqueness (skips if a file with the same name already exists).
-  const autoSaveToContactFiles = async (html: string, kind: "report" | "comparison") => {
-    if (!contactId) return;
-    const now = new Date();
-    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
-    const baseName = kind === "report"
-      ? `Report-Fatture-${ts}`
-      : `Comparazione-${ts}`;
-    // V38Q — dedupe concurrent invocations by name (guard against React StrictMode
-    // double-invoke or user double-tapping the generate button).
-    const guardKey = `${contactId}::${baseName}`;
-    if (autoSaveGuardRef.current.has(guardKey)) return;
-    autoSaveGuardRef.current.add(guardKey);
+  // V38G legacy — kept as no-op fallback in case any external caller depended on it.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const autoSaveBillAnalysis = async (_bill: Bill) => { /* deprecated in V38R */ };
+
+  // V38F — Save generated HTML/PDF to contact files.
+  // V38R — Now accepts explicit filename (from SaveConfirmModal).
+  const saveReportWithName = async (html: string, chosenName: string) => {
+    if (!contactId) return false;
     try {
-      let saved = false;
       if (Platform.OS === "web") {
         const enc = (globalThis as any).TextEncoder ? new TextEncoder() : null;
         let b64: string;
@@ -497,27 +493,43 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         } else {
           b64 = (globalThis as any).btoa(unescape(encodeURIComponent(html)));
         }
-        saved = await saveFileToContactIfNew(`${baseName}.html`, "text/html", b64);
+        const name = chosenName.toLowerCase().endsWith(".html") ? chosenName : `${chosenName.replace(/\.pdf$/i, "")}.html`;
+        const saved = await saveFileToContactIfNew(name, "text/html", b64);
+        if (saved) notify("Salvato ✅", `${name} è nei File del cliente.`);
+        return saved;
       } else {
         const { uri } = await Print.printToFileAsync({ html });
         const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-        saved = await saveFileToContactIfNew(`${baseName}.pdf`, "application/pdf", b64);
-      }
-      if (saved) {
-        notify("Salvato nei file cliente", `${baseName} è stato salvato nella tab File del cliente.`);
+        const name = chosenName.toLowerCase().endsWith(".pdf") ? chosenName : `${chosenName}.pdf`;
+        const saved = await saveFileToContactIfNew(name, "application/pdf", b64);
+        if (saved) notify("Salvato ✅", `${name} è nei File del cliente.`);
+        return saved;
       }
     } catch (e: any) {
-      console.warn("autoSave err", e);
+      console.warn("saveReportWithName err", e);
+      notify("Errore salvataggio", e?.message || "");
+      return false;
     }
   };
+
+  // Legacy no-op kept so nothing breaks (older calls become explicit modal flows)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const autoSaveToContactFiles = async (_html: string, _kind: "report" | "comparison") => { /* deprecated V38R */ };
 
   const generateComparison = async () => {
     try {
       setComparisonBusy(true);
       const rep = await api<any>(`/contacts/${contactId}/bills/comparison`);
       const html = buildComparisonHtml(rep, contactName, branding);
-      // Auto-save to contact files (fire and forget — should not block print/share)
-      void autoSaveToContactFiles(html, "comparison");
+      // V38R — Ask user to confirm the filename before saving.
+      setSaveConfirm({
+        kind: "comparison",
+        defaultName: suggestFileName(contactName, "Comparazione Fatture"),
+        ext: Platform.OS === "web" ? ".html" : ".pdf",
+        color: "#7C3AED",
+        subtitle: "Salva questa comparazione nei File del cliente",
+        run: async (name: string) => { await saveReportWithName(html, name); },
+      });
       if (Platform.OS === "web") {
         printHtmlOnWeb(html, `confronto-${contactName || "cliente"}.pdf`);
         return;
@@ -763,8 +775,15 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       setReportBusy(true);
       const rep = await api<any>(`/contacts/${contactId}/bills/report`);
       const html = buildReportHtml(rep, contactName, branding);
-      // V38F: auto-save to contact files
-      void autoSaveToContactFiles(html, "report");
+      // V38R — Ask user to confirm the filename before saving.
+      setSaveConfirm({
+        kind: "report",
+        defaultName: suggestFileName(contactName, "Report Fatture"),
+        ext: Platform.OS === "web" ? ".html" : ".pdf",
+        color: "#6366F1",
+        subtitle: "Salva questo report nei File del cliente",
+        run: async (name: string) => { await saveReportWithName(html, name); },
+      });
       if (Platform.OS === "web") {
         printHtmlOnWeb(html, `report-fatture-${contactName || "cliente"}.pdf`);
         return;
@@ -1045,6 +1064,23 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                             <Pressable testID={`bill-reanalyze-${b.bill_id}`} onPress={() => reanalyze(b)} style={[styles.actBtn, { backgroundColor: "#DBEAFE" }]}>
                               <Ionicons name="refresh" size={14} color="#1D4ED8" />
                               <Text style={[styles.actBtnTxt, { color: "#1D4ED8" }]}>Ri-analizza</Text>
+                            </Pressable>
+                          )}
+                          {b.status === "done" && (
+                            <Pressable
+                              testID={`bill-save-analysis-${b.bill_id}`}
+                              onPress={() => setSaveConfirm({
+                                kind: "bill-analysis",
+                                defaultName: suggestFileName(contactName, `Analisi ${SECTION_META[b.bill_type].label}`),
+                                ext: Platform.OS === "web" ? ".html" : ".pdf",
+                                color: "#16A34A",
+                                subtitle: "Salva l'analisi nei File del cliente",
+                                run: async (name: string) => { await saveBillAnalysisWithName(b, name); },
+                              })}
+                              style={[styles.actBtn, { backgroundColor: "#DCFCE7" }]}
+                            >
+                              <Ionicons name="save-outline" size={14} color="#166534" />
+                              <Text style={[styles.actBtnTxt, { color: "#166534" }]}>Salva sul cliente</Text>
                             </Pressable>
                           )}
                           <Pressable testID={`bill-delete-${b.bill_id}`} onPress={() => deleteBill(b)} style={[styles.actBtn, { backgroundColor: "#FEE2E2" }]}>
@@ -1356,6 +1392,18 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       </Modal>
 
       <CalculatorFAB />
+
+      {/* V38R — Save confirmation modal (rename before saving to contact) */}
+      <SaveConfirmModal
+        visible={!!saveConfirm}
+        title="Conferma nome file"
+        subtitle={saveConfirm?.subtitle}
+        defaultName={saveConfirm?.defaultName || ""}
+        extension={saveConfirm?.ext || ".pdf"}
+        color={saveConfirm?.color}
+        onCancel={() => setSaveConfirm(null)}
+        onConfirm={async (name) => { const r = saveConfirm?.run; setSaveConfirm(null); if (r) await r(name); }}
+      />
     </View>
   );
 }
@@ -2306,10 +2354,10 @@ const styles = StyleSheet.create({
   billBody: { paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: theme.color.border },
   errorBox: { backgroundColor: "#FEE2E2", borderRadius: 8, padding: 10, marginTop: 10 },
   errorTxt: { color: "#991B1B", fontSize: 12 },
-  dataBox: { marginTop: 8, backgroundColor: "#FAFBFF", borderRadius: 8, padding: 8 },
-  kvRow: { flexDirection: "row", paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: "#EEF2FF" },
-  kvKey: { fontSize: 11, fontWeight: "700", color: theme.color.muted, width: 130 },
-  kvVal: { fontSize: 11, color: theme.color.onSurface, flex: 1 },
+  dataBox: { marginTop: 8, backgroundColor: "#FAFBFF", borderRadius: 8, padding: 8, overflow: "hidden" },
+  kvRow: { flexDirection: "row", paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: "#EEF2FF", alignItems: "flex-start" },
+  kvKey: { fontSize: 11, fontWeight: "700", color: theme.color.muted, width: 110, paddingRight: 6 },
+  kvVal: { fontSize: 11, color: theme.color.onSurface, flex: 1, flexShrink: 1, flexWrap: "wrap" },
   bulletRow: { flexDirection: "row", paddingVertical: 2, alignItems: "flex-start" },
   bulletDot: { fontSize: 12, color: theme.color.brandPrimary, width: 14, marginTop: 1 },
   bulletTxt: { fontSize: 11, color: theme.color.onSurface, flex: 1, lineHeight: 15 },

@@ -12,8 +12,9 @@ import { theme } from "@/src/theme";
 import { uriToBase64 } from "@/src/utils/media";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { FileViewer } from "@/src/FileViewer";
+import { ShareSheet, type ShareTarget } from "@/src/ShareSheet";
 
-type MasterCat = "notes" | "bills" | "audio" | "files";
+type MasterCat = "notes" | "bills" | "audio" | "files" | "analisi";
 type MasterFile = {
   file_id: string;
   category: MasterCat;
@@ -29,6 +30,7 @@ type MasterFile = {
 const CATS: { id: MasterCat; label: string; icon: any; color: string }[] = [
   { id: "notes", label: "Note", icon: "document-text", color: "#7C3AED" },
   { id: "bills", label: "Fatture", icon: "receipt", color: "#EA580C" },
+  { id: "analisi", label: "Analisi", icon: "sparkles", color: "#16A34A" },
   { id: "audio", label: "Audio", icon: "mic", color: "#DB2777" },
   { id: "files", label: "File", icon: "folder", color: "#0891B2" },
 ];
@@ -54,6 +56,8 @@ export default function MasterFilesScreen() {
   // V38P — pick from Master's own file cabinet when uploading a bill/other
   const [pickFromMaster] = useState(false);
   const [masterPickerItems] = useState<MasterFile[]>([]);
+  // V38R — Universal share sheet for master files (across all tabs).
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -316,6 +320,36 @@ export default function MasterFilesScreen() {
     } finally { setBusy(false); }
   };
 
+  // V38R — Open the universal ShareSheet for any master file (all tabs).
+  const openShare = async (f: MasterFile) => {
+    setBusy(true);
+    try {
+      const full = await api<MasterFile & { data_base64: string }>(`/master-files/${f.file_id}`);
+      setShareTarget({
+        id: f.file_id,
+        name: f.name,
+        mime: f.mime,
+        data_base64: full.data_base64 || "",
+        masterFileId: f.file_id,
+      });
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally { setBusy(false); }
+  };
+
+  // V38R — Format created_at with BOTH date and time (dd/mm/YYYY HH:MM)
+  const fmtDateTime = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yy = d.getFullYear();
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mn = String(d.getMinutes()).padStart(2, "0");
+      return `${dd}/${mm}/${yy} · ${hh}:${mn}`;
+    } catch { return iso; }
+  };
+
   const removeItem = async (f: MasterFile) => {
     const ok = await confirmAsync(f.category === "notes" ? "Elimina nota" : "Elimina file", "Sei sicuro?");
     if (!ok) return;
@@ -436,6 +470,12 @@ export default function MasterFilesScreen() {
             )}
           </View>
         )}
+        {tab === "analisi" && (
+          <View style={[styles.addBtn, { backgroundColor: catMeta.color + "22", borderWidth: 1, borderColor: catMeta.color + "44", borderStyle: "dashed" }]}>
+            <Ionicons name="sparkles" size={18} color={catMeta.color} />
+            <Text style={[styles.addTxt, { color: catMeta.color }]}>Generate automaticamente dalle bollette</Text>
+          </View>
+        )}
         {tab === "files" && (
           <View style={{ flexDirection: "row", gap: 8, flex: 1 }}>
             <Pressable testID="master-files-add-file" onPress={() => uploadFile("files")} disabled={busy} style={[styles.addBtn, { backgroundColor: catMeta.color, flex: 1, opacity: busy ? 0.5 : 1 }]}>
@@ -479,11 +519,23 @@ export default function MasterFilesScreen() {
                     {tab === "notes" ? (f.title || f.name || "Nota") : f.name}
                   </Text>
                   <Text style={styles.itemMeta} numberOfLines={1}>
-                    {tab === "notes" ? (f.body || "").slice(0, 100) : `${formatSize(f.size)} · ${new Date(f.created_at).toLocaleDateString("it-IT")}`}
+                    {tab === "notes"
+                      ? `${(f.body || "").slice(0, 60)} · ${fmtDateTime(f.created_at)}`
+                      : `${formatSize(f.size)} · ${fmtDateTime(f.created_at)}`}
                   </Text>
                 </View>
               </Pressable>
               <View style={{ flexDirection: "row", gap: 4, paddingRight: 8 }}>
+                {tab !== "notes" && (
+                  <Pressable
+                    testID={`master-files-share-${f.file_id}`}
+                    onPress={() => openShare(f)}
+                    hitSlop={8}
+                    style={styles.iconBtn}
+                  >
+                    <Ionicons name="share-social" size={14} color={catMeta.color} />
+                  </Pressable>
+                )}
                 {tab !== "notes" && (
                   <Pressable
                     testID={`master-files-rename-${f.file_id}`}
@@ -588,6 +640,13 @@ export default function MasterFilesScreen() {
         fileName={viewerOpen?.name || ""}
         mime={viewerOpen?.mime || ""}
         dataBase64={viewerOpen?.data_base64 || ""}
+      />
+
+      {/* V38R — Universal share sheet for any master file */}
+      <ShareSheet
+        visible={!!shareTarget}
+        target={shareTarget}
+        onClose={() => setShareTarget(null)}
       />
 
       {/* V38P — Photo picker bottom sheet (Foto button) */}

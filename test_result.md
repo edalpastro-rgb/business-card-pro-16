@@ -251,11 +251,12 @@ metadata:
 
 test_plan:
   current_focus:
-    - "V38Q Task 1 — Master Files 'Carica file' opens DocumentPicker (docs only, not camera)"
-    - "V38Q Task 2 — Auto-save Master bill-draft PDF into master_files (category=bills) after analysis"
-    - "V38Q Task 3 — Idempotent share/auto-save of bill analysis (no duplicate 'Analisi-*.pdf' in contact files)"
-    - "V38Q Task 4 — Saved HTML report includes SVG consumption bar chart per bill"
-    - "V38Q Task 5 — Master Digital Business Card CRUD + public read endpoint + share preview"
+    - "V38R Task 1 — PDF inline viewer (Blob URL on web, no download dialog) + Calculator FAB inside viewer"
+    - "V38R Task 2 — SaveConfirmModal shown before saving fatture/analisi/report/comparison with default name = ClientName-Type-YYYY-MM-DD_HH-MM"
+    - "V38R Task 3 — Bill card layout responsive (kvVal flexShrink + wrap; consumption chart inside horizontal ScrollView)"
+    - "V38R Task 4 — Master Files: NEW tab 'Analisi' (green). Backend saves raw PDF in 'bills' + analysis HTML in 'analisi' with different sizes"
+    - "V38R Task 5 — All master files show date+time (dd/mm/YYYY · HH:MM) + Share button (universal ShareSheet) on every category"
+    - "V38R Task 6 — POST /api/master-files/{file_id}/share-link + GET /api/public/master-files/{token} (no-auth 24h signed URL for master files)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"

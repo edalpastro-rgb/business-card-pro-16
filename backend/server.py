@@ -13,6 +13,7 @@ import smtplib
 import ssl
 import asyncio
 import base64
+import json as _json_stdlib
 import secrets
 import io
 import pyotp
@@ -1505,6 +1506,63 @@ async def public_file(token: str):
         media_type=mime,
         headers={"Content-Disposition": f'inline; filename="{name}"'},
     )
+
+
+@api_router.post("/master-files/{file_id}/share-link")
+async def create_master_file_share_link(file_id: str, request: Request, user=Depends(get_current_user)):
+    """V38R — Create a signed URL for a master file (any category).
+    Used by ShareSheet 'Copia link' channel."""
+    f = await db.master_files.find_one({"user_id": tenant_id(user), "file_id": file_id})
+    if not f:
+        raise HTTPException(status_code=404, detail="File non trovato")
+    exp_dt = utcnow() + timedelta(hours=24)
+    token = jwt.encode({
+        "kind": "mfile",
+        "file_id": file_id,
+        "user_id": tenant_id(user),
+        "exp": int(exp_dt.timestamp()),
+    }, JWT_SECRET, algorithm=JWT_ALG)
+    fwd_proto = request.headers.get("x-forwarded-proto")
+    fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    if fwd_proto and fwd_host:
+        base = f"{fwd_proto}://{fwd_host}"
+    else:
+        base = str(request.base_url).rstrip("/")
+    base = base.rstrip("/")
+    url = f"{base}/api/public/master-files/{token}"
+    return {"url": url, "expires_at": exp_dt.isoformat(), "name": f.get("name"), "mime": f.get("mime")}
+
+
+@api_router.get("/public/master-files/{token}")
+async def public_master_file(token: str):
+    """V38R — Public download endpoint for signed master-file tokens."""
+    from fastapi.responses import Response as FastAPIResponse
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=410, detail="Link scaduto")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Link non valido")
+    if payload.get("kind") != "mfile":
+        raise HTTPException(status_code=400, detail="Token non compatibile")
+    file_id = payload.get("file_id")
+    user_id = payload.get("user_id")
+    f = await db.master_files.find_one({"user_id": user_id, "file_id": file_id})
+    if not f:
+        raise HTTPException(status_code=404, detail="File non trovato")
+    import base64 as _b64
+    try:
+        data = _b64.b64decode(f.get("data_base64") or "")
+    except Exception:
+        raise HTTPException(status_code=500, detail="File corrotto")
+    mime = f.get("mime") or "application/octet-stream"
+    name = f.get("name") or "download"
+    return FastAPIResponse(
+        content=data,
+        media_type=mime,
+        headers={"Content-Disposition": f'inline; filename="{name}"'},
+    )
+
 
 
 # V38I — Email a contact file as attachment via SMTP
@@ -3610,43 +3668,235 @@ class QuickBillIn(BaseModel):
     label: Optional[str] = None  # optional user-friendly label (e.g. "Prospect via Roma")
 
 async def _auto_save_draft_to_master_files(draft: dict):
-    """V38Q — Persist a completed bill-draft PDF into the Master's file cabinet
-    (category=bills) so the user doesn't have to re-upload it later. Idempotent:
-    skips if a file with the same name already exists for the tenant."""
+    """V38Q — Persist a completed bill-draft into the Master's file cabinet.
+    V38R (June 2026): Save TWO separate documents:
+      - The RAW PDF in category='bills' (original fattura, same size as upload)
+      - A generated HTML ANALISI report in category='analisi' (contains the
+        extracted structured data + note_ai + consumption chart — much smaller
+        than the PDF, distinctly rendered).
+    Both saves are idempotent: skip when a doc with the same name exists.
+    """
     try:
         pdf_name = draft.get("pdf_name") or "fattura.pdf"
-        target_name = f"Analisi-{pdf_name}"
-        already = await db.master_files.find_one({
+        base = pdf_name[:-4] if pdf_name.lower().endswith(".pdf") else pdf_name
+        # 1) Save the raw PDF into 'bills' — original file, unchanged
+        bill_name = f"{base}.pdf"
+        exists_bill = await db.master_files.find_one({
             "user_id": draft.get("user_id"),
             "category": "bills",
-            "name": target_name,
+            "name": bill_name,
         })
-        if already:
-            return
-        b64 = draft.get("pdf_base64") or ""
-        if b64.startswith("data:"):
-            b64 = b64.split(",", 1)[1]
-        file_id = f"mf_{uuid.uuid4().hex[:12]}"
-        approx_size = int(len(b64) * 0.75) if b64 else 0
-        doc = {
-            "file_id": file_id,
+        if not exists_bill:
+            b64 = draft.get("pdf_base64") or ""
+            if b64.startswith("data:"):
+                b64 = b64.split(",", 1)[1]
+            approx_size = int(len(b64) * 0.75) if b64 else 0
+            await db.master_files.insert_one({
+                "file_id": f"mf_{uuid.uuid4().hex[:12]}",
+                "user_id": draft.get("user_id"),
+                "created_by": draft.get("created_by") or draft.get("user_id"),
+                "category": "bills",
+                "name": bill_name,
+                "title": None,
+                "body": None,
+                "mime": draft.get("pdf_mime") or "application/pdf",
+                "data_base64": b64,
+                "size": approx_size,
+                "created_at": utcnow(),
+                "updated_at": utcnow(),
+                "source": "bill-draft",
+                "source_draft_id": draft.get("draft_id"),
+            })
+        # 2) Build & save the ANALISI HTML in 'analisi' — human-readable
+        analysis_name = f"Analisi-{base}.html"
+        exists_ana = await db.master_files.find_one({
             "user_id": draft.get("user_id"),
-            "created_by": draft.get("created_by") or draft.get("user_id"),
-            "category": "bills",
-            "name": target_name,
-            "title": None,
-            "body": None,
-            "mime": draft.get("pdf_mime") or "application/pdf",
-            "data_base64": b64,
-            "size": approx_size,
-            "created_at": utcnow(),
-            "updated_at": utcnow(),
-            "source": "bill-draft",
-            "source_draft_id": draft.get("draft_id"),
-        }
-        await db.master_files.insert_one(doc)
+            "category": "analisi",
+            "name": analysis_name,
+        })
+        if not exists_ana:
+            extracted = draft.get("extracted") or {}
+            bill_type = (draft.get("bill_type") or "luce").lower()
+            label_map = {"luce": ("Luce ⚡", "#EA580C"), "gas": ("Gas 🔥", "#F59E0B"), "telco": ("Telefono/Internet 📶", "#0891B2")}
+            bt_label, bt_color = label_map.get(bill_type, ("Fattura", "#6366F1"))
+            html = _build_analysis_html(extracted, bt_label, bt_color, base, draft.get("analysis_params") or [])
+            html_b64 = base64.b64encode(html.encode("utf-8")).decode("ascii")
+            await db.master_files.insert_one({
+                "file_id": f"mf_{uuid.uuid4().hex[:12]}",
+                "user_id": draft.get("user_id"),
+                "created_by": draft.get("created_by") or draft.get("user_id"),
+                "category": "analisi",
+                "name": analysis_name,
+                "title": f"Analisi {bt_label}",
+                "body": None,
+                "mime": "text/html",
+                "data_base64": html_b64,
+                "size": len(html.encode("utf-8")),
+                "created_at": utcnow(),
+                "updated_at": utcnow(),
+                "source": "bill-draft",
+                "source_draft_id": draft.get("draft_id"),
+                "bill_type": bill_type,
+            })
     except Exception as e:
         logger.warning("_auto_save_draft_to_master_files err: %s", e)
+
+
+def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base: str, params: list) -> str:
+    """Render a compact HTML analysis report from the extracted fields.
+    Includes a monthly consumption SVG bar chart when present.
+    """
+    from html import escape as esc
+    generated = datetime.now(timezone.utc).astimezone().strftime("%d/%m/%Y %H:%M")
+    fornitore = esc(str(extracted.get("fornitore") or "—"))
+    offerta = esc(str(extracted.get("nome_offerta") or extracted.get("tipo_offerta") or "Offerta non specificata"))
+
+    # SVG chart from consumi_mensili
+    chart_html = ""
+    for k in ("consumi_mensili_kwh", "consumi_mensili_smc"):
+        v = extracted.get(k)
+        if not v:
+            continue
+        unit = "kWh" if k.endswith("kwh") else "SMC"
+        points = _normalize_monthly(v)
+        if points:
+            chart_html = _svg_bar_chart(points, unit, bt_color)
+            break
+
+    # Note AI as bulleted list
+    notes_html = ""
+    note_val = extracted.get("note_ai")
+    if note_val:
+        if isinstance(note_val, str):
+            items = [x.strip().lstrip("-•* ") for x in note_val.splitlines() if x.strip()]
+        elif isinstance(note_val, list):
+            items = [str(x).strip() for x in note_val if str(x).strip()]
+        else:
+            items = []
+        if items:
+            notes_html = "<h3 style='color:#0F172A;font-size:14px;margin:16px 0 6px;'>Note AI</h3><ul style='padding-left:20px;margin:0;color:#334155;font-size:12px;'>" + "".join(f"<li style='margin-bottom:4px;'>{esc(it)}</li>" for it in items) + "</ul>"
+
+    # Standard KV table
+    rows = []
+    for k, v in extracted.items():
+        if v in (None, "", []):
+            continue
+        if k in ("consumi_mensili_kwh", "consumi_mensili_smc", "note_ai", "parametri_richiesti", "raw_text_preview"):
+            continue
+        if isinstance(v, (list, dict)):
+            v_str = _json_stdlib.dumps(v, ensure_ascii=False)
+        else:
+            v_str = str(v)
+        label = k.replace("_", " ").title()
+        rows.append(f"<tr><td style='padding:8px 10px;background:#F8FAFC;font-weight:700;color:#475569;font-size:11px;border-bottom:1px solid #E2E8F0;width:40%;'>{esc(label)}</td><td style='padding:8px 10px;color:#0F172A;font-size:12px;border-bottom:1px solid #E2E8F0;word-break:break-word;'>{esc(v_str)}</td></tr>")
+    table_html = f"<table style='width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-top:12px;'>{''.join(rows)}</table>" if rows else "<p style='color:#94A3B8;font-style:italic;'>Nessun dato estratto.</p>"
+
+    params_html = ""
+    if params:
+        pills = "".join(f"<span style='display:inline-block;padding:3px 9px;border-radius:12px;background:#EDE9FE;color:#5B21B6;font-size:10px;font-weight:700;margin:2px;'>{esc(str(p))}</span>" for p in params)
+        params_html = f"<div style='margin:14px 0 6px;'><div style='font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#6B7280;margin-bottom:6px;'>Parametri prioritari</div>{pills}</div>"
+
+    return f"""<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Analisi {esc(bt_label)} — {esc(doc_base)}</title>
+<style>
+  body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#0F172A;margin:16px;background:#F8FAFC;}}
+  .banner{{background:linear-gradient(135deg,{bt_color},{bt_color}CC);color:#FFF;padding:14px 18px;border-radius:10px;margin-bottom:14px;}}
+  .banner-title{{font-size:17px;font-weight:900;margin:0;}}
+  .banner-sub{{font-size:11px;opacity:0.92;margin-top:3px;}}
+  h1{{color:{bt_color};margin:0 0 4px;font-size:20px;}}
+  .subtitle{{color:#6B7280;font-size:11px;margin-bottom:14px;}}
+  .footer{{margin-top:22px;padding-top:12px;border-top:1px solid #E5E7EB;font-size:10px;color:#9CA3AF;text-align:center;}}
+</style>
+</head>
+<body>
+  <h1>📄 Analisi Fattura {esc(bt_label)}</h1>
+  <div class="subtitle"><b>Documento:</b> {esc(doc_base)} &nbsp;·&nbsp; <b>Analizzata:</b> {esc(generated)}</div>
+  <div class="banner">
+    <div class="banner-title">{fornitore}</div>
+    <div class="banner-sub">{offerta}</div>
+  </div>
+  {params_html}
+  {table_html}
+  {"<h3 style='color:#0F172A;font-size:14px;margin:16px 0 6px;'>Consumi mensili</h3>" + chart_html if chart_html else ""}
+  {notes_html}
+  <div class="footer">Report AI generato automaticamente · Dal Pastro CRM</div>
+</body>
+</html>"""
+
+
+def _normalize_monthly(v):
+    """Return a list of {mese, value} tuples from various input shapes."""
+    months = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"]
+    if isinstance(v, list):
+        out = []
+        for i, it in enumerate(v):
+            if isinstance(it, (int, float)):
+                out.append({"mese": months[i] if i < 12 else str(i+1), "value": float(it)})
+            elif isinstance(it, dict):
+                mese = str(it.get("mese") or it.get("month") or (months[i] if i < 12 else str(i+1)))[:3].lower()
+                val = it.get("kwh") or it.get("smc") or it.get("value") or it.get("consumo") or 0
+                try:
+                    out.append({"mese": mese, "value": float(val)})
+                except Exception:
+                    pass
+        return out
+    if isinstance(v, dict):
+        out = []
+        for k, val in v.items():
+            lk = k.lower()[:3]
+            if lk in months:
+                try:
+                    out.append({"mese": lk, "value": float(val)})
+                except Exception:
+                    pass
+        # sort by month order
+        out.sort(key=lambda x: months.index(x["mese"]) if x["mese"] in months else 99)
+        return out
+    return []
+
+
+def _svg_bar_chart(points: list, unit: str, color: str) -> str:
+    """Return an inline SVG bar chart for the given monthly consumption points."""
+    if not points:
+        return ""
+    width = 520
+    height = 220
+    padL, padR, padT, padB = 42, 12, 16, 40
+    chart_w = width - padL - padR
+    chart_h = height - padT - padB
+    max_v = max([p["value"] for p in points] + [1])
+    bar_gap = 6
+    bar_w = (chart_w / len(points)) - bar_gap
+    y_ticks = [0, 0.25, 0.5, 0.75, 1.0]
+    grid = "".join(
+        f'<line x1="{padL}" y1="{padT + chart_h - chart_h*t}" x2="{width-padR}" y2="{padT + chart_h - chart_h*t}" stroke="#E5E7EB" stroke-width="1"/>'
+        f'<text x="{padL-6}" y="{padT + chart_h - chart_h*t + 3}" font-size="9" fill="#6B7280" text-anchor="end">{int(max_v*t)}</text>'
+        for t in y_ticks
+    )
+    bars = []
+    for i, p in enumerate(points):
+        h = (p["value"] / max_v) * chart_h if max_v > 0 else 0
+        x = padL + i * (bar_w + bar_gap)
+        y = padT + chart_h - h
+        label = p.get("mese", "").capitalize()
+        val_txt = str(int(p["value"])) if p["value"] > 0 else ""
+        bars.append(
+            f'<rect x="{x:.1f}" y="{y:.1f}" width="{bar_w:.1f}" height="{h:.1f}" fill="{color}" rx="3"/>'
+            f'<text x="{x + bar_w/2:.1f}" y="{y - 3:.1f}" font-size="9" fill="#374151" text-anchor="middle">{val_txt}</text>'
+            f'<text x="{x + bar_w/2:.1f}" y="{height - padB + 14}" font-size="10" fill="#4B5563" text-anchor="middle">{label}</text>'
+        )
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="{height}" '
+        f'viewBox="0 0 {width} {height}" preserveAspectRatio="xMidYMid meet" '
+        f'style="max-width:100%;background:#FFF;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">'
+        f'{grid}{"".join(bars)}'
+        f'<text x="{width - padR}" y="{height - 4}" font-size="9" fill="#6B7280" text-anchor="end">Unità: {unit}</text>'
+        f'</svg>'
+    )
 
 
 
@@ -3919,7 +4169,7 @@ class MasterFileRenameIn(BaseModel):
     body: Optional[str] = None
 
 
-ALLOWED_MASTER_CATS = {"notes", "bills", "audio", "files"}
+ALLOWED_MASTER_CATS = {"notes", "bills", "audio", "files", "analisi"}
 
 
 @api_router.post("/master-files")
