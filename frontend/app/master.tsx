@@ -152,6 +152,7 @@ export default function MasterScreen() {
     { label: "I miei audio", icon: "folder-open", color: "#8B5CF6", onPress: () => goto("/my-audios") },
     { label: "Analizza bolletta", icon: "flash", color: "#EA580C", onPress: () => goto("/bill-quick") },
     { label: "I miei file", icon: "folder-open", color: "#0891B2", onPress: () => goto("/master-files") },
+    { label: "Biglietto da visita", icon: "id-card", color: "#7C3AED", onPress: () => goto("/business-card") },
   ];
 
   return (

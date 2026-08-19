@@ -358,6 +358,30 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
     const rows = Object.entries(ex)
       .filter(([k]) => !["raw_text_preview", "parse_error"].includes(k))
       .map(([k, v]) => {
+        // V38Q — render monthly consumption as SVG chart embedded in the KV table.
+        if ((k === "consumi_mensili_kwh" || k === "consumi_mensili_smc") && v) {
+          const unit = k === "consumi_mensili_kwh" ? "kWh" : "SMC";
+          const svg = renderConsumiSvg(v, unit, btMeta.color);
+          if (svg) {
+            const label = k.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+            return `<tr>
+              <td style="padding:10px 12px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;font-weight:700;color:#0F172A;font-size:12px;width:38%;vertical-align:top;">${escHtml(label)}</td>
+              <td style="padding:10px 12px;background:#FFF;border-bottom:1px solid #E2E8F0;font-size:12px;color:#0F172A;vertical-align:top;">${svg}</td>
+            </tr>`;
+          }
+        }
+        // V38Q — render note_ai as bulleted list even in the saved analysis
+        if (k === "note_ai") {
+          const items = normalizeNotes(v);
+          if (items.length > 0) {
+            const ul = `<ul style="margin:0 0 0 18px;padding:0;">${items.map((it) => `<li style="font-size:11px;margin-bottom:3px;line-height:1.4;">${escHtml(it)}</li>`).join("")}</ul>`;
+            const label = "Note AI";
+            return `<tr>
+              <td style="padding:10px 12px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;font-weight:700;color:#0F172A;font-size:12px;width:38%;vertical-align:top;">${escHtml(label)}</td>
+              <td style="padding:10px 12px;background:#FFF;border-bottom:1px solid #E2E8F0;font-size:12px;color:#0F172A;vertical-align:top;">${ul}</td>
+            </tr>`;
+          }
+        }
         const label = k.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
         return `<tr>
           <td style="padding:10px 12px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;font-weight:700;color:#0F172A;font-size:12px;width:38%;vertical-align:top;">${escHtml(label)}</td>
@@ -408,10 +432,16 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   };
 
   // V38G — Auto-save the analysis PDF of a bill (fires once per bill_id per session).
+  // V38Q — mark the ref BEFORE the async save so concurrent effect fires don't
+  // schedule the same save twice (previously the ref was updated after await,
+  // causing duplicate copies to appear in the contact's file section).
   const analysisSavedRef = useRef<Set<string>>(new Set());
+  // V38Q — Guard set for autoSaveToContactFiles to prevent double reports.
+  const autoSaveGuardRef = useRef<Set<string>>(new Set());
   const autoSaveBillAnalysis = async (bill: Bill) => {
     if (!contactId || bill.status !== "done") return;
     if (analysisSavedRef.current.has(bill.bill_id)) return;
+    analysisSavedRef.current.add(bill.bill_id); // optimistic guard
     const baseName = bill.pdf_name.replace(/\.pdf$/i, "");
     const fileName = `Analisi-${baseName}.pdf`;
     // Skip if already exists in contact files
@@ -431,8 +461,9 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         const saved = await saveFileToContactIfNew(fileName, "application/pdf", b64);
         if (saved) notify("Analisi salvata", `${fileName} è ora nei File del cliente.`);
       }
-      analysisSavedRef.current.add(bill.bill_id);
     } catch (e) {
+      // Roll back the guard so the effect can retry later.
+      analysisSavedRef.current.delete(bill.bill_id);
       console.warn("autoSaveBillAnalysis err", e);
     }
   };
@@ -448,6 +479,11 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
     const baseName = kind === "report"
       ? `Report-Fatture-${ts}`
       : `Comparazione-${ts}`;
+    // V38Q — dedupe concurrent invocations by name (guard against React StrictMode
+    // double-invoke or user double-tapping the generate button).
+    const guardKey = `${contactId}::${baseName}`;
+    if (autoSaveGuardRef.current.has(guardKey)) return;
+    autoSaveGuardRef.current.add(guardKey);
     try {
       let saved = false;
       if (Platform.OS === "web") {

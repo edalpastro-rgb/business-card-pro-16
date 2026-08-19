@@ -186,9 +186,9 @@ export default function MasterFilesScreen() {
         if (res.canceled || !res.assets?.[0]) { setBusy(false); return; }
         asset = res.assets[0];
       } else {
-        // V38P — generic files: filter to documents/PDF/images explicitly so
-        // Android doesn't default to the camera roll picker (client-side
-        // parity — see ContactFilesSection pattern).
+        // V38Q — generic files: expose ONLY document types (no image/* so
+        // Android doesn't route the user into the Photos picker). Images and
+        // video go through the "Foto" button. Client-side parity.
         const res = await DocumentPicker.getDocumentAsync({
           type: [
             "application/pdf",
@@ -198,10 +198,16 @@ export default function MasterFilesScreen() {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "application/vnd.ms-powerpoint",
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.oasis.opendocument.text",
+            "application/vnd.oasis.opendocument.spreadsheet",
             "text/plain",
             "text/csv",
+            "text/markdown",
+            "text/rtf",
+            "application/rtf",
             "application/zip",
-            "image/*",
+            "application/x-zip-compressed",
+            "application/json",
           ],
           multiple: false,
           copyToCacheDirectory: true,

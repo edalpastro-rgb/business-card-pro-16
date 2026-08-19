@@ -3609,6 +3609,47 @@ class QuickBillIn(BaseModel):
     analysis_params: Optional[List[str]] = None
     label: Optional[str] = None  # optional user-friendly label (e.g. "Prospect via Roma")
 
+async def _auto_save_draft_to_master_files(draft: dict):
+    """V38Q — Persist a completed bill-draft PDF into the Master's file cabinet
+    (category=bills) so the user doesn't have to re-upload it later. Idempotent:
+    skips if a file with the same name already exists for the tenant."""
+    try:
+        pdf_name = draft.get("pdf_name") or "fattura.pdf"
+        target_name = f"Analisi-{pdf_name}"
+        already = await db.master_files.find_one({
+            "user_id": draft.get("user_id"),
+            "category": "bills",
+            "name": target_name,
+        })
+        if already:
+            return
+        b64 = draft.get("pdf_base64") or ""
+        if b64.startswith("data:"):
+            b64 = b64.split(",", 1)[1]
+        file_id = f"mf_{uuid.uuid4().hex[:12]}"
+        approx_size = int(len(b64) * 0.75) if b64 else 0
+        doc = {
+            "file_id": file_id,
+            "user_id": draft.get("user_id"),
+            "created_by": draft.get("created_by") or draft.get("user_id"),
+            "category": "bills",
+            "name": target_name,
+            "title": None,
+            "body": None,
+            "mime": draft.get("pdf_mime") or "application/pdf",
+            "data_base64": b64,
+            "size": approx_size,
+            "created_at": utcnow(),
+            "updated_at": utcnow(),
+            "source": "bill-draft",
+            "source_draft_id": draft.get("draft_id"),
+        }
+        await db.master_files.insert_one(doc)
+    except Exception as e:
+        logger.warning("_auto_save_draft_to_master_files err: %s", e)
+
+
+
 
 async def _analyze_draft_task(draft_id: str):
     """Background analysis task for bill drafts (mirrors _analyze_bill_task)."""
@@ -3645,6 +3686,14 @@ async def _analyze_draft_task(draft_id: str):
             "error_message": None,
             "analyzed_at": utcnow(),
         }})
+        # V38Q — auto-save the analyzed bill PDF into the Master's file
+        # cabinet (category=bills), unless a copy is already there.
+        try:
+            fresh = await db.bill_drafts.find_one({"draft_id": draft_id})
+            if fresh:
+                await _auto_save_draft_to_master_files(fresh)
+        except Exception as e:
+            logger.warning("draft auto-save to master-files failed: %s", e)
     except Exception as e:
         logger.exception("draft analysis err %s", e)
         curr = await db.bill_drafts.find_one({"draft_id": draft_id}, {"status": 1})
@@ -3901,6 +3950,99 @@ async def add_master_file(body: MasterFileIn, user=Depends(get_current_user)):
     await db.master_files.insert_one(doc)
     out = {k: v for k, v in doc.items() if k not in {"_id", "data_base64"}}
     return out
+
+
+# =========================
+# Master Business Card (V38Q)
+# One document per user with the digital business-card configuration. QR
+# content is user-defined: app-demo link / website / free text. Shared as
+# image, link or QR code from the frontend.
+# =========================
+
+class BusinessCardIn(BaseModel):
+    display_name: Optional[str] = None
+    title: Optional[str] = None
+    company_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    address: Optional[str] = None
+    tagline: Optional[str] = None
+    logo_base64: Optional[str] = None
+    photo_base64: Optional[str] = None
+    accent_color: Optional[str] = None
+    qr_type: Optional[str] = None      # "app" | "website" | "text" | "vcard"
+    qr_content: Optional[str] = None
+    demo_app_link: Optional[str] = None
+    social_links: Optional[Dict[str, str]] = None
+
+
+@api_router.get("/master/business-card")
+async def get_business_card(user=Depends(get_current_user)):
+    d = await db.business_cards.find_one({"user_id": tenant_id(user)}, {"_id": 0})
+    if not d:
+        # Seed a lightweight default from the user profile
+        return {
+            "user_id": tenant_id(user),
+            "display_name": user.get("name") or user.get("email") or "",
+            "title": "",
+            "company_name": user.get("company_name") or "",
+            "phone": user.get("phone") or "",
+            "email": user.get("email") or "",
+            "website": "",
+            "address": "",
+            "tagline": "",
+            "logo_base64": user.get("company_logo_base64") or "",
+            "photo_base64": user.get("avatar_base64") or "",
+            "accent_color": "#6366F1",
+            "qr_type": "website",
+            "qr_content": "",
+            "demo_app_link": "",
+            "social_links": {},
+            "created_at": None,
+            "updated_at": None,
+        }
+    return d
+
+
+@api_router.put("/master/business-card")
+async def update_business_card(body: BusinessCardIn, user=Depends(get_current_user)):
+    patch: Dict[str, Any] = {"updated_at": utcnow()}
+    for field in [
+        "display_name", "title", "company_name", "phone", "email", "website",
+        "address", "tagline", "logo_base64", "photo_base64", "accent_color",
+        "qr_type", "qr_content", "demo_app_link", "social_links",
+    ]:
+        v = getattr(body, field, None)
+        if v is not None:
+            patch[field] = v
+    if body.qr_type and body.qr_type not in {"app", "website", "text", "vcard"}:
+        raise HTTPException(status_code=400, detail="qr_type deve essere: app | website | text | vcard")
+    tid = tenant_id(user)
+    existing = await db.business_cards.find_one({"user_id": tid})
+    if not existing:
+        patch["user_id"] = tid
+        patch["created_at"] = utcnow()
+        patch["card_id"] = f"bc_{uuid.uuid4().hex[:12]}"
+        await db.business_cards.insert_one(patch)
+    else:
+        await db.business_cards.update_one({"user_id": tid}, {"$set": patch})
+    out = await db.business_cards.find_one({"user_id": tid}, {"_id": 0})
+    return out
+
+
+class BusinessCardShareLinkIn(BaseModel):
+    channel: Optional[str] = None  # optional analytics tag
+
+
+@api_router.get("/master/business-card/public/{card_id}")
+async def get_public_business_card(card_id: str):
+    """Read-only public endpoint (no auth) so the QR / link can be opened on
+    any phone without needing an account."""
+    d = await db.business_cards.find_one({"card_id": card_id}, {"_id": 0, "user_id": 0})
+    if not d:
+        raise HTTPException(status_code=404, detail="Biglietto non trovato")
+    return d
 
 
 @api_router.get("/master-files")
