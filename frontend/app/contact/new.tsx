@@ -24,7 +24,15 @@ type PendingAttachment = {
   file_base64?: string; file_name?: string; file_mime?: string; file_size?: number;
 };
 
-type ContactLite = { contact_id: string; first_name: string; last_name: string };
+type ContactLite = {
+  contact_id: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  phone_alt?: string;
+  email?: string;
+  email_alt?: string;
+};
 type Group = { group_id: string; name: string; color: string };
 type CustomArea = { id: string; name: string; color: string; icon?: string };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_areas: CustomArea[] };
@@ -86,6 +94,9 @@ export default function NewContactScreen() {
   const [bdayGenerating, setBdayGenerating] = useState(false);
   // V38I — QR code scanner
   const [showQrScanner, setShowQrScanner] = useState(false);
+  // V38J — duplicate contact detection (name / phone / email)
+  const [dupModal, setDupModal] = useState<null | { matches: ContactLite[] }>(null);
+  const bypassDupRef = useRef(false);
 
   useEffect(() => {
     api<{ items: ContactLite[] }>("/contacts").then((r) => setContacts(r.items)).catch(() => {});
@@ -384,6 +395,7 @@ export default function NewContactScreen() {
     setPhoneImportProgress({ done: 0, total: selected.length });
     let created = 0;
     let failed = 0;
+    let skipped = 0; // V38J — duplicate contacts skipped during import
     try {
       // Create sequentially to keep it simple + show progress; typical N <= 50
       for (const c of selected) {
@@ -391,21 +403,25 @@ export default function NewContactScreen() {
         if (!payload.first_name && !payload.last_name && !payload.phone) {
           failed += 1;
         } else {
-          try {
-            await api("/contacts", { method: "POST", body: payload });
-            created += 1;
-          } catch {
-            failed += 1;
+          // V38J — skip if a contact with same phone/email/full-name already exists
+          const dupHit = isDuplicateOfExisting(payload);
+          if (dupHit) {
+            skipped += 1;
+          } else {
+            try {
+              await api("/contacts", { method: "POST", body: payload });
+              created += 1;
+            } catch {
+              failed += 1;
+            }
           }
         }
-        setPhoneImportProgress({ done: created + failed, total: selected.length });
+        setPhoneImportProgress({ done: created + failed + skipped, total: selected.length });
       }
-      notify(
-        "Importazione completata",
-        failed > 0
-          ? `Creati ${created} contatti (${failed} falliti).`
-          : `Creati ${created} nuovi contatti dalla rubrica.`
-      );
+      const parts = [`Creati ${created} contatti`];
+      if (skipped > 0) parts.push(`${skipped} già esistenti saltati`);
+      if (failed > 0) parts.push(`${failed} falliti`);
+      notify("Importazione completata", parts.join(" · "));
       setPhoneContactsModal(null);
       setPhoneImportSelected(new Set());
       // Navigate to contacts list to show them
@@ -721,8 +737,68 @@ export default function NewContactScreen() {
     webRecRef.current = null;
   };
 
+  // V38J — Duplicate contact detection helpers
+  const normalizePhone = (s: string) => (s || "").replace(/[\s\-()+]/g, "").replace(/^0+/, "");
+  const normalizeText = (s: string) => (s || "").toLowerCase().trim();
+  const isDuplicateOfExisting = (p: { first_name?: string; last_name?: string; phone?: string; phone_alt?: string; email?: string; email_alt?: string }): ContactLite | null => {
+    const first = normalizeText(p.first_name || "");
+    const last = normalizeText(p.last_name || "");
+    const p1 = normalizePhone(p.phone || "");
+    const p2 = normalizePhone(p.phone_alt || "");
+    const e1 = normalizeText(p.email || "");
+    const e2 = normalizeText(p.email_alt || "");
+    for (const c of contacts) {
+      if (isEdit && editId && c.contact_id === editId) continue;
+      const cF = normalizeText(c.first_name);
+      const cL = normalizeText(c.last_name);
+      const cP1 = normalizePhone(c.phone || "");
+      const cP2 = normalizePhone(c.phone_alt || "");
+      const cE1 = normalizeText(c.email || "");
+      const cE2 = normalizeText(c.email_alt || "");
+      const nameMatch = first && cF && first === cF && (!last || !cL || last === cL);
+      const phoneMatch = (p1 && (p1 === cP1 || p1 === cP2)) || (p2 && (p2 === cP1 || p2 === cP2));
+      const emailMatch = (e1 && (e1 === cE1 || e1 === cE2)) || (e2 && (e2 === cE1 || e2 === cE2));
+      if (nameMatch || phoneMatch || emailMatch) return c;
+    }
+    return null;
+  };
+  const findPossibleDuplicates = (): ContactLite[] => {
+    const hits: ContactLite[] = [];
+    // Reuse per-contact check but iterate to collect ALL matches
+    const first = normalizeText(form.first_name);
+    const last = normalizeText(form.last_name);
+    const p1 = normalizePhone(form.phone);
+    const p2 = normalizePhone(form.phone_alt);
+    const e1 = normalizeText(form.email);
+    const e2 = normalizeText(form.email_alt);
+    for (const c of contacts) {
+      if (isEdit && editId && c.contact_id === editId) continue;
+      const cF = normalizeText(c.first_name);
+      const cL = normalizeText(c.last_name);
+      const cP1 = normalizePhone(c.phone || "");
+      const cP2 = normalizePhone(c.phone_alt || "");
+      const cE1 = normalizeText(c.email || "");
+      const cE2 = normalizeText(c.email_alt || "");
+      const nameMatch = first && cF && first === cF && (!last || !cL || last === cL);
+      const phoneMatch = (p1 && (p1 === cP1 || p1 === cP2)) || (p2 && (p2 === cP1 || p2 === cP2));
+      const emailMatch = (e1 && (e1 === cE1 || e1 === cE2)) || (e2 && (e2 === cE1 || e2 === cE2));
+      if (nameMatch || phoneMatch || emailMatch) hits.push(c);
+    }
+    const seen = new Set<string>();
+    return hits.filter((h) => (seen.has(h.contact_id) ? false : (seen.add(h.contact_id), true)));
+  };
+
   const submit = async () => {
     if (!form.first_name.trim()) return;
+    // V38J — Duplicate detection: check name/phone/email against tenant contacts
+    // (skipped in edit mode and when user explicitly chose "Salva come nuovo")
+    if (!isEdit && !bypassDupRef.current) {
+      const matches = findPossibleDuplicates();
+      if (matches.length > 0) {
+        setDupModal({ matches });
+        return;
+      }
+    }
     setBusy(true);
     try {
       const { tag_input, photos, ...payload } = form;
@@ -1790,6 +1866,79 @@ export default function NewContactScreen() {
           applyQrData(data);
         }}
       />
+
+      {/* V38J — Duplicate contact detection modal */}
+      <Modal visible={!!dupModal} animationType="fade" transparent onRequestClose={() => setDupModal(null)}>
+        <View style={styles.modalBack}>
+          <View style={[styles.modalCard, { maxWidth: 460 }]}>
+            <View style={{ alignItems: "center", marginBottom: 8 }}>
+              <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: "#FEF3C7", justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
+                <Ionicons name="alert-circle" size={30} color="#B45309" />
+              </View>
+              <Text style={[styles.modalTitle, { textAlign: "center" }]}>Contatto già esistente?</Text>
+              <Text style={{ fontSize: 12, color: theme.color.muted, textAlign: "center", marginTop: 4 }}>
+                {dupModal?.matches.length === 1
+                  ? "Trovato 1 contatto con dati simili:"
+                  : `Trovati ${dupModal?.matches.length} contatti con dati simili:`}
+              </Text>
+            </View>
+            <ScrollView style={{ maxHeight: 240, marginVertical: 8 }}>
+              {(dupModal?.matches || []).map((m) => {
+                const nm = `${m.first_name} ${m.last_name}`.trim() || "(senza nome)";
+                const contact = m.phone || m.phone_alt || m.email || m.email_alt || "";
+                return (
+                  <Pressable
+                    key={m.contact_id}
+                    testID={`dup-goto-${m.contact_id}`}
+                    onPress={() => {
+                      setDupModal(null);
+                      router.replace(`/contact/${m.contact_id}`);
+                    }}
+                    style={{ flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 10, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, marginBottom: 6, gap: 10 }}
+                  >
+                    <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: theme.color.brandTertiary, justifyContent: "center", alignItems: "center" }}>
+                      <Text style={{ color: theme.color.brandPrimary, fontWeight: "800" }}>{(m.first_name?.[0] || "?").toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: theme.color.onSurface }} numberOfLines={1}>{nm}</Text>
+                      {contact ? (
+                        <Text style={{ fontSize: 11, color: theme.color.muted }} numberOfLines={1}>{contact}</Text>
+                      ) : null}
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <View style={{ gap: 8, marginTop: 6 }}>
+              <Pressable
+                testID="dup-save-new-btn"
+                onPress={() => {
+                  bypassDupRef.current = true;
+                  setDupModal(null);
+                  // Trigger submit again (bypass will let it through)
+                  setTimeout(() => { submit(); }, 60);
+                }}
+                style={[styles.modalBtn, { backgroundColor: "#F97316", flexDirection: "row", justifyContent: "center", gap: 8 }]}
+              >
+                <Ionicons name="add-circle" size={18} color="#FFF" />
+                <Text style={{ color: "#FFF", fontWeight: "700" }}>Salva come nuovo contatto</Text>
+              </Pressable>
+              <Pressable
+                testID="dup-cancel-btn"
+                onPress={() => setDupModal(null)}
+                style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, flexDirection: "row", justifyContent: "center", gap: 8 }]}
+              >
+                <Ionicons name="close" size={18} color={theme.color.onSurface} />
+                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              </Pressable>
+              <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center", marginTop: 4, fontStyle: "italic" }}>
+                Tocca un contatto qui sopra per aprire la sua scheda esistente.
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
