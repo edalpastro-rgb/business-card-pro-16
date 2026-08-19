@@ -1,0 +1,50 @@
+{
+  "summary": "V38G tested end-to-end. Backend: 7/7 pytest passing (POST /files ALLOWS duplicate names, PATCH rename, DELETE, share-link + public/files public download, POST /bills). Frontend E2E: login as owner → seeded bill reached done → tab-bills load triggered autoSaveBillAnalysis useEffect → Analisi-fattura-ui.html appeared in contact.files. Idempotency verified across 3 scenarios: (a) re-clicking tab-bills same session, (b) full page reload+revisit, (c) after switching tabs — always exactly 1 Analisi- file. In the Files tab (after fresh reload), the file card appears with share-file-<id> button; tapping opens ShareSheet with all 4 channels (system/whatsapp/email/copy) + '24h' badge + preview URL loaded. Uploaded-PDF auto-mirror and Comparazione auto-save code paths verified statically (saveFileToContactIfNew calls after /bills POST and inside autoSaveToContactFiles). Found one minor state-sync issue (see ui_bugs).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "app/contact/[id].tsx Files tab",
+        "issue": "When user is already on contact detail and switches tab-bills → tab-files in the SAME session, the newly auto-saved Analisi-*.html file does NOT appear in the Files tab (Files tab shows 'Nessun file'). The parent screen's contact state ('c.files') is fetched once at mount and not refreshed after BillsSection's saveFileToContactIfNew POST. Workaround: reloading the page shows the file correctly. Fix: after BillsSection.saveFileToContactIfNew returns true, either bubble up a callback or trigger a parent-level reload of the contact, so c.files stays in sync.",
+        "testID": "tab-files",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38g_autosave_files.py",
+    "/app/test_reports/pytest/v38g_autosave.xml",
+    "/app/test_reports/v38g_files_fresh.png",
+    "/app/test_reports/v38g_sharesheet_fresh.png",
+    "/app/test_reports/v38g_fatture_tab.png"
+  ],
+  "action_items": [
+    "MEDIUM: BillsSection.saveFileToContactIfNew() should notify the parent contact/[id].tsx so its 'c.files' state refreshes — otherwise a user who auto-saves an analysis then taps Files sees an empty list until they reload the page. Suggest exposing a prop like onContactFilesChanged?: () => void from BillsSection and calling it after any successful save; the parent then re-fetches /api/contacts/{id}.",
+    "OPTIONAL: On native the fileName for analysis is 'Analisi-{name}.pdf' and on web '.html' — this is intentional but means the client-side name-uniqueness check only prevents dupes within the same platform. If a user opens the same contact from both native and web, they'd get one Analisi-*.pdf AND one Analisi-*.html for the same bill. Acceptable but worth documenting.",
+    "OPTIONAL: The auto-saved file naming uses the local device time (YYYYMMDD-HHmm) for comparison and report — if the user's clock is skewed, timestamps may collide across users. Consider server-side timestamp or bill_id in the filename for stronger determinism."
+  ],
+  "critical_code_review_comments": [
+    "BillsSection.tsx line 615: uploaded PDF auto-mirror uses fire-and-forget `void saveFileToContactIfNew(...)`. If the POST fails (e.g. network drop) there is no retry or user feedback. Log-only via console.warn. Acceptable for step 1 but worth surfacing via notify on next iteration.",
+    "BillsSection.tsx analysisSavedRef is per-session in-memory; on page reload it resets but saveFileToContactIfNew's server-side name check catches duplicates. Correct two-layer defense.",
+    "server.py POST /contacts/{cid}/files does not enforce name uniqueness — confirmed by test_duplicate_name_allowed. Design decision is intentional (dedup client-side). Documented in test."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v38g_autosave_files.py (NEW, 7 tests)",
+    "/app/test_reports/v38g_seed.py (helper — seeds a contact+done bill for UI test)"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7)",
+    "frontend": "95% — auto-save + idempotency + ShareSheet all work; minor Files-tab state-sync issue (parent state doesn't refresh mid-session)"
+  },
+  "seed_data_creation": "Test contact TEST_V38G_UI (c_15cb8777cd3b) + 2 bills — cleaned up. Pytest fixtures create/cleanup their own TEST_V38G contacts.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "V38G auto-save + share flow all functional. If revisiting: seed a fresh contact + upload a bill via API (helper: /app/test_reports/v38g_seed.py), wait for status='done', navigate to /contact/<cid>, click tab-bills, wait ~5s → Analisi-*.html should appear in contact.files. Then RELOAD the page (state-sync bug means same-session tab-files doesn't show it) before clicking tab-files to see the share-file-<id> button. Backend endpoints allow duplicate file names — dedup is client-side in saveFileToContactIfNew.",
+  "rca_of_issue": "State-sync issue: BillsSection is a child of contact/[id].tsx. When BillsSection posts a file via saveFileToContactIfNew (POST /contacts/{cid}/files), only its own local state is aware — the parent's `c` state (loaded once via useEffect on mount) is stale. FilesSection renders from `c.files`. Reproduction: open contact → click tab-bills (Analisi file created) → click tab-files → shows 'Nessun file'. Fix: parent must be notified of file-list mutations. Two options: (1) callback prop `onContactFilesChanged?: () => void` fired from BillsSection after every successful POST/PATCH/DELETE on /files, parent re-fetches /api/contacts/{id}. (2) use a shared store (Zustand/Context) for contact.files. Option 1 is minimally invasive."
+}

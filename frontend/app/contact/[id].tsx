@@ -431,7 +431,11 @@ export default function ContactDetail() {
       </View>
 
       {tab === "bills" ? (
-        <BillsSection contactId={id} contactName={`${c.first_name} ${c.last_name}`.trim()} />
+        <BillsSection
+          contactId={id}
+          contactName={`${c.first_name} ${c.last_name}`.trim()}
+          onContactFilesChanged={load}
+        />
       ) : tab === "audio" ? (
         <ContactAudioSection contactId={id} />
       ) : tab === "calls" ? (

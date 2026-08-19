@@ -1,0 +1,27 @@
+{
+  "summary": "V38G iter2 — RETEST of state-sync fix from iteration_44 (MEDIUM bug): PASSED. Seeded fresh contact + bill via API, polled until status=done, logged into fresh browser session as test@dalpastro.it, navigated to /contact/{cid}, clicked tab-bills (which triggers BillsSection's autoSaveBillAnalysis → POST /files → onContactFilesChanged()=parent load() → refresh of c.files), waited 15s for auto-save + parent state refresh, then clicked tab-files WITHOUT reload. Files list correctly shows 'Analisi-fattura-ui.html' (NOT 'Nessun file'). share-file-<id> button is present. Clicking it opens the ShareSheet with all 4 channels (Sistema/WhatsApp/Email/Copia link) plus the signed 24h URL. Bug is fixed end-to-end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/v38g_seed.py",
+    "/app/test_reports/iteration_44.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "BillsSection.tsx line 308: onContactFilesChanged?.() correctly wrapped in try/catch — no risk of unhandled exception from parent load(). Good.",
+    "contact/[id].tsx line 437: onContactFilesChanged={load} passes the memoized parent load callback — safe.",
+    "Note: BillsSection.tsx is ~1900 LOC and should ideally be split — flagged for future refactor but not blocking."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Seeded ONE TEST_V38G_UI contact + 1 luce bill via API (v38g_seed.py). CLEANED UP after test (DELETE /api/contacts/{cid} → 200).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "V38G iteration_44 state-sync bug is now fully fixed and verified in a fresh browser session with no reload between tab switches. No open regressions on this flow.",
+  "rca_of_issue": "Original bug: BillsSection auto-saved the analysis file via POST /contacts/{cid}/files, but parent contact/[id].tsx state variable `c.files` was populated only on mount/focus via `load()`. Switching tabs did NOT re-fetch, so tab-files rendered from the stale in-memory copy → 'Nessun file'. Fix: (1) added optional prop onContactFilesChanged to BillsSection, (2) BillsSection invokes it after every successful POST inside saveFileToContactIfNew, (3) parent passes `load` (which re-fetches GET /contacts/{id} and setC(...)). Now the parent state is refreshed on the same session and tab-files renders the newly saved Analisi-* entry immediately."
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform, Linking, TextInput, Modal } from "react-native";
 import Svg, { Rect, Text as SvgText, Line } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
@@ -107,7 +107,7 @@ type Offer = {
   created_at: string;
 };
 
-export function BillsSection({ contactId, contactName }: { contactId: string; contactName?: string }) {
+export function BillsSection({ contactId, contactName, onContactFilesChanged }: { contactId: string; contactName?: string; onContactFilesChanged?: () => void }) {
   const [grouped, setGrouped] = useState<Grouped>({ luce: [], gas: [], telco: [] });
   const [offers, setOffers] = useState<Offer[]>([]);
   const [showOffers, setShowOffers] = useState(false);
@@ -159,6 +159,17 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
     const t = setInterval(load, 3500);
     return () => clearInterval(t);
   }, [grouped, offers, load]);
+
+  // V38G — Auto-save analysis PDF for each bill that reaches status="done".
+  useEffect(() => {
+    const flatBills: Bill[] = [...grouped.luce, ...grouped.gas, ...grouped.telco];
+    for (const b of flatBills) {
+      if (b.status === "done" && !analysisSavedRef.current.has(b.bill_id)) {
+        void autoSaveBillAnalysis(b);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grouped]);
 
   const uploadOffer = async (bill_type: BillType) => {
     try {
@@ -277,9 +288,142 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
     } catch {}
   };
 
+  // V38G — Save a base64 file to the contact's files array ONLY if a file with
+  // the same name doesn't already exist. Returns true if saved, false if skipped.
+  const saveFileToContactIfNew = async (name: string, mime: string, data_base64: string): Promise<boolean> => {
+    if (!contactId) return false;
+    try {
+      // Check existing files (uses the light /contacts/{id} GET which returns files)
+      const c = await api<any>(`/contacts/${contactId}`);
+      const existing: any[] = Array.isArray(c?.files) ? c.files : [];
+      if (existing.some((f: any) => (f?.name || "").toLowerCase() === name.toLowerCase())) {
+        return false;
+      }
+      const bytes = Math.round((data_base64.length * 3) / 4);
+      await api(`/contacts/${contactId}/files`, {
+        method: "POST",
+        body: { name, mime, data_base64, size: bytes },
+      });
+      // Notify parent that contact.files changed so its state stays in sync.
+      try { onContactFilesChanged?.(); } catch {}
+      return true;
+    } catch (e) {
+      console.warn("saveFileToContactIfNew err", e);
+      return false;
+    }
+  };
+
+  // V38G — Build a printable HTML report of a single bill's AI extraction.
+  const buildBillAnalysisHtml = (bill: Bill, name: string): string => {
+    const ex = (bill.extracted || {}) as Record<string, any>;
+    const btMeta = SECTION_META[bill.bill_type as BillType] || SECTION_META.luce;
+    const generated = new Date(bill.analyzed_at || bill.created_at || Date.now()).toLocaleString("it-IT");
+
+    const escHtml = (s: any) => String(s ?? "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+
+    const renderValue = (v: any): string => {
+      if (v === null || v === undefined || v === "") return "—";
+      if (typeof v === "boolean") return v ? "Sì" : "No";
+      if (typeof v === "number") return String(v);
+      if (Array.isArray(v)) {
+        if (!v.length) return "—";
+        return `<ul style="margin:0;padding-left:18px;">${v.map((it) => `<li>${typeof it === "object" ? escHtml(JSON.stringify(it)) : escHtml(it)}</li>`).join("")}</ul>`;
+      }
+      if (typeof v === "object") {
+        const kv = Object.entries(v).map(([k, val]) => `<tr><td style="padding:4px 8px;color:#64748B;font-size:11px;">${escHtml(k)}</td><td style="padding:4px 8px;font-size:12px;">${renderValue(val)}</td></tr>`).join("");
+        return `<table style="border-collapse:collapse;width:100%;">${kv}</table>`;
+      }
+      return escHtml(v);
+    };
+
+    const rows = Object.entries(ex)
+      .filter(([k]) => !["raw_text_preview", "parse_error"].includes(k))
+      .map(([k, v]) => {
+        const label = k.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+        return `<tr>
+          <td style="padding:10px 12px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;font-weight:700;color:#0F172A;font-size:12px;width:38%;vertical-align:top;">${escHtml(label)}</td>
+          <td style="padding:10px 12px;background:#FFF;border-bottom:1px solid #E2E8F0;font-size:12px;color:#0F172A;vertical-align:top;">${renderValue(v)}</td>
+        </tr>`;
+      }).join("");
+
+    const params = Array.isArray(bill.analysis_params) ? bill.analysis_params : [];
+    const paramsBadges = params.length
+      ? `<div style="margin:14px 0 6px;">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#6B7280;margin-bottom:4px;">Parametri richiesti dall'operatore</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            ${params.map((p: string) => `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#EDE9FE;color:#5B21B6;font-size:10px;font-weight:700;">${escHtml(p)}</span>`).join("")}
+          </div>
+        </div>`
+      : "";
+
+    return `<!DOCTYPE html>
+<html lang="it"><head><meta charset="UTF-8"/>
+<title>Analisi Fattura ${escHtml(bill.bill_type.toUpperCase())} — ${escHtml(name)}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0F172A; margin: 28px; }
+  h1 { color: ${btMeta.color}; margin: 0 0 4px; font-size: 22px; }
+  .subtitle { color: #6B7280; font-size: 12px; margin-bottom: 14px; }
+  .banner { background: linear-gradient(135deg, ${btMeta.color}, ${btMeta.color}CC); color: #FFF; padding: 14px 18px; border-radius: 10px; margin-bottom: 18px; display: flex; align-items: center; gap: 12px; }
+  .banner-emoji { font-size: 26px; }
+  .banner-text { flex: 1; }
+  .banner-title { font-size: 16px; font-weight: 900; }
+  .banner-sub { font-size: 11px; opacity: 0.92; margin-top: 2px; }
+  table.kv { width: 100%; border-collapse: collapse; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #E5E7EB; font-size: 10px; color: #9CA3AF; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>📄 Analisi Fattura ${escHtml(btMeta.label)}</h1>
+  <div class="subtitle"><b>Cliente:</b> ${escHtml(name)} &nbsp;·&nbsp; <b>Documento:</b> ${escHtml(bill.pdf_name)} &nbsp;·&nbsp; <b>Analizzata:</b> ${escHtml(generated)}</div>
+  <div class="banner">
+    <div class="banner-emoji">${btMeta.emoji}</div>
+    <div class="banner-text">
+      <div class="banner-title">${escHtml(ex.fornitore || "—")}</div>
+      <div class="banner-sub">${escHtml(ex.nome_offerta || ex.tipo_offerta || "Offerta non specificata")}</div>
+    </div>
+  </div>
+  ${paramsBadges}
+  ${rows ? `<table class="kv">${rows}</table>` : "<p><i>Nessun dato estratto.</i></p>"}
+  <div class="footer">Report AI generato automaticamente con Claude Sonnet 5 · Dal Pastro CRM</div>
+</body></html>`;
+  };
+
+  // V38G — Auto-save the analysis PDF of a bill (fires once per bill_id per session).
+  const analysisSavedRef = useRef<Set<string>>(new Set());
+  const autoSaveBillAnalysis = async (bill: Bill) => {
+    if (!contactId || bill.status !== "done") return;
+    if (analysisSavedRef.current.has(bill.bill_id)) return;
+    const baseName = bill.pdf_name.replace(/\.pdf$/i, "");
+    const fileName = `Analisi-${baseName}.pdf`;
+    // Skip if already exists in contact files
+    try {
+      if (Platform.OS === "web") {
+        const html = buildBillAnalysisHtml(bill, contactName || "Cliente");
+        const bytes = new TextEncoder().encode(html);
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        const b64 = (globalThis as any).btoa(bin);
+        const saved = await saveFileToContactIfNew(fileName.replace(/\.pdf$/i, ".html"), "text/html", b64);
+        if (saved) notify("Analisi salvata", `${fileName.replace(/\.pdf$/i, ".html")} è ora nei File del cliente.`);
+      } else {
+        const html = buildBillAnalysisHtml(bill, contactName || "Cliente");
+        const { uri } = await Print.printToFileAsync({ html });
+        const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+        const saved = await saveFileToContactIfNew(fileName, "application/pdf", b64);
+        if (saved) notify("Analisi salvata", `${fileName} è ora nei File del cliente.`);
+      }
+      analysisSavedRef.current.add(bill.bill_id);
+    } catch (e) {
+      console.warn("autoSaveBillAnalysis err", e);
+    }
+  };
+
   // V38F — Save generated HTML/PDF to contact files automatically.
   // On native, we get a real PDF via Print.printToFileAsync + FileSystem.readAsString.
   // On web, we save the HTML string as text/html (browser can re-open and re-print).
+  // V38G — respects name uniqueness (skips if a file with the same name already exists).
   const autoSaveToContactFiles = async (html: string, kind: "report" | "comparison") => {
     if (!contactId) return;
     const now = new Date();
@@ -288,8 +432,8 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
       ? `Report-Fatture-${ts}`
       : `Comparazione-${ts}`;
     try {
+      let saved = false;
       if (Platform.OS === "web") {
-        // Encode HTML as base64 (utf-8 safe)
         const enc = (globalThis as any).TextEncoder ? new TextEncoder() : null;
         let b64: string;
         if (enc) {
@@ -300,29 +444,15 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
         } else {
           b64 = (globalThis as any).btoa(unescape(encodeURIComponent(html)));
         }
-        await api(`/contacts/${contactId}/files`, {
-          method: "POST",
-          body: {
-            name: `${baseName}.html`,
-            mime: "text/html",
-            data_base64: b64,
-            size: Math.round((b64.length * 3) / 4),
-          },
-        });
+        saved = await saveFileToContactIfNew(`${baseName}.html`, "text/html", b64);
       } else {
         const { uri } = await Print.printToFileAsync({ html });
         const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-        await api(`/contacts/${contactId}/files`, {
-          method: "POST",
-          body: {
-            name: `${baseName}.pdf`,
-            mime: "application/pdf",
-            data_base64: b64,
-            size: Math.round((b64.length * 3) / 4),
-          },
-        });
+        saved = await saveFileToContactIfNew(`${baseName}.pdf`, "application/pdf", b64);
       }
-      notify("Salvato nei file cliente", `${baseName} è stato salvato nella tab File del cliente.`);
+      if (saved) {
+        notify("Salvato nei file cliente", `${baseName} è stato salvato nella tab File del cliente.`);
+      }
     } catch (e: any) {
       console.warn("autoSave err", e);
     }
@@ -470,16 +600,21 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
         return;
       }
       const params = Array.from(selectedParams);
+      const uploadName = asset.name || `fattura-${bill_type}.pdf`;
       await api(`/contacts/${contactId}/bills`, {
         method: "POST",
         body: {
           bill_type,
           pdf_base64: b64,
-          pdf_name: asset.name || `fattura-${bill_type}.pdf`,
+          pdf_name: uploadName,
           pdf_mime: asset.mimeType || "application/pdf",
           analysis_params: params.length ? params : undefined,
         },
       });
+      // V38G — Also save the uploaded PDF into the contact's files array
+      // (unless a file with the same name already exists there — e.g. when the
+      // source was already "Da file cliente").
+      void saveFileToContactIfNew(uploadName, asset.mimeType || "application/pdf", b64);
       await load();
     } catch (e: any) {
       console.warn("upload bill err", e);
