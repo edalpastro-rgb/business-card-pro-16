@@ -11,6 +11,7 @@ import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
+type MyThingImage = { item_id: string; image_base64?: string | null };
 type Alerts = { unread: number; latest: { contract_id: string; contract_number?: string; supplier?: string; created_by?: string; created_at?: string }[] };
 type ReportStats = { period: string; start?: string; end?: string; stats: { energy: any; network: any } };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
@@ -18,7 +19,9 @@ type Settings = { energy_title: string; energy_color: string; network_title: str
 export default function MasterScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const [banner, setBanner] = useState<Banner>(null);
+  const [banner, setBanner] = useState<Banner>(null); // kept only for optional title/body from random-banner
+  const [myThingImages, setMyThingImages] = useState<string[]>([]);
+  const [myThingIdx, setMyThingIdx] = useState(0);
   const [alerts, setAlerts] = useState<Alerts>({ unread: 0, latest: [] });
   const [now, setNow] = useState(new Date());
   const [menuOpen, setMenuOpen] = useState(false);
@@ -27,7 +30,9 @@ export default function MasterScreen() {
   const [report, setReport] = useState<ReportStats | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [drill, setDrill] = useState<{ metric: MetricKey; area: "energy" | "network" | null; color: string; title: string } | null>(null);
+  const [voiceSignal, setVoiceSignal] = useState(0);
   const pulseAnim = React.useRef(new Animated.Value(0)).current;
+  const bannerFade = React.useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -36,13 +41,24 @@ export default function MasterScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [mt, al, r, s] = await Promise.all([
+      const [mt, mtList, al, r, s] = await Promise.all([
         api<{ item: Banner }>("/my-thing/random-banner").catch(() => ({ item: null })),
+        api<{ items: MyThingImage[] }>("/my-thing", { query: { kind: "image" } }).catch(() => ({ items: [] })),
         api<Alerts>("/contracts/new-alerts").catch(() => ({ unread: 0, latest: [] })),
         api<ReportStats>("/reports", { query: { period: "day" } }).catch(() => null),
         api<Settings>("/settings").catch(() => null),
       ]);
       setBanner(mt.item || null);
+      const imgs = (mtList.items || [])
+        .map((it) => it.image_base64)
+        .filter((v): v is string => !!v && v.length > 20);
+      // Shuffle for random rotation
+      for (let i = imgs.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [imgs[i], imgs[j]] = [imgs[j], imgs[i]];
+      }
+      setMyThingImages(imgs);
+      setMyThingIdx(0);
       setAlerts(al);
       setReport(r);
       setSettings(s);
@@ -52,6 +68,20 @@ export default function MasterScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Auto-cycle My Thing images every 10s with crossfade (same UX as Home)
+  useEffect(() => {
+    if (myThingImages.length < 2) return;
+    const id = setInterval(() => {
+      Animated.timing(bannerFade, { toValue: 0, duration: 350, useNativeDriver: true }).start(() => {
+        setMyThingIdx((n) => (n + 1) % myThingImages.length);
+        Animated.timing(bannerFade, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+      });
+    }, 10000);
+    return () => clearInterval(id);
+  }, [myThingImages, bannerFade]);
+
+  const currentBannerImg = myThingImages.length > 0 ? myThingImages[myThingIdx] : (banner?.image_base64 || null);
 
   useEffect(() => {
     if (alerts.unread > 0) {
@@ -81,12 +111,14 @@ export default function MasterScreen() {
 
   const buttons: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; badge?: number }[] = [
     { label: "Agenda", icon: "calendar", color: "#0891B2", onPress: () => goto("/(tabs)/calendario") },
-    { label: "New App", icon: "add-circle", color: "#16A34A", onPress: () => goto("/appointment/new") },
     { label: "New Contact", icon: "person-add", color: "#7C3AED", onPress: () => goto("/contact/new") },
     { label: "Chat Gruppo", icon: "chatbubbles", color: "#F59E0B", onPress: () => setChatPickerOpen(true) },
-    { label: "My Web", icon: "globe", color: "#DB2777", onPress: () => goto("/my-web") },
     { label: "Calcolatrice", icon: "calculator", color: "#6366F1", onPress: () => setCalcOpen(true) },
+    { label: "My Web", icon: "globe", color: "#DB2777", onPress: () => goto("/my-web") },
     { label: "New CRT", icon: "document-text", color: "#059669", onPress: handleNewContract, badge: alerts.unread },
+    { label: "New App", icon: "add-circle", color: "#16A34A", onPress: () => goto("/appointment/new") },
+    { label: "Registra audio", icon: "mic", color: "#DC2626", onPress: () => setVoiceSignal((s) => s + 1) },
+    { label: "I miei audio", icon: "folder-open", color: "#8B5CF6", onPress: () => goto("/my-audios") },
   ];
 
   return (
@@ -109,16 +141,16 @@ export default function MasterScreen() {
           </Pressable>
         </View>
 
-        {/* My Thing banner */}
+        {/* My Thing banner — slideshow with crossfade (same as Home) */}
         <Pressable onPress={() => router.push("/my-thing")} style={styles.bannerWrap} testID="master-banner">
-          {banner?.image_base64 ? (
-            <ImageBackground source={{ uri: `data:image/*;base64,${banner.image_base64}` }} style={styles.bannerImg} imageStyle={{ borderRadius: 16 }}>
-              <LinearGradient colors={["transparent", "rgba(0,0,0,0.55)"]} style={styles.bannerOverlay}>
-                <Text style={styles.bannerLabel}>My Thing</Text>
-                {banner.title ? <Text style={styles.bannerTitle} numberOfLines={1}>{banner.title}</Text> : null}
-                {banner.body ? <Text style={styles.bannerBody} numberOfLines={1}>{banner.body}</Text> : null}
-              </LinearGradient>
-            </ImageBackground>
+          {currentBannerImg ? (
+            <Animated.View style={{ opacity: bannerFade, borderRadius: 16, overflow: "hidden" }}>
+              <ImageBackground source={{ uri: `data:image/*;base64,${currentBannerImg}` }} style={styles.bannerImg} imageStyle={{ borderRadius: 16 }}>
+                <LinearGradient colors={["transparent", "rgba(0,0,0,0.35)"]} style={styles.bannerOverlay}>
+                  <Text style={styles.bannerLabel}>My Thing</Text>
+                </LinearGradient>
+              </ImageBackground>
+            </Animated.View>
           ) : (
             <LinearGradient colors={["#7C3AED", "#DB2777"]} style={styles.bannerFallback} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
               <Ionicons name="images" size={28} color="#FFF" />
@@ -167,12 +199,7 @@ export default function MasterScreen() {
           })}
         </View>
 
-        <MasterVoiceRecorder />
-        <Pressable onPress={() => router.push("/my-audios" as any)} style={styles.myAudiosLink} testID="master-my-audios-link">
-          <Ionicons name="folder-open" size={18} color="#7C3AED" />
-          <Text style={styles.myAudiosLinkTxt}>I miei audio</Text>
-          <Ionicons name="chevron-forward" size={16} color="#7C3AED" />
-        </Pressable>
+        <MasterVoiceRecorder hideTrigger startSignal={voiceSignal} />
       </ScrollView>
 
       {/* 3-dot menu */}

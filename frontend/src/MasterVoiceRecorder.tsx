@@ -16,7 +16,7 @@ type Phase = "idle" | "recording" | "review";
  * with play/retry controls, and the destinations are checkboxes that can combine multiple targets
  * (personal + clients + groups) at once.
  */
-export function MasterVoiceRecorder() {
+export function MasterVoiceRecorder({ hideTrigger, startSignal }: { hideTrigger?: boolean; startSignal?: number } = {}) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [duration, setDuration] = useState(0);
   const [audioB64, setAudioB64] = useState<string | null>(null);
@@ -67,6 +67,14 @@ export function MasterVoiceRecorder() {
       stopPlayback();
     };
   }, []);
+
+  // External trigger — parent can increment startSignal to begin recording
+  useEffect(() => {
+    if (typeof startSignal === "number" && startSignal > 0 && phase === "idle") {
+      void startRecording();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startSignal]);
 
   const supported = Platform.OS === "web" && typeof navigator !== "undefined" && !!navigator.mediaDevices && typeof (globalThis as any).MediaRecorder !== "undefined";
 
@@ -224,19 +232,37 @@ export function MasterVoiceRecorder() {
 
   return (
     <View style={styles.wrap}>
-      <Animated.View style={{ transform: [{ scale: pulse }] }}>
+      {!hideTrigger && (
+        <>
+          <Animated.View style={{ transform: [{ scale: pulse }] }}>
+            <Pressable
+              onPress={phase === "recording" ? stopRecording : startRecording}
+              disabled={phase !== "idle" && phase !== "recording"}
+              style={[styles.fab, { backgroundColor: phase === "recording" ? "#DC2626" : "#7C3AED" }, (phase !== "idle" && phase !== "recording") && { opacity: 0.6 }]}
+              testID="master-voice-fab"
+            >
+              <Ionicons name={phase === "recording" ? "stop" : "mic"} size={30} color="#FFF" />
+            </Pressable>
+          </Animated.View>
+          <Text style={styles.fabHint}>
+            {phase === "recording" ? `In registrazione… ${mmss}` : phase === "idle" ? "Registra audio" : "Elaborazione…"}
+          </Text>
+        </>
+      )}
+
+      {/* When trigger is hidden, still show a lightweight "recording indicator" overlay so the user knows recording is active. */}
+      {hideTrigger && phase === "recording" && (
         <Pressable
-          onPress={phase === "recording" ? stopRecording : startRecording}
-          disabled={phase !== "idle" && phase !== "recording"}
-          style={[styles.fab, { backgroundColor: phase === "recording" ? "#DC2626" : "#7C3AED" }, (phase !== "idle" && phase !== "recording") && { opacity: 0.6 }]}
-          testID="master-voice-fab"
+          onPress={stopRecording}
+          style={styles.recIndicator}
+          testID="master-voice-stop-inline"
         >
-          <Ionicons name={phase === "recording" ? "stop" : "mic"} size={30} color="#FFF" />
+          <Animated.View style={{ transform: [{ scale: pulse }], marginRight: 8 }}>
+            <View style={styles.recDot} />
+          </Animated.View>
+          <Text style={styles.recIndicatorTxt}>Registrazione… {mmss} — tocca per fermare</Text>
         </Pressable>
-      </Animated.View>
-      <Text style={styles.fabHint}>
-        {phase === "recording" ? `In registrazione… ${mmss}` : phase === "idle" ? "Registra audio" : "Elaborazione…"}
-      </Text>
+      )}
 
       {/* Review + destinations modal (single modal, file always visible) */}
       <Modal transparent visible={phase === "review"} onRequestClose={() => setConfirmClose(true)} animationType="slide">
@@ -431,6 +457,19 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 const styles = StyleSheet.create({
   wrap: { alignItems: "center", marginTop: 16, marginBottom: 20 },
+  recIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#DC2626",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginTop: 4,
+    alignSelf: "center",
+  },
+  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFF" },
+  recIndicatorTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
   fab: {
     width: 76, height: 76, borderRadius: 38, alignItems: "center", justifyContent: "center",
     shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
