@@ -1,0 +1,31 @@
+{
+  "summary": "V38E Step 1 verified end-to-end (backend smoke + frontend Playwright). (1) Tab neutrality: with Info selected only tab-info renders in brand blue rgb(28,72,105) and the other 6 tabs (notes/files/bills/audio/calls/appts) are neutral grey rgb(107,122,138) — importantly tab-bills is grey with NO orange dot or faint background when inactive. When tab-bills is selected, only tab-bills renders orange rgb(234,88,12) = #EA580C with underline + rgba(234,88,12,0.08) tint, all others revert to grey. Verified via computed style probing of the Ionicon <svg><path fill=…>. (2) Source picker modal: tapping bill-upload-luce opens a centered fade-in modal titled 'Carica fattura Luce' with two rows exposing testIDs bill-source-device and bill-source-contact-files; backdrop-click and close X both dismiss the modal (verified — after backdrop click the source picker is no longer present in the DOM). (3) Contact files picker empty state: tapping 'Da file cliente' on a contact without PDFs opens a bottom-sheet modal titled 'File del cliente (PDF)', shows spinner briefly, then the empty-state text 'Nessun PDF trovato nella scheda del cliente. Carica prima un file dalla tab File.' with a working close testID bill-contact-files-close. (4) Populated case: after POSTing a small PDF to /api/contacts/{cid}/files via the app's own token, the bottom sheet renders exactly 1 row with testID bill-contact-file-<uuid>; tapping it closes the sheet and opens the params-config modal where bill-config-confirm is present and the file name is pre-filled in the header ('TEST_V38E_UI.pdf'). (5) Backend smoke — GET /api/contacts/{id} returns the files array with all fields (id, name, mime, data_base64, size, created_at); the picker's client-side PDF filter works because non-PDF files carry the correct mime for exclusion. Backend pytest 3/3 PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38e_source_picker.py",
+    "/app/test_reports/pytest/v38e_source_picker.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/app/frontend/app/contact/[id].tsx: activeColor = t === 'bills' ? '#EA580C' : theme.color.brandPrimary and iconColor = active ? activeColor : theme.color.muted correctly implements the neutrality rule; the previous always-visible orange dot badge / faint bg on tab-bills has been removed (confirmed at runtime — background is rgba(0,0,0,0) when inactive).",
+    "/app/frontend/src/BillsSection.tsx (lines 1017-1122): Source picker modal uses animationType='fade' + centered card; outer Pressable dismisses on backdrop, inner card stops propagation via onPress={e => e.stopPropagation()}. Clean pattern.",
+    "Contact files picker filters PDFs client-side from the loaded contact.files (mime === 'application/pdf'); no re-upload, no re-fetch of pdf_base64 — data_base64 is already returned by GET /api/contacts/{id}. Efficient and matches the spec.",
+    "TestIDs consistently defined: bill-source-device, bill-source-contact-files, bill-contact-files-close, bill-contact-file-<id>, bill-upload-<bill_type>, bill-config-confirm. Auto-tests can navigate the whole flow reliably now.",
+    "BillsSection.tsx is 2113 lines — approaches the 700-line guideline breach; consider splitting the source picker + contact files picker + params-config modal into separate components in a future refactor (out of scope for V38E Step 1)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v38e_source_picker.py (new, 3 tests, all pass)"
+  ],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "100% (5/5 scenarios: tab neutrality info-selected, tab neutrality bills-selected, source picker open+dismiss, contact files picker empty state, contact files picker populated → config modal)"},
+  "seed_data_creation": "One PDF file (TEST_V38E_UI.pdf) was uploaded to contact c_fd119504ff62 during the populated-picker UI test and DELETED afterwards via DELETE /api/contacts/{cid}/files/{file_id} — no leftover data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The contact detail tab bar now exposes testIDs tab-info/tab-notes/tab-files/tab-bills/tab-audio/tab-calls/tab-appts — future flows can navigate directly via [data-testid=\"tab-bills\"]. To get an authenticated fetch token client-side, read localStorage.auth_token_v1 and strip the surrounding JSON quotes: JSON.parse(t) returns the raw JWT string. The BillsSection source picker keeps a small styling nit: the empty-state message uses '\\n' inside a single Text — RN renders it fine but Playwright's text=/Nessun PDF trovato/i is the reliable selector.",
+  "rca_of_issue": "N/A — this iteration verifies a feature addition, no bugs found. V38E Step 1 acceptance criteria are fully met (tab color neutrality + source picker + contact-files sub-picker + config modal integration)."
+}

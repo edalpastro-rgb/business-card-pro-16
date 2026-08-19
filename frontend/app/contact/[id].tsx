@@ -399,12 +399,10 @@ export default function ContactDetail() {
             : "calendar";
           const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Telefonate" : "Appuntamenti";
           const active = tab === t;
-          const isBills = t === "bills";
-          // V38: Fatture tab (most important) gets a distinctive orange/red color scheme
-          const BILLS_COLOR = "#EA580C";
-          const iconColor = isBills
-            ? (active ? BILLS_COLOR : BILLS_COLOR)
-            : (active ? theme.color.brandPrimary : theme.color.muted);
+          // V38E: All non-selected tabs are neutral grey; only the active tab is colored.
+          // Fatture tab keeps a distinctive orange when active (still the most important section).
+          const activeColor = t === "bills" ? "#EA580C" : theme.color.brandPrimary;
+          const iconColor = active ? activeColor : theme.color.muted;
           return (
             <Pressable
               key={t}
@@ -413,16 +411,12 @@ export default function ContactDetail() {
               accessibilityLabel={label}
               style={[
                 styles.tabIcon,
-                active && (isBills
-                  ? { borderBottomColor: BILLS_COLOR, backgroundColor: BILLS_COLOR + "15" }
+                active && (t === "bills"
+                  ? { borderBottomColor: activeColor, backgroundColor: activeColor + "15" }
                   : styles.tabIconActive),
-                isBills && !active && { backgroundColor: BILLS_COLOR + "10" },
               ]}
             >
-              <Ionicons name={iconName} size={isBills ? 22 : 20} color={iconColor} />
-              {isBills && (
-                <View style={{ position: "absolute", top: 4, right: 8, width: 6, height: 6, borderRadius: 3, backgroundColor: BILLS_COLOR }} />
-              )}
+              <Ionicons name={iconName} size={20} color={iconColor} />
             </Pressable>
           );
         })}

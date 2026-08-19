@@ -124,6 +124,11 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
   const [selectedParams, setSelectedParams] = useState<Set<string>>(new Set());
   const [customParam, setCustomParam] = useState("");
   const [customParams, setCustomParams] = useState<string[]>([]);
+  // V38E — source picker (device vs contact files)
+  const [sourcePickerBillType, setSourcePickerBillType] = useState<BillType | null>(null);
+  const [contactFilesPicker, setContactFilesPicker] = useState<null | { bill_type: BillType }>(null);
+  const [contactPdfFiles, setContactPdfFiles] = useState<any[]>([]);
+  const [loadingContactFiles, setLoadingContactFiles] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -291,7 +296,14 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
     }
   };
 
-  const uploadPdf = async (bill_type: BillType) => {
+  // V38E: Entry point — opens the source picker (device vs contact files).
+  const uploadPdf = (bill_type: BillType) => {
+    setSourcePickerBillType(bill_type);
+  };
+
+  // Legacy device pick flow (moved out of uploadPdf so we can reuse from source picker)
+  const pickFromDevice = async (bill_type: BillType) => {
+    setSourcePickerBillType(null);
     try {
       const res = await DocumentPicker.getDocumentAsync({
         type: "application/pdf",
@@ -300,16 +312,57 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
       });
       if (res.canceled || !res.assets?.[0]) return;
       const asset = res.assets[0];
-      // V38: Open config modal with default params before starting analysis
-      const defaults = new Set<string>(DEFAULT_PARAMS[bill_type].filter((p) => p.defaultOn).map((p) => p.label));
-      setSelectedParams(defaults);
-      setCustomParams([]);
-      setCustomParam("");
-      setPendingUpload({ bill_type, asset });
+      openParamsModalFor(bill_type, { name: asset.name, mimeType: asset.mimeType, uri: asset.uri });
     } catch (e: any) {
       console.warn("upload bill err", e);
       notify("Errore caricamento", e?.message || "Impossibile caricare la fattura");
     }
+  };
+
+  const openParamsModalFor = (bill_type: BillType, asset: { name?: string; mimeType?: string; uri: string }) => {
+    const defaults = new Set<string>(DEFAULT_PARAMS[bill_type].filter((p) => p.defaultOn).map((p) => p.label));
+    setSelectedParams(defaults);
+    setCustomParams([]);
+    setCustomParam("");
+    setPendingUpload({ bill_type, asset });
+  };
+
+  // V38E — Pick from files already attached to the contact
+  const pickFromContactFiles = async (bill_type: BillType) => {
+    setSourcePickerBillType(null);
+    setContactFilesPicker({ bill_type });
+    setLoadingContactFiles(true);
+    try {
+      const c = await api<any>(`/contacts/${contactId}`);
+      const files: any[] = Array.isArray(c?.files) ? c.files : [];
+      // Filter to PDFs only
+      const pdfs = files.filter((f: any) => {
+        const mime = String(f.mime || "").toLowerCase();
+        const name = String(f.name || "").toLowerCase();
+        return mime.includes("pdf") || name.endsWith(".pdf");
+      });
+      setContactPdfFiles(pdfs);
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile caricare i file del cliente");
+      setContactPdfFiles([]);
+    } finally {
+      setLoadingContactFiles(false);
+    }
+  };
+
+  const selectContactFileAsBill = (f: any) => {
+    if (!contactFilesPicker) return;
+    const bill_type = contactFilesPicker.bill_type;
+    setContactFilesPicker(null);
+    // Build a synthetic "asset" that carries the already-loaded base64 directly.
+    // We stash the raw base64 in a special uri prefix so the confirm handler can pick it.
+    const asset = {
+      name: f.name || `fattura-${bill_type}.pdf`,
+      mimeType: f.mime || "application/pdf",
+      uri: `contactfile://${f.id}`,
+      _base64: f.data_base64 || "",
+    } as any;
+    openParamsModalFor(bill_type, asset);
   };
 
   const toggleParam = (label: string) => {
@@ -350,11 +403,12 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
 
   const confirmUploadWithParams = async () => {
     if (!pendingUpload) return;
-    const { bill_type, asset } = pendingUpload;
+    const { bill_type, asset } = pendingUpload as { bill_type: BillType; asset: any };
     setPendingUpload(null);
     try {
       setUploading(bill_type);
-      const b64 = await uriToBase64(asset.uri);
+      // V38E: if the asset already carries base64 (from contact files) use it directly
+      const b64 = asset._base64 ? String(asset._base64) : await uriToBase64(asset.uri);
       const bytes = Math.round((b64.length * 3) / 4);
       if (bytes > 12 * 1024 * 1024) {
         notify("PDF troppo grande", "Massimo 12 MB per fattura.");
@@ -955,6 +1009,114 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
                 </>
               );
             })()}
+          </View>
+        </View>
+      </Modal>
+
+      {/* V38E — Source picker: device vs contact files */}
+      <Modal
+        visible={sourcePickerBillType !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSourcePickerBillType(null)}
+      >
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 }} onPress={() => setSourcePickerBillType(null)}>
+          <Pressable style={{ backgroundColor: "#FFF", borderRadius: 16, padding: 20, width: "100%", maxWidth: 340, gap: 12 }} onPress={(e) => e.stopPropagation()}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ fontSize: 16, fontWeight: "800", color: theme.color.onSurface }}>
+                Carica fattura {sourcePickerBillType ? SECTION_META[sourcePickerBillType].label : ""}
+              </Text>
+              <Pressable onPress={() => setSourcePickerBillType(null)} hitSlop={8}>
+                <Ionicons name="close" size={22} color={theme.color.muted} />
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: -4 }}>
+              Scegli la sorgente del PDF
+            </Text>
+            <Pressable
+              testID="bill-source-device"
+              onPress={() => sourcePickerBillType && pickFromDevice(sourcePickerBillType)}
+              style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, gap: 12 }}
+            >
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#DBEAFE", justifyContent: "center", alignItems: "center" }}>
+                <Ionicons name="cloud-upload-outline" size={22} color="#1D4ED8" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: theme.color.onSurface }}>Dal dispositivo</Text>
+                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>Scegli un PDF dai tuoi file locali</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+            </Pressable>
+            <Pressable
+              testID="bill-source-contact-files"
+              onPress={() => sourcePickerBillType && pickFromContactFiles(sourcePickerBillType)}
+              style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, gap: 12 }}
+            >
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#DCFCE7", justifyContent: "center", alignItems: "center" }}>
+                <Ionicons name="folder-open-outline" size={22} color="#15803D" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: theme.color.onSurface }}>Da file cliente</Text>
+                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>Usa un PDF già presente nella scheda</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* V38E — Contact files picker (PDFs only) */}
+      <Modal
+        visible={contactFilesPicker !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setContactFilesPicker(null)}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%" }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: "800", color: theme.color.onSurface }}>File del cliente (PDF)</Text>
+                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>Seleziona un file già caricato</Text>
+              </View>
+              <Pressable onPress={() => setContactFilesPicker(null)} hitSlop={8} testID="bill-contact-files-close">
+                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+              </Pressable>
+            </View>
+            {loadingContactFiles ? (
+              <View style={{ padding: 30, alignItems: "center" }}>
+                <ActivityIndicator color={theme.color.brandPrimary} />
+                <Text style={{ marginTop: 8, color: theme.color.muted, fontSize: 12 }}>Carico i file…</Text>
+              </View>
+            ) : contactPdfFiles.length === 0 ? (
+              <View style={{ padding: 30, alignItems: "center" }}>
+                <Ionicons name="document-outline" size={40} color={theme.color.muted} />
+                <Text style={{ marginTop: 8, color: theme.color.muted, fontSize: 13, textAlign: "center" }}>
+                  Nessun PDF trovato nella scheda del cliente.{"\n"}Carica prima un file dalla tab File.
+                </Text>
+              </View>
+            ) : (
+              <ScrollView>
+                {contactPdfFiles.map((f: any) => (
+                  <Pressable
+                    key={f.id}
+                    testID={`bill-contact-file-${f.id}`}
+                    onPress={() => selectContactFileAsBill(f)}
+                    style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border, flexDirection: "row", alignItems: "center", gap: 12 }}
+                  >
+                    <Ionicons name="document-text" size={22} color="#DC2626" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: theme.color.onSurface }} numberOfLines={1}>{f.name}</Text>
+                      <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>
+                        {f.size ? `${Math.round(f.size / 1024)} KB` : ""}
+                        {f.created_at ? ` · ${new Date(f.created_at).toLocaleDateString("it-IT")}` : ""}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
