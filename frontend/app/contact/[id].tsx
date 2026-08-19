@@ -399,15 +399,30 @@ export default function ContactDetail() {
             : "calendar";
           const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Telefonate" : "Appuntamenti";
           const active = tab === t;
+          const isBills = t === "bills";
+          // V38: Fatture tab (most important) gets a distinctive orange/red color scheme
+          const BILLS_COLOR = "#EA580C";
+          const iconColor = isBills
+            ? (active ? BILLS_COLOR : BILLS_COLOR)
+            : (active ? theme.color.brandPrimary : theme.color.muted);
           return (
             <Pressable
               key={t}
               testID={`tab-${t}`}
               onPress={() => setTab(t)}
               accessibilityLabel={label}
-              style={[styles.tabIcon, active && styles.tabIconActive]}
+              style={[
+                styles.tabIcon,
+                active && (isBills
+                  ? { borderBottomColor: BILLS_COLOR, backgroundColor: BILLS_COLOR + "15" }
+                  : styles.tabIconActive),
+                isBills && !active && { backgroundColor: BILLS_COLOR + "10" },
+              ]}
             >
-              <Ionicons name={iconName} size={20} color={active ? theme.color.brandPrimary : theme.color.muted} />
+              <Ionicons name={iconName} size={isBills ? 22 : 20} color={iconColor} />
+              {isBills && (
+                <View style={{ position: "absolute", top: 4, right: 8, width: 6, height: 6, borderRadius: 3, backgroundColor: BILLS_COLOR }} />
+              )}
             </Pressable>
           );
         })}

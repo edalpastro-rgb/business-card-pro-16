@@ -1,0 +1,21 @@
+{
+  "summary": "V38 iter2 — /bills/comparison HTTP 502 FIX VERIFIED. Split BASIC+RICH parallel LLM approach works: seeded (done luce bill + done luce offer) returns 200 in 22.6s (well under 60s ingress). Merged response contains ALL 5 BASIC fields (sintesi, vantaggi_offerta_aziendale, svantaggi_offerta_aziendale, raccomandazione, risparmio_annuo_stimato_eur) AND ALL 6 RICH fields (impronta_energetica, dettaglio_fasce, analisi_contratto_attuale, calcolo_risparmio, matrice_confronto, executive_summary). Error paths still fast: 400 no-bills=0.12s, 400 no-matching-offer=0.12s ('Nessuna coppia'). 3/3 pytest passed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_v38b_comparison_502fix.py",
+    "/app/test_reports/pytest/v38b_502fix.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py exceeds 4700 lines — should be split into modules (bills, offers, comparison, auth, contacts) for maintainability.",
+    "COMPARISON_PROMPT = COMPARISON_PROMPT_BASIC is dead code (legacy fallback) — safe to remove."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "N/A"},
+  "seed_data_creation": "Ephemeral seeded via motor: 1 done luce bill + 1 done luce offer for the pair test; 1 done luce bill + 1 done gas offer (with any existing luce offers temporarily hidden) for the no-match test. All cleaned up in finally blocks.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Comparison endpoint 502 fix is stable. Total wall clock ~22s for a single pair (BASIC and RICH run concurrently via asyncio.gather). If multiple bill_types (luce+gas+telco) are seeded, they run in an outer gather too, so total remains ~max(BASIC,RICH) per pair. Ingress timeout appears to be 60s. Test file test_v38b_comparison_502fix.py is idempotent and reusable.",
+  "rca_of_issue": "Previous 502 root cause: single monolithic COMPARISON_PROMPT LLM call took 40-60s and exceeded ~60s ingress timeout, especially when 3 sequential calls (luce/gas/telco) were made. Fix (verified): split into COMPARISON_PROMPT_BASIC (~800 chars) and COMPARISON_PROMPT_RICH (~2000 chars) run in parallel via asyncio.gather in _llm_compare_offers(); merged dict returned. Individual calls each ~20-30s, so wall clock is dominated by the slower one. Additionally, multiple bill_type pairs are also gathered in parallel at the endpoint level. If one call fails, the other's data is preserved and a partial_error field is added."
+}

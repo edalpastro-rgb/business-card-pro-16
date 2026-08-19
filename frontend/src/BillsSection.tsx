@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform, Linking, TextInput } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform, Linking, TextInput, Modal } from "react-native";
 import Svg, { Rect, Text as SvgText, Line } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -20,9 +20,10 @@ type Bill = {
   bill_type: BillType;
   pdf_name: string;
   pdf_size?: number;
-  status: "pending" | "analyzing" | "done" | "error";
+  status: "pending" | "analyzing" | "done" | "error" | "cancelled";
   error_message?: string | null;
   extracted?: Record<string, any> | null;
+  analysis_params?: string[] | null;
   created_at: string;
   analyzed_at?: string | null;
 };
@@ -40,6 +41,58 @@ const STATUS_META = {
   analyzing: { label: "Analisi in corso…", color: "#0891B2", icon: "sync" as const },
   done: { label: "Analizzata", color: "#16A34A", icon: "checkmark-circle" as const },
   error: { label: "Errore", color: "#DC2626", icon: "warning" as const },
+  cancelled: { label: "Annullata", color: "#78716C", icon: "close-circle" as const },
+};
+
+// V38 — Default analysis parameters per bill type. Each has: id, label, default checked
+type ParamDef = { id: string; label: string; defaultOn: boolean };
+const DEFAULT_PARAMS: Record<BillType, ParamDef[]> = {
+  luce: [
+    { id: "fornitore", label: "Fornitore", defaultOn: true },
+    { id: "pod", label: "POD", defaultOn: true },
+    { id: "spread", label: "Spread €/kWh", defaultOn: true },
+    { id: "prezzo_energia", label: "Prezzo energia €/kWh", defaultOn: true },
+    { id: "consumi_f1", label: "Consumi F1 (kWh)", defaultOn: true },
+    { id: "consumi_f2", label: "Consumi F2 (kWh)", defaultOn: true },
+    { id: "consumi_f3", label: "Consumi F3 (kWh)", defaultOn: true },
+    { id: "consumo_annuo", label: "Consumo totale 12 mesi", defaultOn: true },
+    { id: "potenza", label: "Potenza impegnata (kW)", defaultOn: true },
+    { id: "tensione", label: "Tensione", defaultOn: false },
+    { id: "costi_fissi", label: "Costi fissi mensili", defaultOn: true },
+    { id: "iva", label: "IVA %", defaultOn: false },
+    { id: "asos", label: "Oneri ASOS/ARIM", defaultOn: true },
+    { id: "durata_contratto", label: "Durata contratto", defaultOn: true },
+    { id: "penale_disdetta", label: "Penale disdetta", defaultOn: true },
+    { id: "scadenza", label: "Data scadenza", defaultOn: true },
+    { id: "importo_totale", label: "Importo totale", defaultOn: true },
+  ],
+  gas: [
+    { id: "fornitore", label: "Fornitore", defaultOn: true },
+    { id: "pdr", label: "PDR", defaultOn: true },
+    { id: "spread", label: "Spread €/SMC", defaultOn: true },
+    { id: "prezzo_gas", label: "Prezzo gas €/SMC", defaultOn: true },
+    { id: "consumo_annuo_smc", label: "Consumo annuo SMC", defaultOn: true },
+    { id: "accisa", label: "Accisa €/SMC", defaultOn: true },
+    { id: "costi_fissi", label: "Costi fissi mensili", defaultOn: true },
+    { id: "iva", label: "IVA %", defaultOn: false },
+    { id: "durata_contratto", label: "Durata contratto", defaultOn: true },
+    { id: "penale_disdetta", label: "Penale disdetta", defaultOn: true },
+    { id: "scadenza", label: "Data scadenza", defaultOn: true },
+    { id: "importo_totale", label: "Importo totale", defaultOn: true },
+  ],
+  telco: [
+    { id: "fornitore", label: "Fornitore", defaultOn: true },
+    { id: "numero_telefono", label: "Numero telefono", defaultOn: true },
+    { id: "costo_mensile", label: "Costo mensile", defaultOn: true },
+    { id: "costo_annuale", label: "Costo annuale", defaultOn: true },
+    { id: "velocita_download", label: "Velocità download (Mbps)", defaultOn: true },
+    { id: "velocita_upload", label: "Velocità upload (Mbps)", defaultOn: true },
+    { id: "servizi_inclusi", label: "Servizi inclusi", defaultOn: true },
+    { id: "durata_contratto", label: "Durata contratto", defaultOn: true },
+    { id: "penale_disdetta", label: "Penale disdetta", defaultOn: true },
+    { id: "codice_migrazione", label: "Codice migrazione", defaultOn: false },
+    { id: "scadenza", label: "Data scadenza", defaultOn: true },
+  ],
 };
 
 type Offer = {
@@ -66,6 +119,11 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [reportBusy, setReportBusy] = useState(false);
   const [comparisonBusy, setComparisonBusy] = useState(false);
+  // V38 — pending upload waiting for user parameter selection
+  const [pendingUpload, setPendingUpload] = useState<null | { bill_type: BillType; asset: { name?: string; mimeType?: string; uri: string } }>(null);
+  const [selectedParams, setSelectedParams] = useState<Set<string>>(new Set());
+  const [customParam, setCustomParam] = useState("");
+  const [customParams, setCustomParams] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -164,17 +222,62 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
     ]);
   };
 
+  // V38: Render HTML to PDF/print without opening any popup window.
+  // On web: create an offscreen iframe, print, then remove. Also offer a download fallback.
+  const printHtmlOnWeb = (html: string, downloadName: string) => {
+    const win = (globalThis as any).window;
+    const doc: any = win?.document;
+    if (!win || !doc) return;
+    const iframe = doc.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.setAttribute("aria-hidden", "true");
+    doc.body.appendChild(iframe);
+    const cw = iframe.contentWindow;
+    const cd = iframe.contentDocument || cw?.document;
+    if (!cd) { doc.body.removeChild(iframe); return; }
+    cd.open();
+    cd.write(html);
+    cd.close();
+    const doPrint = () => {
+      try {
+        cw?.focus();
+        cw?.print();
+      } catch {}
+      // Remove after a longer delay to let print dialog settle
+      setTimeout(() => { try { doc.body.removeChild(iframe); } catch {} }, 4000);
+    };
+    // Wait for content to load
+    if (cd.readyState === "complete") {
+      setTimeout(doPrint, 250);
+    } else {
+      iframe.onload = () => setTimeout(doPrint, 250);
+    }
+    // Also offer a download fallback in case the print dialog is blocked
+    try {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = doc.createElement("a");
+      a.href = url;
+      a.download = downloadName.replace(/\.pdf$/i, ".html");
+      a.style.display = "none";
+      doc.body.appendChild(a);
+      // Only auto-download on browsers that block print — skip for now, user can use print dialog "save as PDF"
+      setTimeout(() => { try { doc.body.removeChild(a); URL.revokeObjectURL(url); } catch {} }, 60_000);
+    } catch {}
+  };
+
   const generateComparison = async () => {
     try {
       setComparisonBusy(true);
       const rep = await api<any>(`/contacts/${contactId}/bills/comparison`);
       const html = buildComparisonHtml(rep, contactName);
       if (Platform.OS === "web") {
-        const win = (globalThis as any).window;
-        if (win?.open) {
-          const w = win.open("", "_blank");
-          if (w) { w.document.write(html); w.document.close(); setTimeout(() => { try { w.print(); } catch {} }, 400); }
-        }
+        printHtmlOnWeb(html, `confronto-${contactName || "cliente"}.pdf`);
         return;
       }
       const { uri } = await Print.printToFileAsync({ html });
@@ -197,20 +300,68 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
       });
       if (res.canceled || !res.assets?.[0]) return;
       const asset = res.assets[0];
+      // V38: Open config modal with default params before starting analysis
+      const defaults = new Set<string>(DEFAULT_PARAMS[bill_type].filter((p) => p.defaultOn).map((p) => p.label));
+      setSelectedParams(defaults);
+      setCustomParams([]);
+      setCustomParam("");
+      setPendingUpload({ bill_type, asset });
+    } catch (e: any) {
+      console.warn("upload bill err", e);
+      notify("Errore caricamento", e?.message || "Impossibile caricare la fattura");
+    }
+  };
+
+  const toggleParam = (label: string) => {
+    setSelectedParams((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      return next;
+    });
+  };
+
+  const addCustomParam = () => {
+    const p = customParam.trim();
+    if (!p) return;
+    if (customParams.includes(p) || selectedParams.has(p)) {
+      setCustomParam("");
+      return;
+    }
+    setCustomParams((prev) => [...prev, p]);
+    setSelectedParams((prev) => new Set(prev).add(p));
+    setCustomParam("");
+  };
+
+  const removeCustomParam = (p: string) => {
+    setCustomParams((prev) => prev.filter((x) => x !== p));
+    setSelectedParams((prev) => {
+      const next = new Set(prev);
+      next.delete(p);
+      return next;
+    });
+  };
+
+  const cancelPendingUpload = () => {
+    setPendingUpload(null);
+    setSelectedParams(new Set());
+    setCustomParams([]);
+    setCustomParam("");
+  };
+
+  const confirmUploadWithParams = async () => {
+    if (!pendingUpload) return;
+    const { bill_type, asset } = pendingUpload;
+    setPendingUpload(null);
+    try {
       setUploading(bill_type);
-      let b64: string;
-      if (Platform.OS === "web") {
-        // On web the URI is often a blob URL — use fetch+FileReader via uriToBase64
-        b64 = await uriToBase64(asset.uri);
-      } else {
-        b64 = await uriToBase64(asset.uri);
-      }
+      const b64 = await uriToBase64(asset.uri);
       const bytes = Math.round((b64.length * 3) / 4);
       if (bytes > 12 * 1024 * 1024) {
         notify("PDF troppo grande", "Massimo 12 MB per fattura.");
         setUploading(null);
         return;
       }
+      const params = Array.from(selectedParams);
       await api(`/contacts/${contactId}/bills`, {
         method: "POST",
         body: {
@@ -218,6 +369,7 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
           pdf_base64: b64,
           pdf_name: asset.name || `fattura-${bill_type}.pdf`,
           pdf_mime: asset.mimeType || "application/pdf",
+          analysis_params: params.length ? params : undefined,
         },
       });
       await load();
@@ -226,6 +378,18 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
       notify("Errore caricamento", e?.message || "Impossibile caricare la fattura");
     } finally {
       setUploading(null);
+      setSelectedParams(new Set());
+      setCustomParams([]);
+      setCustomParam("");
+    }
+  };
+
+  const cancelBillAnalysis = async (bill: Bill) => {
+    try {
+      await api(`/contacts/${contactId}/bills/${bill.bill_id}/cancel`, { method: "POST" });
+      await load();
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile annullare l'analisi");
     }
   };
 
@@ -312,16 +476,7 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
       const rep = await api<any>(`/contacts/${contactId}/bills/report`);
       const html = buildReportHtml(rep, contactName);
       if (Platform.OS === "web") {
-        // Fallback: open a printable window
-        const win = (globalThis as any).window;
-        if (win?.open) {
-          const w = win.open("", "_blank");
-          if (w) {
-            w.document.write(html);
-            w.document.close();
-            setTimeout(() => { try { w.print(); } catch {} }, 400);
-          }
-        }
+        printHtmlOnWeb(html, `report-fatture-${contactName || "cliente"}.pdf`);
         return;
       }
       const { uri } = await Print.printToFileAsync({ html });
@@ -508,6 +663,26 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
                           ) : null}
                         </View>
                       </View>
+                      {/* V38: Quick cancel button always available while analyzing */}
+                      {(b.status === "pending" || b.status === "analyzing") && (
+                        <Pressable
+                          testID={`bill-cancel-header-${b.bill_id}`}
+                          onPress={(e: any) => { e?.stopPropagation?.(); cancelBillAnalysis(b); }}
+                          hitSlop={8}
+                          style={{ padding: 6, marginRight: 4 }}
+                        >
+                          <Ionicons name="stop-circle" size={20} color="#EA580C" />
+                        </Pressable>
+                      )}
+                      {/* V38: Quick delete button always available (any status, any bill count) */}
+                      <Pressable
+                        testID={`bill-delete-header-${b.bill_id}`}
+                        onPress={(e: any) => { e?.stopPropagation?.(); deleteBill(b); }}
+                        hitSlop={8}
+                        style={{ padding: 6, marginRight: 4 }}
+                      >
+                        <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      </Pressable>
                       <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color={theme.color.muted} />
                     </Pressable>
 
@@ -576,7 +751,17 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
                             <Ionicons name="eye-outline" size={14} color={theme.color.onSurface} />
                             <Text style={styles.actBtnTxt}>Apri PDF</Text>
                           </Pressable>
-                          {(b.status === "error" || b.status === "done") && (
+                          {(b.status === "pending" || b.status === "analyzing") && (
+                            <Pressable
+                              testID={`bill-cancel-${b.bill_id}`}
+                              onPress={() => cancelBillAnalysis(b)}
+                              style={[styles.actBtn, { backgroundColor: "#FEF3C7" }]}
+                            >
+                              <Ionicons name="stop-circle-outline" size={14} color="#B45309" />
+                              <Text style={[styles.actBtnTxt, { color: "#B45309" }]}>Annulla analisi</Text>
+                            </Pressable>
+                          )}
+                          {(b.status === "error" || b.status === "done" || b.status === "cancelled") && (
                             <Pressable testID={`bill-reanalyze-${b.bill_id}`} onPress={() => reanalyze(b)} style={[styles.actBtn, { backgroundColor: "#DBEAFE" }]}>
                               <Ionicons name="refresh" size={14} color="#1D4ED8" />
                               <Text style={[styles.actBtnTxt, { color: "#1D4ED8" }]}>Ri-analizza</Text>
@@ -648,6 +833,140 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
         );
       })()}
       </ScrollView>
+
+      {/* V38 — Analysis parameters config modal */}
+      <Modal visible={!!pendingUpload} animationType="slide" transparent onRequestClose={cancelPendingUpload}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" }}>
+            {pendingUpload && (() => {
+              const bt = pendingUpload.bill_type;
+              const meta = SECTION_META[bt];
+              const defs = DEFAULT_PARAMS[bt];
+              return (
+                <>
+                  <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <Text style={{ fontSize: 20 }}>{meta.emoji}</Text>
+                        <View>
+                          <Text style={{ fontSize: 15, fontWeight: "800", color: theme.color.onSurface }}>Parametri da estrarre</Text>
+                          <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 1 }} numberOfLines={1}>{pendingUpload.asset.name || `fattura-${bt}.pdf`}</Text>
+                        </View>
+                      </View>
+                      <Pressable onPress={cancelPendingUpload} hitSlop={8} testID="bill-config-close">
+                        <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                      </Pressable>
+                    </View>
+                    <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 8, lineHeight: 15 }}>
+                      Scegli quali parametri vuoi che l&apos;AI estragga con priorità. Puoi anche aggiungerne di personalizzati.
+                    </Text>
+                  </View>
+
+                  <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 12 }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginBottom: 6 }}>PARAMETRI STANDARD</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                      {defs.map((p) => {
+                        const on = selectedParams.has(p.label);
+                        return (
+                          <Pressable
+                            key={p.id}
+                            testID={`param-${p.id}`}
+                            onPress={() => toggleParam(p.label)}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                              paddingHorizontal: 10,
+                              paddingVertical: 6,
+                              borderRadius: 20,
+                              borderWidth: 1,
+                              borderColor: on ? meta.color : theme.color.border,
+                              backgroundColor: on ? meta.color + "18" : "#FFF",
+                            }}
+                          >
+                            <Ionicons name={on ? "checkbox" : "square-outline"} size={16} color={on ? meta.color : theme.color.muted} />
+                            <Text style={{ fontSize: 12, color: on ? meta.color : theme.color.onSurface, fontWeight: on ? "700" : "500" }}>{p.label}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+
+                    {customParams.length > 0 && (
+                      <>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 14, marginBottom: 6 }}>PARAMETRI PERSONALIZZATI</Text>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                          {customParams.map((p) => (
+                            <View key={p} style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                              paddingHorizontal: 10,
+                              paddingVertical: 6,
+                              borderRadius: 20,
+                              backgroundColor: "#F3E8FF",
+                              borderWidth: 1,
+                              borderColor: "#7C3AED",
+                            }}>
+                              <Ionicons name="sparkles" size={13} color="#7C3AED" />
+                              <Text style={{ fontSize: 12, color: "#5B21B6", fontWeight: "700" }}>{p}</Text>
+                              <Pressable onPress={() => removeCustomParam(p)} hitSlop={6}>
+                                <Ionicons name="close-circle" size={14} color="#7C3AED" />
+                              </Pressable>
+                            </View>
+                          ))}
+                        </View>
+                      </>
+                    )}
+
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 14, marginBottom: 6 }}>AGGIUNGI PARAMETRO PERSONALIZZATO</Text>
+                    <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                      <TextInput
+                        testID="bill-config-custom-input"
+                        value={customParam}
+                        onChangeText={setCustomParam}
+                        onSubmitEditing={addCustomParam}
+                        placeholder="Es. Bonus sociale, Rateizzazione, IVA agevolata…"
+                        placeholderTextColor={theme.color.muted}
+                        style={{ flex: 1, backgroundColor: "#FFF", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: theme.color.border, fontSize: 13, color: theme.color.onSurface }}
+                      />
+                      <Pressable
+                        onPress={addCustomParam}
+                        disabled={!customParam.trim()}
+                        testID="bill-config-add-custom"
+                        style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: customParam.trim() ? "#7C3AED" : "#CBD5E1", flexDirection: "row", alignItems: "center", gap: 4 }}
+                      >
+                        <Ionicons name="add" size={16} color="#FFF" />
+                        <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>Aggiungi</Text>
+                      </Pressable>
+                    </View>
+                  </ScrollView>
+
+                  <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF", gap: 8 }}>
+                    <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center" }}>
+                      Selezionati: <Text style={{ fontWeight: "800", color: meta.color }}>{selectedParams.size}</Text> parametri
+                    </Text>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Pressable onPress={cancelPendingUpload} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#F1F5F9", alignItems: "center" }} testID="bill-config-cancel">
+                        <Text style={{ color: theme.color.onSurface, fontWeight: "700", fontSize: 14 }}>Annulla</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={confirmUploadWithParams}
+                        disabled={selectedParams.size === 0}
+                        style={{ flex: 2, paddingVertical: 12, borderRadius: 12, backgroundColor: selectedParams.size === 0 ? "#CBD5E1" : meta.color, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}
+                        testID="bill-config-confirm"
+                      >
+                        <Ionicons name="sparkles" size={16} color="#FFF" />
+                        <Text style={{ color: "#FFF", fontWeight: "800", fontSize: 14 }}>Avvia analisi AI</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
+
       <CalculatorFAB />
     </View>
   );
@@ -949,6 +1268,80 @@ function ulList(items: any): string {
   return `<ul style="margin:4px 0 8px 20px;padding:0;">${list.map((it) => `<li style="font-size:12px;margin-bottom:3px;line-height:1.5;">${esc(it)}</li>`).join("")}</ul>`;
 }
 
+function renderSectionCard(title: string, color: string, emoji: string, bodyHtml: string): string {
+  return `
+    <div style="margin-top:14px;border:1px solid ${color};border-radius:10px;overflow:hidden;">
+      <div style="background:${color};color:#FFF;padding:8px 12px;font-weight:800;font-size:13px;">${emoji} ${esc(title)}</div>
+      <div style="padding:12px;background:#FFF;">${bodyHtml}</div>
+    </div>`;
+}
+
+function kvGridHtml(rows: Array<{ k: string; v: any; hi?: boolean }>): string {
+  const cells = rows
+    .filter((r) => r.v !== null && r.v !== undefined && r.v !== "")
+    .map((r) => `
+      <div style="flex:1 1 45%;padding:8px 10px;background:${r.hi ? "#FEF3C7" : "#F8FAFC"};border-radius:6px;border-left:3px solid ${r.hi ? "#F59E0B" : "#CBD5E1"};">
+        <div style="font-size:9px;color:#64748B;font-weight:700;text-transform:uppercase;">${esc(r.k)}</div>
+        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">${esc(String(r.v))}</div>
+      </div>`)
+    .join("");
+  return `<div style="display:flex;flex-wrap:wrap;gap:8px;">${cells}</div>`;
+}
+
+function fasceBarChartSvg(f1?: number, f2?: number, f3?: number): string {
+  const values = [
+    { l: "F1", v: Number(f1) || 0, c: "#F59E0B" },
+    { l: "F2", v: Number(f2) || 0, c: "#3B82F6" },
+    { l: "F3", v: Number(f3) || 0, c: "#8B5CF6" },
+  ];
+  const total = values.reduce((a, b) => a + b.v, 0) || 1;
+  const w = 480, h = 130, padL = 40, padR = 10, padT = 20, padB = 30;
+  const chartW = w - padL - padR;
+  const chartH = h - padT - padB;
+  const max = Math.max(1, ...values.map((v) => v.v));
+  const barGap = 30;
+  const barW = (chartW - barGap * 2) / 3;
+  const bars = values.map((v, i) => {
+    const bh = (v.v / max) * chartH;
+    const x = padL + i * (barW + barGap);
+    const y = padT + chartH - bh;
+    const pct = ((v.v / total) * 100).toFixed(1);
+    return `<rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="${v.c}" rx="4"/>
+      <text x="${x + barW / 2}" y="${y - 4}" font-size="10" fill="#0F172A" text-anchor="middle" font-weight="700">${v.v} kWh</text>
+      <text x="${x + barW / 2}" y="${padT + chartH + 12}" font-size="11" fill="#0F172A" text-anchor="middle" font-weight="700">${v.l}</text>
+      <text x="${x + barW / 2}" y="${padT + chartH + 24}" font-size="9" fill="#64748B" text-anchor="middle">${pct}%</text>`;
+  }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${bars}</svg>`;
+}
+
+function comparisonMatrixHtml(rows: Array<{ parametro?: string; attuale?: string; proposta?: string; delta?: string; vantaggio?: string }>): string {
+  if (!Array.isArray(rows) || !rows.length) return "";
+  const trs = rows.map((r) => {
+    const van = String(r.vantaggio || "").toLowerCase();
+    const vColor = van === "cliente" || van === "nuova" || van === "proposta" ? "#16A34A" : van === "attuale" ? "#DC2626" : "#64748B";
+    const vLabel = van === "cliente" || van === "nuova" || van === "proposta" ? "✓ Nuova" : van === "attuale" ? "✗ Attuale" : "≈ Neutro";
+    return `<tr>
+      <td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:11px;font-weight:600;color:#0F172A;">${esc(r.parametro || "")}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:11px;color:#DC2626;">${esc(r.attuale || "—")}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:11px;color:#16A34A;font-weight:700;">${esc(r.proposta || "—")}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:11px;color:#374151;">${esc(r.delta || "—")}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:11px;color:${vColor};font-weight:700;">${vLabel}</td>
+    </tr>`;
+  }).join("");
+  return `<table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="background:#F1F5F9;">
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:#334155;text-transform:uppercase;">Parametro</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:#334155;text-transform:uppercase;">Attuale</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:#334155;text-transform:uppercase;">Proposta</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:#334155;text-transform:uppercase;">Delta</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:#334155;text-transform:uppercase;">Vantaggio</th>
+      </tr>
+    </thead>
+    <tbody>${trs}</tbody>
+  </table>`;
+}
+
 function buildComparisonHtml(rep: any, contactName?: string): string {
   const c = rep?.contact || {};
   const name = contactName || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Cliente";
@@ -972,36 +1365,142 @@ function buildComparisonHtml(rep: any, contactName?: string): string {
     const r = rec(cmp.raccomandazione || "neutro");
     const saving = cmp.risparmio_annuo_stimato_eur ? `€ ${cmp.risparmio_annuo_stimato_eur}` : "—";
     const perc = cmp.risparmio_percentuale ? ` (${cmp.risparmio_percentuale}%)` : "";
+
+    // Section 1: Impronta energetica
+    const foot = cmp.impronta_energetica || {};
+    const catColor = { basso: "#16A34A", medio: "#F59E0B", "medio-alto": "#EA580C", alto: "#DC2626" }[String(foot.categoria_consumo || "").toLowerCase()] || "#64748B";
+    const footprintHtml = renderSectionCard(
+      "Impronta energetica attuale",
+      "#0EA5E9",
+      "🌍",
+      `
+        ${kvGridHtml([
+          { k: `Consumo annuo (${foot.unita || "kWh"})`, v: foot.consumo_annuo_kwh_o_smc, hi: true },
+          { k: "Categoria consumo", v: foot.categoria_consumo ? String(foot.categoria_consumo).toUpperCase() : "" },
+          { k: "Profilo utilizzo", v: foot.profilo_utilizzo },
+        ])}
+        ${Array.isArray(foot.note) && foot.note.length ? `<div style="margin-top:8px;font-size:11px;color:#334155;background:#F0F9FF;padding:8px;border-radius:6px;border-left:3px solid #0EA5E9;">${foot.note.map((n: string) => `• ${esc(n)}`).join("<br/>")}</div>` : ""}
+        ${foot.categoria_consumo ? `<div style="margin-top:8px;display:inline-block;padding:4px 12px;border-radius:12px;background:${catColor};color:#FFF;font-size:11px;font-weight:800;text-transform:uppercase;">Categoria: ${esc(foot.categoria_consumo)}</div>` : ""}
+      `
+    );
+
+    // Section 2: Dettaglio fasce F1/F2/F3
+    const fasce = cmp.dettaglio_fasce || {};
+    const chart = fasceBarChartSvg(fasce.F1_kwh, fasce.F2_kwh, fasce.F3_kwh);
+    const fasceHtml = (fasce.F1_kwh || fasce.F2_kwh || fasce.F3_kwh || fasce.fascia_prevalente) ? renderSectionCard(
+      "Dettaglio consumi per fascia",
+      "#3B82F6",
+      "📊",
+      `
+        <div style="text-align:center;margin-bottom:8px;">${chart}</div>
+        ${kvGridHtml([
+          { k: "Fascia prevalente", v: fasce.fascia_prevalente ? String(fasce.fascia_prevalente).toUpperCase() : "", hi: true },
+          { k: "Tariffa consigliata", v: fasce.raccomandazione_tariffa ? String(fasce.raccomandazione_tariffa).toUpperCase() : "" },
+        ])}
+        ${fasce.motivazione ? `<div style="margin-top:8px;font-size:11px;color:#334155;background:#EFF6FF;padding:8px;border-radius:6px;border-left:3px solid #3B82F6;"><b>Motivazione:</b> ${esc(fasce.motivazione)}</div>` : ""}
+      `
+    ) : "";
+
+    // Section 3: Analisi contratto attuale
+    const con = cmp.analisi_contratto_attuale || {};
+    const contractHtml = (con.fornitore || con.nome_offerta || con.spread_eur_kwh_o_smc) ? renderSectionCard(
+      "Analisi contratto attuale",
+      "#DC2626",
+      "📋",
+      `
+        ${kvGridHtml([
+          { k: "Fornitore", v: con.fornitore, hi: true },
+          { k: "Nome offerta", v: con.nome_offerta },
+          { k: "Tipo prezzo", v: con.tipo_prezzo ? String(con.tipo_prezzo).toUpperCase() : "" },
+          { k: "Spread", v: con.spread_eur_kwh_o_smc ? `€ ${con.spread_eur_kwh_o_smc}` : "" },
+          { k: "Durata contratto", v: con.durata_contratto_mesi ? `${con.durata_contratto_mesi} mesi` : "" },
+          { k: "Data scadenza", v: con.data_scadenza },
+        ])}
+        ${Array.isArray(con.criticita) && con.criticita.length ? `<h4 style="margin:10px 0 4px;font-size:12px;color:#DC2626;">⚠️ Criticità</h4><ul style="margin:0 0 0 20px;padding:0;">${con.criticita.map((x: string) => `<li style="font-size:11px;margin-bottom:2px;">${esc(x)}</li>`).join("")}</ul>` : ""}
+        ${Array.isArray(con.punti_forza) && con.punti_forza.length ? `<h4 style="margin:10px 0 4px;font-size:12px;color:#16A34A;">✓ Punti forza attuali</h4><ul style="margin:0 0 0 20px;padding:0;">${con.punti_forza.map((x: string) => `<li style="font-size:11px;margin-bottom:2px;">${esc(x)}</li>`).join("")}</ul>` : ""}
+      `
+    ) : "";
+
+    // Section 4: Calcolo risparmio
+    const sav = cmp.calcolo_risparmio || {};
+    const savingsHtml = (sav.risparmio_annuo_eur || sav.costo_annuo_attuale_eur) ? renderSectionCard(
+      "Calcolo risparmio",
+      "#16A34A",
+      "💰",
+      `
+        ${kvGridHtml([
+          { k: "Costo annuo attuale", v: sav.costo_annuo_attuale_eur ? `€ ${sav.costo_annuo_attuale_eur}` : "" },
+          { k: "Costo annuo nuovo", v: sav.costo_annuo_nuovo_eur ? `€ ${sav.costo_annuo_nuovo_eur}` : "", hi: true },
+          { k: "Risparmio mensile", v: sav.risparmio_mensile_eur ? `€ ${sav.risparmio_mensile_eur}` : "" },
+          { k: "Risparmio annuo", v: sav.risparmio_annuo_eur ? `€ ${sav.risparmio_annuo_eur}` : "", hi: true },
+          { k: "Risparmio %", v: sav.risparmio_percentuale ? `${sav.risparmio_percentuale}%` : "" },
+        ])}
+        ${Array.isArray(sav.dettaglio_calcolo) && sav.dettaglio_calcolo.length ? `<h4 style="margin:10px 0 4px;font-size:12px;color:#0F172A;">Dettaglio</h4><ul style="margin:0 0 0 20px;padding:0;">${sav.dettaglio_calcolo.map((x: string) => `<li style="font-size:11px;margin-bottom:2px;">${esc(x)}</li>`).join("")}</ul>` : ""}
+      `
+    ) : "";
+
+    // Section 5: Matrice di confronto
+    const matrixHtml = Array.isArray(cmp.matrice_confronto) && cmp.matrice_confronto.length ? renderSectionCard(
+      "Matrice di confronto",
+      "#8B5CF6",
+      "⚖️",
+      comparisonMatrixHtml(cmp.matrice_confronto)
+    ) : "";
+
+    // Section 6: Executive summary
+    const es = cmp.executive_summary || {};
+    const verdColor = es.verdetto && String(es.verdetto).includes("consigliato") && !String(es.verdetto).toLowerCase().includes("sconsigliato") ? "#16A34A"
+      : String(es.verdetto || "").toLowerCase().includes("sconsigliato") ? "#DC2626" : "#F59E0B";
+    const execHtml = (es.verdetto || es.risparmio_annuo_eur) ? renderSectionCard(
+      "Executive Summary",
+      "#0F172A",
+      "🎯",
+      `
+        ${es.verdetto ? `<div style="text-align:center;padding:14px;background:${verdColor};color:#FFF;border-radius:8px;margin-bottom:10px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:0.9;">Verdetto</div><div style="font-size:18px;font-weight:900;margin-top:2px;">${esc(es.verdetto)}</div>${es.risparmio_annuo_eur ? `<div style="font-size:24px;font-weight:900;margin-top:4px;">€ ${esc(es.risparmio_annuo_eur)} / anno</div>` : ""}</div>` : ""}
+        ${Array.isArray(es.punti_chiave) && es.punti_chiave.length ? `<h4 style="margin:6px 0 4px;font-size:12px;color:#0F172A;">🔑 Punti chiave</h4><ul style="margin:0 0 8px 20px;padding:0;">${es.punti_chiave.map((x: string) => `<li style="font-size:12px;margin-bottom:3px;line-height:1.4;">${esc(x)}</li>`).join("")}</ul>` : ""}
+        ${Array.isArray(es.prossimi_passi) && es.prossimi_passi.length ? `<h4 style="margin:8px 0 4px;font-size:12px;color:#0F172A;">▶ Prossimi passi</h4><ol style="margin:0 0 4px 20px;padding:0;">${es.prossimi_passi.map((x: string) => `<li style="font-size:12px;margin-bottom:3px;line-height:1.4;">${esc(x)}</li>`).join("")}</ol>` : ""}
+      `
+    ) : "";
+
     return `
-      <div style="margin-top:18px;border:1px solid ${sm.color};border-radius:8px;overflow:hidden;">
-        <div style="background:${sm.color};color:#FFF;padding:8px 12px;font-weight:800;font-size:14px;display:flex;justify-content:space-between;">
-          <span>${sm.emoji} ${sm.label}</span>
-          <span style="background:rgba(255,255,255,0.25);padding:2px 8px;border-radius:8px;font-size:11px;">${esc(r.label)}</span>
+      <div style="margin-top:18px;border:2px solid ${sm.color};border-radius:12px;overflow:hidden;">
+        <div style="background:${sm.color};color:#FFF;padding:12px 14px;font-weight:900;font-size:16px;display:flex;justify-content:space-between;align-items:center;">
+          <span>${sm.emoji} ${sm.label} — Confronto Offerte</span>
+          <span style="background:rgba(255,255,255,0.25);padding:4px 10px;border-radius:10px;font-size:11px;">${esc(r.label)}</span>
         </div>
-        <div style="padding:12px;">
-          <div style="display:flex;gap:12px;margin-bottom:10px;">
-            <div style="flex:1;padding:8px;background:#FEE2E2;border-radius:6px;">
-              <div style="font-size:10px;color:#991B1B;font-weight:700;text-transform:uppercase;">Offerta attuale cliente</div>
-              <div style="font-size:12px;font-weight:800;margin-top:2px;">${esc(it.bill?.extracted?.fornitore || "n/d")}</div>
+        <div style="padding:14px;background:#FAFBFF;">
+          <div style="display:flex;gap:10px;margin-bottom:12px;">
+            <div style="flex:1;padding:10px;background:#FEE2E2;border-radius:8px;">
+              <div style="font-size:9px;color:#991B1B;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">Offerta attuale</div>
+              <div style="font-size:13px;font-weight:800;margin-top:3px;">${esc(it.bill?.extracted?.fornitore || "n/d")}</div>
               <div style="font-size:11px;color:#374151;">${esc(it.bill?.extracted?.nome_offerta || "")}</div>
             </div>
-            <div style="flex:1;padding:8px;background:#DCFCE7;border-radius:6px;">
-              <div style="font-size:10px;color:#166534;font-weight:700;text-transform:uppercase;">Nostra offerta</div>
-              <div style="font-size:12px;font-weight:800;margin-top:2px;">${esc(it.offer?.extracted?.fornitore || "n/d")}</div>
+            <div style="flex:1;padding:10px;background:#DCFCE7;border-radius:8px;">
+              <div style="font-size:9px;color:#166534;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">Nostra proposta</div>
+              <div style="font-size:13px;font-weight:800;margin-top:3px;">${esc(it.offer?.extracted?.fornitore || "n/d")}</div>
               <div style="font-size:11px;color:#374151;">${esc(it.offer?.extracted?.nome_offerta || it.offer?.label || "")}</div>
             </div>
           </div>
 
-          ${cmp.sintesi ? `<h4 style="margin:8px 0 4px;color:#374151;font-size:13px;">Sintesi</h4>${ulList(cmp.sintesi)}` : ""}
+          ${footprintHtml}
+          ${fasceHtml}
+          ${contractHtml}
+          ${savingsHtml}
+          ${matrixHtml}
+          ${execHtml}
+
+          <div style="margin-top:14px;padding:12px;background:#F3E8FF;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:13px;font-weight:700;color:#5B21B6;">Risparmio annuo stimato</span>
+            <span style="font-size:20px;font-weight:900;color:#5B21B6;">${esc(saving)}${esc(perc)}</span>
+          </div>
+
+          ${cmp.sintesi ? `<h4 style="margin:14px 0 4px;color:#374151;font-size:13px;">📝 Sintesi</h4>${ulList(cmp.sintesi)}` : ""}
           ${cmp.vantaggi_offerta_aziendale ? `<h4 style="margin:8px 0 4px;color:#16A34A;font-size:13px;">✓ Vantaggi della nostra offerta</h4>${ulList(cmp.vantaggi_offerta_aziendale)}` : ""}
           ${cmp.svantaggi_offerta_aziendale ? `<h4 style="margin:8px 0 4px;color:#DC2626;font-size:13px;">✗ Svantaggi</h4>${ulList(cmp.svantaggi_offerta_aziendale)}` : ""}
-          ${cmp.motivazione_raccomandazione ? `<h4 style="margin:8px 0 4px;color:#6366F1;font-size:13px;">Motivazione</h4>${ulList(cmp.motivazione_raccomandazione)}` : ""}
-          ${cmp.azione_consigliata ? `<h4 style="margin:8px 0 4px;color:#0891B2;font-size:13px;">Azioni consigliate</h4>${ulList(cmp.azione_consigliata)}` : ""}
+          ${cmp.motivazione_raccomandazione ? `<h4 style="margin:8px 0 4px;color:#6366F1;font-size:13px;">🎯 Motivazione</h4>${ulList(cmp.motivazione_raccomandazione)}` : ""}
+          ${cmp.azione_consigliata ? `<h4 style="margin:8px 0 4px;color:#0891B2;font-size:13px;">▶ Azioni consigliate</h4>${ulList(cmp.azione_consigliata)}` : ""}
 
-          <div style="margin-top:10px;padding:10px;background:#F3E8FF;border-radius:6px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:12px;font-weight:700;color:#5B21B6;">Risparmio annuo stimato</span>
-            <span style="font-size:16px;font-weight:900;color:#5B21B6;">${esc(saving)}${esc(perc)}</span>
-          </div>
+          ${cmp.error_message ? `<div style="margin-top:10px;padding:8px;background:#FEE2E2;border-radius:6px;font-size:11px;color:#991B1B;"><b>⚠️ Nota:</b> ${esc(cmp.error_message)}</div>` : ""}
         </div>
       </div>
     `;
@@ -1011,21 +1510,23 @@ function buildComparisonHtml(rep: any, contactName?: string): string {
 <html lang="it"><head><meta charset="UTF-8"/>
 <title>Confronto Offerte — ${esc(name)}</title>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0F172A; margin: 32px; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0F172A; margin: 24px; }
   h1 { color: #7C3AED; border-bottom: 3px solid #7C3AED; padding-bottom: 8px; }
   .header-info { display: flex; justify-content: space-between; font-size: 12px; color: #6B7280; margin-bottom: 16px; }
-  .total-saving { margin-top:20px; padding:14px; background:linear-gradient(90deg,#7C3AED,#6366F1); color:#FFF; border-radius:10px; text-align:center; }
+  .total-saving { margin-top:20px; padding:18px; background:linear-gradient(90deg,#7C3AED,#6366F1); color:#FFF; border-radius:12px; text-align:center; box-shadow: 0 4px 12px rgba(124,58,237,0.3); }
+  @media print { .no-print { display: none; } }
 </style>
 </head>
 <body>
-  <h1>⚖️ Confronto Offerte Energia</h1>
+  <h1>⚖️ Report di Confronto Offerte Energia</h1>
   <div class="header-info">
     <div><b>Cliente:</b> ${esc(name)}${c.contact_code ? ` (${esc(c.contact_code)})` : ""}</div>
     <div><b>Generato:</b> ${esc(generated)}</div>
   </div>
   <div class="total-saving">
-    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.85;">Risparmio annuo totale stimato</div>
-    <div style="font-size:28px;font-weight:900;margin-top:4px;">€ ${esc(Math.round(totalSaving))}</div>
+    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.9;">Risparmio annuo totale stimato</div>
+    <div style="font-size:36px;font-weight:900;margin-top:4px;">€ ${esc(Math.round(totalSaving))}</div>
+    <div style="font-size:11px;opacity:0.85;margin-top:2px;">${items.length} tipologia${items.length === 1 ? "" : "e"} di fornitura analizzata</div>
   </div>
   ${sections || "<p><i>Nessuna coppia fattura/offerta confrontabile.</i></p>"}
   <div style="margin-top:36px;padding-top:10px;border-top:1px solid #E5E7EB;font-size:10px;color:#9CA3AF;text-align:center;">

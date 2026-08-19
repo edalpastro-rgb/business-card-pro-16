@@ -293,3 +293,30 @@ agent_communication:
     (3) **Wheel Picker appuntamenti** — Nuovo componente cross-platform `/app/frontend/src/WheelPicker.tsx` (ScrollView + snapToInterval, ITEM_HEIGHT=44, VISIBLE_ITEMS=5) con `Wheel<T>` (opacity/scale fade distance-based, center row highlighted blue) + `WheelPickerModal<T>` (Annulla/Conferma). Integrato in `/app/frontend/app/appointment/new.tsx` sostituendo i pill selectors per **Durata prevista** (17 opzioni 5m→8h) e **Promemoria** (15 opzioni 0→1 settimana prima). Verificato: pulsanti 'hourglass 1 ora ›' e 'bell 15 min prima ›', tap apre modal con wheel scrollabile, centro evidenziato con testo blu grassetto.
     (4) **Import multiplo Rubrica** — `/app/frontend/app/contact/new.tsx` ora ha modal multi-select con: campo ricerca (nome/telefono), toggle 'Seleziona tutti (N)', checkbox per ogni contatto, contatore 'Selezionati: N', footer button dinamico ('Importa contatto' se N≤1, 'Crea N nuovi contatti' se N>1). Se single-select → compila form corrente via `fillFromContact` (comportamento originale preservato). Se multi-select → crea N contatti sequenzialmente via POST /api/contacts con progress {done}/{total}, poi naviga a `/(tabs)/contatti`. Note: solo su native Expo Go / build nativa (Contacts API non disponibile in web).
     (5) TestIDs aggiunti: `assistant-conv-toggle`, `assistant-conv-panel`, `assistant-conv-mute`, `assistant-conv-end`, `ap-duration-picker`, `ap-reminder-picker`, `ap-duration-modal-confirm`, `ap-reminder-modal-confirm`, `phone-import-search`, `phone-import-select-all`, `phone-import-row-{id}`, `phone-import-confirm`."
+
+  - agent: "main"
+    message: "Iterazione V38 — Modulo Fatture: 7 miglioramenti/fix richiesti dall'utente.
+
+    **Backend (`/app/backend/server.py`):**
+    (1) `EnergyBillIn` accetta ora `analysis_params: Optional[List[str]]` — lista di parametri prioritari per l'estrazione AI.
+    (2) `_llm_analyze_bill_text()` appende automaticamente la lista dei parametri al system prompt di Claude Sonnet 5.
+    (3) `_analyze_bill_task()` verifica lo stato `cancelled` in 3 checkpoint (prima dello start, prima dell'LLM call, prima del save) — evita di sovrascrivere il record se l'utente ha annullato.
+    (4) NUOVO endpoint: `POST /api/contacts/{cid}/bills/{bill_id}/cancel` — annulla analisi in corso (solo se status='pending' o 'analyzing', altrimenti 400).
+    (5) **FIX HTTP 502 su `/bills/comparison`**: il precedente prompt unico >2000 chars generava una singola LLM call >60s che veniva troncata dall'ingress K8s. Ora splittato in due prompt paralleli via `asyncio.gather`:
+        - `COMPARISON_PROMPT_BASIC` (813 chars): sintesi, vantaggi, svantaggi, raccomandazione, risparmio
+        - `COMPARISON_PROMPT_RICH` (2015 chars): impronta_energetica, dettaglio_fasce (F1/F2/F3), analisi_contratto_attuale, calcolo_risparmio, matrice_confronto, executive_summary
+        Merge tramite `_llm_compare_offers()`. Tempo totale ridotto da >60s (502) a ~22s (verificato).
+    (6) Comparison endpoint parallelizza anche le chiamate tra bill_type diversi via `asyncio.gather` + wrapper `_safe_compare()` per graceful failure.
+
+    **Frontend:**
+    (7) `/app/frontend/app/contact/[id].tsx`: la tab **Fatture** è ora orange distintivo (#EA580C, icona 22px, dot badge in alto a destra, sfondo tenue permanente).
+    (8) `/app/frontend/src/BillsSection.tsx`:
+       - **Config modal parametri**: dopo aver selezionato il PDF si apre un modal a scorrimento con checkbox per parametri standard (17 luce / 12 gas / 11 telco), opzione per aggiungere parametri custom. Analisi parte solo su 'Avvia analisi AI'.
+       - **Pulsanti Annulla analisi**: stop icon nell'header collapsed + button 'Annulla analisi' nella actions row expanded.
+       - **Elimina rapido**: trash icon sempre visibile nell'header del card bill (anche collapsed, anche con più fatture).
+       - **PDF fix (no popup blocked)**: nuovo `printHtmlOnWeb()` usa iframe offscreen + `iframe.contentWindow.print()` invece di `window.open`. Verificato: nessun popup blocked.
+       - **`buildComparisonHtml` rivisitato**: 6 sezioni visuali per ogni pair (impronta energetica con badge categoria, fasce F1/F2/F3 con SVG bar chart, analisi contratto attuale, calcolo risparmio, matrice confronto 5-colonne, executive summary con verdict banner).
+
+    **Testing agent report:**
+    - iteration_38: 5/6 backend + frontend tab color OK, ma comparison ancora 502.
+    - iteration_39 (retest dopo split parallelo): 3/3 pass, comparison ora HTTP 200 in 22.6s con TUTTI i 5 campi BASIC + 6 campi RICH."

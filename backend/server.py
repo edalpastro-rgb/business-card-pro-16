@@ -2939,6 +2939,8 @@ class EnergyBillIn(BaseModel):
     pdf_base64: str
     pdf_name: Optional[str] = None
     pdf_mime: Optional[str] = "application/pdf"
+    # V38: user-selected parameters to focus the AI extraction on (optional list of labels)
+    analysis_params: Optional[List[str]] = None
 
 
 BILL_SYSTEM_PROMPT_LUCE = """Sei un analista esperto di bollette elettriche italiane. Analizza il testo estratto da una fattura LUCE e restituisci ESCLUSIVAMENTE un JSON valido, senza testo introduttivo, senza markdown.
@@ -3049,7 +3051,7 @@ def _extract_pdf_text(pdf_base64: str) -> str:
     return text
 
 
-async def _llm_analyze_bill_text(bill_type: str, text: str) -> dict:
+async def _llm_analyze_bill_text(bill_type: str, text: str, analysis_params: Optional[List[str]] = None) -> dict:
     """Send extracted PDF text to Claude Sonnet 5 and get structured JSON."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     key = os.environ.get("EMERGENT_LLM_KEY")
@@ -3060,6 +3062,15 @@ async def _llm_analyze_bill_text(bill_type: str, text: str) -> dict:
         "gas": BILL_SYSTEM_PROMPT_GAS,
         "telco": BILL_SYSTEM_PROMPT_TELCO,
     }.get(bill_type, BILL_SYSTEM_PROMPT_LUCE)
+    # V38: if user selected specific parameters to focus on, append them to the system prompt
+    if analysis_params:
+        clean = [str(p).strip() for p in analysis_params if str(p).strip()]
+        if clean:
+            focus = ", ".join(clean[:40])
+            system = system + (
+                f"\n\nPARAMETRI PRIORITARI RICHIESTI DALL'UTENTE (assicurati di estrarli se presenti): {focus}."
+                f"\nSe uno dei parametri richiesti non ha corrispondenza diretta nello schema, includilo in un oggetto 'parametri_richiesti' con chiave = nome parametro e valore = valore trovato (o 'N.D.' se non rilevabile)."
+            )
     chat = LlmChat(
         api_key=key,
         session_id=f"bill-{bill_type}-{uuid.uuid4().hex[:8]}",
@@ -3088,21 +3099,39 @@ async def _llm_analyze_bill_text(bill_type: str, text: str) -> dict:
 
 
 async def _analyze_bill_task(bill_id: str):
-    """Background task: extract PDF text + call Claude, then update bill status."""
+    """Background task: extract PDF text + call Claude, then update bill status.
+    Checks for 'cancelled' status before starting the LLM call and before saving results."""
     bill = await db.energy_bills.find_one({"bill_id": bill_id})
     if not bill:
         return
     try:
+        # Check cancellation before starting
+        curr = await db.energy_bills.find_one({"bill_id": bill_id}, {"status": 1})
+        if curr and curr.get("status") == "cancelled":
+            return
         await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {"status": "analyzing"}})
         text = _extract_pdf_text(bill["pdf_base64"])
         if not text or len(text.strip()) < 20:
-            await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {
-                "status": "error",
-                "error_message": "PDF vuoto o non leggibile (potrebbe essere scansione senza OCR).",
-                "analyzed_at": utcnow(),
-            }})
+            # respect cancellation
+            curr = await db.energy_bills.find_one({"bill_id": bill_id}, {"status": 1})
+            if not (curr and curr.get("status") == "cancelled"):
+                await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {
+                    "status": "error",
+                    "error_message": "PDF vuoto o non leggibile (potrebbe essere scansione senza OCR).",
+                    "analyzed_at": utcnow(),
+                }})
             return
-        extracted = await _llm_analyze_bill_text(bill["bill_type"], text)
+        # Check again before hitting the LLM (which is expensive)
+        curr = await db.energy_bills.find_one({"bill_id": bill_id}, {"status": 1})
+        if curr and curr.get("status") == "cancelled":
+            return
+        extracted = await _llm_analyze_bill_text(
+            bill["bill_type"], text, analysis_params=bill.get("analysis_params")
+        )
+        # Final check: if cancelled during LLM, don't overwrite
+        curr = await db.energy_bills.find_one({"bill_id": bill_id}, {"status": 1})
+        if curr and curr.get("status") == "cancelled":
+            return
         await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {
             "status": "done",
             "extracted": extracted,
@@ -3112,11 +3141,13 @@ async def _analyze_bill_task(bill_id: str):
         }})
     except Exception as e:
         logger.exception(f"bill analysis failed for {bill_id}: {e}")
-        await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {
-            "status": "error",
-            "error_message": str(e)[:400],
-            "analyzed_at": utcnow(),
-        }})
+        curr = await db.energy_bills.find_one({"bill_id": bill_id}, {"status": 1})
+        if not (curr and curr.get("status") == "cancelled"):
+            await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {
+                "status": "error",
+                "error_message": str(e)[:400],
+                "analyzed_at": utcnow(),
+            }})
 
 
 async def _ensure_contact_owned(contact_id: str, user: dict) -> dict:
@@ -3159,6 +3190,7 @@ async def create_bill(contact_id: str, body: EnergyBillIn, background: Backgroun
         "status": "pending",
         "extracted": None,
         "error_message": None,
+        "analysis_params": body.analysis_params or None,
         "created_at": utcnow(),
         "analyzed_at": None,
     }
@@ -3215,6 +3247,25 @@ async def reanalyze_bill(contact_id: str, bill_id: str, background: BackgroundTa
     await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {"status": "pending", "error_message": None}})
     background.add_task(_analyze_bill_task, bill_id)
     return {"ok": True, "status": "pending"}
+
+
+@api_router.post("/contacts/{contact_id}/bills/{bill_id}/cancel")
+async def cancel_bill_analysis(contact_id: str, bill_id: str, user=Depends(get_current_user)):
+    """V38: Mark a bill analysis as cancelled. The background task will skip saving results.
+    Only bills that are pending or analyzing can be cancelled."""
+    await _ensure_contact_owned(contact_id, user)
+    b = await db.energy_bills.find_one({"user_id": tenant_id(user), "contact_id": contact_id, "bill_id": bill_id})
+    if not b:
+        raise HTTPException(status_code=404, detail="Fattura non trovata")
+    st = b.get("status")
+    if st not in ("pending", "analyzing"):
+        raise HTTPException(status_code=400, detail=f"Impossibile annullare: stato attuale '{st}'")
+    await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {
+        "status": "cancelled",
+        "error_message": "Analisi annullata dall'utente",
+        "analyzed_at": utcnow(),
+    }})
+    return {"ok": True, "status": "cancelled"}
 
 
 BILL_REPORT_SYSTEM = """Sei un consulente energetico esperto italiano. Analizzi bollette LUCE, GAS e TELCO e produci consigli concreti in italiano.
@@ -3481,46 +3532,102 @@ async def reanalyze_offer(offer_id: str, background: BackgroundTasks, user=Depen
     return {"ok": True, "status": "pending"}
 
 
-COMPARISON_PROMPT = """Sei un consulente energetico italiano esperto in analisi comparativa di offerte per luce, gas e telco.
-Ti fornisco l'offerta attuale del CLIENTE (estratta da una fattura reale) e l'offerta AZIENDALE che vogliamo proporgli.
-Confronta le due offerte in modo obiettivo, quantitativo e in italiano.
-
-Rispondi ESCLUSIVAMENTE con JSON valido (nessun markdown):
+COMPARISON_PROMPT_BASIC = """Sei un consulente energetico italiano esperto. Confronta due offerte energia/gas/telco.
+Rispondi ESCLUSIVAMENTE con JSON valido (nessun markdown, nessuna intro):
 {
   "tipo_fornitura": "luce" | "gas" | "telco",
-  "sintesi": ["punto 1", "punto 2", "punto 3"],
-  "vantaggi_offerta_aziendale": ["vantaggio economico 1", "vantaggio 2", ...],
-  "svantaggi_offerta_aziendale": ["eventuali punti a sfavore", ...],
+  "sintesi": ["punto 1 conciso", "punto 2", "punto 3"],
+  "vantaggi_offerta_aziendale": ["vantaggio 1", "vantaggio 2"],
+  "svantaggi_offerta_aziendale": ["svantaggio 1"],
   "differenza_prezzo_energia_eur_kwh": 0.015,
   "differenza_prezzo_gas_eur_smc": 0.03,
   "differenza_costo_mensile_eur": 5.0,
   "risparmio_annuo_stimato_eur": 180,
   "risparmio_percentuale": 15,
   "raccomandazione": "consigliato" | "neutro" | "sconsigliato",
-  "motivazione_raccomandazione": ["motivo 1", "motivo 2"],
-  "azione_consigliata": ["passo 1", "passo 2", "passo 3"]
+  "motivazione_raccomandazione": ["motivo 1"],
+  "azione_consigliata": ["passo 1", "passo 2"]
 }
-Basa i calcoli sui consumi reali del cliente se disponibili."""
+Se un dato non è disponibile, ometti la chiave (non usare null). Sii conciso."""
+
+COMPARISON_PROMPT_RICH = """Sei un consulente energetico italiano. Analizza l'offerta ATTUALE del cliente e produci un report VISIVO strutturato.
+Rispondi ESCLUSIVAMENTE con JSON valido (nessun markdown):
+{
+  "impronta_energetica": {
+    "consumo_annuo_kwh_o_smc": 3200,
+    "unita": "kWh" | "SMC" | "GB",
+    "profilo_utilizzo": "descrizione breve (max 15 parole)",
+    "categoria_consumo": "basso" | "medio" | "medio-alto" | "alto",
+    "note": ["osservazione 1", "osservazione 2"]
+  },
+  "dettaglio_fasce": {
+    "F1_kwh": 1200, "F2_kwh": 900, "F3_kwh": 1100,
+    "F1_percent": 37.5, "F2_percent": 28.1, "F3_percent": 34.4,
+    "fascia_prevalente": "F1" | "F2" | "F3" | "monoraria",
+    "raccomandazione_tariffa": "biorario" | "monorario" | "trioraria",
+    "motivazione": "spiegazione max 20 parole"
+  },
+  "analisi_contratto_attuale": {
+    "fornitore": "nome", "nome_offerta": "nome",
+    "tipo_prezzo": "fisso" | "variabile" | "indicizzato",
+    "spread_eur_kwh_o_smc": 0.045,
+    "durata_contratto_mesi": 24,
+    "data_scadenza": "MM/AAAA",
+    "criticita": ["criticità 1"],
+    "punti_forza": ["punto forte 1"]
+  },
+  "calcolo_risparmio": {
+    "costo_annuo_attuale_eur": 1450,
+    "costo_annuo_nuovo_eur": 1250,
+    "risparmio_annuo_eur": 200,
+    "risparmio_percentuale": 13.8,
+    "risparmio_mensile_eur": 16.7,
+    "dettaglio_calcolo": ["voce -180€"]
+  },
+  "matrice_confronto": [
+    {"parametro": "Prezzo €/kWh", "attuale": "0.185", "proposta": "0.152", "delta": "-0.033", "vantaggio": "cliente"},
+    {"parametro": "Quota fissa", "attuale": "12€", "proposta": "9€", "delta": "-3€", "vantaggio": "cliente"}
+  ],
+  "executive_summary": {
+    "verdetto": "Passaggio fortemente consigliato" | "Passaggio consigliato" | "Situazione neutra" | "Passaggio sconsigliato",
+    "risparmio_annuo_eur": 200,
+    "punti_chiave": ["risparmio 13.8%", "flessibilità"],
+    "prossimi_passi": ["Presentare proposta", "Firma modulo"]
+  }
+}
+Basa i calcoli sui dati reali. Se manca un dato ometti la chiave. Le fasce F1/F2/F3 sono solo per luce/gas."""
+
+# Legacy fallback prompt (single big call) — kept for backward compat but unused in comparison endpoint
+COMPARISON_PROMPT = COMPARISON_PROMPT_BASIC
 
 
-async def _llm_compare_offers(bill_extracted: dict, offer_extracted: dict, bill_type: str) -> dict:
+async def _llm_compare_offers_basic(bill_extracted: dict, offer_extracted: dict, bill_type: str) -> dict:
+    return await _llm_compare_call(COMPARISON_PROMPT_BASIC, bill_extracted, offer_extracted, bill_type, "compare-basic")
+
+
+async def _llm_compare_offers_rich(bill_extracted: dict, offer_extracted: dict, bill_type: str) -> dict:
+    return await _llm_compare_call(COMPARISON_PROMPT_RICH, bill_extracted, offer_extracted, bill_type, "compare-rich")
+
+
+async def _llm_compare_call(system_prompt: str, bill_extracted: dict, offer_extracted: dict, bill_type: str, session_prefix: str) -> dict:
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
         raise Exception("EMERGENT_LLM_KEY non configurato")
     chat = LlmChat(
         api_key=key,
-        session_id=f"compare-{uuid.uuid4().hex[:8]}",
-        system_message=COMPARISON_PROMPT,
+        session_id=f"{session_prefix}-{uuid.uuid4().hex[:8]}",
+        system_message=system_prompt,
     ).with_model("anthropic", "claude-sonnet-5")
     import json as _json
+    # Trim payload aggressively to keep the LLM prompt/response fast
+    bill_str = _json.dumps(bill_extracted, ensure_ascii=False)[:4500]
+    offer_str = _json.dumps(offer_extracted, ensure_ascii=False)[:4500]
     prompt = (
         f"Tipo fornitura: {bill_type.upper()}\n\n"
-        f"=== OFFERTA ATTUALE DEL CLIENTE (dalla fattura) ===\n"
-        f"{_json.dumps(bill_extracted, ensure_ascii=False, indent=2)[:8000]}\n\n"
-        f"=== OFFERTA AZIENDALE DA PROPORRE ===\n"
-        f"{_json.dumps(offer_extracted, ensure_ascii=False, indent=2)[:8000]}\n\n"
-        f"Confronta le due offerte e produci il JSON strutturato."
+        f"=== FATTURA CLIENTE (offerta attuale) ===\n{bill_str}\n\n"
+        f"=== OFFERTA AZIENDALE (proposta) ===\n{offer_str}\n\n"
+        f"Produci il JSON richiesto."
     )
     resp = await chat.send_message(UserMessage(text=prompt))
     raw = (resp or "").strip()
@@ -3533,10 +3640,41 @@ async def _llm_compare_offers(bill_extracted: dict, offer_extracted: dict, bill_
     try:
         data = _json.loads(raw)
         if not isinstance(data, dict):
-            data = {"sintesi": [str(data)[:500]]}
+            data = {"note_ai": str(data)[:500], "parse_error": True}
     except Exception:
-        data = {"sintesi": [raw[:500]], "parse_error": True}
+        data = {"note_ai": raw[:500], "parse_error": True}
     return data
+
+
+async def _llm_compare_offers(bill_extracted: dict, offer_extracted: dict, bill_type: str) -> dict:
+    """Run BASIC + RICH prompts in PARALLEL and merge into one dict.
+    This keeps each individual call small/fast (< 30s) so we don't hit the ~60s ingress timeout.
+    If one call fails, we still return the other's data + a note."""
+    import asyncio as _asyncio
+    basic_task = _llm_compare_offers_basic(bill_extracted, offer_extracted, bill_type)
+    rich_task = _llm_compare_offers_rich(bill_extracted, offer_extracted, bill_type)
+    basic_res, rich_res = await _asyncio.gather(basic_task, rich_task, return_exceptions=True)
+    merged: dict = {"tipo_fornitura": bill_type}
+    partial_errors: List[str] = []
+    if isinstance(basic_res, Exception):
+        logger.warning(f"compare basic failed: {basic_res}")
+        partial_errors.append(f"basic:{str(basic_res)[:120]}")
+    elif isinstance(basic_res, dict):
+        merged.update(basic_res)
+    if isinstance(rich_res, Exception):
+        logger.warning(f"compare rich failed: {rich_res}")
+        partial_errors.append(f"rich:{str(rich_res)[:120]}")
+    elif isinstance(rich_res, dict):
+        # Rich takes precedence for its keys
+        merged.update(rich_res)
+    if partial_errors and not merged.get("sintesi"):
+        merged["parse_error"] = True
+        merged["error_message"] = " | ".join(partial_errors)
+        merged.setdefault("sintesi", ["Comparazione parzialmente completata a causa di un errore AI."])
+        merged.setdefault("raccomandazione", "neutro")
+    elif partial_errors:
+        merged["partial_error"] = " | ".join(partial_errors)
+    return merged
 
 
 @api_router.get("/contacts/{contact_id}/bills/comparison")
@@ -3547,7 +3685,8 @@ async def bills_comparison(
     user=Depends(get_current_user),
 ):
     """Compare a client bill vs a company offer. If bill_id/offer_id omitted, use latest done for
-    matching bill_type per section (creates one comparison per fornitura where both exist)."""
+    matching bill_type per section (creates one comparison per fornitura where both exist).
+    V38: LLM calls now run in parallel via asyncio.gather to stay under ingress timeout."""
     contact = await _ensure_contact_owned(contact_id, user)
     # Fetch bills done
     bills = await db.energy_bills.find(
@@ -3563,13 +3702,25 @@ async def bills_comparison(
     if not offers:
         raise HTTPException(status_code=400, detail="Nessuna offerta aziendale analizzata disponibile")
 
+    async def _safe_compare(bill_ex: dict, offer_ex: dict, bt: str) -> dict:
+        try:
+            return await _llm_compare_offers(bill_ex or {}, offer_ex or {}, bt)
+        except Exception as e:
+            logger.exception(f"comparison failed for bill_type={bt}: {e}")
+            return {
+                "parse_error": True,
+                "error_message": f"Impossibile completare il confronto: {str(e)[:200]}",
+                "sintesi": [f"Errore durante l'elaborazione AI ({bt}). Riprova più tardi."],
+                "raccomandazione": "neutro",
+            }
+
     # If specific ids given, compare just those
     if bill_id and offer_id:
         bill = next((b for b in bills if b["bill_id"] == bill_id), None)
         offer = next((o for o in offers if o["offer_id"] == offer_id), None)
         if not bill or not offer:
             raise HTTPException(status_code=404, detail="Fattura o offerta non trovata")
-        comparison = await _llm_compare_offers(bill.get("extracted") or {}, offer.get("extracted") or {}, bill.get("bill_type") or "luce")
+        comparison = await _safe_compare(bill.get("extracted") or {}, offer.get("extracted") or {}, bill.get("bill_type") or "luce")
         return {
             "contact": {
                 "contact_id": contact["contact_id"],
@@ -3586,22 +3737,31 @@ async def bills_comparison(
             "generated_at": utcnow(),
         }
 
-    # Auto-match: latest bill and latest offer per bill_type
-    results: List[Dict[str, Any]] = []
+    # Auto-match: latest bill and latest offer per bill_type — run LLM calls in PARALLEL
+    pairs: List[Dict[str, Any]] = []
     for bt in BILL_TYPES:
         latest_bill = next((b for b in bills if b.get("bill_type") == bt), None)
         latest_offer = next((o for o in offers if o.get("bill_type") == bt), None)
         if not latest_bill or not latest_offer:
             continue
-        comparison = await _llm_compare_offers(latest_bill.get("extracted") or {}, latest_offer.get("extracted") or {}, bt)
+        pairs.append({"bill_type": bt, "bill": latest_bill, "offer": latest_offer})
+    if not pairs:
+        raise HTTPException(status_code=400, detail="Nessuna coppia fattura/offerta corrispondente. Carica un'offerta aziendale dello stesso tipo (luce/gas/telco).")
+
+    # Parallel execution
+    import asyncio as _asyncio
+    comparisons = await _asyncio.gather(
+        *[_safe_compare(p["bill"].get("extracted") or {}, p["offer"].get("extracted") or {}, p["bill_type"]) for p in pairs],
+        return_exceptions=False,
+    )
+    results: List[Dict[str, Any]] = []
+    for p, comparison in zip(pairs, comparisons):
         results.append({
-            "bill_type": bt,
-            "bill": {"bill_id": latest_bill["bill_id"], "pdf_name": latest_bill.get("pdf_name"), "extracted": latest_bill.get("extracted")},
-            "offer": {"offer_id": latest_offer["offer_id"], "label": latest_offer.get("label"), "extracted": latest_offer.get("extracted")},
+            "bill_type": p["bill_type"],
+            "bill": {"bill_id": p["bill"]["bill_id"], "pdf_name": p["bill"].get("pdf_name"), "extracted": p["bill"].get("extracted")},
+            "offer": {"offer_id": p["offer"]["offer_id"], "label": p["offer"].get("label"), "extracted": p["offer"].get("extracted")},
             "comparison": comparison,
         })
-    if not results:
-        raise HTTPException(status_code=400, detail="Nessuna coppia fattura/offerta corrispondente. Carica un'offerta aziendale dello stesso tipo (luce/gas/telco).")
     total_risparmio = sum(float(r["comparison"].get("risparmio_annuo_stimato_eur") or 0) for r in results)
     return {
         "contact": {
