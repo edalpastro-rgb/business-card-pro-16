@@ -15,23 +15,27 @@ type Props = {
   onScanned: (data: string) => void;
 };
 
-const SCAN_INTERVAL_MS = 500; // ~2 scans/sec on native (takePicture is slow)
-const SCAN_TARGET_SIZE = 480; // downscale to 480px for fast jsQR decoding
+// Fixed (V38M): larger canvas resolution to give jsQR enough pixels on small
+// QR codes printed on business cards. 480px was too aggressive for near-scans.
+const SCAN_INTERVAL_MS = 700;              // native live scan interval
+const SCAN_STABILIZATION_MS = 900;         // wait before the FIRST live scan
+const SCAN_LIVE_TARGET_SIZE = 1024;        // downscale live snapshots to this width
+const SCAN_GALLERY_TARGET_SIZE = 2048;     // gallery uploads keep higher detail
+const JPEG_QUALITY_LIVE = 0.65;            // more headroom for jsQR pattern lock
 
 /**
- * QR / barcode scanner modal (V38L — jsQR pure-JS decoder).
+ * QR / barcode scanner modal (V38M — hi-res jsQR pure-JS decoder).
  *
  * Strategy:
- *   - NATIVE (Expo Go / production build): CameraView from expo-camera renders
- *     the live preview. Every 500 ms we call `takePictureAsync` (fast, no
- *     shutter animation, skipProcessing), then downscale + JPEG-decode the
- *     result with jpeg-js and run jsQR on the raw RGBA buffer. This bypasses
- *     the flaky native onBarcodeScanned and works reliably on Android Expo Go.
- *   - WEB: getUserMedia + <video> → canvas → getImageData → jsQR. Runs at
- *     ~10-15 scans/sec.
- *   - GALLERY FALLBACK (both): user picks a photo of the QR from library and
- *     we decode it via the same jsQR pipeline. Works even when the live
- *     preview cannot focus.
+ *   - NATIVE (Expo Go / production build): CameraView renders the live
+ *     preview. After a 900 ms stabilization delay (letting the autofocus
+ *     settle), we call `takePictureAsync` every 700 ms, downscale to
+ *     1024 px, JPEG-decode with jpeg-js and run jsQR on the raw RGBA. Higher
+ *     resolution → far more reliable pattern lock on business-card QR codes.
+ *   - WEB: getUserMedia + <video> → full-resolution canvas → jsQR.
+ *   - GALLERY FALLBACK (both): user picks a photo of the QR. We resize to
+ *     2048 px, run jsQR, and if it fails we retry with `attemptBoth` +
+ *     rotated 90/180/270° copies. Result auto-fills the new-contact form.
  */
 export function QRScannerModal({ visible, onClose, onScanned }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
@@ -39,14 +43,20 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
   const [webError, setWebError] = useState<string | null>(null);
   const [torch, setTorch] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
-  const [scanTick, setScanTick] = useState(0); // just to force UI refresh for status dot
+  const [galleryHint, setGalleryHint] = useState<string | null>(null);
+  const [scanTick, setScanTick] = useState(0);
   const cameraRef = useRef<any>(null);
+  const cameraReadyRef = useRef<boolean>(false);
+  const stabilizeUntilRef = useRef<number>(0);
 
   useEffect(() => {
     scanned.current = false;
     setWebError(null);
     setTorch(false);
     setBusy(false);
+    setGalleryHint(null);
+    cameraReadyRef.current = false;
+    stabilizeUntilRef.current = 0;
     if (!visible) return;
     if (Platform.OS === "web") {
       startWebScanner();
@@ -73,20 +83,27 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, permission?.granted]);
 
+  const onCameraReady = () => {
+    cameraReadyRef.current = true;
+    // Let AF settle for a short moment before we start grabbing frames.
+    stabilizeUntilRef.current = Date.now() + SCAN_STABILIZATION_MS;
+  };
+
   const nativeScanOnce = async () => {
     if (scanned.current || busy || !cameraRef.current) return;
+    if (!cameraReadyRef.current) return;
+    if (Date.now() < stabilizeUntilRef.current) return;
     try {
       setScanTick((t) => t + 1);
-      // Snapshot the preview frame. skipProcessing + quality=0.3 keeps it fast.
       const pic = await cameraRef.current.takePictureAsync({
-        quality: 0.3,
+        quality: JPEG_QUALITY_LIVE,
         base64: false,
-        skipProcessing: true,
+        skipProcessing: true, // faster; we don't need exif/orientation for QR
         exif: false,
         shutterSound: false,
       });
       if (!pic?.uri) return;
-      const result = await decodeQrFromUri(pic.uri);
+      const result = await decodeQrFromUri(pic.uri, SCAN_LIVE_TARGET_SIZE);
       if (result) {
         scanned.current = true;
         handleFound(result);
@@ -98,35 +115,54 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
     }
   };
 
-  const decodeQrFromUri = async (uri: string): Promise<string | null> => {
-    // Downscale and get base64 JPEG via expo-image-manipulator (fast, native)
-    const manip = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width: SCAN_TARGET_SIZE } }],
-      { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-    );
-    const b64 = manip.base64;
-    if (!b64) return null;
-    const raw = base64ToUint8(b64);
-    let decoded: { data: Uint8Array; width: number; height: number };
-    try {
-      decoded = jpeg.decode(raw, { useTArray: true, formatAsRGBA: true }) as any;
-    } catch (e) {
-      console.warn("jpeg decode err", e);
-      return null;
+  // Downscale via expo-image-manipulator, JPEG-decode with jpeg-js, run jsQR.
+  // Returns decoded string or null. Retries with rotated copies on gallery
+  // images (which may be rotated by the user's camera).
+  const decodeQrFromUri = async (uri: string, targetSize: number, tryRotations = false): Promise<string | null> => {
+    const runPipeline = async (rotate: 0 | 90 | 180 | 270): Promise<string | null> => {
+      const actions: any[] = [{ resize: { width: targetSize } }];
+      if (rotate !== 0) actions.push({ rotate });
+      const manip = await ImageManipulator.manipulateAsync(uri, actions, {
+        compress: 0.9,
+        format: ImageManipulator.SaveFormat.JPEG,
+        base64: true,
+      });
+      const b64 = manip.base64;
+      if (!b64) return null;
+      const raw = base64ToUint8(b64);
+      let decoded: { data: Uint8Array; width: number; height: number };
+      try {
+        decoded = jpeg.decode(raw, { useTArray: true, formatAsRGBA: true }) as any;
+      } catch (e) {
+        console.warn("jpeg decode err", e);
+        return null;
+      }
+      const rgba = new Uint8ClampedArray(
+        decoded.data.buffer,
+        decoded.data.byteOffset,
+        decoded.data.byteLength
+      );
+      const qr = jsQR(rgba, decoded.width, decoded.height, { inversionAttempts: "attemptBoth" });
+      return qr?.data || null;
+    };
+    // First attempt (no rotation)
+    const first = await runPipeline(0);
+    if (first) return first;
+    if (!tryRotations) return null;
+    // Gallery retry: try 90 / 180 / 270 rotations
+    for (const r of [90, 180, 270] as const) {
+      const hit = await runPipeline(r);
+      if (hit) return hit;
     }
-    const width = decoded.width;
-    const height = decoded.height;
-    const rgba = new Uint8ClampedArray(decoded.data.buffer, decoded.data.byteOffset, decoded.data.byteLength);
-    const qr = jsQR(rgba, width, height, { inversionAttempts: "attemptBoth" });
-    return qr?.data || null;
+    return null;
   };
 
-  // ---- WEB: video → canvas → jsQR ----
+  // ---- WEB: video → full-res canvas → jsQR ----
   const videoRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const canvasRef = useRef<any>(null);
+  const webStartAtRef = useRef<number>(0);
 
   const startWebScanner = async () => {
     try {
@@ -138,8 +174,8 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
       const stream = await nav.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
           // @ts-expect-error focusMode advanced constraint
           focusMode: { ideal: "continuous" },
           // @ts-expect-error advanced is standard MediaTrackConstraints
@@ -160,10 +196,16 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
         video.setAttribute("playsinline", "true");
         await video.play();
       }
+      webStartAtRef.current = Date.now();
       const doc: any = (globalThis as any).document;
       canvasRef.current = doc.createElement("canvas");
       const tick = () => {
         if (scanned.current || !videoRef.current) return;
+        // Give the webcam ~600 ms to auto-expose/focus before decoding
+        if (Date.now() - webStartAtRef.current < 600) {
+          rafRef.current = requestAnimationFrame(tick);
+          return;
+        }
         try {
           const v = videoRef.current;
           const c = canvasRef.current;
@@ -176,6 +218,7 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
             ctx.drawImage(v, 0, 0, w, h);
             const imgData = ctx.getImageData(0, 0, w, h);
             const qr = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" });
+            setScanTick((t) => t + 1);
             if (qr?.data) {
               scanned.current = true;
               handleFound(qr.data);
@@ -217,42 +260,17 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
     onClose();
   };
 
-  // ---- Gallery fallback (both platforms) ----
+  // ---- Gallery fallback (both platforms) — FIXED in V38M ----
   const scanFromLibrary = async () => {
     setBusy(true);
+    setGalleryHint(null);
+    setWebError(null);
     try {
       if (Platform.OS === "web") {
-        const doc: any = (globalThis as any).document;
-        const input = doc.createElement("input");
-        input.type = "file";
-        input.accept = "image/*";
-        input.onchange = async () => {
-          const f = input.files?.[0];
-          if (!f) { setBusy(false); return; }
-          const img = new (globalThis as any).Image();
-          img.onload = async () => {
-            try {
-              const c = (globalThis as any).document.createElement("canvas");
-              c.width = img.naturalWidth;
-              c.height = img.naturalHeight;
-              const ctx = c.getContext("2d");
-              ctx.drawImage(img, 0, 0);
-              const imgData = ctx.getImageData(0, 0, c.width, c.height);
-              const qr = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" });
-              if (qr?.data) {
-                handleFound(qr.data);
-              } else {
-                setWebError("Nessun QR code rilevato nell'immagine.");
-              }
-            } catch (e: any) {
-              setWebError("Errore decodifica: " + (e?.message || ""));
-            } finally { setBusy(false); }
-          };
-          img.src = URL.createObjectURL(f);
-        };
-        input.click();
+        await scanFromLibraryWeb();
         return;
       }
+      // Native path: high-res + rotation retries
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) { setBusy(false); return; }
       const res = await ImagePicker.launchImageLibraryAsync({
@@ -261,16 +279,107 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
         allowsEditing: false,
       });
       if (res.canceled || !res.assets?.[0]?.uri) { setBusy(false); return; }
-      const result = await decodeQrFromUri(res.assets[0].uri);
+      const result = await decodeQrFromUri(res.assets[0].uri, SCAN_GALLERY_TARGET_SIZE, true);
       if (result) {
         handleFound(result);
       } else {
-        setWebError("Nessun QR code rilevato nell'immagine selezionata.");
+        setGalleryHint("Nessun QR code rilevato nell'immagine. Prova con una foto più nitida o più ravvicinata.");
+        setBusy(false);
       }
     } catch (e: any) {
       console.warn("scanFromLibrary err", e);
-      setWebError("Errore: " + (e?.message || ""));
-    } finally {
+      setGalleryHint("Errore: " + (e?.message || "impossibile decodificare l'immagine"));
+      setBusy(false);
+    }
+  };
+
+  // Web gallery pipeline: input file → createImageBitmap → canvas → jsQR.
+  // Uses a promise wrapper so the async control flow is clean and the busy
+  // spinner resets after the user finishes picking a file.
+  const scanFromLibraryWeb = async (): Promise<void> => {
+    const doc: any = (globalThis as any).document;
+    const winSelf: any = globalThis as any;
+    const file: File | null = await new Promise((resolve) => {
+      const input = doc.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      // Some browsers require the input to be attached to the DOM
+      input.style.position = "fixed";
+      input.style.left = "-9999px";
+      doc.body.appendChild(input);
+      let done = false;
+      input.onchange = () => {
+        if (done) return;
+        done = true;
+        const f = input.files?.[0] || null;
+        try { doc.body.removeChild(input); } catch {}
+        resolve(f);
+      };
+      // If the user cancels the picker, "onchange" never fires — we time out.
+      setTimeout(() => {
+        if (done) return;
+        done = true;
+        try { doc.body.removeChild(input); } catch {}
+        resolve(null);
+      }, 60000);
+      input.click();
+    });
+    if (!file) { setBusy(false); return; }
+    try {
+      let width: number;
+      let height: number;
+      let imgData: ImageData;
+      const c = doc.createElement("canvas");
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      if (typeof winSelf.createImageBitmap === "function") {
+        const bmp = await winSelf.createImageBitmap(file);
+        width = bmp.width;
+        height = bmp.height;
+        c.width = width;
+        c.height = height;
+        ctx.drawImage(bmp, 0, 0);
+        imgData = ctx.getImageData(0, 0, width, height);
+        try { bmp.close?.(); } catch {}
+      } else {
+        // Older-browser fallback via <img> + object URL
+        const url = URL.createObjectURL(file);
+        const img: any = new (globalThis as any).Image();
+        await new Promise<void>((res, rej) => {
+          img.onload = () => res();
+          img.onerror = () => rej(new Error("image load failed"));
+          img.src = url;
+        });
+        width = img.naturalWidth || img.width;
+        height = img.naturalHeight || img.height;
+        c.width = width;
+        c.height = height;
+        ctx.drawImage(img, 0, 0);
+        imgData = ctx.getImageData(0, 0, width, height);
+        try { URL.revokeObjectURL(url); } catch {}
+      }
+      // First attempt: as-is
+      let qr = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" });
+      // Second attempt: downscale to 1024 (some QRs decode better at a
+      // canonical size than at the original crazy-high resolution)
+      if (!qr) {
+        const scaled = doc.createElement("canvas");
+        const sctx = scaled.getContext("2d", { willReadFrequently: true });
+        const scale = Math.min(1, 1024 / Math.max(width, height));
+        scaled.width = Math.max(1, Math.round(width * scale));
+        scaled.height = Math.max(1, Math.round(height * scale));
+        sctx.drawImage(c, 0, 0, scaled.width, scaled.height);
+        const sData = sctx.getImageData(0, 0, scaled.width, scaled.height);
+        qr = jsQR(sData.data, sData.width, sData.height, { inversionAttempts: "attemptBoth" });
+      }
+      if (qr?.data) {
+        handleFound(qr.data);
+      } else {
+        setGalleryHint("Nessun QR code rilevato nell'immagine. Prova con una foto più nitida o più ravvicinata.");
+        setBusy(false);
+      }
+    } catch (e: any) {
+      console.warn("web gallery decode err", e);
+      setGalleryHint("Errore: " + (e?.message || "decodifica non riuscita"));
       setBusy(false);
     }
   };
@@ -327,6 +436,7 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
             autofocus="on"
             enableTorch={torch}
             active={visible}
+            onCameraReady={onCameraReady}
           />
         )}
 
@@ -334,12 +444,12 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
         <View pointerEvents="none" style={styles.overlay}>
           <View style={styles.frame} />
           <Text style={styles.hint}>
-            Allinea il QR code al centro · decodifica automatica ogni {Math.round(SCAN_INTERVAL_MS / 100) / 10}s
+            Allinea il QR al centro · scansione automatica ogni {Math.round(SCAN_INTERVAL_MS / 100) / 10}s
           </Text>
-          {webError && Platform.OS !== "web" && (
+          {galleryHint && (
             <View style={[styles.errorBox, { position: "relative", marginTop: 12 }]}>
-              <Ionicons name="warning" size={18} color="#DC2626" />
-              <Text style={styles.errorTxt}>{webError}</Text>
+              <Ionicons name="information-circle" size={18} color="#B45309" />
+              <Text style={styles.errorTxt}>{galleryHint}</Text>
             </View>
           )}
         </View>
