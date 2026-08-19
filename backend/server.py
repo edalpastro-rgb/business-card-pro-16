@@ -3566,6 +3566,260 @@ async def bills_report(contact_id: str, user=Depends(get_current_user)):
 
 
 # =========================
+# Quick Bill Analysis (Drafts, V38N)
+# Allow analyzing a bill PDF WITHOUT selecting a contact first. Useful for
+# on-the-spot analysis at a customer meeting: upload PDF → AI extract → later
+# associate to an existing contact or create a new one from extracted data.
+# =========================
+
+class QuickBillIn(BaseModel):
+    bill_type: str  # luce | gas | telco
+    pdf_base64: str
+    pdf_name: Optional[str] = None
+    pdf_mime: Optional[str] = "application/pdf"
+    analysis_params: Optional[List[str]] = None
+    label: Optional[str] = None  # optional user-friendly label (e.g. "Prospect via Roma")
+
+
+async def _analyze_draft_task(draft_id: str):
+    """Background analysis task for bill drafts (mirrors _analyze_bill_task)."""
+    draft = await db.bill_drafts.find_one({"draft_id": draft_id})
+    if not draft:
+        return
+    try:
+        curr = await db.bill_drafts.find_one({"draft_id": draft_id}, {"status": 1})
+        if curr and curr.get("status") == "cancelled":
+            return
+        await db.bill_drafts.update_one({"draft_id": draft_id}, {"$set": {"status": "analyzing"}})
+        text = _extract_pdf_text(draft["pdf_base64"])
+        if not text or len(text.strip()) < 30:
+            curr = await db.bill_drafts.find_one({"draft_id": draft_id}, {"status": 1})
+            if curr and curr.get("status") != "cancelled":
+                await db.bill_drafts.update_one({"draft_id": draft_id}, {"$set": {
+                    "status": "error",
+                    "error_message": "PDF vuoto o non leggibile (potrebbe essere scansione senza OCR).",
+                    "analyzed_at": utcnow(),
+                }})
+            return
+        curr = await db.bill_drafts.find_one({"draft_id": draft_id}, {"status": 1})
+        if curr and curr.get("status") == "cancelled":
+            return
+        extracted = await _llm_analyze_bill_text(
+            draft.get("bill_type") or "luce", text, draft.get("analysis_params") or None
+        )
+        curr = await db.bill_drafts.find_one({"draft_id": draft_id}, {"status": 1})
+        if curr and curr.get("status") == "cancelled":
+            return
+        await db.bill_drafts.update_one({"draft_id": draft_id}, {"$set": {
+            "status": "done",
+            "extracted": extracted,
+            "error_message": None,
+            "analyzed_at": utcnow(),
+        }})
+    except Exception as e:
+        logger.exception("draft analysis err %s", e)
+        curr = await db.bill_drafts.find_one({"draft_id": draft_id}, {"status": 1})
+        if curr and curr.get("status") != "cancelled":
+            await db.bill_drafts.update_one({"draft_id": draft_id}, {"$set": {
+                "status": "error",
+                "error_message": str(e)[:500],
+                "analyzed_at": utcnow(),
+            }})
+
+
+@api_router.post("/bill-drafts")
+async def create_bill_draft(body: QuickBillIn, background: BackgroundTasks, user=Depends(get_current_user)):
+    if body.bill_type not in BILL_TYPES:
+        raise HTTPException(status_code=400, detail=f"bill_type non valido: usa {BILL_TYPES}")
+    b64 = body.pdf_base64
+    if b64.startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    approx_size = int(len(b64) * 0.75)
+    if approx_size > 12 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="PDF troppo grande (max ~12 MB)")
+    draft_id = f"bdft_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "draft_id": draft_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "bill_type": body.bill_type,
+        "pdf_base64": body.pdf_base64,
+        "pdf_name": body.pdf_name or f"fattura-{body.bill_type}.pdf",
+        "pdf_mime": body.pdf_mime or "application/pdf",
+        "pdf_size": approx_size,
+        "label": (body.label or "").strip() or None,
+        "status": "pending",
+        "extracted": None,
+        "error_message": None,
+        "analysis_params": body.analysis_params or None,
+        "contact_id": None,
+        "created_at": utcnow(),
+        "analyzed_at": None,
+    }
+    await db.bill_drafts.insert_one(doc)
+    background.add_task(_analyze_draft_task, draft_id)
+    strip_id(doc)
+    doc.pop("pdf_base64", None)
+    return doc
+
+
+@api_router.get("/bill-drafts")
+async def list_bill_drafts(user=Depends(get_current_user)):
+    items = await db.bill_drafts.find(
+        {"user_id": tenant_id(user), "contact_id": None},
+        {"_id": 0, "pdf_base64": 0},
+    ).sort("created_at", -1).to_list(200)
+    return {"items": items}
+
+
+@api_router.get("/bill-drafts/{draft_id}")
+async def get_bill_draft(draft_id: str, user=Depends(get_current_user)):
+    d = await db.bill_drafts.find_one(
+        {"user_id": tenant_id(user), "draft_id": draft_id},
+        {"_id": 0, "pdf_base64": 0},
+    )
+    if not d:
+        raise HTTPException(status_code=404, detail="Bozza non trovata")
+    return d
+
+
+@api_router.get("/bill-drafts/{draft_id}/pdf")
+async def get_bill_draft_pdf(draft_id: str, user=Depends(get_current_user)):
+    d = await db.bill_drafts.find_one(
+        {"user_id": tenant_id(user), "draft_id": draft_id},
+        {"_id": 0},
+    )
+    if not d:
+        raise HTTPException(status_code=404, detail="Bozza non trovata")
+    return {"pdf_base64": d.get("pdf_base64"), "pdf_name": d.get("pdf_name"), "pdf_mime": d.get("pdf_mime")}
+
+
+@api_router.delete("/bill-drafts/{draft_id}")
+async def delete_bill_draft(draft_id: str, user=Depends(get_current_user)):
+    r = await db.bill_drafts.delete_one({"user_id": tenant_id(user), "draft_id": draft_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Bozza non trovata")
+    return {"ok": True}
+
+
+@api_router.post("/bill-drafts/{draft_id}/reanalyze")
+async def reanalyze_bill_draft(draft_id: str, background: BackgroundTasks, user=Depends(get_current_user)):
+    d = await db.bill_drafts.find_one({"user_id": tenant_id(user), "draft_id": draft_id})
+    if not d:
+        raise HTTPException(status_code=404, detail="Bozza non trovata")
+    await db.bill_drafts.update_one({"draft_id": draft_id}, {"$set": {"status": "pending", "error_message": None}})
+    background.add_task(_analyze_draft_task, draft_id)
+    return {"ok": True}
+
+
+class DraftAssociateIn(BaseModel):
+    contact_id: str
+
+
+@api_router.post("/bill-drafts/{draft_id}/associate")
+async def associate_bill_draft(draft_id: str, body: DraftAssociateIn, user=Depends(get_current_user)):
+    """Move a draft's PDF + extracted data into the target contact's energy_bills
+    then delete the draft. Returns the newly-created bill_id."""
+    d = await db.bill_drafts.find_one({"user_id": tenant_id(user), "draft_id": draft_id})
+    if not d:
+        raise HTTPException(status_code=404, detail="Bozza non trovata")
+    await _ensure_contact_owned(body.contact_id, user)
+    bill_id = f"bill_{uuid.uuid4().hex[:12]}"
+    bill_doc = {
+        "bill_id": bill_id,
+        "contact_id": body.contact_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "bill_type": d.get("bill_type") or "luce",
+        "pdf_base64": d.get("pdf_base64"),
+        "pdf_name": d.get("pdf_name"),
+        "pdf_mime": d.get("pdf_mime"),
+        "pdf_size": d.get("pdf_size"),
+        "status": d.get("status") or "done",
+        "extracted": d.get("extracted"),
+        "error_message": d.get("error_message"),
+        "analysis_params": d.get("analysis_params"),
+        "created_at": d.get("created_at") or utcnow(),
+        "analyzed_at": d.get("analyzed_at"),
+    }
+    await db.energy_bills.insert_one(bill_doc)
+    await db.bill_drafts.delete_one({"draft_id": draft_id})
+    strip_id(bill_doc)
+    bill_doc.pop("pdf_base64", None)
+    return {"ok": True, "bill_id": bill_id, "contact_id": body.contact_id, "bill": bill_doc}
+
+
+@api_router.post("/bill-drafts/{draft_id}/create-contact")
+async def create_contact_from_draft(draft_id: str, user=Depends(get_current_user)):
+    """Create a new contact from the extracted bill data, then associate the
+    draft's bill to it. Returns {contact_id, bill_id}."""
+    d = await db.bill_drafts.find_one({"user_id": tenant_id(user), "draft_id": draft_id})
+    if not d:
+        raise HTTPException(status_code=404, detail="Bozza non trovata")
+    extracted = d.get("extracted") or {}
+    if not extracted:
+        raise HTTPException(status_code=400, detail="La bozza non ha ancora dati estratti. Attendi il completamento dell'analisi.")
+    # Try to map common bill fields → contact fields
+    holder = extracted.get("intestatario") or extracted.get("cliente") or extracted.get("holder") or ""
+    holder = str(holder).strip()
+    first_name = holder
+    last_name = ""
+    if holder and " " in holder:
+        parts = holder.split()
+        first_name = parts[0]
+        last_name = " ".join(parts[1:])
+    if not first_name:
+        first_name = f"Bolletta {d.get('bill_type','luce').title()}"
+    addr = extracted.get("indirizzo_fornitura") or extracted.get("indirizzo") or ""
+    contact_id = f"c_{uuid.uuid4().hex[:12]}"
+    contact_doc = {
+        "contact_id": contact_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "assigned_to_user_id": user["user_id"],
+        "first_name": first_name,
+        "last_name": last_name,
+        "phone": str(extracted.get("telefono") or extracted.get("phone") or ""),
+        "email": str(extracted.get("email") or ""),
+        "address_street": str(addr) if isinstance(addr, str) else "",
+        "fiscal_code": str(extracted.get("codice_fiscale") or ""),
+        "vat_number": str(extracted.get("partita_iva") or ""),
+        "area": "energy",
+        "additional_areas": [],
+        "source": "personal",
+        "tags": ["da-bolletta"],
+        "group_ids": [],
+        "general_note": f"Cliente creato automaticamente dall'analisi di una bolletta {d.get('bill_type','luce')}.",
+        "email_note": "",
+        "created_at": utcnow(),
+        "updated_at": utcnow(),
+    }
+    await db.contacts.insert_one(contact_doc)
+    # Now associate the draft
+    bill_id = f"bill_{uuid.uuid4().hex[:12]}"
+    bill_doc = {
+        "bill_id": bill_id,
+        "contact_id": contact_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "bill_type": d.get("bill_type") or "luce",
+        "pdf_base64": d.get("pdf_base64"),
+        "pdf_name": d.get("pdf_name"),
+        "pdf_mime": d.get("pdf_mime"),
+        "pdf_size": d.get("pdf_size"),
+        "status": d.get("status") or "done",
+        "extracted": d.get("extracted"),
+        "error_message": d.get("error_message"),
+        "analysis_params": d.get("analysis_params"),
+        "created_at": d.get("created_at") or utcnow(),
+        "analyzed_at": d.get("analyzed_at"),
+    }
+    await db.energy_bills.insert_one(bill_doc)
+    await db.bill_drafts.delete_one({"draft_id": draft_id})
+    return {"ok": True, "contact_id": contact_id, "bill_id": bill_id}
+
+
+# =========================
 # Company Offers + Comparison (V25.b)
 # Each user (tenant owner) can upload company offer PDFs (luce/gas/telco). AI extracts
 # offer parameters, then the /bills/comparison endpoint compares any client's bill vs an offer.

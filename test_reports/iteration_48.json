@@ -1,0 +1,34 @@
+{
+  "summary": "V38N — Quick Bill Analysis (Bill Drafts) full backend + frontend verification. All 14 backend pytest cases passed (validation, lifecycle, associate, create-contact, reanalyze, PDF endpoint, delete, tenant scoping). Frontend /bill-quick screen verified via Playwright: header, back button, intro card, 3 upload buttons (luce/gas/telco), Bozze section, draft expansion showing extracted KV rows (Fornitore=Enel Energia, Cliente=Mario Rossi, Importo=128.45, Periodo=Gennaio 2026), Associa modal with 39 contact rows + working search, Crea cliente button visible. Master screen tile 'Analizza bolletta' present. No blocking issues found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38n_bill_drafts.py",
+    "/app/test_reports/pytest/v38n_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:3720 associate_bill_draft accepts drafts in any status (pending/analyzing/error) — by design; extracted may be null when associating a still-pending draft. Consumer bills endpoints handle this fine.",
+    "server.py:3760 create-contact correctly returns 400 when extracted is missing. Good validation.",
+    "server.py:3782-3786 numeric-looking extracted fields (telefono/cf/piva) are cast to str — safe.",
+    "server.py:3667 list_bill_drafts hard-filters contact_id:null so associated drafts don't leak back into the drafts list. Correct.",
+    "bill-quick.tsx uses testID prefixes consistently (draft-card-*, draft-associate-*, draft-create-contact-*, quick-upload-*, quick-assoc-*). Excellent testability."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v38n_bill_drafts.py (new)"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% (all UI checks passed)"},
+  "seed_data_creation": "One draft with label prefix TEST_ was seeded via API for UI testing then cleaned up in teardown. All test data prefixed TEST_ and removed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "V38N adds a new 'Analizza bolletta' flow that lets a consultant upload a bill PDF WITHOUT selecting a contact first. The relevant backend endpoints are all under /api/bill-drafts (see server.py L3567-3820). The frontend screen is /app/frontend/app/bill-quick.tsx, and a tile linking to it exists in master.tsx L153. Full pytest suite: /app/backend/tests/test_v38n_bill_drafts.py — reuse it for regression.",
+  "rca_of_issue": ""
+}

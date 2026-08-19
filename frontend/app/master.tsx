@@ -150,6 +150,7 @@ export default function MasterScreen() {
       pulse: voicePhase === "recording" ? voicePulse : undefined,
     },
     { label: "I miei audio", icon: "folder-open", color: "#8B5CF6", onPress: () => goto("/my-audios") },
+    { label: "Analizza bolletta", icon: "flash", color: "#EA580C", onPress: () => goto("/bill-quick") },
   ];
 
   return (

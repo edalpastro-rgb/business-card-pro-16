@@ -17,11 +17,15 @@ type Props = {
 
 // Fixed (V38M): larger canvas resolution to give jsQR enough pixels on small
 // QR codes printed on business cards. 480px was too aggressive for near-scans.
-const SCAN_INTERVAL_MS = 700;              // native live scan interval
-const SCAN_STABILIZATION_MS = 900;         // wait before the FIRST live scan
-const SCAN_LIVE_TARGET_SIZE = 1024;        // downscale live snapshots to this width
+// V38N tuning (Samsung S21 / mid-range Android): more stabilization time +
+// higher JPEG quality so the frame isn't motion-blurred when hand-held near
+// a business card. S21 autofocus settles in ~500-600 ms but hand shake takes
+// another beat.
+const SCAN_INTERVAL_MS = 900;              // native live scan interval (was 700)
+const SCAN_STABILIZATION_MS = 1300;        // wait before the FIRST live scan (was 900)
+const SCAN_LIVE_TARGET_SIZE = 1400;        // downscale live snapshots to this width (was 1024)
 const SCAN_GALLERY_TARGET_SIZE = 2048;     // gallery uploads keep higher detail
-const JPEG_QUALITY_LIVE = 0.65;            // more headroom for jsQR pattern lock
+const JPEG_QUALITY_LIVE = 0.85;            // more headroom for jsQR pattern lock (was 0.65)
 
 /**
  * QR / barcode scanner modal (V38M — hi-res jsQR pure-JS decoder).

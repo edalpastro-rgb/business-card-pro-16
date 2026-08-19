@@ -14,6 +14,7 @@ import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 
 type BillType = "luce" | "gas" | "telco";
+export type QuickBillType = BillType;
 
 type Bill = {
   bill_id: string;
@@ -46,8 +47,8 @@ const STATUS_META = {
 };
 
 // V38 — Default analysis parameters per bill type. Each has: id, label, default checked
-type ParamDef = { id: string; label: string; defaultOn: boolean };
-const DEFAULT_PARAMS: Record<BillType, ParamDef[]> = {
+export type ParamDef = { id: string; label: string; defaultOn: boolean };
+export const DEFAULT_PARAMS: Record<BillType, ParamDef[]> = {
   luce: [
     { id: "fornitore", label: "Fornitore", defaultOn: true },
     { id: "pod", label: "POD", defaultOn: true },
