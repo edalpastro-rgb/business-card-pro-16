@@ -15,6 +15,7 @@ import { shareText, shareDataUri } from "@/src/share";
 import { openTelegram } from "@/src/utils/telegram";
 import { BillsSection } from "@/src/BillsSection";
 import { ShareSheet, ShareTarget } from "@/src/ShareSheet";
+import { FileViewer } from "@/src/FileViewer";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ContactAudioSection } from "@/src/ContactAudioSection";
 import { ContactCallsSection } from "@/src/ContactCallsSection";
@@ -57,6 +58,7 @@ export default function ContactDetail() {
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
   const [callsRefreshTick, setCallsRefreshTick] = useState(0);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
+  const [viewerFile, setViewerFile] = useState<CFile | null>(null);
   const { user } = useAuth();
   const canAssign = user?.role === "owner" || user?.role === "admin";
 
@@ -865,15 +867,33 @@ export default function ContactDetail() {
               <Text style={styles.addFileTxt}>Carica PDF o immagine</Text>
             </Pressable>
             {c.files && c.files.length > 0 ? c.files.map((f) => (
-              <View key={f.id} style={styles.fileCard}>
+              <Pressable
+                key={f.id}
+                testID={`file-open-${f.id}`}
+                onPress={() => setViewerFile(f)}
+                style={styles.fileCard}
+              >
                 <Ionicons name={f.mime.startsWith("image/") ? "image-outline" : "document-outline"} size={22} color={theme.color.brandPrimary} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fileName} numberOfLines={1}>{f.name}</Text>
                   <Text style={styles.fileMeta}>{Math.round((f.size || 0) / 1024)} KB · {new Date(f.created_at).toLocaleDateString("it-IT")}</Text>
                 </View>
-                <Pressable testID={`share-file-${f.id}`} onPress={() => shareFile(f)} style={{ marginRight: 6 }}><Ionicons name="share-social-outline" size={18} color={theme.color.brandPrimary} /></Pressable>
-                <Pressable testID={`del-file-${f.id}`} onPress={() => deleteFile(f.id)}><Ionicons name="trash-outline" size={18} color={theme.color.error} /></Pressable>
-              </View>
+                <Pressable
+                  testID={`share-file-${f.id}`}
+                  onPress={(e: any) => { e?.stopPropagation?.(); shareFile(f); }}
+                  hitSlop={8}
+                  style={{ marginRight: 6 }}
+                >
+                  <Ionicons name="share-social-outline" size={18} color={theme.color.brandPrimary} />
+                </Pressable>
+                <Pressable
+                  testID={`del-file-${f.id}`}
+                  onPress={(e: any) => { e?.stopPropagation?.(); deleteFile(f.id); }}
+                  hitSlop={8}
+                >
+                  <Ionicons name="trash-outline" size={18} color={theme.color.error} />
+                </Pressable>
+              </Pressable>
             )) : <Text style={styles.emptyTxt}>Nessun file</Text>}
           </>
         )}
@@ -900,6 +920,13 @@ export default function ContactDetail() {
         visible={!!shareTarget}
         target={shareTarget}
         onClose={() => setShareTarget(null)}
+      />
+      <FileViewer
+        visible={!!viewerFile}
+        fileName={viewerFile?.name || ""}
+        mime={viewerFile?.mime || "application/octet-stream"}
+        dataBase64={viewerFile?.data_base64 || ""}
+        onClose={() => setViewerFile(null)}
       />
     </SafeAreaView>
   );

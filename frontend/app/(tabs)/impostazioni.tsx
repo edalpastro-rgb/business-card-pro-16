@@ -103,6 +103,47 @@ export default function ImpostazioniScreen() {
     } finally { setAvatarBusy(false); }
   };
 
+  // V38I — Branding (logo + agency name) for PDF reports
+  const [companyName, setCompanyName] = useState<string>(user?.company_name || "");
+  const [companyNameSaved, setCompanyNameSaved] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const companyNameTimer = React.useRef<any>(null);
+  useEffect(() => { setCompanyName(user?.company_name || ""); }, [user?.company_name]);
+  const saveCompanyName = (v: string) => {
+    setCompanyName(v);
+    setCompanyNameSaved(false);
+    if (companyNameTimer.current) clearTimeout(companyNameTimer.current);
+    companyNameTimer.current = setTimeout(async () => {
+      try {
+        await api("/auth/profile", { method: "PUT", body: { company_name: v.trim().slice(0, 80) } });
+        await refresh();
+        setCompanyNameSaved(true);
+        setTimeout(() => setCompanyNameSaved(false), 1800);
+      } catch (e: any) { notify("Errore", e?.message || ""); }
+    }, 600);
+  };
+  const uploadCompanyLogo = async () => {
+    setLogoBusy(true);
+    try {
+      const b64 = await pickAvatarBase64();
+      if (b64) {
+        await api("/auth/profile", { method: "PUT", body: { company_logo_base64: b64 } });
+        await refresh();
+      }
+    } catch (e: any) { notify("Errore logo", e?.message || ""); }
+    finally { setLogoBusy(false); }
+  };
+  const removeCompanyLogo = async () => {
+    const ok = await confirmAsync("Rimuovi logo", "Vuoi togliere il logo aziendale dai report?");
+    if (!ok) return;
+    setLogoBusy(true);
+    try {
+      await api("/auth/profile", { method: "PUT", body: { company_logo_base64: "" } });
+      await refresh();
+    } catch (e: any) { notify("Errore", e?.message || ""); }
+    finally { setLogoBusy(false); }
+  };
+
   const load = useCallback(async () => setS(await api<Settings>("/settings")), []);
   useEffect(() => { load(); }, [load]);
 
@@ -296,6 +337,73 @@ export default function ImpostazioniScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>
+
+        {/* V38I — Branding aziendale for PDF reports (owner only) */}
+        {!user?.parent_user_id && (
+          <View style={styles.card} testID="branding-card">
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#FEF3C7", justifyContent: "center", alignItems: "center" }}>
+                <Ionicons name="ribbon" size={20} color="#B45309" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionTitle}>Branding aziendale</Text>
+                <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
+                  Logo e nome che appaiono sui PDF (report Fatture, confronti offerte)
+                </Text>
+              </View>
+            </View>
+
+            <Text style={[styles.label, { marginTop: 14 }]}>Nome agenzia / studio</Text>
+            <TextInput
+              testID="branding-name-input"
+              value={companyName}
+              onChangeText={saveCompanyName}
+              style={styles.input}
+              placeholder="Es. Dal Pastro Consulting"
+              placeholderTextColor="#94A3B8"
+              maxLength={80}
+            />
+            <Text style={{ fontSize: 11, color: companyNameSaved ? "#16A34A" : theme.color.muted, marginTop: 4 }}>
+              {companyNameSaved ? "✓ Nome agenzia salvato" : "Salvataggio automatico dopo la digitazione."}
+            </Text>
+
+            <Text style={[styles.label, { marginTop: 14 }]}>Logo agenzia</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
+              <View style={{ width: 84, height: 84, borderRadius: 12, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, justifyContent: "center", alignItems: "center", overflow: "hidden" }}>
+                {user?.company_logo_base64 ? (
+                  <Image source={{ uri: user.company_logo_base64 }} style={{ width: "100%", height: "100%", resizeMode: "contain" }} />
+                ) : (
+                  <Ionicons name="image" size={30} color={theme.color.muted} />
+                )}
+              </View>
+              <View style={{ flex: 1, gap: 8 }}>
+                <Pressable
+                  testID="branding-logo-upload"
+                  onPress={uploadCompanyLogo}
+                  disabled={logoBusy}
+                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 8, backgroundColor: theme.color.brandPrimary, opacity: logoBusy ? 0.5 : 1 }}
+                >
+                  {logoBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="cloud-upload" size={16} color="#FFF" />}
+                  <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>{user?.company_logo_base64 ? "Cambia logo" : "Carica logo"}</Text>
+                </Pressable>
+                {user?.company_logo_base64 && (
+                  <Pressable
+                    testID="branding-logo-remove"
+                    onPress={removeCompanyLogo}
+                    disabled={logoBusy}
+                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 8, backgroundColor: "#FEE2E2", borderWidth: 1, borderColor: "#FCA5A5" }}
+                  >
+                    <Ionicons name="trash" size={14} color="#DC2626" />
+                    <Text style={{ color: "#DC2626", fontWeight: "700", fontSize: 12 }}>Rimuovi</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+            <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 8, fontStyle: "italic" }}>
+              Consigliato: PNG/JPG orizzontale, max 500 KB, sfondo trasparente/bianco.
+            </Text>
+          </View>
+        )}
 
         {/* AI Assistant customization — available to all users */}
         <View style={styles.card} testID="assistant-name-card">

@@ -251,13 +251,8 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Groups CRUD (custom, per-tenant) + contact.group_ids filter"
-    - "SMTP config per-tenant + real bulk email"
-    - "Bulk preview (WhatsApp/Telegram/SMS deep-link sequential)"
-    - "Team chat channels + messages (text/audio/photo/file/link)"
-    - "Groups screens (list, create/edit modal, detail with bulk actions)"
-    - "Contact form group multi-select + contacts list group filter"
-    - "Team chat tab + create channel + chat detail with all media"
+    - "V38I: Business card OCR endpoint (/api/ai/contact-from-card) — Gemini vision fix (was HTTP 502)"
+    - "V38I: Profile branding endpoint (/api/auth/profile with company_name + company_logo_base64)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -294,29 +289,5 @@ agent_communication:
     (4) **Import multiplo Rubrica** — `/app/frontend/app/contact/new.tsx` ora ha modal multi-select con: campo ricerca (nome/telefono), toggle 'Seleziona tutti (N)', checkbox per ogni contatto, contatore 'Selezionati: N', footer button dinamico ('Importa contatto' se N≤1, 'Crea N nuovi contatti' se N>1). Se single-select → compila form corrente via `fillFromContact` (comportamento originale preservato). Se multi-select → crea N contatti sequenzialmente via POST /api/contacts con progress {done}/{total}, poi naviga a `/(tabs)/contatti`. Note: solo su native Expo Go / build nativa (Contacts API non disponibile in web).
     (5) TestIDs aggiunti: `assistant-conv-toggle`, `assistant-conv-panel`, `assistant-conv-mute`, `assistant-conv-end`, `ap-duration-picker`, `ap-reminder-picker`, `ap-duration-modal-confirm`, `ap-reminder-modal-confirm`, `phone-import-search`, `phone-import-select-all`, `phone-import-row-{id}`, `phone-import-confirm`."
 
-  - agent: "main"
-    message: "Iterazione V38 — Modulo Fatture: 7 miglioramenti/fix richiesti dall'utente.
-
-    **Backend (`/app/backend/server.py`):**
-    (1) `EnergyBillIn` accetta ora `analysis_params: Optional[List[str]]` — lista di parametri prioritari per l'estrazione AI.
-    (2) `_llm_analyze_bill_text()` appende automaticamente la lista dei parametri al system prompt di Claude Sonnet 5.
-    (3) `_analyze_bill_task()` verifica lo stato `cancelled` in 3 checkpoint (prima dello start, prima dell'LLM call, prima del save) — evita di sovrascrivere il record se l'utente ha annullato.
-    (4) NUOVO endpoint: `POST /api/contacts/{cid}/bills/{bill_id}/cancel` — annulla analisi in corso (solo se status='pending' o 'analyzing', altrimenti 400).
-    (5) **FIX HTTP 502 su `/bills/comparison`**: il precedente prompt unico >2000 chars generava una singola LLM call >60s che veniva troncata dall'ingress K8s. Ora splittato in due prompt paralleli via `asyncio.gather`:
-        - `COMPARISON_PROMPT_BASIC` (813 chars): sintesi, vantaggi, svantaggi, raccomandazione, risparmio
-        - `COMPARISON_PROMPT_RICH` (2015 chars): impronta_energetica, dettaglio_fasce (F1/F2/F3), analisi_contratto_attuale, calcolo_risparmio, matrice_confronto, executive_summary
-        Merge tramite `_llm_compare_offers()`. Tempo totale ridotto da >60s (502) a ~22s (verificato).
-    (6) Comparison endpoint parallelizza anche le chiamate tra bill_type diversi via `asyncio.gather` + wrapper `_safe_compare()` per graceful failure.
-
-    **Frontend:**
-    (7) `/app/frontend/app/contact/[id].tsx`: la tab **Fatture** è ora orange distintivo (#EA580C, icona 22px, dot badge in alto a destra, sfondo tenue permanente).
-    (8) `/app/frontend/src/BillsSection.tsx`:
-       - **Config modal parametri**: dopo aver selezionato il PDF si apre un modal a scorrimento con checkbox per parametri standard (17 luce / 12 gas / 11 telco), opzione per aggiungere parametri custom. Analisi parte solo su 'Avvia analisi AI'.
-       - **Pulsanti Annulla analisi**: stop icon nell'header collapsed + button 'Annulla analisi' nella actions row expanded.
-       - **Elimina rapido**: trash icon sempre visibile nell'header del card bill (anche collapsed, anche con più fatture).
-       - **PDF fix (no popup blocked)**: nuovo `printHtmlOnWeb()` usa iframe offscreen + `iframe.contentWindow.print()` invece di `window.open`. Verificato: nessun popup blocked.
-       - **`buildComparisonHtml` rivisitato**: 6 sezioni visuali per ogni pair (impronta energetica con badge categoria, fasce F1/F2/F3 con SVG bar chart, analisi contratto attuale, calcolo risparmio, matrice confronto 5-colonne, executive summary con verdict banner).
-
-    **Testing agent report:**
-    - iteration_38: 5/6 backend + frontend tab color OK, ma comparison ancora 502.
-    - iteration_39 (retest dopo split parallelo): 3/3 pass, comparison ora HTTP 200 in 22.6s con TUTTI i 5 campi BASIC + 6 campi RICH."
+  - agent: "testing"
+    message: "V38I backend testing complete — 10/10 PASSED. (a) OCR endpoint `/api/ai/contact-from-card` now returns 200 with parsed contact from synthetic biz card (Gemini extracts nome/cognome/ruolo/azienda/email/telefono/website correctly). Empty base64 → 400, no auth → 401/403, never 502. (b) Branding endpoints round-trip: PUT /auth/profile with company_name+company_logo_base64 persists, GET /auth/me returns them. Empty string clears logo. additional_emails still works. (c) Regressions: login returns {token,user,trust_expires_at}, /contacts sorted DESC by created_at. **CRITICAL FIX applied by testing agent**: main agent used `ImageContent(image_url=data_url)` but emergentintegrations expects `ImageContent(image_base64=bare_b64)` — every call was silently failing with TypeError caught by the 3-model fallback loop and returning 422. Fixed at server.py:3082-3109 by stripping data URL prefix and passing bare base64. Verified end-to-end. Pytest at /app/backend/tests/test_v38i_ocr_branding.py. Report /app/test_reports/iteration_47.json."

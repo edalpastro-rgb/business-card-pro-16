@@ -13,6 +13,7 @@ import { theme } from "@/src/theme";
 import { scheduleBirthdayReminder } from "@/src/notifications";
 import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
 import { notify, confirmAsync } from "@/src/utils/notify";
+import { QRScannerModal } from "@/src/QRScannerModal";
 
 type PendingAttachment = {
   local_id: string;
@@ -83,6 +84,8 @@ export default function NewContactScreen() {
   // V38H — user's sender emails (main + additional) for the birthday email picker
   const [userEmails, setUserEmails] = useState<string[]>([]);
   const [bdayGenerating, setBdayGenerating] = useState(false);
+  // V38I — QR code scanner
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   useEffect(() => {
     api<{ items: ContactLite[] }>("/contacts").then((r) => setContacts(r.items)).catch(() => {});
@@ -411,6 +414,150 @@ export default function NewContactScreen() {
       setPhoneImportBusy(false);
       setPhoneImportProgress(null);
     }
+  };
+
+  // V38I — Parse a QR-code payload and prefill the form.
+  // Supports: vCard (BEGIN:VCARD…END:VCARD), MECARD:…, JSON, plain URL/email/phone.
+  const applyQrData = (raw: string) => {
+    if (!raw) return;
+    const patch: Partial<typeof form> = {};
+    const noteBits: string[] = [];
+
+    const setIfEmpty = (key: keyof typeof form, value: string) => {
+      if (value && !(form as any)[key]) (patch as any)[key] = value.trim();
+    };
+    const addNote = (label: string, value: string) => {
+      if (value && value.trim()) noteBits.push(`${label}: ${value.trim()}`);
+    };
+
+    const s = raw.trim();
+
+    // 1) JSON payload
+    try {
+      const j = JSON.parse(s);
+      if (j && typeof j === "object") {
+        const g = (k: string) => (j[k] ?? j[k.toLowerCase()] ?? "").toString();
+        setIfEmpty("first_name", g("first_name") || g("firstName") || g("name") || "");
+        setIfEmpty("last_name", g("last_name") || g("lastName") || g("surname") || "");
+        addNote("Azienda", g("company") || g("organization") || "");
+        addNote("Ruolo", g("role") || g("title") || "");
+        setIfEmpty("email", g("email"));
+        setIfEmpty("email_alt", g("email_alt") || g("emailAlt") || "");
+        setIfEmpty("phone", g("phone") || g("tel") || g("mobile") || "");
+        setIfEmpty("phone_alt", g("phone_alt") || g("phone2") || g("workPhone") || "");
+        setIfEmpty("address_street", g("address_street") || g("address") || g("street") || "");
+        setIfEmpty("address_city", g("address_city") || g("city") || "");
+        setIfEmpty("address_zip", g("address_zip") || g("zip") || g("postalCode") || "");
+        setIfEmpty("address_province", g("address_province") || g("province") || g("state") || "");
+        setIfEmpty("website", g("website") || g("url") || "");
+        const noteMerged = [form.general_note, ...noteBits].filter(Boolean).join("\n");
+        if (noteBits.length > 0) (patch as any).general_note = noteMerged;
+        setForm({ ...form, ...patch });
+        notify("Contatto letto dal QR", "Campi precompilati dal codice.");
+        return;
+      }
+    } catch {}
+
+    // 2) vCard
+    if (/^BEGIN:VCARD/i.test(s)) {
+      const grabs: Record<string, string> = {};
+      s.split(/\r?\n/).forEach((line) => {
+        const idx = line.indexOf(":");
+        if (idx < 0) return;
+        const head = line.slice(0, idx).toUpperCase();
+        const val = line.slice(idx + 1);
+        if (head.startsWith("FN")) grabs.FN = val;
+        else if (head.startsWith("N")) grabs.N = val;
+        else if (head.startsWith("ORG")) grabs.ORG = val;
+        else if (head.startsWith("TITLE")) grabs.TITLE = val;
+        else if (head.startsWith("EMAIL")) grabs.EMAIL = grabs.EMAIL ? grabs.EMAIL : val;
+        else if (head.startsWith("TEL")) {
+          if (!grabs.TEL) grabs.TEL = val;
+          else if (!grabs.TEL2) grabs.TEL2 = val;
+        }
+        else if (head.startsWith("ADR")) grabs.ADR = val;
+        else if (head.startsWith("URL")) grabs.URL = val;
+      });
+      if (grabs.N) {
+        const [last, first] = grabs.N.split(";");
+        setIfEmpty("first_name", first || "");
+        setIfEmpty("last_name", last || "");
+      } else if (grabs.FN) {
+        const parts = grabs.FN.trim().split(/\s+/);
+        setIfEmpty("first_name", parts[0] || "");
+        setIfEmpty("last_name", parts.slice(1).join(" ") || "");
+      }
+      addNote("Azienda", grabs.ORG || "");
+      addNote("Ruolo", grabs.TITLE || "");
+      setIfEmpty("email", grabs.EMAIL || "");
+      setIfEmpty("phone", grabs.TEL || "");
+      setIfEmpty("phone_alt", grabs.TEL2 || "");
+      setIfEmpty("website", grabs.URL || "");
+      if (grabs.ADR) {
+        // ADR:;;street;city;province;zip;country
+        const parts = grabs.ADR.split(";");
+        setIfEmpty("address_street", parts[2] || "");
+        setIfEmpty("address_city", parts[3] || "");
+        setIfEmpty("address_province", parts[4] || "");
+        setIfEmpty("address_zip", parts[5] || "");
+      }
+      if (noteBits.length > 0) {
+        const noteMerged = [form.general_note, ...noteBits].filter(Boolean).join("\n");
+        (patch as any).general_note = noteMerged;
+      }
+      setForm({ ...form, ...patch });
+      notify("vCard letta", "Campi precompilati dal QR.");
+      return;
+    }
+
+    // 3) MECARD:
+    if (/^MECARD:/i.test(s)) {
+      const body = s.replace(/^MECARD:/i, "");
+      const kv: Record<string, string> = {};
+      body.split(";").forEach((seg) => {
+        const idx = seg.indexOf(":");
+        if (idx < 0) return;
+        kv[seg.slice(0, idx).toUpperCase()] = seg.slice(idx + 1);
+      });
+      if (kv.N) {
+        const [last, first] = kv.N.split(",");
+        setIfEmpty("first_name", first || "");
+        setIfEmpty("last_name", last || "");
+      }
+      addNote("Azienda", kv.ORG || "");
+      setIfEmpty("email", kv.EMAIL || "");
+      setIfEmpty("phone", kv.TEL || "");
+      setIfEmpty("website", kv.URL || "");
+      if (noteBits.length > 0) {
+        const noteMerged = [form.general_note, ...noteBits].filter(Boolean).join("\n");
+        (patch as any).general_note = noteMerged;
+      }
+      setForm({ ...form, ...patch });
+      notify("MECARD letta", "Campi precompilati dal QR.");
+      return;
+    }
+
+    // 4) mailto / tel / http URL / plain
+    if (/^mailto:/i.test(s)) {
+      setIfEmpty("email", s.replace(/^mailto:/i, "").split("?")[0]);
+    } else if (/^tel:/i.test(s)) {
+      setIfEmpty("phone", s.replace(/^tel:/i, ""));
+    } else if (/^https?:/i.test(s)) {
+      setIfEmpty("website", s);
+    } else if (/^[+\d][\d\s\-()]{5,}$/.test(s)) {
+      setIfEmpty("phone", s);
+    } else if (s.includes("@")) {
+      setIfEmpty("email", s);
+    } else {
+      // Fallback: put in first_name if empty, otherwise general_note
+      if (!form.first_name) setIfEmpty("first_name", s.slice(0, 40));
+      else {
+        const merged = [form.general_note, s].filter(Boolean).join("\n");
+        (patch as any).general_note = merged;
+      }
+    }
+    setForm({ ...form, ...patch });
+    notify("QR letto", "Contenuto applicato al form.");
   };
 
   const fillFromContact = (c: any) => {
@@ -764,6 +911,10 @@ export default function NewContactScreen() {
             <Pressable testID="ai-card-btn" onPress={() => openAI("card")} style={[styles.aiBtn, { backgroundColor: "#8B5CF6" }]}>
               <Ionicons name="scan" size={16} color="#FFF" />
               <Text style={styles.aiBtnTxt}>Biglietto</Text>
+            </Pressable>
+            <Pressable testID="ai-qr-btn" onPress={() => setShowQrScanner(true)} style={[styles.aiBtn, { backgroundColor: "#059669" }]}>
+              <Ionicons name="qr-code" size={16} color="#FFF" />
+              <Text style={styles.aiBtnTxt}>QR</Text>
             </Pressable>
             <Pressable testID="ai-url-btn" onPress={() => openAI("url")} style={[styles.aiBtn, { backgroundColor: "#0891B2" }]}>
               <Ionicons name="link" size={16} color="#FFF" />
@@ -1629,6 +1780,16 @@ export default function NewContactScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* QR Scanner modal (V38I) */}
+      <QRScannerModal
+        visible={showQrScanner}
+        onClose={() => setShowQrScanner(false)}
+        onScanned={(data) => {
+          setShowQrScanner(false);
+          applyQrData(data);
+        }}
+      />
     </SafeAreaView>
   );
 }

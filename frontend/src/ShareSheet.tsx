@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Modal, Pressable, StyleSheet, ActivityIndicator, Platform, Linking } from "react-native";
+import { View, Text, Modal, Pressable, StyleSheet, ActivityIndicator, Platform, Linking, TextInput } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
@@ -32,10 +32,20 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
   const [busyChannel, setBusyChannel] = useState<null | string>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [loadingLink, setLoadingLink] = useState(false);
+  // V38I — inline email composer
+  const [emailMode, setEmailMode] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
 
   useEffect(() => {
     setShareUrl(null);
+    setEmailMode(false);
     if (!visible || !target) return;
+    // Pre-fill email composer
+    setEmailSubject(`File condiviso: ${target.name}`);
+    setEmailMessage(suggestedMessage || `Ti condivido in allegato il file: ${target.name}.`);
+    setEmailTo("");
     // Pre-fetch share URL when opened (only if we can — contact file)
     if (!target.contactId) return;
     setLoadingLink(true);
@@ -48,7 +58,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
         console.warn("share link err", e);
       })
       .finally(() => setLoadingLink(false));
-  }, [visible, target]);
+  }, [visible, target, suggestedMessage]);
 
   if (!target) return null;
 
@@ -71,16 +81,30 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
   const shareWhatsApp = async () => {
     setBusyChannel("whatsapp");
     try {
-      const text = encodeURIComponent(withUrl(defaultMsg));
-      // Native WhatsApp deep link (fallback to wa.me on web)
-      const nativeUrl = `whatsapp://send?text=${text}`;
-      const webUrl = `https://wa.me/?text=${text}`;
-      if (Platform.OS === "web") {
-        window.open(webUrl, "_blank");
-      } else {
-        const canOpen = await Linking.canOpenURL(nativeUrl);
-        await Linking.openURL(canOpen ? nativeUrl : webUrl);
+      // V38I — Prefer native share sheet (which lists WhatsApp as a target and
+      // attaches the actual file). Fall back to WhatsApp deep link only on web.
+      if (Platform.OS !== "web" && target.data_base64) {
+        await shareDataUri(`data:${target.mime};base64,${target.data_base64}`, target.name, target.mime);
+        onClose();
+        return;
       }
+      // Web fallback: Web Share API (level 2 supports files) if available, else wa.me text-only
+      const nav: any = (globalThis as any).navigator;
+      if (nav?.canShare && nav?.share && target.data_base64) {
+        try {
+          const bin = atob(target.data_base64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const file = new File([bytes], target.name, { type: target.mime });
+          if (nav.canShare({ files: [file] })) {
+            await nav.share({ files: [file], title: target.name, text: defaultMsg });
+            onClose();
+            return;
+          }
+        } catch {}
+      }
+      const text = encodeURIComponent(withUrl(defaultMsg));
+      window.open(`https://wa.me/?text=${text}`, "_blank");
     } catch (e: any) {
       notify("WhatsApp non disponibile", e?.message || "");
     } finally {
@@ -88,19 +112,37 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
     }
   };
 
-  const shareEmail = async () => {
+  const shareEmail = () => {
+    // V38I — open the inline email composer that sends the actual attachment via SMTP
+    setEmailMode(true);
+  };
+
+  const submitEmailWithAttachment = async () => {
+    if (!target?.contactId) {
+      notify("Non disponibile", "Invio email con allegato disponibile solo per file cliente.");
+      return;
+    }
+    if (!emailTo.trim() || !emailTo.includes("@")) {
+      notify("Destinatario non valido", "Inserisci un indirizzo email valido.");
+      return;
+    }
     setBusyChannel("email");
     try {
-      const subject = encodeURIComponent(`Condivisione file: ${target.name}`);
-      const body = encodeURIComponent(withUrl(defaultMsg));
-      const url = `mailto:?subject=${subject}&body=${body}`;
-      if (Platform.OS === "web") {
-        window.location.href = url;
-      } else {
-        await Linking.openURL(url);
-      }
+      await api(`/contacts/${target.contactId}/files/${target.id}/email-attachment`, {
+        method: "POST",
+        body: { to_email: emailTo.trim(), subject: emailSubject, message: emailMessage },
+      });
+      notify("Email inviata", `Il file "${target.name}" è stato inviato a ${emailTo.trim()} come allegato.`);
+      setEmailMode(false);
+      onClose();
     } catch (e: any) {
-      notify("Email non disponibile", e?.message || "");
+      // If SMTP not configured, fallback to mailto: text link
+      const msg = e?.message || "";
+      if (msg.toLowerCase().includes("smtp non configurato")) {
+        notify("SMTP mancante", "Configura SMTP in Impostazioni per inviare email con allegato. In alternativa, condividi via link.");
+      } else {
+        notify("Errore invio email", msg);
+      }
     } finally {
       setBusyChannel(null);
     }
@@ -154,7 +196,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
               label="WhatsApp"
               busy={busyChannel === "whatsapp"}
               onPress={shareWhatsApp}
-              disabled={!shareUrl && loadingLink}
+              disabled={false}
             />
             <ChannelBtn
               testID="share-ch-email"
@@ -163,7 +205,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
               label="Email"
               busy={busyChannel === "email"}
               onPress={shareEmail}
-              disabled={!shareUrl && loadingLink}
+              disabled={false}
             />
             <ChannelBtn
               testID="share-ch-copy"
@@ -175,6 +217,61 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
               disabled={!shareUrl}
             />
           </View>
+
+          {emailMode && (
+            <View style={styles.emailBox}>
+              <View style={styles.emailHeader}>
+                <Ionicons name="mail" size={18} color="#DC2626" />
+                <Text style={styles.emailTitle}>Invia via email (con allegato)</Text>
+                <Pressable onPress={() => setEmailMode(false)} hitSlop={6}>
+                  <Ionicons name="close" size={18} color={theme.color.muted} />
+                </Pressable>
+              </View>
+              <TextInput
+                testID="share-email-to"
+                value={emailTo}
+                onChangeText={setEmailTo}
+                placeholder="Destinatario (email)"
+                placeholderTextColor={theme.color.muted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={styles.emailInput}
+              />
+              <TextInput
+                testID="share-email-subject"
+                value={emailSubject}
+                onChangeText={setEmailSubject}
+                placeholder="Oggetto"
+                placeholderTextColor={theme.color.muted}
+                style={styles.emailInput}
+              />
+              <TextInput
+                testID="share-email-message"
+                value={emailMessage}
+                onChangeText={setEmailMessage}
+                placeholder="Messaggio (opzionale)"
+                placeholderTextColor={theme.color.muted}
+                multiline
+                numberOfLines={3}
+                style={[styles.emailInput, { minHeight: 60, textAlignVertical: "top" }]}
+              />
+              <Pressable
+                testID="share-email-submit"
+                onPress={submitEmailWithAttachment}
+                disabled={busyChannel === "email" || !emailTo.includes("@")}
+                style={[styles.emailBtn, (!emailTo.includes("@") || busyChannel === "email") && { opacity: 0.5 }]}
+              >
+                {busyChannel === "email" ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="send" size={14} color="#FFF" />
+                    <Text style={styles.emailBtnTxt}>Invia allegato</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          )}
 
           {loadingLink && (
             <View style={styles.linkStatus}>
@@ -228,4 +325,11 @@ const styles = StyleSheet.create({
   linkBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F1F5F9", padding: 10, borderRadius: 10 },
   linkTxt: { flex: 1, fontSize: 11, color: theme.color.onSurface, fontFamily: Platform.select({ ios: "Courier", android: "monospace" }) },
   linkExp: { fontSize: 10, color: theme.color.muted, fontWeight: "700" },
+  // V38I — email composer
+  emailBox: { backgroundColor: "#FFF7F5", padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "#FECACA", gap: 8 },
+  emailHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
+  emailTitle: { flex: 1, fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
+  emailInput: { backgroundColor: "#FFF", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: theme.color.onSurface },
+  emailBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#DC2626", paddingVertical: 10, borderRadius: 8 },
+  emailBtnTxt: { color: "#FFF", fontSize: 13, fontWeight: "700" },
 });

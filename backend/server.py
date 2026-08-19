@@ -203,6 +203,9 @@ class UserOut(BaseModel):
     avatar_base64: Optional[str] = None
     two_factor_enabled: bool = False
     additional_emails: List[str] = Field(default_factory=list)  # V38H
+    # V38I — Report branding
+    company_name: Optional[str] = None
+    company_logo_base64: Optional[str] = None
 
 
 class TeamInviteInput(BaseModel):
@@ -516,6 +519,9 @@ class ProfileUpdate(BaseModel):
     name: Optional[str] = None
     avatar_base64: Optional[str] = None
     additional_emails: Optional[List[str]] = None  # V38H
+    # V38I — Report branding
+    company_name: Optional[str] = None
+    company_logo_base64: Optional[str] = None
 
 
 class AppointmentIn(BaseModel):
@@ -1499,6 +1505,95 @@ async def public_file(token: str):
         media_type=mime,
         headers={"Content-Disposition": f'inline; filename="{name}"'},
     )
+
+
+# V38I — Email a contact file as attachment via SMTP
+class EmailAttachmentIn(BaseModel):
+    to_email: EmailStr
+    subject: Optional[str] = None
+    message: Optional[str] = None
+    sender_email: Optional[str] = None  # override sender (if user has additional_emails)
+
+
+@api_router.post("/contacts/{contact_id}/files/{file_id}/email-attachment")
+async def email_file_attachment(contact_id: str, file_id: str, body: EmailAttachmentIn, user=Depends(get_current_user)):
+    """Send the contact file to `to_email` as a real SMTP attachment.
+    Uses the caller's SMTP config (must be configured in Settings)."""
+    c = await db.contacts.find_one(
+        scope_query(user, {"contact_id": contact_id, "files.id": file_id}),
+        {"first_name": 1, "last_name": 1, "files.$": 1},
+    )
+    if not c or not c.get("files"):
+        raise HTTPException(status_code=404, detail="File non trovato")
+    f = c["files"][0]
+    cfg = await db.smtp_configs.find_one({"user_id": tenant_id(user)}, {"_id": 0})
+    if not cfg or not cfg.get("host"):
+        raise HTTPException(status_code=400, detail="SMTP non configurato. Vai in Impostazioni → SMTP.")
+    # If a sender override is supplied and it belongs to the user's allowed emails, honor it
+    if body.sender_email:
+        u = await db.users.find_one({"user_id": tenant_id(user)}, {"email": 1, "additional_emails": 1})
+        allowed = {(u or {}).get("email")} | set((u or {}).get("additional_emails") or [])
+        if body.sender_email in allowed:
+            cfg = dict(cfg)
+            cfg["sender_email"] = body.sender_email
+    import base64 as _b64
+    try:
+        attachment_bytes = _b64.b64decode(f.get("data_base64") or "")
+    except Exception:
+        raise HTTPException(status_code=500, detail="File corrotto")
+    subject = body.subject or f"File condiviso: {f.get('name')}"
+    text = body.message or f"Ti condivido in allegato il file: {f.get('name')}."
+    try:
+        await asyncio.to_thread(
+            _send_smtp_email_with_attachment,
+            cfg, body.to_email, subject, text, None,
+            attachment_bytes, f.get("name") or "file", f.get("mime") or "application/octet-stream",
+        )
+    except Exception as e:
+        logger.exception(f"email attachment failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore invio email: {str(e)[:200]}")
+    return {"ok": True, "sent_to": body.to_email}
+
+
+def _send_smtp_email_with_attachment(cfg: dict, to_email: str, subject: str, body_text: str, body_html: Optional[str],
+                                      attachment_bytes: bytes, attachment_name: str, attachment_mime: str):
+    """Blocking send via SMTP including a real binary attachment."""
+    from email.mime.base import MIMEBase
+    from email import encoders
+    sender_email = cfg.get("sender_email") or cfg.get("username")
+    sender_name = cfg.get("sender_name") or sender_email
+    msg = MIMEMultipart("mixed")
+    msg["Subject"] = subject
+    msg["From"] = formataddr((sender_name, sender_email))
+    msg["To"] = to_email
+    alt = MIMEMultipart("alternative")
+    alt.attach(MIMEText(body_text or "", "plain", "utf-8"))
+    if body_html:
+        alt.attach(MIMEText(body_html, "html", "utf-8"))
+    msg.attach(alt)
+    part = MIMEBase(*(attachment_mime.split("/", 1) if "/" in attachment_mime else ("application", "octet-stream")))
+    part.set_payload(attachment_bytes)
+    encoders.encode_base64(part)
+    part.add_header("Content-Disposition", f'attachment; filename="{attachment_name}"')
+    msg.attach(part)
+    host = cfg["host"]
+    port = int(cfg.get("port") or 465)
+    use_ssl = bool(cfg.get("use_ssl", True))
+    if use_ssl:
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(host, port, context=context, timeout=45) as server:
+            server.login(cfg["username"], cfg["password"])
+            server.sendmail(sender_email, [to_email], msg.as_string())
+    else:
+        with smtplib.SMTP(host, port, timeout=45) as server:
+            server.ehlo()
+            try:
+                server.starttls(context=ssl.create_default_context())
+                server.ehlo()
+            except Exception:
+                pass
+            server.login(cfg["username"], cfg["password"])
+            server.sendmail(sender_email, [to_email], msg.as_string())
 
 
 # =========================
@@ -2980,33 +3075,58 @@ async def ai_contact_from_voice(body: AIVoiceIn, user=Depends(get_current_user))
 
 @api_router.post("/ai/contact-from-card")
 async def ai_contact_from_card(body: AIImageIn, user=Depends(get_current_user)):
-    """OCR + extraction of a business card image via Gemini vision."""
+    """V38I — OCR + extraction of a business card image via Gemini vision.
+    Bug fix: previously `'ImageContent' in dir()` was always False inside the
+    function scope, so the image was never attached and Gemini returned an error
+    → HTTP 502. Also added better error propagation and a fallback model."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
         raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
-    b64 = body.image_base64
+    b64 = body.image_base64 or ""
+    if not b64:
+        raise HTTPException(status_code=400, detail="Immagine mancante")
+    # Normalise to a BARE base64 string (no data URL prefix) — this is what
+    # emergentintegrations.ImageContent(image_base64=...) expects. Its mime
+    # detection looks at the base64 magic bytes (iVBORw0KGgo / /9j/ / etc.).
     if b64.startswith("data:"):
-        # keep as data URL for ImageContent
-        data_url = b64
+        # strip "data:<mime>;base64,"
+        try:
+            bare_b64 = b64.split(",", 1)[1]
+        except IndexError:
+            bare_b64 = b64
     else:
-        mime = body.mime or "image/jpeg"
-        data_url = f"data:{mime};base64,{b64}"
-    try:
+        bare_b64 = b64
+
+    async def _run(model_name: str):
         chat = LlmChat(
             api_key=key,
             session_id=f"card-ocr-{uuid.uuid4().hex[:8]}",
             system_message=CONTACT_EXTRACTION_SYSTEM,
-        ).with_model("gemini", "gemini-3-flash-preview")
-        # Try with ImageContent if available
+        ).with_model("gemini", model_name)
         msg = UserMessage(
-            text="Ecco l'immagine di un biglietto da visita. Estrai i dati e restituisci JSON.",
-            file_contents=[ImageContent(image_url=data_url)] if 'ImageContent' in dir() else None,
+            text="Ecco l'immagine di un biglietto da visita italiano. Estrai i dati (nome, cognome, ruolo/qualifica, azienda, telefono, telefono alternativo, email, email alternativa, indirizzo, città, CAP, provincia, sito web) e restituisci un JSON compatto.",
+            file_contents=[ImageContent(image_base64=bare_b64)],
         )
-        resp = await chat.send_message(msg)
-    except Exception as e:
-        # Fallback: send description-only request (won't OCR but returns valid empty dict)
-        raise HTTPException(status_code=502, detail=f"Errore OCR: {e}")
+        return await chat.send_message(msg)
+
+    resp = None
+    last_err: Optional[Exception] = None
+    for model in ("gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.0-flash"):
+        try:
+            resp = await _run(model)
+            if resp:
+                break
+        except Exception as e:
+            last_err = e
+            logger.warning(f"card OCR failed with {model}: {e}")
+            continue
+    if resp is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Impossibile leggere il biglietto: {str(last_err)[:200] if last_err else 'nessuna risposta'}"
+        )
+
     raw = (resp or "").strip()
     if raw.startswith("```"):
         raw = raw.strip("`")
@@ -3015,7 +3135,8 @@ async def ai_contact_from_card(body: AIImageIn, user=Depends(get_current_user)):
     import json as _json
     try:
         data = _json.loads(raw)
-        if not isinstance(data, dict): data = {}
+        if not isinstance(data, dict):
+            data = {}
     except Exception:
         data = {"notes": raw[:500]}
     return {"contact": data}
@@ -4941,4 +5062,137 @@ async def _startup():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    try:
+        _birthday_scheduler.shutdown(wait=False)
+    except Exception:
+        pass
     client.close()
+
+
+# =========================
+# V38I — Birthday cron scheduler (APScheduler)
+# =========================
+from apscheduler.schedulers.asyncio import AsyncIOScheduler  # noqa: E402
+
+_birthday_scheduler = AsyncIOScheduler(timezone="Europe/Rome")
+
+
+async def _run_birthday_job():
+    """Daily job: for each contact whose birthday_auto_send=True and today matches
+    birth_date (MM-DD), generate a fresh AI message (or reuse this year's) and send
+    via SMTP. Uses birthday_sender_email as From, birthday_recipient_email as To."""
+    logger.info("Running daily birthday scheduler…")
+    today = datetime.now(timezone.utc).date()
+    year = today.year
+    # Iterate users
+    async for user_doc in db.users.find({}, {"user_id": 1, "email": 1, "additional_emails": 1, "company_name": 1}):
+        tid = user_doc["user_id"]
+        smtp_cfg = await db.smtp_configs.find_one({"user_id": tid}, {"_id": 0})
+        if not smtp_cfg or not smtp_cfg.get("host"):
+            continue
+        contacts = await db.contacts.find(
+            {"user_id": tid, "birthday_auto_send": True, "birth_date": {"$exists": True, "$ne": ""}},
+            {"contact_id": 1, "first_name": 1, "last_name": 1, "birth_date": 1,
+             "birthday_recipient_email": 1, "birthday_sender_email": 1,
+             "email": 1, "email_alt": 1, "is_active_client": 1},
+        ).to_list(2000)
+        for c in contacts:
+            bd = str(c.get("birth_date") or "").strip()
+            if not bd:
+                continue
+            # Support DD/MM/YYYY, DD-MM-YYYY, ISO YYYY-MM-DD
+            try:
+                if "/" in bd:
+                    parts = bd.split("/")
+                    day, month = int(parts[0]), int(parts[1])
+                elif "-" in bd and len(bd) >= 8:
+                    p = bd.split("-")
+                    if len(p[0]) == 4:  # ISO
+                        day, month = int(p[2]), int(p[1])
+                    else:
+                        day, month = int(p[0]), int(p[1])
+                else:
+                    continue
+            except Exception:
+                continue
+            if day != today.day or month != today.month:
+                continue
+            # Skip if already sent this year
+            already = await db.birthday_messages.find_one({
+                "user_id": tid, "contact_id": c["contact_id"], "year": year, "sent": True,
+            })
+            if already:
+                continue
+            # Fetch or generate the message
+            existing = await db.birthday_messages.find_one({
+                "user_id": tid, "contact_id": c["contact_id"], "year": year,
+            }, sort=[("created_at", -1)])
+            message = existing.get("message") if existing else None
+            if not message:
+                try:
+                    from emergentintegrations.llm.chat import LlmChat, UserMessage as _UM
+                    key = os.environ.get("EMERGENT_LLM_KEY", "")
+                    if not key:
+                        continue
+                    is_active = bool(c.get("is_active_client"))
+                    first_name = c.get("first_name") or "Cliente"
+                    system = (
+                        "Sei un consulente energetico italiano che scrive messaggi di auguri "
+                        "di compleanno personalizzati. Caldo, sincero, personale, 3-6 frasi, ~500 chars, "
+                        "firmato 'Il tuo Consulente'."
+                    )
+                    prompt = (
+                        f"Genera il messaggio di auguri di compleanno {year} per {first_name}."
+                        + (" Cliente attivo: ringrazialo per la fiducia e invitalo a contattarti." if is_active else "")
+                    )
+                    chat = LlmChat(api_key=key, session_id=f"bday-cron-{c['contact_id']}-{year}",
+                                   system_message=system).with_model("anthropic", "claude-sonnet-5")
+                    resp = await chat.send_message(_UM(text=prompt))
+                    message = (resp or "").strip().strip('"').strip("'")
+                    if message:
+                        await db.birthday_messages.insert_one({
+                            "user_id": tid, "contact_id": c["contact_id"], "year": year,
+                            "message": message, "is_active_client": is_active, "created_at": utcnow(),
+                        })
+                except Exception as e:
+                    logger.warning(f"birthday gen failed for {c.get('contact_id')}: {e}")
+                    continue
+            # Pick recipient / sender
+            to_email = c.get("birthday_recipient_email") or c.get("email") or c.get("email_alt")
+            if not to_email:
+                continue
+            sender_override = c.get("birthday_sender_email")
+            cfg_copy = dict(smtp_cfg)
+            if sender_override:
+                cfg_copy["sender_email"] = sender_override
+            subject = f"Buon compleanno, {c.get('first_name') or ''}!"
+            try:
+                await asyncio.to_thread(_send_smtp_email, cfg_copy, to_email, subject, message, None)
+                await db.birthday_messages.update_one(
+                    {"user_id": tid, "contact_id": c["contact_id"], "year": year},
+                    {"$set": {"sent": True, "sent_at": utcnow(), "sent_to": to_email}},
+                    upsert=True,
+                )
+                logger.info(f"birthday sent to {to_email} for contact {c['contact_id']}")
+            except Exception as e:
+                logger.warning(f"birthday send failed for {to_email}: {e}")
+
+
+@app.on_event("startup")
+async def _start_scheduler():
+    # Run daily at 09:00 Europe/Rome
+    try:
+        _birthday_scheduler.add_job(_run_birthday_job, "cron", hour=9, minute=0, id="birthday-job", replace_existing=True)
+        _birthday_scheduler.start()
+        logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
+    except Exception as e:
+        logger.warning(f"birthday scheduler start failed: {e}")
+
+
+# Manual trigger endpoint (Owner only) — useful for testing
+@api_router.post("/admin/birthday/run-now")
+async def run_birthday_now(user=Depends(get_current_user)):
+    if user.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Solo Owner")
+    await _run_birthday_job()
+    return {"ok": True}

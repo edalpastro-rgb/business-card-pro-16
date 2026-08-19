@@ -130,6 +130,21 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   const [contactFilesPicker, setContactFilesPicker] = useState<null | { bill_type: BillType }>(null);
   const [contactPdfFiles, setContactPdfFiles] = useState<any[]>([]);
   const [loadingContactFiles, setLoadingContactFiles] = useState(false);
+  // V38I — Branding (logo + agency name) applied to generated PDFs
+  const [branding, setBranding] = useState<{ agency_name: string; logo_base64: string }>({ agency_name: "", logo_base64: "" });
+
+  // Load user branding once — used in cover of comparison PDF and header of report PDF.
+  useEffect(() => {
+    api<{ user: any }>("/auth/me")
+      .then((r) => {
+        const u = r?.user || {};
+        setBranding({
+          agency_name: String(u.company_name || u.name || "").trim(),
+          logo_base64: String(u.company_logo_base64 || "").trim(),
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -462,7 +477,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
     try {
       setComparisonBusy(true);
       const rep = await api<any>(`/contacts/${contactId}/bills/comparison`);
-      const html = buildComparisonHtml(rep, contactName);
+      const html = buildComparisonHtml(rep, contactName, branding);
       // Auto-save to contact files (fire and forget — should not block print/share)
       void autoSaveToContactFiles(html, "comparison");
       if (Platform.OS === "web") {
@@ -709,7 +724,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
     try {
       setReportBusy(true);
       const rep = await api<any>(`/contacts/${contactId}/bills/report`);
-      const html = buildReportHtml(rep, contactName);
+      const html = buildReportHtml(rep, contactName, branding);
       // V38F: auto-save to contact files
       void autoSaveToContactFiles(html, "report");
       if (Platform.OS === "web") {
@@ -1535,12 +1550,22 @@ function renderExtractedTable(ex: Record<string, any>, sectionColor = "#6366F1")
   return `${tableHtml}${chartHtml}${notesHtml}`;
 }
 
-function buildReportHtml(rep: any, contactName?: string): string {
+function buildReportHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string }): string {
   const c = rep?.contact || {};
   const name = contactName || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Cliente";
   const generated = new Date(rep?.generated_at || Date.now()).toLocaleString("it-IT");
   const s = rep?.ai_suggestions || {};
   const grouped = rep?.grouped || {};
+  const agency = String(branding?.agency_name || "").trim();
+  const logo = String(branding?.logo_base64 || "").trim();
+  const brandingHeader = (agency || logo) ? `
+    <div style="display:flex;align-items:center;gap:14px;padding:10px 0 14px;border-bottom:2px solid #6366F1;margin-bottom:16px;">
+      ${logo ? `<img src="${logo}" alt="Logo" style="max-height:52px;max-width:120px;object-fit:contain;"/>` : ""}
+      <div style="flex:1;">
+        ${agency ? `<div style="font-size:16px;font-weight:800;color:#1F2937;">${esc(agency)}</div>` : ""}
+        <div style="font-size:11px;color:#6B7280;">Report Fatture Energia · Consulenza Personalizzata</div>
+      </div>
+    </div>` : "";
   const sections: { key: "luce" | "gas" | "telco"; label: string; color: string; emoji: string }[] = [
     { key: "luce", label: "Luce", color: "#F59E0B", emoji: "💡" },
     { key: "gas", label: "Gas", color: "#DC2626", emoji: "🔥" },
@@ -1594,6 +1619,7 @@ function buildReportHtml(rep: any, contactName?: string): string {
 </style>
 </head>
 <body>
+  ${brandingHeader}
   <h1>📊 Report Fatture Energia</h1>
   <div class="header-info">
     <div><b>Cliente:</b> ${esc(name)}${c.contact_code ? ` (${esc(c.contact_code)})` : ""}</div>
@@ -1602,7 +1628,7 @@ function buildReportHtml(rep: any, contactName?: string): string {
   ${sectionsHtml || "<p><i>Nessuna fattura analizzata.</i></p>"}
   ${suggestionsHtml}
   <div style="margin-top:36px;padding-top:10px;border-top:1px solid #E5E7EB;font-size:10px;color:#9CA3AF;text-align:center;">
-    Report generato automaticamente da Dal Pastro CRM con analisi AI · Claude Sonnet 5
+    ${agency ? `A cura di <b>${esc(agency)}</b> · ` : ""}Report generato con analisi AI · Claude Sonnet 5
   </div>
 </body></html>`;
 }
@@ -1667,9 +1693,15 @@ function slideClose(footer?: string): string {
   </section>`;
 }
 
-function slideCover(name: string, contactCode: string, presenter: string, dateStr: string, totalSaving: number, items: number): string {
+function slideCover(name: string, contactCode: string, presenter: string, dateStr: string, totalSaving: number, items: number, logoData?: string): string {
+  const logoHtml = logoData && logoData.trim().length > 0
+    ? `<div style="position:absolute;top:20mm;right:20mm;background:#FFFFFFDD;padding:10px 14px;border-radius:12px;box-shadow:0 2px 8px rgba(30,58,95,0.15);z-index:5;">
+        <img src="${logoData}" alt="Logo" style="max-height:60px;max-width:160px;object-fit:contain;display:block;"/>
+      </div>`
+    : "";
   return `<section class="slide slide-cover">
     <div class="cover-deco"></div>
+    ${logoHtml}
     <div class="cover-card">
       <h1 class="cover-title">ANALISI STRATEGICA<br/>E DI OTTIMIZZAZIONE<br/>DEI COSTI ENERGETICI</h1>
       <div class="cover-subtitle">Audit Finanziario e Gestione Rischio</div>
@@ -1988,7 +2020,7 @@ function slideExecutive(es: any, cmp: any, name: string): string {
 function kvGridHtml(_rows: { k: string; v: any; hi?: boolean }[]): string { void _rows; return ""; }
 function comparisonMatrixHtml(_rows: { parametro?: string; attuale?: string; proposta?: string; delta?: string; vantaggio?: string }[]): string { void _rows; return ""; }
 
-function buildComparisonHtml(rep: any, contactName?: string): string {
+function buildComparisonHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string }): string {
   const c = rep?.contact || {};
   const name = contactName || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Cliente";
   const items = Array.isArray(rep?.items) ? rep.items : [];
@@ -1996,9 +2028,11 @@ function buildComparisonHtml(rep: any, contactName?: string): string {
   const now = new Date(rep?.generated_at || Date.now());
   const monthNames = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
   const dateStr = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
-  const presenter = "Dal Pastro CRM · Consulenza Energetica";
+  const agencyName = String(branding?.agency_name || "").trim();
+  const logoData = String(branding?.logo_base64 || "").trim();
+  const presenter = agencyName || "Dal Pastro CRM · Consulenza Energetica";
 
-  const cover = slideCover(name, c.contact_code || "", presenter, dateStr, totalSaving, items.length);
+  const cover = slideCover(name, c.contact_code || "", presenter, dateStr, totalSaving, items.length, logoData);
 
   const perItemSlides = items.map((it: any) => {
     const cmp = it.comparison || {};
