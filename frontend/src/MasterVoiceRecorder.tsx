@@ -16,7 +16,17 @@ type Phase = "idle" | "recording" | "review";
  * with play/retry controls, and the destinations are checkboxes that can combine multiple targets
  * (personal + clients + groups) at once.
  */
-export function MasterVoiceRecorder({ hideTrigger, startSignal }: { hideTrigger?: boolean; startSignal?: number } = {}) {
+export function MasterVoiceRecorder({
+  hideTrigger,
+  startSignal,
+  stopSignal,
+  onPhaseChange,
+}: {
+  hideTrigger?: boolean;
+  startSignal?: number;
+  stopSignal?: number;
+  onPhaseChange?: (phase: Phase) => void;
+} = {}) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [duration, setDuration] = useState(0);
   const [audioB64, setAudioB64] = useState<string | null>(null);
@@ -75,6 +85,20 @@ export function MasterVoiceRecorder({ hideTrigger, startSignal }: { hideTrigger?
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startSignal]);
+
+  // External trigger — parent can increment stopSignal to stop recording
+  useEffect(() => {
+    if (typeof stopSignal === "number" && stopSignal > 0 && phase === "recording") {
+      stopRecording();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopSignal]);
+
+  // Notify parent of phase changes
+  useEffect(() => {
+    onPhaseChange?.(phase);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   const supported = Platform.OS === "web" && typeof navigator !== "undefined" && !!navigator.mediaDevices && typeof (globalThis as any).MediaRecorder !== "undefined";
 
@@ -250,19 +274,7 @@ export function MasterVoiceRecorder({ hideTrigger, startSignal }: { hideTrigger?
         </>
       )}
 
-      {/* When trigger is hidden, still show a lightweight "recording indicator" overlay so the user knows recording is active. */}
-      {hideTrigger && phase === "recording" && (
-        <Pressable
-          onPress={stopRecording}
-          style={styles.recIndicator}
-          testID="master-voice-stop-inline"
-        >
-          <Animated.View style={{ transform: [{ scale: pulse }], marginRight: 8 }}>
-            <View style={styles.recDot} />
-          </Animated.View>
-          <Text style={styles.recIndicatorTxt}>Registrazione… {mmss} — tocca per fermare</Text>
-        </Pressable>
-      )}
+      {/* When trigger is hidden the parent controls the UI — no inline indicator needed. */}
 
       {/* Review + destinations modal (single modal, file always visible) */}
       <Modal transparent visible={phase === "review"} onRequestClose={() => setConfirmClose(true)} animationType="slide">

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ImageBackground, Modal, Linking, Animated, Easing } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ImageBackground, Modal, Linking, Animated, Easing, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -31,6 +31,9 @@ export default function MasterScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [drill, setDrill] = useState<{ metric: MetricKey; area: "energy" | "network" | null; color: string; title: string } | null>(null);
   const [voiceSignal, setVoiceSignal] = useState(0);
+  const [voiceStopSignal, setVoiceStopSignal] = useState(0);
+  const [voicePhase, setVoicePhase] = useState<"idle" | "recording" | "processing" | "review" | "saving">("idle");
+  const voicePulse = React.useRef(new Animated.Value(1)).current;
   const pulseAnim = React.useRef(new Animated.Value(0)).current;
   const bannerFade = React.useRef(new Animated.Value(1)).current;
 
@@ -98,6 +101,22 @@ export default function MasterScreen() {
     }
   }, [alerts.unread, pulseAnim]);
 
+  // Voice recording pulse (red button when recording)
+  useEffect(() => {
+    if (voicePhase === "recording") {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(voicePulse, { toValue: 1.15, duration: 550, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+          Animated.timing(voicePulse, { toValue: 1.0, duration: 550, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    } else {
+      voicePulse.setValue(1);
+    }
+  }, [voicePhase, voicePulse]);
+
   const dateStr = now.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
   const timeStr = now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
@@ -109,7 +128,7 @@ export default function MasterScreen() {
     router.push("/contract/new" as any);
   };
 
-  const buttons: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; badge?: number }[] = [
+  const buttons: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; badge?: number; pulse?: Animated.Value }[] = [
     { label: "Agenda", icon: "calendar", color: "#0891B2", onPress: () => goto("/(tabs)/calendario") },
     { label: "New Contact", icon: "person-add", color: "#7C3AED", onPress: () => goto("/contact/new") },
     { label: "Chat Gruppo", icon: "chatbubbles", color: "#F59E0B", onPress: () => setChatPickerOpen(true) },
@@ -117,7 +136,19 @@ export default function MasterScreen() {
     { label: "My Web", icon: "globe", color: "#DB2777", onPress: () => goto("/my-web") },
     { label: "New CRT", icon: "document-text", color: "#059669", onPress: handleNewContract, badge: alerts.unread },
     { label: "New App", icon: "add-circle", color: "#16A34A", onPress: () => goto("/appointment/new") },
-    { label: "Registra audio", icon: "mic", color: "#DC2626", onPress: () => setVoiceSignal((s) => s + 1) },
+    {
+      label: voicePhase === "recording" ? "Ferma registrazione" : "Registra audio",
+      icon: voicePhase === "recording" ? "stop" : "mic",
+      color: voicePhase === "recording" ? "#DC2626" : "#7C3AED",
+      onPress: () => {
+        if (voicePhase === "recording") {
+          setVoiceStopSignal((s) => s + 1);
+        } else if (voicePhase === "idle") {
+          setVoiceSignal((s) => s + 1);
+        }
+      },
+      pulse: voicePhase === "recording" ? voicePulse : undefined,
+    },
     { label: "I miei audio", icon: "folder-open", color: "#8B5CF6", onPress: () => goto("/my-audios") },
   ];
 
@@ -144,12 +175,13 @@ export default function MasterScreen() {
         {/* My Thing banner — slideshow with crossfade (same as Home) */}
         <Pressable onPress={() => router.push("/my-thing")} style={styles.bannerWrap} testID="master-banner">
           {currentBannerImg ? (
-            <Animated.View style={{ opacity: bannerFade, borderRadius: 16, overflow: "hidden" }}>
-              <ImageBackground source={{ uri: `data:image/*;base64,${currentBannerImg}` }} style={styles.bannerImg} imageStyle={{ borderRadius: 16 }}>
-                <LinearGradient colors={["transparent", "rgba(0,0,0,0.35)"]} style={styles.bannerOverlay}>
-                  <Text style={styles.bannerLabel}>My Thing</Text>
-                </LinearGradient>
-              </ImageBackground>
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: bannerFade }]} pointerEvents="none">
+              <ImageBackground
+                source={{ uri: currentBannerImg }}
+                resizeMode="cover"
+                style={StyleSheet.absoluteFill}
+                imageStyle={Platform.OS === "web" ? ({ objectFit: "cover", width: "100%", height: "100%" } as any) : { borderRadius: 12 }}
+              />
             </Animated.View>
           ) : (
             <LinearGradient colors={["#7C3AED", "#DB2777"]} style={styles.bannerFallback} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
@@ -199,7 +231,12 @@ export default function MasterScreen() {
           })}
         </View>
 
-        <MasterVoiceRecorder hideTrigger startSignal={voiceSignal} />
+        <MasterVoiceRecorder
+          hideTrigger
+          startSignal={voiceSignal}
+          stopSignal={voiceStopSignal}
+          onPhaseChange={setVoicePhase}
+        />
       </ScrollView>
 
       {/* 3-dot menu */}
@@ -255,10 +292,10 @@ export default function MasterScreen() {
   );
 }
 
-function MasterButton({ label, icon, color, onPress, badge, pulseAnim }: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; badge?: number; pulseAnim: Animated.Value }) {
+function MasterButton({ label, icon, color, onPress, badge, pulseAnim, pulse }: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; badge?: number; pulseAnim: Animated.Value; pulse?: Animated.Value }) {
   return (
     <Pressable onPress={onPress} style={styles.btnCell} testID={`master-btn-${label.replace(/\s+/g, '-').toLowerCase()}`}>
-      <View style={[styles.btnCircle, { backgroundColor: color }]}>
+      <Animated.View style={[styles.btnCircle, { backgroundColor: color }, pulse ? { transform: [{ scale: pulse }] } : null]}>
         <Ionicons name={icon} size={28} color="#FFF" />
         {typeof badge === "number" && badge > 0 && (
           <Animated.View
@@ -274,7 +311,7 @@ function MasterButton({ label, icon, color, onPress, badge, pulseAnim }: { label
             <Text style={styles.badgeTxt}>{badge > 9 ? "9+" : String(badge)}</Text>
           </Animated.View>
         )}
-      </View>
+      </Animated.View>
       <Text style={styles.btnLabel}>{label}</Text>
     </Pressable>
   );
@@ -432,7 +469,7 @@ const styles = StyleSheet.create({
   clockTime: { color: "#FFF", fontSize: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },
   clockDate: { color: "rgba(255,255,255,0.75)", fontSize: 10, textTransform: "capitalize" },
 
-  bannerWrap: { marginTop: 8, height: 64, borderRadius: 12, overflow: "hidden" },
+  bannerWrap: { marginTop: 8, height: 100, borderRadius: 12, overflow: "hidden", position: "relative", backgroundColor: "#F1F5F9" },
   bannerImg: { flex: 1 },
   bannerOverlay: { flex: 1, paddingHorizontal: 12, paddingVertical: 8, justifyContent: "center" },
   bannerFallback: { flex: 1, borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center" },
