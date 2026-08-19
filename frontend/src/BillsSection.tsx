@@ -7,7 +7,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
-import { notify } from "@/src/utils/notify";
+import { notify, confirmAsync } from "@/src/utils/notify";
 import { uriToBase64 } from "@/src/utils/media";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
@@ -393,26 +393,18 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
     }
   };
 
-  const deleteBill = (bill: Bill) => {
-    notify(
+  const deleteBill = async (bill: Bill) => {
+    const ok = await confirmAsync(
       "Elimina fattura",
-      `Vuoi rimuovere "${bill.pdf_name}"?`,
-      [
-        { text: "Annulla", style: "cancel" },
-        {
-          text: "Elimina",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await api(`/contacts/${contactId}/bills/${bill.bill_id}`, { method: "DELETE" });
-              await load();
-            } catch (e: any) {
-              notify("Errore", e?.message || "");
-            }
-          },
-        },
-      ]
+      `Vuoi rimuovere "${bill.pdf_name}"? L'operazione è irreversibile.`
     );
+    if (!ok) return;
+    try {
+      await api(`/contacts/${contactId}/bills/${bill.bill_id}`, { method: "DELETE" });
+      await load();
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile eliminare la fattura");
+    }
   };
 
   const reanalyze = async (bill: Bill) => {
