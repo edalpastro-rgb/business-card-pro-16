@@ -202,6 +202,7 @@ class UserOut(BaseModel):
     parent_user_id: Optional[str] = None
     avatar_base64: Optional[str] = None
     two_factor_enabled: bool = False
+    additional_emails: List[str] = Field(default_factory=list)  # V38H
 
 
 class TeamInviteInput(BaseModel):
@@ -439,6 +440,10 @@ class ContactIn(BaseModel):
     birthday_message: str = ""
     birthday_message_photo: Optional[str] = None
     birthday_message_link: Optional[str] = None
+    # V38H: sender/recipient selection + active client flag
+    birthday_sender_email: Optional[str] = None
+    birthday_recipient_email: Optional[str] = None
+    is_active_client: bool = False
     anniversaries: List[Dict[str, Any]] = Field(default_factory=list)
     fiscal_code: str = ""
     vat_number: str = ""
@@ -483,6 +488,9 @@ class ContactUpdate(BaseModel):
     birthday_message: Optional[str] = None
     birthday_message_photo: Optional[str] = None
     birthday_message_link: Optional[str] = None
+    birthday_sender_email: Optional[str] = None  # V38H
+    birthday_recipient_email: Optional[str] = None  # V38H
+    is_active_client: Optional[bool] = None  # V38H
     anniversaries: Optional[List[Dict[str, Any]]] = None
     fiscal_code: Optional[str] = None
     vat_number: Optional[str] = None
@@ -507,6 +515,7 @@ class ContactUpdate(BaseModel):
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
     avatar_base64: Optional[str] = None
+    additional_emails: Optional[List[str]] = None  # V38H
 
 
 class AppointmentIn(BaseModel):
@@ -4770,6 +4779,103 @@ async def assistant_tts(body: AssistantTTSIn, user=Depends(get_current_user)):
 @api_router.get("/")
 async def root():
     return {"message": "ProSync CRM API", "ok": True}
+
+
+# =========================
+# V38H — AI Birthday message generator
+# =========================
+class BirthdayGenIn(BaseModel):
+    contact_id: str
+    is_active_client: Optional[bool] = None  # override; if None uses stored value
+
+@api_router.post("/contacts/{contact_id}/birthday/generate-message")
+async def generate_birthday_message(contact_id: str, user=Depends(get_current_user)):
+    """Generate a fresh, human-sounding birthday message using Claude Sonnet 5.
+    The message uses the contact's first name and varies year over year. If the
+    contact is marked as active client (`is_active_client=True`) the message also
+    thanks them for their continued trust and invites them to reach out."""
+    contact = await _ensure_contact_owned(contact_id, user)
+    first_name = (contact.get("first_name") or "").strip() or "Cliente"
+    is_active = bool(contact.get("is_active_client"))
+    year = datetime.now(timezone.utc).year
+
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+
+    # Include prior years' generated messages to encourage variation
+    prior = await db.birthday_messages.find(
+        {"user_id": tenant_id(user), "contact_id": contact_id},
+        {"_id": 0, "year": 1, "message": 1},
+    ).sort("year", -1).limit(3).to_list(3)
+    prior_txt = ""
+    if prior:
+        prior_txt = "\n\nMessaggi degli anni precedenti (NON riscriverli, cambia stile e parole):\n" + "\n".join(
+            [f"- {p['year']}: {p.get('message', '')[:200]}" for p in prior]
+        )
+
+    system = (
+        "Sei un consulente energetico italiano che scrive messaggi di auguri "
+        "di compleanno personalizzati ai propri clienti. Il messaggio deve essere:\n"
+        "- Caldo, sincero e personale — MAI generico o da spam\n"
+        "- Breve (3-6 frasi, massimo 500 caratteri totali)\n"
+        "- Scritto in prima persona come consulente\n"
+        "- Con un tocco di originalità (metafora, ricordo simbolico, riferimento alla stagione, alla città…)\n"
+        "- Firmato genericamente 'Il tuo Consulente' o simile (non usare un nome specifico)\n"
+        "- Diverso dai messaggi degli anni scorsi\n"
+        "Rispondi solo con il testo del messaggio, senza intestazioni né virgolette."
+    )
+    user_prompt = (
+        f"Genera il messaggio di auguri di compleanno {year} per {first_name}."
+        + (
+            "\n\nQuesto cliente è ATTIVO: ringrazialo brevemente per la continua fiducia "
+            "e invita gentilmente a contattarti per qualsiasi dubbio o consulenza — senza forzare la vendita."
+            if is_active else
+            "\n\nNon è più un cliente attivo: mantieni il messaggio cordiale e cortese, senza riferimenti commerciali."
+        )
+        + prior_txt
+    )
+
+    chat = LlmChat(
+        api_key=key,
+        session_id=f"bday-{contact_id}-{year}",
+        system_message=system,
+    ).with_model("anthropic", "claude-sonnet-5")
+
+    try:
+        resp = await chat.send_message(UserMessage(text=user_prompt))
+        message = (resp or "").strip().strip('"').strip("'")
+        if not message:
+            raise Exception("Messaggio vuoto")
+        # Trim overly long output
+        if len(message) > 800:
+            message = message[:800].rsplit(".", 1)[0] + "."
+    except Exception as e:
+        logger.exception(f"birthday gen failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Impossibile generare il messaggio: {str(e)[:200]}")
+
+    # Persist so future generations can vary from it
+    await db.birthday_messages.insert_one({
+        "user_id": tenant_id(user),
+        "contact_id": contact_id,
+        "year": year,
+        "message": message,
+        "is_active_client": is_active,
+        "created_at": utcnow(),
+    })
+    return {"message": message, "year": year, "is_active_client": is_active}
+
+
+@api_router.get("/contacts/{contact_id}/birthday/history")
+async def birthday_history(contact_id: str, user=Depends(get_current_user)):
+    """Return previously generated birthday messages for a contact."""
+    await _ensure_contact_owned(contact_id, user)
+    items = await db.birthday_messages.find(
+        {"user_id": tenant_id(user), "contact_id": contact_id},
+        {"_id": 0},
+    ).sort("year", -1).limit(10).to_list(10)
+    return {"items": items}
 
 
 # Include router & CORS

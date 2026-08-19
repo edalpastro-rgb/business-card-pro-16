@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { confirmAsync, notify } from "@/src/utils/notify";
 
 type Member = { user_id: string; email: string; name: string; role: string; areas: string[]; created_at?: string };
 
@@ -53,8 +54,18 @@ export default function TeamScreen() {
   };
 
   const remove = async (m: Member) => {
-    await api(`/team/${m.user_id}`, { method: "DELETE" });
-    load();
+    const ok = await confirmAsync(
+      "Eliminare il collaboratore?",
+      `Vuoi rimuovere definitivamente "${m.name || m.email}"? Il collaboratore perderà l'accesso all'app e verrà scollegato dai contatti assegnati. L'operazione è irreversibile.`,
+    );
+    if (!ok) return;
+    try {
+      await api(`/team/${m.user_id}`, { method: "DELETE" });
+      notify("Collaboratore rimosso", `${m.name || m.email} non ha più accesso.`);
+      load();
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile eliminare il collaboratore");
+    }
   };
 
   const toggleAdmin = async (m: Member) => {

@@ -15,6 +15,7 @@ export type User = {
   parent_user_id?: string | null;
   avatar_base64?: string | null;
   two_factor_enabled?: boolean;
+  additional_emails?: string[];
 };
 
 const TRUST_KEY = "trust_expires_at_v1";

@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
+import { notify, confirmAsync } from "@/src/utils/notify";
 
 type Settings = {
   energy_title: string; energy_color: string;
@@ -26,6 +27,9 @@ export default function ImpostazioniScreen() {
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  // V38H — additional emails management
+  const [emailInput, setEmailInput] = useState("");
+  const [emailsBusy, setEmailsBusy] = useState(false);
   const [aptTypeInput, setAptTypeInput] = useState("");
   const [prodCatInput, setProdCatInput] = useState("");
   const [subInputs, setSubInputs] = useState<Record<number, string>>({});
@@ -175,6 +179,80 @@ export default function ImpostazioniScreen() {
               <Text style={styles.name}>{user?.name}</Text>
               <Text style={styles.email}>{user?.email}</Text>
               <Text style={styles.roleBadge}>{user?.parent_user_id ? "Collaboratore" : "Owner"}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* V38H — Additional emails management (used as sender for birthday/comms) */}
+        <View style={styles.linkCard}>
+          <Ionicons name="mail-open" size={26} color={theme.color.brandPrimary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Email aggiuntive</Text>
+            <Text style={styles.linkSub}>Indirizzi da usare come mittente (auguri, comunicazioni)</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {(user?.additional_emails || []).map((em) => (
+                <View key={em} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#DBEAFE" }}>
+                  <Text style={{ fontSize: 11, color: theme.color.brandPrimary, fontWeight: "600" }}>{em}</Text>
+                  <Pressable
+                    testID={`profile-email-del-${em}`}
+                    onPress={async () => {
+                      const ok = await confirmAsync("Rimuovi email", `Rimuovere "${em}" dagli indirizzi aggiuntivi?`);
+                      if (!ok) return;
+                      try {
+                        setEmailsBusy(true);
+                        const next = (user?.additional_emails || []).filter((e) => e !== em);
+                        await api("/auth/profile", { method: "PUT", body: { additional_emails: next } });
+                        await refresh();
+                      } catch (e: any) {
+                        notify("Errore", e?.message || "");
+                      } finally {
+                        setEmailsBusy(false);
+                      }
+                    }}
+                    hitSlop={6}
+                  >
+                    <Ionicons name="close-circle" size={14} color={theme.color.brandPrimary} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }}>
+              <TextInput
+                testID="profile-email-input"
+                value={emailInput}
+                onChangeText={setEmailInput}
+                placeholder="Aggiungi email (es. lavoro@…)"
+                placeholderTextColor={theme.color.muted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "#F1F5F9", fontSize: 12, color: theme.color.onSurface }}
+              />
+              <Pressable
+                testID="profile-email-add"
+                disabled={emailsBusy || !emailInput.trim().includes("@")}
+                onPress={async () => {
+                  const em = emailInput.trim().toLowerCase();
+                  if (!em.includes("@")) return;
+                  const existing = user?.additional_emails || [];
+                  if (existing.includes(em) || user?.email === em) {
+                    setEmailInput("");
+                    return;
+                  }
+                  try {
+                    setEmailsBusy(true);
+                    await api("/auth/profile", { method: "PUT", body: { additional_emails: [...existing, em] } });
+                    setEmailInput("");
+                    await refresh();
+                  } catch (e: any) {
+                    notify("Errore", e?.message || "");
+                  } finally {
+                    setEmailsBusy(false);
+                  }
+                }}
+                style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: theme.color.brandPrimary, opacity: (!emailInput.trim().includes("@") || emailsBusy) ? 0.5 : 1 }}
+              >
+                {emailsBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>+</Text>}
+              </Pressable>
             </View>
           </View>
         </View>

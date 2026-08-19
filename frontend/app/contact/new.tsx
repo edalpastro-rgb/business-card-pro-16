@@ -12,7 +12,7 @@ import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { scheduleBirthdayReminder } from "@/src/notifications";
 import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
-import { notify } from "@/src/utils/notify";
+import { notify, confirmAsync } from "@/src/utils/notify";
 
 type PendingAttachment = {
   local_id: string;
@@ -60,6 +60,10 @@ export default function NewContactScreen() {
     birthday_auto_send: false,
     birthday_message: "",
     birthday_message_link: "",
+    // V38H — birthday sender/recipient + active-client flag
+    birthday_sender_email: "",
+    birthday_recipient_email: "",
+    is_active_client: false,
     anniversaries: [] as { name: string; date: string }[],
     area: (allowed[0] || "energy") as "energy" | "network",
     additional_areas: [] as string[],
@@ -76,11 +80,20 @@ export default function NewContactScreen() {
   const [busy, setBusy] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [postCreateModal, setPostCreateModal] = useState<{ contact_id: string; name: string } | null>(null);
+  // V38H — user's sender emails (main + additional) for the birthday email picker
+  const [userEmails, setUserEmails] = useState<string[]>([]);
+  const [bdayGenerating, setBdayGenerating] = useState(false);
 
   useEffect(() => {
     api<{ items: ContactLite[] }>("/contacts").then((r) => setContacts(r.items)).catch(() => {});
     api<{ items: Group[] }>("/groups").then((r) => setAvailableGroups(r.items)).catch(() => {});
     api<Settings>("/settings").then((s) => setSettings(s)).catch(() => {});
+    // V38H — load user emails (main + additional)
+    api<{ user: any }>("/auth/me").then((r) => {
+      const me = r?.user || {};
+      const list = [me.email, ...(Array.isArray(me.additional_emails) ? me.additional_emails : [])].filter(Boolean);
+      setUserEmails(Array.from(new Set(list)));
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -101,6 +114,9 @@ export default function NewContactScreen() {
           birthday_auto_send: !!c.birthday_auto_send,
           birthday_message: c.birthday_message || "",
           birthday_message_link: c.birthday_message_link || "",
+          birthday_sender_email: c.birthday_sender_email || "",
+          birthday_recipient_email: c.birthday_recipient_email || "",
+          is_active_client: !!c.is_active_client,
           fiscal_code: c.fiscal_code || "", vat_number: c.vat_number || "",
           website: c.website || "", linkedin: c.linkedin || "",
           instagram: c.instagram || "", facebook: c.facebook || "",
@@ -895,7 +911,102 @@ export default function NewContactScreen() {
                   </Pressable>
                 </View>
                 {form.birthday_auto_send && (
-                  <Field label="Messaggio compleanno custom" testID="c-bday-msg" value={form.birthday_message} onChangeText={(t: string) => setForm({ ...form, birthday_message: t })} placeholder="Buon compleanno! Ti auguro..." multiline />
+                  <>
+                    <View style={styles.rowBetween}>
+                      <Text style={styles.switchLbl}>Cliente ancora attivo</Text>
+                      <Pressable testID="c-bday-active" onPress={() => setForm({ ...form, is_active_client: !form.is_active_client })}>
+                        <Ionicons name={form.is_active_client ? "toggle" : "toggle-outline"} size={38} color={form.is_active_client ? theme.color.success : theme.color.muted} />
+                      </Pressable>
+                    </View>
+                    <Text style={styles.hintTxt}>
+                      Se attivo, il messaggio ringrazierà il cliente per la continua fiducia e lo inviterà a contattarti per informazioni.
+                    </Text>
+
+                    {/* V38H — Sender email picker */}
+                    {userEmails.length > 0 && (
+                      <>
+                        <Text style={styles.lbl}>Email mittente</Text>
+                        <View style={styles.pillsRow}>
+                          {userEmails.map((em) => (
+                            <Pressable
+                              key={em}
+                              testID={`c-bday-from-${em}`}
+                              onPress={() => setForm({ ...form, birthday_sender_email: em })}
+                              style={[styles.pill, form.birthday_sender_email === em && styles.pillActive]}
+                            >
+                              <Text style={[styles.pillTxt, form.birthday_sender_email === em && styles.pillTxtActive]} numberOfLines={1}>{em}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                        <Text style={styles.hintTxt}>Puoi aggiungere altri indirizzi in Profilo → Email aggiuntive.</Text>
+                      </>
+                    )}
+
+                    {/* V38H — Recipient email picker (from contact.email/email_alt) */}
+                    {(form.email || form.email_alt) && (
+                      <>
+                        <Text style={styles.lbl}>Email destinatario</Text>
+                        <View style={styles.pillsRow}>
+                          {[form.email, form.email_alt].filter(Boolean).map((em) => (
+                            <Pressable
+                              key={em as string}
+                              testID={`c-bday-to-${em}`}
+                              onPress={() => setForm({ ...form, birthday_recipient_email: em as string })}
+                              style={[styles.pill, form.birthday_recipient_email === em && styles.pillActive]}
+                            >
+                              <Text style={[styles.pillTxt, form.birthday_recipient_email === em && styles.pillTxtActive]} numberOfLines={1}>{em as string}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </>
+                    )}
+                  </>
+                )}
+                {form.birthday_auto_send && (
+                  <>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                      <Text style={styles.lbl}>Messaggio compleanno {isEdit ? "" : "(opzionale)"}</Text>
+                      {isEdit && editId && (
+                        <Pressable
+                          testID="c-bday-generate-ai"
+                          disabled={bdayGenerating}
+                          onPress={async () => {
+                            try {
+                              setBdayGenerating(true);
+                              const r = await api<{ message: string }>(
+                                `/contacts/${editId}/birthday/generate-message`,
+                                { method: "POST" }
+                              );
+                              if (r?.message) {
+                                setForm({ ...form, birthday_message: r.message });
+                                notify("Messaggio generato", "L'AI ha creato un nuovo messaggio personalizzato.");
+                              }
+                            } catch (e: any) {
+                              notify("Errore AI", e?.message || "Impossibile generare il messaggio");
+                            } finally {
+                              setBdayGenerating(false);
+                            }
+                          }}
+                          style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: "#EDE9FE" }}
+                        >
+                          {bdayGenerating ? (
+                            <ActivityIndicator size="small" color="#7C3AED" />
+                          ) : (
+                            <Ionicons name="sparkles" size={14} color="#7C3AED" />
+                          )}
+                          <Text style={{ color: "#7C3AED", fontSize: 12, fontWeight: "700" }}>Genera con AI</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                    <Field
+                      label=""
+                      testID="c-bday-msg"
+                      value={form.birthday_message}
+                      onChangeText={(t: string) => setForm({ ...form, birthday_message: t })}
+                      placeholder={isEdit ? "Tocca 'Genera con AI' o scrivi manualmente…" : "Salva prima il contatto per usare la generazione AI."}
+                      multiline
+                    />
+                  </>
                 )}
                 {form.birthday_auto_send && (
                   <Field label="Link da allegare (opzionale)" testID="c-bday-link" value={form.birthday_message_link} onChangeText={(t: string) => setForm({ ...form, birthday_message_link: t })} placeholder="https://..." autoCapitalize="none" />
@@ -1156,6 +1267,33 @@ export default function NewContactScreen() {
           <Pressable testID="c-save-btn" onPress={submit} style={styles.saveBtn} disabled={busy || !form.first_name.trim()}>
             {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>{isEdit ? "Salva modifiche" : "Salva contatto"}</Text>}
           </Pressable>
+          {isEdit && editId && (
+            <Pressable
+              testID="c-delete-btn"
+              onPress={async () => {
+                const ok = await confirmAsync(
+                  "Eliminare la scheda cliente?",
+                  `Verranno rimossi definitivamente il contatto "${form.first_name} ${form.last_name}".trim() e tutti i suoi dati (note, file, fatture, appuntamenti, chiamate). L'operazione è irreversibile.`
+                );
+                if (!ok) return;
+                try {
+                  setBusy(true);
+                  await api(`/contacts/${editId}`, { method: "DELETE" });
+                  notify("Cliente eliminato", "La scheda è stata rimossa.");
+                  router.replace("/(tabs)/contatti");
+                } catch (e: any) {
+                  notify("Errore", e?.message || "Impossibile eliminare");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              style={styles.deleteBtn}
+              disabled={busy}
+            >
+              <Ionicons name="trash-outline" size={16} color="#DC2626" />
+              <Text style={styles.deleteBtnTxt}>Elimina scheda cliente</Text>
+            </Pressable>
+          )}
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -1630,6 +1768,8 @@ const styles = StyleSheet.create({
   photoThumbRemove: { position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: theme.color.error, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#FFF" },
   saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 20 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
+  deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FEE2E2", paddingVertical: 12, borderRadius: theme.radius.md, marginTop: 10, borderWidth: 1, borderColor: "#FCA5A5" },
+  deleteBtnTxt: { color: "#DC2626", fontWeight: "700", fontSize: 14 },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   linkChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandTertiary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill, alignSelf: "flex-start" },
   linkChipTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
