@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, Header, status, BackgroundTasks
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Header, status, BackgroundTasks, Request
 from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -1405,6 +1405,91 @@ async def delete_file(contact_id: str, file_id: str, user=Depends(get_current_us
         {"$pull": {"files": {"id": file_id}}},
     )
     return {"ok": True}
+
+
+# ---- V38F: Shareable public link for contact files ----
+class RenameFileIn(BaseModel):
+    name: str
+
+@api_router.patch("/contacts/{contact_id}/files/{file_id}")
+async def rename_file(contact_id: str, file_id: str, body: RenameFileIn, user=Depends(get_current_user)):
+    new_name = (body.name or "").strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Nome file non valido")
+    r = await db.contacts.update_one(
+        scope_query(user, {"contact_id": contact_id, "files.id": file_id}),
+        {"$set": {"files.$.name": new_name}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="File non trovato")
+    return {"ok": True, "name": new_name}
+
+
+@api_router.post("/contacts/{contact_id}/files/{file_id}/share-link")
+async def create_file_share_link(contact_id: str, file_id: str, request: Request, user=Depends(get_current_user)):
+    """Create a signed URL to publicly serve the file for a limited time (24h).
+    Any auth-related caller (owner/admin/member) with visibility to the contact can create the token."""
+    c = await db.contacts.find_one(
+        scope_query(user, {"contact_id": contact_id, "files.id": file_id}),
+        {"contact_id": 1, "files.$": 1},
+    )
+    if not c or not c.get("files"):
+        raise HTTPException(status_code=404, detail="File non trovato")
+    f = c["files"][0]
+    exp_dt = utcnow() + timedelta(hours=24)
+    token = jwt.encode({
+        "kind": "cfile",
+        "contact_id": contact_id,
+        "file_id": file_id,
+        "user_id": user["user_id"],
+        "exp": int(exp_dt.timestamp()),
+    }, JWT_SECRET, algorithm=JWT_ALG)
+    # Build the absolute URL using forwarded proxy headers when available
+    # (behind Kubernetes ingress request.base_url points at the internal cluster host).
+    fwd_proto = request.headers.get("x-forwarded-proto")
+    fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    if fwd_proto and fwd_host:
+        base = f"{fwd_proto}://{fwd_host}"
+    else:
+        base = str(request.base_url).rstrip("/")
+    base = base.rstrip("/")
+    url = f"{base}/api/public/files/{token}"
+    return {"url": url, "expires_at": exp_dt.isoformat(), "name": f.get("name"), "mime": f.get("mime")}
+
+
+@api_router.get("/public/files/{token}")
+async def public_file(token: str):
+    """Public download endpoint for signed contact-file tokens. No auth required."""
+    from fastapi.responses import Response as FastAPIResponse
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=410, detail="Link scaduto")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Link non valido")
+    if payload.get("kind") != "cfile":
+        raise HTTPException(status_code=400, detail="Token non compatibile")
+    contact_id = payload.get("contact_id")
+    file_id = payload.get("file_id")
+    c = await db.contacts.find_one(
+        {"contact_id": contact_id, "files.id": file_id},
+        {"files.$": 1},
+    )
+    if not c or not c.get("files"):
+        raise HTTPException(status_code=404, detail="File non trovato")
+    f = c["files"][0]
+    import base64 as _b64
+    try:
+        data = _b64.b64decode(f.get("data_base64") or "")
+    except Exception:
+        raise HTTPException(status_code=500, detail="File corrotto")
+    mime = f.get("mime") or "application/octet-stream"
+    name = f.get("name") or "download"
+    return FastAPIResponse(
+        content=data,
+        media_type=mime,
+        headers={"Content-Disposition": f'inline; filename="{name}"'},
+    )
 
 
 # =========================

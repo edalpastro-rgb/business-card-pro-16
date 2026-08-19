@@ -1,0 +1,41 @@
+{
+  "summary": "V38F tested — backend share-link + rename + public download, and frontend ShareSheet UI. All 10 backend tests pass (10/10). ShareSheet UI works: all 5 testIDs render, link is generated with /api/public/files/<token>, '24h' badge shown, Copia link copies the proper public URL to clipboard. Fixed one CRITICAL backend bug: share-link URL was returning internal cluster host instead of public preview URL (recipients got 403). Added X-Forwarded-Proto/Host support in POST /api/contacts/{cid}/files/{fid}/share-link so the URL uses the ingress-visible host. Not tested: auto-save on Report/Comparison (needs seeded bills — skipped per instructions).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38f_share_rename.py",
+    "/app/test_reports/pytest/v38f_share_rename.xml",
+    "/app/test_reports/sharesheet.png"
+  ],
+  "action_items": [
+    "Verify the applied backend fix in server.py (share-link endpoint now uses X-Forwarded-Proto/Host when present) — this was mandatory for the feature to work; without it the URL pointed at the internal cluster host and returned 403 to external users.",
+    "Optional: consider adding a rate limit / abuse throttle on POST /api/contacts/{cid}/files/{fid}/share-link (currently unlimited — any authenticated user with visibility can mint tokens repeatedly).",
+    "Optional: on web, notify('Link copiato') uses window.alert() which is intrusive; consider a toast/snackbar for a nicer UX (existing behaviour, low priority)."
+  ],
+  "critical_code_review_comments": [
+    "server.py line ~1447 originally used str(request.base_url) which behind Kubernetes ingress reflects the internal cluster hostname (http://contact-hub-italy.cluster-7.preview.emergentcf.cloud) — not the public preview URL. Fixed by preferring X-Forwarded-Proto and X-Forwarded-Host / Host headers.",
+    "public_file endpoint correctly declares no auth dependency (declared under api_router but no Depends(get_current_user)) — verified reachable without Authorization header.",
+    "JWT_SECRET fallback 'dev-secret-change-me-in-prod-9827345' is hardcoded — acceptable for dev, but for prod it should always be from env (already read via os.environ.get)."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (share-link URL builder now uses forwarded proxy headers)",
+    "/app/backend/tests/test_v38f_share_rename.py (new test file, 10 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10)",
+    "frontend": "100% (ShareSheet flow — all testIDs, link generation, clipboard copy)"
+  },
+  "seed_data_creation": "Test creates and cleans up a TEST_V38F contact + a tiny PDF file per test class (pytest fixtures). One UI test contact (c_dd2669432035) manually deleted after browser test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend bug fix applied: /app/backend/server.py POST /api/contacts/{cid}/files/{fid}/share-link now honours X-Forwarded-Proto/Host. If future changes touch this endpoint, re-run /app/backend/tests/test_v38f_share_rename.py. Frontend ShareSheet component works well — testIDs share-file-<fid>, share-sheet-close, share-ch-{system,whatsapp,email,copy} all reliable. Auto-save-to-files on Report/Comparison NOT tested (requires seeded bills/offers for the contact and an active PDF/HTML generation flow).",
+  "rca_of_issue": "Symptom: share link fetched without auth returned 403 Forbidden from the response, even though the endpoint code has no auth dependency and bogus/expired tokens correctly returned 400/410. Reproduction: 1) POST /api/contacts/{cid}/files/{fid}/share-link → response url = http://contact-hub-italy.cluster-7.preview.emergentcf.cloud/api/public/files/<jwt>. 2) GET that URL → 403 from cluster ingress (internal DNS, not exposed externally). 3) Rewriting host to https://contact-hub-italy.preview.emergentagent.com and GETting → 200 with expected bytes + Content-Disposition. Root cause: FastAPI's request.base_url reflects the internal host the app was hit from (uvicorn behind ingress) — not the ingress-facing public URL. Mitigation: read X-Forwarded-Proto and X-Forwarded-Host headers (added by the ingress) and fall back to request.base_url when absent. Verified: all 10 pytest cases pass after fix, and the browser flow now shows a working public URL in the ShareSheet."
+}

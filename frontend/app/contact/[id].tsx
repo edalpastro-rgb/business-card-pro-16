@@ -14,6 +14,7 @@ import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { shareText, shareDataUri } from "@/src/share";
 import { openTelegram } from "@/src/utils/telegram";
 import { BillsSection } from "@/src/BillsSection";
+import { ShareSheet, ShareTarget } from "@/src/ShareSheet";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ContactAudioSection } from "@/src/ContactAudioSection";
 import { ContactCallsSection } from "@/src/ContactCallsSection";
@@ -55,6 +56,7 @@ export default function ContactDetail() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
   const [callsRefreshTick, setCallsRefreshTick] = useState(0);
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const { user } = useAuth();
   const canAssign = user?.role === "owner" || user?.role === "admin";
 
@@ -286,9 +288,15 @@ export default function ContactDetail() {
     await shareText(lines, `Scheda ${c.first_name} ${c.last_name}`);
   };
 
-  const shareFile = async (f: CFile) => {
+  const shareFile = (f: CFile) => {
     if (!f.data_base64) return;
-    await shareDataUri(`data:${f.mime};base64,${f.data_base64}`, f.name, f.mime);
+    setShareTarget({
+      id: f.id,
+      name: f.name,
+      mime: f.mime,
+      data_base64: f.data_base64,
+      contactId: id,
+    });
   };
 
   const shareNote = async (n: Note) => {
@@ -884,6 +892,11 @@ export default function ContactDetail() {
         }}
       />
       {(tab === "notes" || tab === "files") && <CalculatorFAB />}
+      <ShareSheet
+        visible={!!shareTarget}
+        target={shareTarget}
+        onClose={() => setShareTarget(null)}
+      />
     </SafeAreaView>
   );
 }

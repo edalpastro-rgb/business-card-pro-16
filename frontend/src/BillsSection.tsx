@@ -4,6 +4,7 @@ import Svg, { Rect, Text as SvgText, Line } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as Print from "expo-print";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
@@ -276,11 +277,64 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
     } catch {}
   };
 
+  // V38F — Save generated HTML/PDF to contact files automatically.
+  // On native, we get a real PDF via Print.printToFileAsync + FileSystem.readAsString.
+  // On web, we save the HTML string as text/html (browser can re-open and re-print).
+  const autoSaveToContactFiles = async (html: string, kind: "report" | "comparison") => {
+    if (!contactId) return;
+    const now = new Date();
+    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+    const baseName = kind === "report"
+      ? `Report-Fatture-${ts}`
+      : `Comparazione-${ts}`;
+    try {
+      if (Platform.OS === "web") {
+        // Encode HTML as base64 (utf-8 safe)
+        const enc = (globalThis as any).TextEncoder ? new TextEncoder() : null;
+        let b64: string;
+        if (enc) {
+          const bytes = enc.encode(html);
+          let bin = "";
+          for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+          b64 = (globalThis as any).btoa(bin);
+        } else {
+          b64 = (globalThis as any).btoa(unescape(encodeURIComponent(html)));
+        }
+        await api(`/contacts/${contactId}/files`, {
+          method: "POST",
+          body: {
+            name: `${baseName}.html`,
+            mime: "text/html",
+            data_base64: b64,
+            size: Math.round((b64.length * 3) / 4),
+          },
+        });
+      } else {
+        const { uri } = await Print.printToFileAsync({ html });
+        const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+        await api(`/contacts/${contactId}/files`, {
+          method: "POST",
+          body: {
+            name: `${baseName}.pdf`,
+            mime: "application/pdf",
+            data_base64: b64,
+            size: Math.round((b64.length * 3) / 4),
+          },
+        });
+      }
+      notify("Salvato nei file cliente", `${baseName} è stato salvato nella tab File del cliente.`);
+    } catch (e: any) {
+      console.warn("autoSave err", e);
+    }
+  };
+
   const generateComparison = async () => {
     try {
       setComparisonBusy(true);
       const rep = await api<any>(`/contacts/${contactId}/bills/comparison`);
       const html = buildComparisonHtml(rep, contactName);
+      // Auto-save to contact files (fire and forget — should not block print/share)
+      void autoSaveToContactFiles(html, "comparison");
       if (Platform.OS === "web") {
         printHtmlOnWeb(html, `confronto-${contactName || "cliente"}.pdf`);
         return;
@@ -521,6 +575,8 @@ export function BillsSection({ contactId, contactName }: { contactId: string; co
       setReportBusy(true);
       const rep = await api<any>(`/contacts/${contactId}/bills/report`);
       const html = buildReportHtml(rep, contactName);
+      // V38F: auto-save to contact files
+      void autoSaveToContactFiles(html, "report");
       if (Platform.OS === "web") {
         printHtmlOnWeb(html, `report-fatture-${contactName || "cliente"}.pdf`);
         return;
