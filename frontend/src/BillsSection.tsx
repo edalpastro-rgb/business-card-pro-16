@@ -1276,262 +1276,574 @@ function renderSectionCard(title: string, color: string, emoji: string, bodyHtml
     </div>`;
 }
 
-function kvGridHtml(rows: Array<{ k: string; v: any; hi?: boolean }>): string {
-  const cells = rows
-    .filter((r) => r.v !== null && r.v !== undefined && r.v !== "")
-    .map((r) => `
-      <div style="flex:1 1 45%;padding:8px 10px;background:${r.hi ? "#FEF3C7" : "#F8FAFC"};border-radius:6px;border-left:3px solid ${r.hi ? "#F59E0B" : "#CBD5E1"};">
-        <div style="font-size:9px;color:#64748B;font-weight:700;text-transform:uppercase;">${esc(r.k)}</div>
-        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">${esc(String(r.v))}</div>
-      </div>`)
-    .join("");
-  return `<div style="display:flex;flex-wrap:wrap;gap:8px;">${cells}</div>`;
+/* ============================================================================
+ * V38B — Slide-style comparison report (A4 landscape, presentation-look)
+ * Inspired by NotebookLM / Optima cover deck the user shared:
+ *  - Cover: bold navy title + "Riservato alla Direzione: {NAME}"
+ *  - Impronta Energetica: donut chart + big kWh number + F1/F2/F3 bars + profile callout
+ *  - Dettaglio Analitico: table (Fascia | Orario | Incidenza | Volume)
+ *  - Trasparenza: 3 orange info cards (current contract)
+ *  - Proposta Migliorativa: 3 green cards
+ *  - Calcolo risparmio + Matrice + Executive summary
+ * ============================================================================ */
+
+// Fixed slide palette
+const SL = {
+  navy: "#1E3A5F",
+  navyDark: "#152A48",
+  bg: "#F6F2E7",
+  bgAlt: "#FFFFFF",
+  orange: "#EE8B4A",
+  orangeSoft: "#FCE9D7",
+  green: "#2E9E5A",
+  greenSoft: "#D4F0DC",
+  blueF3: "#79ABC7",
+  ink: "#0F172A",
+  muted: "#5B6B7F",
+  border: "#E3D9C4",
+};
+
+const FASCIA_ORARI: Record<string, string> = {
+  F1: "Lun–Ven 08:00–19:00",
+  F2: "Lun–Ven 07–08 / 19–23, Sab 07–23",
+  F3: "Notte, Domenica e Festivi",
+};
+
+function slideOpen(title?: string): string {
+  return `<section class="slide">
+    <div class="slide-inner">
+      ${title ? `<h2 class="slide-title">${esc(title)}</h2>` : ""}
+      <div class="slide-body">`;
+}
+function slideClose(footer?: string): string {
+  return `</div>
+      ${footer ? `<div class="slide-footer">${footer}</div>` : ""}
+    </div>
+  </section>`;
+}
+
+function slideCover(name: string, contactCode: string, presenter: string, dateStr: string, totalSaving: number, items: number): string {
+  return `<section class="slide slide-cover">
+    <div class="cover-deco"></div>
+    <div class="cover-card">
+      <h1 class="cover-title">ANALISI STRATEGICA<br/>E DI OTTIMIZZAZIONE<br/>DEI COSTI ENERGETICI</h1>
+      <div class="cover-subtitle">Audit Finanziario e Gestione Rischio</div>
+      <div class="cover-recipient">Riservato alla Direzione: ${esc(String(name || "").toUpperCase())}${contactCode ? ` (${esc(contactCode)})` : ""}</div>
+      <div class="cover-meta">
+        <div>Data: ${esc(dateStr)}</div>
+        <div>Presentato da: ${esc(presenter)}</div>
+      </div>
+      ${totalSaving > 0 ? `<div class="cover-saving-band">
+        <span class="cover-saving-label">Risparmio annuo totale stimato</span>
+        <span class="cover-saving-value">€ ${esc(Math.round(totalSaving).toLocaleString("it-IT"))}</span>
+        <span class="cover-saving-note">${items} tipologia${items === 1 ? "" : "e"} analizzata${items === 1 ? "" : "e"}</span>
+      </div>` : ""}
+    </div>
+  </section>`;
+}
+
+function donutChartSvg(f1: number, f2: number, f3: number): string {
+  const items = [
+    { l: "F1", v: Math.max(0, f1 || 0), c: SL.navy },
+    { l: "F2", v: Math.max(0, f2 || 0), c: SL.orange },
+    { l: "F3", v: Math.max(0, f3 || 0), c: SL.blueF3 },
+  ];
+  const total = items.reduce((a, b) => a + b.v, 0);
+  const size = 320, cx = size / 2, cy = size / 2, r = 130, rInner = 78;
+  if (total <= 0) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="#E5E7EB"/>
+      <circle cx="${cx}" cy="${cy}" r="${rInner}" fill="#FFF"/>
+      <text x="${cx}" y="${cy}" font-size="14" font-weight="700" fill="${SL.muted}" text-anchor="middle" dominant-baseline="central">Nessun dato</text>
+    </svg>`;
+  }
+  let cumAngle = -Math.PI / 2;
+  const arcs = items.filter((it) => it.v > 0).map((it) => {
+    const angle = (it.v / total) * 2 * Math.PI;
+    const a0 = cumAngle;
+    const a1 = cumAngle + angle;
+    cumAngle = a1;
+    const x0 = cx + r * Math.cos(a0);
+    const y0 = cy + r * Math.sin(a0);
+    const x1 = cx + r * Math.cos(a1);
+    const y1 = cy + r * Math.sin(a1);
+    const xi0 = cx + rInner * Math.cos(a0);
+    const yi0 = cy + rInner * Math.sin(a0);
+    const xi1 = cx + rInner * Math.cos(a1);
+    const yi1 = cy + rInner * Math.sin(a1);
+    const large = angle > Math.PI ? 1 : 0;
+    const pct = (it.v / total) * 100;
+    // Position for label just outside arc mid
+    const mid = (a0 + a1) / 2;
+    const lx = cx + (r + 22) * Math.cos(mid);
+    const ly = cy + (r + 22) * Math.sin(mid);
+    const anchor = Math.cos(mid) > 0.1 ? "start" : Math.cos(mid) < -0.1 ? "end" : "middle";
+    return `<path d="M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} L ${xi1} ${yi1} A ${rInner} ${rInner} 0 ${large} 0 ${xi0} ${yi0} Z" fill="${it.c}"/>
+      <text x="${lx}" y="${ly}" font-size="15" font-weight="700" fill="${SL.ink}" text-anchor="${anchor}" dominant-baseline="central">${pct.toFixed(1).replace(".", ",")}%</text>
+      <text x="${cx + (r * 0.72) * Math.cos(mid)}" y="${cy + (r * 0.72) * Math.sin(mid)}" font-size="18" font-weight="800" fill="#FFF" text-anchor="middle" dominant-baseline="central">${it.l}</text>`;
+  }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    ${arcs}
+    <text x="${cx}" y="${cy - 6}" font-size="14" font-weight="700" fill="${SL.navy}" text-anchor="middle">TOTALE</text>
+    <text x="${cx}" y="${cy + 14}" font-size="14" font-weight="700" fill="${SL.navy}" text-anchor="middle">CONSUMI</text>
+  </svg>`;
 }
 
 function fasceBarChartSvg(f1?: number, f2?: number, f3?: number): string {
+  // Legacy inline bars (kept for backward compat)
   const values = [
-    { l: "F1", v: Number(f1) || 0, c: "#F59E0B" },
-    { l: "F2", v: Number(f2) || 0, c: "#3B82F6" },
-    { l: "F3", v: Number(f3) || 0, c: "#8B5CF6" },
+    { l: "F1", v: Number(f1) || 0, c: SL.navy },
+    { l: "F2", v: Number(f2) || 0, c: SL.orange },
+    { l: "F3", v: Number(f3) || 0, c: SL.blueF3 },
   ];
   const total = values.reduce((a, b) => a + b.v, 0) || 1;
-  const w = 480, h = 130, padL = 40, padR = 10, padT = 20, padB = 30;
-  const chartW = w - padL - padR;
-  const chartH = h - padT - padB;
-  const max = Math.max(1, ...values.map((v) => v.v));
-  const barGap = 30;
-  const barW = (chartW - barGap * 2) / 3;
-  const bars = values.map((v, i) => {
-    const bh = (v.v / max) * chartH;
-    const x = padL + i * (barW + barGap);
-    const y = padT + chartH - bh;
-    const pct = ((v.v / total) * 100).toFixed(1);
-    return `<rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="${v.c}" rx="4"/>
-      <text x="${x + barW / 2}" y="${y - 4}" font-size="10" fill="#0F172A" text-anchor="middle" font-weight="700">${v.v} kWh</text>
-      <text x="${x + barW / 2}" y="${padT + chartH + 12}" font-size="11" fill="#0F172A" text-anchor="middle" font-weight="700">${v.l}</text>
-      <text x="${x + barW / 2}" y="${padT + chartH + 24}" font-size="9" fill="#64748B" text-anchor="middle">${pct}%</text>`;
+  const w = 380;
+  const rows = values.map((v, i) => {
+    const pct = (v.v / total) * 100;
+    return `<g transform="translate(0,${i * 44})">
+      <text x="0" y="14" font-size="12" font-weight="700" fill="${SL.ink}">${v.l} — ${v.l === "F1" ? "Ore di Punta" : v.l === "F2" ? "Ore Intermedie" : "Ore Fuori Punta"}</text>
+      <rect x="0" y="20" width="${w}" height="14" rx="7" fill="#E5EDF3"/>
+      <rect x="0" y="20" width="${(pct / 100) * w}" height="14" rx="7" fill="${v.c}"/>
+      <text x="${(pct / 100) * w + 8}" y="31" font-size="12" font-weight="700" fill="${SL.ink}">${pct.toFixed(1).replace(".", ",")}%</text>
+    </g>`;
   }).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${bars}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w + 60}" height="${values.length * 44 + 10}" viewBox="0 0 ${w + 60} ${values.length * 44 + 10}">${rows}</svg>`;
 }
 
-function comparisonMatrixHtml(rows: Array<{ parametro?: string; attuale?: string; proposta?: string; delta?: string; vantaggio?: string }>): string {
-  if (!Array.isArray(rows) || !rows.length) return "";
+function slideImpronta(cmp: any, foot: any, fasce: any, bt: string): string {
+  const unit = foot?.unita || (bt === "gas" ? "SMC" : bt === "telco" ? "GB" : "kWh");
+  const total = foot?.consumo_annuo_kwh_o_smc || (Number(fasce?.F1_kwh || 0) + Number(fasce?.F2_kwh || 0) + Number(fasce?.F3_kwh || 0));
+  const bigNumber = total ? Number(total).toLocaleString("it-IT") : "—";
+  const pods = foot?.numero_pod || cmp?.bill?.extracted?.pod ? 1 : (foot?.numero_pod || 1);
+  const profilo = foot?.profilo_utilizzo || (Array.isArray(foot?.note) ? foot.note[0] : "");
+  const donut = donutChartSvg(Number(fasce?.F1_kwh || 0), Number(fasce?.F2_kwh || 0), Number(fasce?.F3_kwh || 0));
+  const bars = fasceBarChartSvg(fasce?.F1_kwh, fasce?.F2_kwh, fasce?.F3_kwh);
+  return slideOpen("L'Impronta Energetica Attuale") + `
+    <div class="two-cols">
+      <div class="card card-plain">
+        <div style="text-align:center;">${donut}</div>
+      </div>
+      <div class="stack">
+        <div class="card card-plain center">
+          <div class="big-number">${esc(bigNumber)} <span class="big-unit">${esc(unit)}</span></div>
+          <div class="big-caption">Consumo Annuo Stimato${pods ? ` su ${pods} POD` : ""}</div>
+        </div>
+        <div class="card card-plain">${bars}</div>
+      </div>
+    </div>
+    ${profilo ? `<div class="callout callout-orange">${esc(String(profilo))}</div>` : ""}
+  ` + slideClose();
+}
+
+function slideDettaglio(fasce: any, foot: any): string {
+  const total = Number(foot?.consumo_annuo_kwh_o_smc) || (Number(fasce?.F1_kwh || 0) + Number(fasce?.F2_kwh || 0) + Number(fasce?.F3_kwh || 0));
+  const rows = [
+    { f: "F1", pct: Number(fasce?.F1_percent) || (total ? (Number(fasce?.F1_kwh || 0) / total * 100) : 0), vol: Number(fasce?.F1_kwh || 0) },
+    { f: "F2", pct: Number(fasce?.F2_percent) || (total ? (Number(fasce?.F2_kwh || 0) / total * 100) : 0), vol: Number(fasce?.F2_kwh || 0) },
+    { f: "F3", pct: Number(fasce?.F3_percent) || (total ? (Number(fasce?.F3_kwh || 0) / total * 100) : 0), vol: Number(fasce?.F3_kwh || 0) },
+  ];
   const trs = rows.map((r) => {
-    const van = String(r.vantaggio || "").toLowerCase();
-    const vColor = van === "cliente" || van === "nuova" || van === "proposta" ? "#16A34A" : van === "attuale" ? "#DC2626" : "#64748B";
-    const vLabel = van === "cliente" || van === "nuova" || van === "proposta" ? "✓ Nuova" : van === "attuale" ? "✗ Attuale" : "≈ Neutro";
+    const barW = Math.max(3, Math.min(100, r.pct));
     return `<tr>
-      <td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:11px;font-weight:600;color:#0F172A;">${esc(r.parametro || "")}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:11px;color:#DC2626;">${esc(r.attuale || "—")}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:11px;color:#16A34A;font-weight:700;">${esc(r.proposta || "—")}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:11px;color:#374151;">${esc(r.delta || "—")}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:11px;color:${vColor};font-weight:700;">${vLabel}</td>
+      <td class="cell-fascia">${r.f}</td>
+      <td class="cell-orari">${esc(FASCIA_ORARI[r.f] || "—")}</td>
+      <td class="cell-inc">
+        <div class="inc-bar-wrap"><div class="inc-bar" style="width:${barW}%"></div></div>
+        <span class="inc-pct">${r.pct.toFixed(1).replace(".", ",")}%</span>
+      </td>
+      <td class="cell-vol">${r.vol ? r.vol.toLocaleString("it-IT") : "—"} kWh</td>
     </tr>`;
   }).join("");
-  return `<table style="width:100%;border-collapse:collapse;">
-    <thead>
-      <tr style="background:#F1F5F9;">
-        <th style="padding:8px 10px;text-align:left;font-size:10px;color:#334155;text-transform:uppercase;">Parametro</th>
-        <th style="padding:8px 10px;text-align:left;font-size:10px;color:#334155;text-transform:uppercase;">Attuale</th>
-        <th style="padding:8px 10px;text-align:left;font-size:10px;color:#334155;text-transform:uppercase;">Proposta</th>
-        <th style="padding:8px 10px;text-align:left;font-size:10px;color:#334155;text-transform:uppercase;">Delta</th>
-        <th style="padding:8px 10px;text-align:left;font-size:10px;color:#334155;text-transform:uppercase;">Vantaggio</th>
-      </tr>
-    </thead>
-    <tbody>${trs}</tbody>
-  </table>`;
+  return slideOpen("Dettaglio Analitico dei Consumi") + `
+    <table class="tbl-detail">
+      <thead>
+        <tr>
+          <th>Fascia</th>
+          <th>Orario</th>
+          <th>Incidenza</th>
+          <th>Volume Stimato</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${trs}
+        <tr class="row-total">
+          <td class="cell-fascia">TOTALE</td>
+          <td class="cell-orari">—</td>
+          <td class="cell-inc"><span class="inc-pct">100%</span></td>
+          <td class="cell-vol">${total ? total.toLocaleString("it-IT") : "—"} kWh</td>
+        </tr>
+      </tbody>
+    </table>
+  ` + slideClose("Dati aggregati derivanti dall'analisi dei Punti di Prelievo (POD) aziendali.");
 }
+
+function slideContrattoAttuale(con: any, billExtracted: any, bt: string): string {
+  const fornitore = con?.fornitore || billExtracted?.fornitore || "n/d";
+  const indice = con?.tipo_prezzo || con?.indicizzazione || billExtracted?.tipo_prezzo || "n/d";
+  const spread = con?.spread_eur_kwh_o_smc || billExtracted?.spread || billExtracted?.spread_eur_kwh || null;
+  const spreadStr = spread != null ? `${String(spread).replace(".", ",")} €/${bt === "gas" ? "SMC" : "kWh"}` : "n/d";
+  const costiFissi = billExtracted?.costi_fissi || billExtracted?.costi_fissi_mensili || billExtracted?.quota_fissa_mensile || "Presenza di oneri di commercializzazione (CCV/CCF).";
+  const criticita = Array.isArray(con?.criticita) ? con.criticita : [];
+  return slideOpen(`Trasparenza sui Dati: Il Contratto ${String(fornitore).slice(0, 20)} Attuale`) + `
+    <div class="cards-3">
+      <div class="info-card info-neutral">
+        <div class="info-label">Indicizzazione</div>
+        <div class="info-value mono">${esc(String(indice).toUpperCase())}</div>
+      </div>
+      <div class="info-card info-orange">
+        <div class="info-label">Spread Applicato</div>
+        <div class="info-value mono orange">${esc(spreadStr)}</div>
+      </div>
+      <div class="info-card info-neutral">
+        <div class="info-label">Costi Fissi</div>
+        <div class="info-value">${esc(String(costiFissi).slice(0, 90))}</div>
+      </div>
+    </div>
+    ${con?.data_scadenza || con?.durata_contratto_mesi ? `<div class="callout callout-neutral">
+      ${con?.durata_contratto_mesi ? `<b>Durata contratto:</b> ${esc(con.durata_contratto_mesi)} mesi &nbsp;` : ""}
+      ${con?.data_scadenza ? `<b>Scadenza:</b> ${esc(con.data_scadenza)}` : ""}
+    </div>` : ""}
+    ${criticita.length ? `<div class="criticita">
+      <div class="criticita-title">Criticità rilevate</div>
+      <ul>${criticita.map((x: string) => `<li>${esc(x)}</li>`).join("")}</ul>
+    </div>` : ""}
+  ` + slideClose();
+}
+
+function slideProposta(offerExtracted: any, cmp: any, con: any, bt: string): string {
+  const fornitore = offerExtracted?.fornitore || "Optima";
+  const indice = offerExtracted?.tipo_prezzo || offerExtracted?.indicizzazione || "PUN Index GME";
+  const newSpread = offerExtracted?.spread || offerExtracted?.spread_eur_kwh || cmp?.calcolo_risparmio?.nuovo_spread || null;
+  const oldSpread = con?.spread_eur_kwh_o_smc || null;
+  const newSpreadStr = newSpread != null ? `${String(newSpread).replace(".", ",")} €/${bt === "gas" ? "SMC" : "kWh"}` : "n/d";
+  const reductionPct = (oldSpread != null && newSpread != null && Number(oldSpread) > 0) ? `Riduzione del ${Math.round(((Number(oldSpread) - Number(newSpread)) / Number(oldSpread)) * 100)}% rispetto ad attuale` : "";
+  const costiFissiNew = offerExtracted?.costi_fissi || offerExtracted?.costi_fissi_mensili || "0,00 €";
+  const nomeOfferta = offerExtracted?.nome_offerta || "";
+  return slideOpen(`La Proposta Migliorativa ${String(fornitore).slice(0, 30)}`) + `
+    <div class="cards-3">
+      <div class="info-card info-green">
+        <div class="info-label">Indicizzazione</div>
+        <div class="info-value mono green">${esc(String(indice).toUpperCase())}</div>
+      </div>
+      <div class="info-card info-green">
+        <div class="info-label">Nuovo Spread</div>
+        <div class="info-value mono green">${esc(newSpreadStr)}</div>
+        ${reductionPct ? `<div class="info-sub">${esc(reductionPct)}</div>` : ""}
+      </div>
+      <div class="info-card info-green">
+        <div class="info-label">Costi Fissi (CCF/CCV)</div>
+        <div class="info-value mono green">${esc(costiFissiNew)}</div>
+        <div class="info-sub">Completamente azzerati</div>
+      </div>
+    </div>
+    ${nomeOfferta ? `<div class="callout callout-green"><b>Offerta:</b> ${esc(nomeOfferta)}</div>` : ""}
+  ` + slideClose();
+}
+
+function slideRisparmio(sav: any): string {
+  const costOld = Number(sav?.costo_annuo_attuale_eur) || 0;
+  const costNew = Number(sav?.costo_annuo_nuovo_eur) || 0;
+  const risp = Number(sav?.risparmio_annuo_eur) || (costOld - costNew) || 0;
+  const rispPct = Number(sav?.risparmio_percentuale) || (costOld ? (risp / costOld) * 100 : 0);
+  const rispMese = Number(sav?.risparmio_mensile_eur) || (risp / 12);
+  const dettaglio: string[] = Array.isArray(sav?.dettaglio_calcolo) ? sav.dettaglio_calcolo : [];
+  return slideOpen("Calcolo Risparmio Annuo") + `
+    <div class="cards-2">
+      <div class="cost-card cost-old">
+        <div class="cost-label">COSTO ANNUO ATTUALE</div>
+        <div class="cost-value">€ ${costOld.toLocaleString("it-IT")}</div>
+      </div>
+      <div class="cost-card cost-new">
+        <div class="cost-label">COSTO ANNUO NUOVO</div>
+        <div class="cost-value">€ ${costNew.toLocaleString("it-IT")}</div>
+      </div>
+    </div>
+    <div class="saving-band">
+      <div class="saving-inner">
+        <div class="saving-side">
+          <div class="saving-label">Risparmio annuo</div>
+          <div class="saving-big">€ ${Math.round(risp).toLocaleString("it-IT")}</div>
+        </div>
+        <div class="saving-side">
+          <div class="saving-label">Percentuale</div>
+          <div class="saving-big">${rispPct.toFixed(1).replace(".", ",")}%</div>
+        </div>
+        <div class="saving-side">
+          <div class="saving-label">Al mese</div>
+          <div class="saving-big">€ ${rispMese.toFixed(2).replace(".", ",")}</div>
+        </div>
+      </div>
+    </div>
+    ${dettaglio.length ? `<div class="detail-list">
+      <div class="detail-title">Dettaglio del calcolo</div>
+      <ul>${dettaglio.map((x: string) => `<li>${esc(x)}</li>`).join("")}</ul>
+    </div>` : ""}
+  ` + slideClose();
+}
+
+function slideMatrice(rows: any[]): string {
+  if (!Array.isArray(rows) || !rows.length) return "";
+  const trs = rows.slice(0, 8).map((r: any) => {
+    const van = String(r.vantaggio || "").toLowerCase();
+    const isFav = van === "cliente" || van === "nuova" || van === "proposta";
+    const isBad = van === "attuale";
+    const badge = isFav ? `<span class="badge badge-green">✓ NUOVA</span>` : isBad ? `<span class="badge badge-red">✗ ATTUALE</span>` : `<span class="badge badge-grey">≈ NEUTRO</span>`;
+    return `<tr>
+      <td class="mx-param">${esc(r.parametro || "")}</td>
+      <td class="mx-old">${esc(r.attuale || "—")}</td>
+      <td class="mx-new">${esc(r.proposta || "—")}</td>
+      <td class="mx-delta">${esc(r.delta || "—")}</td>
+      <td class="mx-badge">${badge}</td>
+    </tr>`;
+  }).join("");
+  return slideOpen("Matrice di Confronto Contratto") + `
+    <table class="tbl-matrix">
+      <thead>
+        <tr>
+          <th>Parametro</th>
+          <th>Contratto Attuale</th>
+          <th>Nostra Proposta</th>
+          <th>Delta</th>
+          <th>Vantaggio</th>
+        </tr>
+      </thead>
+      <tbody>${trs}</tbody>
+    </table>
+  ` + slideClose();
+}
+
+function slideExecutive(es: any, cmp: any, name: string): string {
+  const verd = String(es?.verdetto || "").trim();
+  const isFav = verd && !verd.toLowerCase().includes("sconsigliato");
+  const isBad = verd.toLowerCase().includes("sconsigliato");
+  const bannerClass = isFav ? "verd-green" : isBad ? "verd-red" : "verd-neutral";
+  const risp = es?.risparmio_annuo_eur ?? cmp?.risparmio_annuo_stimato_eur ?? "";
+  const puntiChiave: string[] = Array.isArray(es?.punti_chiave) ? es.punti_chiave : (Array.isArray(cmp?.sintesi) ? cmp.sintesi : []);
+  const passi: string[] = Array.isArray(es?.prossimi_passi) ? es.prossimi_passi : (Array.isArray(cmp?.azione_consigliata) ? cmp.azione_consigliata : []);
+  return slideOpen("Executive Summary") + `
+    <div class="verd-banner ${bannerClass}">
+      <div class="verd-label">VERDETTO PER ${esc(String(name || "").toUpperCase())}</div>
+      <div class="verd-title">${esc(verd || "Analisi completata")}</div>
+      ${risp ? `<div class="verd-saving">Risparmio annuo stimato: <b>€ ${esc(Number(risp).toLocaleString("it-IT"))}</b></div>` : ""}
+    </div>
+    <div class="two-cols">
+      ${puntiChiave.length ? `<div class="stack-col">
+        <div class="stack-title">🔑 Punti chiave</div>
+        <ul class="stack-list">${puntiChiave.map((x: string) => `<li>${esc(x)}</li>`).join("")}</ul>
+      </div>` : ""}
+      ${passi.length ? `<div class="stack-col">
+        <div class="stack-title">▶ Prossimi passi</div>
+        <ol class="stack-list ordered">${passi.map((x: string) => `<li>${esc(x)}</li>`).join("")}</ol>
+      </div>` : ""}
+    </div>
+  ` + slideClose();
+}
+
+// Legacy stub — kept so other code paths don't break
+function kvGridHtml(_rows: { k: string; v: any; hi?: boolean }[]): string { void _rows; return ""; }
+function comparisonMatrixHtml(_rows: { parametro?: string; attuale?: string; proposta?: string; delta?: string; vantaggio?: string }[]): string { void _rows; return ""; }
 
 function buildComparisonHtml(rep: any, contactName?: string): string {
   const c = rep?.contact || {};
   const name = contactName || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Cliente";
-  const generated = new Date(rep?.generated_at || Date.now()).toLocaleString("it-IT");
   const items = Array.isArray(rep?.items) ? rep.items : [];
   const totalSaving = rep?.risparmio_totale_annuo_eur ? Number(rep.risparmio_totale_annuo_eur) : items.reduce((acc: number, it: any) => acc + (Number(it?.comparison?.risparmio_annuo_stimato_eur) || 0), 0);
+  const now = new Date(rep?.generated_at || Date.now());
+  const monthNames = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
+  const dateStr = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+  const presenter = "Dal Pastro CRM · Consulenza Energetica";
 
-  const sectionMeta = (bt: string) => ({
-    luce: { label: "Luce", color: "#F59E0B", emoji: "💡" },
-    gas: { label: "Gas", color: "#DC2626", emoji: "🔥" },
-    telco: { label: "Telco", color: "#0891B2", emoji: "📞" },
-  } as any)[bt] || { label: bt, color: "#6366F1", emoji: "📄" };
+  const cover = slideCover(name, c.contact_code || "", presenter, dateStr, totalSaving, items.length);
 
-  const rec = (r: string) => r === "consigliato" ? { color: "#16A34A", label: "✅ CONSIGLIATO" }
-    : r === "sconsigliato" ? { color: "#DC2626", label: "⛔ SCONSIGLIATO" }
-    : { color: "#F59E0B", label: "⚖️ NEUTRO" };
-
-  const sections = items.map((it: any) => {
-    const sm = sectionMeta(it.bill_type);
+  const perItemSlides = items.map((it: any) => {
     const cmp = it.comparison || {};
-    const r = rec(cmp.raccomandazione || "neutro");
-    const saving = cmp.risparmio_annuo_stimato_eur ? `€ ${cmp.risparmio_annuo_stimato_eur}` : "—";
-    const perc = cmp.risparmio_percentuale ? ` (${cmp.risparmio_percentuale}%)` : "";
-
-    // Section 1: Impronta energetica
     const foot = cmp.impronta_energetica || {};
-    const catColor = { basso: "#16A34A", medio: "#F59E0B", "medio-alto": "#EA580C", alto: "#DC2626" }[String(foot.categoria_consumo || "").toLowerCase()] || "#64748B";
-    const footprintHtml = renderSectionCard(
-      "Impronta energetica attuale",
-      "#0EA5E9",
-      "🌍",
-      `
-        ${kvGridHtml([
-          { k: `Consumo annuo (${foot.unita || "kWh"})`, v: foot.consumo_annuo_kwh_o_smc, hi: true },
-          { k: "Categoria consumo", v: foot.categoria_consumo ? String(foot.categoria_consumo).toUpperCase() : "" },
-          { k: "Profilo utilizzo", v: foot.profilo_utilizzo },
-        ])}
-        ${Array.isArray(foot.note) && foot.note.length ? `<div style="margin-top:8px;font-size:11px;color:#334155;background:#F0F9FF;padding:8px;border-radius:6px;border-left:3px solid #0EA5E9;">${foot.note.map((n: string) => `• ${esc(n)}`).join("<br/>")}</div>` : ""}
-        ${foot.categoria_consumo ? `<div style="margin-top:8px;display:inline-block;padding:4px 12px;border-radius:12px;background:${catColor};color:#FFF;font-size:11px;font-weight:800;text-transform:uppercase;">Categoria: ${esc(foot.categoria_consumo)}</div>` : ""}
-      `
-    );
-
-    // Section 2: Dettaglio fasce F1/F2/F3
     const fasce = cmp.dettaglio_fasce || {};
-    const chart = fasceBarChartSvg(fasce.F1_kwh, fasce.F2_kwh, fasce.F3_kwh);
-    const fasceHtml = (fasce.F1_kwh || fasce.F2_kwh || fasce.F3_kwh || fasce.fascia_prevalente) ? renderSectionCard(
-      "Dettaglio consumi per fascia",
-      "#3B82F6",
-      "📊",
-      `
-        <div style="text-align:center;margin-bottom:8px;">${chart}</div>
-        ${kvGridHtml([
-          { k: "Fascia prevalente", v: fasce.fascia_prevalente ? String(fasce.fascia_prevalente).toUpperCase() : "", hi: true },
-          { k: "Tariffa consigliata", v: fasce.raccomandazione_tariffa ? String(fasce.raccomandazione_tariffa).toUpperCase() : "" },
-        ])}
-        ${fasce.motivazione ? `<div style="margin-top:8px;font-size:11px;color:#334155;background:#EFF6FF;padding:8px;border-radius:6px;border-left:3px solid #3B82F6;"><b>Motivazione:</b> ${esc(fasce.motivazione)}</div>` : ""}
-      `
-    ) : "";
-
-    // Section 3: Analisi contratto attuale
     const con = cmp.analisi_contratto_attuale || {};
-    const contractHtml = (con.fornitore || con.nome_offerta || con.spread_eur_kwh_o_smc) ? renderSectionCard(
-      "Analisi contratto attuale",
-      "#DC2626",
-      "📋",
-      `
-        ${kvGridHtml([
-          { k: "Fornitore", v: con.fornitore, hi: true },
-          { k: "Nome offerta", v: con.nome_offerta },
-          { k: "Tipo prezzo", v: con.tipo_prezzo ? String(con.tipo_prezzo).toUpperCase() : "" },
-          { k: "Spread", v: con.spread_eur_kwh_o_smc ? `€ ${con.spread_eur_kwh_o_smc}` : "" },
-          { k: "Durata contratto", v: con.durata_contratto_mesi ? `${con.durata_contratto_mesi} mesi` : "" },
-          { k: "Data scadenza", v: con.data_scadenza },
-        ])}
-        ${Array.isArray(con.criticita) && con.criticita.length ? `<h4 style="margin:10px 0 4px;font-size:12px;color:#DC2626;">⚠️ Criticità</h4><ul style="margin:0 0 0 20px;padding:0;">${con.criticita.map((x: string) => `<li style="font-size:11px;margin-bottom:2px;">${esc(x)}</li>`).join("")}</ul>` : ""}
-        ${Array.isArray(con.punti_forza) && con.punti_forza.length ? `<h4 style="margin:10px 0 4px;font-size:12px;color:#16A34A;">✓ Punti forza attuali</h4><ul style="margin:0 0 0 20px;padding:0;">${con.punti_forza.map((x: string) => `<li style="font-size:11px;margin-bottom:2px;">${esc(x)}</li>`).join("")}</ul>` : ""}
-      `
-    ) : "";
-
-    // Section 4: Calcolo risparmio
     const sav = cmp.calcolo_risparmio || {};
-    const savingsHtml = (sav.risparmio_annuo_eur || sav.costo_annuo_attuale_eur) ? renderSectionCard(
-      "Calcolo risparmio",
-      "#16A34A",
-      "💰",
-      `
-        ${kvGridHtml([
-          { k: "Costo annuo attuale", v: sav.costo_annuo_attuale_eur ? `€ ${sav.costo_annuo_attuale_eur}` : "" },
-          { k: "Costo annuo nuovo", v: sav.costo_annuo_nuovo_eur ? `€ ${sav.costo_annuo_nuovo_eur}` : "", hi: true },
-          { k: "Risparmio mensile", v: sav.risparmio_mensile_eur ? `€ ${sav.risparmio_mensile_eur}` : "" },
-          { k: "Risparmio annuo", v: sav.risparmio_annuo_eur ? `€ ${sav.risparmio_annuo_eur}` : "", hi: true },
-          { k: "Risparmio %", v: sav.risparmio_percentuale ? `${sav.risparmio_percentuale}%` : "" },
-        ])}
-        ${Array.isArray(sav.dettaglio_calcolo) && sav.dettaglio_calcolo.length ? `<h4 style="margin:10px 0 4px;font-size:12px;color:#0F172A;">Dettaglio</h4><ul style="margin:0 0 0 20px;padding:0;">${sav.dettaglio_calcolo.map((x: string) => `<li style="font-size:11px;margin-bottom:2px;">${esc(x)}</li>`).join("")}</ul>` : ""}
-      `
-    ) : "";
-
-    // Section 5: Matrice di confronto
-    const matrixHtml = Array.isArray(cmp.matrice_confronto) && cmp.matrice_confronto.length ? renderSectionCard(
-      "Matrice di confronto",
-      "#8B5CF6",
-      "⚖️",
-      comparisonMatrixHtml(cmp.matrice_confronto)
-    ) : "";
-
-    // Section 6: Executive summary
     const es = cmp.executive_summary || {};
-    const verdColor = es.verdetto && String(es.verdetto).includes("consigliato") && !String(es.verdetto).toLowerCase().includes("sconsigliato") ? "#16A34A"
-      : String(es.verdetto || "").toLowerCase().includes("sconsigliato") ? "#DC2626" : "#F59E0B";
-    const execHtml = (es.verdetto || es.risparmio_annuo_eur) ? renderSectionCard(
-      "Executive Summary",
-      "#0F172A",
-      "🎯",
-      `
-        ${es.verdetto ? `<div style="text-align:center;padding:14px;background:${verdColor};color:#FFF;border-radius:8px;margin-bottom:10px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:0.9;">Verdetto</div><div style="font-size:18px;font-weight:900;margin-top:2px;">${esc(es.verdetto)}</div>${es.risparmio_annuo_eur ? `<div style="font-size:24px;font-weight:900;margin-top:4px;">€ ${esc(es.risparmio_annuo_eur)} / anno</div>` : ""}</div>` : ""}
-        ${Array.isArray(es.punti_chiave) && es.punti_chiave.length ? `<h4 style="margin:6px 0 4px;font-size:12px;color:#0F172A;">🔑 Punti chiave</h4><ul style="margin:0 0 8px 20px;padding:0;">${es.punti_chiave.map((x: string) => `<li style="font-size:12px;margin-bottom:3px;line-height:1.4;">${esc(x)}</li>`).join("")}</ul>` : ""}
-        ${Array.isArray(es.prossimi_passi) && es.prossimi_passi.length ? `<h4 style="margin:8px 0 4px;font-size:12px;color:#0F172A;">▶ Prossimi passi</h4><ol style="margin:0 0 4px 20px;padding:0;">${es.prossimi_passi.map((x: string) => `<li style="font-size:12px;margin-bottom:3px;line-height:1.4;">${esc(x)}</li>`).join("")}</ol>` : ""}
-      `
-    ) : "";
-
-    return `
-      <div style="margin-top:18px;border:2px solid ${sm.color};border-radius:12px;overflow:hidden;">
-        <div style="background:${sm.color};color:#FFF;padding:12px 14px;font-weight:900;font-size:16px;display:flex;justify-content:space-between;align-items:center;">
-          <span>${sm.emoji} ${sm.label} — Confronto Offerte</span>
-          <span style="background:rgba(255,255,255,0.25);padding:4px 10px;border-radius:10px;font-size:11px;">${esc(r.label)}</span>
-        </div>
-        <div style="padding:14px;background:#FAFBFF;">
-          <div style="display:flex;gap:10px;margin-bottom:12px;">
-            <div style="flex:1;padding:10px;background:#FEE2E2;border-radius:8px;">
-              <div style="font-size:9px;color:#991B1B;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">Offerta attuale</div>
-              <div style="font-size:13px;font-weight:800;margin-top:3px;">${esc(it.bill?.extracted?.fornitore || "n/d")}</div>
-              <div style="font-size:11px;color:#374151;">${esc(it.bill?.extracted?.nome_offerta || "")}</div>
-            </div>
-            <div style="flex:1;padding:10px;background:#DCFCE7;border-radius:8px;">
-              <div style="font-size:9px;color:#166534;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">Nostra proposta</div>
-              <div style="font-size:13px;font-weight:800;margin-top:3px;">${esc(it.offer?.extracted?.fornitore || "n/d")}</div>
-              <div style="font-size:11px;color:#374151;">${esc(it.offer?.extracted?.nome_offerta || it.offer?.label || "")}</div>
-            </div>
-          </div>
-
-          ${footprintHtml}
-          ${fasceHtml}
-          ${contractHtml}
-          ${savingsHtml}
-          ${matrixHtml}
-          ${execHtml}
-
-          <div style="margin-top:14px;padding:12px;background:#F3E8FF;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:13px;font-weight:700;color:#5B21B6;">Risparmio annuo stimato</span>
-            <span style="font-size:20px;font-weight:900;color:#5B21B6;">${esc(saving)}${esc(perc)}</span>
-          </div>
-
-          ${cmp.sintesi ? `<h4 style="margin:14px 0 4px;color:#374151;font-size:13px;">📝 Sintesi</h4>${ulList(cmp.sintesi)}` : ""}
-          ${cmp.vantaggi_offerta_aziendale ? `<h4 style="margin:8px 0 4px;color:#16A34A;font-size:13px;">✓ Vantaggi della nostra offerta</h4>${ulList(cmp.vantaggi_offerta_aziendale)}` : ""}
-          ${cmp.svantaggi_offerta_aziendale ? `<h4 style="margin:8px 0 4px;color:#DC2626;font-size:13px;">✗ Svantaggi</h4>${ulList(cmp.svantaggi_offerta_aziendale)}` : ""}
-          ${cmp.motivazione_raccomandazione ? `<h4 style="margin:8px 0 4px;color:#6366F1;font-size:13px;">🎯 Motivazione</h4>${ulList(cmp.motivazione_raccomandazione)}` : ""}
-          ${cmp.azione_consigliata ? `<h4 style="margin:8px 0 4px;color:#0891B2;font-size:13px;">▶ Azioni consigliate</h4>${ulList(cmp.azione_consigliata)}` : ""}
-
-          ${cmp.error_message ? `<div style="margin-top:10px;padding:8px;background:#FEE2E2;border-radius:6px;font-size:11px;color:#991B1B;"><b>⚠️ Nota:</b> ${esc(cmp.error_message)}</div>` : ""}
-        </div>
+    const matrice = Array.isArray(cmp.matrice_confronto) ? cmp.matrice_confronto : [];
+    const bt = String(it.bill_type || "luce");
+    const btLabel = bt === "gas" ? "GAS" : bt === "telco" ? "TELCO" : "ENERGIA ELETTRICA";
+    const sectionDivider = `<section class="slide slide-divider">
+      <div class="divider-inner">
+        <div class="divider-mini">Sezione</div>
+        <div class="divider-title">${esc(btLabel)}</div>
+        <div class="divider-line"></div>
       </div>
-    `;
+    </section>`;
+    const parts: string[] = [sectionDivider];
+    // Impronta + dettaglio only for luce/gas (fasce F1/F2/F3)
+    if (foot?.consumo_annuo_kwh_o_smc || fasce?.F1_kwh || fasce?.F2_kwh || fasce?.F3_kwh) {
+      parts.push(slideImpronta(cmp, foot, fasce, bt));
+      if (fasce?.F1_kwh || fasce?.F2_kwh || fasce?.F3_kwh) {
+        parts.push(slideDettaglio(fasce, foot));
+      }
+    }
+    parts.push(slideContrattoAttuale(con, it.bill?.extracted || {}, bt));
+    parts.push(slideProposta(it.offer?.extracted || {}, cmp, con, bt));
+    if (sav?.costo_annuo_attuale_eur || sav?.costo_annuo_nuovo_eur || sav?.risparmio_annuo_eur) {
+      parts.push(slideRisparmio(sav));
+    }
+    if (matrice.length) parts.push(slideMatrice(matrice));
+    if (es?.verdetto || es?.risparmio_annuo_eur || (Array.isArray(cmp.azione_consigliata) && cmp.azione_consigliata.length)) {
+      parts.push(slideExecutive(es, cmp, name));
+    }
+    if (cmp.error_message) {
+      parts.push(`<section class="slide"><div class="slide-inner"><h2 class="slide-title">Nota tecnica</h2><div class="callout callout-orange">⚠️ ${esc(cmp.error_message)}</div></div></section>`);
+    }
+    return parts.join("");
   }).join("");
+
+  const css = `
+    @page { size: A4 landscape; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: ${SL.ink}; background: ${SL.bg}; }
+    .slide { width: 297mm; height: 210mm; page-break-after: always; break-after: page; padding: 14mm 18mm; position: relative; background: ${SL.bg}; overflow: hidden; }
+    .slide:last-child { page-break-after: auto; }
+    .slide-inner { height: 100%; display: flex; flex-direction: column; }
+    .slide-title { color: ${SL.navy}; font-size: 30px; font-weight: 900; letter-spacing: -0.5px; margin: 0 0 14px; line-height: 1.05; }
+    .slide-body { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+    .slide-footer { margin-top: 10px; font-size: 11px; color: ${SL.muted}; text-align: right; font-style: italic; }
+
+    /* Cover */
+    .slide-cover { padding: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, ${SL.bg} 0%, #EFE9D9 100%); }
+    .cover-deco { position: absolute; top: 12mm; left: 12mm; width: 140px; height: 140px; background:
+      radial-gradient(circle at 30% 30%, ${SL.green} 12px, transparent 12px),
+      radial-gradient(circle at 70% 70%, ${SL.blueF3} 12px, transparent 12px),
+      linear-gradient(45deg, ${SL.green}25 30%, transparent 30%),
+      linear-gradient(-45deg, ${SL.blueF3}25 30%, transparent 30%);
+      background-repeat: no-repeat; opacity: 0.9; border-radius: 30px; }
+    .cover-card { background: #FFFFFF; border-radius: 20px; padding: 40px 50px; max-width: 210mm; box-shadow: 0 8px 40px rgba(30,58,95,0.08); border: 1px solid ${SL.border}; }
+    .cover-title { color: ${SL.navy}; font-size: 46px; font-weight: 900; margin: 0 0 12px; letter-spacing: -1px; line-height: 1.05; }
+    .cover-subtitle { color: ${SL.navy}; font-size: 22px; font-weight: 500; margin-bottom: 22px; }
+    .cover-recipient { font-family: "Courier New", ui-monospace, monospace; font-size: 14px; padding: 10px 16px; background: #F8F5EE; border: 1px solid ${SL.border}; border-radius: 6px; margin-bottom: 18px; display: inline-block; }
+    .cover-meta { font-family: "Courier New", ui-monospace, monospace; font-size: 13px; color: ${SL.ink}; line-height: 1.7; }
+    .cover-saving-band { margin-top: 22px; padding: 16px 22px; background: linear-gradient(90deg, ${SL.green}, #22C55E); color: #FFF; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 14px rgba(46,158,90,0.35); }
+    .cover-saving-label { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.95; }
+    .cover-saving-value { font-size: 32px; font-weight: 900; }
+    .cover-saving-note { font-size: 12px; opacity: 0.9; }
+
+    /* Divider */
+    .slide-divider { display: flex; align-items: center; justify-content: center; background: ${SL.navy}; }
+    .divider-inner { text-align: center; color: #FFF; }
+    .divider-mini { font-size: 14px; letter-spacing: 4px; opacity: 0.7; margin-bottom: 8px; text-transform: uppercase; }
+    .divider-title { font-size: 60px; font-weight: 900; letter-spacing: -1px; }
+    .divider-line { height: 4px; width: 120px; background: ${SL.orange}; margin: 20px auto 0; border-radius: 2px; }
+
+    /* Layout helpers */
+    .two-cols { display: flex; gap: 18px; align-items: stretch; }
+    .two-cols > * { flex: 1; }
+    .stack { display: flex; flex-direction: column; gap: 12px; }
+    .cards-3 { display: flex; gap: 16px; }
+    .cards-3 > * { flex: 1; }
+    .cards-2 { display: flex; gap: 20px; margin-bottom: 14px; }
+    .cards-2 > * { flex: 1; }
+
+    /* Generic card */
+    .card { background: #FFF; border-radius: 12px; padding: 18px; border: 1px solid ${SL.border}; }
+    .card-plain { background: #FFF; }
+    .center { text-align: center; }
+
+    /* Big number */
+    .big-number { color: ${SL.navy}; font-size: 56px; font-weight: 900; letter-spacing: -1px; line-height: 1; font-family: "Courier New", ui-monospace, monospace; }
+    .big-unit { font-size: 30px; font-weight: 700; color: ${SL.navy}; }
+    .big-caption { color: ${SL.ink}; font-size: 15px; margin-top: 6px; }
+
+    /* Callout boxes */
+    .callout { padding: 12px 16px; border-radius: 10px; font-size: 13px; line-height: 1.5; margin-top: 8px; }
+    .callout-orange { background: #FFFFFF; border: 2px solid ${SL.orange}; color: ${SL.ink}; }
+    .callout-green { background: ${SL.greenSoft}; border: 2px solid ${SL.green}; color: ${SL.ink}; }
+    .callout-neutral { background: #FFFFFF; border: 1px solid ${SL.border}; color: ${SL.ink}; }
+
+    /* Info cards (Contratto attuale / Proposta) */
+    .info-card { background: #FFF; border-radius: 12px; padding: 16px 18px; border: 1px solid ${SL.border}; }
+    .info-neutral { background: #FFFFFF; border: 1px solid ${SL.border}; }
+    .info-orange { background: #FFFFFF; border: 2px solid ${SL.orange}; }
+    .info-green { background: #FFFFFF; border: 2px solid ${SL.green}; }
+    .info-label { color: ${SL.navy}; font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+    .info-value { color: ${SL.ink}; font-size: 18px; font-weight: 700; line-height: 1.3; }
+    .info-value.mono { font-family: "Courier New", ui-monospace, monospace; }
+    .info-value.orange { color: ${SL.orange}; }
+    .info-value.green { color: ${SL.green}; }
+    .info-sub { color: ${SL.muted}; font-size: 12px; margin-top: 4px; }
+
+    .criticita { margin-top: 12px; padding: 12px 16px; background: ${SL.orangeSoft}; border-left: 4px solid ${SL.orange}; border-radius: 6px; }
+    .criticita-title { color: ${SL.navy}; font-weight: 800; font-size: 13px; margin-bottom: 4px; }
+    .criticita ul { margin: 0; padding-left: 20px; font-size: 12px; line-height: 1.5; }
+
+    /* Dettaglio table */
+    .tbl-detail { width: 100%; border-collapse: separate; border-spacing: 0; background: #FFF; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(30,58,95,0.06); border: 1px solid ${SL.border}; }
+    .tbl-detail thead th { background: ${SL.navy}; color: #FFF; font-size: 14px; font-weight: 700; padding: 14px 16px; text-align: center; border-right: 1px solid rgba(255,255,255,0.15); }
+    .tbl-detail thead th:last-child { border-right: 0; }
+    .tbl-detail tbody td { padding: 14px 16px; font-size: 14px; text-align: center; border-bottom: 1px solid ${SL.border}; font-family: "Courier New", ui-monospace, monospace; }
+    .tbl-detail tbody tr:nth-child(even) td { background: #F4F0E4; }
+    .tbl-detail .cell-fascia { font-weight: 800; color: ${SL.navy}; font-size: 16px; }
+    .tbl-detail .cell-orari { color: ${SL.ink}; }
+    .tbl-detail .cell-inc { position: relative; }
+    .inc-bar-wrap { display: inline-block; width: 80px; height: 12px; background: #E5EDF3; border-radius: 6px; margin-right: 8px; vertical-align: middle; overflow: hidden; }
+    .inc-bar { height: 100%; background: ${SL.blueF3}; }
+    .inc-pct { color: ${SL.ink}; font-weight: 700; font-size: 13px; vertical-align: middle; }
+    .cell-vol { color: ${SL.ink}; font-weight: 700; }
+    .row-total td { background: ${SL.navy} !important; color: #FFF; font-weight: 800; border-bottom: 0; }
+    .row-total .cell-fascia { color: #FFF; }
+
+    /* Cost cards (calcolo risparmio) */
+    .cost-card { padding: 22px 26px; border-radius: 14px; text-align: center; }
+    .cost-old { background: #FFFFFF; border: 2px solid #FCA5A5; }
+    .cost-new { background: #FFFFFF; border: 2px solid ${SL.green}; }
+    .cost-label { font-size: 12px; letter-spacing: 1px; color: ${SL.muted}; font-weight: 700; margin-bottom: 8px; }
+    .cost-old .cost-value { color: #DC2626; }
+    .cost-new .cost-value { color: ${SL.green}; }
+    .cost-value { font-size: 34px; font-weight: 900; font-family: "Courier New", ui-monospace, monospace; }
+
+    .saving-band { padding: 22px; background: linear-gradient(135deg, ${SL.navy}, ${SL.navyDark}); border-radius: 14px; color: #FFF; }
+    .saving-inner { display: flex; gap: 30px; justify-content: space-around; text-align: center; }
+    .saving-side { flex: 1; }
+    .saving-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.75; margin-bottom: 4px; }
+    .saving-big { font-size: 32px; font-weight: 900; font-family: "Courier New", ui-monospace, monospace; }
+
+    .detail-list { margin-top: 12px; padding: 14px 18px; background: #FFF; border-radius: 10px; border: 1px solid ${SL.border}; }
+    .detail-title { color: ${SL.navy}; font-weight: 800; font-size: 13px; margin-bottom: 6px; }
+    .detail-list ul { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.7; }
+
+    /* Matrice */
+    .tbl-matrix { width: 100%; border-collapse: separate; border-spacing: 0; background: #FFF; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(30,58,95,0.06); border: 1px solid ${SL.border}; }
+    .tbl-matrix thead th { background: ${SL.navy}; color: #FFF; font-size: 12px; font-weight: 700; padding: 12px 14px; text-align: left; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tbl-matrix tbody td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid ${SL.border}; }
+    .tbl-matrix tbody tr:nth-child(even) td { background: #FAF7EE; }
+    .mx-param { font-weight: 700; color: ${SL.navy}; }
+    .mx-old { color: #DC2626; font-family: "Courier New", monospace; }
+    .mx-new { color: ${SL.green}; font-weight: 700; font-family: "Courier New", monospace; }
+    .mx-delta { color: ${SL.muted}; font-family: "Courier New", monospace; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 800; }
+    .badge-green { background: ${SL.greenSoft}; color: ${SL.green}; }
+    .badge-red { background: #FEE2E2; color: #DC2626; }
+    .badge-grey { background: #F1F5F9; color: ${SL.muted}; }
+
+    /* Executive summary */
+    .verd-banner { padding: 26px 34px; border-radius: 14px; color: #FFF; text-align: center; margin-bottom: 20px; }
+    .verd-green { background: linear-gradient(135deg, ${SL.green}, #22C55E); }
+    .verd-red { background: linear-gradient(135deg, #DC2626, #B91C1C); }
+    .verd-neutral { background: linear-gradient(135deg, ${SL.orange}, #F97316); }
+    .verd-label { font-size: 12px; letter-spacing: 2px; opacity: 0.9; text-transform: uppercase; }
+    .verd-title { font-size: 32px; font-weight: 900; margin-top: 6px; letter-spacing: -0.5px; }
+    .verd-saving { font-size: 16px; margin-top: 6px; opacity: 0.95; }
+
+    .stack-col { flex: 1; background: #FFF; border-radius: 12px; padding: 16px 20px; border: 1px solid ${SL.border}; }
+    .stack-title { color: ${SL.navy}; font-weight: 900; font-size: 15px; margin-bottom: 8px; }
+    .stack-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.7; color: ${SL.ink}; }
+    .stack-list.ordered { padding-left: 22px; }
+  `;
 
   return `<!DOCTYPE html>
 <html lang="it"><head><meta charset="UTF-8"/>
-<title>Confronto Offerte — ${esc(name)}</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0F172A; margin: 24px; }
-  h1 { color: #7C3AED; border-bottom: 3px solid #7C3AED; padding-bottom: 8px; }
-  .header-info { display: flex; justify-content: space-between; font-size: 12px; color: #6B7280; margin-bottom: 16px; }
-  .total-saving { margin-top:20px; padding:18px; background:linear-gradient(90deg,#7C3AED,#6366F1); color:#FFF; border-radius:12px; text-align:center; box-shadow: 0 4px 12px rgba(124,58,237,0.3); }
-  @media print { .no-print { display: none; } }
-</style>
+<title>Analisi Strategica — ${esc(name)}</title>
+<style>${css}</style>
 </head>
 <body>
-  <h1>⚖️ Report di Confronto Offerte Energia</h1>
-  <div class="header-info">
-    <div><b>Cliente:</b> ${esc(name)}${c.contact_code ? ` (${esc(c.contact_code)})` : ""}</div>
-    <div><b>Generato:</b> ${esc(generated)}</div>
-  </div>
-  <div class="total-saving">
-    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.9;">Risparmio annuo totale stimato</div>
-    <div style="font-size:36px;font-weight:900;margin-top:4px;">€ ${esc(Math.round(totalSaving))}</div>
-    <div style="font-size:11px;opacity:0.85;margin-top:2px;">${items.length} tipologia${items.length === 1 ? "" : "e"} di fornitura analizzata</div>
-  </div>
-  ${sections || "<p><i>Nessuna coppia fattura/offerta confrontabile.</i></p>"}
-  <div style="margin-top:36px;padding-top:10px;border-top:1px solid #E5E7EB;font-size:10px;color:#9CA3AF;text-align:center;">
-    Confronto generato automaticamente con Claude Sonnet 5 · Dal Pastro CRM
-  </div>
+${cover}
+${perItemSlides || `<section class="slide"><div class="slide-inner"><h2 class="slide-title">Nessun confronto disponibile</h2><p>Carica almeno una fattura cliente e un'offerta aziendale dello stesso tipo, poi rigenera il report.</p></div></section>`}
 </body></html>`;
 }
 
