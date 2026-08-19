@@ -12,6 +12,7 @@ import { notify, confirmAsync } from "@/src/utils/notify";
 import { uriToBase64 } from "@/src/utils/media";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
+import { BillFieldRow } from "@/src/BillFieldRenderers";
 
 type BillType = "luce" | "gas" | "telco";
 export type QuickBillType = BillType;
@@ -951,29 +952,19 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                           <View style={styles.dataBox}>
                             {Object.entries(ex).map(([k, v]) => {
                               if (v === null || v === undefined || v === "") return null;
-                              // Special renderings
-                              if (k === "consumi_mensili_kwh" || k === "consumi_mensili_smc") {
-                                const unit = k.endsWith("kwh") ? "kWh" : "SMC";
+                              // V38P — delegate to shared BillFieldRow which
+                              // renders consumi_mensili (top-level OR nested
+                              // inside parametri_richiesti) as a bar chart,
+                              // parametri_richiesti as sub-rows and note_ai
+                              // as bulleted list. Fallback for all other keys.
+                              if (k === "consumi_mensili_kwh" || k === "consumi_mensili_smc" || k === "parametri_richiesti" || k === "note_ai") {
                                 return (
-                                  <View key={k} style={{ marginVertical: 6 }}>
-                                    <Text style={[styles.kvKey, { marginBottom: 4 }]}>Consumi mensili ({unit})</Text>
-                                    <ConsumoBarChart data={v} unit={unit} color={SECTION_META[b.bill_type]?.color || "#6366F1"} />
-                                  </View>
-                                );
-                              }
-                              if (k === "note_ai") {
-                                const items = normalizeNotes(v);
-                                if (items.length === 0) return null;
-                                return (
-                                  <View key={k} style={{ marginTop: 6 }}>
-                                    <Text style={[styles.kvKey, { marginBottom: 4 }]}>Note AI</Text>
-                                    {items.map((it, idx) => (
-                                      <View key={idx} style={styles.bulletRow}>
-                                        <Text style={styles.bulletDot}>•</Text>
-                                        <Text style={styles.bulletTxt}>{it}</Text>
-                                      </View>
-                                    ))}
-                                  </View>
+                                  <BillFieldRow
+                                    key={k}
+                                    name={k}
+                                    value={v}
+                                    accent={SECTION_META[b.bill_type]?.color || "#6366F1"}
+                                  />
                                 );
                               }
                               if (k === "servizi_inclusi" && Array.isArray(v)) {

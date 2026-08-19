@@ -1,0 +1,45 @@
+{
+  "summary": "V38P — 5 fixes/additions tested (both backend + frontend). BACKEND: 13/15 passed, 1 skipped (espeak-ng not installed for spoken-audio test), 1 failed (truncated/invalid audio still returns 502 — see below). Primary bug fix VERIFIED: silent m4a audio → 200 OK (no more 502 TypeError). Master-files reuse endpoints for bill-quick source picker all pass (category=bills, category=files, GET single returns data_base64). Regression: login, contacts CRUD, bill-drafts, master-files CRUD, contact-from-card all still working. FRONTEND: 3/3 tasks verified live via Playwright — (Task 3) /bill-quick 'Luce' → modal 'Da dove vuoi caricare?' appears with bq-src-device (orange) + bq-src-master (cyan). Tapping bq-src-master opens 'Scegli fattura dai file Master' modal listing the 2 seeded PDFs (bq-master-pick-{file_id} items visible). (Task 4a) /master-files Audio tab shows big red REC (master-files-record-audio) + pink 'Carica audio' (master-files-add-audio). (Task 4b) Files tab shows blue 'Carica file' + green 'Foto'; tapping Foto opens bottom sheet 'Aggiungi foto o video' with all 4 options: mf-photo-camera (viola), mf-video-camera (rosa), mf-photo-library (ciano), mf-video-library (verde). (Task 5) BillFieldRenderers.tsx code review — consumi_mensili_kwh/_smc → ConsumptionBarChart, parametri_richiesti → sub-rows with nested chart detection, note_ai → bulleted list; BillsSection.tsx line 955-962 delegates these keys to BillFieldRow. Could not live-render this section as no analyzed bill exists on any of the 40 contacts (all bills are pending/no bills). Deprecated packages / SafeAreaView / React Native issues: none new detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/ai/contact-from-voice",
+        "issue": "Truncated / invalid audio (random bytes) still returns 502 Bad Gateway with 'Errore trascrizione: ...' detail. Per V38P spec this should be 400/422. Root cause: the except-block in server.py:3080 unconditionally raises HTTPException(502). Recommend: catch specific Whisper decode errors (BadRequestError / InvalidRequestError) and re-raise as 422; keep 502 only for genuine upstream/network errors."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38p_voice_502fix.py",
+    "/app/test_reports/pytest/v38p_results.xml"
+  ],
+  "action_items": [
+    "Change the except-block in /api/ai/contact-from-voice (server.py ~L3079-3081) to return 422 (not 502) when the underlying Whisper call rejects the audio (invalid/truncated content). Silent audio flow is fine and returns 200 as expected.",
+    "Once a bill has been analyzed for a test contact, do an end-to-end live UI check that the BillFieldRow bar chart, note_ai bullet list and parametri_richiesti sub-rows all render inside the expanded bill card on the client-side BillsSection (contact detail 'Fatture' tab). Code paths are confirmed but no live analyzed bill exists on the seeded data set."
+  ],
+  "critical_code_review_comments": [
+    "server.py L3066-3081: file handle usage `with open(path,'rb') as _fh: stt.transcribe(file=_fh, ...)` matches emergentintegrations signature — bug fix correct.",
+    "server.py L3079-3081: broad-except → 502 is too coarse. Whisper decode failures should be 4xx.",
+    "BillFieldRenderers.tsx (248 lines): well-scoped file, single responsibility, shared between /bill-quick and /contact/[id] Bills tab.",
+    "BillsSection.tsx L955-962: correctly delegates consumi_mensili_*, parametri_richiesti and note_ai to <BillFieldRow />.",
+    "GET /master-files/{id} returns doc directly (no wrapper); frontend picker uses `mf.file_id` — consistent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v38p_voice_502fix.py (NEW — 15 tests: 13 pass, 1 skip, 1 fail)"
+  ],
+  "success_rate": {
+    "backend": "93% (13/14 non-skipped tests passed; 1 failing = truncated audio still 502)",
+    "frontend": "100% on tasks 3+4 (live), task 5 verified via code review"
+  },
+  "seed_data_creation": "Created 3 TEST_v38p_* master-files during pytest — all cleaned up post-run (verified 0 remaining).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Test file: /app/backend/tests/test_v38p_voice_502fix.py — auto-loads EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env; requires ffmpeg (installed at runtime with apt-get install ffmpeg — took ~40s first time). Silent m4a is generated on the fly with `ffmpeg -f lavfi -i anullsrc=r=16000:cl=mono -t 1 -c:a aac`. Spoken test skipped unless `espeak-ng` also installed. Frontend testIDs verified live: quick-upload-luce, bq-src-device, bq-src-master, bq-master-pick-{file_id}, master-files-tab-{audio|files}, master-files-record-audio, master-files-add-{audio|file|image}, mf-photo-camera, mf-video-camera, mf-photo-library, mf-video-library. Auth testIDs unchanged: auth-{email-input|password-input|submit-button}.",
+  "rca_of_issue": "V38P bug (primary): stt.transcribe(file_path=..) was the wrong kwarg for emergentintegrations OpenAISpeechToText → TypeError bubbled up as HTTP 502. Fix applied: opens file handle with open(path,'rb') and passes as file=_fh, with response_format='text'. VERIFIED via silent m4a → 200 OK. Residual issue: the broad except-block still returns 502 for genuine Whisper rejection (invalid audio content); spec asked for 4xx. Reproduction: base64 of random bytes → POST /api/ai/contact-from-voice with mime='audio/m4a' → returns 502 with 'Errore trascrizione: ...' detail. Mitigation: narrow the except-block to Whisper-specific decode errors (return 422) and keep 502 only for genuine transport/timeout failures."
+}

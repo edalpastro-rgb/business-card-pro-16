@@ -3061,12 +3061,41 @@ async def ai_contact_from_voice(body: AIVoiceIn, user=Depends(get_current_user))
     try:
         from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
         stt = OpenAISpeechToText(api_key=key)
-        result = await stt.transcribe(file_path=path, model="whisper-1", language="it")
-        transcript = (result or {}).get("text") if isinstance(result, dict) else str(result or "")
-        if not transcript and isinstance(result, dict):
-            transcript = result.get("transcript") or ""
+        # V38P — bug fix: the correct kwarg is `file`, not `file_path`.
+        # Previously this raised TypeError → HTTP 502.
+        with open(path, "rb") as _fh:
+            result = await stt.transcribe(
+                file=_fh,
+                model="whisper-1",
+                language="it",
+                response_format="text",
+            )
+        if isinstance(result, str):
+            transcript = result.strip()
+        elif isinstance(result, dict):
+            transcript = (result.get("text") or result.get("transcript") or "").strip()
+        else:
+            transcript = str(getattr(result, "text", result) or "").strip()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Errore trascrizione: {e}")
+        emsg = str(e).lower()
+        logger.exception(f"transcribe (contact-from-voice) error: {e}")
+        # V38P — narrow error mapping: content/format problems from Whisper
+        # (invalid audio, truncated, unsupported codec) → 422; only genuine
+        # transport/auth problems → 502.
+        content_hints = (
+            "invalid file format", "invalid_audio", "audio file might be corrupted",
+            "could not decode", "unsupported format", "empty", "no audio data",
+            "invalid_request_error", "invalid file", "unable to parse",
+            "decoding", "ffprobe", "bad request", "400",
+        )
+        if any(hint in emsg for hint in content_hints):
+            raise HTTPException(status_code=422, detail=f"Audio non decodificabile: {str(e)[:200]}")
+        raise HTTPException(status_code=502, detail=f"Errore trascrizione: {str(e)[:300]}")
+    finally:
+        try:
+            os.remove(path)
+        except Exception:
+            pass
     parsed = await _llm_extract_contact(
         f"Ecco un dettato vocale in italiano di dati di contatto. Estrai i campi:\n\n{transcript}"
     )

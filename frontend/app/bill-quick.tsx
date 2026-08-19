@@ -10,6 +10,7 @@ import { uriToBase64 } from "@/src/utils/media";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { DEFAULT_PARAMS, QuickBillType } from "@/src/BillsSection";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
+import { BillFieldRow } from "@/src/BillFieldRenderers";
 
 type Draft = {
   draft_id: string;
@@ -25,6 +26,9 @@ type Draft = {
 };
 
 type ContactLite = { contact_id: string; first_name: string; last_name: string; phone?: string; email?: string };
+
+// V38P — subset used when picking a bill from the Master's own file cabinet
+type MasterFileLite = { file_id: string; category: string; name: string; mime: string; size: number; created_at: string };
 
 const SECTION_META: Record<QuickBillType, { label: string; color: string; icon: any; emoji: string }> = {
   luce: { label: "Luce", color: "#F59E0B", icon: "flash", emoji: "💡" },
@@ -56,6 +60,12 @@ export default function BillQuickScreen() {
   const [contactsList, setContactsList] = useState<ContactLite[]>([]);
   const [contactSearch, setContactSearch] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
+
+  // V38P — Source picker: "Dispositivo" vs "File Master" before Document Picker
+  const [sourcePickerFor, setSourcePickerFor] = useState<null | QuickBillType>(null);
+  const [masterFilePicker, setMasterFilePicker] = useState<null | QuickBillType>(null);
+  const [masterFiles, setMasterFiles] = useState<MasterFileLite[]>([]);
+  const [loadingMasterFiles, setLoadingMasterFiles] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -90,12 +100,58 @@ export default function BillQuickScreen() {
   };
 
   const uploadPdf = async (bill_type: QuickBillType) => {
+    // V38P — show source picker (Device vs Master files) instead of jumping
+    // straight into the DocumentPicker.
+    setSourcePickerFor(bill_type);
+  };
+
+  const pickFromDevice = async () => {
+    if (!sourcePickerFor) return;
+    const bill_type = sourcePickerFor;
+    setSourcePickerFor(null);
     try {
       const res = await DocumentPicker.getDocumentAsync({ type: "application/pdf", multiple: false, copyToCacheDirectory: true });
       if (res.canceled || !res.assets?.[0]) return;
       openParamsModal(bill_type, res.assets[0]);
     } catch (e: any) {
       notify("Errore selezione", e?.message || "");
+    }
+  };
+
+  const openMasterFilePicker = async () => {
+    if (!sourcePickerFor) return;
+    const bill_type = sourcePickerFor;
+    setSourcePickerFor(null);
+    setMasterFilePicker(bill_type);
+    setLoadingMasterFiles(true);
+    try {
+      // Prefer bills category first, then any PDF from generic files
+      const [bills, files] = await Promise.all([
+        api<{ items: MasterFileLite[] }>("/master-files?category=bills"),
+        api<{ items: MasterFileLite[] }>("/master-files?category=files"),
+      ]);
+      const combined: MasterFileLite[] = [];
+      (bills.items || []).forEach((i) => combined.push(i));
+      (files.items || []).filter((i) => (i.mime || "").includes("pdf") || i.name.toLowerCase().endsWith(".pdf")).forEach((i) => combined.push(i));
+      setMasterFiles(combined);
+    } catch (e: any) {
+      notify("Errore caricamento file", e?.message || "");
+    } finally { setLoadingMasterFiles(false); }
+  };
+
+  const pickFromMaster = async (mf: MasterFileLite) => {
+    if (!masterFilePicker) return;
+    const bill_type = masterFilePicker;
+    setMasterFilePicker(null);
+    try {
+      // Fetch the file base64
+      const full = await api<{ data_base64: string; name: string; mime: string; size: number }>(`/master-files/${mf.file_id}`);
+      if (!full?.data_base64) { notify("File vuoto", ""); return; }
+      // Pipe into params flow using a synthetic asset with data-URL uri
+      const dataUri = `data:${full.mime || "application/pdf"};base64,${full.data_base64}`;
+      openParamsModal(bill_type, { name: full.name || mf.name, mimeType: full.mime || "application/pdf", uri: dataUri });
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
     }
   };
 
@@ -290,7 +346,7 @@ export default function BillQuickScreen() {
                     {d.status === "done" && Object.keys(ext).length > 0 && (
                       <View style={{ gap: 6 }}>
                         {Object.entries(ext).map(([k, v]) => (
-                          <FieldRow key={k} name={k} value={v} accent={meta.color} />
+                          <BillFieldRow key={k} name={k} value={v} accent={meta.color} />
                         ))}
                       </View>
                     )}
@@ -489,117 +545,80 @@ export default function BillQuickScreen() {
 
       {/* V38O — Always-visible calculator FAB */}
       <CalculatorFAB />
+
+      {/* V38P — Source picker: Dispositivo vs File Master */}
+      <Modal visible={!!sourcePickerFor} animationType="fade" transparent onRequestClose={() => setSourcePickerFor(null)}>
+        <Pressable style={styles.modalBack} onPress={() => setSourcePickerFor(null)}>
+          <Pressable style={[styles.modalCard, { padding: 20 }]} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Da dove vuoi caricare?</Text>
+            <Text style={styles.modalSub}>Puoi scegliere un PDF dal dispositivo oppure una fattura già salvata nei tuoi file Master.</Text>
+            <View style={{ gap: 8, marginTop: 14 }}>
+              <Pressable testID="bq-src-device" onPress={pickFromDevice} style={[styles.srcBtn, { backgroundColor: "#EA580C" }]}>
+                <Ionicons name="cloud-upload" size={18} color="#FFF" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.srcTitle}>Da dispositivo</Text>
+                  <Text style={styles.srcSub}>Scegli un PDF dal telefono</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#FFF" />
+              </Pressable>
+              <Pressable testID="bq-src-master" onPress={openMasterFilePicker} style={[styles.srcBtn, { backgroundColor: "#0891B2" }]}>
+                <Ionicons name="folder-open" size={18} color="#FFF" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.srcTitle}>Dai file Master</Text>
+                  <Text style={styles.srcSub}>Scegli da &lsquo;I miei file&rsquo; (Fatture / File)</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#FFF" />
+              </Pressable>
+              <Pressable onPress={() => setSourcePickerFor(null)} style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, marginTop: 6 }]}>
+                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* V38P — Master file picker (list of PDFs already saved in the Master cabinet) */}
+      <Modal visible={!!masterFilePicker} animationType="slide" transparent onRequestClose={() => setMasterFilePicker(null)}>
+        <View style={styles.modalBack}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Scegli fattura dai file Master</Text>
+            <Text style={styles.modalSub}>Sono elencati i PDF salvati nelle sezioni Fatture e File del Master.</Text>
+            <ScrollView style={{ maxHeight: 380, marginTop: 12 }}>
+              {loadingMasterFiles ? (
+                <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
+              ) : masterFiles.length === 0 ? (
+                <Text style={{ color: theme.color.muted, textAlign: "center", padding: 20, fontStyle: "italic" }}>
+                  Nessun PDF salvato. Aggiungi fatture in &lsquo;I miei file&rsquo;.
+                </Text>
+              ) : (
+                masterFiles.map((mf) => (
+                  <Pressable
+                    key={mf.file_id}
+                    testID={`bq-master-pick-${mf.file_id}`}
+                    onPress={() => pickFromMaster(mf)}
+                    style={styles.assocRow}
+                  >
+                    <View style={[styles.assocAvatar, { backgroundColor: "#FED7AA" }]}>
+                      <Ionicons name="document" size={18} color="#EA580C" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.assocName} numberOfLines={1}>{mf.name}</Text>
+                      <Text style={styles.assocSub} numberOfLines={1}>
+                        {(mf.size / 1024).toFixed(0)} KB · {new Date(mf.created_at).toLocaleDateString("it-IT")}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                  </Pressable>
+                ))
+              )}
+            </ScrollView>
+            <Pressable onPress={() => setMasterFilePicker(null)} style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, marginTop: 8 }]}>
+              <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Chiudi</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
-  );
-}
-
-function humanizeKey(k: string): string {
-  return k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-function formatVal(v: any): string {
-  if (v == null) return "—";
-  if (typeof v === "object") return JSON.stringify(v);
-  return String(v);
-}
-
-// V38O — Field renderers for the extracted-data KV list.
-//
-//   - Monthly-consumption arrays (`consumi_mensili_kwh` / `consumi_mensili_smc`)
-//     render as a horizontal bar chart (month labels on X, value on Y).
-//   - `parametri_richiesti` renders as an inline mini-list of label:value rows.
-//   - `note_ai` renders as a bulleted list, one bullet per array entry.
-//   - Everything else falls back to a plain KV row.
-type FieldRowProps = { name: string; value: any; accent: string };
-
-function FieldRow({ name, value, accent }: FieldRowProps) {
-  const label = humanizeKey(name);
-  // Consumi mensili — bar chart
-  if ((name === "consumi_mensili_kwh" || name === "consumi_mensili_smc") && Array.isArray(value) && value.length > 0) {
-    const key: "kwh" | "smc" = name === "consumi_mensili_kwh" ? "kwh" : "smc";
-    return (
-      <View style={styles.blockRow}>
-        <Text style={styles.blockLabel}>{label}</Text>
-        <ConsumptionBarChart data={value as any[]} valueKey={key} accent={accent} />
-      </View>
-    );
-  }
-  // Parametri richiesti — vertical sub-rows
-  if (name === "parametri_richiesti" && value && typeof value === "object" && !Array.isArray(value)) {
-    const entries = Object.entries(value as Record<string, any>);
-    if (entries.length === 0) return null;
-    return (
-      <View style={styles.blockRow}>
-        <Text style={styles.blockLabel}>{label}</Text>
-        <View style={styles.paramSubBox}>
-          {entries.map(([k, v]) => (
-            <View key={k} style={styles.paramSubRow}>
-              <Text style={styles.paramSubKey} numberOfLines={2}>{humanizeKey(k)}</Text>
-              <Text style={styles.paramSubVal} numberOfLines={3}>{formatVal(v)}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    );
-  }
-  // Note AI — bulleted list
-  if (name === "note_ai") {
-    let items: string[] = [];
-    if (Array.isArray(value)) items = value.map((x) => String(x).trim()).filter(Boolean);
-    else if (typeof value === "string") items = value.split(/[\r\n]+/).map((s) => s.replace(/^[-•*]\s*/, "").trim()).filter(Boolean);
-    if (items.length === 0) return null;
-    return (
-      <View style={styles.blockRow}>
-        <Text style={styles.blockLabel}>{label}</Text>
-        <View style={{ gap: 4, marginTop: 4 }}>
-          {items.map((t, i) => (
-            <View key={i} style={styles.bulletRow}>
-              <View style={[styles.bulletDot, { backgroundColor: accent }]} />
-              <Text style={styles.bulletTxt}>{t}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    );
-  }
-  // Fallback KV row
-  return (
-    <View style={styles.kvRow}>
-      <Text style={styles.kvKey}>{label}</Text>
-      <Text style={styles.kvVal}>{formatVal(value)}</Text>
-    </View>
-  );
-}
-
-function ConsumptionBarChart({ data, valueKey, accent }: { data: any[]; valueKey: "kwh" | "smc"; accent: string }) {
-  const items = data
-    .map((it) => ({ mese: String(it?.mese ?? "").slice(0, 3), value: Number(it?.[valueKey] ?? 0) }))
-    .filter((it) => it.mese && Number.isFinite(it.value));
-  if (items.length === 0) return <Text style={styles.kvVal}>—</Text>;
-  const maxV = Math.max(...items.map((it) => it.value), 1);
-  const CHART_H = 120;
-  const unit = valueKey === "kwh" ? "kWh" : "Smc";
-  const totalV = items.reduce((s, it) => s + it.value, 0);
-  return (
-    <View style={styles.chartWrap}>
-      <View style={styles.chartHeader}>
-        <Text style={styles.chartTotal}>Totale: {Math.round(totalV).toLocaleString("it-IT")} {unit}</Text>
-        <Text style={styles.chartMax}>Max: {Math.round(maxV).toLocaleString("it-IT")} {unit}</Text>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 6 }}>
-        {items.map((it, idx) => {
-          const h = Math.max(2, Math.round((it.value / maxV) * CHART_H));
-          return (
-            <View key={idx} style={styles.barCol}>
-              <Text style={styles.barValue}>{Math.round(it.value)}</Text>
-              <View style={styles.barTrack}>
-                <View style={[styles.barFill, { height: h, backgroundColor: accent }]} />
-              </View>
-              <Text style={styles.barLabel}>{it.mese}</Text>
-            </View>
-          );
-        })}
-      </ScrollView>
-    </View>
   );
 }
 
@@ -660,4 +679,7 @@ const styles = StyleSheet.create({
   assocAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: theme.color.brandTertiary, justifyContent: "center", alignItems: "center" },
   assocName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
   assocSub: { fontSize: 11, color: theme.color.muted },
+  srcBtn: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 10 },
+  srcTitle: { color: "#FFF", fontWeight: "800", fontSize: 15 },
+  srcSub: { color: "#FFFFFFCC", fontSize: 11, marginTop: 2 },
 });

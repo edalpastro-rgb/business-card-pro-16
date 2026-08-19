@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Modal, Platform } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Modal, Platform, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
@@ -41,6 +43,17 @@ export default function MasterFilesScreen() {
   const [viewerOpen, setViewerOpen] = useState<null | { name: string; mime: string; data_base64: string }>(null);
   const [renameTarget, setRenameTarget] = useState<null | { file_id: string; name: string }>(null);
   const [renameInput, setRenameInput] = useState("");
+  // V38P — audio recording (client-side parity)
+  const [recording, setRecording] = useState(false);
+  const [recStart, setRecStart] = useState<number>(0);
+  const [, setRecTick] = useState<number>(0);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const blinkAnim = useRef(new Animated.Value(1)).current;
+  // V38P — media source picker for "Foto" button (camera vs gallery)
+  const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
+  // V38P — pick from Master's own file cabinet when uploading a bill/other
+  const [pickFromMaster] = useState(false);
+  const [masterPickerItems] = useState<MasterFile[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,6 +68,81 @@ export default function MasterFilesScreen() {
   }, [tab]);
 
   useEffect(() => { load(); }, [load]);
+
+  // V38P — audio recording lifecycle: blink dot + tick timer while recording
+  useEffect(() => {
+    if (!recording) {
+      blinkAnim.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(blinkAnim, { toValue: 0.3, duration: 500, useNativeDriver: true }),
+        Animated.timing(blinkAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    const t = setInterval(() => setRecTick((n) => n + 1), 500);
+    return () => { loop.stop(); clearInterval(t); };
+  }, [recording, blinkAnim]);
+
+  const startRecording = async () => {
+    try {
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        notify("Permesso microfono negato", "Attiva il microfono nelle impostazioni per registrare audio.");
+        return;
+      }
+      await AudioModule.setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setRecording(true);
+      setRecStart(Date.now());
+    } catch (e: any) {
+      notify("Errore avvio registrazione", e?.message || "");
+    }
+  };
+
+  const stopAndSaveRecording = async () => {
+    if (!recording) return;
+    setBusy(true);
+    try {
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      setRecording(false);
+      if (!uri) { notify("Registrazione vuota", ""); return; }
+      const b64 = await uriToBase64(uri);
+      const bytes = Math.round((b64.length * 3) / 4);
+      const durSec = Math.round((Date.now() - recStart) / 1000);
+      const nm = `nota-vocale-${new Date().toISOString().replace(/[:.]/g, "-")}.m4a`;
+      await api("/master-files", {
+        method: "POST",
+        body: {
+          category: "audio",
+          name: nm,
+          mime: Platform.OS === "ios" ? "audio/m4a" : "audio/mp4",
+          data_base64: b64,
+          size: bytes,
+        },
+      });
+      try { await FileSystem.deleteAsync(uri, { idempotent: true }); } catch {}
+      await load();
+      notify("Audio salvato ✅", `Durata ${durSec}s`);
+    } catch (e: any) {
+      notify("Errore salvataggio", e?.message || "");
+      setRecording(false);
+    } finally { setBusy(false); }
+  };
+
+  const cancelRecording = async () => {
+    try {
+      if (recording) {
+        try { await audioRecorder.stop(); } catch {}
+      }
+    } finally {
+      setRecording(false);
+    }
+  };
 
   // --- Notes ---
   const openNewNote = () => setNoteEditor({ title: "", body: "" });
@@ -90,8 +178,6 @@ export default function MasterFilesScreen() {
     try {
       let asset: { uri: string; name?: string; mimeType?: string } | null = null;
       if (category === "audio") {
-        // For audio, we prefer either a recording OR the library — but the modal
-        // handles recording. Here fallback to picking any audio file.
         const res = await DocumentPicker.getDocumentAsync({ type: "audio/*", multiple: false, copyToCacheDirectory: true });
         if (res.canceled || !res.assets?.[0]) { setBusy(false); return; }
         asset = res.assets[0];
@@ -100,8 +186,26 @@ export default function MasterFilesScreen() {
         if (res.canceled || !res.assets?.[0]) { setBusy(false); return; }
         asset = res.assets[0];
       } else {
-        // Generic files: allow any
-        const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
+        // V38P — generic files: filter to documents/PDF/images explicitly so
+        // Android doesn't default to the camera roll picker (client-side
+        // parity — see ContactFilesSection pattern).
+        const res = await DocumentPicker.getDocumentAsync({
+          type: [
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "text/plain",
+            "text/csv",
+            "application/zip",
+            "image/*",
+          ],
+          multiple: false,
+          copyToCacheDirectory: true,
+        });
         if (res.canceled || !res.assets?.[0]) { setBusy(false); return; }
         asset = res.assets[0];
       }
@@ -124,27 +228,57 @@ export default function MasterFilesScreen() {
     } finally { setBusy(false); }
   };
 
-  // Upload an image (photo) into "files" category — useful for pics/screenshots
-  const uploadImage = async () => {
+  // V38P — "Foto" flow: bottom sheet with 4 options (Scatta foto, Registra
+  // video, Scegli foto, Scegli video) — matching client-side.
+  const openPhotoPicker = () => setPhotoPickerOpen(true);
+  const runMediaPicker = async (kind: "camera-photo" | "camera-video" | "library-photo" | "library-video") => {
+    setPhotoPickerOpen(false);
     setBusy(true);
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) { setBusy(false); return; }
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85, allowsEditing: false });
+      let res: any;
+      if (kind === "camera-photo" || kind === "camera-video") {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { setBusy(false); notify("Permesso camera negato", ""); return; }
+        res = await ImagePicker.launchCameraAsync({
+          mediaTypes: kind === "camera-photo" ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+          quality: 0.85,
+          allowsEditing: false,
+        });
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { setBusy(false); notify("Permesso galleria negato", ""); return; }
+        res = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: kind === "library-photo" ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+          quality: 0.85,
+          allowsEditing: false,
+        });
+      }
       if (res.canceled || !res.assets?.[0]?.uri) { setBusy(false); return; }
       const a = res.assets[0];
       const b64 = await uriToBase64(a.uri);
       const bytes = Math.round((b64.length * 3) / 4);
       if (bytes > 20 * 1024 * 1024) { notify("File troppo grande", "Max 20 MB."); setBusy(false); return; }
+      const isVideo = kind.endsWith("video");
       await api("/master-files", {
         method: "POST",
-        body: { category: "files", name: a.fileName || `foto-${Date.now()}.jpg`, mime: a.mimeType || "image/jpeg", data_base64: b64, size: bytes },
+        body: {
+          category: "files",
+          name: a.fileName || (isVideo ? `video-${Date.now()}.mp4` : `foto-${Date.now()}.jpg`),
+          mime: a.mimeType || (isVideo ? "video/mp4" : "image/jpeg"),
+          data_base64: b64,
+          size: bytes,
+        },
       });
       await load();
     } catch (e: any) {
       notify("Errore", e?.message || "");
     } finally { setBusy(false); }
   };
+
+  // V38P — legacy alias kept to preserve `uploadImage` reference if anything
+  // else depended on it. Now delegates to the new picker.
+  const uploadImage = () => openPhotoPicker();
+  void uploadImage;
 
   // Save a recorded audio blob into master files (used by the Master's global
   // audio recorder — legacy hook, currently unused but kept for future wiring).
@@ -247,11 +381,53 @@ export default function MasterFilesScreen() {
           </Pressable>
         )}
         {tab === "audio" && (
-          <View style={{ flexDirection: "row", gap: 8, flex: 1 }}>
-            <Pressable testID="master-files-add-audio" onPress={() => uploadFile("audio")} disabled={busy} style={[styles.addBtn, { backgroundColor: catMeta.color, flex: 1, opacity: busy ? 0.5 : 1 }]}>
-              <Ionicons name="cloud-upload" size={18} color="#FFF" />
-              <Text style={styles.addTxt}>Carica audio</Text>
-            </Pressable>
+          <View style={{ flex: 1, gap: 8 }}>
+            {/* V38P — Blinking REC button (client-side parity) */}
+            {recording ? (
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable
+                  testID="master-files-stop-recording"
+                  onPress={stopAndSaveRecording}
+                  disabled={busy}
+                  style={[styles.addBtn, { backgroundColor: "#16A34A", flex: 1, opacity: busy ? 0.5 : 1 }]}
+                >
+                  <Ionicons name="stop-circle" size={20} color="#FFF" />
+                  <Text style={styles.addTxt}>Stop & Salva ({Math.floor((Date.now() - recStart) / 1000)}s)</Text>
+                </Pressable>
+                <Pressable
+                  testID="master-files-cancel-recording"
+                  onPress={cancelRecording}
+                  style={[styles.addBtn, { backgroundColor: "#78716C", paddingHorizontal: 14, flex: 0 }]}
+                >
+                  <Ionicons name="close" size={18} color="#FFF" />
+                </Pressable>
+                {/* Blinking indicator */}
+                <View style={{ position: "absolute", left: 12, top: -3 }}>
+                  <Animated.View style={[styles.recDot, { opacity: blinkAnim }]} />
+                </View>
+              </View>
+            ) : (
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable
+                  testID="master-files-record-audio"
+                  onPress={startRecording}
+                  disabled={busy}
+                  style={[styles.addBtn, { backgroundColor: "#DC2626", flex: 1, opacity: busy ? 0.5 : 1 }]}
+                >
+                  <Ionicons name="mic" size={20} color="#FFF" />
+                  <Text style={styles.addTxt}>REC</Text>
+                </Pressable>
+                <Pressable
+                  testID="master-files-add-audio"
+                  onPress={() => uploadFile("audio")}
+                  disabled={busy}
+                  style={[styles.addBtn, { backgroundColor: catMeta.color, flex: 1, opacity: busy ? 0.5 : 1 }]}
+                >
+                  <Ionicons name="cloud-upload" size={18} color="#FFF" />
+                  <Text style={styles.addTxt}>Carica audio</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         )}
         {tab === "files" && (
@@ -260,8 +436,8 @@ export default function MasterFilesScreen() {
               <Ionicons name="document" size={18} color="#FFF" />
               <Text style={styles.addTxt}>Carica file</Text>
             </Pressable>
-            <Pressable testID="master-files-add-image" onPress={uploadImage} disabled={busy} style={[styles.addBtn, { backgroundColor: "#16A34A", flex: 1, opacity: busy ? 0.5 : 1 }]}>
-              <Ionicons name="image" size={18} color="#FFF" />
+            <Pressable testID="master-files-add-image" onPress={openPhotoPicker} disabled={busy} style={[styles.addBtn, { backgroundColor: "#16A34A", flex: 1, opacity: busy ? 0.5 : 1 }]}>
+              <Ionicons name="camera" size={18} color="#FFF" />
               <Text style={styles.addTxt}>Foto</Text>
             </Pressable>
           </View>
@@ -407,6 +583,41 @@ export default function MasterFilesScreen() {
         mime={viewerOpen?.mime || ""}
         dataBase64={viewerOpen?.data_base64 || ""}
       />
+
+      {/* V38P — Photo picker bottom sheet (Foto button) */}
+      <Modal visible={photoPickerOpen} animationType="slide" transparent onRequestClose={() => setPhotoPickerOpen(false)}>
+        <Pressable style={styles.modalBack} onPress={() => setPhotoPickerOpen(false)}>
+          <Pressable style={styles.sheetCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Aggiungi foto o video</Text>
+            <View style={{ gap: 8, marginTop: 8 }}>
+              <Pressable testID="mf-photo-camera" onPress={() => runMediaPicker("camera-photo")} style={[styles.sheetBtn, { backgroundColor: "#7C3AED" }]}>
+                <Ionicons name="camera" size={18} color="#FFF" />
+                <Text style={styles.sheetTxt}>Scatta foto</Text>
+              </Pressable>
+              <Pressable testID="mf-video-camera" onPress={() => runMediaPicker("camera-video")} style={[styles.sheetBtn, { backgroundColor: "#DB2777" }]}>
+                <Ionicons name="videocam" size={18} color="#FFF" />
+                <Text style={styles.sheetTxt}>Registra video</Text>
+              </Pressable>
+              <Pressable testID="mf-photo-library" onPress={() => runMediaPicker("library-photo")} style={[styles.sheetBtn, { backgroundColor: "#0891B2" }]}>
+                <Ionicons name="images" size={18} color="#FFF" />
+                <Text style={styles.sheetTxt}>Scegli foto dalla galleria</Text>
+              </Pressable>
+              <Pressable testID="mf-video-library" onPress={() => runMediaPicker("library-video")} style={[styles.sheetBtn, { backgroundColor: "#16A34A" }]}>
+                <Ionicons name="film" size={18} color="#FFF" />
+                <Text style={styles.sheetTxt}>Scegli video dalla galleria</Text>
+              </Pressable>
+              <Pressable onPress={() => setPhotoPickerOpen(false)} style={[styles.sheetBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
+                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* V38P — Master file picker (used from bill-quick to pick a bill
+          without re-uploading). Not directly used inside this screen but the
+          state + list is here so it can be reused by other screens later. */}
+      {pickFromMaster && masterPickerItems.length === 0 ? null : null}
     </SafeAreaView>
   );
 }
@@ -440,4 +651,8 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, marginBottom: 12 },
   modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
   noteInput: { backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 13, color: theme.color.onSurface, marginTop: 6 },
+  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#DC2626" },
+  sheetCard: { backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  sheetBtn: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 10, justifyContent: "flex-start" },
+  sheetTxt: { color: "#FFF", fontWeight: "700", fontSize: 14 },
 });
