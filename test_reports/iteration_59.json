@@ -1,0 +1,50 @@
+{
+  "summary": "V38W testing: Backend contact-linking via PUT /api/appointments/{id} works (5/5 pytest). Frontend uncovered a CRITICAL React Rules-of-Hooks violation in appointment/[id].tsx (hooks declared after early return) causing complete crash of appointment detail screen — fixed by moving 3 hooks above early-return. Also fixed contact_id (snake_case) prefill in appointment/new.tsx — useEffect only reacted to camelCase contactId param. After fixes: link-contact-btn / modal / link-pick-<cid> / link-contact-change all work end-to-end; auto-title + pill highlight work for ?contact_id=X; business-card page renders with all 5 required testIDs (bc-flip, bc-side-front, bc-side-back, bc-share-image, bc-share-link).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "appointment/[id].tsx",
+        "issue": "CRITICAL: useCallback searchContactsForLink + useFocusEffect + useEffect were declared AFTER 'if (!a) return <ActivityIndicator/>' early-return, violating React Rules of Hooks. First render (a=null) called ~30 hooks; second render (a loaded) called 31+ hooks → 'Rendered more hooks than during the previous render'. Entire AppointmentDetail crashed to red-screen, blocking all V38W link-contact functionality. FIXED by moving the 3 hooks before the early return.",
+        "testID": "link-contact-btn",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "appointment/new.tsx",
+        "issue": "useEffect at line 293 only reacted to camelCase `contactId` search param, not snake_case `contact_id`. Navigating with ?contact_id=X still highlighted the pill (initial state uses prefContact) but did NOT auto-fill title/area/phone/address. FIXED: effect now watches both contactId and prefContact.",
+        "testID": "ap-title-input",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38w_contact_linking.py",
+    "/app/test_reports/pytest/v38w_linking_results.xml"
+  ],
+  "action_items": [
+    "Please review the two frontend fixes I applied (hook order in appointment/[id].tsx + prefill effect deps in appointment/new.tsx). Both are minimal & structural.",
+    "Consider adding a lint rule / test to catch React Rules-of-Hooks violations before ship (eslint-plugin-react-hooks/rules-of-hooks).",
+    "Non-blocking: consider normalising the contact_id vs contactId query-param naming across all screens (or supply both in navigation calls)."
+  ],
+  "critical_code_review_comments": [
+    "appointment/[id].tsx: any hooks referencing appointment `a` should still be declared before the null-check early return to preserve Hook order stability. The load() + linkContact() chain is fine because linkContact() is not a hook.",
+    "appointment/new.tsx exposes both `contactId` and `contact_id` params but only the initial state honoured both; effects need to too."
+  ],
+  "updated_files": [
+    "/app/frontend/app/appointment/[id].tsx",
+    "/app/frontend/app/appointment/new.tsx",
+    "/app/backend/tests/test_v38w_contact_linking.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100% (after fixes)"},
+  "seed_data_creation": "All test data (TESTLINK/AUTOLINK contacts and their appointments) was cleaned up in every test run via DELETE API.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "V38W: 3 features validated. Feature 1 backend PUT /api/appointments/{id} with contact_id works. Feature 1 frontend link-contact-btn / link-modal-close / link-search-input / link-pick-<id> / link-contact-change all functional after fixing hook order. Feature 2 pre-fill on /appointment/new?contact_id=X now works. Feature 3 /business-card page renders with all 5 required testIDs. When re-testing appointment detail, log in via UI (testIDs: auth-email-input / auth-password-input / auth-submit-button) with test@dalpastro.it / Test1234!.",
+  "rca_of_issue": "React 'Rendered more hooks' RCA: AppointmentDetail component had 3 hooks (useCallback + useFocusEffect + useEffect for V38W link search) placed AFTER an early-return that fires when appointment data is still loading. On mount render 1 (a=null), only pre-return hooks executed; on render 2 (a loaded), post-return hooks also executed, changing the hook count from N to N+3. React detected inconsistency and threw. Fix: moved the 3 hooks (which don't depend on `a`) above the early return so all renders run identical hook lists. Reproduction: navigate to /appointment/<id> while logged in → red-screen error 'Rendered more hooks than during the previous render' on second render. Mitigation applied."
+}

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, Linking, Alert, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,6 +24,7 @@ type Appointment = {
   created_by?: string;
 };
 type ContactLite = { contact_id: string; first_name: string; last_name: string; phone?: string; whatsapp?: string; email?: string };
+type ContactSearchResult = { contact_id: string; first_name: string; last_name: string; phone?: string; email?: string; area?: string };
 
 const ENERGY_OUTCOMES = [
   { key: "non_interessato", label: "Non interessato" },
@@ -62,6 +63,12 @@ export default function AppointmentDetail() {
     isPhone: boolean;
     notes: string;
   } | null>(null);
+  // V38W — Collega contatto: modal picker
+  const [linkModal, setLinkModal] = useState(false);
+  const [linkQuery, setLinkQuery] = useState("");
+  const [linkContacts, setLinkContacts] = useState<ContactSearchResult[]>([]);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linking, setLinking] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [ap, s] = await Promise.all([
@@ -75,6 +82,38 @@ export default function AppointmentDetail() {
     }
   }, [id]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // V38W — Link contact search (must be declared before any early return to preserve Hook order)
+  const searchContactsForLink = useCallback(async (q: string) => {
+    setLinkLoading(true);
+    try {
+      const r = await api<{ items: ContactSearchResult[] }>("/contacts");
+      const items = r.items || [];
+      const query = q.trim().toLowerCase();
+      let filtered: ContactSearchResult[];
+      if (!query) {
+        filtered = items.slice(0, 30);
+      } else {
+        filtered = items.filter((c) => {
+          const hay = `${c.first_name || ""} ${c.last_name || ""} ${c.phone || ""} ${c.email || ""}`.toLowerCase();
+          return hay.includes(query);
+        }).slice(0, 50);
+      }
+      setLinkContacts(filtered);
+    } catch {
+      setLinkContacts([]);
+    } finally {
+      setLinkLoading(false);
+    }
+  }, []);
+  useFocusEffect(useCallback(() => {
+    if (linkModal) searchContactsForLink(linkQuery);
+  }, [linkModal, linkQuery, searchContactsForLink]));
+  useEffect(() => {
+    if (!linkModal) return;
+    const t = setTimeout(() => searchContactsForLink(linkQuery), 250);
+    return () => clearTimeout(t);
+  }, [linkQuery, linkModal, searchContactsForLink]);
 
   if (!a) return <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} /></SafeAreaView>;
 
@@ -217,6 +256,29 @@ export default function AppointmentDetail() {
     } finally { setBusy(false); }
   };
 
+  // V38W — Link contact action (search hook moved above early-return for Hook stability)
+  const linkContact = async (contactId: string) => {
+    if (!a) return;
+    setLinking(contactId);
+    try {
+      await api(`/appointments/${id}`, { method: "PUT", body: { contact_id: contactId } });
+      // Fetch full contact + refreshed appointment
+      const [updatedAppt, updatedContact] = await Promise.all([
+        api<Appointment>(`/appointments/${id}`),
+        api<ContactLite>(`/contacts/${contactId}`).catch(() => null),
+      ]);
+      setA(updatedAppt);
+      if (updatedContact) setContact(updatedContact);
+      setLinkModal(false);
+      setLinkQuery("");
+    } catch (e: any) {
+      if (Platform.OS === "web") window.alert("Errore collegamento: " + (e?.message || ""));
+      else Alert.alert("Errore collegamento", e?.message || "");
+    } finally {
+      setLinking(null);
+    }
+  };
+
   const rescheduleTo = async (d: Date, mode: "date" | "time") => {
     const next = new Date(a.start_at);
     if (mode === "date") next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
@@ -332,7 +394,37 @@ export default function AppointmentDetail() {
               </View>
             );
           })()}
-          {!contact && <Text style={styles.shareWarn}>Nessun contatto collegato a questo appuntamento — associane uno per abilitare la condivisione.</Text>}
+          {!contact && (
+            <View style={styles.linkContactBlock}>
+              <View style={styles.linkContactRow}>
+                <Ionicons name="link" size={16} color={theme.color.muted} />
+                <Text style={styles.shareWarn}>Nessun contatto collegato — associane uno per abilitare Email, WhatsApp e SMS.</Text>
+              </View>
+              <Pressable
+                testID="link-contact-btn"
+                onPress={() => { setLinkModal(true); setLinkQuery(""); }}
+                style={styles.linkContactBtn}
+              >
+                <Ionicons name="person-add" size={16} color="#FFF" />
+                <Text style={styles.linkContactBtnTxt}>Collega contatto</Text>
+              </Pressable>
+            </View>
+          )}
+          {contact && (
+            <View style={styles.linkedContactRow}>
+              <Ionicons name="checkmark-circle" size={14} color={theme.color.success} />
+              <Text style={styles.linkedContactTxt}>
+                Collegato a: <Text style={{ fontWeight: "700" }}>{contact.first_name} {contact.last_name}</Text>
+              </Text>
+              <Pressable
+                testID="link-contact-change"
+                onPress={() => { setLinkModal(true); setLinkQuery(""); }}
+                hitSlop={8}
+              >
+                <Text style={styles.linkChangeTxt}>Cambia</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         <View style={styles.card}>
@@ -717,6 +809,69 @@ export default function AppointmentDetail() {
           </View>
         </View>
       </Modal>
+
+      {/* V38W — Link Contact modal */}
+      <Modal transparent visible={linkModal} animationType="fade" onRequestClose={() => setLinkModal(false)}>
+        <View style={omstyles.back}>
+          <View style={[omstyles.card, { maxHeight: "85%" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <Text style={omstyles.title}>Collega contatto</Text>
+              <Pressable testID="link-modal-close" onPress={() => setLinkModal(false)} hitSlop={10}>
+                <Ionicons name="close" size={22} color={theme.color.muted} />
+              </Pressable>
+            </View>
+            <Text style={omstyles.hint}>Cerca un contatto esistente e collegalo all&apos;appuntamento.</Text>
+            <TextInput
+              testID="link-search-input"
+              placeholder="Nome, cognome, telefono o email"
+              placeholderTextColor="#94A3B8"
+              value={linkQuery}
+              onChangeText={setLinkQuery}
+              style={omstyles.input}
+              autoFocus
+            />
+            <ScrollView style={{ maxHeight: 360, marginTop: 10 }} contentContainerStyle={{ gap: 6 }}>
+              {linkLoading ? (
+                <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
+              ) : linkContacts.length === 0 ? (
+                <View style={{ padding: 24, alignItems: "center" }}>
+                  <Ionicons name="people-outline" size={30} color={theme.color.muted} />
+                  <Text style={{ color: theme.color.muted, fontSize: 12, marginTop: 6, textAlign: "center" }}>
+                    {linkQuery.trim() ? "Nessun contatto trovato" : "Inizia a scrivere per cercare"}
+                  </Text>
+                </View>
+              ) : (
+                linkContacts.map((c) => (
+                  <Pressable
+                    key={c.contact_id}
+                    testID={`link-pick-${c.contact_id}`}
+                    onPress={() => linkContact(c.contact_id)}
+                    disabled={!!linking}
+                    style={styles.linkContactItem}
+                  >
+                    <View style={[styles.linkAvatar, { backgroundColor: c.area === "energy" ? theme.color.energy : theme.color.network }]}>
+                      <Text style={{ color: "#FFF", fontWeight: "800", fontSize: 12 }}>
+                        {(c.first_name?.[0] || "?").toUpperCase()}{(c.last_name?.[0] || "").toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.linkName} numberOfLines={1}>{c.first_name} {c.last_name}</Text>
+                      {c.phone || c.email ? (
+                        <Text style={styles.linkMeta} numberOfLines={1}>{[c.phone, c.email].filter(Boolean).join(" · ")}</Text>
+                      ) : null}
+                    </View>
+                    {linking === c.contact_id ? (
+                      <ActivityIndicator size="small" color={theme.color.brandPrimary} />
+                    ) : (
+                      <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                    )}
+                  </Pressable>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -779,4 +934,16 @@ const styles = StyleSheet.create({
   shareBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
   shareHint: { fontSize: 12, color: theme.color.muted, marginTop: -2, marginBottom: 4 },
   shareWarn: { fontSize: 11, color: theme.color.warning, marginTop: 8, fontStyle: "italic" },
+  // V38W — Link contact button + modal styles
+  linkContactBlock: { marginTop: 8, gap: 8 },
+  linkContactRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  linkContactBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.brandPrimary, paddingVertical: 12, borderRadius: 10 },
+  linkContactBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
+  linkedContactRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: "#F1F5F9", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
+  linkedContactTxt: { flex: 1, fontSize: 12, color: theme.color.onSurface },
+  linkChangeTxt: { fontSize: 12, color: theme.color.brandPrimary, fontWeight: "700" },
+  linkContactItem: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
+  linkAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  linkName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
+  linkMeta: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
 });

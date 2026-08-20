@@ -34,6 +34,21 @@
   - Sola visualizzazione (no create-on-behalf); eventi altrui in read-only
   - Nuovi endpoint: `GET /api/calendar/team-members`, `GET /api/calendar/team?start&end&area&user_ids`
 
+### Appuntamento
+- Auto-link contatto: creando un appuntamento da una scheda contatto (query `?contact_id=X` o `?contactId=X`) il contatto è automaticamente collegato al salvataggio (V38W)
+- Collega/Cambia contatto (V38W): nel dettaglio, se manca un contatto collegato, pulsante "Collega contatto" apre modal con ricerca. Selezionato → PUT `/appointments/{id}` con `contact_id` → Email/WhatsApp/SMS si abilitano automaticamente. Se già collegato, banner "Collegato a: X" con pulsante "Cambia".
+- `AppointmentUpdate` model ora accetta `contact_id: Optional[str]`.
+
+### Biglietto da visita (V38W redesign)
+- Formato rettangolare orizzontale 1.75:1 (340×194)
+- Due lati con flip animato su tap (react-native-reanimated + backfaceVisibility)
+- **FRONTE**: sfondo navy #1A2A6C con texture di righe diagonali semi-trasparenti, bordo dorato sottile, logo agenzia bianco centrato grande, shimmer leggero
+- **RETRO**: sfondo bianco/grigio chiarissimo, nome consulente bold navy centrato, titolo in corsivo blu medio, separatore blu, contatti (telefono/email) centrati, footer con agenzia bold + sito web separati da linea, QR code in basso a destra
+- Ombreggiatura esterna su entrambi i lati
+- La condivisione immagine cattura il RETRO tramite html2canvas (web) o captureRef (native)
+- Toggle manuale Fronte/Retro con pill selector
+
+
 ### Settings / Impostazioni
 - Nome app modificabile (backend model)
 - Titolo + colore delle 2 aree (già v1)

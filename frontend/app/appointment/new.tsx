@@ -291,8 +291,9 @@ export default function NewAppointmentScreen() {
   }, []);
 
   useEffect(() => {
-    if (contactId && contacts.length) {
-      const c = contacts.find((x) => x.contact_id === contactId);
+    const cidParam = contactId || prefContact;
+    if (cidParam && contacts.length) {
+      const c = contacts.find((x) => x.contact_id === cidParam);
       if (c) {
         // Compute full structured address if available, else fallback to raw
         const structured = [c.address_street, c.address_number ? c.address_number : "", [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province]
@@ -311,7 +312,7 @@ export default function NewAppointmentScreen() {
         }));
       }
     }
-  }, [contacts, contactId]);
+  }, [contacts, contactId, prefContact]);
 
   const submit = async () => {
     if (!form.title.trim()) return;

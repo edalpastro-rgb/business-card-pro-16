@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Platform, Share, Image as RNImage } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Platform, Share, Image as RNImage, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -30,7 +30,7 @@ type Card = {
   qr_content?: string;
   demo_app_link?: string;
   // V38V — Public page customization
-  link_title?: string;             // e.g. "Biglietto da visita digitale Emanuele Dal Pastro"
+  link_title?: string;
   visual_effect?: "none" | "shimmer" | "border";
 };
 
@@ -41,23 +41,40 @@ const QR_TYPES: { id: NonNullable<Card["qr_type"]>; label: string; hint: string 
   { id: "text", label: "Testo libero", hint: "Qualsiasi messaggio" },
 ];
 
+// V38W — Card palette (professional business card look)
+const CARD_NAVY = "#1A2A6C";
+const CARD_BLUE_MED = "#3A6BA5";
+const CARD_GOLD = "#D4B26A";
+const CARD_BACK_BG = "#FCFCFC";
+const CARD_TEXT = "#0F172A";
+const CARD_TEXT_MUTED = "#64748B";
+// Ratio 1.75:1 for a classic business card look
+const CARD_W = 340;
+const CARD_H = Math.round(CARD_W / 1.75); // ≈ 194
+
 export default function BusinessCardScreen() {
   const router = useRouter();
-  const [card, setCard] = useState<Card>({ accent_color: "#6366F1", qr_type: "website" });
+  const [card, setCard] = useState<Card>({ accent_color: CARD_NAVY, qr_type: "website" });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const cardPreviewRef = useRef<any>(null);
+  const [flipped, setFlipped] = useState(false); // true = showing back
+  const cardBackRef = useRef<any>(null); // native capture ref
+  const flip = useRef(new Animated.Value(0)).current;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api<Card>("/master/business-card");
-      setCard({ accent_color: "#6366F1", qr_type: "website", ...r });
+      setCard({ accent_color: CARD_NAVY, qr_type: "website", ...r });
     } catch (e: any) {
       notify("Errore caricamento", e?.message || "");
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    Animated.spring(flip, { toValue: flipped ? 1 : 0, useNativeDriver: true, friction: 8, tension: 10 }).start();
+  }, [flipped, flip]);
 
   const save = async (patch?: Partial<Card>) => {
     const next = { ...card, ...patch };
@@ -83,9 +100,6 @@ export default function BusinessCardScreen() {
       const a = res.assets[0];
       let dataUri: string;
       if (Platform.OS === "web") {
-        // V38U — Web fix: expo-file-system.readAsStringAsync is unavailable
-        // on web. Prefer the `base64` field from ImagePicker; if missing,
-        // fetch the object URL and use FileReader to convert to data URI.
         if (a.base64) {
           dataUri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
         } else {
@@ -111,7 +125,6 @@ export default function BusinessCardScreen() {
     if (t === "app") return card.demo_app_link || card.qr_content || "https://emergent.sh";
     if (t === "website") return card.website || card.qr_content || "https://example.com";
     if (t === "text") return card.qr_content || card.tagline || card.display_name || " ";
-    // vcard
     const vcLines = ["BEGIN:VCARD", "VERSION:3.0"];
     if (card.display_name) vcLines.push(`FN:${card.display_name}`);
     if (card.company_name) vcLines.push(`ORG:${card.company_name}`);
@@ -123,33 +136,26 @@ export default function BusinessCardScreen() {
     return vcLines.join("\n");
   })();
 
-  // V38V — Web-native web-preview HTML element (independent of RN) that
-  // html2canvas can rasterize without React Native's findNodeHandle. We
-  // keep the RN preview visible for parity, and mirror it in a hidden DOM
-  // node on web that html2canvas reads.
-  const webPreviewId = "bc-web-preview-root";
+  // V38W — DOM IDs for html2canvas capture (back is the shareable side)
+  const backWebId = "bc-back-web";
 
   const shareAsImage = async () => {
     setBusy(true);
     try {
       if (Platform.OS === "web") {
-        // V38V — SOLO html2canvas: no captureRef (usa findNodeHandle che
-        // fallisce su web). Cerca il div del preview HTML e lo rasterizza.
         const doc = (globalThis as any).document;
-        const target = doc?.getElementById?.(webPreviewId);
+        const target = doc?.getElementById?.(backWebId);
         if (!target) { notify("Errore", "Preview non trovata"); return; }
-        // Dynamic import so the 500KB html2canvas bundle isn't loaded on native.
         const mod = await import("html2canvas");
         const html2canvas = (mod as any).default || (mod as any);
         const canvas = await html2canvas(target, {
           backgroundColor: null,
-          scale: 2,
+          scale: 3, // higher DPI for print quality
           useCORS: true,
           logging: false,
         });
         const dataUri: string = canvas.toDataURL("image/png");
         const fileName = `biglietto-${(card.display_name || "master").replace(/\s+/g, "-")}.png`;
-        // Try Web Share API with PNG blob first (mobile browser support)
         try {
           const resp = await fetch(dataUri);
           const blob = await resp.blob();
@@ -160,7 +166,6 @@ export default function BusinessCardScreen() {
             return;
           }
         } catch {}
-        // Fallback: trigger browser download via blob URL
         const respFinal = await fetch(dataUri);
         const blobFinal = await respFinal.blob();
         const url = URL.createObjectURL(blobFinal);
@@ -173,9 +178,9 @@ export default function BusinessCardScreen() {
         setTimeout(() => URL.revokeObjectURL(url), 4000);
         return;
       }
-      // Native — captureRef is safe on iOS/Android
-      if (!cardPreviewRef.current) return;
-      const uri = await captureRef(cardPreviewRef.current, { format: "png", quality: 1, result: "tmpfile" });
+      // Native — captureRef on the back-side ref
+      if (!cardBackRef.current) { notify("Errore", "Preview non trovata"); return; }
+      const uri = await captureRef(cardBackRef.current, { format: "png", quality: 1, result: "tmpfile" });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Condividi biglietto da visita" });
       else await Share.share({ url: uri, title: "Biglietto da visita" });
@@ -184,10 +189,6 @@ export default function BusinessCardScreen() {
   };
 
   const shareLink = async () => {
-    // V38Q — ensure the card has been persisted at least once so we have a
-    // card_id for the public read-only link. `save()` returns the saved doc
-    // (with card_id populated on first insert) so we prefer that over the
-    // async React state (which hasn't updated yet at this point).
     let cid = card.card_id;
     if (!cid) {
       const saved = await save();
@@ -202,94 +203,226 @@ export default function BusinessCardScreen() {
     } catch (e: any) { notify("Errore", e?.message || ""); }
   };
 
-  const accent = card.accent_color || "#6366F1";
+  const accent = card.accent_color || CARD_NAVY;
   if (loading) return <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 40 }} color={accent} /></SafeAreaView>;
+
+  const frontRotate = flip.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "180deg"] });
+  const backRotate = flip.interpolate({ inputRange: [0, 1], outputRange: ["180deg", "360deg"] });
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="bc-back" onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
         <Text style={styles.title}>Biglietto da visita</Text>
-        <Pressable testID="bc-save" onPress={() => save()} hitSlop={10}><Ionicons name="save" size={22} color={accent} /></Pressable>
+        <Pressable testID="bc-save" onPress={() => save()} hitSlop={10}><Ionicons name="save" size={22} color={CARD_NAVY} /></Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
-        {/* PREVIEW */}
-        <View ref={cardPreviewRef} collapsable={false} style={[styles.preview, { backgroundColor: "#FFF", borderColor: accent }]}>
-          <View style={[styles.previewBar, { backgroundColor: accent }]} />
-          <View style={{ flexDirection: "row", padding: 16, gap: 14, alignItems: "center" }}>
-            {card.logo_base64 ? (
-              <View style={{ width: 88, height: 64, borderRadius: 12, overflow: "hidden", backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: accent, padding: 4, alignItems: "center", justifyContent: "center" }}>
-                <ExpoImage uri={card.logo_base64} />
-              </View>
-            ) : null}
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.pName, { color: accent }]} numberOfLines={2}>{card.display_name || "Il tuo nome"}</Text>
-              {card.title ? <Text style={styles.pTitle} numberOfLines={1}>{card.title}</Text> : null}
-              {card.company_name ? <Text style={styles.pCompany} numberOfLines={1}>{card.company_name}</Text> : null}
-            </View>
-          </View>
-          <View style={{ paddingHorizontal: 16, paddingBottom: 10, gap: 3 }}>
-            {card.phone ? <Text style={styles.pMeta}>📞 {card.phone}</Text> : null}
-            {card.email ? <Text style={styles.pMeta}>✉️ {card.email}</Text> : null}
-            {card.website ? <Text style={styles.pMeta}>🌐 {card.website}</Text> : null}
-            {card.address ? <Text style={styles.pMeta}>📍 {card.address}</Text> : null}
-          </View>
-          {card.tagline ? <Text style={[styles.pTagline, { color: accent }]}>{card.tagline}</Text> : null}
-          <View style={styles.qrBox}>
-            <QRCode value={qrValue || " "} size={130} color={accent} backgroundColor="#FFF" />
-            <Text style={styles.qrLabel}>{QR_TYPES.find((t) => t.id === (card.qr_type || "website"))?.label}</Text>
-          </View>
+        {/* HINT */}
+        <View style={styles.flipHint}>
+          <Ionicons name="sync-outline" size={14} color={theme.color.muted} />
+          <Text style={styles.flipHintTxt}>Tocca il biglietto per ruotarlo • Attualmente: {flipped ? "Retro" : "Fronte"}</Text>
         </View>
 
-        {/* V38V — Hidden HTML mirror for html2canvas on web (no findNodeHandle) */}
-        {Platform.OS === "web" && (
-          <View style={{ position: "absolute", left: -9999, top: -9999, width: 340 }} pointerEvents="none">
-            {/* @ts-expect-error web-only div */}
-            <div id={webPreviewId} style={{
-              width: 340, background: "#FFF", borderRadius: 16, border: `2px solid ${accent}`, overflow: "hidden",
-              boxShadow: "0 6px 20px rgba(0,0,0,0.10)", fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
-            }}>
-              {/* @ts-expect-error web-only */}<div style={{ height: 8, background: accent }} />
-              {/* @ts-expect-error web-only */}<div style={{ display: "flex", padding: 16, gap: 14, alignItems: "center" }}>
+        {/* PREVIEW — Flip card */}
+        <Pressable
+          testID="bc-flip"
+          onPress={() => setFlipped((f) => !f)}
+          style={styles.flipWrap}
+        >
+          <View style={styles.flipContainer}>
+            {/* FRONT */}
+            <Animated.View
+              pointerEvents={flipped ? "none" : "auto"}
+              style={[
+                styles.cardFace,
+                {
+                  backgroundColor: CARD_NAVY,
+                  transform: [{ perspective: 1000 }, { rotateY: frontRotate }],
+                  opacity: flip.interpolate({ inputRange: [0, 0.5, 0.5001, 1], outputRange: [1, 1, 0, 0] }),
+                },
+              ]}
+            >
+              {/* Diagonal stripe pattern */}
+              <View style={styles.stripesOverlay} pointerEvents="none">
+                {Array.from({ length: 22 }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      position: "absolute",
+                      top: -30,
+                      left: i * 22 - 60,
+                      width: 2,
+                      height: CARD_H + 90,
+                      backgroundColor: "rgba(255,255,255,0.06)",
+                      transform: [{ rotate: "-32deg" }],
+                    }}
+                  />
+                ))}
+              </View>
+              {/* Gold thin inner border */}
+              <View style={styles.goldBorder} pointerEvents="none" />
+              {/* Logo centered */}
+              <View style={styles.logoWrap}>
                 {card.logo_base64 ? (
+                  <RNImage source={{ uri: card.logo_base64 }} style={styles.logoImg} resizeMode="contain" />
+                ) : (
+                  <View style={styles.logoPlaceholder}>
+                    <Ionicons name="business" size={44} color="rgba(255,255,255,0.6)" />
+                    <Text style={styles.logoPlaceholderTxt}>Logo Agenzia</Text>
+                  </View>
+                )}
+              </View>
+              {/* Simple shimmer streak (static approximation for RN native) */}
+              <View style={styles.shimmerStreak} pointerEvents="none" />
+            </Animated.View>
+
+            {/* BACK (this is what gets captured on native via captureRef) */}
+            <Animated.View
+              ref={cardBackRef}
+              collapsable={false}
+              pointerEvents={flipped ? "auto" : "none"}
+              style={[
+                styles.cardFace,
+                styles.cardBack,
+                {
+                  transform: [{ perspective: 1000 }, { rotateY: backRotate }],
+                  opacity: flip.interpolate({ inputRange: [0, 0.4999, 0.5, 1], outputRange: [0, 0, 1, 1] }),
+                },
+              ]}
+            >
+              {/* Header — Name + title */}
+              <View style={styles.backContent}>
+                <Text style={styles.backName} numberOfLines={1}>{card.display_name || "Il tuo nome"}</Text>
+                {card.title ? <Text style={styles.backTitle} numberOfLines={1}>{card.title}</Text> : null}
+                <View style={styles.backSeparator} />
+                {/* Contacts centered */}
+                <View style={styles.backContacts}>
+                  {card.phone ? (
+                    <View style={styles.backContactRow}>
+                      <Ionicons name="call" size={11} color={CARD_BLUE_MED} />
+                      <Text style={styles.backContactTxt}>{card.phone}</Text>
+                    </View>
+                  ) : null}
+                  {card.email ? (
+                    <View style={styles.backContactRow}>
+                      <Ionicons name="mail" size={11} color={CARD_BLUE_MED} />
+                      <Text style={styles.backContactTxt}>{card.email}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+              {/* Footer — Agency + website with mid-line, QR bottom-right */}
+              <View style={styles.backFooter}>
+                <View style={{ flex: 1 }}>
+                  {card.company_name ? <Text style={styles.backCompany} numberOfLines={1}>{card.company_name}</Text> : null}
+                  {card.website ? <Text style={styles.backSite} numberOfLines={1}>{card.website}</Text> : null}
+                </View>
+                <View style={styles.backQr}>
+                  <QRCode value={qrValue || " "} size={54} color={CARD_NAVY} backgroundColor="#FFFFFF" />
+                </View>
+              </View>
+            </Animated.View>
+          </View>
+        </Pressable>
+
+        {/* V38W — Hidden HTML mirrors for html2canvas on web (both sides available) */}
+        {Platform.OS === "web" && (
+          <View style={{ position: "absolute", left: -9999, top: -9999, width: CARD_W }} pointerEvents="none">
+            {/* @ts-expect-error web-only */}
+            <div id={backWebId} style={{
+              width: CARD_W,
+              height: CARD_H,
+              background: CARD_BACK_BG,
+              borderRadius: 14,
+              overflow: "hidden",
+              boxShadow: "0 12px 28px rgba(15,23,42,0.18), 0 2px 6px rgba(15,23,42,0.08)",
+              border: "1px solid #E5E7EB",
+              fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif",
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              padding: "18px 20px",
+              color: CARD_TEXT,
+            }}>
+              {/* Header — name + title + separator + contacts */}
+              {/* @ts-expect-error web-only */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                {/* @ts-expect-error web-only */}
+                <div style={{ fontSize: 20, fontWeight: 800, color: CARD_NAVY, letterSpacing: 0.2, textAlign: "center" }}>
+                  {card.display_name || "Il tuo nome"}
+                </div>
+                {card.title ? (
                   // @ts-expect-error web-only
-                  <img src={card.logo_base64} alt="logo" style={{ width: 88, height: 64, borderRadius: 12, objectFit: "contain", background: "#FFFFFF", border: `1px solid ${accent}`, padding: 4 }} />
+                  <div style={{ fontSize: 12, fontStyle: "italic", color: CARD_BLUE_MED, marginTop: 1, textAlign: "center" }}>{card.title}</div>
                 ) : null}
-                {/* @ts-expect-error web-only */}<div style={{ flex: 1 }}>
-                  {/* @ts-expect-error web-only */}<div style={{ fontSize: 20, fontWeight: 800, color: accent }}>{card.display_name || "Il tuo nome"}</div>
-                  {card.title ? <div style={{ fontSize: 13, color: "#475569", marginTop: 2 }}>{card.title}</div> as any : null}
-                  {card.company_name ? <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{card.company_name}</div> as any : null}
+                {/* @ts-expect-error web-only */}
+                <div style={{ width: 60, height: 1, background: CARD_BLUE_MED, marginTop: 6, marginBottom: 6, opacity: 0.5 }} />
+                {/* @ts-expect-error web-only */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                  {card.phone ? (
+                    // @ts-expect-error web-only
+                    <div style={{ fontSize: 11, color: CARD_TEXT, letterSpacing: 0.2 }}>
+                      <span style={{ color: CARD_BLUE_MED, marginRight: 4 }}>☎</span>{card.phone}
+                    </div>
+                  ) : null}
+                  {card.email ? (
+                    // @ts-expect-error web-only
+                    <div style={{ fontSize: 11, color: CARD_TEXT, letterSpacing: 0.2 }}>
+                      <span style={{ color: CARD_BLUE_MED, marginRight: 4 }}>✉</span>{card.email}
+                    </div>
+                  ) : null}
                 </div>
               </div>
-              {/* @ts-expect-error web-only */}<div style={{ padding: "0 16px 10px", display: "flex", flexDirection: "column", gap: 3 }}>
-                {card.phone ? <div style={{ fontSize: 12, color: "#334155" }}>📞 {card.phone}</div> as any : null}
-                {card.email ? <div style={{ fontSize: 12, color: "#334155" }}>✉️ {card.email}</div> as any : null}
-                {card.website ? <div style={{ fontSize: 12, color: "#334155" }}>🌐 {card.website}</div> as any : null}
-                {card.address ? <div style={{ fontSize: 12, color: "#334155" }}>📍 {card.address}</div> as any : null}
-              </div>
-              {card.tagline ? <div style={{ fontSize: 12, fontStyle: "italic", textAlign: "center", padding: "0 16px 8px", color: accent }}>{card.tagline}</div> as any : null}
-              {/* @ts-expect-error web-only QR mirrored as encoded url */}
-              <div style={{ padding: 14, borderTop: "1px solid #F1F5F9", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue || " ")}&size=130x130&color=${accent.replace("#", "")}&bgcolor=FFFFFF`}
-                  alt="qr"
-                  width={130}
-                  height={130}
-                />
-                {/* @ts-expect-error web-only */}<div style={{ fontSize: 10, color: "#64748B", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  {QR_TYPES.find((t) => t.id === (card.qr_type || "website"))?.label}
+              {/* Footer — company + website + QR */}
+              {/* @ts-expect-error web-only */}
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10, borderTop: `1px solid ${CARD_BLUE_MED}40`, paddingTop: 8, marginTop: 6 }}>
+                {/* @ts-expect-error web-only */}
+                <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+                  {card.company_name ? (
+                    // @ts-expect-error web-only
+                    <div style={{ fontSize: 12, fontWeight: 800, color: CARD_NAVY, letterSpacing: 0.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {card.company_name}
+                    </div>
+                  ) : null}
+                  {card.website ? (
+                    // @ts-expect-error web-only
+                    <div style={{ fontSize: 10, color: CARD_TEXT_MUTED, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {card.website}
+                    </div>
+                  ) : null}
+                </div>
+                {/* @ts-expect-error web-only */}
+                <div style={{ width: 62, height: 62, background: "#FFF", padding: 3, borderRadius: 4, boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue || " ")}&size=120x120&color=1A2A6C&bgcolor=FFFFFF&margin=0`}
+                    alt="qr"
+                    width={56}
+                    height={56}
+                    style={{ display: "block" }}
+                  />
                 </div>
               </div>
             </div>
           </View>
         )}
 
+        {/* SIDE INDICATOR */}
+        <View style={styles.sideRow}>
+          <Pressable testID="bc-side-front" onPress={() => setFlipped(false)} style={[styles.sideBtn, !flipped && styles.sideBtnOn]}>
+            <Text style={[styles.sideBtnTxt, !flipped && styles.sideBtnTxtOn]}>Fronte</Text>
+          </Pressable>
+          <Pressable testID="bc-side-back" onPress={() => setFlipped(true)} style={[styles.sideBtn, flipped && styles.sideBtnOn]}>
+            <Text style={[styles.sideBtnTxt, flipped && styles.sideBtnTxtOn]}>Retro</Text>
+          </Pressable>
+        </View>
+
         {/* SHARE BUTTONS */}
         <View style={styles.shareRow}>
-          <Pressable testID="bc-share-image" onPress={shareAsImage} disabled={busy} style={[styles.shareBtn, { backgroundColor: accent }]}>
+          <Pressable testID="bc-share-image" onPress={shareAsImage} disabled={busy} style={[styles.shareBtn, { backgroundColor: CARD_NAVY }]}>
             {busy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="image" size={18} color="#FFF" />}
-            <Text style={styles.shareTxt}>Condividi come immagine</Text>
+            <Text style={styles.shareTxt}>Condividi retro</Text>
           </Pressable>
           <Pressable testID="bc-share-link" onPress={shareLink} style={[styles.shareBtn, { backgroundColor: "#16A34A" }]}>
             <Ionicons name="link" size={18} color="#FFF" />
@@ -299,20 +432,20 @@ export default function BusinessCardScreen() {
 
         {/* FORM */}
         <Text style={styles.section}>Contenuti</Text>
-        <Field label="Nome" testID="bc-name" value={card.display_name || ""} onChange={upd("display_name")} />
-        <Field label="Ruolo / Qualifica" testID="bc-title" value={card.title || ""} onChange={upd("title")} />
-        <Field label="Azienda" testID="bc-company" value={card.company_name || ""} onChange={upd("company_name")} />
+        <Field label="Nome consulente" testID="bc-name" value={card.display_name || ""} onChange={upd("display_name")} />
+        <Field label="Titolo professionale (es. Consulente Energetico)" testID="bc-title" value={card.title || ""} onChange={upd("title")} />
+        <Field label="Nome agenzia" testID="bc-company" value={card.company_name || ""} onChange={upd("company_name")} />
         <Field label="Telefono" testID="bc-phone" value={card.phone || ""} onChange={upd("phone")} keyboardType="phone-pad" />
         <Field label="Email" testID="bc-email" value={card.email || ""} onChange={upd("email")} keyboardType="email-address" />
         <Field label="Sito web" testID="bc-website" value={card.website || ""} onChange={upd("website")} keyboardType="url" />
-        <Field label="Indirizzo" testID="bc-address" value={card.address || ""} onChange={upd("address")} />
-        <Field label="Tagline / Slogan" testID="bc-tagline" value={card.tagline || ""} onChange={upd("tagline")} />
+        <Field label="Indirizzo (opzionale)" testID="bc-address" value={card.address || ""} onChange={upd("address")} />
+        <Field label="Tagline / Slogan (opzionale)" testID="bc-tagline" value={card.tagline || ""} onChange={upd("tagline")} />
 
-        <Text style={styles.section}>Logo</Text>
+        <Text style={styles.section}>Logo agenzia (fronte)</Text>
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <Pressable testID="bc-pick-logo" onPress={() => pickImage("logo_base64")} style={[styles.imgBtn, { borderColor: accent }]}>
-            <Ionicons name="image" size={18} color={accent} />
-            <Text style={[styles.imgBtnTxt, { color: accent }]}>{card.logo_base64 ? "Cambia logo" : "Aggiungi logo"}</Text>
+          <Pressable testID="bc-pick-logo" onPress={() => pickImage("logo_base64")} style={[styles.imgBtn, { borderColor: CARD_NAVY }]}>
+            <Ionicons name="image" size={18} color={CARD_NAVY} />
+            <Text style={[styles.imgBtnTxt, { color: CARD_NAVY }]}>{card.logo_base64 ? "Cambia logo" : "Aggiungi logo"}</Text>
           </Pressable>
           {card.logo_base64 ? (
             <Pressable testID="bc-clear-logo" onPress={() => save({ logo_base64: "" })} style={styles.clearBtn}>
@@ -320,8 +453,11 @@ export default function BusinessCardScreen() {
             </Pressable>
           ) : null}
         </View>
+        <Text style={styles.helperTxt}>
+          Il logo appare sul <Text style={{ fontWeight: "700" }}>fronte</Text>, grande e centrato in bianco sullo sfondo navy.
+        </Text>
 
-        <Text style={styles.section}>QR Code</Text>
+        <Text style={styles.section}>QR Code (retro)</Text>
         <View style={{ gap: 6 }}>
           {QR_TYPES.map((t) => {
             const on = (card.qr_type || "website") === t.id;
@@ -330,11 +466,11 @@ export default function BusinessCardScreen() {
                 key={t.id}
                 testID={`bc-qr-type-${t.id}`}
                 onPress={() => save({ qr_type: t.id })}
-                style={[styles.radioRow, on && { borderColor: accent, backgroundColor: accent + "12" }]}
+                style={[styles.radioRow, on && { borderColor: CARD_NAVY, backgroundColor: CARD_NAVY + "12" }]}
               >
-                <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={20} color={on ? accent : theme.color.muted} />
+                <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={20} color={on ? CARD_NAVY : theme.color.muted} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.radioLbl, on && { color: accent }]}>{t.label}</Text>
+                  <Text style={[styles.radioLbl, on && { color: CARD_NAVY }]}>{t.label}</Text>
                   <Text style={styles.radioHint}>{t.hint}</Text>
                 </View>
               </Pressable>
@@ -351,14 +487,6 @@ export default function BusinessCardScreen() {
           />
         )}
 
-        <Text style={styles.section}>Colore accento</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {["#6366F1", "#0891B2", "#EA580C", "#DC2626", "#16A34A", "#7C3AED", "#DB2777", "#F59E0B"].map((c) => (
-            <Pressable key={c} testID={`bc-color-${c}`} onPress={() => save({ accent_color: c })}
-              style={[styles.swatch, { backgroundColor: c }, card.accent_color === c && styles.swatchOn]} />
-          ))}
-        </View>
-
         {/* V38V — Pagina pubblica: titolo personalizzato */}
         <Text style={styles.section}>Pagina pubblica (link condiviso)</Text>
         <Field
@@ -367,12 +495,12 @@ export default function BusinessCardScreen() {
           value={card.link_title || ""}
           onChange={upd("link_title")}
         />
-        <Text style={{ fontSize: 11, color: theme.color.muted, marginBottom: 8, fontStyle: "italic" }}>
+        <Text style={styles.helperTxt}>
           Es. &quot;Biglietto da visita digitale Emanuele Dal Pastro&quot;. Se vuoto, viene usato il tuo nome.
         </Text>
 
         {/* V38V — Effetto visivo della pagina pubblica */}
-        <Text style={styles.section}>Effetto visivo animato</Text>
+        <Text style={styles.section}>Effetto visivo pagina pubblica</Text>
         <View style={{ gap: 6 }}>
           {[
             { id: "none", label: "Nessuno", hint: "Card statica senza animazione" },
@@ -385,11 +513,11 @@ export default function BusinessCardScreen() {
                 key={e.id}
                 testID={`bc-effect-${e.id}`}
                 onPress={() => save({ visual_effect: e.id as any })}
-                style={[styles.radioRow, on && { borderColor: accent, backgroundColor: accent + "12" }]}
+                style={[styles.radioRow, on && { borderColor: CARD_NAVY, backgroundColor: CARD_NAVY + "12" }]}
               >
-                <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={20} color={on ? accent : theme.color.muted} />
+                <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={20} color={on ? CARD_NAVY : theme.color.muted} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.radioLbl, on && { color: accent }]}>{e.label}</Text>
+                  <Text style={[styles.radioLbl, on && { color: CARD_NAVY }]}>{e.label}</Text>
                   <Text style={styles.radioHint}>{e.hint}</Text>
                 </View>
               </Pressable>
@@ -418,36 +546,89 @@ function Field({ label, value, onChange, testID, keyboardType, multiline }: any)
   );
 }
 
-// Tiny wrapper for RN Image with base64 uri
-function ExpoImage({ uri }: { uri: string }) {
-  return <RNImage source={{ uri }} style={{ width: "100%", height: "100%", resizeMode: "contain" }} />;
-}
-
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.bg },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: theme.color.surface },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary },
   title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
-  preview: { borderRadius: 16, borderWidth: 2, overflow: "hidden", elevation: 3, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 8 },
-  previewBar: { height: 8 },
-  pName: { fontSize: 20, fontWeight: "800" },
-  pTitle: { fontSize: 13, color: "#475569", marginTop: 2 },
-  pCompany: { fontSize: 12, color: "#64748B", marginTop: 2 },
-  pMeta: { fontSize: 12, color: "#334155" },
-  pTagline: { fontSize: 12, fontStyle: "italic", textAlign: "center", paddingHorizontal: 16, paddingBottom: 8 },
-  qrBox: { alignItems: "center", padding: 14, borderTopWidth: 1, borderTopColor: "#F1F5F9", gap: 6 },
-  qrLabel: { fontSize: 10, color: "#64748B", textTransform: "uppercase", letterSpacing: 0.5 },
+  // Flip container
+  flipHint: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 10 },
+  flipHintTxt: { fontSize: 11, color: theme.color.muted, fontStyle: "italic" },
+  flipWrap: { alignItems: "center", justifyContent: "center" },
+  flipContainer: {
+    width: CARD_W,
+    height: CARD_H,
+    // Shadow (native)
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    // Web-only extra shadow for realism
+    ...(Platform.OS === "web" ? { boxShadow: "0 14px 30px rgba(15,23,42,0.25), 0 2px 6px rgba(15,23,42,0.10)" } as any : {}),
+  },
+  cardFace: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: 14,
+    overflow: "hidden",
+    backfaceVisibility: "hidden",
+  },
+  // ==== FRONT ====
+  stripesOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  goldBorder: {
+    position: "absolute",
+    top: 8, left: 8, right: 8, bottom: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: CARD_GOLD,
+  },
+  logoWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
+  logoImg: { width: "70%", height: "70%", tintColor: undefined },
+  logoPlaceholder: { alignItems: "center", justifyContent: "center", gap: 6, opacity: 0.7 },
+  logoPlaceholderTxt: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase" },
+  shimmerStreak: {
+    position: "absolute",
+    top: -20, left: -40,
+    width: 90, height: CARD_H + 60,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    transform: [{ rotate: "-24deg" }, { translateX: 60 }],
+  },
+  // ==== BACK ====
+  cardBack: {
+    backgroundColor: CARD_BACK_BG,
+    borderWidth: 1, borderColor: "#E5E7EB",
+    padding: 18,
+    justifyContent: "space-between",
+  },
+  backContent: { alignItems: "center", gap: 3 },
+  backName: { fontSize: 20, fontWeight: "800", color: CARD_NAVY, letterSpacing: 0.2, textAlign: "center" },
+  backTitle: { fontSize: 12, fontStyle: "italic", color: CARD_BLUE_MED, marginTop: 1, textAlign: "center" },
+  backSeparator: { width: 60, height: 1, backgroundColor: CARD_BLUE_MED, marginTop: 6, marginBottom: 6, opacity: 0.5 },
+  backContacts: { alignItems: "center", gap: 2 },
+  backContactRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  backContactTxt: { fontSize: 11, color: CARD_TEXT, letterSpacing: 0.2 },
+  backFooter: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 10, borderTopWidth: 1, borderTopColor: CARD_BLUE_MED + "40", paddingTop: 8 },
+  backCompany: { fontSize: 12, fontWeight: "800", color: CARD_NAVY, letterSpacing: 0.3 },
+  backSite: { fontSize: 10, color: CARD_TEXT_MUTED, marginTop: 1 },
+  backQr: { width: 62, height: 62, backgroundColor: "#FFF", padding: 3, borderRadius: 4 },
+  // Side toggle & share
+  sideRow: { flexDirection: "row", gap: 8, marginTop: 14, alignSelf: "center", backgroundColor: "#FFF", borderRadius: 8, padding: 3, borderWidth: 1, borderColor: theme.color.border },
+  sideBtn: { paddingHorizontal: 20, paddingVertical: 6, borderRadius: 6 },
+  sideBtnOn: { backgroundColor: CARD_NAVY },
+  sideBtnTxt: { fontSize: 12, fontWeight: "700", color: theme.color.muted },
+  sideBtnTxtOn: { color: "#FFF" },
   shareRow: { flexDirection: "row", gap: 8, marginTop: 14, marginBottom: 6 },
   shareBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 10 },
   shareTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  // Form
   section: { fontSize: 12, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 20, marginBottom: 8 },
   label: { fontSize: 12, fontWeight: "600", color: theme.color.muted, marginBottom: 4 },
-  input: { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 14, color: theme.color.onSurface },
+  input: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 14, color: theme.color.onSurface },
   imgBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderStyle: "dashed" },
   imgBtnTxt: { fontWeight: "700", fontSize: 13 },
   clearBtn: { width: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "#FEE2E2" },
-  radioRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface },
+  radioRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
   radioLbl: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
   radioHint: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
-  swatch: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: "transparent" },
-  swatchOn: { borderColor: "#0F172A" },
+  helperTxt: { fontSize: 11, color: theme.color.muted, marginTop: 6, fontStyle: "italic" },
 });

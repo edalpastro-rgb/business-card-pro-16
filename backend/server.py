@@ -590,6 +590,8 @@ class AppointmentUpdate(BaseModel):
     product_categories: Optional[List[str]] = None
     outcome_ids: Optional[List[str]] = None
     rescheduled_to: Optional[str] = None
+    # V38W — allow linking / relinking a contact from the appointment detail
+    contact_id: Optional[str] = None
 
 
 class CallbackIn(BaseModel):
