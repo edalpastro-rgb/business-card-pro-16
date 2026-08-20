@@ -6,6 +6,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
+import { apptTypeColor } from "@/app/appointment/new";
 
 type Appointment = {
   appointment_id: string; title: string; area: "energy" | "network";
@@ -110,6 +111,15 @@ export default function CalendarioScreen() {
     return "#F59E0B"; // birthday orange
   };
 
+  // V38S — Prefer the appointment_type_tags color over the area color for
+  // week/month rendering, so users can see at a glance if it's an Energy
+  // appointment, a Telefonata, a Riunione, etc.
+  const eventColor = (item: any): string => {
+    const tags = item?.appointment_type_tags || [];
+    if (Array.isArray(tags) && tags.length > 0) return apptTypeColor(tags[0]);
+    return colorFor(item?.area || "");
+  };
+
   const toggleDone = async (id: string, done: boolean) => {
     await api(`/appointments/${id}`, { method: "PUT", body: { done: !done } });
     load();
@@ -119,10 +129,13 @@ export default function CalendarioScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Calendario</Text>
-        <Pressable testID="cal-add-btn" onPress={() => router.push("/appointment/new")} style={styles.headerBtn}>
-          <Ionicons name="add" size={22} color="#FFF" />
-        </Pressable>
       </View>
+
+      {/* V38S — Long green "Aggiungi Appuntamento" button */}
+      <Pressable testID="cal-add-btn" onPress={() => router.push("/appointment/new")} style={styles.greenAddBtn}>
+        <Ionicons name="add-circle" size={20} color="#FFF" />
+        <Text style={styles.greenAddTxt}>Aggiungi Appuntamento</Text>
+      </Pressable>
 
       <View style={styles.segment}>
         {(["week", "month", "year"] as const).map((m) => (
@@ -202,6 +215,7 @@ export default function CalendarioScreen() {
               onSelectDay={(d) => { setSelectedDate(d); }}
               items={filteredItems}
               colorFor={colorFor}
+              eventColor={eventColor}
               onNavMonth={(delta) => {
                 const d = new Date(selectedDate);
                 d.setMonth(d.getMonth() + delta);
@@ -234,12 +248,12 @@ export default function CalendarioScreen() {
                   }}
                   style={styles.card}
                 >
-                  <View style={[styles.leftBar, { backgroundColor: colorFor(item.area) }]} />
+                  <View style={[styles.leftBar, { backgroundColor: eventColor(item) }]} />
                   <View style={{ flex: 1, padding: 12 }}>
                     <View style={styles.row}>
                       <Text style={styles.time}>{item.start_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
-                      {item.kind === "birthday" ? <Ionicons name="gift" size={14} color={colorFor(item.area)} /> : null}
-                      {item.is_phone ? <Ionicons name="call" size={14} color={colorFor(item.area)} /> : null}
+                      {item.kind === "birthday" ? <Ionicons name="gift" size={14} color={eventColor(item)} /> : null}
+                      {item.is_phone ? <Ionicons name="call" size={14} color={eventColor(item)} /> : null}
                     </View>
                     <Text style={[styles.apptTitle, item.done && { textDecorationLine: "line-through", color: theme.color.muted }]}>{item.title}</Text>
                     {item.location ? <Text style={styles.loc} numberOfLines={1}><Ionicons name="location-outline" size={11} color={theme.color.muted} /> {item.location}</Text> : null}
@@ -301,6 +315,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 },
   title: { fontSize: 24, fontWeight: "700", color: theme.color.onSurface },
   headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" },
+  // V38S — Long green "Aggiungi Appuntamento" button (replaces round FAB)
+  greenAddBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#16A34A", marginHorizontal: 14, marginTop: 8, paddingVertical: 12, borderRadius: 10 },
+  greenAddTxt: { color: "#FFF", fontSize: 14, fontWeight: "800" },
   daysRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 4 },
   filtersRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0 },
@@ -360,12 +377,14 @@ function MonthGrid({
   onSelectDay,
   items,
   colorFor,
+  eventColor,
   onNavMonth,
 }: {
   selectedDate: Date;
   onSelectDay: (d: Date) => void;
   items: CalItem[];
   colorFor: (area: string) => string;
+  eventColor: (it: any) => string;
   onNavMonth: (delta: number) => void;
 }) {
   const year = selectedDate.getFullYear();
@@ -408,7 +427,7 @@ function MonthGrid({
             {row.map((d, ci) => {
               const selected = d && d.toDateString() === selectedDate.toDateString();
               const dayEvents = d ? (eventsByDay[d.toDateString()] || []) : [];
-              const dots = Array.from(new Set(dayEvents.map((e) => colorFor(e.area)))).slice(0, 3);
+              const dots = Array.from(new Set(dayEvents.map((e) => eventColor(e)))).slice(0, 3);
               return (
                 <View key={ci} style={styles.monthCell}>
                   {d ? (

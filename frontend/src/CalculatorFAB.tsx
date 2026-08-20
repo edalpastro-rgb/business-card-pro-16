@@ -113,6 +113,7 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.dragHandle} />
           <View style={styles.head}>
             <View style={{ flex: 1 }}>
               <Text style={styles.headTitle}>Calcolatrice</Text>
@@ -200,8 +201,19 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 16,
-    paddingBottom: 32,
-    maxHeight: "90%",
+    paddingBottom: 20,
+    // V38S — Bottom sheet at ~60% so the analysis behind stays visible while
+    // the calculator is open. Was 90% (basically full-screen).
+    maxHeight: "62%",
+  },
+  // V38S — Drag handle at top of the calculator sheet
+  dragHandle: {
+    alignSelf: "center",
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#CBD5E1",
+    marginBottom: 8,
   },
   head: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
   headTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
@@ -209,25 +221,25 @@ const styles = StyleSheet.create({
   displayBox: {
     backgroundColor: "#F1F5F9",
     borderRadius: 12,
-    padding: 20,
+    padding: 14,
     alignItems: "flex-end",
-    marginBottom: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: theme.color.border,
   },
-  displayTxt: { fontSize: 40, fontWeight: "700", color: theme.color.onSurface },
-  pad: { gap: 8 },
-  row: { flexDirection: "row", gap: 8 },
-  rowSmall: { alignItems: "center", marginTop: 4 },
+  displayTxt: { fontSize: 34, fontWeight: "700", color: theme.color.onSurface },
+  pad: { gap: 6 },
+  row: { flexDirection: "row", gap: 6 },
+  rowSmall: { alignItems: "center", marginTop: 2 },
   key: {
     flex: 1,
-    height: 56,
-    borderRadius: 12,
+    height: 48,
+    borderRadius: 10,
     backgroundColor: "#E2E8F0",
     alignItems: "center",
     justifyContent: "center",
   },
-  keyTxt: { fontSize: 22, fontWeight: "600", color: theme.color.onSurface },
+  keyTxt: { fontSize: 20, fontWeight: "600", color: theme.color.onSurface },
   keyOp: { backgroundColor: "#F59E0B" },
   keyEq: { backgroundColor: theme.color.brandPrimary },
   keyClr: { backgroundColor: "#DC2626" },

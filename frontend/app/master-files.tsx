@@ -640,6 +640,17 @@ export default function MasterFilesScreen() {
         fileName={viewerOpen?.name || ""}
         mime={viewerOpen?.mime || ""}
         dataBase64={viewerOpen?.data_base64 || ""}
+        onShare={viewerOpen ? () => {
+          const v = viewerOpen;
+          setViewerOpen(null);
+          setShareTarget({
+            id: (items.find((f) => f.name === v.name)?.file_id) || v.name,
+            name: v.name,
+            mime: v.mime,
+            data_base64: v.data_base64,
+            masterFileId: items.find((f) => f.name === v.name)?.file_id,
+          });
+        } : undefined}
       />
 
       {/* V38R — Universal share sheet for any master file */}

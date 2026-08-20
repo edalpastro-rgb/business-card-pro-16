@@ -161,10 +161,12 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Ritelefonate di oggi</Text>
-            <Pressable testID="add-callback-btn" onPress={() => router.push("/callback/new")}>
-              <Text style={styles.linkTxt}>+ Aggiungi</Text>
-            </Pressable>
           </View>
+          {/* V38S — Long green "Aggiungi Telefonata" button */}
+          <Pressable testID="add-callback-btn" onPress={() => router.push("/callback/new")} style={styles.greenAddBtn}>
+            <Ionicons name="call" size={18} color="#FFF" />
+            <Text style={styles.greenAddTxt}>Aggiungi Telefonata</Text>
+          </Pressable>
           {callbacks.length === 0 && (
             <View style={styles.empty}><Ionicons name="call-outline" size={28} color={theme.color.muted} /><Text style={styles.emptyTxt}>Nessuna ritelefonata programmata</Text></View>
           )}
@@ -364,6 +366,9 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: theme.color.onSurface },
   linkTxt: { color: theme.color.brandPrimary, fontWeight: "600" },
+  // V38S — Long green button for "Aggiungi Telefonata"
+  greenAddBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#16A34A", paddingVertical: 12, borderRadius: 10, marginBottom: 10 },
+  greenAddTxt: { color: "#FFF", fontSize: 14, fontWeight: "800" },
   empty: { alignItems: "center", padding: 22, gap: 8, backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, borderStyle: "dashed" },
   emptyTxt: { color: theme.color.muted },
   areaBlock: { marginBottom: 8 },

@@ -39,7 +39,20 @@ type Settings = {
   custom_product_categories?: { name: string; subs?: string[] }[];
 };
 
-const DEFAULT_APPT_TYPES = ["Piano Marketing", "Energia", "Ant", "Dare seguito", "Demo prodotti"];
+const DEFAULT_APPT_TYPES = ["Energy", "Telefonata", "Personale", "Riunione", "Promemoria", "Altro"];
+// V38S — Color per appointment type (shown in calendar week/month view + on the pill)
+const APPT_TYPE_COLORS: Record<string, string> = {
+  "Energy": "#DC2626",         // rosso
+  "Telefonata": "#EA580C",     // arancione
+  "Personale": "#16A34A",      // verde
+  "Riunione": "#2563EB",       // blu
+  "Promemoria": "#F59E0B",     // giallo
+  "Altro": "#6B7280",          // grigio
+};
+export function apptTypeColor(t?: string): string {
+  if (!t) return "#6B7280";
+  return APPT_TYPE_COLORS[t] || "#8B5CF6"; // custom types → purple fallback
+}
 const DEFAULT_PRODUCT_CATS = [
   { name: "Demo prodotti", subs: ["Artistry", "Nutrilite", "Home"] },
 ];
@@ -430,6 +443,7 @@ export default function NewAppointmentScreen() {
             {allApptTypes.map((t) => {
               const active = form.appointment_type_tags.includes(t);
               const isCustom = !DEFAULT_APPT_TYPES.includes(t);
+              const c = apptTypeColor(t);
               return (
                 <Pressable
                   key={t}
@@ -442,9 +456,14 @@ export default function NewAppointmentScreen() {
                       { text: "Elimina", style: "destructive", onPress: () => deleteType(t) },
                     ]);
                   } : undefined}
-                  style={[styles.pill, { flexDirection: "row", alignItems: "center" }, active && styles.pillActive]}
+                  style={[
+                    styles.pill,
+                    { flexDirection: "row", alignItems: "center", borderColor: active ? c : "#E5E7EB" },
+                    active && { backgroundColor: c, borderColor: c },
+                  ]}
                 >
-                  <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={14} color={active ? "#FFF" : theme.color.muted} />
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: c, marginRight: 6, borderWidth: active ? 2 : 0, borderColor: "#FFF" }} />
+                  <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={14} color={active ? "#FFF" : c} />
                   <Text style={[styles.pillTxt, active && styles.pillTxtActive, { marginLeft: 4 }]}>{t}</Text>
                   {isCustom && <Ionicons name="pencil" size={10} color={active ? "#FFF" : theme.color.muted} style={{ marginLeft: 4 }} />}
                 </Pressable>

@@ -251,12 +251,14 @@ metadata:
 
 test_plan:
   current_focus:
-    - "V38R Task 1 — PDF inline viewer (Blob URL on web, no download dialog) + Calculator FAB inside viewer"
-    - "V38R Task 2 — SaveConfirmModal shown before saving fatture/analisi/report/comparison with default name = ClientName-Type-YYYY-MM-DD_HH-MM"
-    - "V38R Task 3 — Bill card layout responsive (kvVal flexShrink + wrap; consumption chart inside horizontal ScrollView)"
-    - "V38R Task 4 — Master Files: NEW tab 'Analisi' (green). Backend saves raw PDF in 'bills' + analysis HTML in 'analisi' with different sizes"
-    - "V38R Task 5 — All master files show date+time (dd/mm/YYYY · HH:MM) + Share button (universal ShareSheet) on every category"
-    - "V38R Task 6 — POST /api/master-files/{file_id}/share-link + GET /api/public/master-files/{token} (no-auth 24h signed URL for master files)"
+    - "V38S Task 1 — PDF.js viewer embedded (fixes mobile Chrome/Android download dialog)"
+    - "V38S Task 2 — Calculator as bottom sheet at ~62% height (data visible behind)"
+    - "V38S Task 3 — Removed 'I miei audio' duplicate from Master menu"
+    - "V38S Task 4 — 'Failed to fetch' friendlier error message (api.ts network try/catch)"
+    - "V38S Task 5 — Logo aziendale + agency name shown as header on ALL PDF reports (buildBillAnalysisHtml + buildReportHtml + buildComparisonHtml)"
+    - "V38S Task 6 — Long green 'Aggiungi Appuntamento' button in Calendar (replaces round FAB)"
+    - "V38S Task 7 — Long green 'Aggiungi Telefonata' button on Home + Appointment detail (Programma ritelefonata)"
+    - "V38S Task 8 — Appointment types replaced with: Energy/Telefonata/Personale/Riunione/Promemoria/Altro + colors visible in pill + calendar week/month dots"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"

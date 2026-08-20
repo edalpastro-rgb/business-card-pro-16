@@ -927,6 +927,7 @@ export default function ContactDetail() {
         mime={viewerFile?.mime || "application/octet-stream"}
         dataBase64={viewerFile?.data_base64 || ""}
         onClose={() => setViewerFile(null)}
+        onShare={viewerFile ? () => { const f = viewerFile; setViewerFile(null); shareFile(f); } : undefined}
       />
     </SafeAreaView>
   );

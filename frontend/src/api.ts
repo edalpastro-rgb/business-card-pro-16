@@ -28,14 +28,25 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
         .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
         .join("&")
     : "";
-  const res = await fetch(`${BASE}/api${path}${q}`, {
-    method: opts.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/api${path}${q}`, {
+      method: opts.method || "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+  } catch (netErr: any) {
+    // V38S — Convert the raw "TypeError: Failed to fetch" (browser) or
+    // "Network request failed" (RN) into a user-friendly Italian message.
+    const raw = String(netErr?.message || netErr || "");
+    if (/failed to fetch|network request failed|networkerror/i.test(raw)) {
+      throw new Error("Connessione al server interrotta. Verifica la rete e riprova.");
+    }
+    throw netErr;
+  }
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {

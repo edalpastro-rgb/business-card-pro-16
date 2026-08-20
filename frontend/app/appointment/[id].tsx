@@ -417,9 +417,9 @@ export default function AppointmentDetail() {
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Programma ritelefonata</Text>
             {!showCbSection ? (
-              <Pressable testID="add-callback-btn" onPress={() => setShowCbSection(true)} style={styles.linkBtn}>
-                <Ionicons name="add-circle-outline" size={18} color={theme.color.brandPrimary} />
-                <Text style={styles.linkTxt}>Aggiungi ritelefonata</Text>
+              <Pressable testID="add-callback-btn" onPress={() => setShowCbSection(true)} style={styles.greenAddBtn}>
+                <Ionicons name="call" size={18} color="#FFF" />
+                <Text style={styles.greenAddTxt}>Aggiungi Telefonata</Text>
               </Pressable>
             ) : (
               <>
@@ -761,6 +761,9 @@ const styles = StyleSheet.create({
   input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, padding: 10, fontSize: 14, color: theme.color.onSurface, marginTop: 8 },
   linkBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
   linkTxt: { color: theme.color.brandPrimary, fontWeight: "600" },
+  // V38S — Long green "Aggiungi Telefonata"
+  greenAddBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#16A34A", paddingVertical: 12, borderRadius: 10, marginTop: 6 },
+  greenAddTxt: { color: "#FFF", fontSize: 14, fontWeight: "800" },
   smallSave: { backgroundColor: theme.color.brandPrimary, padding: 10, borderRadius: theme.radius.md, alignItems: "center", marginTop: 10 },
   smallSaveTxt: { color: "#FFF", fontWeight: "700" },
   outcomesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

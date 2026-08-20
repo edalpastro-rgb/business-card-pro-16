@@ -419,6 +419,18 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
 </style>
 </head>
 <body>
+  ${(() => {
+    const agency = String(branding?.agency_name || "").trim();
+    const logo = String(branding?.logo_base64 || "").trim();
+    if (!agency && !logo) return "";
+    return `<div style="display:flex;align-items:center;gap:14px;padding:10px 0 14px;border-bottom:2px solid ${btMeta.color};margin-bottom:14px;">
+      ${logo ? `<img src="${logo}" alt="Logo" style="max-height:52px;max-width:120px;object-fit:contain;"/>` : ""}
+      <div style="flex:1;">
+        ${agency ? `<div style="font-size:16px;font-weight:800;color:#1F2937;">${escHtml(agency)}</div>` : ""}
+        <div style="font-size:11px;color:#6B7280;">Analisi Fattura ${escHtml(btMeta.label)}</div>
+      </div>
+    </div>`;
+  })()}
   <h1>📄 Analisi Fattura ${escHtml(btMeta.label)}</h1>
   <div class="subtitle"><b>Cliente:</b> ${escHtml(name)} &nbsp;·&nbsp; <b>Documento:</b> ${escHtml(bill.pdf_name)} &nbsp;·&nbsp; <b>Analizzata:</b> ${escHtml(generated)}</div>
   <div class="banner">
