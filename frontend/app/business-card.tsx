@@ -166,8 +166,8 @@ export default function BusinessCardScreen() {
           0 14px 34px rgba(15, 23, 42, 0.32),
           0 2px 6px rgba(15, 23, 42, 0.14); }
       }
-      .bc-face-web { animation: bcGoldPulse 2.6s ease-in-out infinite; position: relative; overflow: hidden; }
-      .bc-shimmer {
+      .bc-face-web, [data-bc-goldpulse="1"] { animation: bcGoldPulse 2.6s ease-in-out infinite; position: relative; overflow: hidden; }
+      .bc-shimmer, [data-bc-shimmer="1"] {
         position: absolute; top: 0; bottom: 0;
         width: 40%;
         background: linear-gradient(120deg,
@@ -189,29 +189,31 @@ export default function BusinessCardScreen() {
     try {
       if (Platform.OS === "web") {
         const doc = (globalThis as any).document;
-        const frontEl = doc?.getElementById?.(frontWebId);
-        const backEl = doc?.getElementById?.(backWebId);
+        // Capture the OUTER wrappers so gold box-shadow is included in the crop.
+        const frontEl = doc?.getElementById?.(`${frontWebId}-outer`) || doc?.getElementById?.(frontWebId);
+        const backEl = doc?.getElementById?.(`${backWebId}-outer`) || doc?.getElementById?.(backWebId);
         if (!frontEl || !backEl) { notify("Errore", "Preview non trovata"); return; }
         const mod = await import("html2canvas");
         const html2canvas = (mod as any).default || (mod as any);
-        const opts = { backgroundColor: null, scale: 3, useCORS: true, logging: false };
+        // Fix #1: WHITE background instead of null (was black in exported PNG)
+        const opts = { backgroundColor: "#ffffff", scale: 3, useCORS: true, logging: false };
         const [frontCanvas, backCanvas] = await Promise.all([
           html2canvas(frontEl, opts),
           html2canvas(backEl, opts),
         ]);
-        // Combine side-by-side into a single PNG (front on the left, back on the right)
-        const gap = 24 * 3; // scaled pixel gap
-        const pad = 20 * 3;
-        const w = frontCanvas.width + backCanvas.width + gap + pad * 2;
-        const h = Math.max(frontCanvas.height, backCanvas.height) + pad * 2;
+        // Combine side-by-side into a single PNG on WHITE background
+        const gap = 16 * 3;
+        const w = frontCanvas.width + backCanvas.width + gap;
+        const h = Math.max(frontCanvas.height, backCanvas.height);
         const combined = doc.createElement("canvas");
         combined.width = w;
         combined.height = h;
         const ctx = combined.getContext("2d");
-        // Transparent background — keeps card corners rounded on any recipient bg
-        ctx.clearRect(0, 0, w, h);
-        ctx.drawImage(frontCanvas, pad, (h - frontCanvas.height) / 2);
-        ctx.drawImage(backCanvas, pad + frontCanvas.width + gap, (h - backCanvas.height) / 2);
+        // Fix #1: explicit white background for the combined PNG
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(frontCanvas, 0, (h - frontCanvas.height) / 2);
+        ctx.drawImage(backCanvas, frontCanvas.width + gap, (h - backCanvas.height) / 2);
         const dataUri: string = combined.toDataURL("image/png");
         const fileName = `biglietto-${(card.display_name || "master").replace(/\s+/g, "-")}.png`;
         try {
@@ -288,7 +290,7 @@ export default function BusinessCardScreen() {
           onPress={() => setFlipped((f) => !f)}
           style={styles.flipWrap}
         >
-          <View style={styles.flipContainer}>
+          <View style={styles.flipContainer} dataSet={Platform.OS === "web" ? { bcGoldpulse: "1" } : undefined}>
             {/* FRONT */}
             <Animated.View
               pointerEvents={flipped ? "none" : "auto"}
@@ -331,8 +333,8 @@ export default function BusinessCardScreen() {
                   </View>
                 )}
               </View>
-              {/* Simple shimmer streak (static approximation for RN native) */}
-              <View style={styles.shimmerStreak} pointerEvents="none" />
+              {/* Simple shimmer streak (animated on web via CSS keyframes, static on native) */}
+              <View style={styles.shimmerStreak} pointerEvents="none" dataSet={Platform.OS === "web" ? { bcShimmer: "1" } : undefined} />
             </Animated.View>
 
             {/* BACK (this is what gets captured on native via captureRef) */}
@@ -381,156 +383,194 @@ export default function BusinessCardScreen() {
                 </View>
               </View>
               {/* Shimmer on back (animated on web, subtle on native) */}
-              <View style={styles.shimmerStreak} pointerEvents="none" />
+              <View style={styles.shimmerStreak} pointerEvents="none" dataSet={Platform.OS === "web" ? { bcShimmer: "1" } : undefined} />
             </Animated.View>
           </View>
         </Pressable>
 
-        {/* V38X — Hidden HTML mirrors for html2canvas on web (BOTH sides available).
-            Front + back are captured together to produce a single side-by-side share image.
-            Both sides carry gold-glow + shimmer effects; back has white gradient + navy border. */}
+        {/* V38Y — Hidden HTML mirrors for html2canvas.
+            Structure: outer wrapper (padding) → inner card (with STATIC gold box-shadow
+            + STATIC diagonal shimmer gradient, since CSS animations aren't captured).
+            Live app uses the visible RN preview with animated shimmer + gold pulse. */}
         {Platform.OS === "web" && (
-          <View style={{ position: "absolute", left: -9999, top: -9999, width: CARD_W * 2 + 80 }} pointerEvents="none">
-            {/* ===== FRONT MIRROR ===== */}
+          <View style={{ position: "absolute", left: -9999, top: -9999, width: CARD_W * 2 + 200 }} pointerEvents="none">
+            {/* ===== FRONT OUTER WRAPPER (transparent, gives room to box-shadow) ===== */}
             {/* @ts-expect-error web-only */}
-            <div id={frontWebId} className="bc-face-web" style={{
-              width: CARD_W,
-              height: CARD_H,
-              background: `linear-gradient(135deg, ${CARD_NAVY} 0%, #223A7F 55%, #1A2A6C 100%)`,
-              borderRadius: 14,
-              overflow: "hidden",
-              border: `2px solid ${CARD_NAVY}`,
-              fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif",
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "20px",
-              marginBottom: 8,
+            <div id={`${frontWebId}-outer`} style={{
+              padding: 34,
+              background: "transparent",
+              display: "inline-block",
             }}>
-              {/* Diagonal stripes overlay */}
+              {/* ===== FRONT CARD ===== */}
               {/* @ts-expect-error web-only */}
-              <div style={{
-                position: "absolute", inset: 0,
-                backgroundImage: "repeating-linear-gradient(-32deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 22px)",
-                pointerEvents: "none",
-              }} />
-              {/* Gold inner border */}
-              {/* @ts-expect-error web-only */}
-              <div style={{
-                position: "absolute", top: 8, left: 8, right: 8, bottom: 8,
-                borderRadius: 10,
-                border: `1px solid ${CARD_GOLD}`,
-                pointerEvents: "none",
-              }} />
-              {/* Logo or placeholder centered */}
-              {card.logo_base64 ? (
-                <img
-                  src={card.logo_base64}
-                  alt="logo"
-                  style={{ maxWidth: "70%", maxHeight: "70%", objectFit: "contain", position: "relative", zIndex: 1 }}
-                />
-              ) : (
-                // @ts-expect-error web-only
-                <div style={{ textAlign: "center", color: "rgba(255,255,255,0.7)", position: "relative", zIndex: 1 }}>
-                  {/* @ts-expect-error web-only */}
-                  <div style={{ fontSize: 44, lineHeight: 1 }}>🏢</div>
-                  {/* @ts-expect-error web-only */}
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 6 }}>Logo Agenzia</div>
-                </div>
-              )}
-              {/* Shimmer overlay */}
-              {/* @ts-expect-error web-only */}
-              <div className="bc-shimmer" />
+              <div id={frontWebId} style={{
+                width: CARD_W,
+                height: CARD_H,
+                background: `linear-gradient(135deg, ${CARD_NAVY} 0%, #223A7F 55%, #1A2A6C 100%)`,
+                borderRadius: 14,
+                overflow: "hidden",
+                border: `2px solid ${CARD_NAVY}`,
+                fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif",
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "20px",
+                // Fix #3: STATIC intense gold glow box-shadow (captured by html2canvas)
+                boxShadow: "0 0 0 3px rgba(212,178,106,0.85), 0 0 26px 6px rgba(240,210,130,0.75), 0 0 44px 10px rgba(212,178,106,0.35), 0 14px 30px rgba(15,23,42,0.32)",
+              }}>
+                {/* Diagonal stripes overlay */}
+                {/* @ts-expect-error web-only */}
+                <div style={{
+                  position: "absolute", inset: 0,
+                  backgroundImage: "repeating-linear-gradient(-32deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 22px)",
+                  pointerEvents: "none",
+                }} />
+                {/* Gold inner border */}
+                {/* @ts-expect-error web-only */}
+                <div style={{
+                  position: "absolute", top: 8, left: 8, right: 8, bottom: 8,
+                  borderRadius: 10,
+                  border: `1px solid ${CARD_GOLD}`,
+                  pointerEvents: "none",
+                }} />
+                {/* Fix #3: STATIC diagonal white shimmer gradient (simulates shimmer for PNG) */}
+                {/* @ts-expect-error web-only */}
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: "linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.35) 48%, rgba(255,255,255,0.55) 52%, rgba(255,255,255,0.35) 56%, rgba(255,255,255,0) 74%)",
+                  pointerEvents: "none",
+                  mixBlendMode: "screen",
+                }} />
+                {/* Fix #2: Logo — NO background, NO container, just the transparent PNG */}
+                {card.logo_base64 ? (
+                  <img
+                    src={card.logo_base64}
+                    alt="logo"
+                    style={{
+                      maxWidth: "70%",
+                      maxHeight: "70%",
+                      objectFit: "contain",
+                      position: "relative",
+                      zIndex: 2,
+                      background: "transparent",
+                      backgroundColor: "transparent",
+                      border: "none",
+                      boxShadow: "none",
+                    }}
+                  />
+                ) : (
+                  // @ts-expect-error web-only
+                  <div style={{ textAlign: "center", color: "rgba(255,255,255,0.7)", position: "relative", zIndex: 2, background: "transparent" }}>
+                    {/* @ts-expect-error web-only */}
+                    <div style={{ fontSize: 44, lineHeight: 1 }}>🏢</div>
+                    {/* @ts-expect-error web-only */}
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 6 }}>Logo Agenzia</div>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* ===== BACK MIRROR ===== */}
+            {/* ===== BACK OUTER WRAPPER ===== */}
             {/* @ts-expect-error web-only */}
-            <div id={backWebId} className="bc-face-web" style={{
-              width: CARD_W,
-              height: CARD_H,
-              // Subtle grey gradient — avoids flat white
-              background: `linear-gradient(135deg, #FFFFFF 0%, #F5F7FA 55%, #EDEFF3 100%)`,
-              borderRadius: 14,
-              overflow: "hidden",
-              // 2px navy border + diffused navy glow shadow
-              border: `2px solid ${CARD_NAVY}`,
-              fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif",
-              position: "relative",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              padding: "18px 20px",
-              color: CARD_TEXT,
+            <div id={`${backWebId}-outer`} style={{
+              padding: 34,
+              background: "transparent",
+              display: "inline-block",
             }}>
-              {/* Very light noise/texture overlay */}
+              {/* ===== BACK CARD ===== */}
               {/* @ts-expect-error web-only */}
-              <div style={{
-                position: "absolute", inset: 0,
-                backgroundImage: "repeating-linear-gradient(45deg, rgba(26,42,108,0.025) 0 1px, transparent 1px 6px)",
-                pointerEvents: "none",
-              }} />
-              {/* Header — name + title + separator + contacts */}
-              {/* @ts-expect-error web-only */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, position: "relative", zIndex: 1 }}>
+              <div id={backWebId} style={{
+                width: CARD_W,
+                height: CARD_H,
+                // Subtle grey gradient — avoids flat white
+                background: `linear-gradient(135deg, #FFFFFF 0%, #F5F7FA 55%, #EDEFF3 100%)`,
+                borderRadius: 14,
+                overflow: "hidden",
+                border: `2px solid ${CARD_NAVY}`,
+                fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif",
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                padding: "18px 20px",
+                color: CARD_TEXT,
+                // Fix #3: STATIC intense gold glow (captured by html2canvas)
+                boxShadow: "0 0 0 3px rgba(212,178,106,0.85), 0 0 26px 6px rgba(240,210,130,0.75), 0 0 44px 10px rgba(212,178,106,0.35), 0 14px 30px rgba(15,23,42,0.28)",
+              }}>
+                {/* Very light noise/texture overlay */}
                 {/* @ts-expect-error web-only */}
-                <div style={{ fontSize: 20, fontWeight: 800, color: CARD_NAVY, letterSpacing: 0.2, textAlign: "center" }}>
-                  {card.display_name || "Il tuo nome"}
+                <div style={{
+                  position: "absolute", inset: 0,
+                  backgroundImage: "repeating-linear-gradient(45deg, rgba(26,42,108,0.025) 0 1px, transparent 1px 6px)",
+                  pointerEvents: "none",
+                }} />
+                {/* Fix #3: STATIC shimmer gradient on back too */}
+                {/* @ts-expect-error web-only */}
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: "linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(230,240,255,0.55) 48%, rgba(255,255,255,0.75) 52%, rgba(230,240,255,0.55) 56%, rgba(255,255,255,0) 74%)",
+                  pointerEvents: "none",
+                }} />
+                {/* Header — name + title + separator + contacts */}
+                {/* @ts-expect-error web-only */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, position: "relative", zIndex: 1 }}>
+                  {/* @ts-expect-error web-only */}
+                  <div style={{ fontSize: 20, fontWeight: 800, color: CARD_NAVY, letterSpacing: 0.2, textAlign: "center" }}>
+                    {card.display_name || "Il tuo nome"}
+                  </div>
+                  {card.title ? (
+                    // @ts-expect-error web-only
+                    <div style={{ fontSize: 12, fontStyle: "italic", color: CARD_BLUE_MED, marginTop: 1, textAlign: "center" }}>{card.title}</div>
+                  ) : null}
+                  {/* @ts-expect-error web-only */}
+                  <div style={{ width: 60, height: 1, background: CARD_BLUE_MED, marginTop: 6, marginBottom: 6, opacity: 0.5 }} />
+                  {/* @ts-expect-error web-only */}
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                    {card.phone ? (
+                      // @ts-expect-error web-only
+                      <div style={{ fontSize: 11, color: CARD_TEXT, letterSpacing: 0.2 }}>
+                        <span style={{ color: CARD_BLUE_MED, marginRight: 4 }}>☎</span>{card.phone}
+                      </div>
+                    ) : null}
+                    {card.email ? (
+                      // @ts-expect-error web-only
+                      <div style={{ fontSize: 11, color: CARD_TEXT, letterSpacing: 0.2 }}>
+                        <span style={{ color: CARD_BLUE_MED, marginRight: 4 }}>✉</span>{card.email}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-                {card.title ? (
-                  // @ts-expect-error web-only
-                  <div style={{ fontSize: 12, fontStyle: "italic", color: CARD_BLUE_MED, marginTop: 1, textAlign: "center" }}>{card.title}</div>
-                ) : null}
+                {/* Footer — company + website + QR */}
                 {/* @ts-expect-error web-only */}
-                <div style={{ width: 60, height: 1, background: CARD_BLUE_MED, marginTop: 6, marginBottom: 6, opacity: 0.5 }} />
-                {/* @ts-expect-error web-only */}
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                  {card.phone ? (
-                    // @ts-expect-error web-only
-                    <div style={{ fontSize: 11, color: CARD_TEXT, letterSpacing: 0.2 }}>
-                      <span style={{ color: CARD_BLUE_MED, marginRight: 4 }}>☎</span>{card.phone}
-                    </div>
-                  ) : null}
-                  {card.email ? (
-                    // @ts-expect-error web-only
-                    <div style={{ fontSize: 11, color: CARD_TEXT, letterSpacing: 0.2 }}>
-                      <span style={{ color: CARD_BLUE_MED, marginRight: 4 }}>✉</span>{card.email}
-                    </div>
-                  ) : null}
+                <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10, borderTop: `1px solid ${CARD_BLUE_MED}40`, paddingTop: 8, marginTop: 6, position: "relative", zIndex: 1 }}>
+                  {/* @ts-expect-error web-only */}
+                  <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+                    {card.company_name ? (
+                      // @ts-expect-error web-only
+                      <div style={{ fontSize: 12, fontWeight: 800, color: CARD_NAVY, letterSpacing: 0.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {card.company_name}
+                      </div>
+                    ) : null}
+                    {card.website ? (
+                      // @ts-expect-error web-only
+                      <div style={{ fontSize: 10, color: CARD_TEXT_MUTED, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {card.website}
+                      </div>
+                    ) : null}
+                  </div>
+                  {/* @ts-expect-error web-only */}
+                  <div style={{ width: 62, height: 62, background: "#FFF", padding: 3, borderRadius: 4, boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue || " ")}&size=120x120&color=1A2A6C&bgcolor=FFFFFF&margin=0`}
+                      alt="qr"
+                      width={56}
+                      height={56}
+                      style={{ display: "block" }}
+                    />
+                  </div>
                 </div>
               </div>
-              {/* Footer — company + website + QR */}
-              {/* @ts-expect-error web-only */}
-              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10, borderTop: `1px solid ${CARD_BLUE_MED}40`, paddingTop: 8, marginTop: 6, position: "relative", zIndex: 1 }}>
-                {/* @ts-expect-error web-only */}
-                <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
-                  {card.company_name ? (
-                    // @ts-expect-error web-only
-                    <div style={{ fontSize: 12, fontWeight: 800, color: CARD_NAVY, letterSpacing: 0.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {card.company_name}
-                    </div>
-                  ) : null}
-                  {card.website ? (
-                    // @ts-expect-error web-only
-                    <div style={{ fontSize: 10, color: CARD_TEXT_MUTED, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {card.website}
-                    </div>
-                  ) : null}
-                </div>
-                {/* @ts-expect-error web-only */}
-                <div style={{ width: 62, height: 62, background: "#FFF", padding: 3, borderRadius: 4, boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue || " ")}&size=120x120&color=1A2A6C&bgcolor=FFFFFF&margin=0`}
-                    alt="qr"
-                    width={56}
-                    height={56}
-                    style={{ display: "block" }}
-                  />
-                </div>
-              </div>
-              {/* Shimmer overlay on back too */}
-              {/* @ts-expect-error web-only */}
-              <div className="bc-shimmer" />
             </div>
           </View>
         )}
@@ -690,13 +730,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.28,
     shadowRadius: 14,
-    // Web-only: gold-glow pulsing shadow + diffused navy shadow (bcGoldPulse animation)
+    // Web-only: gold-glow pulsing shadow + diffused navy shadow (animation via data attribute + CSS)
     ...(Platform.OS === "web" ? {
       boxShadow: "0 0 0 2px rgba(212,178,106,0.55), 0 0 22px 4px rgba(212,178,106,0.45), 0 14px 34px rgba(15,23,42,0.30), 0 2px 6px rgba(15,23,42,0.12)",
-      animationName: "bcGoldPulse",
-      animationDuration: "2.6s",
-      animationTimingFunction: "ease-in-out",
-      animationIterationCount: "infinite",
     } as any : {}),
     borderRadius: 14,
   },
@@ -727,7 +763,7 @@ const styles = StyleSheet.create({
     left: 0,
     backgroundColor: "rgba(255,255,255,0.08)",
     transform: [{ rotate: "-24deg" }, { translateX: 60 }],
-    // On web replace the static streak with an animated shimmer sweep
+    // On web replace the static streak with an animated shimmer sweep (via data attribute + CSS)
     ...(Platform.OS === "web" ? {
       width: "40%",
       height: "160%",
@@ -735,10 +771,6 @@ const styles = StyleSheet.create({
       left: 0,
       backgroundColor: "transparent",
       backgroundImage: "linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 45%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0.55) 55%, rgba(255,255,255,0) 100%)",
-      animationName: "bcShimmerMove",
-      animationDuration: "3.2s",
-      animationTimingFunction: "ease-in-out",
-      animationIterationCount: "infinite",
       transform: undefined,
       mixBlendMode: "overlay",
     } as any : {}),

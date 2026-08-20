@@ -1,0 +1,21 @@
+{
+  "summary": "V61 follow-up: verified all 3 business-card fixes on /business-card (Platform web). Fix #1 (white PNG bg): ALL 4 corners + center-gap of exported PNG = (255,255,255) pure white. Fix #2 (logo without box): computed styles of front logo <img> confirm background rgba(0,0,0,0), background-image none, border-top 0px, box-shadow none. Fix #3 (static gold glow + shimmer): both #bc-front-web and #bc-back-web have computed box-shadow containing rgba(212,178,106,0.85) 0px 0px 0px 3px + rgba(240,210,130,0.75) 0px 0px 26px 6px + rgba(212,178,106,0.35) 0px 0px 44px 10px; both mirrors contain a shimmer overlay div with linear-gradient(120deg, rgba(255,255,255,0) 30% -> rgba(255,255,255,0.55) 52% -> rgba(255,255,255,0) 74%). Pixel scan of exported PNG (5328x918) found 653 gold-ish pixels confirming the box-shadow was captured. Outer wrappers bc-front-web-outer / bc-back-web-outer both exist with padding 34px and transparent background. Non-regression: bc-share-image produced ONE single PNG containing fronte+retro side-by-side (5328x918 = 2*card + gap at 3x scale); live RN preview still renders on the screen with front-face shimmer visible; bc-save icon is present in the header; bc-side-front/back segmented toggle works. Test credentials from /app/memory/test_credentials.md used successfully.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_62.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Pre-existing (not part of this fix) console warnings: 'Invalid style property of animationName. Did you mean animationKeyframes?' emitted from styles.flipContainer & styles.shimmerStreak — these fields set animationName which react-native-web wants as animationKeyframes. Not a regression from V61 fixes, but worth cleaning up as it may cause the gold-pulse and shimmer-move CSS animations to not run via the RN StyleSheet path (they still run via the manually-injected .bc-face-web / .bc-shimmer classes and bc-anim-css keyframes if those classes are applied — currently they are not applied to any element after V61 removed bc-face-web/bc-shimmer classes from the mirrors, and the visible RN preview uses styles.flipContainer's animationName which is being rejected). Net effect: the live web preview still shows a static-looking card because both animation paths are broken. This does NOT affect the shared PNG (which is the user's stated priority and is now correct with static gold + shimmer)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "seed_data_creation": "None. Used existing owner account test@dalpastro.it and filled 6 form fields on business-card screen.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Business-card V62 fixes verified end-to-end via DOM computed styles + downloaded PNG pixel sampling. All three targeted fixes work as specified. The live web preview animations (bcGoldPulse / bcShimmerMove) are not currently visible on-screen due to a pre-existing react-native-web animationName-vs-animationKeyframes incompatibility in styles.flipContainer & styles.shimmerStreak, but this is independent of the V62 export-PNG fixes and does not affect the exported PNG which now correctly shows static gold glow + shimmer + white background + no logo box."
+}
