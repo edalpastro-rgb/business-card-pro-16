@@ -1,0 +1,39 @@
+{
+  "summary": "V38U testing (iter 54): 5 features validated. Backend 10/10 pytest pass — PUT /api/auth/profile persists report_slogan+report_contacts, GET /api/auth/me returns them (wrapped under 'user'). POST /api/bill-drafts accepts analysis_params with __verifica_* markers and persists them (returns HTTP 200, not 201 as spec states — see note). LLM helper _llm_analyze_bill_text correctly splits fiscal_directives vs display_params so the __verifica_* markers never reach the display prompt (contract-verified via source). Regression: login, /contacts, /bill-drafts CRUD, /master-files, /master/business-card all OK. Frontend UI (mobile 390x844): (1) contact/[id] Comunica-con section shows 'Web' button (testID `comm-web`, bg #0EA5E9 rgb(14,165,233)) — verified with seeded TEST contact having website=https://example.com; (2) favicon auto-loads via `google.com/s2/favicons?domain=example.com&sz=128` when contact has no avatar; (3) sito web field is Pressable with external-link icon; (4) impostazioni.tsx: branding-slogan-input (maxLength 140) + branding-contacts-input (maxLength 240 multiline) present and fillable, no console errors after debounced save; (5) business-card.tsx: bc-share-image + bc-pick-logo present, clicking bc-share-image does NOT throw `expo-file-system.readAsStringAsync is not available on web` (html2canvas fallback works); (6) bill-quick.tsx code review: fiscal-iva-10/22, fiscal-accise-gas (gas only), fiscal-pcv (luce only) all wired correctly to fiscalCheck state and passed to POST /bill-drafts as `__verifica_*` markers via paramLabels. BillsSection.tsx DEFAULT_PARAMS confirmed NO longer contains 'iva' entry (removed for luce+gas). Regression frontend: /home Aggiungi Telefonata, /calendario Aggiungi Appuntamento, /master (9-button grid), Neo assistant FAB+chat all working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/bill-drafts", "issue": "Task spec says '→ 201 creato' but endpoint returns HTTP 200 (FastAPI default). Not a functional bug but doesn't match spec verbatim. If 201 is required, add status_code=201 to the decorator."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38u_web_fiscal_branding.py",
+    "/app/test_reports/pytest/v38u_results.xml"
+  ],
+  "action_items": [
+    "Optional: add status_code=201 to POST /api/bill-drafts if spec compliance is required (currently returns 200 which is functionally fine).",
+    "Consider testing fiscal-check modal end-to-end with a real PDF upload — Playwright can't easily drive expo-document-picker on web. Backend + UI code paths verified separately."
+  ],
+  "critical_code_review_comments": [
+    "server.py line 3374-3405: fiscal_directives correctly filtered from display_params so __verifica_* markers never appear in PARAMETRI PRIORITARI section of system prompt — good.",
+    "contact/[id].tsx line 348: favicon URL uses encodeURIComponent + strips protocol/path — robust.",
+    "bill-quick.tsx line 502: testID={`fiscal-iva-${v}`} dynamically produces fiscal-iva-10 and fiscal-iva-22 as required.",
+    "BillsSection.tsx DEFAULT_PARAMS confirmed no 'iva' key for luce/gas (only appears at line 2344 which is an unrelated form key). Task 3 complete.",
+    "business-card.tsx uses html2canvas (installed@1.4.1) with Web Share API + download fallback, no expo-file-system readAsStringAsync on web path."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v38u_web_fiscal_branding.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Created TESTUI WebLink contact with website=https://example.com via API during test, deleted afterwards.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All V38U flows verified. Backend test file test_v38u_web_fiscal_branding.py can be reused for regression. Frontend UI verified through DOM inspection for testIDs comm-web, branding-slogan-input, branding-contacts-input, bc-share-image, bc-pick-logo, plus favicon Google API integration. Fiscal-check modal (fiscal-iva-10/22, fiscal-accise-gas, fiscal-pcv) verified via source inspection since it only opens after a real PDF file is selected in DocumentPicker (Playwright can't drive expo-document-picker easily on web).",
+  "rca_of_issue": "N/A — no bugs identified. Only a minor spec/impl discrepancy: POST /bill-drafts returns 200 vs spec-suggested 201."
+}

@@ -63,7 +63,6 @@ export const DEFAULT_PARAMS: Record<BillType, ParamDef[]> = {
     { id: "potenza", label: "Potenza impegnata (kW)", defaultOn: true },
     { id: "tensione", label: "Tensione", defaultOn: false },
     { id: "costi_fissi", label: "Costi fissi mensili", defaultOn: true },
-    { id: "iva", label: "IVA %", defaultOn: false },
     { id: "asos", label: "Oneri ASOS/ARIM", defaultOn: true },
     { id: "durata_contratto", label: "Durata contratto", defaultOn: true },
     { id: "penale_disdetta", label: "Penale disdetta", defaultOn: true },
@@ -78,7 +77,6 @@ export const DEFAULT_PARAMS: Record<BillType, ParamDef[]> = {
     { id: "consumo_annuo_smc", label: "Consumo annuo SMC", defaultOn: true },
     { id: "accisa", label: "Accisa €/SMC", defaultOn: true },
     { id: "costi_fissi", label: "Costi fissi mensili", defaultOn: true },
-    { id: "iva", label: "IVA %", defaultOn: false },
     { id: "durata_contratto", label: "Durata contratto", defaultOn: true },
     { id: "penale_disdetta", label: "Penale disdetta", defaultOn: true },
     { id: "scadenza", label: "Data scadenza", defaultOn: true },
@@ -133,8 +131,8 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   const [contactFilesPicker, setContactFilesPicker] = useState<null | { bill_type: BillType }>(null);
   const [contactPdfFiles, setContactPdfFiles] = useState<any[]>([]);
   const [loadingContactFiles, setLoadingContactFiles] = useState(false);
-  // V38I — Branding (logo + agency name) applied to generated PDFs
-  const [branding, setBranding] = useState<{ agency_name: string; logo_base64: string }>({ agency_name: "", logo_base64: "" });
+  // V38I — Branding (logo + agency name + V38U slogan/contacts) for PDFs
+  const [branding, setBranding] = useState<{ agency_name: string; logo_base64: string; slogan: string; contacts: string }>({ agency_name: "", logo_base64: "", slogan: "", contacts: "" });
   // V38R — Save-confirm modal state (name confirmation before writing to files)
   const [saveConfirm, setSaveConfirm] = useState<null | {
     kind: "bill-analysis" | "report" | "comparison";
@@ -153,6 +151,8 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         setBranding({
           agency_name: String(u.company_name || u.name || "").trim(),
           logo_base64: String(u.company_logo_base64 || "").trim(),
+          slogan: String(u.report_slogan || "").trim(),
+          contacts: String(u.report_contacts || "").trim(),
         });
       })
       .catch(() => {});
@@ -422,12 +422,16 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   ${(() => {
     const agency = String(branding?.agency_name || "").trim();
     const logo = String(branding?.logo_base64 || "").trim();
-    if (!agency && !logo) return "";
+    const slogan = String((branding as any)?.slogan || "").trim();
+    const contacts = String((branding as any)?.contacts || "").trim();
+    if (!agency && !logo && !slogan && !contacts) return "";
     return `<div style="display:flex;align-items:center;gap:14px;padding:10px 0 14px;border-bottom:2px solid ${btMeta.color};margin-bottom:14px;">
-      ${logo ? `<img src="${logo}" alt="Logo" style="max-height:52px;max-width:120px;object-fit:contain;"/>` : ""}
+      ${logo ? `<img src="${logo}" alt="Logo" style="max-height:64px;max-width:140px;object-fit:contain;"/>` : ""}
       <div style="flex:1;">
         ${agency ? `<div style="font-size:16px;font-weight:800;color:#1F2937;">${escHtml(agency)}</div>` : ""}
-        <div style="font-size:11px;color:#6B7280;">Analisi Fattura ${escHtml(btMeta.label)}</div>
+        ${slogan ? `<div style="font-size:11px;font-style:italic;color:#4B5563;margin-top:2px;">${escHtml(slogan)}</div>` : ""}
+        ${contacts ? `<div style="font-size:10px;color:#6B7280;margin-top:4px;">${escHtml(contacts)}</div>` : ""}
+        <div style="font-size:10px;color:#9CA3AF;margin-top:4px;">Analisi Fattura ${escHtml(btMeta.label)}</div>
       </div>
     </div>`;
   })()}
@@ -1017,8 +1021,13 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
 
                         {b.status === "done" && (
                           <View style={styles.dataBox}>
+                            {/* V38U — Fiscal-check block (rendered above extracted data) */}
+                            {ex.fiscal_check && typeof ex.fiscal_check === "object" && (
+                              <FiscalCheckBanner check={ex.fiscal_check as any} billType={b.bill_type} />
+                            )}
                             {Object.entries(ex).map(([k, v]) => {
                               if (v === null || v === undefined || v === "") return null;
+                              if (k === "fiscal_check") return null; // rendered by banner
                               // V38P — delegate to shared BillFieldRow which
                               // renders consumi_mensili (top-level OR nested
                               // inside parametri_richiesti) as a bar chart,
@@ -1638,7 +1647,7 @@ function renderExtractedTable(ex: Record<string, any>, sectionColor = "#6366F1")
   return `${tableHtml}${chartHtml}${notesHtml}`;
 }
 
-function buildReportHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string }): string {
+function buildReportHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string; slogan?: string; contacts?: string }): string {
   const c = rep?.contact || {};
   const name = contactName || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Cliente";
   const generated = new Date(rep?.generated_at || Date.now()).toLocaleString("it-IT");
@@ -1646,12 +1655,16 @@ function buildReportHtml(rep: any, contactName?: string, branding?: { agency_nam
   const grouped = rep?.grouped || {};
   const agency = String(branding?.agency_name || "").trim();
   const logo = String(branding?.logo_base64 || "").trim();
-  const brandingHeader = (agency || logo) ? `
+  const slogan = String((branding as any)?.slogan || "").trim();
+  const contacts = String((branding as any)?.contacts || "").trim();
+  const brandingHeader = (agency || logo || slogan || contacts) ? `
     <div style="display:flex;align-items:center;gap:14px;padding:10px 0 14px;border-bottom:2px solid #6366F1;margin-bottom:16px;">
-      ${logo ? `<img src="${logo}" alt="Logo" style="max-height:52px;max-width:120px;object-fit:contain;"/>` : ""}
+      ${logo ? `<img src="${logo}" alt="Logo" style="max-height:64px;max-width:140px;object-fit:contain;"/>` : ""}
       <div style="flex:1;">
         ${agency ? `<div style="font-size:16px;font-weight:800;color:#1F2937;">${esc(agency)}</div>` : ""}
-        <div style="font-size:11px;color:#6B7280;">Report Fatture Energia · Consulenza Personalizzata</div>
+        ${slogan ? `<div style="font-size:11px;font-style:italic;color:#4B5563;margin-top:2px;">${esc(slogan)}</div>` : ""}
+        ${contacts ? `<div style="font-size:10px;color:#6B7280;margin-top:4px;">${esc(contacts)}</div>` : ""}
+        <div style="font-size:10px;color:#9CA3AF;margin-top:4px;">Report Fatture Energia · Consulenza Personalizzata</div>
       </div>
     </div>` : "";
   const sections: { key: "luce" | "gas" | "telco"; label: string; color: string; emoji: string }[] = [
@@ -1781,12 +1794,14 @@ function slideClose(footer?: string): string {
   </section>`;
 }
 
-function slideCover(name: string, contactCode: string, presenter: string, dateStr: string, totalSaving: number, items: number, logoData?: string): string {
+function slideCover(name: string, contactCode: string, presenter: string, dateStr: string, totalSaving: number, items: number, logoData?: string, slogan?: string, contacts?: string): string {
   const logoHtml = logoData && logoData.trim().length > 0
     ? `<div style="position:absolute;top:20mm;right:20mm;background:#FFFFFFDD;padding:10px 14px;border-radius:12px;box-shadow:0 2px 8px rgba(30,58,95,0.15);z-index:5;">
-        <img src="${logoData}" alt="Logo" style="max-height:60px;max-width:160px;object-fit:contain;display:block;"/>
+        <img src="${logoData}" alt="Logo" style="max-height:70px;max-width:180px;object-fit:contain;display:block;"/>
       </div>`
     : "";
+  const sloganTxt = slogan ? `<div class="cover-slogan" style="font-style:italic;color:#F0F4F8;margin-top:8px;font-size:12px;">${esc(slogan)}</div>` : "";
+  const contactsTxt = contacts ? `<div class="cover-contacts" style="color:#F0F4F8;margin-top:6px;font-size:11px;opacity:0.85;">${esc(contacts)}</div>` : "";
   return `<section class="slide slide-cover">
     <div class="cover-deco"></div>
     ${logoHtml}
@@ -1798,6 +1813,8 @@ function slideCover(name: string, contactCode: string, presenter: string, dateSt
         <div>Data: ${esc(dateStr)}</div>
         <div>Presentato da: ${esc(presenter)}</div>
       </div>
+      ${sloganTxt}
+      ${contactsTxt}
       ${totalSaving > 0 ? `<div class="cover-saving-band">
         <span class="cover-saving-label">Risparmio annuo totale stimato</span>
         <span class="cover-saving-value">€ ${esc(Math.round(totalSaving).toLocaleString("it-IT"))}</span>
@@ -2108,7 +2125,7 @@ function slideExecutive(es: any, cmp: any, name: string): string {
 function kvGridHtml(_rows: { k: string; v: any; hi?: boolean }[]): string { void _rows; return ""; }
 function comparisonMatrixHtml(_rows: { parametro?: string; attuale?: string; proposta?: string; delta?: string; vantaggio?: string }[]): string { void _rows; return ""; }
 
-function buildComparisonHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string }): string {
+function buildComparisonHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string; slogan?: string; contacts?: string }): string {
   const c = rep?.contact || {};
   const name = contactName || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Cliente";
   const items = Array.isArray(rep?.items) ? rep.items : [];
@@ -2118,9 +2135,11 @@ function buildComparisonHtml(rep: any, contactName?: string, branding?: { agency
   const dateStr = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
   const agencyName = String(branding?.agency_name || "").trim();
   const logoData = String(branding?.logo_base64 || "").trim();
+  const slogan = String(branding?.slogan || "").trim();
+  const contacts = String(branding?.contacts || "").trim();
   const presenter = agencyName || "Dal Pastro CRM · Consulenza Energetica";
 
-  const cover = slideCover(name, c.contact_code || "", presenter, dateStr, totalSaving, items.length, logoData);
+  const cover = slideCover(name, c.contact_code || "", presenter, dateStr, totalSaving, items.length, logoData, slogan, contacts);
 
   const perItemSlides = items.map((it: any) => {
     const cmp = it.comparison || {};
@@ -2313,6 +2332,98 @@ ${cover}
 ${perItemSlides || `<section class="slide"><div class="slide-inner"><h2 class="slide-title">Nessun confronto disponibile</h2><p>Carica almeno una fattura cliente e un'offerta aziendale dello stesso tipo, poi rigenera il report.</p></div></section>`}
 </body></html>`;
 }
+
+
+// V38U — Fiscal-check verification banner
+type FiscalRow = { expected?: number | null; actual?: number | null; ok?: boolean; delta_annual_eur?: number | null };
+function FiscalCheckBanner({ check, billType }: { check: { iva?: FiscalRow; accise_gas?: FiscalRow; pcv?: FiscalRow }; billType: BillType }) {
+  const rows: { key: string; label: string; expected: string; actual: string; ok: boolean; delta?: number | null; visible: boolean }[] = [];
+  const fmtNum = (n: any, digits = 2) => (typeof n === "number" && isFinite(n)) ? n.toLocaleString("it-IT", { minimumFractionDigits: digits, maximumFractionDigits: digits }) : "—";
+  if (check.iva) {
+    rows.push({
+      key: "iva",
+      label: "IVA",
+      expected: `${fmtNum(check.iva.expected, 0)} %`,
+      actual: `${fmtNum(check.iva.actual, 0)} %`,
+      ok: !!check.iva.ok,
+      delta: typeof check.iva.delta_annual_eur === "number" ? check.iva.delta_annual_eur : null,
+      visible: true,
+    });
+  }
+  if (check.accise_gas && billType === "gas") {
+    rows.push({
+      key: "accise_gas",
+      label: "Accise gas €/Smc",
+      expected: fmtNum(check.accise_gas.expected, 6),
+      actual: fmtNum(check.accise_gas.actual, 6),
+      ok: !!check.accise_gas.ok,
+      delta: typeof check.accise_gas.delta_annual_eur === "number" ? check.accise_gas.delta_annual_eur : null,
+      visible: true,
+    });
+  }
+  if (check.pcv && billType === "luce") {
+    rows.push({
+      key: "pcv",
+      label: "PCV / Costi fissi €/mese",
+      expected: fmtNum(check.pcv.expected, 2),
+      actual: fmtNum(check.pcv.actual, 2),
+      ok: !!check.pcv.ok,
+      delta: typeof check.pcv.delta_annual_eur === "number" ? check.pcv.delta_annual_eur : null,
+      visible: true,
+    });
+  }
+  if (rows.length === 0) return null;
+  const totalDelta = rows.reduce((s, r) => s + (r.delta || 0), 0);
+  const allOk = rows.every((r) => r.ok);
+  return (
+    <View style={[fcStyles.wrap, allOk ? fcStyles.wrapOk : fcStyles.wrapBad]}>
+      <View style={fcStyles.head}>
+        <Ionicons name={allOk ? "shield-checkmark" : "warning"} size={16} color={allOk ? "#059669" : "#DC2626"} />
+        <Text style={[fcStyles.title, { color: allOk ? "#065F46" : "#991B1B" }]}>
+          {allOk ? "Agevolazioni fiscali applicate correttamente" : "Anomalie fiscali rilevate"}
+        </Text>
+      </View>
+      {rows.map((r) => (
+        <View key={r.key} style={[fcStyles.row, !r.ok && fcStyles.rowBad]}>
+          <View style={{ flex: 1 }}>
+            <Text style={fcStyles.label}>{r.label}</Text>
+            <Text style={fcStyles.sub}>Atteso: {r.expected} · Rilevato: <Text style={{ fontWeight: "700", color: r.ok ? "#065F46" : "#DC2626" }}>{r.actual}</Text></Text>
+          </View>
+          {!r.ok && typeof r.delta === "number" && (
+            <View style={fcStyles.deltaBox}>
+              <Text style={fcStyles.deltaLbl}>Extra 12 mesi</Text>
+              <Text style={fcStyles.deltaVal}>+ € {r.delta.toLocaleString("it-IT", { maximumFractionDigits: 0 })}</Text>
+            </View>
+          )}
+        </View>
+      ))}
+      {!allOk && totalDelta > 0 && (
+        <View style={fcStyles.totalBox}>
+          <Ionicons name="cash" size={16} color="#DC2626" />
+          <Text style={fcStyles.totalTxt}>Speso in più negli ultimi 12 mesi: <Text style={{ fontWeight: "900" }}>€ {totalDelta.toLocaleString("it-IT", { maximumFractionDigits: 0 })}</Text></Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const fcStyles = StyleSheet.create({
+  wrap: { marginBottom: 10, padding: 10, borderRadius: 10, borderWidth: 1 },
+  wrapOk: { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" },
+  wrapBad: { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" },
+  head: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  title: { fontSize: 12, fontWeight: "800", flex: 1 },
+  row: { flexDirection: "row", alignItems: "center", paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#E5E7EB", gap: 8 },
+  rowBad: { backgroundColor: "#FEE2E2", marginHorizontal: -10, paddingHorizontal: 10, borderRadius: 6 },
+  label: { fontSize: 12, fontWeight: "700", color: "#1F2937" },
+  sub: { fontSize: 10, color: "#6B7280", marginTop: 2 },
+  deltaBox: { alignItems: "flex-end" },
+  deltaLbl: { fontSize: 9, color: "#991B1B", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4 },
+  deltaVal: { fontSize: 13, fontWeight: "900", color: "#DC2626" },
+  totalBox: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, padding: 8, backgroundColor: "#FEE2E2", borderRadius: 6 },
+  totalTxt: { fontSize: 12, color: "#7F1D1D", flex: 1 },
+});
+
 
 const styles = StyleSheet.create({
   introCard: {

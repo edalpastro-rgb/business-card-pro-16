@@ -341,6 +341,13 @@ export default function ContactDetail() {
           >
             {c.avatar_base64 ? (
               <Image source={{ uri: c.avatar_base64 }} style={styles.avatarImgCompact} />
+            ) : c.website ? (
+              // V38U — Auto-load favicon via Google Favicon API when a website
+              // is present and no explicit avatar has been set yet.
+              <Image
+                source={{ uri: `https://www.google.com/s2/favicons?domain=${encodeURIComponent(c.website.replace(/^https?:\/\//, "").split("/")[0])}&sz=128` }}
+                style={styles.avatarImgCompact}
+              />
             ) : (
               <View style={styles.avatarCompact}>
                 <Text style={styles.avatarTxtCompact}>{c.first_name[0]?.toUpperCase()}{c.last_name[0]?.toUpperCase()}</Text>
@@ -564,6 +571,19 @@ export default function ContactDetail() {
                     <Ionicons name="logo-facebook" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Facebook</Text>
                   </Pressable>
                 ) : null}
+                {c.website ? (
+                  <Pressable
+                    testID="comm-web"
+                    onPress={() => {
+                      const u = c.website!.trim();
+                      const full = u.startsWith("http://") || u.startsWith("https://") ? u : `https://${u}`;
+                      Linking.openURL(full);
+                    }}
+                    style={[styles.commBtn, { backgroundColor: "#0EA5E9" }]}
+                  >
+                    <Ionicons name="globe" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Web</Text>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
 
@@ -670,7 +690,7 @@ export default function ContactDetail() {
             ))}
             {c.fiscal_code ? <InfoRow icon="card-outline" label="Codice Fiscale" value={c.fiscal_code} /> : null}
             {c.vat_number ? <InfoRow icon="business-outline" label="Partita IVA" value={c.vat_number} /> : null}
-            {c.website ? <InfoRow icon="globe-outline" label="Sito web" value={c.website} /> : null}
+            {c.website ? <InfoRow icon="globe-outline" label="Sito web" value={c.website} href={c.website.startsWith("http") ? c.website : `https://${c.website}`} /> : null}
             {c.linkedin ? <InfoRow icon="logo-linkedin" label="LinkedIn" value={c.linkedin} /> : null}
             {c.instagram ? <InfoRow icon="logo-instagram" label="Instagram" value={c.instagram} /> : null}
             {c.facebook ? <InfoRow icon="logo-facebook" label="Facebook" value={c.facebook} /> : null}
@@ -933,16 +953,26 @@ export default function ContactDetail() {
   );
 }
 
-function InfoRow({ icon, label, value }: { icon: any; label: string; value: string }) {
-  return (
+function InfoRow({ icon, label, value, href }: { icon: any; label: string; value: string; href?: string }) {
+  const clickable = !!href;
+  const content = (
     <View style={styles.infoRow}>
-      <Ionicons name={icon} size={18} color={theme.color.brandPrimary} />
+      <Ionicons name={icon} size={18} color={clickable ? "#0EA5E9" : theme.color.brandPrimary} />
       <View style={{ flex: 1 }}>
         <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{value}</Text>
+        <Text style={[styles.infoValue, clickable && { color: "#0EA5E9", textDecorationLine: "underline" }]}>{value}</Text>
       </View>
+      {clickable ? <Ionicons name="open-outline" size={16} color="#0EA5E9" /> : null}
     </View>
   );
+  if (clickable && href) {
+    return (
+      <Pressable onPress={() => Linking.openURL(href)} testID={`info-open-${label.toLowerCase().replace(/\s/g, "-")}`}>
+        {content}
+      </Pressable>
+    );
+  }
+  return content;
 }
 
 const styles = StyleSheet.create({

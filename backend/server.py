@@ -207,6 +207,9 @@ class UserOut(BaseModel):
     # V38I — Report branding
     company_name: Optional[str] = None
     company_logo_base64: Optional[str] = None
+    # V38U — Report header extras (slogan + contacts printed as header)
+    report_slogan: Optional[str] = None
+    report_contacts: Optional[str] = None
 
 
 class TeamInviteInput(BaseModel):
@@ -523,6 +526,9 @@ class ProfileUpdate(BaseModel):
     # V38I — Report branding
     company_name: Optional[str] = None
     company_logo_base64: Optional[str] = None
+    # V38U — Report header extras
+    report_slogan: Optional[str] = None
+    report_contacts: Optional[str] = None
 
 
 class AppointmentIn(BaseModel):
@@ -3365,14 +3371,58 @@ async def _llm_analyze_bill_text(bill_type: str, text: str, analysis_params: Opt
         "telco": BILL_SYSTEM_PROMPT_TELCO,
     }.get(bill_type, BILL_SYSTEM_PROMPT_LUCE)
     # V38: if user selected specific parameters to focus on, append them to the system prompt
+    fiscal_directives: List[str] = []
+    display_params: List[str] = []
     if analysis_params:
-        clean = [str(p).strip() for p in analysis_params if str(p).strip()]
-        if clean:
-            focus = ", ".join(clean[:40])
-            system = system + (
-                f"\n\nPARAMETRI PRIORITARI RICHIESTI DALL'UTENTE (assicurati di estrarli se presenti): {focus}."
-                f"\nSe uno dei parametri richiesti non ha corrispondenza diretta nello schema, includilo in un oggetto 'parametri_richiesti' con chiave = nome parametro e valore = valore trovato (o 'N.D.' se non rilevabile)."
-            )
+        for p in analysis_params:
+            s = str(p).strip()
+            if not s:
+                continue
+            if s.startswith("__verifica_"):
+                fiscal_directives.append(s)
+            else:
+                display_params.append(s)
+    if display_params:
+        focus = ", ".join(display_params[:40])
+        system = system + (
+            f"\n\nPARAMETRI PRIORITARI RICHIESTI DALL'UTENTE (assicurati di estrarli se presenti): {focus}."
+            f"\nSe uno dei parametri richiesti non ha corrispondenza diretta nello schema, includilo in un oggetto 'parametri_richiesti' con chiave = nome parametro e valore = valore trovato (o 'N.D.' se non rilevabile)."
+        )
+    # V38U — Fiscal-check directives → the LLM must extract the *actual* values
+    # and flag them in a `fiscal_check` object we render red in the UI.
+    if fiscal_directives:
+        expected_iva = None
+        expected_accise = None
+        require_pcv_zero = False
+        for d in fiscal_directives:
+            if d.startswith("__verifica_iva__="):
+                try: expected_iva = float(d.split("=", 1)[1])
+                except Exception: pass
+            elif d.startswith("__verifica_accise_gas__="):
+                try: expected_accise = float(d.split("=", 1)[1])
+                except Exception: pass
+            elif d.startswith("__verifica_pcv_annullato__="):
+                require_pcv_zero = True
+        directive_txt = "\n\nVERIFICA AGEVOLAZIONI FISCALI (obbligatorio se presente nella fattura):\n"
+        directive_txt += (
+            "Includi nella risposta un oggetto `fiscal_check` con la seguente struttura:\n"
+            "{\n"
+            "  \"iva\": { \"expected\": <expected|null>, \"actual\": <numero>, \"ok\": <bool>, \"delta_annual_eur\": <numero|null> },\n"
+            "  \"accise_gas\": { \"expected\": <expected|null>, \"actual\": <numero>, \"ok\": <bool>, \"delta_annual_eur\": <numero|null> },\n"
+            "  \"pcv\": { \"expected\": <0|null>, \"actual\": <numero>, \"ok\": <bool>, \"delta_annual_eur\": <numero|null> }\n"
+            "}\n"
+            "Regole:\n"
+            "- `ok` = true se `actual` corrisponde all'expected entro 5% di tolleranza.\n"
+            "- `delta_annual_eur` = quanto ha speso in più il cliente su 12 mesi rispetto al valore corretto. Se non calcolabile usa null.\n"
+            "- Ometti le chiavi non richieste.\n"
+        )
+        if expected_iva is not None:
+            directive_txt += f"- IVA attesa: {expected_iva}%. Confronta con l'aliquota IVA effettivamente applicata sulla fattura. delta_annual_eur = (aliquota_effettiva - {expected_iva})/100 * imponibile_annuo_stimato.\n"
+        if expected_accise is not None:
+            directive_txt += f"- Accise gas attese: {expected_accise:.6f} €/Smc. Confronta con l'importo unitario delle accise sul gas riportato in fattura. delta_annual_eur = (accise_effettive - {expected_accise:.6f}) * consumo_annuo_smc_stimato.\n"
+        if require_pcv_zero:
+            directive_txt += "- PCV / costi fissi mensili attesi: 0 (annullato nel contratto). Se in fattura risulta un PCV / costi fissi > 0, ok=false. delta_annual_eur = PCV_effettivo * 12.\n"
+        system = system + directive_txt
     chat = LlmChat(
         api_key=key,
         session_id=f"bill-{bill_type}-{uuid.uuid4().hex[:8]}",

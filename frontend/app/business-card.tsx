@@ -73,13 +73,31 @@ export default function BusinessCardScreen() {
   const pickImage = async (field: "logo_base64" | "photo_base64") => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return;
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, allowsEditing: true });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, allowsEditing: true, base64: Platform.OS === "web" });
     if (res.canceled || !res.assets?.[0]?.uri) return;
     setBusy(true);
     try {
       const a = res.assets[0];
-      const b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 });
-      const dataUri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
+      let dataUri: string;
+      if (Platform.OS === "web") {
+        // V38U — Web fix: expo-file-system.readAsStringAsync is unavailable
+        // on web. Prefer the `base64` field from ImagePicker; if missing,
+        // fetch the object URL and use FileReader to convert to data URI.
+        if (a.base64) {
+          dataUri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
+        } else {
+          const blob = await (await fetch(a.uri)).blob();
+          dataUri = await new Promise<string>((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(fr.result as string);
+            fr.onerror = () => reject(fr.error);
+            fr.readAsDataURL(blob);
+          });
+        }
+      } else {
+        const b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 });
+        dataUri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
+      }
       await save({ [field]: dataUri } as any);
     } catch (e: any) { notify("Errore", e?.message || ""); }
     finally { setBusy(false); }
@@ -106,6 +124,36 @@ export default function BusinessCardScreen() {
     if (!cardPreviewRef.current) return;
     setBusy(true);
     try {
+      // V38U — On web, react-native-view-shot uses html2canvas under the hood
+      // and returns a base64 data URI; we then trigger a native download.
+      // On native, we get a tmpfile URI and use expo-sharing.
+      if (Platform.OS === "web") {
+        const uri = await captureRef(cardPreviewRef.current as any, {
+          format: "png",
+          quality: 1,
+          result: "data-uri",
+        });
+        // Try native Web Share API with the PNG blob first
+        try {
+          const resp = await fetch(uri);
+          const blob = await resp.blob();
+          const file = new File([blob], `biglietto-${card.display_name || "master"}.png`, { type: "image/png" });
+          const anyNav: any = navigator;
+          if (anyNav?.canShare && anyNav.canShare({ files: [file] })) {
+            await anyNav.share({ files: [file], title: "Biglietto da visita" });
+            return;
+          }
+        } catch {}
+        // Fallback: download the PNG (browser default)
+        const link = (globalThis as any).document?.createElement?.("a");
+        if (link) {
+          link.href = uri;
+          link.download = `biglietto-${card.display_name || "master"}.png`;
+          link.click();
+        }
+        return;
+      }
+      // Native
       const uri = await captureRef(cardPreviewRef.current, { format: "png", quality: 1, result: "tmpfile" });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Condividi biglietto da visita" });

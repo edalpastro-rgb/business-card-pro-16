@@ -55,6 +55,12 @@ export default function BillQuickScreen() {
   const [customParam, setCustomParam] = useState("");
   const [customParams, setCustomParams] = useState<string[]>([]);
   const [labelInput, setLabelInput] = useState("");
+  // V38U — Verifica agevolazioni fiscali (fiscal-check config for this analysis)
+  const [fiscalCheck, setFiscalCheck] = useState<{
+    verify_iva: null | 10 | 22;          // null = disabled, 10 or 22 = expected value
+    verify_accise_gas: boolean;          // default true for gas bills
+    verify_pcv_annullato: boolean;       // default false; only for luce
+  }>({ verify_iva: null, verify_accise_gas: true, verify_pcv_annullato: false });
 
   const [associateTarget, setAssociateTarget] = useState<null | Draft>(null);
   const [contactsList, setContactsList] = useState<ContactLite[]>([]);
@@ -168,6 +174,12 @@ export default function BillQuickScreen() {
       const defs = DEFAULT_PARAMS[bill_type];
       for (const p of defs) if (selectedParams.has(p.id)) paramLabels.push(p.label);
       for (const cp of customParams) paramLabels.push(cp);
+      // V38U — Fiscal-check verification directives appended to the analysis
+      // params so the LLM knows what to compare and flag.
+      const fc = fiscalCheck;
+      if (fc.verify_iva !== null) paramLabels.push(`__verifica_iva__=${fc.verify_iva}`);
+      if (bill_type === "gas" && fc.verify_accise_gas) paramLabels.push("__verifica_accise_gas__=0.012498");
+      if (bill_type === "luce" && fc.verify_pcv_annullato) paramLabels.push("__verifica_pcv_annullato__=1");
       await api("/bill-drafts", {
         method: "POST",
         body: {
@@ -470,6 +482,64 @@ export default function BillQuickScreen() {
                     ))}
                   </View>
                 )}
+
+                {/* V38U — Verifica agevolazioni fiscali */}
+                <View style={styles.fiscalBox}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <Ionicons name="shield-checkmark" size={16} color="#059669" />
+                    <Text style={styles.fiscalTitle}>Verifica agevolazioni fiscali</Text>
+                  </View>
+                  <Text style={styles.fiscalHint}>Neo evidenzierà in rosso le righe non conformi e calcolerà lo scostamento su 12 mesi.</Text>
+
+                  {/* IVA — luce + gas */}
+                  <Text style={styles.fiscalLbl}>IVA prevista</Text>
+                  <View style={{ flexDirection: "row", gap: 6, marginTop: 4 }}>
+                    {[10, 22].map((v) => {
+                      const active = fiscalCheck.verify_iva === v;
+                      return (
+                        <Pressable
+                          key={v}
+                          testID={`fiscal-iva-${v}`}
+                          onPress={() => setFiscalCheck((s) => ({ ...s, verify_iva: active ? null : (v as 10 | 22) }))}
+                          style={[styles.fiscalOpt, active && { backgroundColor: "#059669", borderColor: "#059669" }]}
+                        >
+                          <Ionicons name={active ? "checkbox" : "square-outline"} size={14} color={active ? "#FFF" : "#059669"} />
+                          <Text style={[styles.fiscalOptTxt, active && { color: "#FFF" }]}>IVA {v}%</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  {/* Accise agevolate — solo gas */}
+                  {pendingUpload.bill_type === "gas" && (
+                    <>
+                      <Text style={styles.fiscalLbl}>Accise gas</Text>
+                      <Pressable
+                        testID="fiscal-accise-gas"
+                        onPress={() => setFiscalCheck((s) => ({ ...s, verify_accise_gas: !s.verify_accise_gas }))}
+                        style={[styles.fiscalOpt, fiscalCheck.verify_accise_gas && { backgroundColor: "#059669", borderColor: "#059669" }]}
+                      >
+                        <Ionicons name={fiscalCheck.verify_accise_gas ? "checkbox" : "square-outline"} size={14} color={fiscalCheck.verify_accise_gas ? "#FFF" : "#059669"} />
+                        <Text style={[styles.fiscalOptTxt, fiscalCheck.verify_accise_gas && { color: "#FFF" }]}>Accise agevolate 0,012498 €/Smc</Text>
+                      </Pressable>
+                    </>
+                  )}
+
+                  {/* PCV — solo luce */}
+                  {pendingUpload.bill_type === "luce" && (
+                    <>
+                      <Text style={styles.fiscalLbl}>PCV / Costi fissi</Text>
+                      <Pressable
+                        testID="fiscal-pcv"
+                        onPress={() => setFiscalCheck((s) => ({ ...s, verify_pcv_annullato: !s.verify_pcv_annullato }))}
+                        style={[styles.fiscalOpt, fiscalCheck.verify_pcv_annullato && { backgroundColor: "#059669", borderColor: "#059669" }]}
+                      >
+                        <Ionicons name={fiscalCheck.verify_pcv_annullato ? "checkbox" : "square-outline"} size={14} color={fiscalCheck.verify_pcv_annullato ? "#FFF" : "#059669"} />
+                        <Text style={[styles.fiscalOptTxt, fiscalCheck.verify_pcv_annullato && { color: "#FFF" }]}>PCV annullato nel contratto</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
               </ScrollView>
             )}
             <View style={{ flexDirection: "row", gap: 8 }}>
@@ -674,6 +744,13 @@ const styles = StyleSheet.create({
   modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
   labelInput: { backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 13, color: theme.color.onSurface },
   paramPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface },
+  // V38U — Fiscal check styles
+  fiscalBox: { marginTop: 16, padding: 12, borderRadius: 10, backgroundColor: "#ECFDF5", borderWidth: 1, borderColor: "#A7F3D0" },
+  fiscalTitle: { fontSize: 13, fontWeight: "800", color: "#065F46" },
+  fiscalHint: { fontSize: 11, color: "#047857", marginBottom: 8, lineHeight: 15 },
+  fiscalLbl: { fontSize: 11, fontWeight: "700", color: "#065F46", textTransform: "uppercase", letterSpacing: 0.4, marginTop: 10 },
+  fiscalOpt: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: "#059669", backgroundColor: "#FFF", marginTop: 4, alignSelf: "flex-start" },
+  fiscalOptTxt: { fontSize: 12, fontWeight: "700", color: "#065F46" },
   paramTxt: { fontSize: 12, fontWeight: "600", color: theme.color.onSurface },
   assocRow: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 10, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, gap: 10, marginBottom: 6 },
   assocAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: theme.color.brandTertiary, justifyContent: "center", alignItems: "center" },

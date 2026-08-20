@@ -90,3 +90,16 @@ Testing V38S: 11/11 pytest backend + code review frontend OK.
 3. **Pausa TTS + Barge-in** — Pulsante `msg-pause-btn` visibile accanto al play icon durante playback (⏸️ rosso). `currentAudioRef` tiene riferimento al HTMLAudioElement per pause/resume. In conversation mode, durante phase='speaking': `startBargeInDetector()` avvia loop RMS VAD — voce sostenuta > 600ms → `stopPlayback()` (equivalente "Neo pausa"). Chiusura modale NON cancella conversazione (comportamento preservato).
 
 Testing V38T: 9/9 pytest backend (dopo fix false-positive) + frontend live-tested con query PUN reale (Tavily ha risposto con 111.58 €/MWh, fonti citate). Salva-in-Master modal + Neo memory screen entrambi funzionanti.
+
+## V38U (June 2026) — 5 tasks (Msg 599)
+1. **Web link contatto + Favicon auto** — `InfoRow` accetta `href`, sito web è cliccabile. Nuovo pulsante 🌐 Web azzurro (#0EA5E9) in "Comunica con" (testID `comm-web`). Se contatto ha `website` ma non `avatar_base64`, l'avatar mostra la favicon via `google.com/s2/favicons?domain=<host>&sz=128`.
+2. **Verifica agevolazioni fiscali** in bill-quick — sezione verde con:
+   - IVA 10% / IVA 22% (radio, non pre-spuntata, luce+gas)
+   - Accise gas 0,012498 €/Smc (default ON, solo gas)
+   - PCV annullato (default OFF, solo luce)
+   Marker: `__verifica_iva__=X`, `__verifica_accise_gas__=Y`, `__verifica_pcv_annullato__=1` in `analysis_params`. Backend `_llm_analyze_bill_text` estrae i marker in `fiscal_directives`, li filtra da `display_params`, e costruisce direttiva LLM per popolare `extracted.fiscal_check = { iva/accise_gas/pcv : {expected, actual, ok, delta_annual_eur} }`. Frontend `FiscalCheckBanner` verde/rosso con totale "Speso in più negli ultimi 12 mesi €X".
+3. **Rimozione IVA%** dai DEFAULT_PARAMS in BillsSection (luce + gas).
+4. **Fix bug biglietto da visita web** — `pickImage` usa `ImagePicker.launchImageLibraryAsync({base64:true})` su web + FileReader fallback. `shareAsImage` usa `captureRef(result:'data-uri')` con html2canvas + Web Share API + auto-download. Installato `html2canvas@1.4.1`.
+5. **Intestazione report esteso** — nuovi campi User: `report_slogan` (max 140) e `report_contacts` (max 240, multiline). Impostazioni ha campi con debounced auto-save. `buildBillAnalysisHtml`, `buildReportHtml`, `slideCover` (comparazione) ora includono: logo + agency_name + slogan (italic corsivo) + contacts (small grey) nell'intestazione.
+
+Testing V38U: 10/10 pytest backend + frontend verificato in Playwright. Files creati/modificati: contact/[id].tsx, bill-quick.tsx, BillsSection.tsx, impostazioni.tsx, business-card.tsx, server.py (ProfileUpdate + User + `_llm_analyze_bill_text` fiscal directives). html2canvas nuova dipendenza.

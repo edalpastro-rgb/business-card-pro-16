@@ -106,9 +106,18 @@ export default function ImpostazioniScreen() {
   // V38I — Branding (logo + agency name) for PDF reports
   const [companyName, setCompanyName] = useState<string>(user?.company_name || "");
   const [companyNameSaved, setCompanyNameSaved] = useState(false);
+  // V38U — Report header extras (slogan + contacts)
+  const [reportSlogan, setReportSlogan] = useState<string>((user as any)?.report_slogan || "");
+  const [reportContacts, setReportContacts] = useState<string>((user as any)?.report_contacts || "");
   const [logoBusy, setLogoBusy] = useState(false);
   const companyNameTimer = React.useRef<any>(null);
+  const sloganTimer = React.useRef<any>(null);
+  const contactsTimer = React.useRef<any>(null);
   useEffect(() => { setCompanyName(user?.company_name || ""); }, [user?.company_name]);
+  const userSlogan = (user as any)?.report_slogan;
+  const userContacts = (user as any)?.report_contacts;
+  useEffect(() => { setReportSlogan(userSlogan || ""); }, [userSlogan]);
+  useEffect(() => { setReportContacts(userContacts || ""); }, [userContacts]);
   const saveCompanyName = (v: string) => {
     setCompanyName(v);
     setCompanyNameSaved(false);
@@ -119,6 +128,27 @@ export default function ImpostazioniScreen() {
         await refresh();
         setCompanyNameSaved(true);
         setTimeout(() => setCompanyNameSaved(false), 1800);
+      } catch (e: any) { notify("Errore", e?.message || ""); }
+    }, 600);
+  };
+  // V38U — debounced saves for slogan + contacts
+  const saveReportSlogan = (v: string) => {
+    setReportSlogan(v);
+    if (sloganTimer.current) clearTimeout(sloganTimer.current);
+    sloganTimer.current = setTimeout(async () => {
+      try {
+        await api("/auth/profile", { method: "PUT", body: { report_slogan: v.trim().slice(0, 140) } });
+        await refresh();
+      } catch (e: any) { notify("Errore", e?.message || ""); }
+    }, 600);
+  };
+  const saveReportContacts = (v: string) => {
+    setReportContacts(v);
+    if (contactsTimer.current) clearTimeout(contactsTimer.current);
+    contactsTimer.current = setTimeout(async () => {
+      try {
+        await api("/auth/profile", { method: "PUT", body: { report_contacts: v.trim().slice(0, 240) } });
+        await refresh();
       } catch (e: any) { notify("Errore", e?.message || ""); }
     }, 600);
   };
@@ -401,6 +431,32 @@ export default function ImpostazioniScreen() {
             </View>
             <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 8, fontStyle: "italic" }}>
               Consigliato: PNG/JPG orizzontale, max 500 KB, sfondo trasparente/bianco.
+            </Text>
+
+            {/* V38U — Slogan + Contatti visualizzati come intestazione dei report */}
+            <Text style={[styles.label, { marginTop: 14 }]}>Slogan (facoltativo)</Text>
+            <TextInput
+              testID="branding-slogan-input"
+              value={reportSlogan}
+              onChangeText={saveReportSlogan}
+              style={styles.input}
+              placeholder="Es. Consulenza energetica trasparente"
+              placeholderTextColor="#94A3B8"
+              maxLength={140}
+            />
+            <Text style={[styles.label, { marginTop: 14 }]}>Contatti agenzia (facoltativo)</Text>
+            <TextInput
+              testID="branding-contacts-input"
+              value={reportContacts}
+              onChangeText={saveReportContacts}
+              style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]}
+              placeholder="Es. Tel. 049 123 456 · info@dalpastro.it · Via Roma 12, Padova"
+              placeholderTextColor="#94A3B8"
+              multiline
+              maxLength={240}
+            />
+            <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 6, fontStyle: "italic" }}>
+              Slogan e contatti verranno mostrati in cima a ogni report / analisi / comparazione.
             </Text>
           </View>
         )}
