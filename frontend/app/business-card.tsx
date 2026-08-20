@@ -137,25 +137,82 @@ export default function BusinessCardScreen() {
     return vcLines.join("\n");
   })();
 
-  // V38W — DOM IDs for html2canvas capture (back is the shareable side)
+  // V38W — DOM IDs for html2canvas capture (both sides captured for share)
+  const frontWebId = "bc-front-web";
   const backWebId = "bc-back-web";
+
+  // V38X — Inject CSS keyframes for shimmer + gold-glow animations on web ONCE.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const doc: any = (globalThis as any).document;
+    if (!doc) return;
+    if (doc.getElementById("bc-anim-css")) return;
+    const style = doc.createElement("style");
+    style.id = "bc-anim-css";
+    style.textContent = `
+      @keyframes bcShimmerMove {
+        0% { transform: translateX(-140%) skewX(-20deg); }
+        100% { transform: translateX(340%) skewX(-20deg); }
+      }
+      @keyframes bcGoldPulse {
+        0%, 100% { box-shadow:
+          0 0 0 2px rgba(212, 178, 106, 0.55),
+          0 0 22px 4px rgba(212, 178, 106, 0.45),
+          0 14px 34px rgba(15, 23, 42, 0.30),
+          0 2px 6px rgba(15, 23, 42, 0.12); }
+        50% { box-shadow:
+          0 0 0 2px rgba(240, 210, 130, 0.85),
+          0 0 32px 8px rgba(240, 210, 130, 0.65),
+          0 14px 34px rgba(15, 23, 42, 0.32),
+          0 2px 6px rgba(15, 23, 42, 0.14); }
+      }
+      .bc-face-web { animation: bcGoldPulse 2.6s ease-in-out infinite; position: relative; overflow: hidden; }
+      .bc-shimmer {
+        position: absolute; top: 0; bottom: 0;
+        width: 40%;
+        background: linear-gradient(120deg,
+          rgba(255,255,255,0) 0%,
+          rgba(255,255,255,0.55) 45%,
+          rgba(255,255,255,0.85) 50%,
+          rgba(255,255,255,0.55) 55%,
+          rgba(255,255,255,0) 100%);
+        animation: bcShimmerMove 3.2s ease-in-out infinite;
+        pointer-events: none;
+        mix-blend-mode: overlay;
+      }
+    `;
+    doc.head.appendChild(style);
+  }, []);
 
   const shareAsImage = async () => {
     setBusy(true);
     try {
       if (Platform.OS === "web") {
         const doc = (globalThis as any).document;
-        const target = doc?.getElementById?.(backWebId);
-        if (!target) { notify("Errore", "Preview non trovata"); return; }
+        const frontEl = doc?.getElementById?.(frontWebId);
+        const backEl = doc?.getElementById?.(backWebId);
+        if (!frontEl || !backEl) { notify("Errore", "Preview non trovata"); return; }
         const mod = await import("html2canvas");
         const html2canvas = (mod as any).default || (mod as any);
-        const canvas = await html2canvas(target, {
-          backgroundColor: null,
-          scale: 3, // higher DPI for print quality
-          useCORS: true,
-          logging: false,
-        });
-        const dataUri: string = canvas.toDataURL("image/png");
+        const opts = { backgroundColor: null, scale: 3, useCORS: true, logging: false };
+        const [frontCanvas, backCanvas] = await Promise.all([
+          html2canvas(frontEl, opts),
+          html2canvas(backEl, opts),
+        ]);
+        // Combine side-by-side into a single PNG (front on the left, back on the right)
+        const gap = 24 * 3; // scaled pixel gap
+        const pad = 20 * 3;
+        const w = frontCanvas.width + backCanvas.width + gap + pad * 2;
+        const h = Math.max(frontCanvas.height, backCanvas.height) + pad * 2;
+        const combined = doc.createElement("canvas");
+        combined.width = w;
+        combined.height = h;
+        const ctx = combined.getContext("2d");
+        // Transparent background — keeps card corners rounded on any recipient bg
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(frontCanvas, pad, (h - frontCanvas.height) / 2);
+        ctx.drawImage(backCanvas, pad + frontCanvas.width + gap, (h - backCanvas.height) / 2);
+        const dataUri: string = combined.toDataURL("image/png");
         const fileName = `biglietto-${(card.display_name || "master").replace(/\s+/g, "-")}.png`;
         try {
           const resp = await fetch(dataUri);
@@ -179,7 +236,7 @@ export default function BusinessCardScreen() {
         setTimeout(() => URL.revokeObjectURL(url), 4000);
         return;
       }
-      // Native — captureRef on the back-side ref
+      // Native — captureRef on the back-side ref (front+back combine unsupported on native)
       if (!cardBackRef.current) { notify("Errore", "Preview non trovata"); return; }
       const uri = await captureRef(cardBackRef.current, { format: "png", quality: 1, result: "tmpfile" });
       const canShare = await Sharing.isAvailableAsync();
@@ -323,22 +380,81 @@ export default function BusinessCardScreen() {
                   <QRCode value={qrValue || " "} size={54} color={CARD_NAVY} backgroundColor="#FFFFFF" />
                 </View>
               </View>
+              {/* Shimmer on back (animated on web, subtle on native) */}
+              <View style={styles.shimmerStreak} pointerEvents="none" />
             </Animated.View>
           </View>
         </Pressable>
 
-        {/* V38W — Hidden HTML mirrors for html2canvas on web (both sides available) */}
+        {/* V38X — Hidden HTML mirrors for html2canvas on web (BOTH sides available).
+            Front + back are captured together to produce a single side-by-side share image.
+            Both sides carry gold-glow + shimmer effects; back has white gradient + navy border. */}
         {Platform.OS === "web" && (
-          <View style={{ position: "absolute", left: -9999, top: -9999, width: CARD_W }} pointerEvents="none">
+          <View style={{ position: "absolute", left: -9999, top: -9999, width: CARD_W * 2 + 80 }} pointerEvents="none">
+            {/* ===== FRONT MIRROR ===== */}
             {/* @ts-expect-error web-only */}
-            <div id={backWebId} style={{
+            <div id={frontWebId} className="bc-face-web" style={{
               width: CARD_W,
               height: CARD_H,
-              background: CARD_BACK_BG,
+              background: `linear-gradient(135deg, ${CARD_NAVY} 0%, #223A7F 55%, #1A2A6C 100%)`,
               borderRadius: 14,
               overflow: "hidden",
-              boxShadow: "0 12px 28px rgba(15,23,42,0.18), 0 2px 6px rgba(15,23,42,0.08)",
-              border: "1px solid #E5E7EB",
+              border: `2px solid ${CARD_NAVY}`,
+              fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif",
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "20px",
+              marginBottom: 8,
+            }}>
+              {/* Diagonal stripes overlay */}
+              {/* @ts-expect-error web-only */}
+              <div style={{
+                position: "absolute", inset: 0,
+                backgroundImage: "repeating-linear-gradient(-32deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 22px)",
+                pointerEvents: "none",
+              }} />
+              {/* Gold inner border */}
+              {/* @ts-expect-error web-only */}
+              <div style={{
+                position: "absolute", top: 8, left: 8, right: 8, bottom: 8,
+                borderRadius: 10,
+                border: `1px solid ${CARD_GOLD}`,
+                pointerEvents: "none",
+              }} />
+              {/* Logo or placeholder centered */}
+              {card.logo_base64 ? (
+                <img
+                  src={card.logo_base64}
+                  alt="logo"
+                  style={{ maxWidth: "70%", maxHeight: "70%", objectFit: "contain", position: "relative", zIndex: 1 }}
+                />
+              ) : (
+                // @ts-expect-error web-only
+                <div style={{ textAlign: "center", color: "rgba(255,255,255,0.7)", position: "relative", zIndex: 1 }}>
+                  {/* @ts-expect-error web-only */}
+                  <div style={{ fontSize: 44, lineHeight: 1 }}>🏢</div>
+                  {/* @ts-expect-error web-only */}
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 6 }}>Logo Agenzia</div>
+                </div>
+              )}
+              {/* Shimmer overlay */}
+              {/* @ts-expect-error web-only */}
+              <div className="bc-shimmer" />
+            </div>
+
+            {/* ===== BACK MIRROR ===== */}
+            {/* @ts-expect-error web-only */}
+            <div id={backWebId} className="bc-face-web" style={{
+              width: CARD_W,
+              height: CARD_H,
+              // Subtle grey gradient — avoids flat white
+              background: `linear-gradient(135deg, #FFFFFF 0%, #F5F7FA 55%, #EDEFF3 100%)`,
+              borderRadius: 14,
+              overflow: "hidden",
+              // 2px navy border + diffused navy glow shadow
+              border: `2px solid ${CARD_NAVY}`,
               fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif",
               position: "relative",
               display: "flex",
@@ -347,9 +463,16 @@ export default function BusinessCardScreen() {
               padding: "18px 20px",
               color: CARD_TEXT,
             }}>
+              {/* Very light noise/texture overlay */}
+              {/* @ts-expect-error web-only */}
+              <div style={{
+                position: "absolute", inset: 0,
+                backgroundImage: "repeating-linear-gradient(45deg, rgba(26,42,108,0.025) 0 1px, transparent 1px 6px)",
+                pointerEvents: "none",
+              }} />
               {/* Header — name + title + separator + contacts */}
               {/* @ts-expect-error web-only */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, position: "relative", zIndex: 1 }}>
                 {/* @ts-expect-error web-only */}
                 <div style={{ fontSize: 20, fontWeight: 800, color: CARD_NAVY, letterSpacing: 0.2, textAlign: "center" }}>
                   {card.display_name || "Il tuo nome"}
@@ -378,7 +501,7 @@ export default function BusinessCardScreen() {
               </div>
               {/* Footer — company + website + QR */}
               {/* @ts-expect-error web-only */}
-              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10, borderTop: `1px solid ${CARD_BLUE_MED}40`, paddingTop: 8, marginTop: 6 }}>
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10, borderTop: `1px solid ${CARD_BLUE_MED}40`, paddingTop: 8, marginTop: 6, position: "relative", zIndex: 1 }}>
                 {/* @ts-expect-error web-only */}
                 <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
                   {card.company_name ? (
@@ -405,6 +528,9 @@ export default function BusinessCardScreen() {
                   />
                 </div>
               </div>
+              {/* Shimmer overlay on back too */}
+              {/* @ts-expect-error web-only */}
+              <div className="bc-shimmer" />
             </div>
           </View>
         )}
@@ -423,7 +549,7 @@ export default function BusinessCardScreen() {
         <View style={styles.shareRow}>
           <Pressable testID="bc-share-image" onPress={shareAsImage} disabled={busy} style={[styles.shareBtn, { backgroundColor: CARD_NAVY }]}>
             {busy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="image" size={18} color="#FFF" />}
-            <Text style={styles.shareTxt}>Condividi retro</Text>
+            <Text style={styles.shareTxt}>Condividi</Text>
           </Pressable>
           <Pressable testID="bc-share-link" onPress={shareLink} style={[styles.shareBtn, { backgroundColor: "#16A34A" }]}>
             <Ionicons name="link" size={18} color="#FFF" />
@@ -559,13 +685,20 @@ const styles = StyleSheet.create({
     width: CARD_W,
     height: CARD_H,
     // Shadow (native)
-    elevation: 8,
-    shadowColor: "#000",
+    elevation: 10,
+    shadowColor: CARD_NAVY,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    // Web-only extra shadow for realism
-    ...(Platform.OS === "web" ? { boxShadow: "0 14px 30px rgba(15,23,42,0.25), 0 2px 6px rgba(15,23,42,0.10)" } as any : {}),
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    // Web-only: gold-glow pulsing shadow + diffused navy shadow (bcGoldPulse animation)
+    ...(Platform.OS === "web" ? {
+      boxShadow: "0 0 0 2px rgba(212,178,106,0.55), 0 0 22px 4px rgba(212,178,106,0.45), 0 14px 34px rgba(15,23,42,0.30), 0 2px 6px rgba(15,23,42,0.12)",
+      animationName: "bcGoldPulse",
+      animationDuration: "2.6s",
+      animationTimingFunction: "ease-in-out",
+      animationIterationCount: "infinite",
+    } as any : {}),
+    borderRadius: 14,
   },
   cardFace: {
     position: "absolute",
@@ -589,17 +722,38 @@ const styles = StyleSheet.create({
   logoPlaceholderTxt: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase" },
   shimmerStreak: {
     position: "absolute",
-    top: -20, left: -40,
-    width: 90, height: CARD_H + 60,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    top: 0, bottom: 0,
+    width: 90,
+    left: 0,
+    backgroundColor: "rgba(255,255,255,0.08)",
     transform: [{ rotate: "-24deg" }, { translateX: 60 }],
+    // On web replace the static streak with an animated shimmer sweep
+    ...(Platform.OS === "web" ? {
+      width: "40%",
+      height: "160%",
+      top: -30,
+      left: 0,
+      backgroundColor: "transparent",
+      backgroundImage: "linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 45%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0.55) 55%, rgba(255,255,255,0) 100%)",
+      animationName: "bcShimmerMove",
+      animationDuration: "3.2s",
+      animationTimingFunction: "ease-in-out",
+      animationIterationCount: "infinite",
+      transform: undefined,
+      mixBlendMode: "overlay",
+    } as any : {}),
   },
   // ==== BACK ====
   cardBack: {
     backgroundColor: CARD_BACK_BG,
-    borderWidth: 1, borderColor: "#E5E7EB",
+    borderWidth: 2, borderColor: CARD_NAVY,
     padding: 18,
     justifyContent: "space-between",
+    // Web: gradient background + subtle diagonal noise texture to avoid flat white
+    ...(Platform.OS === "web" ? {
+      backgroundImage: "linear-gradient(135deg, #FFFFFF 0%, #F5F7FA 55%, #EDEFF3 100%), repeating-linear-gradient(45deg, rgba(26,42,108,0.025) 0 1px, transparent 1px 6px)",
+      backgroundBlendMode: "multiply",
+    } as any : {}),
   },
   backContent: { alignItems: "center", gap: 3 },
   backName: { fontSize: 20, fontWeight: "800", color: CARD_NAVY, letterSpacing: 0.2, textAlign: "center" },

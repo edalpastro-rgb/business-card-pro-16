@@ -1,6 +1,18 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v1.5 Biglietto da visita — restyling (Feb 2026)
+### 🎨 3 correzioni al Biglietto da Visita
+1. **Condivisione unificata**: rimosso il concetto di "fronte/retro" nella condivisione. Il pulsante ora dice semplicemente **"Condividi"** e genera un **singolo PNG con fronte + retro affiancati** orizzontalmente (catturati entrambi via html2canvas su web, uniti in un canvas). Gap 24px, padding 20px.
+2. **Design retro migliorato**: bordo navy 2px, angoli arrotondati, ombra navy diffusa, gradient bianco → grigio chiarissimo (#FFFFFF → #F5F7FA → #EDEFF3), noise texture diagonale sottilissima per evitare bianco piatto.
+3. **Effetti visivi su entrambi i lati (web)**:
+   - **Gold-glow luminoso** pulsante (box-shadow triplo: bordo oro + alone oro + ombra navy) tramite keyframes `bcGoldPulse` iniettato in `<style id=bc-anim-css>`.
+   - **Shimmer animato** che scorre sulla superficie con `bcShimmerMove` (3.2s loop).
+   - Long-form animation properties (`animationName`, `animationDuration`, etc.) per compatibilità React-Native-Web.
+
 ## v1.4 bug fixes (Feb 2026)
+- **File**: `/app/frontend/app/business-card.tsx` (783 righe → candidato a refactor futuro).
+- **Test**: `testing_agent` iterazione 61 — 7/7 acceptance criteria PASS, download PNG side-by-side verificato end-to-end.
+
 ### 🐛 Fix caricamento immagini su Web ("Failed to read the selected media")
 - **Root cause**: `expo-image-picker` v17.x su web falliva con "Failed to read the selected media" durante il caricamento immagini dalla libreria.
 - **Fix**: Creato wrapper universale `/app/frontend/src/utils/imagePickerCompat.ts` (`launchLibraryUniversal`, `launchCameraUniversal`) che su WEB usa un elemento HTML `<input type=file>` nascosto + `FileReader.readAsDataURL()` (nuovo modulo `/app/frontend/src/web-image-picker.ts`), su native mantiene `expo-image-picker` (import dinamico).
