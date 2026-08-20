@@ -179,7 +179,7 @@ export default function BillQuickScreen() {
       const fc = fiscalCheck;
       if (fc.verify_iva !== null) paramLabels.push(`__verifica_iva__=${fc.verify_iva}`);
       if (bill_type === "gas" && fc.verify_accise_gas) paramLabels.push("__verifica_accise_gas__=0.012498");
-      if (bill_type === "luce" && fc.verify_pcv_annullato) paramLabels.push("__verifica_pcv_annullato__=1");
+      if ((bill_type === "luce" || bill_type === "gas") && fc.verify_pcv_annullato) paramLabels.push("__verifica_pcv_annullato__=1");
       await api("/bill-drafts", {
         method: "POST",
         body: {
@@ -525,8 +525,8 @@ export default function BillQuickScreen() {
                     </>
                   )}
 
-                  {/* PCV — solo luce */}
-                  {pendingUpload.bill_type === "luce" && (
+                  {/* PCV — luce E gas (V38V: prima era solo luce) */}
+                  {(pendingUpload.bill_type === "luce" || pendingUpload.bill_type === "gas") && (
                     <>
                       <Text style={styles.fiscalLbl}>PCV / Costi fissi</Text>
                       <Pressable

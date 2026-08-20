@@ -103,3 +103,22 @@ Testing V38T: 9/9 pytest backend (dopo fix false-positive) + frontend live-teste
 5. **Intestazione report esteso** — nuovi campi User: `report_slogan` (max 140) e `report_contacts` (max 240, multiline). Impostazioni ha campi con debounced auto-save. `buildBillAnalysisHtml`, `buildReportHtml`, `slideCover` (comparazione) ora includono: logo + agency_name + slogan (italic corsivo) + contacts (small grey) nell'intestazione.
 
 Testing V38U: 10/10 pytest backend + frontend verificato in Playwright. Files creati/modificati: contact/[id].tsx, bill-quick.tsx, BillsSection.tsx, impostazioni.tsx, business-card.tsx, server.py (ProfileUpdate + User + `_llm_analyze_bill_text` fiscal directives). html2canvas nuova dipendenza.
+
+## V38V (June 2026) — 7 tasks (Msg 600 — rifinitura V38U + bug critici biglietto)
+1. **PCV per gas** — `verify_pcv_annullato` disponibile anche per bill_type='gas' (prima solo luce). `FiscalCheckBanner` mostra la riga PCV anche per gas.
+2. **Bug findNodeHandle risolto** — `shareAsImage()` in business-card.tsx su web usa SOLO `import('html2canvas')` su div DOM con id='bc-web-preview-root' (rendered solo su web via Platform.OS check). Nessun `captureRef` su web → nessun findNodeHandle.
+3. **Public endpoint HTML** — `GET /api/master/business-card/public/{card_id}` ora restituisce HTMLResponse renderizzato server-side con:
+   - Intestazione colorata + logo + nome + ruolo + azienda
+   - Contatti cliccabili (tel:/mailto:/url)
+   - QR code via api.qrserver.com
+   - Pulsante 📇 Salva in rubrica (.vcf)
+   - Banner mobile "Vuoi salvare i dati nella tua rubrica telefonica?" (localStorage dismiss)
+   - Effetti CSS puri: Shimmer / Bordo luminoso / Nessuno
+4. **vCard endpoint** — `GET /api/master/business-card/public/{card_id}.vcf` restituisce text/vcard con vCard 3.0 completa.
+5. **Impostazioni biglietto**:
+   - `link_title` (max_length=200) — titolo personalizzato pagina pubblica
+   - `visual_effect` (enum: none/shimmer/border) — validato backend
+   - Frontend business-card.tsx: sezione "Pagina pubblica" con Field bc-link-title + sezione "Effetto visivo animato" con 3 radio testID bc-effect-{none|shimmer|border}
+6. **Route ordering fix** — `.vcf` route dichiarata PRIMA della route HTML per evitare che FastAPI matchi il card_id includendo l'estensione.
+
+Testing V38V: 22/22 pytest backend (dopo fix max_length) + frontend Playwright OK (bc-share-image no findNodeHandle error). File modificati: server.py (BusinessCardIn + Public endpoint), business-card.tsx (shareAsImage web + hidden DOM mirror + link_title/effect UI), bill-quick.tsx (PCV gas), BillsSection.tsx (FiscalCheckBanner gas).

@@ -2361,7 +2361,7 @@ function FiscalCheckBanner({ check, billType }: { check: { iva?: FiscalRow; acci
       visible: true,
     });
   }
-  if (check.pcv && billType === "luce") {
+  if (check.pcv && (billType === "luce" || billType === "gas")) {
     rows.push({
       key: "pcv",
       label: "PCV / Costi fissi €/mese",

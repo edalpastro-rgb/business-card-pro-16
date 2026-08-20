@@ -29,6 +29,9 @@ type Card = {
   qr_type?: "app" | "website" | "text" | "vcard";
   qr_content?: string;
   demo_app_link?: string;
+  // V38V — Public page customization
+  link_title?: string;             // e.g. "Biglietto da visita digitale Emanuele Dal Pastro"
+  visual_effect?: "none" | "shimmer" | "border";
 };
 
 const QR_TYPES: { id: NonNullable<Card["qr_type"]>; label: string; hint: string }[] = [
@@ -120,40 +123,58 @@ export default function BusinessCardScreen() {
     return vcLines.join("\n");
   })();
 
+  // V38V — Web-native web-preview HTML element (independent of RN) that
+  // html2canvas can rasterize without React Native's findNodeHandle. We
+  // keep the RN preview visible for parity, and mirror it in a hidden DOM
+  // node on web that html2canvas reads.
+  const webPreviewId = "bc-web-preview-root";
+
   const shareAsImage = async () => {
-    if (!cardPreviewRef.current) return;
     setBusy(true);
     try {
-      // V38U — On web, react-native-view-shot uses html2canvas under the hood
-      // and returns a base64 data URI; we then trigger a native download.
-      // On native, we get a tmpfile URI and use expo-sharing.
       if (Platform.OS === "web") {
-        const uri = await captureRef(cardPreviewRef.current as any, {
-          format: "png",
-          quality: 1,
-          result: "data-uri",
+        // V38V — SOLO html2canvas: no captureRef (usa findNodeHandle che
+        // fallisce su web). Cerca il div del preview HTML e lo rasterizza.
+        const doc = (globalThis as any).document;
+        const target = doc?.getElementById?.(webPreviewId);
+        if (!target) { notify("Errore", "Preview non trovata"); return; }
+        // Dynamic import so the 500KB html2canvas bundle isn't loaded on native.
+        const mod = await import("html2canvas");
+        const html2canvas = (mod as any).default || (mod as any);
+        const canvas = await html2canvas(target, {
+          backgroundColor: null,
+          scale: 2,
+          useCORS: true,
+          logging: false,
         });
-        // Try native Web Share API with the PNG blob first
+        const dataUri: string = canvas.toDataURL("image/png");
+        const fileName = `biglietto-${(card.display_name || "master").replace(/\s+/g, "-")}.png`;
+        // Try Web Share API with PNG blob first (mobile browser support)
         try {
-          const resp = await fetch(uri);
+          const resp = await fetch(dataUri);
           const blob = await resp.blob();
-          const file = new File([blob], `biglietto-${card.display_name || "master"}.png`, { type: "image/png" });
+          const file = new File([blob], fileName, { type: "image/png" });
           const anyNav: any = navigator;
           if (anyNav?.canShare && anyNav.canShare({ files: [file] })) {
             await anyNav.share({ files: [file], title: "Biglietto da visita" });
             return;
           }
         } catch {}
-        // Fallback: download the PNG (browser default)
-        const link = (globalThis as any).document?.createElement?.("a");
-        if (link) {
-          link.href = uri;
-          link.download = `biglietto-${card.display_name || "master"}.png`;
-          link.click();
-        }
+        // Fallback: trigger browser download via blob URL
+        const respFinal = await fetch(dataUri);
+        const blobFinal = await respFinal.blob();
+        const url = URL.createObjectURL(blobFinal);
+        const link = doc.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        doc.body.appendChild(link);
+        link.click();
+        doc.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
         return;
       }
-      // Native
+      // Native — captureRef is safe on iOS/Android
+      if (!cardPreviewRef.current) return;
       const uri = await captureRef(cardPreviewRef.current, { format: "png", quality: 1, result: "tmpfile" });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Condividi biglietto da visita" });
@@ -220,6 +241,49 @@ export default function BusinessCardScreen() {
             <Text style={styles.qrLabel}>{QR_TYPES.find((t) => t.id === (card.qr_type || "website"))?.label}</Text>
           </View>
         </View>
+
+        {/* V38V — Hidden HTML mirror for html2canvas on web (no findNodeHandle) */}
+        {Platform.OS === "web" && (
+          <View style={{ position: "absolute", left: -9999, top: -9999, width: 340 }} pointerEvents="none">
+            {/* @ts-expect-error web-only div */}
+            <div id={webPreviewId} style={{
+              width: 340, background: "#FFF", borderRadius: 16, border: `2px solid ${accent}`, overflow: "hidden",
+              boxShadow: "0 6px 20px rgba(0,0,0,0.10)", fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+            }}>
+              {/* @ts-expect-error web-only */}<div style={{ height: 8, background: accent }} />
+              {/* @ts-expect-error web-only */}<div style={{ display: "flex", padding: 16, gap: 14, alignItems: "center" }}>
+                {card.logo_base64 ? (
+                  // @ts-expect-error web-only
+                  <img src={card.logo_base64} alt="logo" style={{ width: 64, height: 64, borderRadius: 12, objectFit: "contain", background: "#F8FAFC", border: `1px solid ${accent}` }} />
+                ) : null}
+                {/* @ts-expect-error web-only */}<div style={{ flex: 1 }}>
+                  {/* @ts-expect-error web-only */}<div style={{ fontSize: 20, fontWeight: 800, color: accent }}>{card.display_name || "Il tuo nome"}</div>
+                  {card.title ? <div style={{ fontSize: 13, color: "#475569", marginTop: 2 }}>{card.title}</div> as any : null}
+                  {card.company_name ? <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{card.company_name}</div> as any : null}
+                </div>
+              </div>
+              {/* @ts-expect-error web-only */}<div style={{ padding: "0 16px 10px", display: "flex", flexDirection: "column", gap: 3 }}>
+                {card.phone ? <div style={{ fontSize: 12, color: "#334155" }}>📞 {card.phone}</div> as any : null}
+                {card.email ? <div style={{ fontSize: 12, color: "#334155" }}>✉️ {card.email}</div> as any : null}
+                {card.website ? <div style={{ fontSize: 12, color: "#334155" }}>🌐 {card.website}</div> as any : null}
+                {card.address ? <div style={{ fontSize: 12, color: "#334155" }}>📍 {card.address}</div> as any : null}
+              </div>
+              {card.tagline ? <div style={{ fontSize: 12, fontStyle: "italic", textAlign: "center", padding: "0 16px 8px", color: accent }}>{card.tagline}</div> as any : null}
+              {/* @ts-expect-error web-only QR mirrored as encoded url */}
+              <div style={{ padding: 14, borderTop: "1px solid #F1F5F9", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue || " ")}&size=130x130&color=${accent.replace("#", "")}&bgcolor=FFFFFF`}
+                  alt="qr"
+                  width={130}
+                  height={130}
+                />
+                {/* @ts-expect-error web-only */}<div style={{ fontSize: 10, color: "#64748B", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  {QR_TYPES.find((t) => t.id === (card.qr_type || "website"))?.label}
+                </div>
+              </div>
+            </div>
+          </View>
+        )}
 
         {/* SHARE BUTTONS */}
         <View style={styles.shareRow}>
@@ -293,6 +357,44 @@ export default function BusinessCardScreen() {
             <Pressable key={c} testID={`bc-color-${c}`} onPress={() => save({ accent_color: c })}
               style={[styles.swatch, { backgroundColor: c }, card.accent_color === c && styles.swatchOn]} />
           ))}
+        </View>
+
+        {/* V38V — Pagina pubblica: titolo personalizzato */}
+        <Text style={styles.section}>Pagina pubblica (link condiviso)</Text>
+        <Field
+          label="Testo link (titolo della pagina)"
+          testID="bc-link-title"
+          value={card.link_title || ""}
+          onChange={upd("link_title")}
+        />
+        <Text style={{ fontSize: 11, color: theme.color.muted, marginBottom: 8, fontStyle: "italic" }}>
+          Es. &quot;Biglietto da visita digitale Emanuele Dal Pastro&quot;. Se vuoto, viene usato il tuo nome.
+        </Text>
+
+        {/* V38V — Effetto visivo della pagina pubblica */}
+        <Text style={styles.section}>Effetto visivo animato</Text>
+        <View style={{ gap: 6 }}>
+          {[
+            { id: "none", label: "Nessuno", hint: "Card statica senza animazione" },
+            { id: "shimmer", label: "Shimmer", hint: "Luce diagonale che scorre ogni 10s" },
+            { id: "border", label: "Bordo luminoso", hint: "Filo di luce sul perimetro in loop" },
+          ].map((e) => {
+            const on = (card.visual_effect || "none") === e.id;
+            return (
+              <Pressable
+                key={e.id}
+                testID={`bc-effect-${e.id}`}
+                onPress={() => save({ visual_effect: e.id as any })}
+                style={[styles.radioRow, on && { borderColor: accent, backgroundColor: accent + "12" }]}
+              >
+                <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={20} color={on ? accent : theme.color.muted} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.radioLbl, on && { color: accent }]}>{e.label}</Text>
+                  <Text style={styles.radioHint}>{e.hint}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
       </ScrollView>
     </SafeAreaView>

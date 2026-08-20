@@ -1,0 +1,41 @@
+{
+  "summary": "V38V — Business Card public HTML page + vCard endpoint + link_title/visual_effect fields + PCV also for gas. Backend: 21/22 pytest passed (95%). All V38V critical features verified: public HTML endpoint returns text/html with shimmer/border keyframes + save-banner + QR (api.qrserver.com) + tel:/mailto: links; vCard endpoint returns text/vcard with attachment disposition + BEGIN:VCARD/FN/TEL;TYPE=CELL/END:VCARD; visual_effect enum validation rejects 'invalid'; PCV marker (__verifica_pcv_annullato__=1) accepted for bill_type='gas'; 404 handling correct for both endpoints (HTML for /public/{id}, JSON for /public/{id}.vcf). Frontend: all V38V testIDs verified present on /business-card (bc-link-title, bc-effect-none/shimmer/border, bc-share-image); clicking bc-share-image did NOT produce 'findNodeHandle is not supported on web' error in console; shimmer radio click works. bill-quick page loads correctly. One minor backend bug: PUT /master/business-card accepts link_title >200 chars (spec says max 200), returns 200 instead of 400/422.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "PUT /api/master/business-card",
+        "issue": "link_title field lacks max_length=200 validation. A 201-char value is accepted with 200 OK instead of rejected with 400/422. Reference: /app/backend/server.py:4280 (BusinessCardIn model). Add pydantic constraint: link_title: Optional[str] = Field(default=None, max_length=200)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38v_business_card_public.py",
+    "/app/test_reports/pytest/v38v_results.xml"
+  ],
+  "action_items": [
+    "Add max_length=200 validator to BusinessCardIn.link_title in /app/backend/server.py (line 4280) so PUT /master/business-card rejects strings longer than 200 chars with HTTP 400/422."
+  ],
+  "critical_code_review_comments": [
+    "V38V frontend fix for shareAsImage is correctly implemented: Platform.OS === 'web' branch uses html2canvas on the hidden div #bc-web-preview-root (no findNodeHandle), while native branch still uses captureRef (safe on iOS/Android). Confirmed via /app/frontend/app/business-card.tsx L127-178.",
+    "Public HTML endpoint (server.py L4579) correctly returns HTMLResponse (Content-Type text/html) with all required elements: link_title in <title>, @keyframes bc-shimmer / bc-border-spin, id=\"save-banner\", api.qrserver.com QR img, tel:/mailto: links, .vcf download button, first-mobile-access localStorage banner logic.",
+    "vCard endpoint (server.py L4564) returns text/vcard media_type with Content-Disposition: attachment; filename=\"...vcf\" and proper BEGIN:VCARD/VERSION:3.0/FN/TEL;TYPE=CELL/END:VCARD structure.",
+    "PCV marker (__verifica_pcv_annullato__=1) parsing in _llm_analyze_bill_text (server.py L3405) is bill_type-agnostic — will apply to both luce and gas when passed. Confirmed frontend bill-quick.tsx L182 sends it for both luce and gas.",
+    "FiscalCheckBanner in BillsSection.tsx L2364 correctly shows PCV row for both 'luce' and 'gas' billTypes (regression to display fiscal_check.pcv on gas analysis)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v38v_business_card_public.py (new)"
+  ],
+  "success_rate": {"backend": "95%", "frontend": "100%"},
+  "seed_data_creation": "Business card record for tenant test@dalpastro.it updated with link_title='Biglietto V38V' and visual_effect='shimmer' via fixture (idempotent PUT). A tiny gas bill-draft was created and immediately cleaned up during TestPcvForGas.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "V38V feature set is functional end-to-end. Only outstanding item: add max_length=200 validator to BusinessCardIn.link_title. Backend test file /app/backend/tests/test_v38v_business_card_public.py is the regression suite for these endpoints. Frontend testIDs (bc-link-title, bc-effect-*, bc-share-image) all render on /business-card. html2canvas web-share path works without findNodeHandle error. To fully test PDF-image share output visually the main agent should upload a bill PDF interactively and click 'Condividi come immagine'.",
+  "rca_of_issue": "test_link_title_max_length failure: backend BusinessCardIn Pydantic model at server.py:4280 declares `link_title: Optional[str] = None` without any Field(max_length=...) constraint. The V38V spec explicitly says 'link_title (max 200)'. A payload of 201 x's is stored and returned unchanged (200 OK). Repro: PUT /api/master/business-card with body {\"link_title\": \"x\"*201} → currently returns 200; should return 400/422. Fix: replace with `link_title: Optional[str] = Field(default=None, max_length=200)` and import Field from pydantic if not already imported."
+}

@@ -251,12 +251,12 @@ metadata:
 
 test_plan:
   current_focus:
-    - "V38T Task 9 — Tavily search integration for Italian energy queries (PUN/ARERA/tariffe/oneri) — Neo answers with fresh data + inline sources"
-    - "V38T Task 9 — POST /api/assistant/save-to-master — save Neo response as .md file in Master files (category=notes)"
-    - "V38T Task 10 — Persistent memory: neo_memory collection + auto-distill after 3+ exchanges (fire-and-forget task) + GET/DELETE endpoints"
-    - "V38T Task 10 — /neo-memory screen (consulta + cancella + cancella tutto) with confirm dialogs"
-    - "V38T Task 11 — Visible pause/resume button on playing assistant bubble (msg-pause-btn)"
-    - "V38T Task 11 — Voice barge-in during 'speaking' phase: any sustained voice > 600ms stops TTS"
+    - "V38V Task 1 — PCV/costi fissi option now available for BOTH luce and gas (was luce-only)"
+    - "V38V Task 2 — Business card share bug fixed: pure html2canvas on web (NO captureRef/findNodeHandle)"
+    - "V38V Task 3 — Public /master/business-card/public/{card_id} returns FULL HTML page (not JSON)"
+    - "V38V Task 4 — GET /master/business-card/public/{card_id}.vcf returns text/vcard file"
+    - "V38V Task 5 — Business card settings: link_title + visual_effect (shimmer/border/none)"
+    - "V38V Task 6 — Fiscal check now shows PCV for gas too (FiscalCheckBanner)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"

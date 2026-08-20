@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Header, status, BackgroundTasks, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, HTMLResponse, Response
+from urllib.parse import quote_plus as _quote_plus_std
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -4275,6 +4276,9 @@ class BusinessCardIn(BaseModel):
     qr_content: Optional[str] = None
     demo_app_link: Optional[str] = None
     social_links: Optional[Dict[str, str]] = None
+    # V38V — Public page customization
+    link_title: Optional[str] = Field(default=None, max_length=200)
+    visual_effect: Optional[str] = None  # "none" | "shimmer" | "border"
 
 
 @api_router.get("/master/business-card")
@@ -4312,12 +4316,15 @@ async def update_business_card(body: BusinessCardIn, user=Depends(get_current_us
         "display_name", "title", "company_name", "phone", "email", "website",
         "address", "tagline", "logo_base64", "photo_base64", "accent_color",
         "qr_type", "qr_content", "demo_app_link", "social_links",
+        "link_title", "visual_effect",  # V38V
     ]:
         v = getattr(body, field, None)
         if v is not None:
             patch[field] = v
     if body.qr_type and body.qr_type not in {"app", "website", "text", "vcard"}:
         raise HTTPException(status_code=400, detail="qr_type deve essere: app | website | text | vcard")
+    if body.visual_effect and body.visual_effect not in {"none", "shimmer", "border"}:
+        raise HTTPException(status_code=400, detail="visual_effect deve essere: none | shimmer | border")
     tid = tenant_id(user)
     existing = await db.business_cards.find_one({"user_id": tid})
     if not existing:
@@ -4335,14 +4342,253 @@ class BusinessCardShareLinkIn(BaseModel):
     channel: Optional[str] = None  # optional analytics tag
 
 
-@api_router.get("/master/business-card/public/{card_id}")
-async def get_public_business_card(card_id: str):
-    """Read-only public endpoint (no auth) so the QR / link can be opened on
-    any phone without needing an account."""
+def _build_vcard(d: dict) -> str:
+    """V38V — Build a valid vCard 3.0 string from a business card doc."""
+    lines = ["BEGIN:VCARD", "VERSION:3.0"]
+    name = (d.get("display_name") or "").strip()
+    if name:
+        parts = name.split(" ", 1)
+        surname = parts[1] if len(parts) > 1 else ""
+        given = parts[0]
+        lines.append(f"N:{surname};{given};;;")
+        lines.append(f"FN:{name}")
+    if d.get("company_name"):
+        lines.append(f"ORG:{d['company_name']}")
+    if d.get("title"):
+        lines.append(f"TITLE:{d['title']}")
+    if d.get("phone"):
+        lines.append(f"TEL;TYPE=CELL:{d['phone']}")
+    if d.get("email"):
+        lines.append(f"EMAIL;TYPE=INTERNET:{d['email']}")
+    if d.get("website"):
+        lines.append(f"URL:{d['website']}")
+    if d.get("address"):
+        lines.append(f"ADR;TYPE=WORK:;;{d['address']};;;;")
+    if d.get("tagline"):
+        lines.append(f"NOTE:{d['tagline']}")
+    lines.append("END:VCARD")
+    return "\r\n".join(lines)
+
+
+def _build_public_card_html(d: dict, card_id: str) -> str:
+    """V38V — Server-side HTML page for the public /master/business-card/public/{card_id}
+    endpoint. Contains name, logo, contacts, QR, vCard download button, and
+    a mobile-first 'save to phonebook' banner. Optional visual effect
+    (shimmer / animated border) applied via pure CSS.
+    """
+    from html import escape as esc
+    accent = d.get("accent_color") or "#6366F1"
+    name = esc(d.get("display_name") or "Biglietto")
+    title = esc(d.get("title") or "")
+    company = esc(d.get("company_name") or "")
+    phone = esc(d.get("phone") or "")
+    email = esc(d.get("email") or "")
+    website = (d.get("website") or "").strip()
+    website_esc = esc(website)
+    address = esc(d.get("address") or "")
+    tagline = esc(d.get("tagline") or "")
+    logo = d.get("logo_base64") or ""
+    logo_esc = esc(logo)
+    page_title = esc(d.get("link_title") or f"Biglietto da visita — {d.get('display_name') or ''}".strip())
+    effect = (d.get("visual_effect") or "none").lower()
+    qr_type = d.get("qr_type") or "website"
+    if qr_type == "app":
+        qr_value = d.get("demo_app_link") or d.get("qr_content") or ""
+    elif qr_type == "website":
+        qr_value = website or (d.get("qr_content") or "")
+    elif qr_type == "vcard":
+        qr_value = _build_vcard(d)
+    else:
+        qr_value = d.get("qr_content") or ""
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?data={_quote_plus_std(qr_value or ' ')}&size=220x220&color={accent.replace('#','')}&bgcolor=FFFFFF"
+
+    # Effect styles — pure CSS (no external libs)
+    effect_css = ""
+    effect_class = ""
+    if effect == "shimmer":
+        effect_class = "with-shimmer"
+        effect_css = """
+        .card.with-shimmer { position: relative; overflow: hidden; }
+        .card.with-shimmer::before {
+          content: "";
+          position: absolute;
+          top: 0; left: -100%;
+          width: 50%; height: 100%;
+          background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%);
+          animation: bc-shimmer 10s infinite;
+          pointer-events: none;
+        }
+        @keyframes bc-shimmer {
+          0% { left: -100%; }
+          10% { left: 120%; }
+          100% { left: 120%; }
+        }
+        """
+    elif effect == "border":
+        effect_class = "with-border-glow"
+        effect_css = f"""
+        .card.with-border-glow {{ position: relative; }}
+        .card.with-border-glow::after {{
+          content: "";
+          position: absolute;
+          inset: -3px;
+          border-radius: 20px;
+          padding: 3px;
+          background: conic-gradient(from 0deg, transparent 60%, {accent}, transparent 100%);
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor;
+                  mask-composite: exclude;
+          animation: bc-border-spin 3s linear infinite;
+          pointer-events: none;
+        }}
+        @keyframes bc-border-spin {{
+          to {{ transform: rotate(360deg); }}
+        }}
+        """
+    contacts_rows = "".join([
+        (f'<div class="row"><span class="ico">📞</span><a href="tel:{phone}">{phone}</a></div>' if phone else ""),
+        (f'<div class="row"><span class="ico">✉️</span><a href="mailto:{email}">{email}</a></div>' if email else ""),
+        (f'<div class="row"><span class="ico">🌐</span><a href="{website_esc if website.startswith("http") else "https://" + website_esc}" target="_blank" rel="noopener">{website_esc}</a></div>' if website else ""),
+        (f'<div class="row"><span class="ico">📍</span><span>{address}</span></div>' if address else ""),
+    ])
+    logo_html = f'<img class="logo" src="{logo_esc}" alt="Logo"/>' if logo else ""
+    tagline_html = f'<div class="tagline">{tagline}</div>' if tagline else ""
+    title_html = f'<div class="role">{title}</div>' if title else ""
+    company_html = f'<div class="company">{company}</div>' if company else ""
+
+    return f"""<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0"/>
+<title>{page_title}</title>
+<meta property="og:title" content="{page_title}"/>
+<meta property="og:description" content="{tagline or name}"/>
+<style>
+  * {{ box-sizing: border-box; }}
+  html, body {{ margin: 0; padding: 0; background: linear-gradient(135deg, #F8FAFC 0%, {accent}22 100%);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; color: #0F172A; }}
+  .wrap {{ max-width: 460px; margin: 0 auto; padding: 24px 16px; }}
+  .banner {{ background: {accent}; color: #FFF; padding: 12px 14px; border-radius: 12px; margin-bottom: 14px;
+    display: none; align-items: center; gap: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.12); }}
+  .banner .txt {{ flex: 1; font-size: 13px; line-height: 1.35; }}
+  .banner button {{ background: #FFF; color: {accent}; border: none; padding: 8px 14px; border-radius: 8px;
+    font-weight: 700; font-size: 12px; cursor: pointer; }}
+  .banner .close {{ background: transparent; color: #FFF; padding: 0 4px; font-size: 18px; }}
+  .card {{ background: #FFF; border-radius: 18px; border: 2px solid {accent}; overflow: hidden;
+    box-shadow: 0 10px 30px rgba(15,23,42,0.10); }}
+  .stripe {{ height: 10px; background: {accent}; }}
+  .head {{ display: flex; padding: 20px 20px 12px; gap: 14px; align-items: center; }}
+  .logo {{ width: 76px; height: 76px; object-fit: contain; background: #F8FAFC; border-radius: 14px; border: 1px solid {accent}; }}
+  .name {{ font-size: 22px; font-weight: 900; color: {accent}; line-height: 1.15; }}
+  .role {{ font-size: 13px; color: #475569; margin-top: 3px; }}
+  .company {{ font-size: 12px; color: #64748B; margin-top: 2px; }}
+  .contacts {{ padding: 0 20px 8px; display: flex; flex-direction: column; gap: 6px; }}
+  .row {{ display: flex; align-items: center; gap: 8px; font-size: 14px; color: #334155; }}
+  .row a {{ color: {accent}; text-decoration: none; word-break: break-all; }}
+  .row .ico {{ width: 20px; text-align: center; }}
+  .tagline {{ padding: 4px 20px 12px; font-size: 12.5px; font-style: italic; color: {accent}; text-align: center; }}
+  .qr-box {{ padding: 18px; border-top: 1px solid #F1F5F9; display: flex; flex-direction: column; align-items: center; gap: 8px; }}
+  .qr-box img {{ width: 220px; height: 220px; }}
+  .actions {{ padding: 14px 16px 22px; display: flex; flex-direction: column; gap: 8px; }}
+  .btn {{ display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 16px;
+    border-radius: 10px; font-weight: 700; font-size: 14px; text-decoration: none; cursor: pointer; border: none; }}
+  .btn-primary {{ background: {accent}; color: #FFF; }}
+  .btn-secondary {{ background: #FFF; color: {accent}; border: 2px solid {accent}; }}
+  .footer {{ text-align: center; color: #94A3B8; font-size: 10px; padding: 12px; }}
+  {effect_css}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="save-banner" class="banner">
+      <div class="txt">Vuoi salvare i dati nella tua rubrica telefonica?</div>
+      <button onclick="downloadVCard()">Salva</button>
+      <button class="close" onclick="closeBanner()" aria-label="Chiudi">×</button>
+    </div>
+
+    <div class="card {effect_class}">
+      <div class="stripe"></div>
+      <div class="head">
+        {logo_html}
+        <div>
+          <div class="name">{name}</div>
+          {title_html}
+          {company_html}
+        </div>
+      </div>
+      <div class="contacts">{contacts_rows}</div>
+      {tagline_html}
+      <div class="qr-box">
+        <img src="{qr_url}" alt="QR code"/>
+        <div style="font-size:10px;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;">Scansiona con la fotocamera</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="downloadVCard()">
+        📇 Salva in rubrica (.vcf)
+      </button>
+      <a class="btn btn-secondary" href="/api/master/business-card/public/{card_id}.vcf" target="_blank" rel="noopener">
+        ⬇️ Scarica vCard
+      </a>
+    </div>
+
+    <div class="footer">Dal Pastro CRM · Biglietto digitale</div>
+  </div>
+
+<script>
+  function isMobile() {{ return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent); }}
+  function downloadVCard() {{
+    window.location.href = '/api/master/business-card/public/{card_id}.vcf';
+  }}
+  function closeBanner() {{
+    var b = document.getElementById('save-banner');
+    if (b) b.style.display = 'none';
+    try {{ localStorage.setItem('bc_banner_dismissed_{card_id}', '1'); }} catch(e) {{}}
+  }}
+  // Show banner on first mobile access only
+  (function() {{
+    if (!isMobile()) return;
+    try {{
+      if (localStorage.getItem('bc_banner_dismissed_{card_id}') === '1') return;
+    }} catch(e) {{}}
+    var b = document.getElementById('save-banner');
+    if (b) b.style.display = 'flex';
+  }})();
+</script>
+</body>
+</html>"""
+
+
+@api_router.get("/master/business-card/public/{card_id}.vcf")
+async def get_public_business_card_vcf(card_id: str):
+    """V38V — Serve the vCard (.vcf) file so the phonebook opens it directly."""
     d = await db.business_cards.find_one({"card_id": card_id}, {"_id": 0, "user_id": 0})
     if not d:
         raise HTTPException(status_code=404, detail="Biglietto non trovato")
-    return d
+    vc = _build_vcard(d)
+    name_slug = (d.get("display_name") or "contatto").replace(" ", "_")
+    return Response(
+        content=vc,
+        media_type="text/vcard",
+        headers={"Content-Disposition": f'attachment; filename="{name_slug}.vcf"'},
+    )
+
+
+@api_router.get("/master/business-card/public/{card_id}", response_class=HTMLResponse)
+async def get_public_business_card(card_id: str):
+    """V38V — Public HTML page (no auth) rendered server-side. Includes vCard
+    download button + mobile 'save to phonebook' banner + optional CSS effect.
+    """
+    d = await db.business_cards.find_one({"card_id": card_id}, {"_id": 0, "user_id": 0})
+    if not d:
+        return HTMLResponse(
+            content="<html><body style='font-family:sans-serif;padding:40px;text-align:center;color:#DC2626'>"
+                    "<h1>Biglietto non trovato</h1><p>Il link è scaduto o non valido.</p></body></html>",
+            status_code=404,
+        )
+    return HTMLResponse(content=_build_public_card_html(d, card_id))
 
 
 @api_router.get("/master-files")
