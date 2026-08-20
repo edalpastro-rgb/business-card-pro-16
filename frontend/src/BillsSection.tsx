@@ -359,7 +359,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
     };
 
     const rows = Object.entries(ex)
-      .filter(([k]) => !["raw_text_preview", "parse_error"].includes(k))
+      .filter(([k]) => !["raw_text_preview", "parse_error", "fiscal_check"].includes(k))
       .map(([k, v]) => {
         // V38Q — render monthly consumption as SVG chart embedded in the KV table.
         if ((k === "consumi_mensili_kwh" || k === "consumi_mensili_smc") && v) {
@@ -373,12 +373,13 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
             </tr>`;
           }
         }
-        // V38Q — render note_ai as bulleted list even in the saved analysis
+        // V38W — render note_ai as bulleted list with consultant's name
         if (k === "note_ai") {
           const items = normalizeNotes(v);
           if (items.length > 0) {
             const ul = `<ul style="margin:0 0 0 18px;padding:0;">${items.map((it) => `<li style="font-size:11px;margin-bottom:3px;line-height:1.4;">${escHtml(it)}</li>`).join("")}</ul>`;
-            const label = "Note AI";
+            const consultantName = String(branding?.agency_name || "").trim() || "Consulente";
+            const label = `Note di ${consultantName}`;
             return `<tr>
               <td style="padding:10px 12px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;font-weight:700;color:#0F172A;font-size:12px;width:38%;vertical-align:top;">${escHtml(label)}</td>
               <td style="padding:10px 12px;background:#FFF;border-bottom:1px solid #E2E8F0;font-size:12px;color:#0F172A;vertical-align:top;">${ul}</td>
@@ -392,7 +393,45 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         </tr>`;
       }).join("");
 
-    const params = Array.isArray(bill.analysis_params) ? bill.analysis_params : [];
+    // V38W — Human-readable Fiscal Check block (never JSON)
+    const fiscalCheck = (ex as any).fiscal_check;
+    const fmtNum = (n: any, digits = 2) => {
+      const v = Number(n);
+      if (!Number.isFinite(v)) return "—";
+      return v.toLocaleString("it-IT", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    };
+    const fiscalRow = (label: string, entry: any, digits: number, unit: string) => {
+      if (!entry || typeof entry !== "object") return "";
+      const ok = !!entry.ok;
+      const exp = entry.expected;
+      const act = entry.actual;
+      const delta = entry.delta_annual_eur;
+      const bg = ok ? "#ECFDF5" : "#FEF2F2";
+      const border = ok ? "#A7F3D0" : "#FCA5A5";
+      const color = ok ? "#065F46" : "#991B1B";
+      const text = ok
+        ? `${label} ${fmtNum(exp, digits)}${unit} OK`
+        : `${label} errata — attesa ${fmtNum(exp, digits)}${unit}, trovata ${fmtNum(act, digits)}${unit}`;
+      const deltaTxt = (!ok && Number.isFinite(Number(delta)) && Number(delta) !== 0)
+        ? ` <span style="color:#DC2626;font-weight:700;">· Extra 12 mesi: € ${fmtNum(delta, 0)}</span>`
+        : "";
+      return `<li style="padding:6px 10px;background:${bg};border:1px solid ${border};border-radius:6px;margin-bottom:6px;color:${color};font-size:12px;">${escHtml(text)}${deltaTxt}</li>`;
+    };
+    let fiscalHtml = "";
+    if (fiscalCheck && typeof fiscalCheck === "object") {
+      const parts: string[] = [];
+      if (fiscalCheck.iva) parts.push(fiscalRow("IVA", fiscalCheck.iva, 0, "%"));
+      if (fiscalCheck.accise_gas) parts.push(fiscalRow("Accise gas", fiscalCheck.accise_gas, 6, " €/Smc"));
+      if (fiscalCheck.pcv) parts.push(fiscalRow("PCV / Costi fissi", fiscalCheck.pcv, 2, " €/mese"));
+      const clean = parts.filter(Boolean).join("");
+      if (clean) {
+        fiscalHtml = `<h3 style="color:#0F172A;font-size:14px;margin:16px 0 6px;">Verifica agevolazioni fiscali</h3><ul style="padding:0;margin:0;list-style:none;">${clean}</ul>`;
+      }
+    }
+
+    // V38W — filter out internal __verifica_* markers (never expose them)
+    const params = (Array.isArray(bill.analysis_params) ? bill.analysis_params : [])
+      .filter((p: any) => !(typeof p === "string" && p.startsWith("__verifica_")));
     const paramsBadges = params.length
       ? `<div style="margin:14px 0 6px;">
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#6B7280;margin-bottom:4px;">Parametri richiesti dall'operatore</div>
@@ -435,18 +474,18 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       </div>
     </div>`;
   })()}
-  <h1>📄 Analisi Fattura ${escHtml(btMeta.label)}</h1>
+  <h1>Analisi Fattura ${escHtml(btMeta.label)}</h1>
   <div class="subtitle"><b>Cliente:</b> ${escHtml(name)} &nbsp;·&nbsp; <b>Documento:</b> ${escHtml(bill.pdf_name)} &nbsp;·&nbsp; <b>Analizzata:</b> ${escHtml(generated)}</div>
   <div class="banner">
-    <div class="banner-emoji">${btMeta.emoji}</div>
-    <div class="banner-text">
+    <div class="banner-text" style="flex:1;">
       <div class="banner-title">${escHtml(ex.fornitore || "—")}</div>
       <div class="banner-sub">${escHtml(ex.nome_offerta || ex.tipo_offerta || "Offerta non specificata")}</div>
     </div>
   </div>
   ${paramsBadges}
+  ${fiscalHtml}
   ${rows ? `<table class="kv">${rows}</table>` : "<p><i>Nessun dato estratto.</i></p>"}
-  <div class="footer">Report AI generato automaticamente con Claude Sonnet 5 · Dal Pastro CRM</div>
+  <div class="footer">Report generato con Claude Sonnet 5 · Dal Pastro CRM</div>
 </body></html>`;
   };
 
@@ -943,7 +982,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         return (
           <View key={bt} style={styles.section}>
             <View style={[styles.sectionHeader, { backgroundColor: meta.color }]}>
-              <Text style={styles.sectionTitle}>{meta.emoji} {meta.label}</Text>
+              <Text style={styles.sectionTitle}>{meta.label}</Text>
               <Text style={styles.sectionCount}>{bills.length}</Text>
             </View>
 

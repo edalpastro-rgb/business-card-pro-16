@@ -3725,6 +3725,7 @@ async def _auto_save_draft_to_master_files(draft: dict):
       - A generated HTML ANALISI report in category='analisi' (contains the
         extracted structured data + note_ai + consumption chart — much smaller
         than the PDF, distinctly rendered).
+    V38W: fetch consultant profile for a professional header (logo + name).
     Both saves are idempotent: skip when a doc with the same name exists.
     """
     try:
@@ -3768,9 +3769,19 @@ async def _auto_save_draft_to_master_files(draft: dict):
         if not exists_ana:
             extracted = draft.get("extracted") or {}
             bill_type = (draft.get("bill_type") or "luce").lower()
-            label_map = {"luce": ("Luce ⚡", "#EA580C"), "gas": ("Gas 🔥", "#F59E0B"), "telco": ("Telefono/Internet 📶", "#0891B2")}
+            # V38W — Plain-text labels (no emoji: cleaner + no charset artifacts)
+            label_map = {"luce": ("Luce", "#EA580C"), "gas": ("Gas", "#F59E0B"), "telco": ("Telefono/Internet", "#0891B2")}
             bt_label, bt_color = label_map.get(bill_type, ("Fattura", "#6366F1"))
-            html = _build_analysis_html(extracted, bt_label, bt_color, base, draft.get("analysis_params") or [])
+            # V38W — Fetch consultant profile for professional header + Note author
+            user_doc = await db.users.find_one({"user_id": draft.get("user_id")}, {
+                "_id": 0, "name": 1, "company_name": 1, "company_logo_base64": 1,
+                "report_slogan": 1, "report_contacts": 1,
+            }) or {}
+            html = _build_analysis_html(
+                extracted, bt_label, bt_color, base,
+                draft.get("analysis_params") or [],
+                user_doc,
+            )
             html_b64 = base64.b64encode(html.encode("utf-8")).decode("ascii")
             await db.master_files.insert_one({
                 "file_id": f"mf_{uuid.uuid4().hex[:12]}",
@@ -3793,14 +3804,93 @@ async def _auto_save_draft_to_master_files(draft: dict):
         logger.warning("_auto_save_draft_to_master_files err: %s", e)
 
 
-def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base: str, params: list) -> str:
+def _consultant_display(user_doc: dict) -> str:
+    """V38W — Prefer user.name, else company_name, else initials."""
+    name = (user_doc or {}).get("name") or ""
+    if name.strip():
+        return name.strip()
+    comp = (user_doc or {}).get("company_name") or ""
+    if comp.strip():
+        return comp.strip()
+    return "Consulente"
+
+
+def _format_fiscal_check_html(fc: dict) -> str:
+    """V38W — Render fiscal_check dict as human-readable rows (never JSON)."""
+    if not fc or not isinstance(fc, dict):
+        return ""
+    from html import escape as esc
+    rows = []
+    def _num(v, digits=2):
+        try:
+            return f"{float(v):,.{digits}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        except Exception:
+            return "—"
+    def _row(label, entry, digits, unit=""):
+        if not isinstance(entry, dict):
+            return None
+        ok = bool(entry.get("ok"))
+        exp = entry.get("expected")
+        act = entry.get("actual")
+        delta = entry.get("delta_annual_eur")
+        color = "#059669" if ok else "#DC2626"
+        bg = "#ECFDF5" if ok else "#FEF2F2"
+        border = "#A7F3D0" if ok else "#FCA5A5"
+        if ok:
+            text = f"{esc(label)} {_num(exp, digits)}{unit} OK"
+        else:
+            text = f"{esc(label)} errata — attesa {_num(exp, digits)}{unit}, trovata {_num(act, digits)}{unit}"
+        delta_txt = ""
+        if not ok and isinstance(delta, (int, float)) and delta:
+            delta_txt = f"<span style='color:#DC2626;font-weight:700;'>· Extra 12 mesi: € {_num(delta, 0)}</span>"
+        return f"<li style='padding:6px 10px;background:{bg};border:1px solid {border};border-radius:6px;margin-bottom:6px;color:{color};font-size:12px;'>{text} {delta_txt}</li>"
+    if fc.get("iva"):
+        r = _row("IVA", fc["iva"], 0, "%")
+        if r: rows.append(r)
+    if fc.get("accise_gas"):
+        r = _row("Accise gas", fc["accise_gas"], 6, " €/Smc")
+        if r: rows.append(r)
+    if fc.get("pcv"):
+        r = _row("PCV / Costi fissi", fc["pcv"], 2, " €/mese")
+        if r: rows.append(r)
+    if not rows:
+        return ""
+    return "<h3 style='color:#0F172A;font-size:14px;margin:16px 0 6px;'>Verifica agevolazioni fiscali</h3><ul style='padding:0;margin:0;list-style:none;'>" + "".join(rows) + "</ul>"
+
+
+def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base: str, params: list, user_doc: dict = None) -> str:
     """Render a compact HTML analysis report from the extracted fields.
     Includes a monthly consumption SVG bar chart when present.
+    V38W: professional header + fiscal_check rendering + note author personalization + emoji-free titles.
     """
     from html import escape as esc
+    user_doc = user_doc or {}
     generated = datetime.now(timezone.utc).astimezone().strftime("%d/%m/%Y %H:%M")
     fornitore = esc(str(extracted.get("fornitore") or "—"))
     offerta = esc(str(extracted.get("nome_offerta") or extracted.get("tipo_offerta") or "Offerta non specificata"))
+    consultant = _consultant_display(user_doc)
+    company = (user_doc.get("company_name") or "").strip()
+    logo = (user_doc.get("company_logo_base64") or "").strip()
+    slogan = (user_doc.get("report_slogan") or "").strip()
+    contacts = (user_doc.get("report_contacts") or "").strip()
+
+    # V38W — Professional header
+    header_html = ""
+    if consultant or logo or company:
+        logo_html = f'<img src="{esc(logo)}" alt="Logo" style="max-height:56px;max-width:120px;object-fit:contain;"/>' if logo else ""
+        agency_line = esc(company or consultant)
+        role_line = esc(consultant) if company and consultant and company != consultant else ""
+        header_html = f"""
+        <div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:2px solid {bt_color};margin-bottom:16px;">
+          {logo_html}
+          <div style="flex:1;">
+            <div style="font-size:15px;font-weight:800;color:#1F2937;">{agency_line}</div>
+            {f'<div style="font-size:12px;color:#475569;margin-top:2px;">{role_line}</div>' if role_line else ""}
+            {f'<div style="font-size:11px;font-style:italic;color:#64748B;margin-top:3px;">{esc(slogan)}</div>' if slogan else ""}
+            {f'<div style="font-size:10px;color:#94A3B8;margin-top:3px;">{esc(contacts)}</div>' if contacts else ""}
+          </div>
+        </div>
+        """
 
     # SVG chart from consumi_mensili
     chart_html = ""
@@ -3814,7 +3904,7 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
             chart_html = _svg_bar_chart(points, unit, bt_color)
             break
 
-    # Note AI as bulleted list
+    # V38W — Note personalizzate col nome del consulente (era "Note AI")
     notes_html = ""
     note_val = extracted.get("note_ai")
     if note_val:
@@ -3825,14 +3915,19 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
         else:
             items = []
         if items:
-            notes_html = "<h3 style='color:#0F172A;font-size:14px;margin:16px 0 6px;'>Note AI</h3><ul style='padding-left:20px;margin:0;color:#334155;font-size:12px;'>" + "".join(f"<li style='margin-bottom:4px;'>{esc(it)}</li>" for it in items) + "</ul>"
+            note_title = f"Note di {esc(consultant)}"
+            notes_html = f"<h3 style='color:#0F172A;font-size:14px;margin:16px 0 6px;'>{note_title}</h3><ul style='padding-left:20px;margin:0;color:#334155;font-size:12px;'>" + "".join(f"<li style='margin-bottom:4px;'>{esc(it)}</li>" for it in items) + "</ul>"
 
-    # Standard KV table
+    # V38W — Fiscal check rendered as readable rows (never JSON)
+    fiscal_html = _format_fiscal_check_html(extracted.get("fiscal_check") or {})
+
+    # Standard KV table — skip internal keys and fiscal_check
     rows = []
     for k, v in extracted.items():
         if v in (None, "", []):
             continue
-        if k in ("consumi_mensili_kwh", "consumi_mensili_smc", "note_ai", "parametri_richiesti", "raw_text_preview"):
+        if k in ("consumi_mensili_kwh", "consumi_mensili_smc", "note_ai",
+                 "parametri_richiesti", "raw_text_preview", "fiscal_check"):
             continue
         if isinstance(v, (list, dict)):
             v_str = _json_stdlib.dumps(v, ensure_ascii=False)
@@ -3842,17 +3937,20 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
         rows.append(f"<tr><td style='padding:8px 10px;background:#F8FAFC;font-weight:700;color:#475569;font-size:11px;border-bottom:1px solid #E2E8F0;width:40%;'>{esc(label)}</td><td style='padding:8px 10px;color:#0F172A;font-size:12px;border-bottom:1px solid #E2E8F0;word-break:break-word;'>{esc(v_str)}</td></tr>")
     table_html = f"<table style='width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-top:12px;'>{''.join(rows)}</table>" if rows else "<p style='color:#94A3B8;font-style:italic;'>Nessun dato estratto.</p>"
 
+    # V38W — Filter internal `__verifica_*` markers before rendering user-visible pills
     params_html = ""
     if params:
-        pills = "".join(f"<span style='display:inline-block;padding:3px 9px;border-radius:12px;background:#EDE9FE;color:#5B21B6;font-size:10px;font-weight:700;margin:2px;'>{esc(str(p))}</span>" for p in params)
-        params_html = f"<div style='margin:14px 0 6px;'><div style='font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#6B7280;margin-bottom:6px;'>Parametri prioritari</div>{pills}</div>"
+        clean_params = [p for p in params if not (isinstance(p, str) and p.startswith("__verifica_"))]
+        if clean_params:
+            pills = "".join(f"<span style='display:inline-block;padding:3px 9px;border-radius:12px;background:#EDE9FE;color:#5B21B6;font-size:10px;font-weight:700;margin:2px;'>{esc(str(p))}</span>" for p in clean_params)
+            params_html = f"<div style='margin:14px 0 6px;'><div style='font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#6B7280;margin-bottom:6px;'>Parametri prioritari</div>{pills}</div>"
 
     return f"""<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Analisi {esc(bt_label)} — {esc(doc_base)}</title>
+<title>Analisi Fattura {esc(bt_label)} - {esc(doc_base)}</title>
 <style>
   body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#0F172A;margin:16px;background:#F8FAFC;}}
   .banner{{background:linear-gradient(135deg,{bt_color},{bt_color}CC);color:#FFF;padding:14px 18px;border-radius:10px;margin-bottom:14px;}}
@@ -3864,17 +3962,19 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
 </style>
 </head>
 <body>
-  <h1>📄 Analisi Fattura {esc(bt_label)}</h1>
+  {header_html}
+  <h1>Analisi Fattura {esc(bt_label)}</h1>
   <div class="subtitle"><b>Documento:</b> {esc(doc_base)} &nbsp;·&nbsp; <b>Analizzata:</b> {esc(generated)}</div>
   <div class="banner">
     <div class="banner-title">{fornitore}</div>
     <div class="banner-sub">{offerta}</div>
   </div>
   {params_html}
+  {fiscal_html}
   {table_html}
   {"<h3 style='color:#0F172A;font-size:14px;margin:16px 0 6px;'>Consumi mensili</h3>" + chart_html if chart_html else ""}
   {notes_html}
-  <div class="footer">Report AI generato automaticamente · Dal Pastro CRM</div>
+  <div class="footer">Report generato da {esc(consultant)} · Dal Pastro CRM</div>
 </body>
 </html>"""
 

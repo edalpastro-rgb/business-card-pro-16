@@ -1,0 +1,27 @@
+{
+  "summary": "V38W — Analysis page 5 bugfixes fully verified. Backend: 25/25 pytest pass on /app/backend/tests/test_v38w_analysis_page_fixes.py (helper unit tests for _consultant_display, _format_fiscal_check_html, _build_analysis_html; end-to-end auto-save integration; regression on /api/auth/login, /api/master-files, /api/bill-drafts CRUD, /api/master/business-card, /api/assistant/chat). Confirmed: (a) no corrupted emoji or 'ðŸ' bytes in generated HTML; (b) H1 = 'Analisi Fattura Luce' and <title> = 'Analisi Fattura Luce - {docbase}'; (c) __verifica_* markers filtered from param chips; (d) fiscal_check rendered as colored <li> rows (green/red with 'Extra 12 mesi: € X' delta), never JSON; (e) note title = 'Note di {user.name || user.company_name || Consulente}'; (f) professional header with logo/agency/slogan/contacts present when profile populated. Frontend: BillsSection tab loads clean on all 6 scanned test contacts (no bills status=done available in test DB but section headers render 'Luce'/'Gas'/'Telco' text-only WITHOUT emoji prefix, no __verifica_ chips exposed, no 'Note AI' string leaked). Home/Calendario/Report/Master/Business-card/Neo assistant regression all green.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38w_analysis_page_fixes.py",
+    "/app/test_reports/pytest/v38w_results.xml"
+  ],
+  "action_items": [
+    "Optional: seed a demo contact with a bill status='done' + populated fiscal_check to allow future visual verification of the FiscalCheckBanner rendering directly in the Fatture tab. Current test DB contacts have zero completed bills so the banner could only be validated via the backend helper functions and end-to-end HTML asserts."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 6668 lines — consider splitting into modules (bills / auth / master_files / assistant). Not blocking but exceeds the 700-line guideline.",
+    "Frontend buildBillAnalysisHtml <title> uses em-dash (—) whereas backend uses hyphen (-). Both are emoji-free per requirement; consistency between them is a nice-to-have but not a bug."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None. Integration test creates + deletes an ephemeral bill_draft and its master_files entries within the test run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Test file test_v38w_analysis_page_fixes.py imports /app/backend/server.py directly for unit tests on pure helper functions (_consultant_display, _format_fiscal_check_html, _build_analysis_html) and uses motor db via srv.db for the auto-save integration test. Regression endpoints hit EXPO_PUBLIC_BACKEND_URL. Login creds: test@dalpastro.it / Test1234!. No bill status='done' available in DB — if future visual validation of FiscalCheckBanner in the UI is needed, upload a real PDF via the Fatture tab and wait ~15s for AI analysis, OR seed the energy_bills collection directly."
+}

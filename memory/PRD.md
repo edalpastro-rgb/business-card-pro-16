@@ -122,3 +122,14 @@ Testing V38U: 10/10 pytest backend + frontend verificato in Playwright. Files cr
 6. **Route ordering fix** — `.vcf` route dichiarata PRIMA della route HTML per evitare che FastAPI matchi il card_id includendo l'estensione.
 
 Testing V38V: 22/22 pytest backend (dopo fix max_length) + frontend Playwright OK (bc-share-image no findNodeHandle error). File modificati: server.py (BusinessCardIn + Public endpoint), business-card.tsx (shareAsImage web + hidden DOM mirror + link_title/effect UI), bill-quick.tsx (PCV gas), BillsSection.tsx (FiscalCheckBanner gas).
+
+## V38W (June 2026) — 5 bug fix pagina analisi fattura (Msg 601)
+1. **Emoji corrotti nel titolo** — Rimosso `📄` da H1 in `_build_analysis_html` (backend) e `buildBillAnalysisHtml` (frontend). Ora titolo pulito "Analisi Fattura Luce/Gas". Rimosso emoji anche dal SECTION_META header nella live view (era "⚡ Luce", ora "Luce").
+2. **Tag `__verifica_*` filtrati** — I marker interni (`__verifica_iva__=10`, `__verifica_pcv_annullato__=1`) sono ora esclusi da `paramsBadges` (frontend) e `params_html` (backend).
+3. **Fiscal Check human-readable** — Nuovo helper `_format_fiscal_check_html` (backend) e blocco `fiscalHtml` (frontend). Renderizza fiscal_check come `<li>` verdi/rossi:
+   - IVA 10% OK / IVA errata — attesa 10%, trovata 22% + "Extra 12 mesi: € 120"
+   - Idem per Accise gas (6 decimali) e PCV (€/mese)
+4. **"Note AI" → "Note di {ConsultantName}"** — Helper `_consultant_display(user_doc)` con fallback user.name → company_name → "Consulente". Backend usa `user_doc` fetched da `_auto_save_draft_to_master_files`. Frontend usa `branding.agency_name`.
+5. **Intestazione professionale** — `_build_analysis_html` accetta `user_doc` con logo/name/company/slogan/contacts. Header colorato prima di H1 con `<img src=logo>` + nome agenzia + ruolo consulente + slogan italic + contatti small grey. `_auto_save_draft_to_master_files` fetcha il profilo user prima di generare l'HTML.
+
+Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrotto, nessun `__verifica_` chip, nessuna "Note AI" residua). File modificati: server.py (`_build_analysis_html`, `_auto_save_draft_to_master_files`, nuovi helper `_consultant_display` + `_format_fiscal_check_html`), BillsSection.tsx (`paramsBadges` filter, `buildBillAnalysisHtml` fiscal + note author + emoji removal, SECTION_META header).

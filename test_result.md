@@ -251,12 +251,11 @@ metadata:
 
 test_plan:
   current_focus:
-    - "V38V Task 1 — PCV/costi fissi option now available for BOTH luce and gas (was luce-only)"
-    - "V38V Task 2 — Business card share bug fixed: pure html2canvas on web (NO captureRef/findNodeHandle)"
-    - "V38V Task 3 — Public /master/business-card/public/{card_id} returns FULL HTML page (not JSON)"
-    - "V38V Task 4 — GET /master/business-card/public/{card_id}.vcf returns text/vcard file"
-    - "V38V Task 5 — Business card settings: link_title + visual_effect (shimmer/border/none)"
-    - "V38V Task 6 — Fiscal check now shows PCV for gas too (FiscalCheckBanner)"
+    - "V38W BUG 1 — Titolo pagina analisi fattura SENZA emoji (era '📄 Analisi Fattura' → ora 'Analisi Fattura Luce/Gas')"
+    - "V38W BUG 2 — Filtrare marker interni __verifica_iva__=10 / __verifica_pcv_annullato__=1 dai tag mostrati (frontend paramsBadges + backend _build_analysis_html)"
+    - "V38W BUG 3 — Fiscal Check human-readable (mai JSON): 'IVA 10% OK' o 'IVA errata — attesa 10%, trovata X%'. Su frontend buildBillAnalysisHtml + backend _build_analysis_html"
+    - "V38W BUG 4 — Sezione 'Note AI' rinominata in 'Note di {NomeConsulente}' (nome da user.name/company_name)"
+    - "V38W BUG 5 — Intestazione professionale nel report: logo + nome consulente + slogan + contatti dal profilo user"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
