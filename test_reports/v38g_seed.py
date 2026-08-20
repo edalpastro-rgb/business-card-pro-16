@@ -5,7 +5,7 @@ import time
 
 import requests
 
-BASE_URL = "https://contact-hub-italy.preview.emergentagent.com"
+BASE_URL = "https://business-card-pro-16.preview.emergentagent.com"
 
 r = requests.post(f"{BASE_URL}/api/auth/login", json={"email": "test@dalpastro.it", "password": "Test1234!"})
 token = r.json()["token"]

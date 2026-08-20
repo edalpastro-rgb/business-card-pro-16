@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Contacts from "expo-contacts";
-import * as ImagePicker from "expo-image-picker";
+import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import * as DocumentPicker from "expo-document-picker";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
@@ -223,13 +223,12 @@ export default function NewContactScreen() {
 
   const runAICard = async () => {
     const useBase64 = Platform.OS !== "web";
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (Platform.OS !== "web" && !perm.granted) return;
-    const res = await ImagePicker.launchCameraAsync({ quality: 0.6, base64: useBase64 });
+    const res = await launchCameraUniversal({ quality: 0.6, base64: useBase64 });
     if (res.canceled || !res.assets?.[0]) return;
     const a = res.assets[0];
     let dataUrl: string;
-    if (a.base64) dataUrl = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
+    if (a.uri && a.uri.startsWith("data:")) dataUrl = a.uri;
+    else if (a.base64) dataUrl = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
     else if (a.uri) dataUrl = await uriToBase64DataUrl(a.uri, a.mimeType || "image/jpeg");
     else return;
     setAiBusy(true);
@@ -596,18 +595,15 @@ export default function NewContactScreen() {
 
   const pickPhoto = async (fromCamera: boolean) => {
     try {
-      const perm = fromCamera
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (Platform.OS !== "web" && !perm.granted) return;
       const useBase64 = Platform.OS !== "web";
       const res = fromCamera
-        ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: useBase64 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: useBase64 });
+        ? await launchCameraUniversal({ quality: 0.5, base64: useBase64 })
+        : await launchLibraryUniversal({ mediaTypes: "images", quality: 0.5, base64: useBase64 });
       if (res.canceled || !res.assets?.[0]) return;
       const a = res.assets[0];
       let dataUri: string;
-      if (a.base64) dataUri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
+      if (a.uri && a.uri.startsWith("data:")) dataUri = a.uri;
+      else if (a.base64) dataUri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
       else if (a.uri) dataUri = await uriToBase64DataUrl(a.uri, a.mimeType || "image/jpeg");
       else return;
       if (base64ByteSize(dataUri) > 8 * 1024 * 1024) { notify("Foto troppo grande", "Max ~8 MB"); return; }
@@ -634,18 +630,15 @@ export default function NewContactScreen() {
 
   const pickPhotoFor = async (target: "email" | "general", fromCamera: boolean) => {
     try {
-      const perm = fromCamera
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (Platform.OS !== "web" && !perm.granted) return;
       const useBase64 = Platform.OS !== "web";
       const res = fromCamera
-        ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: useBase64 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: useBase64 });
+        ? await launchCameraUniversal({ quality: 0.5, base64: useBase64 })
+        : await launchLibraryUniversal({ mediaTypes: "images", quality: 0.5, base64: useBase64 });
       if (res.canceled || !res.assets?.[0]) return;
       const a = res.assets[0];
       let uri: string;
-      if (a.base64) uri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
+      if (a.uri && a.uri.startsWith("data:")) uri = a.uri;
+      else if (a.base64) uri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
       else if (a.uri) uri = await uriToBase64DataUrl(a.uri, a.mimeType || "image/jpeg");
       else return;
       if (base64ByteSize(uri) > 8 * 1024 * 1024) { notify("Foto troppo grande", "Max ~8 MB"); return; }

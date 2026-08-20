@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextI
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import * as ImagePicker from "expo-image-picker";
+import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import * as FileSystem from "expo-file-system/legacy";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { useRouter } from "expo-router";
@@ -247,25 +247,31 @@ export default function MasterFilesScreen() {
     try {
       let res: any;
       if (kind === "camera-photo" || kind === "camera-video") {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { setBusy(false); notify("Permesso camera negato", ""); return; }
-        res = await ImagePicker.launchCameraAsync({
-          mediaTypes: kind === "camera-photo" ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+        res = await launchCameraUniversal({
+          mediaTypes: kind === "camera-photo" ? "images" : "videos",
           quality: 0.85,
           allowsEditing: false,
         });
+        if (res.canceled) { setBusy(false); return; }
       } else {
-        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { setBusy(false); notify("Permesso galleria negato", ""); return; }
-        res = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: kind === "library-photo" ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+        res = await launchLibraryUniversal({
+          mediaTypes: kind === "library-photo" ? "images" : "videos",
           quality: 0.85,
           allowsEditing: false,
         });
+        if (res.canceled) { setBusy(false); return; }
       }
       if (res.canceled || !res.assets?.[0]?.uri) { setBusy(false); return; }
       const a = res.assets[0];
-      const b64 = await uriToBase64(a.uri);
+      // On web the uri is already a data URL — extract base64.
+      // On native, read the file using expo-file-system.
+      let b64: string;
+      if (a.uri.startsWith("data:")) {
+        const idx = a.uri.indexOf(",");
+        b64 = idx >= 0 ? a.uri.slice(idx + 1) : "";
+      } else {
+        b64 = await uriToBase64(a.uri);
+      }
       const bytes = Math.round((b64.length * 3) / 4);
       if (bytes > 20 * 1024 * 1024) { notify("File troppo grande", "Max 20 MB."); setBusy(false); return; }
       const isVideo = kind.endsWith("video");

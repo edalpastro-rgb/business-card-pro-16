@@ -15,7 +15,7 @@ from reportlab.pdfgen import canvas
 BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
     # Fallback to the frontend .env public URL
-    BASE_URL = "https://contact-hub-italy.preview.emergentagent.com"
+    BASE_URL = "https://business-card-pro-16.preview.emergentagent.com"
 
 OWNER_EMAIL = "test@dalpastro.it"
 OWNER_PASSWORD = "Test1234!"

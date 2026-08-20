@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import * as ImagePicker from "expo-image-picker";
+import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import * as DocumentPicker from "expo-document-picker";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
@@ -158,23 +158,18 @@ export default function NewAppointmentScreen() {
 
   const addPhoto = async (fromCamera: boolean) => {
     try {
-      const perm = fromCamera
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (Platform.OS !== "web" && !perm.granted) {
-        notify("Permesso negato");
-        return;
-      }
       // IMPORTANT: On web, do NOT request base64 (broken in expo-image-picker 17.x web).
       const useBase64 = Platform.OS !== "web";
-      const opts: any = { quality: 0.5, base64: useBase64, mediaTypes: ImagePicker.MediaTypeOptions.Images };
+      const opts = { quality: 0.5, base64: useBase64, mediaTypes: "images" as const };
       const res = fromCamera
-        ? await ImagePicker.launchCameraAsync(opts)
-        : await ImagePicker.launchImageLibraryAsync(opts);
+        ? await launchCameraUniversal(opts)
+        : await launchLibraryUniversal(opts);
       if (res.canceled || !res.assets?.[0]) return;
       const a = res.assets[0];
       let dataUrl: string;
-      if (a.base64) {
+      if (a.uri && a.uri.startsWith("data:")) {
+        dataUrl = a.uri;
+      } else if (a.base64) {
         dataUrl = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
       } else if (a.uri) {
         dataUrl = await uriToBase64DataUrl(a.uri, a.mimeType || "image/jpeg");

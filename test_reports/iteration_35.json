@@ -7,7 +7,7 @@
     "design_issues": [],
     "react_native_issues": []
   },
-  "test_report_links": ["Playwright inline script (mobile viewport 375x667) run against https://contact-hub-italy.preview.emergentagent.com/master"],
+  "test_report_links": ["Playwright inline script (mobile viewport 375x667) run against https://business-card-pro-16.preview.emergentagent.com/master"],
   "action_items": [],
   "critical_code_review_comments": [
     "master.tsx now ~486 lines — still within limits but Calculator sub-component (~110 lines) could be extracted to its own file to keep master.tsx focused.",

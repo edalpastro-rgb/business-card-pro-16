@@ -1,0 +1,126 @@
+<analysis>**original_problem_statement**: 
+The user requested a comprehensive mobile app/CRM for their work as an Energy Consultant and Networker in Italy. The app needs to manage contacts, calendar appointments, daily callbacks, reports, and feature a multi-user setup with strict Role-Based Access Control (RBAC).
+PRODUCT REQUIREMENTS:
+- Rich CRM tailored for Italian Energy Consultants & Networkers.
+- Multi-tenant data isolation with strict Role-Based Access Control.
+- AI Assistant capabilities (context-aware chat, voice/TTS, real-time web search, memory).
+- Advanced Contact management (linked referrals, bulk import).
+- Specific modules: Fiscal Checks (Bollette), Master Interface (Files), and a Digital Business Card.
+
+**User's preferred language**: Italian (You MUST respond in Italian only).
+
+**what currently exists?** 
+A highly complex, feature-rich CRM. Features include: RBAC hierarchy, AI Assistant (Neo) with Tavily search & memory, complex Contact/Bill views. Recently added: A Team Calendar view with RBAC filtering (Tabs: I miei / Team / Tutti), dynamic contact linking within existing appointments (Collega contatto), and a completely redesigned two-sided flipping Digital Business Card (Navy blue/White, 1.75:1 ratio) that captures the back side via  for sharing.
+
+**Last working item**: 
+    - Last item agent was working: Implementing the Collega contatto feature in appointment details, fixing auto-linking on appointment creation, and redesigning the Digital Business Card UI.
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y
+    - Which testing method agent to use?: NA (Testing was completed successfully by  in iteration 59, which passed 5/5 backend tests and fixed 2 frontend bugs).
+    - User Testing Done: N
+
+**All Pending/In progress Issue list**:  
+  Issue 1: Backend Monolith Refactoring (P1)
+     - Attempted fixes: None.
+     - Next debug checklist:  is nearly 6900 lines long. Assess splitting routes and models. **Note: User previously stated Ignora il refactoring server.py, non farlo ora**. Do not proceed unless explicitly instructed by the user.
+     - Why fix this issue and what will be achieved with the fix?: Reduces technical debt and prevents context overflow.
+     - Status: BLOCKED (by explicit user instruction)
+     - Is recurring issue?: Y
+     - Should Test frontend/backend/both after fix?: Both
+     - Blocked on other issue: User approval.
+
+**In progress Task List**: 
+  *(None active. All recent tasks completed. Awaiting user's next command).*
+
+**Upcoming and Future Tasks**
+    Upcoming Tasks:
+    - P1: Scanner Documenti Multi-pagina: Open camera, auto-align document, scan multiple pages in sequence, and merge into a single PDF. Save to Documenti Master. Include auto-crop with OpenCV.js/client-side edge detection. OCR should run *only* if the document is analyzed as a bill.
+    - P2: Statistiche Biglietto da Visita: Track how many people open the public link of the business card and from which cities.
+    
+    Future Tasks:
+    - P3: Phase 2/3 Monetization (Local file storage for Free Tier, Stripe Integration).
+    - P4: Zoom OAuth Integration.
+
+**Completed work in this session**
+- Team Calendar View: Added I miei / Team / Tutti tabs with RBAC logic and color-coded chips. (DONE)
+- Added  backend endpoint. (DONE)
+- Added Collega contatto button and search modal to existing appointments (). (DONE)
+- Updated  to accept  updates. (DONE)
+- Fixed auto-linking of contacts when creating an appointment directly from a contact's profile. (DONE)
+- Business Card Redesign: Converted to a horizontal 1.75:1 aspect ratio with a flip animation (Navy Blue/Gold front, White/Grey back). (DONE)
+
+**Earlier issues found/mentioned but not fixed**
+   - None active. (Testing agent successfully fixed a React Hooks rule violation in  where an early return was placed before hooks).
+
+**Known issue recurrence from previous fork**
+  - Issue recurrence in previous fork: Agent frequently violates React Rules of Hooks (e.g., placing  or  below an early  statement).
+  - Recurrence count: 2 (Testing agent caught and fixed this in the current session).
+  - Status: RESOLVED (Next agent must be highly vigilant about Hook placement).
+  - Issue recurrence: Web Compatibility with Expo. Native APIs like ViewShot fail on web previews.
+  - Status: IN PROGRESS (Always use DOM methods like  for web-compatible image generation).
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+- Frontend: Expo Router,  (for web business cards), Zustand, React Native Reanimated (for card flip).
+- Backend: FastAPI, PyMongo.
+- Integrations: Emergent Integrations (LLMs), Tavily API (Search).
+
+**key DB schema**
+  - 
+  - 
+  - : Now frequently updated with  via PUT requests.
+  - 
+
+**changes in tech stack**
+  - None in this session.
+
+**All files of reference** 
+  -  (Updated with Team tabs)
+  -  (Updated to handle team members and appointment updates)
+  -  (Updated with contact linking modal)
+  -  (Updated param parsing logic)
+  -  (Completely redesigned for Flip UI)
+
+**Areas that need refactoring**: 
+-  (Critically bloated). *Wait for user permission before touching this.*
+
+**key api endpoints**
+-  (Fetches team appointments based on RBAC)
+-  (Updates appointment details, including )
+
+**Critical Info for New Agent**
+- **Language**: You MUST respond to the user in Italian.
+- **React Hooks**: NEVER place a React Hook (, , ) below an early return statement (e.g., ). The  had to fix this exact mistake in this session.
+- **Current State**: The agent just finished a major UI redesign for the business card and added calendar/appointment linking features. Await user confirmation or prompt them to start the next P1 task: **Scanner Documenti Multi-pagina**.
+
+**documents and test reports created in this job**
+  -  (Updated)
+  -  (Calendar tests)
+  -  (Appointment linking tests & Hook fixes)
+
+**Last 10 User Messages and any pending HUMAN messages** 
+ - *User*: Requested to proceed with Vista Calendario Team (P1). Specified RBAC rules (Tabs: I miei / Team / Tutti). (Completed)
+ - *User*: Requested new fixes: 1) Collega contatto button in appointment detail, 2) Auto-link contact when creating appointment from contact card, 3) Redesign Business Card (Horizontal 1.75:1, Navy front, White back, flip animation, capture back via html2canvas). (Completed & Tested).
+
+**Project Health Check:**
+Backend is large but stable. Frontend is stable.
+
+**3rd Party Integrations** 
+  - Claude Sonnet (via Emergent LLM Key)
+  - OpenAI Whisper-1 & TTS-1 (via Emergent LLM Key)
+  - Gemini Flash (via Emergent LLM Key)
+  - Tavily Web Search (via User API Key: )
+
+**Testing status**
+  - Testing agent used after significant changes: YES (Fixed 2 frontend bugs regarding hooks and param naming in iteration 59).
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: 
+  - Known regressions: None.
+
+**Credentials to test flow:**
+See 
+
+**What agent forgot to execute**
+- Nothing. All tasks were implemented, thoroughly tested by the , verified via screenshots, and finished successfully. Await the user's next command.</analysis>

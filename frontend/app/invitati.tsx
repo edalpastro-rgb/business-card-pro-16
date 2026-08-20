@@ -15,7 +15,7 @@ function getPublicOrigin(): string {
   // Best-effort: use current origin on web, otherwise leave placeholder
   if (Platform.OS === "web" && typeof window !== "undefined") return window.location.origin;
   const backend = (Constants.expoConfig?.extra as any)?.backendUrl || process.env.EXPO_PUBLIC_BACKEND_URL || "";
-  // Backend URL like https://contact-hub-italy.preview.emergentagent.com — used to derive public app URL
+  // Backend URL like https://business-card-pro-16.preview.emergentagent.com — used to derive public app URL
   return backend || "https://tuoapp.it";
 }
 

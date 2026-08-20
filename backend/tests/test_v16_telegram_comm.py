@@ -3,7 +3,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = (os.environ.get("EXPO_BACKEND_URL") or os.environ.get("EXPO_PUBLIC_BACKEND_URL") or "https://contact-hub-italy.preview.emergentagent.com").rstrip("/")
+BASE_URL = (os.environ.get("EXPO_BACKEND_URL") or os.environ.get("EXPO_PUBLIC_BACKEND_URL") or "https://business-card-pro-16.preview.emergentagent.com").rstrip("/")
 OWNER = {"email": "test@dalpastro.it", "password": "Test1234!"}
 
 

@@ -13,7 +13,7 @@ import pytest
 import requests
 import jwt
 
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://contact-hub-italy.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://business-card-pro-16.preview.emergentagent.com').rstrip('/')
 API = f"{BASE_URL}/api"
 
 EMAIL = "test@dalpastro.it"

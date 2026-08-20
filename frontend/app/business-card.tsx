@@ -3,9 +3,9 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextI
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
 import * as FileSystem from "expo-file-system/legacy";
+import { launchLibraryUniversal } from "@/src/utils/imagePickerCompat";
 import * as Sharing from "expo-sharing";
 import QRCode from "react-native-qrcode-svg";
 import { captureRef } from "react-native-view-shot";
@@ -91,16 +91,17 @@ export default function BusinessCardScreen() {
   const upd = (field: keyof Card) => (v: any) => setCard((c) => ({ ...c, [field]: v }));
 
   const pickImage = async (field: "logo_base64" | "photo_base64") => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, allowsEditing: true, base64: Platform.OS === "web" });
+    const res = await launchLibraryUniversal({ mediaTypes: "images", quality: 0.7, allowsEditing: true, base64: Platform.OS === "web" });
     if (res.canceled || !res.assets?.[0]?.uri) return;
     setBusy(true);
     try {
       const a = res.assets[0];
       let dataUri: string;
       if (Platform.OS === "web") {
-        if (a.base64) {
+        // On web, launchLibraryUniversal returns a data URL directly in uri and base64 is populated
+        if (a.uri.startsWith("data:")) {
+          dataUri = a.uri;
+        } else if (a.base64) {
           dataUri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
         } else {
           const blob = await (await fetch(a.uri)).blob();

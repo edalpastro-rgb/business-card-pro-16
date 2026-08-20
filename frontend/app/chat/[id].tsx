@@ -6,7 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
-import * as ImagePicker from "expo-image-picker";
+import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
@@ -108,20 +108,21 @@ export default function ChatDetailScreen() {
   };
 
   const pickPhoto = async (fromCamera: boolean) => {
-    const perm = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (Platform.OS !== "web" && !perm.granted) return;
     const res = fromCamera
-      ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: Platform.OS === "web" })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: Platform.OS === "web" });
+      ? await launchCameraUniversal({ quality: 0.5, base64: Platform.OS === "web" })
+      : await launchLibraryUniversal({ mediaTypes: "images", quality: 0.5, base64: Platform.OS === "web" });
     if (res.canceled || !res.assets?.[0]) return;
     const a = res.assets[0];
-    let b64 = a.base64;
-    if (!b64) {
-      try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); } catch { return; }
+    let uri: string;
+    if (a.uri && a.uri.startsWith("data:")) {
+      uri = a.uri;
+    } else {
+      let b64 = a.base64;
+      if (!b64) {
+        try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); } catch { return; }
+      }
+      uri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
     }
-    const uri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
     await send({ kind: "photo", photo_base64: uri });
   };
 

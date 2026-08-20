@@ -22,7 +22,7 @@ import { ContactCallsSection } from "@/src/ContactCallsSection";
 import { ContactAppointmentsSection } from "@/src/ContactAppointmentsSection";
 import { ContactReferralsSection } from "@/src/ContactReferralsSection";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
-import * as ImagePicker from "expo-image-picker";
+import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -158,20 +158,21 @@ export default function ContactDetail() {
   };
 
   const addPhotoNote = async (fromCamera: boolean) => {
-    const perm = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (Platform.OS !== "web" && !perm.granted) return;
     const res = fromCamera
-      ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: Platform.OS === "web" })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: Platform.OS === "web" });
+      ? await launchCameraUniversal({ quality: 0.5, base64: Platform.OS === "web" })
+      : await launchLibraryUniversal({ mediaTypes: "images", quality: 0.5, base64: Platform.OS === "web" });
     if (res.canceled || !res.assets?.[0]) return;
     const a = res.assets[0];
-    let b64 = a.base64;
-    if (!b64) {
-      try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); } catch { return; }
+    let uri: string;
+    if (a.uri && a.uri.startsWith("data:")) {
+      uri = a.uri;
+    } else {
+      let b64 = a.base64;
+      if (!b64) {
+        try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); } catch { return; }
+      }
+      uri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
     }
-    const uri = `data:${a.mimeType || "image/jpeg"};base64,${b64}`;
     setBusy(true);
     try {
       await api(`/contacts/${id}/notes`, { method: "POST", body: { kind: "photo", photo_base64: uri, category: activeCategory } });
@@ -180,27 +181,16 @@ export default function ContactDetail() {
   };
 
   const addVideoNote = async (fromCamera: boolean) => {
-    const perm = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (Platform.OS !== "web" && !perm.granted) return;
     const res = fromCamera
-      ? await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-          videoMaxDuration: 60,
-          quality: 0.5,
-          base64: Platform.OS === "web",
-        })
-      : await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-          videoMaxDuration: 60,
-          quality: 0.5,
-          base64: Platform.OS === "web",
-        });
+      ? await launchCameraUniversal({ mediaTypes: "videos", quality: 0.5, base64: Platform.OS === "web" })
+      : await launchLibraryUniversal({ mediaTypes: "videos", quality: 0.5, base64: Platform.OS === "web" });
     if (res.canceled || !res.assets?.[0]) return;
     const a = res.assets[0];
     let b64 = a.base64;
-    if (!b64) {
+    if (a.uri && a.uri.startsWith("data:")) {
+      const commaIdx = a.uri.indexOf(",");
+      b64 = commaIdx >= 0 ? a.uri.slice(commaIdx + 1) : "";
+    } else if (!b64) {
       try { b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 }); } catch { return; }
     }
     // Sanity check size to avoid huge payloads (limit ~15MB base64)

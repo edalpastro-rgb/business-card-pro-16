@@ -1,5 +1,13 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v1.4 bug fixes (Feb 2026)
+### 🐛 Fix caricamento immagini su Web ("Failed to read the selected media")
+- **Root cause**: `expo-image-picker` v17.x su web falliva con "Failed to read the selected media" durante il caricamento immagini dalla libreria.
+- **Fix**: Creato wrapper universale `/app/frontend/src/utils/imagePickerCompat.ts` (`launchLibraryUniversal`, `launchCameraUniversal`) che su WEB usa un elemento HTML `<input type=file>` nascosto + `FileReader.readAsDataURL()` (nuovo modulo `/app/frontend/src/web-image-picker.ts`), su native mantiene `expo-image-picker` (import dinamico).
+- **File aggiornati (7)**: business-card.tsx, contact/new.tsx, contact/[id].tsx, appointment/new.tsx, master-files.tsx, chat/[id].tsx, my-thing.tsx.
+- **Test**: `testing_agent` iterazione 60 — 3 flussi principali verificati end-to-end + 5/5 sanity backend passati. QRScannerModal.tsx non toccato: aveva già un'implementazione web-native separata (`scanFromLibraryWeb`).
+
+
 ## v1.3 nuove funzioni
 ### Contatto
 - Referenza: 3 opzioni distinte

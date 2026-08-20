@@ -20,7 +20,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 load_dotenv("/app/backend/.env")
 
-BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/") if os.environ.get("EXPO_PUBLIC_BACKEND_URL") else "https://contact-hub-italy.preview.emergentagent.com"
+BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/") if os.environ.get("EXPO_PUBLIC_BACKEND_URL") else "https://business-card-pro-16.preview.emergentagent.com"
 API = f"{BASE_URL}/api"
 OWNER_EMAIL = "test@dalpastro.it"
 OWNER_PASS = "Test1234!"

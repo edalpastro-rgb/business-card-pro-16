@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
+import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
@@ -98,31 +98,27 @@ export default function MyThingScreen() {
   };
 
   const pickImage = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert("Permesso negato", "Concedi l'accesso alle foto per aggiungere immagini");
-      return;
-    }
-    const r = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    const r = await launchLibraryUniversal({
+      mediaTypes: "images",
       quality: 0.7,
-      base64: true,
+      base64: Platform.OS !== "web",
     });
-    if (!r.canceled && r.assets[0]) {
-      const a = r.assets[0];
+    if (r.canceled || !r.assets?.[0]) return;
+    const a = r.assets[0];
+    if (a.uri && a.uri.startsWith("data:")) {
+      setImgB64(a.uri);
+    } else if (a.base64) {
       setImgB64(`data:${a.mimeType || "image/jpeg"};base64,${a.base64}`);
     }
   };
 
   const takePhoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert("Permesso negato", "Concedi l'accesso alla fotocamera");
-      return;
-    }
-    const r = await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true });
-    if (!r.canceled && r.assets[0]) {
-      const a = r.assets[0];
+    const r = await launchCameraUniversal({ quality: 0.7, base64: Platform.OS !== "web" });
+    if (r.canceled || !r.assets?.[0]) return;
+    const a = r.assets[0];
+    if (a.uri && a.uri.startsWith("data:")) {
+      setImgB64(a.uri);
+    } else if (a.base64) {
       setImgB64(`data:${a.mimeType || "image/jpeg"};base64,${a.base64}`);
     }
   };

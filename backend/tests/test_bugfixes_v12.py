@@ -10,7 +10,7 @@ import pytest
 BASE_URL = (
     os.environ.get("EXPO_PUBLIC_BACKEND_URL")
     or os.environ.get("EXPO_BACKEND_URL")
-    or "https://contact-hub-italy.preview.emergentagent.com"
+    or "https://business-card-pro-16.preview.emergentagent.com"
 ).rstrip("/")
 API = f"{BASE_URL}/api"
 
