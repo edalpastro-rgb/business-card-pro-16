@@ -18,13 +18,21 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { useFabStack } from "@/src/FabStack";
+import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 
 const ASSISTANT_COLOR = "#8B5CF6"; // violet — distinct from red mic and blue brand
 const ASSISTANT_COLOR_DARK = "#6D28D9";
 
 type ResponseMode = "text" | "voice" | "both";
 
-type ChatMsg = { role: "user" | "assistant"; content: string; created_at?: string };
+type ChatMsg = {
+  role: "user" | "assistant";
+  content: string;
+  created_at?: string;
+  // V38T — Track which assistant messages were augmented with web search
+  used_web_search?: boolean;
+  web_sources?: { title: string; url: string }[];
+};
 
 type AssistantChatProps = {
   visible: boolean;
@@ -110,6 +118,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [assistantVoice, setAssistantVoice] = useState<string>("nova");
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
   const [showModeMenu, setShowModeMenu] = useState(false);
+  // V38T — Save-to-master modal state (opens with default filename)
+  const [saveTarget, setSaveTarget] = useState<{ content: string; defaultName: string } | null>(null);
+  const [paused, setPaused] = useState(false);
   // ---- Continuous conversation mode ----
   const [convMode, setConvMode] = useState(false); // true = session active
   const [convPhase, setConvPhase] = useState<
@@ -135,6 +146,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const timerRef = useRef<any>(null);
   const durRef = useRef(0);
   const cleanupAudioRef = useRef<(() => void) | null>(null);
+  // V38T — Reference to current HTMLAudioElement for pause/resume
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const loadHistory = useCallback(async () => {
     setLoadingHist(true);
@@ -195,7 +208,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     const optimistic: ChatMsg = { role: "user", content: msg, created_at: new Date().toISOString() };
     setMessages((prev) => [...prev, optimistic]);
     try {
-      const r = await api<{ session_id: string; reply: string; assistant_name: string }>(
+      const r = await api<{ session_id: string; reply: string; assistant_name: string; used_web_search?: boolean; web_sources?: { title: string; url: string }[] }>(
         "/assistant/chat",
         { method: "POST", body: { message: msg, session_id: sessionId || undefined } }
       );
@@ -203,7 +216,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       setAssistantName(r.assistant_name || assistantName);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant" as const, content: r.reply, created_at: new Date().toISOString() },
+        {
+          role: "assistant" as const,
+          content: r.reply,
+          created_at: new Date().toISOString(),
+          used_web_search: !!r.used_web_search,
+          web_sources: r.web_sources || [],
+        },
       ]);
       // Auto-play voice if mode requires (or forced by conversation mode)
       const shouldSpeak = opts?.forceSpeak || responseMode === "voice" || responseMode === "both";
@@ -229,39 +248,147 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
       const targetIdx = typeof forceIdx === "number" ? forceIdx : -1;
       setPlayingIdx(targetIdx);
+      setPaused(false);
       const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", {
         method: "POST",
         body: { text, voice: assistantVoice },
       });
       if (!r?.audio_base64) { setPlayingIdx(null); if (onEnded) onEnded(); return; }
       let ended = false;
-      const cleanup = await playAudioBase64(r.audio_base64, r.mime || "audio/mpeg", () => {
-        if (ended) return;
-        ended = true;
-        setPlayingIdx(null);
-        if (onEnded) onEnded();
-      });
-      cleanupAudioRef.current = () => {
-        cleanup();
-        setPlayingIdx(null);
-        if (!ended) {
+      // V38T — Keep audio element accessible for pause/resume
+      if (Platform.OS === "web") {
+        const audio = new Audio(`data:${r.mime || "audio/mpeg"};base64,${r.audio_base64}`);
+        currentAudioRef.current = audio;
+        audio.addEventListener("ended", () => {
+          if (ended) return;
           ended = true;
+          currentAudioRef.current = null;
+          setPlayingIdx(null); setPaused(false);
           if (onEnded) onEnded();
-        }
-      };
+        }, { once: true });
+        try { await audio.play(); } catch {}
+        cleanupAudioRef.current = () => {
+          try { audio.pause(); } catch {}
+          currentAudioRef.current = null;
+          setPlayingIdx(null); setPaused(false);
+          if (!ended) { ended = true; if (onEnded) onEnded(); }
+        };
+      } else {
+        const cleanup = await playAudioBase64(r.audio_base64, r.mime || "audio/mpeg", () => {
+          if (ended) return;
+          ended = true;
+          setPlayingIdx(null); setPaused(false);
+          if (onEnded) onEnded();
+        });
+        cleanupAudioRef.current = () => {
+          cleanup();
+          setPlayingIdx(null); setPaused(false);
+          if (!ended) { ended = true; if (onEnded) onEnded(); }
+        };
+      }
       // Fallback timer in case 'ended' event never fires
       const dur = Math.max(2000, Math.min(60000, text.length * 55));
       setTimeout(() => {
         if (ended) return;
         ended = true;
         setPlayingIdx((v) => (v === targetIdx ? null : v));
+        setPaused(false);
         if (onEnded) onEnded();
       }, dur + 500);
     } catch {
-      setPlayingIdx(null);
+      setPlayingIdx(null); setPaused(false);
       if (onEnded) onEnded();
     }
   };
+
+  // V38T — Pause / resume Neo's voice (visible pause button + "Neo pausa" voice command)
+  const togglePause = () => {
+    const audio = currentAudioRef.current;
+    if (!audio) { return; }
+    if (audio.paused) { try { audio.play(); } catch {} setPaused(false); }
+    else { try { audio.pause(); } catch {} setPaused(true); }
+  };
+  const stopPlayback = () => {
+    if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
+    setPlayingIdx(null); setPaused(false);
+  };
+
+  // V38T — Save an assistant reply to Master files (opens confirm modal)
+  const openSaveToMaster = (content: string) => {
+    setSaveTarget({ content, defaultName: suggestFileName("Neo", "Ricerca energia") });
+  };
+  const confirmSaveToMaster = async (name: string) => {
+    if (!saveTarget) return;
+    try {
+      await api("/assistant/save-to-master", {
+        method: "POST",
+        body: { content: saveTarget.content, name, session_id: sessionId, category: "notes" },
+      });
+      setSaveTarget(null);
+      // Feedback via a temporary system-like bubble
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant" as const, content: `💾 Risposta salvata come "${name}" nei tuoi file Master.`, created_at: new Date().toISOString() },
+      ]);
+    } catch (e: any) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant" as const, content: `⚠️ Salvataggio fallito: ${e?.message || ""}`, created_at: new Date().toISOString() },
+      ]);
+      setSaveTarget(null);
+    }
+  };
+
+  // V38T — Barge-in detector: while Neo is speaking, monitor mic; if user
+  // starts talking, pause TTS immediately (standard voice-assistant behavior).
+  // Simple RMS-based VAD; no transcription needed for barge-in.
+  const bargeRafRef = useRef<number | null>(null);
+  const startBargeInDetector = () => {
+    if (bargeRafRef.current != null) return;
+    const analyser = convAnalyserRef.current;
+    if (!analyser) return;
+    const buffer = new Uint8Array(analyser.fftSize);
+    let voiceStartMs = 0;
+    const tick = () => {
+      if (!currentAudioRef.current) { bargeRafRef.current = null; return; }
+      analyser.getByteTimeDomainData(buffer);
+      let sum = 0;
+      for (let i = 0; i < buffer.length; i++) {
+        const v = (buffer[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / buffer.length);
+      if (rms > 0.045) {
+        if (!voiceStartMs) voiceStartMs = Date.now();
+        // Sustained ~600ms → treat as "Neo pausa" / interruption
+        if (Date.now() - voiceStartMs > 600) {
+          stopPlayback();
+          bargeRafRef.current = null;
+          return;
+        }
+      } else {
+        voiceStartMs = 0;
+      }
+      bargeRafRef.current = requestAnimationFrame(tick);
+    };
+    bargeRafRef.current = requestAnimationFrame(tick);
+  };
+  const stopBargeInDetector = () => {
+    if (bargeRafRef.current != null) {
+      try { cancelAnimationFrame(bargeRafRef.current); } catch {}
+      bargeRafRef.current = null;
+    }
+  };
+  // Fire barge-in detector whenever we enter speaking phase in conv mode
+  useEffect(() => {
+    if (convPhase === "speaking" && convModeRef.current && !convMutedRef.current) {
+      startBargeInDetector();
+    } else {
+      stopBargeInDetector();
+    }
+    return () => stopBargeInDetector();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convPhase]);
 
   const cycleMode = async () => {
     const idx = MODE_ORDER.indexOf(responseMode);
@@ -678,6 +805,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   assistantName={assistantName}
                   onPlay={m.role === "assistant" ? () => void speakReply(m.content, i) : undefined}
                   isPlaying={playingIdx === i || (playingIdx === -1 && i === messages.length - 1 && m.role === "assistant")}
+                  paused={paused}
+                  onTogglePause={togglePause}
+                  onSaveToMaster={m.role === "assistant" && m.used_web_search ? () => openSaveToMaster(m.content) : undefined}
                 />
               ))}
               {sending && (
@@ -753,6 +883,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           </KeyboardAvoidingView>
         </View>
       </View>
+      {/* V38T — Save-to-Master modal (rename confirm) */}
+      <SaveConfirmModal
+        visible={!!saveTarget}
+        title="Salva risposta di Neo"
+        subtitle="Verrà salvata nella sezione Note dei tuoi File Master"
+        defaultName={saveTarget?.defaultName || ""}
+        extension=".md"
+        color="#16A34A"
+        onCancel={() => setSaveTarget(null)}
+        onConfirm={confirmSaveToMaster}
+      />
     </Modal>
   );
 }
@@ -846,7 +987,23 @@ function ConversationPanel({
   );
 }
 
-function MessageBubble({ msg, assistantName, onPlay, isPlaying }: { msg: ChatMsg; assistantName: string; onPlay?: () => void; isPlaying?: boolean }) {
+function MessageBubble({
+  msg,
+  assistantName,
+  onPlay,
+  isPlaying,
+  paused,
+  onTogglePause,
+  onSaveToMaster,
+}: {
+  msg: ChatMsg;
+  assistantName: string;
+  onPlay?: () => void;
+  isPlaying?: boolean;
+  paused?: boolean;
+  onTogglePause?: () => void;
+  onSaveToMaster?: () => void;
+}) {
   const isUser = msg.role === "user";
   return (
     <View style={[styles.bubbleRow, { justifyContent: isUser ? "flex-end" : "flex-start" }]}>
@@ -858,25 +1015,67 @@ function MessageBubble({ msg, assistantName, onPlay, isPlaying }: { msg: ChatMsg
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAsst]}>
         {!isUser && (
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-            <Text style={styles.bubbleWho}>{assistantName}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={styles.bubbleWho}>{assistantName}</Text>
+              {msg.used_web_search && (
+                <View style={styles.webBadge}>
+                  <Ionicons name="globe" size={10} color="#0EA5E9" />
+                  <Text style={styles.webBadgeTxt}>web</Text>
+                </View>
+              )}
+            </View>
             {onPlay && (
-              <Pressable
-                onPress={onPlay}
-                hitSlop={8}
-                accessibilityLabel="Ascolta risposta"
-                testID="msg-play-btn"
-                style={{ padding: 2 }}
-              >
-                <Ionicons
-                  name={isPlaying ? "volume-high" : "play-circle"}
-                  size={18}
-                  color={isPlaying ? "#DC2626" : ASSISTANT_COLOR_DARK}
-                />
-              </Pressable>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                {/* V38T — Prominent pause/resume button while this reply is playing */}
+                {isPlaying && onTogglePause && (
+                  <Pressable
+                    onPress={onTogglePause}
+                    hitSlop={8}
+                    accessibilityLabel={paused ? "Riprendi" : "Pausa"}
+                    testID="msg-pause-btn"
+                    style={{ padding: 2 }}
+                  >
+                    <Ionicons name={paused ? "play" : "pause"} size={20} color="#DC2626" />
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={onPlay}
+                  hitSlop={8}
+                  accessibilityLabel="Ascolta risposta"
+                  testID="msg-play-btn"
+                  style={{ padding: 2 }}
+                >
+                  <Ionicons
+                    name={isPlaying ? "volume-high" : "play-circle"}
+                    size={18}
+                    color={isPlaying ? "#DC2626" : ASSISTANT_COLOR_DARK}
+                  />
+                </Pressable>
+              </View>
             )}
           </View>
         )}
         <Text style={[styles.bubbleText, isUser && { color: "#FFF" }]}>{msg.content}</Text>
+        {/* V38T — Save-to-Master button on responses that used web search */}
+        {!isUser && onSaveToMaster && (
+          <Pressable
+            onPress={onSaveToMaster}
+            testID="msg-save-master-btn"
+            style={styles.saveMasterBtn}
+          >
+            <Ionicons name="save" size={14} color="#16A34A" />
+            <Text style={styles.saveMasterTxt}>Salva nei file Master</Text>
+          </Pressable>
+        )}
+        {/* Web sources footer */}
+        {!isUser && msg.web_sources && msg.web_sources.length > 0 && (
+          <View style={{ marginTop: 6, gap: 2 }}>
+            <Text style={styles.sourcesLbl}>Fonti:</Text>
+            {msg.web_sources.slice(0, 3).map((s, k) => (
+              <Text key={k} style={styles.sourceTxt} numberOfLines={1}>• {s.title || s.url}</Text>
+            ))}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -1129,6 +1328,33 @@ const styles = StyleSheet.create({
   },
   bubbleWho: { fontSize: 10, fontWeight: "700", color: ASSISTANT_COLOR_DARK, marginBottom: 2 },
   bubbleText: { fontSize: 14, color: theme.color.onSurface, lineHeight: 20 },
+  // V38T — Web-search badge + Save-to-Master button + sources
+  webBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#E0F2FE",
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  webBadgeTxt: { fontSize: 9, color: "#0369A1", fontWeight: "800", textTransform: "uppercase" },
+  saveMasterBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    alignSelf: "flex-start",
+    backgroundColor: "#DCFCE7",
+    borderColor: "#16A34A",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  saveMasterTxt: { fontSize: 12, color: "#166534", fontWeight: "700" },
+  sourcesLbl: { fontSize: 10, color: theme.color.muted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
+  sourceTxt: { fontSize: 11, color: theme.color.muted },
 
   typingBubble: {
     flexDirection: "row",

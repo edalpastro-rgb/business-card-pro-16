@@ -251,14 +251,12 @@ metadata:
 
 test_plan:
   current_focus:
-    - "V38S Task 1 — PDF.js viewer embedded (fixes mobile Chrome/Android download dialog)"
-    - "V38S Task 2 — Calculator as bottom sheet at ~62% height (data visible behind)"
-    - "V38S Task 3 — Removed 'I miei audio' duplicate from Master menu"
-    - "V38S Task 4 — 'Failed to fetch' friendlier error message (api.ts network try/catch)"
-    - "V38S Task 5 — Logo aziendale + agency name shown as header on ALL PDF reports (buildBillAnalysisHtml + buildReportHtml + buildComparisonHtml)"
-    - "V38S Task 6 — Long green 'Aggiungi Appuntamento' button in Calendar (replaces round FAB)"
-    - "V38S Task 7 — Long green 'Aggiungi Telefonata' button on Home + Appointment detail (Programma ritelefonata)"
-    - "V38S Task 8 — Appointment types replaced with: Energy/Telefonata/Personale/Riunione/Promemoria/Altro + colors visible in pill + calendar week/month dots"
+    - "V38T Task 9 — Tavily search integration for Italian energy queries (PUN/ARERA/tariffe/oneri) — Neo answers with fresh data + inline sources"
+    - "V38T Task 9 — POST /api/assistant/save-to-master — save Neo response as .md file in Master files (category=notes)"
+    - "V38T Task 10 — Persistent memory: neo_memory collection + auto-distill after 3+ exchanges (fire-and-forget task) + GET/DELETE endpoints"
+    - "V38T Task 10 — /neo-memory screen (consulta + cancella + cancella tutto) with confirm dialogs"
+    - "V38T Task 11 — Visible pause/resume button on playing assistant bubble (msg-pause-btn)"
+    - "V38T Task 11 — Voice barge-in during 'speaking' phase: any sustained voice > 600ms stops TTS"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"

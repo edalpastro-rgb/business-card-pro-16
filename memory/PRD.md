@@ -79,3 +79,14 @@ Testing V38R: 12/12 pytest backend + Playwright OK. File toccati: server.py, Fil
    - `apptTypeColor()` esportato + usato in `calendario.tsx` (vista giornaliera + settimanale + mensile dots)
 
 Testing V38S: 11/11 pytest backend + code review frontend OK.
+
+## V38T (June 2026) — 3 Neo AI Improvements (Msg 598)
+1. **Tavily search integration** — `TAVILY_API_KEY` in backend/.env. `_detect_energy_query()` con word-boundary regex (evita false positive tipo "appuntamento" → "pun"). Keyword: PUN, GME, MGP, GSE, ARERA, delibera, tariffa, oneri, mercato elettrico, TTF, PSV, ecc. `_tavily_search()` con include_domains su ARERA/GME/GSE/Snam/Terna. Frontend: badge "web" + pulsante "💾 Salva nei file Master" (POST /api/assistant/save-to-master → collezione master_files, category=notes, mime text/markdown).
+2. **Memoria persistente Neo** — Collezione `neo_memory` MongoDB. Fire-and-forget task `_maybe_save_memory` dopo >=6 messaggi in una sessione: distilla via Claude Haiku 4.5 in JSON `{summary, facts[]}`. `_load_neo_memories(limit=5)` inietta le memorie in "MEMORIA PERSISTENTE" del system prompt. Endpoints:
+   - `GET /assistant/memory` — lista
+   - `DELETE /assistant/memory/{memory_id}` — cancella singola
+   - `DELETE /assistant/memory` — cancella tutte
+   Nuova screen `/app/frontend/app/neo-memory.tsx` con link "Memoria di Neo" (viola, sparkles icon) in Impostazioni.
+3. **Pausa TTS + Barge-in** — Pulsante `msg-pause-btn` visibile accanto al play icon durante playback (⏸️ rosso). `currentAudioRef` tiene riferimento al HTMLAudioElement per pause/resume. In conversation mode, durante phase='speaking': `startBargeInDetector()` avvia loop RMS VAD — voce sostenuta > 600ms → `stopPlayback()` (equivalente "Neo pausa"). Chiusura modale NON cancella conversazione (comportamento preservato).
+
+Testing V38T: 9/9 pytest backend (dopo fix false-positive) + frontend live-tested con query PUN reale (Tavily ha risposto con 111.58 €/MWh, fonti citate). Salva-in-Master modal + Neo memory screen entrambi funzionanti.

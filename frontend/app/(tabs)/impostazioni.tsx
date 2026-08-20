@@ -509,6 +509,16 @@ export default function ImpostazioniScreen() {
           </Pressable>
         )}
 
+        {/* V38T — Neo Memory management link */}
+        <Pressable testID="neo-memory-link" onPress={() => router.push("/neo-memory")} style={styles.linkCard}>
+          <Ionicons name="sparkles" size={26} color="#8B5CF6" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Memoria di {assistantName || "Neo"}</Text>
+            <Text style={styles.linkSub}>Consulta o cancella ciò che Neo ricorda delle conversazioni</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
         {!user?.parent_user_id && (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Personalizza aree</Text>

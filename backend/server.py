@@ -5490,6 +5490,178 @@ async def _get_assistant_name(user: dict) -> str:
     return name or "Neo"
 
 
+
+# ============================================================
+# V38T — Neo web-search (Tavily) + persistent memory
+# ============================================================
+_ENERGY_KEYWORDS = [
+    # Wholesale energy market
+    "pun", "gme", "mgp", "gse", "mercato elettrico", "mercato del gas",
+    "psv", "ttf", "ipex", "spot", "borsa elettrica",
+    # Regulator + specifics
+    "arera", "delibera", "delibere", "autorità energia",
+    "oneri di sistema", "oneri generali", "componente asos", "arim",
+    # Tariffs / bill terms
+    "tariffa", "tariffe", "quota energia", "quota potenza", "quota fissa",
+    "spesa materia energia", "spesa materia gas", "trasporto e gestione",
+    # Adjacent lookup topics
+    "cip 6", "certificati bianchi", "titoli di efficienza",
+    "conguaglio", "aggiornamento trimestrale", "aggiornamento mensile",
+    "regolatorio", "normativa energia",
+]
+
+
+def _detect_energy_query(text: str) -> bool:
+    """True when the message mentions Italian energy market data that
+    warrants a live Tavily search (PUN, ARERA delibere, tariffs, oneri…).
+
+    V38T-fix — Use word-boundary regex so "appuntamento" doesn't match "pun".
+    """
+    if not text:
+        return False
+    lower = text.lower()
+    import re as _re
+    for kw in _ENERGY_KEYWORDS:
+        # Multi-word phrases → use simple substring (they can't collide)
+        if " " in kw:
+            if kw in lower:
+                return True
+            continue
+        # Single-word keywords → require word boundaries
+        if _re.search(rf"\b{_re.escape(kw)}\b", lower):
+            return True
+    return False
+
+
+async def _tavily_search(query: str, max_results: int = 5) -> Optional[dict]:
+    """V38T — Query the Tavily search API. Returns a compact answer block or None.
+
+    Docs: https://docs.tavily.com — POST /search with `api_key`, `query`,
+    `search_depth: 'advanced'`, `include_answer: true`, `max_results`.
+    """
+    key = os.environ.get("TAVILY_API_KEY")
+    if not key:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=15) as hx:
+            r = await hx.post(
+                "https://api.tavily.com/search",
+                json={
+                    "api_key": key,
+                    "query": query,
+                    "search_depth": "advanced",
+                    "include_answer": True,
+                    "include_raw_content": False,
+                    "max_results": max_results,
+                    "include_domains": [
+                        "arera.it", "mercatoelettrico.org", "gse.it",
+                        "gme.it", "snam.it", "terna.it", "acquirente-unico.it",
+                        "borsaitaliana.it", "governo.it", "gazzettaufficiale.it",
+                    ],
+                },
+                headers={"Content-Type": "application/json"},
+            )
+            r.raise_for_status()
+            data = r.json()
+            return {
+                "answer": data.get("answer") or "",
+                "results": [
+                    {
+                        "title": it.get("title") or "",
+                        "url": it.get("url") or "",
+                        "content": (it.get("content") or "")[:600],
+                    } for it in (data.get("results") or [])[:max_results]
+                ],
+                "query": query,
+            }
+    except Exception as e:
+        logger.warning("tavily search failed for %s: %s", query, e)
+        return None
+
+
+async def _load_neo_memories(user_id: str, limit: int = 5) -> List[dict]:
+    """Return the user's most recent persistent memories (for injection)."""
+    cursor = db.neo_memory.find(
+        {"user_id": user_id},
+        {"_id": 0, "memory_id": 1, "summary": 1, "facts": 1, "created_at": 1},
+    ).sort("created_at", -1).limit(limit)
+    return [m async for m in cursor]
+
+
+async def _maybe_save_memory(user_id: str, session_id: str, assistant_name: str) -> None:
+    """After a chat exchange, decide whether to distill the session into a
+    long-lived memory row. We only save when the session has >= 6 messages
+    (3 user + 3 assistant) AND has not already been persisted in the last
+    10 minutes for this session_id."""
+    total = await db.assistant_messages.count_documents({
+        "user_id": user_id, "session_id": session_id,
+    })
+    if total < 6:
+        return
+    recent = await db.neo_memory.find_one({
+        "user_id": user_id, "session_id": session_id,
+        "created_at": {"$gte": utcnow() - timedelta(minutes=10)},
+    })
+    if recent:
+        return
+    # Collect last 12 turns
+    cursor = db.assistant_messages.find(
+        {"user_id": user_id, "session_id": session_id},
+        {"_id": 0, "role": 1, "content": 1},
+    ).sort("created_at", -1).limit(12)
+    msgs = [m async for m in cursor]
+    msgs.reverse()
+    if not msgs:
+        return
+    convo = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in msgs)
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"memory_{session_id}",
+            system_message=(
+                "Sei un motore di distillazione della memoria per un CRM italiano. "
+                "Ricevi una conversazione tra un utente (Consulente Energia) e l'assistente "
+                f"{assistant_name}. Estrai i FATTI DUREVOLI: clienti menzionati, decisioni prese, "
+                "analisi svolte, preferenze utente. Ignora scambi triviali (saluti, chiarimenti).\n"
+                "Rispondi in JSON PURO nel formato:\n"
+                "{\"summary\": \"riassunto in 1-2 frasi (max 200 caratteri)\", "
+                "\"facts\": [\"fatto 1 conciso\", \"fatto 2 conciso\", ...]}\n"
+                "Se la conversazione è banale (solo saluti/chiarimenti) rispondi "
+                "{\"summary\": \"\", \"facts\": []}. "
+                "Massimo 8 fatti, ciascuno < 120 caratteri."
+            ),
+        ).with_model("anthropic", "claude-haiku-4-5")
+        raw = await chat.send_message(UserMessage(text=convo))
+        raw_clean = (raw or "").strip()
+        # LLM sometimes wraps JSON in code fences
+        if raw_clean.startswith("```"):
+            raw_clean = raw_clean.strip("`")
+            if raw_clean.startswith("json"):
+                raw_clean = raw_clean[4:]
+            raw_clean = raw_clean.strip()
+        parsed = _json_stdlib.loads(raw_clean)
+        summary = (parsed.get("summary") or "").strip()
+        facts = [str(f).strip() for f in (parsed.get("facts") or []) if str(f).strip()]
+        if not summary and not facts:
+            return
+        await db.neo_memory.insert_one({
+            "memory_id": f"mem_{uuid.uuid4().hex[:12]}",
+            "user_id": user_id,
+            "session_id": session_id,
+            "summary": summary[:220],
+            "facts": facts[:8],
+            "created_at": utcnow(),
+            "updated_at": utcnow(),
+        })
+    except Exception as e:
+        logger.warning("_maybe_save_memory failed: %s", e)
+
+
+
 @api_router.post("/assistant/chat")
 async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     """Personal AI assistant. Uses Claude Sonnet 5 via Emergent LLM Key.
@@ -5528,6 +5700,17 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     if weather_city and weather_city != "?":
         weather_ctx = await _fetch_weather(weather_city)
 
+    # V38T — Detect energy market intent and prefetch data via Tavily
+    web_search_ctx: Optional[dict] = None
+    used_web_search = False
+    if _detect_energy_query(msg):
+        web_search_ctx = await _tavily_search(msg)
+        if web_search_ctx and (web_search_ctx.get("answer") or web_search_ctx.get("results")):
+            used_web_search = True
+
+    # V38T — Load persistent memories for this user
+    memories = await _load_neo_memories(user["user_id"], limit=5)
+
     import json as _json
     ctx_json = _json.dumps(context, ensure_ascii=False, default=str)
     # Trim if too large (Claude Sonnet accepts a lot but let's be safe)
@@ -5549,6 +5732,35 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
             "Chiedi cortesemente per quale città.\n"
         )
 
+    # V38T — Inject web-search results when energy topic detected
+    web_section = ""
+    if web_search_ctx and used_web_search:
+        web_section = (
+            "\n\nRICERCA WEB AGGIORNATA (dati reali dal mercato energetico italiano):\n"
+            f"Query utente: {web_search_ctx.get('query')}\n"
+            f"Risposta sintetizzata (Tavily): {web_search_ctx.get('answer') or 'nessuna sintesi'}\n"
+            "Fonti primarie (usa questi contenuti come base per la tua risposta):\n"
+        )
+        for i, r in enumerate(web_search_ctx.get("results", [])[:5], 1):
+            web_section += f"[{i}] {r.get('title')} — {r.get('url')}\n{r.get('content')}\n\n"
+        web_section += (
+            "REGOLE per usare questi dati:\n"
+            "- Cita i numeri esatti (€/MWh, €/kWh, mesi, delibere ARERA con numero e data).\n"
+            "- NON rimandare l'utente a siti esterni. Rispondi TU con la risposta.\n"
+            "- Se i dati sono aggiornati a un mese specifico, dillo (es. 'PUN novembre 2026').\n"
+            "- Se la ricerca non ha trovato dati precisi, dillo apertamente.\n"
+        )
+
+    # V38T — Inject long-term memory
+    memory_section = ""
+    if memories:
+        memory_section = "\n\nMEMORIA PERSISTENTE (contesto delle conversazioni precedenti):\n"
+        for m in memories:
+            memory_section += f"- {m.get('summary', '')}\n"
+            for f in (m.get("facts") or []):
+                memory_section += f"  • {f}\n"
+        memory_section += "\nUsa la memoria per personalizzare le risposte, ma non citare esplicitamente 'ricordo che...' a meno che sia utile.\n"
+
     system_message = (
         f"Sei {assistant_name}, l'assistente personale AI del CRM di {user.get('name', 'utente')}, "
         "consulente energetico e networker in Italia.\n\n"
@@ -5557,6 +5769,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "- Per domande CRM usa esclusivamente i dati forniti (SNAPSHOT_CRM). Non inventare.\n"
         "- Se un dato non è nello snapshot, dillo chiaramente.\n"
         "- Per domande sul meteo usa i dati della sezione METEO (se presente).\n"
+        "- Per dati di mercato energetico (PUN, ARERA, tariffe, oneri) usa la sezione RICERCA WEB e cita i numeri.\n"
         "- Formatta le liste con elenchi puntati chiari; usa nomi, orari, telefoni quando disponibili.\n"
         "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
@@ -5565,6 +5778,8 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
         f"{weather_section}"
+        f"{web_section}"
+        f"{memory_section}"
     )
 
     from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -5602,10 +5817,21 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         {"user_id": user["user_id"], "session_id": session_id, "role": "assistant", "content": reply_text, "created_at": utcnow()},
     ])
 
+    # V38T — Fire-and-forget memory distillation (does not block the response)
+    try:
+        asyncio.create_task(_maybe_save_memory(user["user_id"], session_id, assistant_name))
+    except Exception:
+        pass
+
     return {
         "session_id": session_id,
         "reply": reply_text,
         "assistant_name": assistant_name,
+        "used_web_search": used_web_search,
+        "web_sources": [
+            {"title": r.get("title"), "url": r.get("url")}
+            for r in (web_search_ctx.get("results", []) if web_search_ctx else [])
+        ][:5] if used_web_search else [],
     }
 
 
@@ -5640,6 +5866,78 @@ async def assistant_reset(user=Depends(get_current_user)):
     """Start a new conversation. Old sessions remain in DB but a new session_id is issued."""
     session_id = f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
     return {"session_id": session_id, "assistant_name": await _get_assistant_name(user)}
+
+
+# ============================================================
+# V38T — Neo persistent memory endpoints
+# ============================================================
+@api_router.get("/assistant/memory")
+async def list_neo_memories(user=Depends(get_current_user)):
+    """List all persistent memories saved by Neo for the current user."""
+    cursor = db.neo_memory.find(
+        {"user_id": user["user_id"]},
+        {"_id": 0, "memory_id": 1, "summary": 1, "facts": 1, "created_at": 1, "session_id": 1},
+    ).sort("created_at", -1).limit(200)
+    items = [m async for m in cursor]
+    return {"items": items, "total": len(items)}
+
+
+@api_router.delete("/assistant/memory/{memory_id}")
+async def delete_neo_memory(memory_id: str, user=Depends(get_current_user)):
+    res = await db.neo_memory.delete_one({"user_id": user["user_id"], "memory_id": memory_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Memoria non trovata")
+    return {"deleted": True, "memory_id": memory_id}
+
+
+@api_router.delete("/assistant/memory")
+async def clear_all_neo_memories(user=Depends(get_current_user)):
+    res = await db.neo_memory.delete_many({"user_id": user["user_id"]})
+    return {"deleted_count": res.deleted_count}
+
+
+class SaveNeoResponseIn(BaseModel):
+    content: str
+    name: str
+    session_id: Optional[str] = None
+    category: Optional[str] = "notes"  # notes | files | analisi
+
+
+@api_router.post("/assistant/save-to-master")
+async def save_neo_response_to_master(body: SaveNeoResponseIn, user=Depends(get_current_user)):
+    """V38T — Persist a Neo response as a text/markdown file in the Master's
+    file cabinet. Used by the "Salva nei file Master" button in the assistant."""
+    content = (body.content or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Contenuto vuoto")
+    name = (body.name or "").strip() or f"Neo-{datetime.now().strftime('%Y%m%d-%H%M')}"
+    if not name.lower().endswith((".txt", ".md", ".html")):
+        name = f"{name}.md"
+    category = body.category if body.category in ALLOWED_MASTER_CATS else "notes"
+    b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
+    file_id = f"mf_{uuid.uuid4().hex[:12]}"
+    mime = "text/markdown" if name.endswith(".md") else ("text/html" if name.endswith(".html") else "text/plain")
+    doc = {
+        "file_id": file_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "category": category,
+        "name": name,
+        "title": f"Risposta Neo — {name}",
+        "body": content if len(content) < 2000 else content[:2000] + "…",
+        "mime": mime,
+        "data_base64": b64,
+        "size": len(content.encode("utf-8")),
+        "created_at": utcnow(),
+        "updated_at": utcnow(),
+        "source": "neo-assistant",
+        "source_session_id": body.session_id,
+    }
+    await db.master_files.insert_one(doc)
+    return {"file_id": file_id, "name": name, "category": category, "size": doc["size"]}
+
+
+
 
 
 @api_router.post("/assistant/tts")

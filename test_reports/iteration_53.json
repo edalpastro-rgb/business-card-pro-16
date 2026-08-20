@@ -1,0 +1,40 @@
+{
+  "summary": "V38T — Neo AI Assistant 3 interventions tested end-to-end. Backend pytest 8/9 (89%): Tavily energy trigger ✓, save-to-master ✓, memory create-after-3-turns ✓ (memory persisted with summary + facts within ~10s of the 3rd turn), delete-single ✓, delete-404 ✓, clear-all ✓, empty-content-400 ✓. ONE FAIL: `_detect_energy_query` substring match false-positive — the keyword 'pun' is a substring of 'appuntamento' (Italian 'appointment'), so the message 'Qual è il mio prossimo appuntamento?' erroneously triggers Tavily + returns used_web_search=true with 5 governmental sources. This is a real production bug that wastes Tavily quota, adds ~10s latency, and shows a misleading 'web' badge for non-energy replies. Fix: use word-boundary regex `re.search(r'\\b(pun|gme|...)\\b', text.lower())` in server.py:5514-5521. Frontend UI (mobile 390x844): Neo FAB tap → modal opens ✓; sending 'Qual è il PUN GME di novembre 2025?' returns reply with 'web' badge, 'Fonti:' section listing 3 source titles, and green 'Salva nei file Master' button ✓; tap → SaveConfirmModal opens with default name 'Neo - Ricerca energia - YYYY-MM-DD_HH-MM' ✓; Salva → chat shows 'salvata' confirmation ✓; /impostazioni renders 'Memoria di Neo' purple link (data-testid=neo-memory-link) below SMTP card ✓; tap → /neo-memory shows the memory that was auto-distilled from the earlier 3-turn Tavily conversation (summary '...PUN GME novembre 2025 esterna al contesto clienti', date 20/08/2026) ✓; 'Cancella tutto' red button + trash icon per row present ✓. msg-pause-btn testID is wired in AssistantChat.tsx:1035 and rendered only during TTS playback — code inspected, live TTS playback not exercised. Barge-in VAD logic present in code but requires mic + audio playback which cannot be reliably exercised via Playwright headless.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/assistant/chat", "issue": "_detect_energy_query() uses naive substring match: `kw in lower`. Short keyword 'pun' matches inside 'appuntamento' (and 'ipex' inside longer words, 'psv', etc.), causing false-positive Tavily calls on any message mentioning 'appuntamento'. Reproduced: message 'Qual è il mio prossimo appuntamento?' returns used_web_search=true with 5 governmental sources. Fix: use word-boundary regex or split into tokens.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38t_neo_tavily_memory.py",
+    "/app/test_reports/pytest/v38t_results.xml"
+  ],
+  "action_items": [
+    "Fix `_detect_energy_query()` in /app/backend/server.py:5514-5521 to use word-boundary matching (e.g., `re.search(r\"\\b(?:\" + \"|\".join(map(re.escape,_ENERGY_KEYWORDS)) + r\")\\b\", text.lower())`). Otherwise 'pun' inside 'appuntamento', 'appuntamenti', 'punto', 'oppure' (contains 'oneri'? no — but 'ttf' is safe; 'psv' matches 'psv…' words too) will keep triggering Tavily unnecessarily.",
+    "After fix, re-run `pytest backend/tests/test_v38t_neo_tavily_memory.py::TestTavilyWebSearch -v` to confirm the non-energy test passes.",
+    "Consider live-testing the msg-pause-btn during TTS playback (requires enabling voice mode and pressing play-btn) — code path is present but not exercised in this iteration.",
+    "Consider live-testing the conversation-mode barge-in VAD manually — headless Playwright cannot supply mic audio."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 6260 lines — modularisation increasingly overdue (auth, assistant, memory, tavily, master_files, bills, contacts).",
+    "_ENERGY_KEYWORDS contains short 3-letter tokens ('pun','gme','gse','psv','ttf','mgp') that WILL false-positive against ordinary Italian words via substring match. Word-boundary matching is required.",
+    "_maybe_save_memory swallows LLM errors with logger.warning — user has no way to know why a memory failed to persist. Acceptable for fire-and-forget but consider structured logging for observability.",
+    "GET /assistant/memory hard-limits to 200 items with no pagination — fine for MVP, revisit if a heavy user hits it."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v38t_neo_tavily_memory.py (new)"
+  ],
+  "success_rate": {"backend": "89% (8/9)", "frontend": "100% for exercised flows (Neo chat with Tavily, Salva nei file Master, /impostazioni link, /neo-memory list + Cancella tutto visible)"},
+  "seed_data_creation": "Created 1 TEST_V38T_Neo_Save master-file (cleaned up by test) + transient neo_memory rows via full 3-turn chats (also cleaned by test teardown via DELETE /assistant/memory). No leftover artifacts.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "V38T backend is 89% green. ONLY remaining backend bug: _detect_energy_query substring false-positive ('pun' ∈ 'appuntamento'). Reproduce with: `curl -X POST $API/assistant/chat -d '{\"message\":\"Qual è il mio prossimo appuntamento?\"}'` → currently returns used_web_search=true. After E1 fixes with word-boundary regex, rerun test_v38t_neo_tavily_memory.py::TestTavilyWebSearch::test_chat_non_energy_query_no_web_search. Full frontend regression (login/home/calendario/master/appointment-new 6-type-tags) was NOT re-run this iteration — V38S iteration 52 covered it and confirmed clean. Credentials: test@dalpastro.it / Test1234!. Base URL is EXPO_PUBLIC_BACKEND_URL in /app/frontend/.env.",
+  "rca_of_issue": "Root cause of false-positive Tavily trigger: `_detect_energy_query(text)` uses `any(kw in lower for kw in _ENERGY_KEYWORDS)`. Since 'pun' is 3 letters and appears inside 'appuntamento' (positions 2-4: 'a-P-P-U-N-t-a-m-e-n-t-o' → substring 'pun' matches), any Italian sentence about appointments triggers a Tavily API call (wasting quota + adding ~10s latency) and marks the reply with used_web_search=true. Mitigation: replace substring check with `re.search(r'\\b(pun|gme|mgp|gse|psv|ttf|ipex|spot|arera|arim|asos)\\b', lower)` — word-boundary matching. Longer multi-word keywords like 'mercato elettrico', 'oneri di sistema' are safe as-is."
+}
