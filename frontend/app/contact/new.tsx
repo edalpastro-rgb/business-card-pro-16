@@ -1911,6 +1911,21 @@ export default function NewContactScreen() {
               })}
             </ScrollView>
             <View style={{ gap: 8, marginTop: 6 }}>
+              {/* V38X — New button: open existing contact directly in edit mode */}
+              {dupModal?.matches.length === 1 && (
+                <Pressable
+                  testID="dup-update-existing-btn"
+                  onPress={() => {
+                    const target = dupModal!.matches[0];
+                    setDupModal(null);
+                    router.replace(`/contact/edit/${target.contact_id}`);
+                  }}
+                  style={[styles.modalBtn, { backgroundColor: "#16A34A", flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                >
+                  <Ionicons name="create" size={18} color="#FFF" />
+                  <Text style={{ color: "#FFF", fontWeight: "700" }}>Aggiorna scheda esistente</Text>
+                </Pressable>
+              )}
               <Pressable
                 testID="dup-save-new-btn"
                 onPress={() => {
@@ -1933,7 +1948,9 @@ export default function NewContactScreen() {
                 <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
               <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center", marginTop: 4, fontStyle: "italic" }}>
-                Tocca un contatto qui sopra per aprire la sua scheda esistente.
+                {dupModal?.matches.length === 1
+                  ? "Aggiorna il contatto trovato oppure salvane uno nuovo se è un cliente diverso."
+                  : "Tocca un contatto qui sopra per aprire la sua scheda esistente."}
               </Text>
             </View>
           </View>

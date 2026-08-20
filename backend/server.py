@@ -1793,6 +1793,198 @@ async def delete_appointment(appointment_id: str, user=Depends(get_current_user)
 
 
 # =========================
+# Team Calendar (V38T)
+# =========================
+# Palette used to assign deterministic colors to each collaborator on the team
+# calendar. Colors are picked by hashing the user_id into the palette.
+_TEAM_MEMBER_COLORS: List[str] = [
+    "#2563EB",  # blue
+    "#DC2626",  # red
+    "#16A34A",  # green
+    "#D97706",  # amber
+    "#7C3AED",  # violet
+    "#DB2777",  # pink
+    "#0891B2",  # cyan
+    "#EA580C",  # orange
+    "#65A30D",  # lime
+    "#0369A1",  # sky
+    "#7E22CE",  # purple
+    "#B45309",  # brown
+]
+
+
+def _color_for_user(user_id: str) -> str:
+    if not user_id:
+        return "#6B7280"
+    # Deterministic hash → palette index
+    h = 0
+    for ch in user_id:
+        h = (h * 31 + ord(ch)) & 0xFFFFFFFF
+    return _TEAM_MEMBER_COLORS[h % len(_TEAM_MEMBER_COLORS)]
+
+
+async def _tenant_member_ids(user: dict) -> List[str]:
+    """Return the list of user_ids belonging to the same tenant as `user`.
+    Includes the tenant owner and all sub-users under the owner.
+    """
+    tid = tenant_id(user)
+    # Owner + direct children under the tenant
+    tenant_users = await db.users.find(
+        {"$or": [{"user_id": tid}, {"parent_user_id": tid}]},
+        {"user_id": 1, "_id": 0},
+    ).to_list(2000)
+    ids = {u["user_id"] for u in tenant_users}
+    # Also traverse deeper descendants (nested hierarchy)
+    for uid in await descendant_user_ids(tid):
+        ids.add(uid)
+    return list(ids)
+
+
+@api_router.get("/calendar/team-members")
+async def calendar_team_members(user=Depends(get_current_user)):
+    """Return all team members (same tenant) with an assigned display color.
+    Includes the current user. Used by the team calendar for filtering and
+    color-coding events.
+    """
+    tid = tenant_id(user)
+    members = await db.users.find(
+        {"$or": [{"user_id": tid}, {"parent_user_id": tid}]},
+        {"_id": 0, "user_id": 1, "name": 1, "email": 1, "role": 1, "picture": 1, "parent_user_id": 1},
+    ).to_list(2000)
+    # Also include deeper descendants (nested) that weren't caught by parent_user_id == tid
+    known = {m.get("user_id") for m in members}
+    for uid in await descendant_user_ids(tid):
+        if uid not in known:
+            m = await db.users.find_one(
+                {"user_id": uid},
+                {"_id": 0, "user_id": 1, "name": 1, "email": 1, "role": 1, "picture": 1, "parent_user_id": 1},
+            )
+            if m:
+                members.append(m)
+                known.add(uid)
+    out = []
+    for m in members:
+        out.append({
+            "user_id": m.get("user_id"),
+            "name": m.get("name") or m.get("email") or "Collaboratore",
+            "email": m.get("email"),
+            "role": m.get("role") or "member",
+            "picture": m.get("picture"),
+            "color": _color_for_user(m.get("user_id") or ""),
+            "is_me": m.get("user_id") == user["user_id"],
+            "is_owner": (m.get("user_id") == tid),
+        })
+    # Sort: me first, then owner, then by name
+    out.sort(key=lambda x: (0 if x["is_me"] else (1 if x["is_owner"] else 2), (x["name"] or "").lower()))
+    return {"items": out}
+
+
+@api_router.get("/calendar/team")
+async def calendar_team(
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    area: Optional[str] = None,
+    user_ids: Optional[str] = None,  # comma-separated
+    user=Depends(get_current_user),
+):
+    """Return appointments across the whole tenant for the Team Calendar view.
+    Enriches each event with `created_by_name`, `created_by_color`, and `is_mine`.
+    Non-owned appointments have contact_id / location / notes / phone fields
+    redacted for privacy (per user choice: only title + orario + collaboratore).
+    """
+    tid = tenant_id(user)
+    # Base tenant filter (everyone under this tenant)
+    q: Dict[str, Any] = {"user_id": tid}
+
+    # Date window
+    if start and end:
+        q["start_at"] = {"$gte": start, "$lte": end}
+    elif start:
+        q["start_at"] = {"$gte": start}
+
+    if area in ("energy", "network"):
+        q["area"] = area
+
+    # Optional filter by user_ids (comma-separated). Keep only those in the tenant.
+    # Note: if the caller passes ONLY foreign user_ids, allowed_ids may be empty →
+    # we still apply the filter (with an empty $in) so the response is [] instead of
+    # accidentally returning the entire tenant's events. (V38T bug fix.)
+    tenant_ids = set(await _tenant_member_ids(user))
+    if user_ids:
+        requested = {u.strip() for u in user_ids.split(",") if u.strip()}
+        allowed_ids = list(requested & tenant_ids)
+        q["created_by"] = {"$in": allowed_ids}
+
+    # Fetch
+    items = await db.appointments.find(q, {"_id": 0}).sort("start_at", 1).to_list(2000)
+
+    # Build user lookup for enrichment
+    creator_ids = list({it.get("created_by") for it in items if it.get("created_by")})
+    users_lookup: Dict[str, Dict[str, Any]] = {}
+    if creator_ids:
+        async for u in db.users.find(
+            {"user_id": {"$in": creator_ids}},
+            {"_id": 0, "user_id": 1, "name": 1, "email": 1},
+        ):
+            users_lookup[u["user_id"]] = u
+
+    my_id = user["user_id"]
+    out = []
+    for it in items:
+        created_by = it.get("created_by") or ""
+        u_info = users_lookup.get(created_by, {})
+        creator_name = u_info.get("name") or u_info.get("email") or "Collaboratore"
+        is_mine = (created_by == my_id)
+        enriched = {
+            "appointment_id": it.get("appointment_id"),
+            "title": it.get("title"),
+            "area": it.get("area"),
+            "start_at": it.get("start_at"),
+            "end_at": it.get("end_at"),
+            "duration_min": it.get("duration_min"),
+            "is_phone": bool(it.get("is_phone")),
+            "done": bool(it.get("done")),
+            "appointment_type_tags": it.get("appointment_type_tags") or [],
+            "is_broadcast": bool(it.get("is_broadcast")),
+            "created_by": created_by,
+            "created_by_name": creator_name,
+            "created_by_color": _color_for_user(created_by),
+            "is_mine": is_mine,
+        }
+        if is_mine:
+            # Full detail for my own appointments
+            enriched.update({
+                "location": it.get("location") or "",
+                "map_address": it.get("map_address") or "",
+                "full_address": it.get("full_address") or "",
+                "notes": it.get("notes") or "",
+                "contact_id": it.get("contact_id"),
+                "phone_mobile": it.get("phone_mobile") or "",
+                "phone_work": it.get("phone_work") or "",
+                "outcome_tags": it.get("outcome_tags") or [],
+                "products_sold": it.get("products_sold") or 0,
+                "contract_signed": bool(it.get("contract_signed")),
+                "value_amount": it.get("value_amount") or 0.0,
+                "read_only": False,
+            })
+        else:
+            # Redacted view for others' appointments (privacy)
+            enriched.update({
+                "location": "",
+                "map_address": "",
+                "full_address": "",
+                "notes": "",
+                "contact_id": None,
+                "phone_mobile": "",
+                "phone_work": "",
+                "read_only": True,
+            })
+        out.append(enriched)
+
+    return {"items": out}
+
+
+# =========================
 # Callbacks (Ritelefonate)
 # =========================
 @api_router.get("/callbacks")
@@ -3929,8 +4121,26 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
         if k in ("consumi_mensili_kwh", "consumi_mensili_smc", "note_ai",
                  "parametri_richiesti", "raw_text_preview", "fiscal_check"):
             continue
-        if isinstance(v, (list, dict)):
-            v_str = _json_stdlib.dumps(v, ensure_ascii=False)
+        if isinstance(v, dict) and "ok" in v and ("expected" in v or "actual" in v):
+            # V38X — fiscal-check-shaped sub-entry rendered readable, never JSON
+            ok = bool(v.get("ok"))
+            def _fmt(n):
+                try: return f"{float(n):,.6f}".rstrip("0").rstrip(".").replace(",", "X").replace(".", ",").replace("X", ".")
+                except Exception: return "—"
+            if ok:
+                v_str = f"{_fmt(v.get('expected'))} OK"
+            else:
+                delta = v.get("delta_annual_eur")
+                d_txt = f" · Extra 12 mesi: € {_fmt(delta)}" if isinstance(delta, (int, float)) and delta else ""
+                v_str = f"errata — attesa {_fmt(v.get('expected'))}, trovata {_fmt(v.get('actual'))}{d_txt}"
+        elif isinstance(v, (list, dict)):
+            # V38X — Instead of raw JSON, flatten as "k: v · k: v"
+            if isinstance(v, list) and all(not isinstance(x, (list, dict)) for x in v):
+                v_str = ", ".join(str(x) for x in v)
+            elif isinstance(v, dict):
+                v_str = " · ".join(f"{esc(str(kk).replace('_', ' ').title())}: {vv}" for kk, vv in v.items())
+            else:
+                v_str = f"{len(v)} elementi"
         else:
             v_str = str(v)
         label = k.replace("_", " ").title()

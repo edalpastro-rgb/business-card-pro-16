@@ -21,7 +21,37 @@ export function humanizeKey(k: string): string {
 
 export function formatVal(v: any): string {
   if (v == null) return "—";
-  if (typeof v === "object") return JSON.stringify(v);
+  if (typeof v === "object") {
+    // V38X — Avoid raw JSON output.
+    // Recognize fiscal-check-shaped entries {expected, actual, ok, delta_annual_eur}
+    if (!Array.isArray(v) && "ok" in v && ("expected" in v || "actual" in v)) {
+      const ok = !!v.ok;
+      const exp = v.expected;
+      const act = v.actual;
+      const delta = v.delta_annual_eur;
+      const fmt = (n: any) => {
+        const num = Number(n);
+        if (!Number.isFinite(num)) return String(n ?? "—");
+        return num.toLocaleString("it-IT", { maximumFractionDigits: 6 });
+      };
+      if (ok) return `${fmt(exp)} OK`;
+      const dTxt = Number.isFinite(Number(delta)) && Number(delta) !== 0
+        ? ` · Extra 12 mesi: € ${fmt(delta)}`
+        : "";
+      return `errata — attesa ${fmt(exp)}, trovata ${fmt(act)}${dTxt}`;
+    }
+    // Array: join non-object primitives; ignore complex arrays
+    if (Array.isArray(v)) {
+      if (v.every((x) => x == null || typeof x !== "object")) return v.map((x) => String(x)).join(", ");
+      return `${v.length} elementi`;
+    }
+    // Small object: flatten as "k: v, k2: v2" (no JSON braces)
+    const entries = Object.entries(v);
+    if (entries.length === 0) return "—";
+    return entries
+      .map(([k, val]) => `${humanizeKey(k)}: ${typeof val === "object" ? formatVal(val) : String(val)}`)
+      .join(" · ");
+  }
   return String(v);
 }
 

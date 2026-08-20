@@ -349,13 +349,34 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       if (typeof v === "number") return String(v);
       if (Array.isArray(v)) {
         if (!v.length) return "—";
-        return `<ul style="margin:0;padding-left:18px;">${v.map((it) => `<li>${typeof it === "object" ? escHtml(JSON.stringify(it)) : escHtml(it)}</li>`).join("")}</ul>`;
+        return `<ul style="margin:0;padding-left:18px;">${v.map((it) => `<li>${typeof it === "object" ? escHtml(fiscalOrFlat(it)) : escHtml(it)}</li>`).join("")}</ul>`;
       }
       if (typeof v === "object") {
+        // V38X — Fiscal-check-shaped entry → human-readable
+        const fs = fiscalOrFlat(v);
+        if (fs) return escHtml(fs);
         const kv = Object.entries(v).map(([k, val]) => `<tr><td style="padding:4px 8px;color:#64748B;font-size:11px;">${escHtml(k)}</td><td style="padding:4px 8px;font-size:12px;">${renderValue(val)}</td></tr>`).join("");
         return `<table style="border-collapse:collapse;width:100%;">${kv}</table>`;
       }
       return escHtml(v);
+    };
+    // V38X — Detect fiscal-check-shaped entry and format as readable text.
+    // Returns null when the object is NOT such an entry (falls back to KV).
+    const fiscalOrFlat = (v: any): string | null => {
+      if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+      if ("ok" in v && ("expected" in v || "actual" in v)) {
+        const fmt = (n: any) => {
+          const num = Number(n);
+          if (!Number.isFinite(num)) return String(n ?? "—");
+          return num.toLocaleString("it-IT", { maximumFractionDigits: 6 });
+        };
+        if (v.ok) return `${fmt(v.expected)} OK`;
+        const dTxt = Number.isFinite(Number(v.delta_annual_eur)) && Number(v.delta_annual_eur) !== 0
+          ? ` · Extra 12 mesi: € ${fmt(v.delta_annual_eur)}`
+          : "";
+        return `errata — attesa ${fmt(v.expected)}, trovata ${fmt(v.actual)}${dTxt}`;
+      }
+      return null;
     };
 
     const rows = Object.entries(ex)

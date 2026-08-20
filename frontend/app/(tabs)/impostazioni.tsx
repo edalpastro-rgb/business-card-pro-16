@@ -398,12 +398,30 @@ export default function ImpostazioniScreen() {
             </Text>
 
             <Text style={[styles.label, { marginTop: 14 }]}>Logo agenzia</Text>
+            {/* V38X — Wider aspect ratio + white BG + generous padding so the logo shows completely without cropping. */}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
-              <View style={{ width: 84, height: 84, borderRadius: 12, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, justifyContent: "center", alignItems: "center", overflow: "hidden" }}>
+              <View
+                style={{
+                  width: 160,
+                  height: 90,
+                  borderRadius: 12,
+                  backgroundColor: "#FFFFFF",
+                  borderWidth: 1,
+                  borderColor: theme.color.border,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  overflow: "hidden",
+                  padding: 8,
+                }}
+              >
                 {user?.company_logo_base64 ? (
-                  <Image source={{ uri: user.company_logo_base64 }} style={{ width: "100%", height: "100%", resizeMode: "contain" }} />
+                  <Image
+                    source={{ uri: user.company_logo_base64 }}
+                    resizeMode="contain"
+                    style={{ width: "100%", height: "100%" }}
+                  />
                 ) : (
-                  <Ionicons name="image" size={30} color={theme.color.muted} />
+                  <Ionicons name="image" size={36} color={theme.color.muted} />
                 )}
               </View>
               <View style={{ flex: 1, gap: 8 }}>

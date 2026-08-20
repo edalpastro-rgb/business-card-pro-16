@@ -251,11 +251,9 @@ metadata:
 
 test_plan:
   current_focus:
-    - "V38W BUG 1 — Titolo pagina analisi fattura SENZA emoji (era '📄 Analisi Fattura' → ora 'Analisi Fattura Luce/Gas')"
-    - "V38W BUG 2 — Filtrare marker interni __verifica_iva__=10 / __verifica_pcv_annullato__=1 dai tag mostrati (frontend paramsBadges + backend _build_analysis_html)"
-    - "V38W BUG 3 — Fiscal Check human-readable (mai JSON): 'IVA 10% OK' o 'IVA errata — attesa 10%, trovata X%'. Su frontend buildBillAnalysisHtml + backend _build_analysis_html"
-    - "V38W BUG 4 — Sezione 'Note AI' rinominata in 'Note di {NomeConsulente}' (nome da user.name/company_name)"
-    - "V38W BUG 5 — Intestazione professionale nel report: logo + nome consulente + slogan + contatti dal profilo user"
+    - "V38X BUG 1 — Fiscal Check MAI JSON (né in live view né in report). Formato: 'IVA 10% OK' o 'IVA errata — attesa X%, trovata Y%' anche quando nested in parametri_richiesti"
+    - "V38X BUG 2 — Popup Contatto già esistente: nuovo terzo pulsante verde 'Aggiorna scheda esistente' (testID dup-update-existing-btn) che naviga a /contact/edit/{id}. Appare solo se matches.length === 1"
+    - "V38X BUG 3 — Logo agenzia visualizzato correttamente in Impostazioni (160x90, white BG, objectFit:contain, padding 8) e nel biglietto (88x64 landscape)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"

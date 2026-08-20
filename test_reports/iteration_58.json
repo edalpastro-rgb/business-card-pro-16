@@ -1,0 +1,41 @@
+{
+  "summary": "Backend-only testing for the new Team Calendar endpoints (GET /api/calendar/team-members and GET /api/calendar/team). Wrote pytest suite covering all 9 scenarios from the review request: owner + sub-user team-members listing (auth, is_me/is_owner flags, color, sorting), team calendar visibility for both roles with the critical privacy redaction check, user_ids filter, foreign user_id silent-drop, area filter, and auth guard. 8/9 tests PASSED. 1 real backend bug found: when 'user_ids' filter is provided and NONE of the requested ids belong to the tenant, the endpoint returns ALL tenant events instead of an empty list (privacy/behavior deviation from spec). Fix is a one-liner in /app/backend/server.py. Everything else works correctly: privacy redaction (location/notes/contact_id/phone_* + read_only=true) is applied properly for both owner->sub and sub->owner directions; team-members list is deterministic-colored and sorted (me → owner → alpha); auth is enforced (401/403 without token); area filter and single-user filter work as expected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/calendar/team?user_ids=<foreign>",
+        "issue": "When user_ids contains ONLY user_ids that are NOT part of the tenant, the filter is silently dropped and all tenant events are returned (spec says empty list). Root cause: server.py lines 1910-1914 skip 'q[\"created_by\"] = {\"$in\": allowed_ids}' when allowed_ids is empty, causing the filter to have no effect at all. Fix: remove the 'if allowed_ids:' guard, so the query becomes '$in: []' → 0 results. Reference: /app/backend/server.py:1910-1914",
+        "priority": "MEDIUM"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_team_calendar.py",
+    "/app/test_reports/pytest/v38y_team_calendar.xml"
+  ],
+  "action_items": [
+    "Fix /api/calendar/team foreign-user_ids filter: in server.py ~line 1913 remove the 'if allowed_ids:' guard so the $in filter is always applied when the caller sends user_ids (empty list → 0 results, no leakage of the whole tenant calendar). One-line change."
+  ],
+  "critical_code_review_comments": [
+    "Endpoint code is clean, well-commented, and correctly implements the privacy redaction (empty strings + contact_id=null + read_only=true for non-owned events).",
+    "Deterministic color hash (_color_for_user) is stable and returns valid #RRGGBB from a 12-color palette.",
+    "Sorting logic (me → owner → alphabetical) works correctly for both owner and sub-user callers.",
+    "Minor: the 'if allowed_ids:' guard should be dropped to honor the 'silently return empty' requirement for foreign user_ids."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_team_calendar.py (created)"
+  ],
+  "success_rate": {"backend": "88.9% (8/9)", "frontend": "not tested (skipped per request)"},
+  "seed_data_creation": "Created 2 test appointments via /api/appointments (title OWNER_APPT_TEST + SUBUSER_APPT_TEST); both are deleted by fixture teardown. No orphan data left in DB.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Test suite at /app/backend/tests/test_team_calendar.py. Re-run after main agent fixes the user_ids-foreign-drop bug: `pytest backend/tests/test_team_calendar.py -v`. All 9 tests should pass. Credentials used: test@dalpastro.it/Test1234! (owner) and sub1@dalpastro.it/Sub12345! (sub-user under same tenant).",
+  "rca_of_issue": "Bug: /api/calendar/team with user_ids=<all-foreign-ids> returns full tenant calendar instead of []. RCA: server.py lines 1910-1914 wrap the $in filter in 'if allowed_ids:', so when the intersection with tenant_ids is empty the filter is skipped and the base query {'user_id': tid} returns everything. Reproduction: as owner, GET /api/calendar/team?start=...&end=...&user_ids=fakeuser_xyz → 2 items returned. Expected: 0 items. Mitigation: apply the $in filter unconditionally whenever user_ids param is provided; empty allowed_ids → $in:[] → Mongo returns 0 documents."
+}

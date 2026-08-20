@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="9" time="2.840" timestamp="2026-08-20T16:59:17.154259+00:00" hostname="agent-env-c161a10c-6c20-4df5-bfa1-6e29a755a623"><testcase classname="backend.tests.test_team_calendar.TestTeamMembers" name="test_owner_team_members" time="0.779" /><testcase classname="backend.tests.test_team_calendar.TestTeamMembers" name="test_subuser_team_members" time="0.666" /><testcase classname="backend.tests.test_team_calendar.TestTeamMembers" name="test_team_members_requires_auth" time="0.206" /><testcase classname="backend.tests.test_team_calendar.TestTeamCalendar" name="test_owner_sees_both_events_privacy_applied" time="0.278" /><testcase classname="backend.tests.test_team_calendar.TestTeamCalendar" name="test_subuser_sees_both_events_owner_redacted" time="0.093" /><testcase classname="backend.tests.test_team_calendar.TestTeamCalendar" name="test_filter_user_ids_owner_only" time="0.093" /><testcase classname="backend.tests.test_team_calendar.TestTeamCalendar" name="test_filter_foreign_user_id_silent" time="0.100"><failure message="AssertionError: Expected empty for foreign user, got 2 items&#10;assert [{'appointmen...:00:00', ...}] == []&#10;  &#10;  Left contains 2 more items, first extra item: {'appointment_id': 'a_81a8d7530013', 'title': 'OWNER_APPT_TEST', 'area': 'energy', 'start_at': '2026-08-21T10:00:00', ...}&#10;  &#10;  Full diff:&#10;  - []&#10;  + [&#10;  +     {...&#10;  &#10;  ...Full output truncated (52 lines hidden), use '-vv' to show">backend/tests/test_team_calendar.py:245: in test_filter_foreign_user_id_silent
+    assert items == [], f"Expected empty for foreign user, got {len(items)} items"
+E   AssertionError: Expected empty for foreign user, got 2 items
+E   assert [{'appointmen...:00:00', ...}] == []
+E     
+E     Left contains 2 more items, first extra item: {'appointment_id': 'a_81a8d7530013', 'title': 'OWNER_APPT_TEST', 'area': 'energy', 'start_at': '2026-08-21T10:00:00', ...}
+E     
+E     Full diff:
+E     - []
+E     + [
+E     +     {...
+E     
+E     ...Full output truncated (52 lines hidden), use '-vv' to show</failure></testcase><testcase classname="backend.tests.test_team_calendar.TestTeamCalendar" name="test_filter_area_energy" time="0.089" /><testcase classname="backend.tests.test_team_calendar.TestTeamCalendar" name="test_team_calendar_requires_auth" time="0.440" /></testsuite></testsuites>

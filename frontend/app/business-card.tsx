@@ -219,7 +219,7 @@ export default function BusinessCardScreen() {
           <View style={[styles.previewBar, { backgroundColor: accent }]} />
           <View style={{ flexDirection: "row", padding: 16, gap: 14, alignItems: "center" }}>
             {card.logo_base64 ? (
-              <View style={{ width: 64, height: 64, borderRadius: 12, overflow: "hidden", backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: accent }}>
+              <View style={{ width: 88, height: 64, borderRadius: 12, overflow: "hidden", backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: accent, padding: 4, alignItems: "center", justifyContent: "center" }}>
                 <ExpoImage uri={card.logo_base64} />
               </View>
             ) : null}
@@ -254,7 +254,7 @@ export default function BusinessCardScreen() {
               {/* @ts-expect-error web-only */}<div style={{ display: "flex", padding: 16, gap: 14, alignItems: "center" }}>
                 {card.logo_base64 ? (
                   // @ts-expect-error web-only
-                  <img src={card.logo_base64} alt="logo" style={{ width: 64, height: 64, borderRadius: 12, objectFit: "contain", background: "#F8FAFC", border: `1px solid ${accent}` }} />
+                  <img src={card.logo_base64} alt="logo" style={{ width: 88, height: 64, borderRadius: 12, objectFit: "contain", background: "#FFFFFF", border: `1px solid ${accent}`, padding: 4 }} />
                 ) : null}
                 {/* @ts-expect-error web-only */}<div style={{ flex: 1 }}>
                   {/* @ts-expect-error web-only */}<div style={{ fontSize: 20, fontWeight: 800, color: accent }}>{card.display_name || "Il tuo nome"}</div>

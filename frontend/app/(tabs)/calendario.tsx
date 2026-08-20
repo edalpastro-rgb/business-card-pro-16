@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { apptTypeColor } from "@/app/appointment/new";
+import { useAuth } from "@/src/auth";
 
 type Appointment = {
   appointment_id: string; title: string; area: "energy" | "network";
@@ -14,8 +15,17 @@ type Appointment = {
   location: string; notes: string; contact_id?: string;
   appointment_type_tags?: string[];
 };
+// V38T — Team calendar event (own + others). Adds creator metadata.
+type TeamAppointment = Appointment & {
+  is_mine: boolean;
+  read_only: boolean;
+  created_by: string;
+  created_by_name: string;
+  created_by_color: string;
+};
 type Contact = { contact_id: string; first_name: string; last_name: string; birth_date?: string; area: string; phone?: string };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
+type TeamMember = { user_id: string; name: string; email?: string; role: string; color: string; is_me: boolean; is_owner: boolean };
 
 type CalItem = {
   kind: "appt" | "birthday";
@@ -28,22 +38,37 @@ type CalItem = {
   location?: string;
   contact_id?: string;
   original?: Appointment;
+  // V38T — Team calendar metadata
+  is_mine?: boolean;
+  read_only?: boolean;
+  created_by?: string;
+  created_by_name?: string;
+  created_by_color?: string;
 };
 
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
 function addDays(d: Date, n: number) { const x = new Date(d); x.setDate(x.getDate()+n); return x; }
 function sameDay(a: Date, b: Date) { return a.toDateString() === b.toDateString(); }
 
+type CalScope = "mine" | "team" | "all";
+
 export default function CalendarioScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
   const [appts, setAppts] = useState<Appointment[]>([]);
+  const [teamAppts, setTeamAppts] = useState<TeamAppointment[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "energy" | "network" | "birthday">("all");
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
   const [viewMode, setViewMode] = useState<"week" | "month" | "year">("week");
+  // V38T — New: scope tab (Mine / Team / All)
+  const [scope, setScope] = useState<CalScope>("mine");
+  // V38T — Selected collaborator filter (multi-select). Empty = show all.
+  const [memberFilter, setMemberFilter] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,50 +84,131 @@ export default function CalendarioScreen() {
         start = addDays(selectedDate, -7);
         end = addDays(selectedDate, 30);
       }
-      const [a, s, cs] = await Promise.all([
+      const promises: Promise<any>[] = [
         api<{ items: Appointment[] }>("/appointments", {
           query: { start: start.toISOString(), end: end.toISOString() },
         }),
         api<Settings>("/settings"),
         api<{ items: Contact[] }>("/contacts"),
-      ]);
+      ];
+      // Also load team-wide events when needed
+      if (scope === "team" || scope === "all") {
+        promises.push(
+          api<{ items: TeamAppointment[] }>("/calendar/team", {
+            query: { start: start.toISOString(), end: end.toISOString() },
+          }),
+        );
+        promises.push(api<{ items: TeamMember[] }>("/calendar/team-members"));
+      }
+      const results = await Promise.all(promises);
+      const a = results[0] as { items: Appointment[] };
+      const s = results[1] as Settings;
+      const cs = results[2] as { items: Contact[] };
       setAppts(a.items);
       setSettings(s);
       setContacts(cs.items);
+      if (scope === "team" || scope === "all") {
+        const t = results[3] as { items: TeamAppointment[] };
+        const tm = results[4] as { items: TeamMember[] };
+        setTeamAppts(t.items || []);
+        setTeamMembers(tm.items || []);
+      } else {
+        // Reset when going back to mine tab
+        setTeamAppts([]);
+      }
     } finally { setLoading(false); }
-  }, [selectedDate, viewMode]);
+  }, [selectedDate, viewMode, scope]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Merge appointments + birthdays into unified calendar items
-  const items: CalItem[] = [
-    ...appts.map((a): CalItem => ({
-      kind: "appt", id: a.appointment_id, title: a.title, area: a.area,
-      start_at: new Date(a.start_at), is_phone: a.is_phone, done: a.done,
-      location: a.location, contact_id: a.contact_id, original: a,
-    })),
-    ...contacts.filter((c) => c.birth_date && c.birth_date.length >= 5)
-      .flatMap((c): CalItem[] => {
-        const parts = (c.birth_date || "").split("/").map((x) => parseInt(x, 10));
-        if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return [];
-        const [dd, mm] = parts;
-        // generate the birthday for the current year and next year (so it shows within the window)
-        return [selectedDate.getFullYear(), selectedDate.getFullYear() + 1].map((year) => {
-          const d = new Date(year, mm - 1, dd, 9, 0, 0);
-          return {
-            kind: "birthday" as const,
-            id: `bday_${c.contact_id}_${year}`,
-            title: `Compleanno di ${c.first_name} ${c.last_name}`.trim(),
-            area: "birthday" as const,
-            start_at: d,
-            contact_id: c.contact_id,
-          };
-        });
-      }),
-  ];
+  // V38T — Build unified item list depending on the active scope.
+  const items: CalItem[] = useMemo(() => {
+    const list: CalItem[] = [];
+
+    if (scope === "mine") {
+      // Only own appointments + birthdays
+      list.push(
+        ...appts.map((a): CalItem => ({
+          kind: "appt", id: a.appointment_id, title: a.title, area: a.area,
+          start_at: new Date(a.start_at), is_phone: a.is_phone, done: a.done,
+          location: a.location, contact_id: a.contact_id, original: a,
+          is_mine: true, read_only: false,
+          created_by: user?.user_id, created_by_name: user?.name || "Io",
+          created_by_color: theme.color.brandPrimary,
+        })),
+      );
+    } else if (scope === "team") {
+      // Only OTHERS' appointments (redacted, read-only)
+      list.push(
+        ...teamAppts
+          .filter((a) => !a.is_mine)
+          .map((a): CalItem => ({
+            kind: "appt", id: a.appointment_id, title: a.title,
+            area: (a.area as any) || "energy",
+            start_at: new Date(a.start_at),
+            is_phone: a.is_phone, done: a.done,
+            location: "", contact_id: undefined,
+            original: undefined,
+            is_mine: false, read_only: true,
+            created_by: a.created_by, created_by_name: a.created_by_name,
+            created_by_color: a.created_by_color,
+          })),
+      );
+    } else {
+      // "all" — combine team (mine + others) into one list. Use teamAppts (both).
+      list.push(
+        ...teamAppts.map((a): CalItem => ({
+          kind: "appt", id: a.appointment_id, title: a.title,
+          area: (a.area as any) || "energy",
+          start_at: new Date(a.start_at),
+          is_phone: a.is_phone, done: a.done,
+          location: a.is_mine ? (a.location || "") : "",
+          contact_id: a.is_mine ? a.contact_id : undefined,
+          original: a.is_mine ? (a as any) : undefined,
+          is_mine: !!a.is_mine, read_only: !a.is_mine,
+          created_by: a.created_by, created_by_name: a.created_by_name,
+          created_by_color: a.created_by_color,
+        })),
+      );
+    }
+
+    // Birthdays — show in "mine" and "all" tabs (never in Team-only tab)
+    if (scope !== "team") {
+      list.push(
+        ...contacts.filter((c) => c.birth_date && c.birth_date.length >= 5)
+          .flatMap((c): CalItem[] => {
+            const parts = (c.birth_date || "").split("/").map((x) => parseInt(x, 10));
+            if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return [];
+            const [dd, mm] = parts;
+            return [selectedDate.getFullYear(), selectedDate.getFullYear() + 1].map((year) => {
+              const d = new Date(year, mm - 1, dd, 9, 0, 0);
+              return {
+                kind: "birthday" as const,
+                id: `bday_${c.contact_id}_${year}`,
+                title: `Compleanno di ${c.first_name} ${c.last_name}`.trim(),
+                area: "birthday" as const,
+                start_at: d,
+                contact_id: c.contact_id,
+              };
+            });
+          }),
+      );
+    }
+
+    return list;
+  }, [scope, appts, teamAppts, contacts, selectedDate, user]);
 
   const days = Array.from({ length: 14 }, (_, i) => addDays(startOfDay(new Date()), i));
-  const filteredItems = items.filter((it) => filter === "all" ? true : it.area === filter);
+
+  // V38T — Apply member filter (only in team/all scopes) + area filter
+  const filteredItems = items.filter((it) => {
+    if (filter !== "all" && it.area !== filter) return false;
+    if (scope !== "mine" && memberFilter.size > 0) {
+      // Only apply to appointments; birthdays always pass
+      if (it.kind === "appt" && it.created_by && !memberFilter.has(it.created_by)) return false;
+    }
+    return true;
+  });
   const dayItems = filteredItems.filter((a) => sameDay(a.start_at, selectedDate));
 
   const colorFor = (area: string) => {
@@ -114,8 +220,11 @@ export default function CalendarioScreen() {
   // V38S — Prefer the appointment_type_tags color over the area color for
   // week/month rendering, so users can see at a glance if it's an Energy
   // appointment, a Telefonata, a Riunione, etc.
+  // V38T — In team/all mode, colour events by the creator so users can
+  // instantly see who's on the schedule.
   const eventColor = (item: any): string => {
-    const tags = item?.appointment_type_tags || [];
+    if (scope !== "mine" && item?.created_by_color) return item.created_by_color;
+    const tags = item?.appointment_type_tags || item?.original?.appointment_type_tags || [];
     if (Array.isArray(tags) && tags.length > 0) return apptTypeColor(tags[0]);
     return colorFor(item?.area || "");
   };
@@ -123,6 +232,14 @@ export default function CalendarioScreen() {
   const toggleDone = async (id: string, done: boolean) => {
     await api(`/appointments/${id}`, { method: "PUT", body: { done: !done } });
     load();
+  };
+
+  const toggleMember = (uid: string) => {
+    setMemberFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid); else next.add(uid);
+      return next;
+    });
   };
 
   return (
@@ -136,6 +253,25 @@ export default function CalendarioScreen() {
         <Ionicons name="add-circle" size={20} color="#FFF" />
         <Text style={styles.greenAddTxt}>Aggiungi Appuntamento</Text>
       </Pressable>
+
+      {/* V38T — Scope tab bar: Mine / Team / All */}
+      <View style={styles.scopeBar}>
+        {([
+          { k: "mine" as const, label: "I miei", icon: "person" as const },
+          { k: "team" as const, label: "Team", icon: "people" as const },
+          { k: "all" as const, label: "Tutti", icon: "layers" as const },
+        ]).map((s) => (
+          <Pressable
+            key={s.k}
+            testID={`scope-${s.k}`}
+            onPress={() => { setScope(s.k); setMemberFilter(new Set()); }}
+            style={[styles.scopeBtn, scope === s.k && styles.scopeBtnOn]}
+          >
+            <Ionicons name={s.icon} size={14} color={scope === s.k ? "#FFF" : theme.color.muted} />
+            <Text style={[styles.scopeTxt, scope === s.k && styles.scopeTxtOn]}>{s.label}</Text>
+          </Pressable>
+        ))}
+      </View>
 
       <View style={styles.segment}>
         {(["week", "month", "year"] as const).map((m) => (
@@ -162,6 +298,40 @@ export default function CalendarioScreen() {
           </Pressable>
         ))}
       </ScrollView>
+
+      {/* V38T — Collaborator filter chips (only in team/all mode) */}
+      {(scope === "team" || scope === "all") && teamMembers.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtersRow}
+          style={{ maxHeight: 44 }}
+          testID="cal-member-filters"
+        >
+          {teamMembers
+            // In Team tab, hide self from the chips list (we're viewing others)
+            .filter((m) => scope === "all" || !m.is_me)
+            .map((m) => {
+              const active = memberFilter.has(m.user_id);
+              return (
+                <Pressable
+                  key={m.user_id}
+                  testID={`member-filter-${m.user_id}`}
+                  onPress={() => toggleMember(m.user_id)}
+                  style={[
+                    styles.memberChip,
+                    active && { backgroundColor: m.color, borderColor: m.color },
+                  ]}
+                >
+                  <View style={[styles.memberDot, { backgroundColor: m.color }]} />
+                  <Text style={[styles.chipTxt, active && styles.chipTxtActive]} numberOfLines={1}>
+                    {m.is_me ? "Io" : (m.name?.split(" ")[0] || m.name || "Coll.")}
+                  </Text>
+                </Pressable>
+              );
+            })}
+        </ScrollView>
+      )}
 
       {viewMode === "week" && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.daysRow}>
@@ -234,7 +404,9 @@ export default function CalendarioScreen() {
           ) : dayItems.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="calendar-outline" size={40} color={theme.color.muted} />
-              <Text style={styles.emptyTxt}>Nessun appuntamento</Text>
+              <Text style={styles.emptyTxt}>
+                {scope === "team" ? "Nessun appuntamento del team" : "Nessun appuntamento"}
+              </Text>
             </View>
           ) : (
             <View style={{ padding: 16 }}>
@@ -243,10 +415,12 @@ export default function CalendarioScreen() {
                   key={item.id}
                   testID={`appt-${item.id}`}
                   onPress={() => {
+                    // V38T — read-only team appointments can't be opened
+                    if (item.read_only) return;
                     if (item.kind === "appt") router.push(`/appointment/${item.id}`);
                     else if (item.contact_id) router.push(`/contact/${item.contact_id}`);
                   }}
-                  style={styles.card}
+                  style={[styles.card, item.read_only && styles.cardReadOnly]}
                 >
                   <View style={[styles.leftBar, { backgroundColor: eventColor(item) }]} />
                   <View style={{ flex: 1, padding: 12 }}>
@@ -254,11 +428,25 @@ export default function CalendarioScreen() {
                       <Text style={styles.time}>{item.start_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
                       {item.kind === "birthday" ? <Ionicons name="gift" size={14} color={eventColor(item)} /> : null}
                       {item.is_phone ? <Ionicons name="call" size={14} color={eventColor(item)} /> : null}
+                      {/* V38T — Collaborator badge on non-own events */}
+                      {item.kind === "appt" && !item.is_mine && item.created_by_name && (
+                        <View style={[styles.creatorBadge, { backgroundColor: item.created_by_color || theme.color.muted }]}>
+                          <Ionicons name="person" size={9} color="#FFF" />
+                          <Text style={styles.creatorBadgeTxt} numberOfLines={1}>
+                            {(item.created_by_name || "").split(" ")[0]}
+                          </Text>
+                        </View>
+                      )}
+                      {/* V38T — Read-only lock hint */}
+                      {item.read_only && (
+                        <Ionicons name="lock-closed" size={11} color={theme.color.muted} />
+                      )}
                     </View>
                     <Text style={[styles.apptTitle, item.done && { textDecorationLine: "line-through", color: theme.color.muted }]}>{item.title}</Text>
                     {item.location ? <Text style={styles.loc} numberOfLines={1}><Ionicons name="location-outline" size={11} color={theme.color.muted} /> {item.location}</Text> : null}
                   </View>
-                  {item.kind === "appt" && (() => {
+                  {/* Only show call / done for OWN appointments */}
+                  {item.kind === "appt" && item.is_mine !== false && (() => {
                     const contact = item.contact_id ? contacts.find((c) => c.contact_id === item.contact_id) : null;
                     const hasPhone = !!(contact?.phone || item.original?.notes?.match(/(\+?\d[\d\s]{6,})/));
                     return (
@@ -318,12 +506,21 @@ const styles = StyleSheet.create({
   // V38S — Long green "Aggiungi Appuntamento" button (replaces round FAB)
   greenAddBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#16A34A", marginHorizontal: 14, marginTop: 8, paddingVertical: 12, borderRadius: 10 },
   greenAddTxt: { color: "#FFF", fontSize: 14, fontWeight: "800" },
+  // V38T — Scope tab bar (Mine / Team / All)
+  scopeBar: { flexDirection: "row", marginHorizontal: 16, marginTop: 10, marginBottom: 4, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 3 },
+  scopeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 8, borderRadius: 8 },
+  scopeBtnOn: { backgroundColor: theme.color.brandPrimary },
+  scopeTxt: { color: theme.color.muted, fontWeight: "700", fontSize: 12 },
+  scopeTxtOn: { color: "#FFF" },
   daysRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 4 },
   filtersRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0 },
   chipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
   chipTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 12 },
   chipTxtActive: { color: "#FFF" },
+  // V38T — Member (collaborator) chip
+  memberChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0, maxWidth: 140 },
+  memberDot: { width: 8, height: 8, borderRadius: 4 },
   dayPill: { width: 56, alignItems: "center", paddingVertical: 10, borderRadius: theme.radius.md, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0 },
   dayPillActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
   dayDow: { fontSize: 11, color: theme.color.muted, textTransform: "capitalize", fontWeight: "600" },
@@ -337,13 +534,17 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, gap: 8 },
   emptyTxt: { color: theme.color.muted },
   card: { flexDirection: "row", backgroundColor: "#FFF", borderRadius: 10, marginBottom: 5, overflow: "hidden", borderWidth: 1, borderColor: theme.color.border, alignItems: "center", minHeight: 44 },
+  cardReadOnly: { opacity: 0.85, backgroundColor: "#F8FAFC" },
   leftBar: { width: 3, alignSelf: "stretch" },
-  row: { flexDirection: "row", alignItems: "center", gap: 6 },
+  row: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   time: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
   apptTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface, marginTop: 2 },
   loc: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
   checkBtn: { padding: 10 },
   callBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#16A34A", alignItems: "center", justifyContent: "center", marginRight: 4, alignSelf: "center" },
+  // V38T — Creator badge on team appointments
+  creatorBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, maxWidth: 90 },
+  creatorBadgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "700" },
   segment: { flexDirection: "row", marginHorizontal: 16, marginBottom: 8, backgroundColor: theme.color.surfaceTertiary, borderRadius: 20, padding: 3 },
   segBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 16 },
   segBtnOn: { backgroundColor: theme.color.brandPrimary },
@@ -500,4 +701,3 @@ function YearGrid({
     </ScrollView>
   );
 }
-

@@ -27,6 +27,12 @@
 ### Calendario
 - Vista giornaliera + filtro per categorie: Tutti / Energia / Network / Compleanni
 - I compleanni compaiono automaticamente ogni anno nella data del contatto
+- **Vista Calendario Team (V38T)**: 3 tab I miei / Team / Tutti
+  - Ogni membro vede il proprio workspace/tenant (RBAC standard)
+  - Tab "Team": solo appuntamenti di altri collaboratori, con privacy (titolo + orario + nome collaboratore; no contatto/note/luogo)
+  - Tab "Tutti": vista aggregata con color-coding per persona + filtri per collaboratore multi-select
+  - Sola visualizzazione (no create-on-behalf); eventi altrui in read-only
+  - Nuovi endpoint: `GET /api/calendar/team-members`, `GET /api/calendar/team?start&end&area&user_ids`
 
 ### Settings / Impostazioni
 - Nome app modificabile (backend model)

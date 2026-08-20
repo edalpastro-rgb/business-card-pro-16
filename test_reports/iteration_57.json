@@ -1,0 +1,28 @@
+{
+  "summary": "V38X — 3 bug fixes fully verified (backend + frontend). BACKEND: 12/12 pytest pass on /app/backend/tests/test_v38x_fiscal_check_fixes.py — (a) _build_analysis_html with fiscal_check {iva, accise_gas, pcv} renders the dedicated 'Verifica agevolazioni fiscali' block with 'IVA errata — attesa 10%, trovata 22%' + 'Extra 12 mesi: € 120' and NO JSON residue anywhere in the KV table (no `{\"expected`, no `ok\":`, no raw `{` in `<td>` cells); (b) misc_object with fiscal shape (ok:true, expected:100, actual:100) renders '100 OK', never JSON; (c) misc_object with generic dict {key1:'val1', key2:'val2'} flattens to 'Key1: val1 · Key2: val2', never JSON; (d) _format_fiscal_check_html standalone: ok/not-ok/empty variants all correct. Regression on /api/auth/login, /api/bill-drafts CRUD (with pdf_base64 required), /api/master-files, /api/master/business-card, /api/contacts all pass. FRONTEND (mobile 390x844): (1) /impostazioni Branding aziendale → logo box measured via DOM = exactly 160w × 90h, bg #FFFFFF, borderRadius 12px, padding 8px — landscape white BG confirmed. (2) /contact/new with 1 duplicate match (TEST_v38p Regression 3339999999) → 'Contatto già esistente?' modal shows 'Trovato 1 contatto con dati simili:' hint AND green 'Aggiorna scheda esistente' button (testID `dup-update-existing-btn`) visible → tap navigates correctly to /contact/edit/c_52f7ef4ae71d. (3) /contact/new with 2 duplicate matches (Marco TEST_UI) → hint reads 'Trovati 2 contatti con dati simili:', hint at bottom reads 'Tocca un contatto qui sopra per aprire la sua scheda esistente.', and the green 'Aggiorna scheda esistente' button is CORRECTLY hidden (count=0). All 3 V38X requirements met.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38x_fiscal_check_fixes.py",
+    "/app/test_reports/pytest/v38x_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py remains at 6686 lines — pre-existing issue, still exceeds the 700-line guideline. Not blocking for this bugfix batch.",
+    "Frontend formatVal(v) in BillFieldRenderers.tsx correctly recognises the fiscal-check shape and returns 'X OK' / 'errata — attesa X, trovata Y · Extra 12 mesi: € Z' — mirror of the backend logic. No visual bill status='done' with fiscal_check available in the test DB, so FiscalCheckBanner rendering could only be validated via unit tests. Not a bug — mirror-logic is correct in both places."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v38x_fiscal_check_fixes.py (NEW)",
+    "/app/test_reports/pytest/v38x_results.xml (NEW)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None. Bill-drafts regression creates and deletes an ephemeral draft with a minimal PDF payload within the test run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "test_v38x_fiscal_check_fixes.py imports /app/backend/server.py directly for unit tests on _build_analysis_html and _format_fiscal_check_html. Regression endpoints hit EXPO_PUBLIC_BACKEND_URL. Login creds: test@dalpastro.it / Test1234!. If the main agent needs to visually verify FiscalCheckBanner in the /contact/[id] Fatture tab, upload a real PDF via BillsSection and wait ~15s for AI analysis, OR seed the energy_bills collection with a status='done' bill containing fiscal_check directly."
+}
