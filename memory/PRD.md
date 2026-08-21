@@ -1,5 +1,26 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.6 Bug Fix — Share nativo in "I miei file" (Feb 2026)
+### 🐛 Bug segnalato
+Nella sezione "I miei file" (Master Files) il pulsante Condividi → "Sistema" scaricava direttamente il file invece di aprire il menu di condivisione nativo del sistema. Su mobile e su web funzionava come un semplice download.
+### 🔬 Root cause
+`shareDataUri()` in `/app/frontend/src/share.ts`: su `Platform.OS === 'web'` andava dritto a `document.createElement('a').click()` (download). Mai tentava la Web Share API con files (Level 2), pur essendo supportata da Safari iOS e Chrome Android.
+### ✅ Fix applicato
+`/app/frontend/src/share.ts`:
+- Nuovi helper `base64ToBytes()` e `webDownload()` interni.
+- `shareDataUri()` su web: prova prima `navigator.canShare({files:[File]})` → `navigator.share({files})`; se `AbortError` (utente annulla) esce silenziosamente; solo se Web Share API assente/rifiuta → fallback `<a download>` originale.
+- Native invariato (expo-sharing / Share sheet iOS/Android).
+
+`/app/frontend/src/ShareSheet.tsx`:
+- `shareSystem()` ora chiama `onClose()` dopo condivisione riuscita per UX più pulita.
+### Note
+- Su Chrome desktop la Web Share API con files non è ancora supportata → fallback download resta il comportamento atteso.
+- Su iOS Safari / Android Chrome ora si apre il vero share sheet nativo del sistema (WhatsApp, Mail, AirDrop, ecc.).
+- Testing agent NON invocato (esplicita richiesta utente).
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.5 Bug Fix — Overlay Calcolatrice fuori posizione (Feb 2026)
 ### 🐛 Bug segnalato
 L'overlay/bottom-sheet della Calcolatrice appariva fuori posizione, non centrato, e su viewport large fuoriusciva dai bordi.

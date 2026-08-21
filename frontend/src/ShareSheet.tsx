@@ -82,6 +82,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
         return;
       }
       await shareDataUri(`data:${target.mime};base64,${target.data_base64}`, target.name, target.mime);
+      onClose();
     } finally {
       setBusyChannel(null);
     }
