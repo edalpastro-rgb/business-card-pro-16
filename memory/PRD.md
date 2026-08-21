@@ -1,5 +1,38 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.11 Feature — Estrazione automatica copertina dal PDF programma (Feb 2026)
+### 🎯 Richiesta utente
+Quando il master carica il PDF del programma evento, l'AI deve estrarre automaticamente l'immagine più significativa dal PDF e usarla come copertina del banner, ridimensionata correttamente.
+### ✅ Backend
+Nuova dipendenza: `pymupdf==1.28.2` (in `requirements.txt`).
+
+- Nuovo helper `_extract_best_image_from_pdf(pdf_b64)`:
+  1. Apre il PDF con PyMuPDF (fitz)
+  2. Pass 1 — scansiona fino a 8 pagine estraendo immagini raster embedded via `page.get_images(full=True)`; scarta quelle < 200×200px; sceglie la più grande per area
+  3. Pass 2 (fallback) — se nessuna immagine raster valida, **renderizza la prima pagina** a 2x scale come immagine sintetica
+  4. Center-crop a 16:9 → resize a **1600×900** con Pillow LANCZOS
+  5. Output JPEG qualità 85 (media 8-20 KB)
+- Nuovo endpoint `POST /api/event-banners/{event_id}/extract-cover-from-pdf`:
+  - Body `{apply: bool = true}`. Se true, aggiorna `cover_base64`/`cover_mime` del banner in DB.
+  - Ritorna `{applied, cover_base64, cover_mime, size_bytes}`.
+  - RBAC: solo master/admin (`_ensure_master`).
+  - 400 se nessun PDF caricato; 422 se estrazione fallita.
+
+### ✅ Frontend
+`/app/frontend/app/event-banners.tsx`:
+- `pickProgramPdf()` — dopo upload del PDF, se l'evento è già salvato E non c'è ancora una cover manuale, chiama **automaticamente** `/extract-cover-from-pdf` (fire-and-forget con notify success). Persiste il PDF via PUT prima dell'estrazione.
+- Nuovo pulsante `event-extract-cover-btn` "Estrai copertina dal PDF con AI" (giallo `#F59E0B`, sparkles icon) visibile quando `programPdf` è caricato → chiama `extractCoverFromPdfNow()` esplicitamente.
+
+### ✅ Test end-to-end (senza testing agent)
+```
+PDF con immagine 800×600 embedded → estratto, resize 1600×900, JPEG 18.5 KB ✅
+PDF solo testo (nessuna immagine) → fallback rendering pagina 1, JPEG 8.8 KB ✅
+Cover applicata a event_banners.cover_base64 ✅
+```
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent (il nuovo pacchetto `pymupdf` è già in `requirements.txt` — sarà installato al deploy).
+
+
+
 ## v2.10 Feature — Banner Evento Master (Feb 2026)
 ### 🎯 Richiesta utente
 Il master deve poter creare eventi con: immagine copertina, titolo, data, visibilità (singoli contatti / gruppi / tutti). Banner in home dei destinatari con countdown live (gg/hh/mm/ss). Tap → PDF programma condivisibile. Collaboratori vedono il banner anche senza usare la sezione master.

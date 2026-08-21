@@ -150,8 +150,55 @@ function EventBannersScreen() {
       const bytes = Math.round((b64.length * 3) / 4);
       if (bytes > 10 * 1024 * 1024) { notify("PDF troppo grande", "Max 10MB."); return; }
       setProgramPdf({ base64: b64, name: a.name || "programma.pdf" });
+
+      // v2.11 — Auto-extract the most significant image from the PDF and use
+      // it as banner cover — but only if the event is already saved AND the
+      // user hasn't already picked a cover manually (avoid overriding intent).
+      if (editing?.event_id && !cover?.base64) {
+        try {
+          // Persist the PDF first so the extractor can access it
+          await api(`/event-banners/${editing.event_id}`, {
+            method: "PUT",
+            body: { program_pdf_base64: b64, program_pdf_name: a.name || "programma.pdf" },
+          });
+          const r = await api<{ cover_base64: string; cover_mime: string }>(
+            `/event-banners/${editing.event_id}/extract-cover-from-pdf`,
+            { method: "POST", body: { apply: true } },
+          );
+          if (r?.cover_base64) {
+            setCover({ base64: r.cover_base64, mime: r.cover_mime || "image/jpeg" });
+            notify("Copertina generata ✅", "L'AI ha estratto l'immagine più significativa dal PDF come copertina.");
+          }
+        } catch (e: any) {
+          // Non-blocking — user can still choose a cover manually
+          console.warn("PDF cover extraction failed:", e?.message);
+        }
+      }
     } catch (e: any) {
       notify("Errore", e?.message || "");
+    }
+  };
+
+  const extractCoverFromPdfNow = async () => {
+    if (!editing?.event_id) {
+      notify("Salva prima l'evento", "Prima crea l'evento e carica il PDF, poi estrai la copertina.");
+      return;
+    }
+    if (!programPdf) {
+      notify("PDF mancante", "Carica prima il PDF del programma per estrarre la copertina.");
+      return;
+    }
+    try {
+      const r = await api<{ cover_base64: string; cover_mime: string }>(
+        `/event-banners/${editing.event_id}/extract-cover-from-pdf`,
+        { method: "POST", body: { apply: true } },
+      );
+      if (r?.cover_base64) {
+        setCover({ base64: r.cover_base64, mime: r.cover_mime || "image/jpeg" });
+        notify("Copertina aggiornata ✅", "L'immagine più significativa del PDF è ora la copertina.");
+      }
+    } catch (e: any) {
+      notify("Estrazione fallita", e?.message || "Il PDF potrebbe non contenere immagini estraibili.");
     }
   };
 
@@ -425,6 +472,18 @@ function EventBannersScreen() {
                   {programPdf ? `PDF: ${programPdf.name}` : "Carica PDF del programma"}
                 </Text>
               </Pressable>
+              {programPdf && (
+                <Pressable
+                  testID="event-extract-cover-btn"
+                  onPress={extractCoverFromPdfNow}
+                  style={[styles.uploadBtn, { borderColor: "#F59E0B", backgroundColor: "#FFF7ED", paddingVertical: 8 }]}
+                >
+                  <Ionicons name="sparkles" size={14} color="#F59E0B" />
+                  <Text style={[styles.uploadTxt, { color: "#B45309", fontSize: 12 }]}>
+                    Estrai copertina dal PDF con AI
+                  </Text>
+                </Pressable>
+              )}
 
               <Text style={[styles.subLbl, { marginTop: 8 }]}>Oppure genera con AI</Text>
               <TextInput
