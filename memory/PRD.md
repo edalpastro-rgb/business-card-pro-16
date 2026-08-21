@@ -1,5 +1,30 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v1.6 Refactor Architetturale — Fase 1 (Feb 2026)
+### 🏗️ Struttura modulare
+- Creata `/app/frontend/modules/` con 7 sotto-cartelle (una per modulo): `contacts`, `invoice-analysis`, `agenda`, `business-card`, `master`, `communications`, `profile`
+- Ogni modulo espone la propria API pubblica tramite `index.ts` — altri file interni sono privati
+- Creata `/app/frontend/src/shared/` con utilities condivise:
+  - `types.ts` — `AsyncResource<T>`, `Result<T>` (stati loading/success/error espliciti)
+  - `api-client.ts` — `apiCall<T>() → Promise<Result<T>>` (nessuna eccezione attraversa confini)
+  - `event-bus.ts` — pub/sub tipizzato per comunicazione inter-modulo (`contact:updated`, `appointment:created`, ...)
+  - `ModuleErrorBoundary.tsx` — protegge ogni route: crash isolato al modulo
+### 🎯 Modulo pilota migrato: `business-card`
+- `types.ts` + `constants.ts` + `api.ts` (con `Result<T>`)
+- `hooks/useBusinessCard.ts` — state management con `AsyncResource<BusinessCard>`
+- `components/CardHtmlMirrors.tsx` — hidden HTML mirrors per html2canvas
+- `screens/BusinessCardScreen.tsx` — screen principale
+- `lib/` — `vcard.ts`, `injectAnimationCss.ts`, `generateShareImage.ts`, `pickLogo.ts` (con adapter web/native)
+- `/app/frontend/app/business-card.tsx` ridotto a thin wrapper (17 righe) che monta `BusinessCardScreen` dentro `ModuleErrorBoundary`
+### ✅ Test
+- `testing_agent` iterazione 63 — 7/7 PASS, zero regressione confermata
+- Isolamento modulare verificato: nessun import da file interni cross-modulo
+- Sanity check su altri route (home, contatti, calendar, master): nessun crash
+### 📅 Prossime fasi (backlog)
+- Fase 2: migrare `contacts`, `invoice-analysis`, `master`, `agenda`
+- Fase 3: migrare `communications`, `profile` + dedup + sostituzione librerie Expo con Web API dove possibile
+
+
 ## v1.5 Biglietto da visita — restyling (Feb 2026)
 ### 🎨 3 correzioni al Biglietto da Visita
 1. **Condivisione unificata**: rimosso il concetto di "fronte/retro" nella condivisione. Il pulsante ora dice semplicemente **"Condividi"** e genera un **singolo PNG con fronte + retro affiancati** orizzontalmente (catturati entrambi via html2canvas su web, uniti in un canvas). Gap 24px, padding 20px.
