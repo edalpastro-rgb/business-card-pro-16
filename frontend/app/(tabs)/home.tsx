@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
+import { HomeEventBanner } from "@/src/HomeEventBanner";
 
 type CustomArea = { id: string; name: string; color: string };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_areas?: CustomArea[] };
@@ -144,6 +145,9 @@ export default function HomeScreen() {
             <Ionicons name="chevron-forward" size={20} color="#FFF" />
           </Pressable>
         )}
+
+        {/* v2.10 — Event banner (visible to all authenticated users when active) */}
+        <HomeEventBanner />
 
         <Pressable testID="home-my-thing-btn" onPress={() => router.push("/my-thing")} style={styles.myThingBtn}>
           {myThingImg ? (

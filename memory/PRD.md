@@ -1,5 +1,53 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.10 Feature — Banner Evento Master (Feb 2026)
+### 🎯 Richiesta utente
+Il master deve poter creare eventi con: immagine copertina, titolo, data, visibilità (singoli contatti / gruppi / tutti). Banner in home dei destinatari con countdown live (gg/hh/mm/ss). Tap → PDF programma condivisibile. Collaboratori vedono il banner anche senza usare la sezione master.
+
+### ✅ Backend (`/app/backend/server.py`)
+Nuova collection `event_banners` con schema completo (event_id, user_id/tenant, created_by, title, event_at, cover_base64/mime, program_pdf_base64/name, program_html AI, visibility_kind, visible_user_ids/contact_ids/group_ids, public_token, created_at/updated_at).
+
+**Endpoint aggiunti**:
+- `POST /api/event-banners` — crea evento (solo master/admin, `_ensure_master`)
+- `GET /api/event-banners` — lista (light, master only)
+- `GET /api/event-banners/active` — banner visibili per l'utente corrente (team + master, con filtro visibility)
+- `GET /api/event-banners/{id}` — dettaglio (con RBAC check `_event_visible_to_user`)
+- `PUT /api/event-banners/{id}` — update
+- `DELETE /api/event-banners/{id}` — elimina
+- `POST /api/event-banners/{id}/generate-program` — AI Claude Sonnet 5 genera HTML programma professionale
+- `GET /api/event-banners/{id}/program` — restituisce PDF o HTML programma per FileViewer
+- `GET /api/public/event-banners/{token}` — pagina pubblica HTML (no auth) con hero + countdown script + link programma per contatti
+
+### ✅ Frontend
+- `/app/frontend/src/HomeEventBanner.tsx` — componente hero con cover full-width, countdown live 1s tick, CTA "Apri il programma". Auto-hide se nessun evento attivo. Mostrato nella home tab (`(tabs)/home.tsx`) subito sotto il tile Master.
+- `/app/frontend/app/event-banners.tsx` — screen master con lista eventi + modal creazione/modifica: cover picker (universale web/native), titolo, data+ora, visibility (Tutti / Solo selezionati con chip per collaboratori/gruppi contatti/contatti singoli), upload PDF programma OPPURE generazione AI (con descrizione + durata hint).
+- `/app/frontend/app/event/[id].tsx` — screen dettaglio evento con hero + countdown + 2 bottoni "Apri programma" (FileViewer inline) e "Condividi link pubblico" (Web Share API / native Share). ShareSheet integrato per condivisione del PDF/HTML.
+- `/app/frontend/app/master.tsx` — nuovo tile 🟡 "Banner Evento" (megaphone icon, `#F59E0B`) che apre `/event-banners`.
+
+### 🔐 Visibility rules
+- `_ensure_master(user)` — solo owner/admin possono creare/modificare/eliminare eventi
+- `_event_visible_to_user(banner, user)`:
+  - Owner del tenant → sempre visibile
+  - `visibility_kind = "all"` → tutti i team member vedono il banner
+  - `visibility_kind = "specific"` → solo user_id in `visible_user_ids` vedono il banner
+  - Contatti clienti raggiungono l'evento tramite **link pubblico** condiviso dal master (nessun accesso automatico)
+
+### 📱 UX del banner in home
+- Hero 220px, cover con gradient overlay per leggibilità
+- Badge "EVENTO IN ARRIVO" oro
+- Titolo bold 22px + data formattata italiana
+- 4 box countdown (giorni/ore/min/sec) con tick 1s
+- CTA "Apri il programma" (chevron)
+- Se evento passato → badge rosso "Evento in corso"
+
+### Verifica manuale (senza testing agent)
+- ✅ Creazione evento via API → appare in `/event-banners/active`
+- ✅ Home mostra banner "Convention 2026 Roma" con countdown live (06gg 23h 57m 52s verificato via screenshot)
+- ✅ Cleanup evento test completato
+- ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.9 Rename — "Note AI" → "Consulenza Corporate" (Feb 2026)
 ### 🎯 Richiesta utente
 Rinominare "Note AI" (e la variante dinamica "Note di {consulente}") in "Consulenza Corporate" in tutta l'app.

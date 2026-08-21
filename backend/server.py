@@ -6867,6 +6867,344 @@ async def birthday_history(contact_id: str, user=Depends(get_current_user)):
     return {"items": items}
 
 
+# =========================
+# v2.10 (Feb 2026) — Event Banners
+# Master can create a homepage banner for a scheduled event. Banner has cover,
+# title, event date, program (uploaded PDF or AI-generated HTML), and per-user /
+# per-contact / per-group visibility. Team collaborators see it in their home.
+# Contacts can view via a public link (no auth). Countdown rendered client-side.
+# =========================
+
+class EventBannerIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    event_at: datetime
+    cover_base64: str = Field(min_length=10)
+    cover_mime: str = "image/jpeg"
+    program_pdf_base64: Optional[str] = None
+    program_pdf_name: Optional[str] = None
+    program_html: Optional[str] = None  # AI-generated OR manually provided
+    # Visibility
+    visibility_kind: str = "all"  # "all" | "specific"
+    visible_user_ids: List[str] = Field(default_factory=list)
+    visible_contact_ids: List[str] = Field(default_factory=list)
+    visible_group_ids: List[str] = Field(default_factory=list)
+
+
+class EventBannerUpdate(BaseModel):
+    title: Optional[str] = None
+    event_at: Optional[datetime] = None
+    cover_base64: Optional[str] = None
+    cover_mime: Optional[str] = None
+    program_pdf_base64: Optional[str] = None
+    program_pdf_name: Optional[str] = None
+    program_html: Optional[str] = None
+    visibility_kind: Optional[str] = None
+    visible_user_ids: Optional[List[str]] = None
+    visible_contact_ids: Optional[List[str]] = None
+    visible_group_ids: Optional[List[str]] = None
+
+
+def _ensure_master(user: dict):
+    """Only the master (owner/no parent) or admin can manage event banners."""
+    role = user.get("role") or "member"
+    if role not in ("owner", "admin"):
+        raise HTTPException(status_code=403, detail="Solo il master può gestire gli eventi")
+
+
+def _event_visible_to_user(banner: dict, user: dict) -> bool:
+    """Team-member visibility check. Master (owner) always sees own banners."""
+    if banner.get("user_id") != tenant_id(user):
+        return False
+    if banner.get("visibility_kind", "all") == "all":
+        return True
+    uids = banner.get("visible_user_ids") or []
+    return user.get("user_id") in uids or user.get("role") == "owner"
+
+
+def _strip_banner_heavy(b: dict) -> dict:
+    """Return a light copy without cover/PDF base64 blobs for list endpoints."""
+    out = {k: v for k, v in b.items() if k not in ("cover_base64", "program_pdf_base64", "program_html")}
+    out["_id"] = None
+    strip_id(out)
+    return out
+
+
+@api_router.post("/event-banners")
+async def create_event_banner(body: EventBannerIn, user=Depends(get_current_user)):
+    _ensure_master(user)
+    if body.visibility_kind not in ("all", "specific"):
+        raise HTTPException(status_code=400, detail="visibility_kind non valido")
+    event_id = f"evt_{uuid.uuid4().hex[:12]}"
+    public_token = uuid.uuid4().hex
+    doc = {
+        "event_id": event_id,
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "title": body.title.strip(),
+        "event_at": body.event_at,
+        "cover_base64": body.cover_base64,
+        "cover_mime": body.cover_mime or "image/jpeg",
+        "program_pdf_base64": body.program_pdf_base64,
+        "program_pdf_name": body.program_pdf_name,
+        "program_html": body.program_html,
+        "visibility_kind": body.visibility_kind,
+        "visible_user_ids": body.visible_user_ids or [],
+        "visible_contact_ids": body.visible_contact_ids or [],
+        "visible_group_ids": body.visible_group_ids or [],
+        "public_token": public_token,
+        "created_at": utcnow(),
+        "updated_at": utcnow(),
+    }
+    await db.event_banners.insert_one(doc)
+    return {"ok": True, "event_id": event_id, "public_token": public_token}
+
+
+@api_router.get("/event-banners")
+async def list_event_banners(user=Depends(get_current_user)):
+    """Master view: list all banners in tenant (light)."""
+    _ensure_master(user)
+    items = await db.event_banners.find(
+        {"user_id": tenant_id(user)},
+        {"_id": 0, "cover_base64": 0, "program_pdf_base64": 0, "program_html": 0},
+    ).sort("event_at", -1).to_list(200)
+    return {"items": items}
+
+
+@api_router.get("/event-banners/active")
+async def list_active_event_banners(user=Depends(get_current_user)):
+    """Any authenticated user (master + collaborators) can call this to fetch
+    the banners currently visible to them (event_at in future, visibility ok).
+    Returns light payload (cover_base64 included for rendering, no PDF/HTML)."""
+    now = utcnow()
+    all_banners = await db.event_banners.find(
+        {"user_id": tenant_id(user), "event_at": {"$gte": now}},
+        {"_id": 0, "program_pdf_base64": 0, "program_html": 0},
+    ).sort("event_at", 1).to_list(50)
+    visible = [b for b in all_banners if _event_visible_to_user(b, user)]
+    return {"items": visible}
+
+
+@api_router.get("/event-banners/{event_id}")
+async def get_event_banner(event_id: str, user=Depends(get_current_user)):
+    b = await db.event_banners.find_one(
+        {"user_id": tenant_id(user), "event_id": event_id},
+        {"_id": 0},
+    )
+    if not b:
+        raise HTTPException(status_code=404, detail="Evento non trovato")
+    if not _event_visible_to_user(b, user):
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo evento")
+    return b
+
+
+@api_router.put("/event-banners/{event_id}")
+async def update_event_banner(event_id: str, body: EventBannerUpdate, user=Depends(get_current_user)):
+    _ensure_master(user)
+    upd = {k: v for k, v in body.dict(exclude_unset=True).items() if v is not None or k in ("program_pdf_base64", "program_pdf_name", "program_html")}
+    upd["updated_at"] = utcnow()
+    r = await db.event_banners.update_one(
+        {"user_id": tenant_id(user), "event_id": event_id},
+        {"$set": upd},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Evento non trovato")
+    return {"ok": True}
+
+
+@api_router.delete("/event-banners/{event_id}")
+async def delete_event_banner(event_id: str, user=Depends(get_current_user)):
+    _ensure_master(user)
+    r = await db.event_banners.delete_one({"user_id": tenant_id(user), "event_id": event_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Evento non trovato")
+    return {"ok": True}
+
+
+class EventProgramAIIn(BaseModel):
+    description: str = ""
+    duration_hint: Optional[str] = None  # e.g. "mezza giornata", "sera"
+
+
+@api_router.post("/event-banners/{event_id}/generate-program")
+async def generate_event_program(event_id: str, body: EventProgramAIIn, user=Depends(get_current_user)):
+    """Ask Claude to draft a professional event program in Italian (HTML),
+    then store it on the banner for later viewing / sharing."""
+    _ensure_master(user)
+    b = await db.event_banners.find_one({"user_id": tenant_id(user), "event_id": event_id})
+    if not b:
+        raise HTTPException(status_code=404, detail="Evento non trovato")
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM non disponibile: {e}")
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+
+    when_str = b["event_at"].strftime("%d/%m/%Y ore %H:%M")
+    system = (
+        "Sei un event manager professionista italiano. Redigi un programma d'evento "
+        "chiaro, ben strutturato, in HTML pulito (usa <h2>, <h3>, <ul>, <li>, <p>). "
+        "Includi: intro/benvenuto, obiettivi, agenda con orari, relatori (se applicabile), "
+        "networking/pausa, chiusura. Tono professionale ma caloroso. NON usare markdown. "
+        "Rispondi SOLO con l'HTML dell'evento (nessuna intro, nessun code fence)."
+    )
+    prompt = (
+        f"Titolo evento: {b['title']}\n"
+        f"Data e ora: {when_str}\n"
+        f"Descrizione libera: {(body.description or '').strip() or '—'}\n"
+        f"Durata prevista: {(body.duration_hint or '').strip() or 'non specificata'}\n\n"
+        "Crea l'HTML del programma dell'evento."
+    )
+    chat = LlmChat(
+        api_key=key,
+        session_id=f"event-program-{event_id}",
+        system_message=system,
+    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+    try:
+        raw = await chat.send_message(UserMessage(text=prompt))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Errore LLM: {e}")
+    html_body = (raw or "").strip()
+    # Escape only the title to avoid HTML injection
+    def _esc(s: str) -> str:
+        return (str(s or "")
+                .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace('"', "&quot;").replace("'", "&#39;"))
+    full = f"""<!doctype html>
+<html lang="it"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{_esc(b['title'])} — Programma</title>
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0F172A; margin: 0; padding: 0; background: #F8FAFC; }}
+  .wrap {{ max-width: 780px; margin: 0 auto; padding: 24px 20px 48px; background: #FFF; }}
+  h1 {{ font-size: 24px; margin: 0 0 4px; color: #0F172A; }}
+  .when {{ color: #64748B; font-size: 13px; margin-bottom: 20px; }}
+  h2 {{ font-size: 17px; color: #1E3A5F; margin-top: 22px; border-bottom: 1px solid #E2E8F0; padding-bottom: 4px; }}
+  h3 {{ font-size: 14px; color: #334155; margin-top: 16px; }}
+  ul {{ padding-left: 20px; }}
+  li {{ margin-bottom: 4px; line-height: 1.5; font-size: 13px; }}
+  p {{ line-height: 1.6; font-size: 13px; }}
+</style></head><body>
+<div class="wrap">
+  <h1>{_esc(b['title'])}</h1>
+  <div class="when">{_esc(when_str)}</div>
+  {html_body}
+</div>
+</body></html>"""
+    await db.event_banners.update_one(
+        {"event_id": event_id},
+        {"$set": {"program_html": full, "updated_at": utcnow()}},
+    )
+    return {"ok": True, "program_html": full}
+
+
+@api_router.get("/event-banners/{event_id}/program")
+async def get_event_program(event_id: str, user=Depends(get_current_user)):
+    """Return the program (PDF or HTML) for viewing/sharing."""
+    b = await db.event_banners.find_one(
+        {"user_id": tenant_id(user), "event_id": event_id},
+        {"_id": 0},
+    )
+    if not b:
+        raise HTTPException(status_code=404, detail="Evento non trovato")
+    if not _event_visible_to_user(b, user):
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo evento")
+    if b.get("program_pdf_base64"):
+        return {
+            "kind": "pdf",
+            "name": b.get("program_pdf_name") or f"Programma-{b['title']}.pdf",
+            "mime": "application/pdf",
+            "data_base64": b["program_pdf_base64"],
+        }
+    if b.get("program_html"):
+        import base64 as _b64
+        html = b["program_html"]
+        return {
+            "kind": "html",
+            "name": f"Programma-{b['title']}.html",
+            "mime": "text/html",
+            "data_base64": _b64.b64encode(html.encode("utf-8")).decode("ascii"),
+        }
+    raise HTTPException(status_code=404, detail="Nessun programma disponibile per questo evento")
+
+
+@app.get("/api/public/event-banners/{public_token}", response_class=HTMLResponse)
+async def public_event_page(public_token: str):
+    """Public page for contacts (no auth). Simple HTML with cover, title,
+    countdown script, and inline program preview."""
+    b = await db.event_banners.find_one({"public_token": public_token}, {"_id": 0})
+    if not b:
+        return HTMLResponse("<h1>Evento non trovato</h1>", status_code=404)
+    title = (b.get("title") or "").replace("<", "&lt;")
+    when_iso = b["event_at"].isoformat() if isinstance(b.get("event_at"), datetime) else str(b.get("event_at"))
+    when_pretty = b["event_at"].strftime("%d/%m/%Y · %H:%M") if isinstance(b.get("event_at"), datetime) else ""
+    cover = b.get("cover_base64") or ""
+    cover_mime = b.get("cover_mime") or "image/jpeg"
+    cover_src = f"data:{cover_mime};base64,{cover}" if cover else ""
+    program_href = ""
+    if b.get("program_pdf_base64"):
+        program_href = f"data:application/pdf;base64,{b['program_pdf_base64']}"
+    elif b.get("program_html"):
+        import base64 as _b64
+        program_href = "data:text/html;base64," + _b64.b64encode(b["program_html"].encode("utf-8")).decode("ascii")
+    html = f"""<!doctype html>
+<html lang="it"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{title}</title>
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0F172A; color: #FFF; min-height: 100vh; }}
+  .hero {{ position: relative; width: 100%; height: 60vh; min-height: 340px; overflow: hidden; }}
+  .hero img {{ width: 100%; height: 100%; object-fit: cover; }}
+  .hero .overlay {{ position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.85) 100%); display: flex; flex-direction: column; justify-content: flex-end; padding: 28px 22px; }}
+  h1 {{ font-size: 30px; margin: 0 0 6px; line-height: 1.15; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }}
+  .when {{ font-size: 15px; opacity: 0.85; margin-bottom: 16px; }}
+  .cd {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: 460px; }}
+  .cd .box {{ background: rgba(255,255,255,0.12); backdrop-filter: blur(6px); border-radius: 10px; padding: 10px 4px; text-align: center; }}
+  .cd .n {{ font-size: 22px; font-weight: 800; line-height: 1.1; }}
+  .cd .l {{ font-size: 10px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.4px; }}
+  .actions {{ padding: 22px; text-align: center; }}
+  .btn {{ display: inline-block; background: #F59E0B; color: #0F172A; text-decoration: none; font-weight: 800; padding: 12px 22px; border-radius: 10px; margin: 6px; box-shadow: 0 4px 12px rgba(245,158,11,0.35); }}
+  .btn.sec {{ background: transparent; color: #FFF; border: 1px solid rgba(255,255,255,0.4); box-shadow: none; }}
+</style></head><body>
+<div class="hero">
+  {'<img src="'+cover_src+'"/>' if cover_src else ''}
+  <div class="overlay">
+    <h1>{title}</h1>
+    <div class="when">{when_pretty}</div>
+    <div class="cd" id="cd">
+      <div class="box"><div class="n" id="dd">—</div><div class="l">Giorni</div></div>
+      <div class="box"><div class="n" id="hh">—</div><div class="l">Ore</div></div>
+      <div class="box"><div class="n" id="mm">—</div><div class="l">Min</div></div>
+      <div class="box"><div class="n" id="ss">—</div><div class="l">Sec</div></div>
+    </div>
+  </div>
+</div>
+<div class="actions">
+  {'<a class="btn" href="'+program_href+'" target="_blank" rel="noopener">Apri il programma</a>' if program_href else ''}
+</div>
+<script>
+  const target = new Date("{when_iso}").getTime();
+  function pad(n){{ return String(n).padStart(2,"0"); }}
+  function tick(){{
+    const now = Date.now();
+    let d = Math.max(0, target - now);
+    const days = Math.floor(d/86400000); d -= days*86400000;
+    const hh = Math.floor(d/3600000); d -= hh*3600000;
+    const mm = Math.floor(d/60000); d -= mm*60000;
+    const ss = Math.floor(d/1000);
+    document.getElementById("dd").textContent = pad(days);
+    document.getElementById("hh").textContent = pad(hh);
+    document.getElementById("mm").textContent = pad(mm);
+    document.getElementById("ss").textContent = pad(ss);
+  }}
+  tick(); setInterval(tick, 1000);
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+
 # Include router & CORS
 app.include_router(api_router)
 
