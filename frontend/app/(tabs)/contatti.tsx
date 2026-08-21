@@ -6,6 +6,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string;
@@ -21,7 +22,15 @@ const AREAS_ALL: { key: "all" | "energy" | "network"; label: string }[] = [
   { key: "network", label: "Network" },
 ];
 
-export default function ContattiScreen() {
+export default function ContattiRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="contacts">
+      <ContattiScreen />
+    </ModuleErrorBoundary>
+  );
+}
+
+function ContattiScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const allowed = user?.areas || ["energy", "network"];

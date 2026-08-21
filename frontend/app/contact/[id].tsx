@@ -23,6 +23,7 @@ import { ContactAppointmentsSection } from "@/src/ContactAppointmentsSection";
 import { ContactReferralsSection } from "@/src/ContactReferralsSection";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -40,7 +41,15 @@ type Contact = {
   contact_code?: string;
 };
 
-export default function ContactDetail() {
+export default function ContactDetailRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="contacts">
+      <ContactDetail />
+    </ModuleErrorBoundary>
+  );
+}
+
+function ContactDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [c, setC] = useState<Contact | null>(null);

@@ -14,6 +14,7 @@ import { scheduleBirthdayReminder } from "@/src/notifications";
 import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { QRScannerModal } from "@/src/QRScannerModal";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type PendingAttachment = {
   local_id: string;
@@ -39,7 +40,15 @@ type Settings = { energy_title: string; energy_color: string; network_title: str
 
 const AREA_COLOR_SWATCHES = ["#1B6CB0", "#C83232", "#2D7A5A", "#B77C14", "#7A2E8E", "#0B7285", "#E67700", "#6B7280"];
 
-export default function NewContactScreen() {
+export default function NewContactRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="contacts">
+      <NewContactScreen />
+    </ModuleErrorBoundary>
+  );
+}
+
+function NewContactScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ id?: string }>();

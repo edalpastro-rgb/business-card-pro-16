@@ -1,5 +1,26 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v1.7 Refactor Architetturale — Fase 2 (Feb 2026)
+### 🏗️ Moduli migrati: `contacts` + `agenda`
+- **Approccio pragmatico**: le screen esistenti (~5000 righe totali) sono state protette da `ModuleErrorBoundary` senza riscritture, mentre le loro API pubbliche sono state estratte nei moduli. Adozione progressiva delle hook nelle Fasi successive.
+- **`/app/frontend/modules/contacts/`**:
+  - `types.ts` — `Contact`, `ContactLite`, `ContactWriteInput`, `ContactNote`, `ContactFile`, `ContactGroup`, `Anniversary`, `CustomArea`, ecc.
+  - `api.ts` — 7 funzioni tipizzate con `Result<T>`: listContacts, getContact, createContact, updateContact, deleteContact, assignContact, listGroups
+  - `hooks/useContact.ts` + `useContactsList.ts` — `AsyncResource<T>` + eventi bus (`contact:updated`, `contact:deleted`)
+- **`/app/frontend/modules/agenda/`**:
+  - `types.ts` — `Appointment`, `AppointmentWriteInput`, `AppointmentAttachment`, `TeamMember`, ecc.
+  - `api.ts` — 7 funzioni tipizzate: listAppointments, getAppointment, createAppointment, updateAppointment, deleteAppointment, listTeamMembers, listTeamAppointments
+  - `hooks/useAppointment.ts` — `AsyncResource<T>` + evento `appointment:updated`
+- **6 route wrappate** con `ModuleErrorBoundary`:
+  - `/(tabs)/contatti` `contact/new` `contact/[id]` → moduleName="contacts"
+  - `/(tabs)/calendario` `appointment/new` `appointment/[id]` → moduleName="agenda"
+### ✅ Test
+- `testing_agent` iterazione 64 — 8/8 PASS, zero regressione confermata
+- Sanity check completo su tutti i flussi: contatti lista/ricerca/creazione, appuntamenti creazione/modifica, calendario tab, business-card intatto
+### 📅 Prossima fase
+- Fase 3: migrare `invoice-analysis`, `master`, `communications`, `profile` + adozione hook nelle screen esistenti + rimozione codice duplicato residuo
+
+
 ## v1.6 Refactor Architetturale — Fase 1 (Feb 2026)
 ### 🏗️ Struttura modulare
 - Creata `/app/frontend/modules/` con 7 sotto-cartelle (una per modulo): `contacts`, `invoice-analysis`, `agenda`, `business-card`, `master`, `communications`, `profile`

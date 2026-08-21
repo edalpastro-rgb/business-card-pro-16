@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { scheduleAppointmentReminder, cancelAppointmentReminder, scheduleCallbackReminder } from "@/src/notifications";
 import { openGoogleCalendar, openOutlookCalendar, shareIcs } from "@/src/calendar-export";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
 type Settings = { appointment_outcomes?: Outcome[] };
@@ -43,7 +44,15 @@ const NETWORK_OUTCOMES = [
   { key: "incontro_wes", label: "Incontro WES" },
 ];
 
-export default function AppointmentDetail() {
+export default function AppointmentDetailRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="agenda">
+      <AppointmentDetail />
+    </ModuleErrorBoundary>
+  );
+}
+
+function AppointmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [a, setA] = useState<Appointment | null>(null);

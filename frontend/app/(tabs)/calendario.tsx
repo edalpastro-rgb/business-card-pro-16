@@ -8,6 +8,7 @@ import { theme } from "@/src/theme";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { apptTypeColor } from "@/app/appointment/new";
 import { useAuth } from "@/src/auth";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type Appointment = {
   appointment_id: string; title: string; area: "energy" | "network";
@@ -52,7 +53,15 @@ function sameDay(a: Date, b: Date) { return a.toDateString() === b.toDateString(
 
 type CalScope = "mine" | "team" | "all";
 
-export default function CalendarioScreen() {
+export default function CalendarioRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="agenda">
+      <CalendarioScreen />
+    </ModuleErrorBoundary>
+  );
+}
+
+function CalendarioScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));

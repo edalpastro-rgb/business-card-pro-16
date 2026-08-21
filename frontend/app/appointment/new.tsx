@@ -14,6 +14,7 @@ import { scheduleAppointmentReminder } from "@/src/notifications";
 import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
 import { notify } from "@/src/utils/notify";
 import { WheelPickerModal, WheelItem } from "@/src/WheelPicker";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type Attachment = {
   id: string;
@@ -100,7 +101,15 @@ const RECURRENCES = [
   { k: "monthly", label: "Mensile" }, { k: "yearly", label: "Annuale" },
 ];
 
-export default function NewAppointmentScreen() {
+export default function NewAppointmentRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="agenda">
+      <NewAppointmentScreen />
+    </ModuleErrorBoundary>
+  );
+}
+
+function NewAppointmentScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
