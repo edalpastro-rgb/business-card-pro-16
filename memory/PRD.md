@@ -1,5 +1,29 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v1.9 Bug Fix — JSON parsing robusto nel Fiscal Check (Feb 2026)
+### 🐛 Bug segnalato
+Modulo `invoice-analysis` → Fiscal Check mostrava "JSON parse error" rosso quando la risposta AI era malformata (sia preview che produzione).
+### ✅ Fix applicato
+**Backend** (`/app/backend/server.py`):
+- Nuovo helper `_parse_llm_json(raw, fallback_key)` con 3 tentativi di parsing:
+  1. Strict `json.loads()`
+  2. Estrazione outermost `{...}` via regex
+  3. Repair defects (trailing commas, single→double quotes, unquoted keys)
+- Su fallimento ritorna `{parse_error: True, error_message: "L'analisi AI ha restituito una risposta non valida..."}` — **mai raise**
+- Sostituite 5 chiamate `_json.loads(raw)` sparse nei flussi LLM (bill analysis, contact extraction, offer analysis, offers comparison, bills report)
+- `_build_analysis_html` mostra banner rosso "⚠ Analisi non riuscita" e nasconde le chiavi diagnostiche interne
+### Frontend
+- `BillFieldRenderers.tsx`: rendering dedicato di `parse_error` come banner rosso con messaggio user-friendly; nascosto `parse_error_kind` diagnostico
+- `BillsSection.tsx`: `parseErrorHtml` renderizzato PRIMA del contenuto della bolletta; filtrate chiavi interne dalle KV rows
+### ✅ Test
+- `testing_agent` iterazione 66 — **17/17 test backend PASS** (unit su `_parse_llm_json` + integration su `_build_analysis_html` + E2E con PDF random)
+- Regression 12/12 fiscal-check passa ancora
+- Frontend Playwright: nessuna stringa tecnica leak (`JSON parse error`, `Expecting value`, `Traceback`) sulla pagina
+- Test file creato: `/app/backend/tests/test_v38z_json_parse_robust.py`
+### ⚠ Nota per produzione
+Il fix è ora attivo in **preview**. Per attivarlo in **produzione** l'utente deve fare **Redeploy** dal pannello Emergent.
+
+
 ## v1.8 Refactor Architetturale — Fase 3 COMPLETATA (Feb 2026)
 ### 🏗️ 4 moduli migrati: `invoice-analysis`, `master`, `communications`, `profile`
 - **`invoice-analysis/`**: types (`BillType`, `BillStatus`, `EnergyBill`, `BillCreateInput`, `BillGrouped`, `CompanyOffer`) + 8 funzioni API `Result<T>` (listContactBills, createBill, reanalyzeBill, cancelBillAnalysis, deleteBill, getBillReport, getBillComparison, listCompanyOffers)

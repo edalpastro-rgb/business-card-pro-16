@@ -136,6 +136,30 @@ export type FieldRowProps = { name: string; value: any; accent: string };
 
 export function BillFieldRow({ name, value, accent }: FieldRowProps) {
   const label = humanizeKey(name);
+  // V38Z — parse_error → clear red banner (skip when false to avoid noise)
+  if (name === "parse_error") {
+    if (!value) return null;
+    return (
+      <View style={styles.parseErrorBox}>
+        <Text style={styles.parseErrorTitle}>⚠ Analisi non riuscita</Text>
+        <Text style={styles.parseErrorMsg}>
+          L&apos;analisi AI ha restituito una risposta non valida. Riprova più tardi
+          o contatta il supporto se il problema persiste.
+        </Text>
+      </View>
+    );
+  }
+  // V38Z — hide internal diagnostic key from the UI (never expose to user)
+  if (name === "parse_error_kind") return null;
+  // V38Z — dedicated error_message row (from _parse_llm_json)
+  if (name === "error_message") {
+    if (!value) return null;
+    return (
+      <View style={styles.parseErrorBox}>
+        <Text style={styles.parseErrorMsg}>{String(value)}</Text>
+      </View>
+    );
+  }
   // Consumi mensili — bar chart (top-level, accepts array OR object shape)
   if (name === "consumi_mensili_kwh" || name === "consumi_mensili_smc") {
     const key: "kwh" | "smc" = name === "consumi_mensili_kwh" ? "kwh" : "smc";
@@ -275,4 +299,24 @@ const styles = StyleSheet.create({
   barTrack: { width: 26, height: 120, backgroundColor: "#E2E8F0", borderRadius: 4, justifyContent: "flex-end", overflow: "hidden" },
   barFill: { width: "100%", borderTopLeftRadius: 4, borderTopRightRadius: 4 },
   barLabel: { fontSize: 10, color: theme.color.muted, marginTop: 3, fontWeight: "600" },
+  // V38Z — clear red parse-error banner
+  parseErrorBox: {
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 6,
+  },
+  parseErrorTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#991B1B",
+    marginBottom: 4,
+  },
+  parseErrorMsg: {
+    fontSize: 12,
+    color: "#7F1D1D",
+    lineHeight: 17,
+  },
 });

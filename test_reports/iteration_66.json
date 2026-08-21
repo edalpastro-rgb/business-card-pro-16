@@ -1,0 +1,35 @@
+{
+  "summary": "V38Z — Robust LLM JSON parsing bug fix verified. Created /app/backend/tests/test_v38z_json_parse_robust.py with 17 tests: 10 unit tests on `_parse_llm_json` (empty, None, garbage, code-fenced, trailing commas, embedded, valid, no-exception, no-technical-leak), 2 integration tests on `_build_analysis_html` (parse_error banner rendered + internal keys hidden; happy path no banner), 3 regression tests (login/master-files/contacts) and 1 E2E test uploading random-bytes PDF as bill. 17/17 PASSED. Frontend Playwright: logged in and loaded /master-files → tab 'Analisi' successfully — no crash, no forbidden technical strings ('JSON parse error', 'Expecting value', 'JSONDecodeError', 'Traceback') anywhere on page. Existing v38x fiscal-check tests still pass (12/12). Fix is working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v38z_json_parse_robust.py",
+    "/app/test_reports/pytest/v38z_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 6941 lines — should be split into modules (bills, auth, llm helpers, master files) for maintainability. Not urgent for this fix.",
+    "`_parse_llm_json` correctly wraps the note_ai/notes/fallback_key snippet at 300 chars and never raises. Three-stage strategy (strict → regex extract → repair) is sound.",
+    "In `_llm_extract_contact` the caller pops `parse_error` / `error_message` / `parse_error_kind` (line 3297-3300) because it always expects a dict for contact-extraction. That's intentional but means a truly malformed contact extraction would return an empty/partial dict silently — acceptable but worth noting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v38z_json_parse_robust.py (NEW)"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 v38z + 12/12 v38x regression)",
+    "frontend": "100% (master-files → Analisi tab loads, no crash, no forbidden technical strings)"
+  },
+  "seed_data_creation": "None. E2E test creates+deletes a temporary TEST_V38Z contact.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bug fix V38Z is verified. Helper `_parse_llm_json` at /app/backend/server.py:3198 handles all malformed inputs gracefully and returns the exact Italian user-friendly message. All 5 call sites (`_llm_extract_contact`, `_llm_analyze_bill_text`, `_llm_bill_suggestions`, `_llm_extract_offer`, `_llm_compare_offers_*`) use the new helper. Frontend banner renders in both `BillFieldRenderers.tsx` (parse_error field) and `BillsSection.tsx` (parseErrorHtml block). No further fix needed on this bug.",
+  "rca_of_issue": "Original bug: 5 sites in server.py called `json.loads(raw)` directly on LLM output; any deviation (markdown fences, trailing commas, prose before JSON, empty response, malformed structure) triggered a raise that propagated up and either 500'd the API or leaked JSON parse errors into the UI. Fix: centralized helper `_parse_llm_json` with (a) strict parse, (b) regex outermost {...} extraction, (c) light repair (trailing commas, unquoted keys, single quotes) — and a sentinel dict `{parse_error: True, error_message: <italian>, parse_error_kind: <internal>, <fallback_key>: raw[:300]}` on total failure. Frontend surfaces banner instead of raw fields; internal keys hidden from KV rows."
+}

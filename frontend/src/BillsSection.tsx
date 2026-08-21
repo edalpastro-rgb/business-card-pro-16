@@ -379,8 +379,9 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       return null;
     };
 
+    // V38Z — parse_error is rendered as banner (see below), skip in KV rows.
     const rows = Object.entries(ex)
-      .filter(([k]) => !["raw_text_preview", "parse_error", "fiscal_check"].includes(k))
+      .filter(([k]) => !["raw_text_preview", "parse_error", "parse_error_kind", "error_message", "fiscal_check"].includes(k))
       .map(([k, v]) => {
         // V38Q — render monthly consumption as SVG chart embedded in the KV table.
         if ((k === "consumi_mensili_kwh" || k === "consumi_mensili_smc") && v) {
@@ -450,6 +451,21 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       }
     }
 
+    // V38Z — Clear red banner when the LLM returned malformed JSON.
+    // Uses the user-facing error_message from the backend when available,
+    // never exposes the raw broken JSON to the user.
+    let parseErrorHtml = "";
+    if ((ex as any).parse_error) {
+      const msg = escHtml(
+        (ex as any).error_message ||
+          "L'analisi AI ha restituito una risposta non valida. Riprova più tardi o contatta il supporto se il problema persiste."
+      );
+      parseErrorHtml = `<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:12px;margin:12px 0;color:#7F1D1D;font-size:12px;line-height:1.5;">
+        <div style="font-weight:800;color:#991B1B;margin-bottom:4px;">⚠ Analisi non riuscita</div>
+        ${msg}
+      </div>`;
+    }
+
     // V38W — filter out internal __verifica_* markers (never expose them)
     const params = (Array.isArray(bill.analysis_params) ? bill.analysis_params : [])
       .filter((p: any) => !(typeof p === "string" && p.startsWith("__verifica_")));
@@ -503,9 +519,10 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       <div class="banner-sub">${escHtml(ex.nome_offerta || ex.tipo_offerta || "Offerta non specificata")}</div>
     </div>
   </div>
+  ${parseErrorHtml}
   ${paramsBadges}
   ${fiscalHtml}
-  ${rows ? `<table class="kv">${rows}</table>` : "<p><i>Nessun dato estratto.</i></p>"}
+  ${rows ? `<table class="kv">${rows}</table>` : (parseErrorHtml ? "" : "<p><i>Nessun dato estratto.</i></p>")}
   <div class="footer">Report generato con Claude Sonnet 5 · Dal Pastro CRM</div>
 </body></html>`;
   };

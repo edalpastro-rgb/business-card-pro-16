@@ -3187,6 +3187,95 @@ CONTACT_EXTRACTION_SYSTEM = (
 )
 
 
+# ---------------------------------------------------------------------------
+# V38Z — Robust JSON parser for LLM responses.
+# ---------------------------------------------------------------------------
+# LLMs occasionally emit malformed JSON: wrapped in prose, missing quotes,
+# trailing commas, single quotes, etc. This helper attempts multiple fallback
+# strategies and, when ALL fail, returns a dict with a *clear user-facing*
+# error message (no raw broken JSON exposed to the frontend).
+# ---------------------------------------------------------------------------
+def _parse_llm_json(raw: str, fallback_key: str = "note_ai") -> dict:
+    """Best-effort JSON parser for LLM responses.
+
+    Returns a dict. When parsing fails after all strategies, returns:
+      {
+        "parse_error": True,
+        "error_message": "L'analisi AI ha restituito una risposta non valida. Riprova più tardi.",
+        <fallback_key>: <short excerpt of the raw text for debugging>
+      }
+    NEVER raises. Callers can check `result.get("parse_error")` to detect
+    the failure and display a clear message instead of raw fields.
+    """
+    import json as _json_local
+    import re as _re_local
+
+    USER_FRIENDLY_MSG = (
+        "L'analisi AI ha restituito una risposta non valida. "
+        "Riprova più tardi o contatta il supporto se il problema persiste."
+    )
+
+    def _err(kind: str, snippet: str) -> dict:
+        return {
+            "parse_error": True,
+            "error_message": USER_FRIENDLY_MSG,
+            "parse_error_kind": kind,  # internal, not shown to user
+            fallback_key: snippet[:300],
+        }
+
+    if not raw or not isinstance(raw, str):
+        return _err("empty", "")
+    text = raw.strip()
+
+    # Strip common markdown code fences ```json ... ```
+    if text.startswith("```"):
+        text = text.strip("`")
+        # remove optional leading "json"
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+        if text.endswith("```"):
+            text = text[:-3].strip()
+
+    # Attempt 1: strict parse
+    try:
+        data = _json_local.loads(text)
+        if isinstance(data, dict):
+            return data
+        # Not a dict — wrap it
+        return {fallback_key: str(data)[:500]}
+    except Exception:
+        pass
+
+    # Attempt 2: extract the outermost {...} block via regex
+    m = _re_local.search(r"\{[\s\S]*\}", text)
+    if m:
+        candidate = m.group(0)
+        try:
+            data = _json_local.loads(candidate)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+        # Attempt 3: repair common defects on the candidate
+        repaired = candidate
+        # Remove trailing commas before } or ]
+        repaired = _re_local.sub(r",(\s*[}\]])", r"\1", repaired)
+        # Replace single-quoted string literals with double quotes (best-effort)
+        repaired = _re_local.sub(r"(?<![\\])'([^'\n]*?)'", r'"\1"', repaired)
+        # Wrap unquoted keys in double quotes: {foo: 1} -> {"foo": 1}
+        repaired = _re_local.sub(r'([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:', r'\1"\2":', repaired)
+        try:
+            data = _json_local.loads(repaired)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+
+    # All attempts failed
+    logger.warning("_parse_llm_json failed; raw preview=%r", (raw or "")[:200])
+    return _err("unparseable", raw)
+
+
 async def _llm_extract_contact(text: str, model: str = "claude-haiku-4-5-20251001", provider: str = "anthropic") -> dict:
     """Send raw text to Claude Haiku and parse the JSON contact dict."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -3203,21 +3292,12 @@ async def _llm_extract_contact(text: str, model: str = "claude-haiku-4-5-2025100
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Errore LLM: {e}")
     raw = (resp or "").strip()
-    # Strip common markdown fences
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        if raw.lower().startswith("json"):
-            raw = raw[4:].strip()
-        # remove trailing fences
-        if raw.endswith("```"):
-            raw = raw[:-3].strip()
-    import json as _json
-    try:
-        data = _json.loads(raw)
-        if not isinstance(data, dict):
-            data = {}
-    except Exception:
-        data = {"notes": raw[:500]}
+    # V38Z — robust JSON parsing (never raises)
+    data = _parse_llm_json(raw, fallback_key="notes")
+    # For contact extraction, ignore parse_error flag (caller expects a dict either way)
+    data.pop("parse_error", None)
+    data.pop("error_message", None)
+    data.pop("parse_error_kind", None)
     return data
 
 
@@ -3431,17 +3511,11 @@ async def ai_contact_from_card(body: AIImageIn, user=Depends(get_current_user)):
         )
 
     raw = (resp or "").strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        if raw.lower().startswith("json"): raw = raw[4:].strip()
-        if raw.endswith("```"): raw = raw[:-3].strip()
-    import json as _json
-    try:
-        data = _json.loads(raw)
-        if not isinstance(data, dict):
-            data = {}
-    except Exception:
-        data = {"notes": raw[:500]}
+    # V38Z — robust JSON parsing (never raises)
+    data = _parse_llm_json(raw, fallback_key="notes")
+    data.pop("parse_error", None)
+    data.pop("error_message", None)
+    data.pop("parse_error_kind", None)
     return {"contact": data}
 
 
@@ -3644,20 +3718,9 @@ async def _llm_analyze_bill_text(bill_type: str, text: str, analysis_params: Opt
         text=f"Testo della fattura {bill_type.upper()}:\n\n{snippet}"
     ))
     raw = (resp or "").strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        if raw.lower().startswith("json"):
-            raw = raw[4:].strip()
-        if raw.endswith("```"):
-            raw = raw[:-3].strip()
-    import json as _json
-    try:
-        data = _json.loads(raw)
-        if not isinstance(data, dict):
-            data = {"note_ai": str(data)[:500]}
-    except Exception:
-        data = {"note_ai": raw[:500], "parse_error": True}
-    return data
+    # V38Z — robust JSON parsing for bill analysis. `parse_error` flag survives
+    # so the frontend can render a clear red banner instead of raw fields.
+    return _parse_llm_json(raw, fallback_key="note_ai")
 
 
 async def _analyze_bill_task(bill_id: str):
@@ -3864,18 +3927,8 @@ async def _llm_bill_suggestions(summary_data: dict) -> dict:
     except Exception as e:
         return {"error": f"Errore LLM: {e}"}
     raw = (resp or "").strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        if raw.lower().startswith("json"):
-            raw = raw[4:].strip()
-        if raw.endswith("```"):
-            raw = raw[:-3].strip()
-    try:
-        data = _json.loads(raw)
-        if not isinstance(data, dict):
-            data = {"riepilogo_generale": str(data)[:500]}
-    except Exception:
-        data = {"riepilogo_generale": raw[:500], "parse_error": True}
+    # V38Z — robust JSON parsing
+    data = _parse_llm_json(raw, fallback_key="riepilogo_generale")
     return data
 
 
@@ -4130,13 +4183,28 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
     # V38W — Fiscal check rendered as readable rows (never JSON)
     fiscal_html = _format_fiscal_check_html(extracted.get("fiscal_check") or {})
 
+    # V38Z — Clear parse-error banner (never expose broken JSON to the user)
+    parse_error_html = ""
+    if extracted.get("parse_error"):
+        msg = extracted.get("error_message") or (
+            "L'analisi AI ha restituito una risposta non valida. "
+            "Riprova più tardi o contatta il supporto se il problema persiste."
+        )
+        parse_error_html = (
+            "<div style='background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;"
+            "padding:12px;margin:12px 0;color:#7F1D1D;font-size:12px;line-height:1.5;'>"
+            "<div style='font-weight:800;color:#991B1B;margin-bottom:4px;'>&#9888; Analisi non riuscita</div>"
+            f"{esc(str(msg))}</div>"
+        )
+
     # Standard KV table — skip internal keys and fiscal_check
     rows = []
     for k, v in extracted.items():
         if v in (None, "", []):
             continue
         if k in ("consumi_mensili_kwh", "consumi_mensili_smc", "note_ai",
-                 "parametri_richiesti", "raw_text_preview", "fiscal_check"):
+                 "parametri_richiesti", "raw_text_preview", "fiscal_check",
+                 "parse_error", "parse_error_kind", "error_message"):
             continue
         if isinstance(v, dict) and "ok" in v and ("expected" in v or "actual" in v):
             # V38X — fiscal-check-shaped sub-entry rendered readable, never JSON
@@ -4197,6 +4265,7 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
     <div class="banner-sub">{offerta}</div>
   </div>
   {params_html}
+  {parse_error_html}
   {fiscal_html}
   {table_html}
   {"<h3 style='color:#0F172A;font-size:14px;margin:16px 0 6px;'>Consumi mensili</h3>" + chart_html if chart_html else ""}
@@ -5016,20 +5085,8 @@ async def _llm_analyze_offer_text(text: str) -> dict:
     snippet = text[:18000]
     resp = await chat.send_message(UserMessage(text=f"Testo delle condizioni economiche:\n\n{snippet}"))
     raw = (resp or "").strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        if raw.lower().startswith("json"):
-            raw = raw[4:].strip()
-        if raw.endswith("```"):
-            raw = raw[:-3].strip()
-    import json as _json
-    try:
-        data = _json.loads(raw)
-        if not isinstance(data, dict):
-            data = {"note_ai": [str(data)[:500]]}
-    except Exception:
-        data = {"note_ai": [raw[:500]], "parse_error": True}
-    return data
+    # V38Z — robust JSON parsing
+    return _parse_llm_json(raw, fallback_key="note_ai")
 
 
 async def _analyze_offer_task(offer_id: str):
@@ -5244,19 +5301,8 @@ async def _llm_compare_call(system_prompt: str, bill_extracted: dict, offer_extr
     )
     resp = await chat.send_message(UserMessage(text=prompt))
     raw = (resp or "").strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        if raw.lower().startswith("json"):
-            raw = raw[4:].strip()
-        if raw.endswith("```"):
-            raw = raw[:-3].strip()
-    try:
-        data = _json.loads(raw)
-        if not isinstance(data, dict):
-            data = {"note_ai": str(data)[:500], "parse_error": True}
-    except Exception:
-        data = {"note_ai": raw[:500], "parse_error": True}
-    return data
+    # V38Z — robust JSON parsing (never raises)
+    return _parse_llm_json(raw, fallback_key="note_ai")
 
 
 async def _llm_compare_offers(bill_extracted: dict, offer_extracted: dict, bill_type: str) -> dict:
