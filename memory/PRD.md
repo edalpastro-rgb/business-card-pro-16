@@ -1,5 +1,40 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.12 Feature — CTE Comparativa (Multi-Bill Upload + Report) (Feb 2026)
+### 🎯 Richiesta utente
+Il consulente deve poter caricare più PDF fatture (luce/gas/telco) contemporaneamente per un singolo cliente. L'AI analizza tutte le fatture e genera un **report comparativo** con: consumi nel tempo, andamento spesa, confronto tra fornitori diversi, e suggerimento del fornitore più conveniente. Visualizzabile inline e condivisibile come PDF/HTML.
+
+### ✅ Backend (`/app/backend/server.py`)
+**Endpoint aggiunti**:
+- `POST /api/contacts/{contact_id}/bills/bulk-upload` — accetta `{bills: [{bill_type, pdf_base64, pdf_name}, ...]}` (max 20). Per ciascun item crea un `energy_bill` in stato `pending` e schedula `_analyze_bill_task` in background (stessa pipeline della POST singola).
+- `GET /api/contacts/{contact_id}/bills/cte-report` — genera HTML comparativo con:
+  - **Header brandizzato** (logo + nome agenzia + data generazione)
+  - **KPI row**: n. fatture, n. fornitori diversi, spesa totale
+  - **SVG bar chart** andamento spesa nel tempo (colorato per bill_type)
+  - **Tabelle confronto fornitori** per bill_type: fatture, spesa media, consumo medio + **badge "più conveniente"** al fornitore con spesa media minore
+  - **Verdict AI Claude Sonnet 5** (`_llm_cte_verdict`): frase in italiano per tipo che indica fornitore più conveniente e perché (costo, spread, penali)
+  - Returns `{name, mime: text/html, data_base64, bills_count, verdict}` pronto per `FileViewer`
+
+### ✅ Frontend (`/app/frontend/src/BillsSection.tsx`)
+- **`bulkUploadPdfs()`** — DocumentPicker con `multiple: true`. Auto-infer del `bill_type` dal nome file (contiene "gas"/"telco"/"internet" → tipo dedotto, altrimenti default "luce"). POST batch → notify success + reload.
+- **`generateCTE()`** — GET `/cte-report` → apre inline in `FileViewer` + propone `SaveConfirmModal` per salvare come file cliente.
+- **UI**: 2 nuovi bottoni sotto "Genera Report PDF":
+  - 🟦 "Carica più fatture insieme" (`bills-bulk-upload-btn`, ciano #0891B2)
+  - 🟢 "CTE Comparativa (N fatture)" (`bills-cte-btn`, verde #059669) — disabilitato se `totalDone < 1`; hint "consigliato con ≥ 2 fatture"
+
+### ✅ Test end-to-end (senza testing agent)
+File: `/app/backend/tests/test_v212_cte_comparativa.py`
+- Upload bulk di 3 fatture (2 luce ENEL/Eni + 1 gas Eni) → **200 OK, count=3** ✅
+- Polling 16s: tutte e 3 analizzate `status=done` ✅
+- GET `/cte-report` → **200 OK, HTML 7788 chars** ✅
+- HTML contiene "CTE Comparativa" + "Confronto fornitori" + badge "più conveniente" ✅
+- Verdict AI popolato per luce e gas ✅
+- Cleanup fatture di test completato ✅
+
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.11 Feature — Estrazione automatica copertina dal PDF programma (Feb 2026)
 ### 🎯 Richiesta utente
 Quando il master carica il PDF del programma evento, l'AI deve estrarre automaticamente l'immagine più significativa dal PDF e usarla come copertina del banner, ridimensionata correttamente.

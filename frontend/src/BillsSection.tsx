@@ -124,6 +124,9 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   // V2.4 — Inline HTML viewer for reports & comparison (matches master-files pattern)
   const [viewerOpen, setViewerOpen] = useState<null | { name: string; mime: string; data_base64: string }>(null);
   const [comparisonBusy, setComparisonBusy] = useState(false);
+  // v2.12 — CTE comparativa (multi-bill report)
+  const [cteBusy, setCteBusy] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
   // V38 — pending upload waiting for user parameter selection
   const [pendingUpload, setPendingUpload] = useState<null | { bill_type: BillType; asset: { name?: string; mimeType?: string; uri: string } }>(null);
   const [selectedParams, setSelectedParams] = useState<Set<string>>(new Set());
@@ -937,6 +940,68 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
     }
   };
 
+  // v2.12 — Multi-file bulk upload: consultant picks N PDFs at once (any mix
+  // of luce/gas/telco) and the backend enqueues them all. Bill type is inferred
+  // from the filename ("luce"/"gas"/"telco" substring, else defaults to "luce").
+  const bulkUploadPdfs = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: "application/pdf", multiple: true, copyToCacheDirectory: true });
+      if (res.canceled || !res.assets?.length) return;
+      setBulkBusy(true);
+      const items: Array<{ bill_type: BillType; pdf_base64: string; pdf_name: string; pdf_mime: string }> = [];
+      for (const a of res.assets) {
+        const b64 = await uriToBase64(a.uri);
+        const nm = (a.name || "").toLowerCase();
+        let bt: BillType = "luce";
+        if (nm.includes("gas")) bt = "gas";
+        else if (nm.includes("telco") || nm.includes("telefon") || nm.includes("internet")) bt = "telco";
+        items.push({ bill_type: bt, pdf_base64: b64, pdf_name: a.name || `fattura.pdf`, pdf_mime: a.mimeType || "application/pdf" });
+      }
+      const r = await api<{ count: number }>(`/contacts/${contactId}/bills/bulk-upload`, {
+        method: "POST",
+        body: { bills: items },
+      });
+      notify("Upload completato ✅", `${r.count} fatture caricate. L'AI le analizzerà a breve.`);
+      await load();
+    } catch (e: any) {
+      notify("Errore upload multiplo", e?.message || "");
+    } finally { setBulkBusy(false); }
+  };
+
+  // v2.12 — CTE comparativa: fetch multi-bill comparative HTML report and
+  // display it inline via FileViewer. Includes charts + AI supplier verdict.
+  const generateCTE = async () => {
+    try {
+      setCteBusy(true);
+      const r = await api<{ name: string; mime: string; data_base64: string; bills_count: number }>(
+        `/contacts/${contactId}/bills/cte-report`
+      );
+      setViewerOpen({ name: r.name, mime: r.mime, data_base64: r.data_base64 });
+      // Offer to save into contact files
+      setSaveConfirm({
+        kind: "report",
+        defaultName: suggestFileName(contactName, `CTE Comparativa (${r.bills_count} fatture)`),
+        ext: ".html",
+        color: "#059669",
+        subtitle: "Salva la CTE comparativa nei File del cliente",
+        run: async (name: string) => {
+          try {
+            await api(`/contacts/${contactId}/files`, {
+              method: "POST",
+              body: { name: `${name}.html`, mime: "text/html", data_base64: r.data_base64, size: Math.round((r.data_base64.length * 3) / 4) },
+            });
+            onContactFilesChanged?.();
+            notify("Salvato ✅", "CTE comparativa aggiunta ai File del cliente.");
+          } catch (e: any) {
+            notify("Errore salvataggio", e?.message || "");
+          }
+        },
+      });
+    } catch (e: any) {
+      notify("Errore CTE", e?.message || "");
+    } finally { setCteBusy(false); }
+  };
+
   if (loading) {
     return <ActivityIndicator style={{ marginTop: 30 }} color={theme.color.brandPrimary} />;
   }
@@ -1257,6 +1322,45 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       {totalDone === 0 && (
         <Text style={[styles.emptyTxt, { textAlign: "center", marginTop: 6 }]}>
           Il report sarà disponibile quando almeno una fattura sarà stata analizzata.
+        </Text>
+      )}
+
+      {/* v2.12 — Bulk multi-file upload */}
+      <Pressable
+        testID="bills-bulk-upload-btn"
+        disabled={bulkBusy}
+        onPress={bulkUploadPdfs}
+        style={[styles.reportBtn, { backgroundColor: "#0891B2", marginTop: 12, opacity: bulkBusy ? 0.6 : 1 }]}
+      >
+        {bulkBusy ? (
+          <ActivityIndicator color="#FFF" />
+        ) : (
+          <>
+            <Ionicons name="cloud-upload" size={20} color="#FFF" />
+            <Text style={styles.reportBtnTxt}>Carica più fatture insieme</Text>
+          </>
+        )}
+      </Pressable>
+
+      {/* v2.12 — CTE Comparativa */}
+      <Pressable
+        testID="bills-cte-btn"
+        disabled={totalDone < 1 || cteBusy}
+        onPress={generateCTE}
+        style={[styles.reportBtn, { backgroundColor: "#059669", marginTop: 12, opacity: (totalDone < 1 || cteBusy) ? 0.5 : 1 }]}
+      >
+        {cteBusy ? (
+          <ActivityIndicator color="#FFF" />
+        ) : (
+          <>
+            <Ionicons name="stats-chart" size={20} color="#FFF" />
+            <Text style={styles.reportBtnTxt}>CTE Comparativa ({totalDone} fatture)</Text>
+          </>
+        )}
+      </Pressable>
+      {totalDone < 2 && (
+        <Text style={[styles.emptyTxt, { textAlign: "center", marginTop: 4 }]}>
+          Consigliato con almeno 2 fatture analizzate per un confronto significativo.
         </Text>
       )}
 

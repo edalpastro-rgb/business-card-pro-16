@@ -3966,6 +3966,341 @@ async def bills_report(contact_id: str, user=Depends(get_current_user)):
 
 
 # =========================
+# v2.12 (Feb 2026) — CTE Comparativa (multi-bill upload + comparative report)
+# Consultant uploads several PDFs at once for a client. Backend enqueues each
+# as an energy_bill, background task analyses them, then a dedicated endpoint
+# builds a comparative HTML report with SVG charts + AI verdict.
+# =========================
+
+class BulkBillItem(BaseModel):
+    bill_type: str  # luce | gas | telco
+    pdf_base64: str
+    pdf_name: Optional[str] = None
+    pdf_mime: Optional[str] = "application/pdf"
+
+
+class BulkBillsIn(BaseModel):
+    bills: List[BulkBillItem] = Field(default_factory=list)
+
+
+@api_router.post("/contacts/{contact_id}/bills/bulk-upload")
+async def bulk_upload_bills(contact_id: str, body: BulkBillsIn, background: BackgroundTasks, user=Depends(get_current_user)):
+    """v2.12 — Upload N bills for a contact in a single request. Each bill
+    is created as pending and analysed asynchronously (mirrors create_bill)."""
+    await _ensure_contact_owned(contact_id, user)
+    if not body.bills:
+        raise HTTPException(status_code=400, detail="Nessuna fattura fornita")
+    if len(body.bills) > 20:
+        raise HTTPException(status_code=400, detail="Massimo 20 fatture per volta")
+    created: List[dict] = []
+    for item in body.bills:
+        if item.bill_type not in BILL_TYPES:
+            continue
+        b64 = item.pdf_base64
+        if b64.startswith("data:"):
+            b64 = b64.split(",", 1)[1]
+        approx_size = int(len(b64) * 0.75)
+        if approx_size > 12 * 1024 * 1024:
+            continue  # skip oversized silently — user gets a partial success
+        bill_id = f"bill_{uuid.uuid4().hex[:12]}"
+        doc = {
+            "bill_id": bill_id,
+            "contact_id": contact_id,
+            "user_id": tenant_id(user),
+            "created_by": user["user_id"],
+            "bill_type": item.bill_type,
+            "pdf_base64": item.pdf_base64,
+            "pdf_name": item.pdf_name or f"fattura-{item.bill_type}.pdf",
+            "pdf_mime": item.pdf_mime or "application/pdf",
+            "pdf_size": approx_size,
+            "status": "pending",
+            "extracted": None,
+            "error_message": None,
+            "analysis_params": None,
+            "created_at": utcnow(),
+            "analyzed_at": None,
+        }
+        await db.energy_bills.insert_one(doc)
+        background.add_task(_analyze_bill_task, bill_id)
+        created.append({"bill_id": bill_id, "bill_type": item.bill_type, "pdf_name": doc["pdf_name"]})
+    return {"ok": True, "created": created, "count": len(created)}
+
+
+def _fmt_eur(n: Any) -> str:
+    try:
+        v = float(n)
+        return f"€ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except Exception:
+        return "—"
+
+
+def _num(x: Any) -> Optional[float]:
+    if x is None:
+        return None
+    try:
+        return float(x)
+    except Exception:
+        s = str(x).replace(".", "").replace(",", ".").strip()
+        try:
+            return float("".join(ch for ch in s if ch.isdigit() or ch in ".-"))
+        except Exception:
+            return None
+
+
+def _build_cte_report_html(contact: dict, bills: List[dict], ai_verdict: dict, branding: dict) -> str:
+    """v2.12 — Build a comparative HTML report with SVG charts.
+    - Trend spesa nel tempo (bar per bill sorted by created_at)
+    - Confronto fornitori per bill_type (table)
+    - AI verdict per bill_type
+    """
+    def esc(s):
+        return (str(s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+    section_meta = {
+        "luce": ("Luce", "#F59E0B", "💡"),
+        "gas": ("Gas", "#DC2626", "🔥"),
+        "telco": ("Telco", "#0891B2", "📞"),
+    }
+
+    # Enrich bills with numeric spend + consumption
+    enriched: List[dict] = []
+    for b in bills:
+        ex = b.get("extracted") or {}
+        totale = _num(ex.get("importo_totale") or ex.get("importo_totale_eur"))
+        consumo = _num(ex.get("consumo_annuo") or ex.get("consumo_annuo_smc") or ex.get("consumo_totale_12_mesi"))
+        fornitore = str(ex.get("fornitore") or "—").strip() or "—"
+        enriched.append({
+            **b,
+            "fornitore": fornitore,
+            "totale": totale,
+            "consumo": consumo,
+            "when": b.get("created_at"),
+        })
+
+    # SVG bar chart: spesa nel tempo (max 20 bars)
+    def spend_chart():
+        items = [x for x in enriched if x["totale"] is not None]
+        items = sorted(items, key=lambda x: str(x.get("when") or ""))[-20:]
+        if not items:
+            return ""
+        W, H, PL, PR, PT, PB = 700, 220, 46, 12, 20, 60
+        chart_w = W - PL - PR
+        chart_h = H - PT - PB
+        max_v = max((x["totale"] for x in items), default=0) or 1
+        bar_w = max(6, (chart_w / len(items)) - 6)
+        y_ticks = [0, 0.25, 0.5, 0.75, 1]
+        grid = "".join(
+            f'<line x1="{PL}" y1="{PT + chart_h - chart_h*t}" x2="{W-PR}" y2="{PT + chart_h - chart_h*t}" stroke="#E5E7EB" stroke-width="1"/>'
+            f'<text x="{PL-4}" y="{PT + chart_h - chart_h*t + 3}" font-size="9" fill="#6B7280" text-anchor="end">{int(max_v*t)}</text>'
+            for t in y_ticks
+        )
+        bars = ""
+        for i, x in enumerate(items):
+            v = x["totale"]
+            h = (v / max_v) * chart_h
+            bx = PL + i * (bar_w + 6)
+            by = PT + chart_h - h
+            color = section_meta.get(x.get("bill_type", ""), ("", "#6366F1", ""))[1]
+            label_short = (x.get("fornitore") or "—")[:10]
+            when = ""
+            try:
+                when = (x.get("when") or "").strftime("%m/%y") if hasattr(x.get("when"), "strftime") else str(x.get("when"))[:7]
+            except Exception:
+                when = str(x.get("when"))[:7]
+            bars += (
+                f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bar_w:.1f}" height="{h:.1f}" fill="{color}" rx="3"/>'
+                f'<text x="{bx + bar_w/2:.1f}" y="{by-3:.1f}" font-size="8" fill="#374151" text-anchor="middle">€{int(v)}</text>'
+                f'<text x="{bx + bar_w/2:.1f}" y="{H - PB + 12}" font-size="8" fill="#6B7280" text-anchor="middle">{esc(label_short)}</text>'
+                f'<text x="{bx + bar_w/2:.1f}" y="{H - PB + 24}" font-size="8" fill="#94A3B8" text-anchor="middle">{esc(when)}</text>'
+            )
+        return f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 {W} {H}">{grid}{bars}</svg>'
+
+    # Supplier comparison table per bill_type
+    supplier_tables = ""
+    for bt, (lbl, color, emoji) in section_meta.items():
+        rows_bt = [x for x in enriched if x.get("bill_type") == bt]
+        if not rows_bt:
+            continue
+        # Group by supplier
+        by_sup: Dict[str, dict] = {}
+        for r in rows_bt:
+            sup = r["fornitore"] or "—"
+            agg = by_sup.setdefault(sup, {"count": 0, "totali": [], "consumi": []})
+            agg["count"] += 1
+            if r["totale"] is not None:
+                agg["totali"].append(r["totale"])
+            if r["consumo"] is not None:
+                agg["consumi"].append(r["consumo"])
+        rows_html = ""
+        best_sup = None
+        best_spesa = None
+        for sup, agg in by_sup.items():
+            avg = sum(agg["totali"]) / len(agg["totali"]) if agg["totali"] else None
+            if avg is not None and (best_spesa is None or avg < best_spesa):
+                best_spesa = avg
+                best_sup = sup
+        for sup, agg in by_sup.items():
+            avg = sum(agg["totali"]) / len(agg["totali"]) if agg["totali"] else None
+            cons_avg = sum(agg["consumi"]) / len(agg["consumi"]) if agg["consumi"] else None
+            is_best = sup == best_sup and len(by_sup) > 1
+            badge = ' <span style="background:#DCFCE7;color:#166534;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:800;margin-left:6px;">più conveniente</span>' if is_best else ""
+            rows_html += (
+                f'<tr><td style="padding:8px 10px;border-bottom:1px solid #E2E8F0;font-weight:700;color:#0F172A;font-size:12px;">{esc(sup)}{badge}</td>'
+                f'<td style="padding:8px 10px;border-bottom:1px solid #E2E8F0;font-size:12px;">{agg["count"]}</td>'
+                f'<td style="padding:8px 10px;border-bottom:1px solid #E2E8F0;font-size:12px;">{_fmt_eur(avg) if avg is not None else "—"}</td>'
+                f'<td style="padding:8px 10px;border-bottom:1px solid #E2E8F0;font-size:12px;">{("%.0f" % cons_avg) if cons_avg is not None else "—"}</td>'
+                '</tr>'
+            )
+        supplier_tables += (
+            f'<h3 style="color:{color};font-size:16px;margin:22px 0 8px;">{emoji} {lbl} — {len(rows_bt)} fatture</h3>'
+            f'<table style="width:100%;border-collapse:collapse;background:#FFF;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);">'
+            f'<thead><tr style="background:#F8FAFC;"><th style="text-align:left;padding:8px 10px;font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:.4px;">Fornitore</th>'
+            f'<th style="text-align:left;padding:8px 10px;font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:.4px;">Fatture</th>'
+            f'<th style="text-align:left;padding:8px 10px;font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:.4px;">Spesa media</th>'
+            f'<th style="text-align:left;padding:8px 10px;font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:.4px;">Consumo medio</th></tr></thead>'
+            f'<tbody>{rows_html}</tbody></table>'
+        )
+
+    # AI verdict per bill_type
+    verdict_blocks = ""
+    for bt, (lbl, color, emoji) in section_meta.items():
+        v = (ai_verdict or {}).get(bt)
+        if not v:
+            continue
+        verdict_blocks += (
+            f'<div style="background:{color}18;border-left:4px solid {color};padding:12px 14px;border-radius:8px;margin-top:10px;">'
+            f'<div style="font-weight:800;color:{color};font-size:13px;margin-bottom:4px;">{emoji} {lbl}</div>'
+            f'<div style="font-size:12px;color:#0F172A;line-height:1.5;">{esc(v)}</div></div>'
+        )
+    verdict_html = f'<h2 style="font-size:18px;color:#1E3A5F;margin-top:26px;">Suggerimento AI — Fornitore più conveniente</h2>{verdict_blocks}' if verdict_blocks else ""
+
+    contact_name = f"{contact.get('first_name','')} {contact.get('last_name','')}".strip() or "Cliente"
+    agency = esc(branding.get("agency_name") or "")
+    logo_b64 = branding.get("logo_base64") or ""
+    logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height:48px;object-fit:contain;"/>' if logo_b64 else ""
+    generated_at = utcnow().strftime("%d/%m/%Y ore %H:%M")
+
+    html = f"""<!doctype html>
+<html lang="it"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>CTE Comparativa — {esc(contact_name)}</title>
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0F172A; margin: 0; padding: 0; background: #F8FAFC; }}
+  .wrap {{ max-width: 900px; margin: 0 auto; padding: 22px 20px 48px; background: #FFF; }}
+  header {{ display: flex; align-items: center; gap: 14px; border-bottom: 2px solid #1E3A5F; padding-bottom: 12px; margin-bottom: 18px; }}
+  header h1 {{ font-size: 22px; margin: 0; color: #1E3A5F; }}
+  header .sub {{ font-size: 12px; color: #64748B; margin-top: 2px; }}
+  .chart-card {{ background: #FFF; border-radius: 12px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); margin-top: 16px; }}
+  h2 {{ font-size: 18px; color: #1E3A5F; margin: 26px 0 10px; }}
+  .kpi-row {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }}
+  .kpi {{ background: #EEF2FF; border-radius: 10px; padding: 12px; text-align: center; }}
+  .kpi .n {{ font-size: 22px; font-weight: 800; color: #1E3A5F; }}
+  .kpi .l {{ font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }}
+</style></head><body>
+<div class="wrap">
+  <header>
+    {logo_html}
+    <div>
+      <h1>CTE Comparativa</h1>
+      <div class="sub">Cliente: <strong>{esc(contact_name)}</strong> · Generato il {generated_at}{(' · ' + agency) if agency else ''}</div>
+    </div>
+  </header>
+
+  <div class="kpi-row">
+    <div class="kpi"><div class="n">{len(bills)}</div><div class="l">Fatture analizzate</div></div>
+    <div class="kpi"><div class="n">{len({x['fornitore'] for x in enriched if x['fornitore'] != '—'})}</div><div class="l">Fornitori diversi</div></div>
+    <div class="kpi"><div class="n">{_fmt_eur(sum(x['totale'] or 0 for x in enriched))}</div><div class="l">Spesa totale</div></div>
+  </div>
+
+  <h2>Andamento spesa nel tempo</h2>
+  <div class="chart-card">{spend_chart() or '<div style="color:#94A3B8;font-style:italic;text-align:center;padding:22px;">Nessun dato importo disponibile.</div>'}</div>
+
+  <h2>Confronto fornitori</h2>
+  {supplier_tables or '<div style="color:#94A3B8;font-style:italic;">Nessun dato per il confronto.</div>'}
+
+  {verdict_html}
+</div></body></html>"""
+    return html
+
+
+async def _llm_cte_verdict(bills: List[dict]) -> dict:
+    """Ask Claude to pick the most convenient supplier per bill_type based on
+    analysed data. Returns {luce: str, gas: str, telco: str} — one sentence each."""
+    if not bills:
+        return {}
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception:
+        return {}
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return {}
+    # Compact bill summary
+    summary = []
+    for b in bills:
+        ex = b.get("extracted") or {}
+        summary.append({
+            "bill_type": b.get("bill_type"),
+            "fornitore": ex.get("fornitore"),
+            "importo_totale": ex.get("importo_totale"),
+            "consumo": ex.get("consumo_annuo") or ex.get("consumo_annuo_smc"),
+            "prezzo_energia": ex.get("prezzo_energia") or ex.get("prezzo_gas"),
+            "spread": ex.get("spread"),
+            "costi_fissi": ex.get("costi_fissi"),
+            "durata_contratto": ex.get("durata_contratto"),
+            "penale_disdetta": ex.get("penale_disdetta"),
+        })
+    import json as _j
+    system = (
+        "Sei un consulente energetico italiano. Analizza le fatture fornite e per ciascun tipo "
+        "(luce/gas/telco) SCRIVI UNA SOLA FRASE in italiano che indichi il fornitore più conveniente "
+        "e il perché (es. costo minore, spread inferiore, penale disdetta ridotta). Se il tipo ha una "
+        "sola fattura, indica solo il fornitore attuale e le sue caratteristiche. Restituisci JSON: "
+        "{\"luce\": \"...\", \"gas\": \"...\", \"telco\": \"...\"}. Ometti chiavi senza dati."
+    )
+    prompt = f"Fatture analizzate:\n{_j.dumps(summary, ensure_ascii=False, default=str)}\n\nRispondi con il JSON."
+    chat = LlmChat(api_key=key, session_id=f"cte-{uuid.uuid4().hex[:6]}", system_message=system).with_model("anthropic", "claude-sonnet-4-5-20250929")
+    try:
+        raw = await chat.send_message(UserMessage(text=prompt))
+    except Exception as e:
+        logger.warning("CTE LLM err: %s", e)
+        return {}
+    data = _parse_llm_json(raw or "", fallback_key="luce")
+    data.pop("parse_error", None); data.pop("error_message", None); data.pop("parse_error_kind", None)
+    return {k: v for k, v in data.items() if k in ("luce", "gas", "telco") and isinstance(v, str)}
+
+
+@api_router.get("/contacts/{contact_id}/bills/cte-report")
+async def cte_comparative_report(contact_id: str, user=Depends(get_current_user)):
+    """v2.12 — Generate a comparative HTML report ("CTE") across all analysed
+    bills of a contact. Returns {name, mime, data_base64} ready for FileViewer."""
+    contact = await _ensure_contact_owned(contact_id, user)
+    bills = await db.energy_bills.find(
+        {"user_id": tenant_id(user), "contact_id": contact_id, "status": "done"},
+        {"_id": 0, "pdf_base64": 0, "raw_text_preview": 0},
+    ).sort("created_at", 1).to_list(200)
+    if not bills:
+        raise HTTPException(status_code=400, detail="Nessuna fattura analizzata disponibile. Carica e attendi l'analisi di almeno una fattura.")
+    # Branding
+    u = await db.users.find_one({"user_id": tenant_id(user)}, {"_id": 0, "name": 1, "company_name": 1, "company_logo_base64": 1}) or {}
+    branding = {
+        "agency_name": (u.get("company_name") or u.get("name") or "").strip(),
+        "logo_base64": (u.get("company_logo_base64") or "").strip(),
+    }
+    verdict = await _llm_cte_verdict(bills)
+    html = _build_cte_report_html(contact, bills, verdict, branding)
+    import base64 as _b64
+    name = f"CTE-Comparativa-{(contact.get('last_name') or contact.get('first_name') or 'cliente')}.html"
+    return {
+        "name": name,
+        "mime": "text/html",
+        "data_base64": _b64.b64encode(html.encode("utf-8")).decode("ascii"),
+        "bills_count": len(bills),
+        "verdict": verdict,
+    }
+
+
+# =========================
 # Quick Bill Analysis (Drafts, V38N)
 # Allow analyzing a bill PDF WITHOUT selecting a contact first. Useful for
 # on-the-spot analysis at a customer meeting: upload PDF → AI extract → later
