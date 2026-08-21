@@ -1,5 +1,29 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.1 Bug Fix — Tag HTML visibili nel testo AI (Feb 2026)
+### 🐛 Bug segnalato
+Nell'output delle analisi (invoice-analysis) apparivano tag HTML come `<br>`, `<p>` visibili come testo grezzo invece che essere renderizzati/rimossi.
+### 🔬 Root cause
+L'AI restituisce testo formattato con tag HTML (per line break). Il codice passava questo testo direttamente a `esc()`/`escHtml()` prima di inserirlo nell'HTML → i tag venivano ESCAPED (`<br>` → `&lt;br&gt;`) e mostrati letteralmente all'utente.
+### ✅ Fix applicato
+Aggiunto sanitizer in 3 punti (backend + 2 file frontend con parity byte-identical):
+- **Backend** (`_build_analysis_html`): funzione `_sanitize_ai(text)` che:
+  - `<br>` → `\n`, `<p>` → `\n\n`, `<li>` → `• `
+  - Strippa tutti gli altri tag
+  - Decodifica entità HTML (`&nbsp; &amp; &lt; &gt; &quot; &#39;`)
+  - Applicata a `fornitore`, `offerta`, `note_ai`, valori KV
+- **Frontend** `BillsSection.tsx`: `sanitizeAi()` con stesso pattern applicato in `renderValue()` e su `note_ai`
+- **Frontend** `BillFieldRenderers.tsx`: `sanitizeAiText()` esportata + applicata in `formatVal` e rendering `note_ai`
+### ✅ Test
+- `testing_agent` iterazione 68 — 15/15 pytest backend + 10/10 Node.js parity test frontend PASS
+- File test creati: `/app/backend/tests/test_v39_html_sanitize.py` + `/app/backend/tests/v39_js_sanitize_parity.js`
+- Sicurezza XSS: nessuno `<script>` sopravvive; `esc()` finale neutralizza qualsiasi carattere speciale rimasto
+- Non-regressione: fiscal check, parse_error banner (v1.9), UTF-8 emoji (v2.0) tutti OK
+### ⚠ Nota
+Sanitizer duplicato in 3 file (per isolamento inter-modulo). Se in futuro vuoi centralizzare, sposta in `@/src/shared/`.
+Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
 ## v2.0 Bug Fix — Encoding UTF-8 negli HTML report (Feb 2026)
 ### 🐛 Bug segnalato
 Emoji e caratteri accentati corrotti (mostrati come `âš `, `Ã¨`, `â‚¬` invece di ⚠, è, €) negli HTML analysis report renderizzati nel FileViewer (master-files → Analisi).

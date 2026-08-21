@@ -1,0 +1,44 @@
+{
+  "summary": "V39 HTML-tag-in-AI-text bug fix VERIFIED. Backend _sanitize_ai (inside _build_analysis_html in /app/backend/server.py) and the two mirrored frontend sanitisers (sanitizeAi in BillsSection.tsx, sanitizeAiText in BillFieldRenderers.tsx) all strip <br>/<p>/<li>/other tags and decode &nbsp;/&amp;/&lt;/&gt;/&quot;/&#39;/&apos; entities. 15/15 backend pytest cases pass and a Node-side parity script confirms the JS regex produces identical output for 10/10 fixtures. No leaked '&lt;br&gt;' / '&lt;p&gt;' artefacts appear in rendered HTML for fornitore, nome_offerta, note_ai (both string and list), primitive KV values, list-of-primitives, or dict-flatten values. XSS is prevented (no live <script> tag survives). Regression checks confirm plain-text analyses still render correctly, parse_error banner still shows, and UTF-8 emojis are preserved. Frontend UI login via Playwright didn't cooperate (form inputs reset before submit) so end-to-end viewer test was not executed — however, this is a pure rendering-layer fix and the sanitiser has been verified both via direct Python invocation of the actual production function AND via a Node parity script that replays the exact JS regex shipped to the browser.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "_build_analysis_html (_sanitize_ai)",
+        "issue": "Sanitiser strips only the tag markup, not the inner content between opening/closing tags. Input '<script>evil</script>testo' becomes 'eviltesto' (not 'testo' as claimed in the review request). This is XSS-safe because the surrounding esc() escapes any remaining special characters, but the AI's inner tag content leaks as visible text. Consider stripping <script>/<style>/<iframe> tag BODIES entirely for a stricter guarantee. Applies to both backend and frontend sanitisers (they share the same regex pattern)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v39_html_sanitize.py",
+    "/app/backend/tests/v39_js_sanitize_parity.js",
+    "/app/test_reports/pytest/v39_html_sanitize.xml"
+  ],
+  "action_items": [
+    "OPTIONAL (hardening, not blocking): tighten the sanitiser to also drop the BODY of <script>/<style>/<iframe> tags — currently only the opening/closing tags are stripped and the inner text survives (e.g. '<script>alert(1)</script>testo' → 'alert(1)testo'). Not an XSS vector because esc() wraps the output, but visually ugly if AI ever emits such payloads. Applies to _sanitize_ai in /app/backend/server.py (~line 4133) and to sanitizeAi/sanitizeAiText in /app/frontend/src/BillsSection.tsx (~line 350) and /app/frontend/src/BillFieldRenderers.tsx (~line 27).",
+    "OPTIONAL: main agent may want to manually verify /master-files > tab Analisi and /bill-quick screens with a bill whose extracted content contains raw <br>/<p>/<li> — my UI automation couldn't get past login (form inputs cleared before submit), but sanitiser logic is fully covered by unit + parity tests."
+  ],
+  "critical_code_review_comments": [
+    "_sanitize_ai is defined LOCALLY inside _build_analysis_html and duplicated verbatim in two frontend files. Consider extracting to a single top-level helper (server: module-level function; frontend: single shared util imported by both files) so future edits stay in sync.",
+    "Frontend BillsSection.tsx is 2637 lines — well over the 700-line guideline. Recommend splitting into feature-specific sub-modules."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v39_html_sanitize.py (new)",
+    "/app/backend/tests/v39_js_sanitize_parity.js (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 unit tests on _build_analysis_html + 10/10 JS parity fixtures)",
+    "frontend": "not tested via UI — automated login flow failed to submit form (unrelated to this fix); sanitiser logic verified via JS parity script that replays the exact production regex"
+  },
+  "seed_data_creation": "None — sanitiser was tested via direct function invocation with in-memory dicts.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "V39 verifies that AI-generated HTML tags (e.g. `<br>`, `<p>`, `<li>`) no longer leak as escaped text into the analysis report. The fix lives in 3 mirrored places — /app/backend/server.py _build_analysis_html._sanitize_ai (~line 4133), /app/frontend/src/BillsSection.tsx buildBillAnalysisHtml.sanitizeAi (~line 350), /app/frontend/src/BillFieldRenderers.tsx sanitizeAiText (~line 27). All three use the same regex pattern. If future work touches the sanitiser, re-run both /app/backend/tests/test_v39_html_sanitize.py and `node /app/backend/tests/v39_js_sanitize_parity.js` and ensure they stay in lock-step. If either drifts, the frontend and backend renderings will diverge.",
+  "rca_of_issue": "Original bug — the AI (Claude Sonnet 5) sometimes returned text fields containing HTML tags (`<br>`, `<p>`) as markdown-like formatting. That text was then passed through html.escape()/escHtml() before being interpolated into the analysis HTML template, so `<br>` became `&lt;br&gt;` and rendered visibly to the user. The fix adds a sanitiser that strips ALL tags (`<[^>]+>` regex) but first converts semantic tags to newlines/bullets so the intent is preserved. Applied in 3 rendering locations. Verified: (a) no `&lt;br&gt;` / `&lt;p&gt;` / `&lt;li&gt;` in the rendered output of `_build_analysis_html` for representative payloads; (b) live `<script>` tags never survive → XSS-safe; (c) plain-text analyses unaffected; (d) UTF-8 emoji preserved; (e) fiscal_check parse-error banner still renders."
+}

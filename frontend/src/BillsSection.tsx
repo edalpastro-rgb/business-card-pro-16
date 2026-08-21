@@ -343,13 +343,34 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 
+    // V2.1 — Sanitize AI-generated strings that may contain literal HTML tags
+    // like <br>/<p>. Strips ALL tags but preserves semantic line breaks so
+    // list items and paragraphs still make sense. Result is safe to pass to
+    // escHtml() for HTML rendering.
+    const sanitizeAi = (s: any) => String(s ?? "")
+      .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+      .replace(/<\s*\/p\s*>/gi, "\n\n")
+      .replace(/<\s*p(?:\s[^>]*)?>/gi, "")
+      .replace(/<\s*\/li\s*>/gi, "\n")
+      .replace(/<\s*li(?:\s[^>]*)?>/gi, "• ")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#0?39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
     const renderValue = (v: any): string => {
       if (v === null || v === undefined || v === "") return "—";
       if (typeof v === "boolean") return v ? "Sì" : "No";
       if (typeof v === "number") return String(v);
       if (Array.isArray(v)) {
         if (!v.length) return "—";
-        return `<ul style="margin:0;padding-left:18px;">${v.map((it) => `<li>${typeof it === "object" ? escHtml(fiscalOrFlat(it)) : escHtml(it)}</li>`).join("")}</ul>`;
+        return `<ul style="margin:0;padding-left:18px;">${v.map((it) => `<li>${typeof it === "object" ? escHtml(fiscalOrFlat(it)) : escHtml(sanitizeAi(it))}</li>`).join("")}</ul>`;
       }
       if (typeof v === "object") {
         // V38X — Fiscal-check-shaped entry → human-readable
@@ -358,7 +379,8 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         const kv = Object.entries(v).map(([k, val]) => `<tr><td style="padding:4px 8px;color:#64748B;font-size:11px;">${escHtml(k)}</td><td style="padding:4px 8px;font-size:12px;">${renderValue(val)}</td></tr>`).join("");
         return `<table style="border-collapse:collapse;width:100%;">${kv}</table>`;
       }
-      return escHtml(v);
+      // V2.1 — string: strip AI-generated HTML tags before rendering
+      return escHtml(sanitizeAi(v));
     };
     // V38X — Detect fiscal-check-shaped entry and format as readable text.
     // Returns null when the object is NOT such an entry (falls back to KV).
@@ -397,7 +419,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         }
         // V38W — render note_ai as bulleted list with consultant's name
         if (k === "note_ai") {
-          const items = normalizeNotes(v);
+          const items = normalizeNotes(v).map(sanitizeAi).filter(Boolean);
           if (items.length > 0) {
             const ul = `<ul style="margin:0 0 0 18px;padding:0;">${items.map((it) => `<li style="font-size:11px;margin-bottom:3px;line-height:1.4;">${escHtml(it)}</li>`).join("")}</ul>`;
             const consultantName = String(branding?.agency_name || "").trim() || "Consulente";

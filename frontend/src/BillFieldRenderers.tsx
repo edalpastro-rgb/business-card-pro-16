@@ -19,6 +19,30 @@ export function humanizeKey(k: string): string {
   return k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * V2.1 — Strip HTML tags from AI-generated strings so React Native <Text>
+ * doesn't display raw <br>/<p>/<li> etc. as literal text. Preserves logical
+ * line breaks by converting <br> → newline and <p> → double newline.
+ */
+export function sanitizeAiText(s: unknown): string {
+  return String(s ?? "")
+    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+    .replace(/<\s*\/p\s*>/gi, "\n\n")
+    .replace(/<\s*p(?:\s[^>]*)?>/gi, "")
+    .replace(/<\s*\/li\s*>/gi, "\n")
+    .replace(/<\s*li(?:\s[^>]*)?>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function formatVal(v: any): string {
   if (v == null) return "—";
   if (typeof v === "object") {
@@ -49,10 +73,11 @@ export function formatVal(v: any): string {
     const entries = Object.entries(v);
     if (entries.length === 0) return "—";
     return entries
-      .map(([k, val]) => `${humanizeKey(k)}: ${typeof val === "object" ? formatVal(val) : String(val)}`)
+      .map(([k, val]) => `${humanizeKey(k)}: ${typeof val === "object" ? formatVal(val) : sanitizeAiText(val)}`)
       .join(" · ");
   }
-  return String(v);
+  // V2.1 — strip AI-generated HTML tags from primitive strings
+  return sanitizeAiText(v);
 }
 
 /**
@@ -212,8 +237,12 @@ export function BillFieldRow({ name, value, accent }: FieldRowProps) {
   // Note AI — bulleted list
   if (name === "note_ai") {
     let items: string[] = [];
-    if (Array.isArray(value)) items = value.map((x) => String(x).trim()).filter(Boolean);
-    else if (typeof value === "string") items = value.split(/[\r\n]+/).map((s) => s.replace(/^[-•*]\s*/, "").trim()).filter(Boolean);
+    if (Array.isArray(value)) items = value.map((x) => sanitizeAiText(x)).filter(Boolean);
+    else if (typeof value === "string") {
+      // V2.1 — sanitize first, then split on newlines
+      const clean = sanitizeAiText(value);
+      items = clean.split(/[\r\n]+/).map((s) => s.replace(/^[-•*]\s*/, "").trim()).filter(Boolean);
+    }
     if (items.length === 0) return null;
     return (
       <View style={styles.blockRow}>
@@ -231,7 +260,7 @@ export function BillFieldRow({ name, value, accent }: FieldRowProps) {
   }
   // Arrays of strings — render as inline pipe list
   if (Array.isArray(value)) {
-    const s = value.map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x))).filter(Boolean).join(", ");
+    const s = value.map((x) => (typeof x === "object" ? JSON.stringify(x) : sanitizeAiText(x))).filter(Boolean).join(", ");
     return (
       <View style={styles.kvRow}>
         <Text style={styles.kvKey}>{label}</Text>

@@ -4124,12 +4124,49 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
     """Render a compact HTML analysis report from the extracted fields.
     Includes a monthly consumption SVG bar chart when present.
     V38W: professional header + fiscal_check rendering + note author personalization + emoji-free titles.
+    V2.1 (bugfix): sanitizes AI-generated text to strip HTML tags that would otherwise
+    leak into the rendered report as visible <br>/<p> text.
     """
     from html import escape as esc
+    import re as _re_local
+
+    def _sanitize_ai(text) -> str:
+        """Strip HTML tags from AI text while preserving semantic line breaks.
+        - <br> / <br/> → newline
+        - </p>         → double newline (paragraph break)
+        - <p ...>      → removed
+        - <li ...>     → "• "
+        - </li>        → newline
+        - all other tags → removed
+        - HTML entities (&nbsp; &amp; &lt; &gt; &quot; &#39;) → their literal form
+        """
+        if text is None:
+            return ""
+        s = str(text)
+        # Preserve semantic breaks BEFORE stripping
+        s = _re_local.sub(r"<\s*br\s*/?\s*>", "\n", s, flags=_re_local.IGNORECASE)
+        s = _re_local.sub(r"</\s*p\s*>", "\n\n", s, flags=_re_local.IGNORECASE)
+        s = _re_local.sub(r"<\s*p(?:\s[^>]*)?>", "", s, flags=_re_local.IGNORECASE)
+        s = _re_local.sub(r"</\s*li\s*>", "\n", s, flags=_re_local.IGNORECASE)
+        s = _re_local.sub(r"<\s*li(?:\s[^>]*)?>", "• ", s, flags=_re_local.IGNORECASE)
+        # Strip anything else that looks like a tag
+        s = _re_local.sub(r"<[^>]+>", "", s)
+        # Decode common HTML entities so the plain text isn't littered with them
+        s = (s.replace("&nbsp;", " ")
+               .replace("&amp;", "&")
+               .replace("&lt;", "<")
+               .replace("&gt;", ">")
+               .replace("&quot;", '"')
+               .replace("&#39;", "'")
+               .replace("&apos;", "'"))
+        # Collapse >=3 blank lines to 2
+        s = _re_local.sub(r"\n{3,}", "\n\n", s)
+        return s.strip()
+
     user_doc = user_doc or {}
     generated = datetime.now(timezone.utc).astimezone().strftime("%d/%m/%Y %H:%M")
-    fornitore = esc(str(extracted.get("fornitore") or "—"))
-    offerta = esc(str(extracted.get("nome_offerta") or extracted.get("tipo_offerta") or "Offerta non specificata"))
+    fornitore = esc(_sanitize_ai(extracted.get("fornitore") or "—"))
+    offerta = esc(_sanitize_ai(extracted.get("nome_offerta") or extracted.get("tipo_offerta") or "Offerta non specificata"))
     consultant = _consultant_display(user_doc)
     company = (user_doc.get("company_name") or "").strip()
     logo = (user_doc.get("company_logo_base64") or "").strip()
@@ -4171,9 +4208,11 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
     note_val = extracted.get("note_ai")
     if note_val:
         if isinstance(note_val, str):
-            items = [x.strip().lstrip("-•* ") for x in note_val.splitlines() if x.strip()]
+            # V2.1 — sanitize AI text first (strip <br>/<p> etc.), then split
+            sanitized = _sanitize_ai(note_val)
+            items = [x.strip().lstrip("-•* ") for x in sanitized.splitlines() if x.strip()]
         elif isinstance(note_val, list):
-            items = [str(x).strip() for x in note_val if str(x).strip()]
+            items = [_sanitize_ai(x) for x in note_val if _sanitize_ai(x)]
         else:
             items = []
         if items:
@@ -4221,13 +4260,14 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
         elif isinstance(v, (list, dict)):
             # V38X — Instead of raw JSON, flatten as "k: v · k: v"
             if isinstance(v, list) and all(not isinstance(x, (list, dict)) for x in v):
-                v_str = ", ".join(str(x) for x in v)
+                v_str = ", ".join(_sanitize_ai(x) for x in v)
             elif isinstance(v, dict):
-                v_str = " · ".join(f"{esc(str(kk).replace('_', ' ').title())}: {vv}" for kk, vv in v.items())
+                v_str = " · ".join(f"{esc(str(kk).replace('_', ' ').title())}: {_sanitize_ai(vv)}" for kk, vv in v.items())
             else:
                 v_str = f"{len(v)} elementi"
         else:
-            v_str = str(v)
+            # V2.1 — strip AI-generated HTML tags before rendering
+            v_str = _sanitize_ai(v)
         label = k.replace("_", " ").title()
         rows.append(f"<tr><td style='padding:8px 10px;background:#F8FAFC;font-weight:700;color:#475569;font-size:11px;border-bottom:1px solid #E2E8F0;width:40%;'>{esc(label)}</td><td style='padding:8px 10px;color:#0F172A;font-size:12px;border-bottom:1px solid #E2E8F0;word-break:break-word;'>{esc(v_str)}</td></tr>")
     table_html = f"<table style='width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-top:12px;'>{''.join(rows)}</table>" if rows else "<p style='color:#94A3B8;font-style:italic;'>Nessun dato estratto.</p>"
