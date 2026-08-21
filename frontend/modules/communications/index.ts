@@ -1,6 +1,16 @@
 /**
- * Communications module — public API.
- * Owns: chat, share sheet, in-app notifications, deep-share links.
- * TODO(phase-3): migrate /app/chat/*, ShareSheet, notifs.
+ * Communications module — PUBLIC API.
+ * Owns chat, share sheet, and in-app notification surfaces.
  */
-export {};
+export type {
+  MessageKind,
+  ChatMessage,
+  ChatChannel,
+  ShareTargetKind,
+} from "./types";
+
+export {
+  listChatChannels,
+  listChannelMessages,
+  sendChannelMessage,
+} from "./api";

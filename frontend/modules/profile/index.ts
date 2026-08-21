@@ -1,6 +1,18 @@
 /**
- * Profile module — public API.
- * Owns: consultant profile, logo, app settings, 2FA/security.
- * TODO(phase-3): migrate /app/(tabs)/impostazioni.tsx + /app/security.tsx.
+ * Profile module — PUBLIC API.
+ * Owns consultant profile, logo, app settings, security surfaces.
  */
-export {};
+export type {
+  UserProfile,
+  UserRole,
+  ProfileUpdateInput,
+  ThemeMode,
+  UserSettings,
+} from "./types";
+
+export {
+  getMe,
+  updateProfile,
+  getUserSettings,
+  updateUserSettings,
+} from "./api";

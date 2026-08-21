@@ -13,6 +13,7 @@ import { uriToBase64 } from "@/src/utils/media";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { FileViewer } from "@/src/FileViewer";
 import { ShareSheet, type ShareTarget } from "@/src/ShareSheet";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type MasterCat = "notes" | "bills" | "audio" | "files" | "analisi";
 type MasterFile = {
@@ -35,7 +36,15 @@ const CATS: { id: MasterCat; label: string; icon: any; color: string }[] = [
   { id: "files", label: "File", icon: "folder", color: "#0891B2" },
 ];
 
-export default function MasterFilesScreen() {
+export default function MasterFilesRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="master">
+      <MasterFilesScreen />
+    </ModuleErrorBoundary>
+  );
+}
+
+function MasterFilesScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<MasterCat>("notes");
   const [items, setItems] = useState<MasterFile[]>([]);

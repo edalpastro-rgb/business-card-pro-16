@@ -1,5 +1,27 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v1.8 Refactor Architetturale — Fase 3 COMPLETATA (Feb 2026)
+### 🏗️ 4 moduli migrati: `invoice-analysis`, `master`, `communications`, `profile`
+- **`invoice-analysis/`**: types (`BillType`, `BillStatus`, `EnergyBill`, `BillCreateInput`, `BillGrouped`, `CompanyOffer`) + 8 funzioni API `Result<T>` (listContactBills, createBill, reanalyzeBill, cancelBillAnalysis, deleteBill, getBillReport, getBillComparison, listCompanyOffers)
+- **`master/`** (condivide componenti base con invoice-analysis re-esportando `BillType`/`BillStatus`/`EnergyBill` — architectural symmetry): types (`MasterCategory`, `MasterFile`, `Contract`, `WebLink`) + 7 funzioni API `Result<T>`
+- **`communications/`**: types (`ChatMessage`, `ChatChannel`, `MessageKind`, `ShareTargetKind`) + 3 funzioni API chat `Result<T>`
+- **`profile/`**: types (`UserProfile`, `UserRole`, `ThemeMode`, `UserSettings`, `ProfileUpdateInput`) + 4 funzioni API `Result<T>` (getMe, updateProfile, getUserSettings, updateUserSettings)
+### 🛡️ 7 route wrappate con ModuleErrorBoundary (Fase 3)
+- `/master`, `/master-files` → moduleName="master"
+- `/(tabs)/chat`, `/chat/[id]` → moduleName="communications"
+- `/(tabs)/impostazioni`, `/security` → moduleName="profile"
+- `/bill-quick` → moduleName="invoice-analysis"
+### 📊 Totale refactor (Fasi 1+2+3)
+- **14 route protette** con `ModuleErrorBoundary` — crash isolato per modulo
+- **7 moduli** con API pubblica tipizzata + `Result<T>` + `AsyncResource<T>` per stati espliciti
+- **Zero regressione** confermata su tutte le 3 iterazioni di testing_agent (61 tests totali)
+- **Adozione hook**: business-card è il pilota (full-migrated). Contacts/agenda/invoice-analysis/master/communications/profile hanno API pubbliche pronte per adozione progressiva nelle UI screens senza rischio break
+### 🔮 Backlog
+- Adozione hook `useContact`/`useAppointment` nelle screen (~5000 righe da rifattorizzare, richiede sessioni dedicate)
+- Rimozione codice duplicato residuo (esempi: `Settings` type ripetuto in impostazioni + contact/new + appointment/new)
+- Sostituzione librerie Expo con Web API standard dove il modulo è cross-platform (già fatto per image picker in v1.4)
+
+
 ## v1.7 Refactor Architetturale — Fase 2 (Feb 2026)
 ### 🏗️ Moduli migrati: `contacts` + `agenda`
 - **Approccio pragmatico**: le screen esistenti (~5000 righe totali) sono state protette da `ModuleErrorBoundary` senza riscritture, mentre le loro API pubbliche sono state estratte nei moduli. Adozione progressiva delle hook nelle Fasi successive.

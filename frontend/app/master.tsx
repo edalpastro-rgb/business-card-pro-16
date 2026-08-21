@@ -9,6 +9,7 @@ import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
 type MyThingImage = { item_id: string; image_base64?: string | null };
@@ -16,7 +17,15 @@ type Alerts = { unread: number; latest: { contract_id: string; contract_number?:
 type ReportStats = { period: string; start?: string; end?: string; stats: { energy: any; network: any } };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
 
-export default function MasterScreen() {
+export default function MasterRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="master">
+      <MasterScreen />
+    </ModuleErrorBoundary>
+  );
+}
+
+function MasterScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [banner, setBanner] = useState<Banner>(null); // kept only for optional title/body from random-banner

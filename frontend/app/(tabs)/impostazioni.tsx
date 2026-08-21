@@ -8,6 +8,7 @@ import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { notify, confirmAsync } from "@/src/utils/notify";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type Settings = {
   energy_title: string; energy_color: string;
@@ -20,7 +21,15 @@ type Settings = {
 
 const COLOR_SWATCHES = ["#EF4444", "#F97316", "#F59E0B", "#22C55E", "#10B981", "#06B6D4", "#3B82F6", "#2563EB", "#8B5CF6", "#EC4899", "#F43F5E", "#84CC16"];
 
-export default function ImpostazioniScreen() {
+export default function ImpostazioniRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="profile">
+      <ImpostazioniScreen />
+    </ModuleErrorBoundary>
+  );
+}
+
+function ImpostazioniScreen() {
   const { user, logout, refresh } = useAuth();
   const router = useRouter();
   const [s, setS] = useState<Settings | null>(null);

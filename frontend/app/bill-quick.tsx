@@ -10,6 +10,7 @@ import { uriToBase64 } from "@/src/utils/media";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { DEFAULT_PARAMS, QuickBillType } from "@/src/BillsSection";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
+import { ModuleErrorBoundary } from "@/src/shared";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
 
 type Draft = {
@@ -44,7 +45,15 @@ const STATUS_META = {
   cancelled: { label: "Annullata", color: "#78716C", icon: "close-circle" as const },
 };
 
-export default function BillQuickScreen() {
+export default function BillQuickRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="invoice-analysis">
+      <BillQuickScreen />
+    </ModuleErrorBoundary>
+  );
+}
+
+function BillQuickScreen() {
   const router = useRouter();
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);

@@ -10,6 +10,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth, setPin, hasPin, clearPin, setBiometricEnabled, biometricEnabled, isAppLockEnabled, setAppLockEnabled } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type Status = {
   enabled: boolean;
@@ -17,7 +18,15 @@ type Status = {
   enabled_at: string | null;
 };
 
-export default function SecurityScreen() {
+export default function SecurityRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="profile">
+      <SecurityScreen />
+    </ModuleErrorBoundary>
+  );
+}
+
+function SecurityScreen() {
   const router = useRouter();
   const { refresh, trustExpiresAt } = useAuth();
 

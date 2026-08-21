@@ -11,6 +11,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { shareDataUri } from "@/src/share";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type Message = {
   message_id: string; channel_id: string; sender_id: string; sender_name: string;
@@ -21,7 +22,15 @@ type Message = {
   created_at: string;
 };
 
-export default function ChatDetailScreen() {
+export default function ChatDetailRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="communications">
+      <ChatDetailScreen />
+    </ModuleErrorBoundary>
+  );
+}
+
+function ChatDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();

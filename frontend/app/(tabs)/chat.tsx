@@ -6,6 +6,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { ModuleErrorBoundary } from "@/src/shared";
 
 type Message = { message_id: string; sender_id: string; sender_name: string; kind: string; text?: string; created_at: string; file_name?: string };
 type Channel = {
@@ -15,7 +16,15 @@ type Channel = {
 };
 type Member = { user_id: string; name: string; email: string };
 
-export default function ChatListScreen() {
+export default function ChatListRoute() {
+  return (
+    <ModuleErrorBoundary moduleName="communications">
+      <ChatListScreen />
+    </ModuleErrorBoundary>
+  );
+}
+
+function ChatListScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [items, setItems] = useState<Channel[]>([]);

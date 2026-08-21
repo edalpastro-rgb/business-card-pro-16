@@ -1,7 +1,24 @@
 /**
- * Master module — public API.
- * Owns: consultant dashboard + master-level bill analysis.
- * Architecture: shares base components with `invoice-analysis` module.
- * TODO(phase-2): migrate /app/master.tsx + /app/master-files.tsx here.
+ * Master module — PUBLIC API.
+ * Shares base types (BillType, EnergyBill) with invoice-analysis for
+ * the architectural symmetry required by the refactoring spec.
  */
-export {};
+export type {
+  MasterCategory,
+  MasterFile,
+  Contract,
+  WebLink,
+  BillType,
+  BillStatus,
+  EnergyBill,
+} from "./types";
+
+export {
+  listMasterFiles,
+  createMasterFile,
+  deleteMasterFile,
+  listContracts,
+  getNewContractAlerts,
+  markContractsSeen,
+  listWebLinks,
+} from "./api";
