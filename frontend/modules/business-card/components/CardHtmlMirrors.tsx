@@ -86,7 +86,7 @@ export function CardHtmlMirrors({ card }: Props): React.ReactElement | null {
                 maxWidth: "70%", maxHeight: "70%", objectFit: "contain",
                 position: "relative", zIndex: 2,
                 background: "transparent", backgroundColor: "transparent",
-                border: "none", boxShadow: "none",
+                border: "none", boxShadow: "none", outline: "none",
               }}
             />
           ) : (

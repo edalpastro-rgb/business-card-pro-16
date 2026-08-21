@@ -1,5 +1,27 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.2 Bug Fix — Box bianco attorno al logo del biglietto (Feb 2026)
+### 🐛 Bug segnalato
+Logo del biglietto da visita mostrava un box bianco attorno all'immagine sull'anteprima live (il PNG condiviso era già fixato in v1.4/v1.8).
+### 🔬 Root cause
+`<RNImage>` di React Native su Web viene renderizzato come `<div>` con `background-image` — questo poteva creare un box visibile in certe condizioni di rendering.
+### ✅ Fix applicato
+`/app/frontend/modules/business-card/screens/BusinessCardScreen.tsx`:
+- Su Platform.OS === 'web', il logo ora usa un `<img>` HTML nativo (non `<RNImage>`) con stili espliciti: `background: transparent`, `backgroundColor: transparent`, `border: none`, `boxShadow: none`, `outline: none`, `objectFit: contain`
+- Su native (iOS/Android) mantiene `<RNImage>` (già funziona correttamente)
+- `logoWrap` e `logoImg` styles aggiornati con `backgroundColor: 'transparent'` esplicito
+- `CardHtmlMirrors.tsx` (PNG condiviso): aggiunto `outline: 'none'` per completezza
+### ✅ Test
+- `testing_agent` iterazione 69 — verifica DOM completa:
+  - `tagName: IMG` (non più `DIV`) ✅
+  - `backgroundColor: rgba(0,0,0,0)` (trasparente) ✅
+  - `logoWrap` transparent, `border: 0px none`, `boxShadow: none`, `outline: 0px` ✅
+  - Zero `<div>` visibili con `data:image` background
+- Non-regressione: flip fronte/retro, save, share PNG, QR retro tutti OK
+### ⚠ Nota
+Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
 ## v2.1 Bug Fix — Tag HTML visibili nel testo AI (Feb 2026)
 ### 🐛 Bug segnalato
 Nell'output delle analisi (invoice-analysis) apparivano tag HTML come `<br>`, `<p>` visibili come testo grezzo invece che essere renderizzati/rimossi.

@@ -1,0 +1,23 @@
+{
+  "summary": "Frontend-only test of business-card logo 'white box' bug fix (V2.2). Verified DOM: the visible logo on the front face is now a native <img> HTML tag (tagName: IMG) with computed background rgba(0,0,0,0), no border, no boxShadow, no outline, objectFit:contain, and the parent logoWrap is also transparent. No visible <div> with data:image background exists (i.e. RN-Web Image div is NOT used on Web for the visible front). The only visible logo image is at (90,133) 210x108 inside the flipContainer; the hidden HTML mirror at left:-9999 is correctly off-screen. Non-regression: bc-flip toggles between fronte/retro correctly; bc-save button works; bc-pick-logo and bc-share-image are visible; QR renders on back with contact info. Login flow (test@dalpastro.it / Test1234!) works — 3 'Accedi' elements exist on the login screen (tab + submit + Google), submit is index 1. Fix is confirmed on Web viewport (390x844).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Login screen has 3 elements matching text='Accedi' (tab, submit button, Google sign-in). Consider adding a distinct testID to the login submit button (e.g., testID='login-submit') to make tests deterministic and avoid brittleness on index-based selectors.",
+    "The visible logo <img> src starts with the backend URL (not a data URI). If logo_base64 is expected to be a data URI, verify /api/business-card/me returns the raw base64 vs URL — but this is out of scope for the current fix and not a regression."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a", "frontend": "100%" },
+  "seed_data_creation": "None — used existing test@dalpastro.it card which already had a logo.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Business-card logo white-box fix (V2.2) verified on Web. On Web, the front logo is now a native <img> tag with computed background rgba(0,0,0,0). RNImage path is unchanged for native (not testable in web preview). DOM assertion: querySelectorAll('img') filtered by alt='logo' and rect.left > -1000 (to exclude off-screen mirror at left:-9999) returns exactly 1 element with transparent bg, no border, no boxShadow, no outline. If regressing, look at BusinessCardScreen.tsx lines 179-202 where the Platform.OS === 'web' branch renders <img> instead of <RNImage>.",
+  "rca_of_issue": "N/A — this is a verification pass for a bug fix already applied by main agent. Root cause of original bug: react-native-web's Image component renders as a <div> with background-image, which was drawing a subtle white/gray box around the logo. Fix: on Web branch use a native HTML <img> tag with explicit transparent background/border/boxShadow/outline styles."
+}

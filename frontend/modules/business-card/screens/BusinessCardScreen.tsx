@@ -177,7 +177,29 @@ export function BusinessCardScreen(): React.ReactElement {
               <View style={styles.goldBorder} pointerEvents="none" />
               <View style={styles.logoWrap}>
                 {card.logo_base64 ? (
-                  <RNImage source={{ uri: card.logo_base64 }} style={styles.logoImg} resizeMode="contain" />
+                  Platform.OS === "web" ? (
+                    // V2.2 — On web, use a native <img> tag with explicit transparent
+                    // background/border so no implicit "white box" is drawn around the
+                    // logo. React-Native-Web's Image renders as a <div> with
+                    // background-image which caused a subtle box around the logo.
+                    // @ts-expect-error web-only intrinsic
+                    <img
+                      src={card.logo_base64}
+                      alt="logo"
+                      style={{
+                        width: "70%",
+                        height: "70%",
+                        objectFit: "contain",
+                        background: "transparent",
+                        backgroundColor: "transparent",
+                        border: "none",
+                        boxShadow: "none",
+                        outline: "none",
+                      }}
+                    />
+                  ) : (
+                    <RNImage source={{ uri: card.logo_base64 }} style={styles.logoImg} resizeMode="contain" />
+                  )
                 ) : (
                   <View style={styles.logoPlaceholder}>
                     <Ionicons name="business" size={44} color="rgba(255,255,255,0.6)" />
@@ -387,8 +409,8 @@ const styles = StyleSheet.create({
   cardFace: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14, overflow: "hidden", backfaceVisibility: "hidden" },
   stripesOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   goldBorder: { position: "absolute", top: 8, left: 8, right: 8, bottom: 8, borderRadius: 10, borderWidth: 1, borderColor: CARD_GOLD },
-  logoWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
-  logoImg: { width: "70%", height: "70%" },
+  logoWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20, backgroundColor: "transparent" },
+  logoImg: { width: "70%", height: "70%", backgroundColor: "transparent" },
   logoPlaceholder: { alignItems: "center", justifyContent: "center", gap: 6, opacity: 0.7 },
   logoPlaceholderTxt: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase" },
   shimmerStreak: {
