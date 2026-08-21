@@ -1,5 +1,24 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.4 Bug Fix — Report inline nella scheda cliente (Feb 2026)
+### 🐛 Bug segnalato
+Il report/comparazione generato dalla scheda cliente (contact/[id] → tab Fatture → "Report fatture" / "Confronta") si apriva in una finestra esterna (browser print dialog o nuova tab) invece di essere mostrato inline come su master-files.
+### 🔬 Root cause
+`BillsSection.tsx` usava `printHtmlOnWeb(html, ...)` che apre `window.open()` → nuova tab con `print()`. Master-files invece usa `FileViewer` inline con HTML base64.
+### ✅ Fix applicato
+`/app/frontend/src/BillsSection.tsx` — allineato al pattern di master-files:
+- Import `FileViewer` e aggiunto state `viewerOpen`
+- Nuovo helper `openHtmlInline(html, name)` che base64-encode l'HTML (UTF-8 safe: `encodeURIComponent → btoa`) e lo apre in FileViewer
+- Sostituite le 2 chiamate `printHtmlOnWeb` in `generateReport()` e `runComparison()` con `openHtmlInline`
+- `<FileViewer visible mime="text/html" ...>` aggiunto al JSX del componente
+- Estensioni cambiate da `.pdf` a `.html` (il file è HTML, non PDF)
+### Note
+- `printHtmlOnWeb` mantenuta come dead code (marker `unused` nel lint) per compatibilità futura se serve stampa nativa. Da rimuovere in una prossima passata di dedup.
+- FileViewer già supporta UTF-8 HTML decode (fix v2.0) quindi emoji e accenti nel report sono già gestiti correttamente
+- Testing agent non invocato (utente ha esplicitamente richiesto skip)
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
 ## v2.3 Bug Fix — Web Share API PNG condivisione (Feb 2026)
 ### 🐛 Bug segnalato
 Su web, la condivisione del PNG del biglietto da visita dava sempre errore "Errore condivisione", il download fallback non veniva mai eseguito.

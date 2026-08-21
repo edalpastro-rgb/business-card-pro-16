@@ -14,6 +14,7 @@ import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
+import { FileViewer } from "@/src/FileViewer";
 
 type BillType = "luce" | "gas" | "telco";
 export type QuickBillType = BillType;
@@ -120,6 +121,8 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   const [savingManual, setSavingManual] = useState<BillType | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [reportBusy, setReportBusy] = useState(false);
+  // V2.4 — Inline HTML viewer for reports & comparison (matches master-files pattern)
+  const [viewerOpen, setViewerOpen] = useState<null | { name: string; mime: string; data_base64: string }>(null);
   const [comparisonBusy, setComparisonBusy] = useState(false);
   // V38 — pending upload waiting for user parameter selection
   const [pendingUpload, setPendingUpload] = useState<null | { bill_type: BillType; asset: { name?: string; mimeType?: string; uri: string } }>(null);
@@ -261,9 +264,26 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
 
   // V38: Render HTML to PDF/print without opening any popup window.
   // On web: create an offscreen iframe, print, then remove. Also offer a download fallback.
+  // V2.4 — Open an HTML report INLINE in the FileViewer (matches master-files).
+  // This replaces the older external print-dialog / new-tab flow that felt like
+  // "opening the PDF outside the app".
+  const openHtmlInline = (html: string, downloadName: string) => {
+    try {
+      const b64 =
+        typeof btoa !== "undefined"
+          ? btoa(unescape(encodeURIComponent(html)))
+          : (globalThis as unknown as { Buffer?: { from: (s: string, enc: string) => { toString: (e: string) => string } } })
+              .Buffer?.from(html, "utf-8")
+              .toString("base64") || "";
+      setViewerOpen({ name: downloadName, mime: "text/html", data_base64: b64 });
+    } catch (e) {
+      notify("Errore", e instanceof Error ? e.message : "Impossibile aprire il report");
+    }
+  };
+
   const printHtmlOnWeb = (html: string, downloadName: string) => {
-    const win = (globalThis as any).window;
-    const doc: any = win?.document;
+    const win = (globalThis as unknown as { window?: Window }).window as Window | undefined;
+    const doc: Document | undefined = win?.document;
     if (!win || !doc) return;
     const iframe = doc.createElement("iframe");
     iframe.style.position = "fixed";
@@ -646,7 +666,8 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         run: async (name: string) => { await saveReportWithName(html, name); },
       });
       if (Platform.OS === "web") {
-        printHtmlOnWeb(html, `confronto-${contactName || "cliente"}.pdf`);
+        // V2.4 — Open inline in FileViewer instead of external print dialog
+        openHtmlInline(html, `confronto-${contactName || "cliente"}.html`);
         return;
       }
       const { uri } = await Print.printToFileAsync({ html });
@@ -900,7 +921,8 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         run: async (name: string) => { await saveReportWithName(html, name); },
       });
       if (Platform.OS === "web") {
-        printHtmlOnWeb(html, `report-fatture-${contactName || "cliente"}.pdf`);
+        // V2.4 — Open inline in FileViewer instead of external print dialog
+        openHtmlInline(html, `report-fatture-${contactName || "cliente"}.html`);
         return;
       }
       const { uri } = await Print.printToFileAsync({ html });
@@ -1523,6 +1545,15 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         color={saveConfirm?.color}
         onCancel={() => setSaveConfirm(null)}
         onConfirm={async (name) => { const r = saveConfirm?.run; setSaveConfirm(null); if (r) await r(name); }}
+      />
+
+      {/* V2.4 — Inline HTML report viewer (mirrors master-files behaviour) */}
+      <FileViewer
+        visible={!!viewerOpen}
+        fileName={viewerOpen?.name || "report.html"}
+        mime={viewerOpen?.mime || "text/html"}
+        dataBase64={viewerOpen?.data_base64 || ""}
+        onClose={() => setViewerOpen(null)}
       />
     </View>
   );
