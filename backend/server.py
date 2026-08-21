@@ -4531,6 +4531,70 @@ class DraftAssociateIn(BaseModel):
     contact_id: str
 
 
+async def _push_draft_files_to_contact(draft: dict, contact_id: str):
+    """v2.7 (Feb 2026) — When a bill-draft is associated to a contact, mirror
+    the RAW PDF and the ANALISI HTML into the contact's files section so they
+    show up in the client card under "File". Idempotent (skip existing names).
+    """
+    try:
+        pdf_name_src = draft.get("pdf_name") or "fattura.pdf"
+        base = pdf_name_src[:-4] if pdf_name_src.lower().endswith(".pdf") else pdf_name_src
+        # Fetch current file names to skip duplicates
+        c = await db.contacts.find_one({"contact_id": contact_id}, {"_id": 0, "files": 1}) or {}
+        existing_names = {(f or {}).get("name") for f in (c.get("files") or [])}
+        new_files: List[dict] = []
+
+        # 1) RAW PDF → contact.files
+        pdf_name = f"{base}.pdf"
+        if pdf_name not in existing_names:
+            b64 = draft.get("pdf_base64") or ""
+            if b64.startswith("data:"):
+                b64 = b64.split(",", 1)[1]
+            approx_size = draft.get("pdf_size") or int(len(b64) * 0.75) if b64 else 0
+            new_files.append({
+                "id": str(uuid.uuid4()),
+                "name": pdf_name,
+                "mime": draft.get("pdf_mime") or "application/pdf",
+                "data_base64": b64,
+                "size": approx_size,
+                "created_at": utcnow(),
+            })
+
+        # 2) ANALISI HTML → contact.files (same render used for master_files)
+        analysis_name = f"Analisi-{base}.html"
+        if analysis_name not in existing_names:
+            extracted = draft.get("extracted") or {}
+            bill_type = (draft.get("bill_type") or "luce").lower()
+            label_map = {"luce": ("Luce", "#EA580C"), "gas": ("Gas", "#F59E0B"), "telco": ("Telefono/Internet", "#0891B2")}
+            bt_label, bt_color = label_map.get(bill_type, ("Fattura", "#6366F1"))
+            user_doc = await db.users.find_one({"user_id": draft.get("user_id")}, {
+                "_id": 0, "name": 1, "company_name": 1, "company_logo_base64": 1,
+                "report_slogan": 1, "report_contacts": 1,
+            }) or {}
+            html = _build_analysis_html(
+                extracted, bt_label, bt_color, base,
+                draft.get("analysis_params") or [],
+                user_doc,
+            )
+            html_b64 = base64.b64encode(html.encode("utf-8")).decode("ascii")
+            new_files.append({
+                "id": str(uuid.uuid4()),
+                "name": analysis_name,
+                "mime": "text/html",
+                "data_base64": html_b64,
+                "size": len(html.encode("utf-8")),
+                "created_at": utcnow(),
+            })
+
+        if new_files:
+            await db.contacts.update_one(
+                {"contact_id": contact_id},
+                {"$push": {"files": {"$each": new_files}}, "$set": {"updated_at": utcnow()}},
+            )
+    except Exception as e:
+        logger.warning("_push_draft_files_to_contact err: %s", e)
+
+
 @api_router.post("/bill-drafts/{draft_id}/associate")
 async def associate_bill_draft(draft_id: str, body: DraftAssociateIn, user=Depends(get_current_user)):
     """Move a draft's PDF + extracted data into the target contact's energy_bills
@@ -4558,6 +4622,8 @@ async def associate_bill_draft(draft_id: str, body: DraftAssociateIn, user=Depen
         "analyzed_at": d.get("analyzed_at"),
     }
     await db.energy_bills.insert_one(bill_doc)
+    # v2.7 — also mirror PDF + Analisi HTML into contact.files
+    await _push_draft_files_to_contact(d, body.contact_id)
     await db.bill_drafts.delete_one({"draft_id": draft_id})
     strip_id(bill_doc)
     bill_doc.pop("pdf_base64", None)
@@ -4630,6 +4696,8 @@ async def create_contact_from_draft(draft_id: str, user=Depends(get_current_user
         "analyzed_at": d.get("analyzed_at"),
     }
     await db.energy_bills.insert_one(bill_doc)
+    # v2.7 — also mirror PDF + Analisi HTML into contact.files
+    await _push_draft_files_to_contact(d, contact_id)
     await db.bill_drafts.delete_one({"draft_id": draft_id})
     return {"ok": True, "contact_id": contact_id, "bill_id": bill_id}
 

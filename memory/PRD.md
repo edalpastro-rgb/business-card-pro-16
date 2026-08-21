@@ -1,5 +1,25 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.7 Bug Fix — Analisi bolletta non appare nei file cliente (Feb 2026)
+### 🐛 Bug segnalato
+Lato Master: dopo aver analizzato una fattura e averla associata a un cliente esistente, l'analisi non appariva nei "File" del cliente (tab file della scheda contatto). L'analisi restava solo nel cabinet Master del consulente.
+### 🔬 Root cause
+`POST /api/bill-drafts/{id}/associate` creava solo l'`energy_bills` doc (che alimenta il tab "Fatture" del cliente) ma NON copiava il PDF né l'HTML analisi in `contacts.files`. Stessa mancanza in `POST /api/bill-drafts/{id}/create-contact`.
+### ✅ Fix applicato
+`/app/backend/server.py`:
+- Nuovo helper `_push_draft_files_to_contact(draft, contact_id)` che riusa `_build_analysis_html` (stessa render usata per master_files) e pusha nel `contacts.files` array:
+  1. Il PDF originale (nome `{base}.pdf`, mime `application/pdf`)
+  2. L'HTML analisi (nome `Analisi-{base}.html`, mime `text/html`)
+- Idempotente: verifica nomi esistenti in `contact.files` prima di push (skip duplicati)
+- Chiamato in `associate_bill_draft` (associa a contatto esistente) e in `create_contact_from_draft` (crea nuovo contatto da draft)
+### Note
+- Il PDF resta anche in `energy_bills.pdf_base64` per il tab Fatture del cliente (non tocchiamo quel flusso).
+- L'analisi resta anche in `master_files` (cabinet Master) come archivio consulente.
+- Testing agent NON invocato (esplicita richiesta utente).
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.6 Bug Fix — Share nativo in "I miei file" (Feb 2026)
 ### 🐛 Bug segnalato
 Nella sezione "I miei file" (Master Files) il pulsante Condividi → "Sistema" scaricava direttamente il file invece di aprire il menu di condivisione nativo del sistema. Su mobile e su web funzionava come un semplice download.
