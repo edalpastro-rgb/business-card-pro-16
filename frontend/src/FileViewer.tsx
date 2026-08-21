@@ -36,6 +36,45 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
   const dataUri = useMemo(() => `data:${mime};base64,${dataBase64}`, [mime, dataBase64]);
 
   /**
+   * V38Z' — Decode a base64-encoded HTML payload as **UTF-8**.
+   *
+   * Previous impl used plain `atob(dataBase64)` which returns a binary string
+   * where every byte is treated as Latin-1 — this corrupts multi-byte UTF-8
+   * characters (emojis, accented chars, non-Latin scripts). We now:
+   *   1. atob → binary string of bytes
+   *   2. Convert to Uint8Array (byte-by-byte)
+   *   3. TextDecoder("utf-8") → proper Unicode string
+   *
+   * Falls back gracefully to legacy behaviour if TextDecoder or atob are
+   * missing (e.g. exotic runtime).
+   */
+  const htmlDecoded = useMemo(() => {
+    if (!isHtml || !dataBase64) return "";
+    try {
+      const g = globalThis as unknown as { atob?: (s: string) => string; TextDecoder?: typeof TextDecoder };
+      if (!g.atob) return "";
+      const bin = g.atob(dataBase64);
+      if (typeof g.TextDecoder === "function") {
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i) & 0xff;
+        return new g.TextDecoder("utf-8").decode(bytes);
+      }
+      // Legacy fallback: percent-decode trick (handles UTF-8 without TextDecoder)
+      try {
+        return decodeURIComponent(
+          Array.prototype.map
+            .call(bin, (c: string) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+            .join("")
+        );
+      } catch {
+        return bin;
+      }
+    } catch {
+      return "";
+    }
+  }, [isHtml, dataBase64]);
+
+  /**
    * Build a full HTML document that embeds PDF.js and renders the given
    * base64-encoded PDF into a canvas. Works on Android WebView + mobile
    * Chrome iframe without triggering the download dialog.
@@ -153,7 +192,7 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
               <iframe srcDoc={pdfJsHtml} title={fileName} style={{ width: "100%", height: "100%", border: "none", backgroundColor: "#1a1a1a" }} />
             ) : isHtml ? (
               // @ts-expect-error web only
-              <iframe srcDoc={(globalThis as any).atob ? (globalThis as any).atob(dataBase64) : ""} title={fileName} style={{ width: "100%", height: "100%", border: "none", backgroundColor: "#FFF" }} />
+              <iframe srcDoc={htmlDecoded} title={fileName} style={{ width: "100%", height: "100%", border: "none", backgroundColor: "#FFF" }} />
             ) : (
               <UnsupportedType />
             )
@@ -176,7 +215,7 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
             />
           ) : isHtml ? (
             <WebView
-              source={{ html: (globalThis as any).atob ? (globalThis as any).atob(dataBase64) : "" }}
+              source={{ html: htmlDecoded }}
               style={{ flex: 1, backgroundColor: "#FFF" }}
               originWhitelist={["*"]}
               javaScriptEnabled

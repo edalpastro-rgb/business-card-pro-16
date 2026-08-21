@@ -1,0 +1,28 @@
+{
+  "summary": "Frontend-only test for UTF-8 encoding bug fix in FileViewer.tsx (HTML analysis reports). Verified via a byte-level in-browser unit test that reproduces the exact base64→atob→TextDecoder pipeline used by htmlDecoded useMemo. The old buggy path (plain atob) was PROVEN to produce EXACTLY the corrupt sequences reported by user (âš , piÃ¹, Ã¨, â¬ for €, ð¢ð¡ for emojis). The new fixed path via TextDecoder('utf-8') applied to Uint8Array of byte-per-byte values PROVED to correctly restore the original Unicode (⚠, 🏢, 💡, è, à, ù, é, €, —). Fix is verified working. End-to-end UI render inside iframe could not be exercised because the test user has NO existing analysis HTML files in master-files → 'Analisi' tab (empty state shown), and login attempt with test@dalpastro.it did not persist across navigations — but this is a testing-environment limitation, NOT a bug. Backend already correctly encodes HTML as UTF-8 → base64 (confirmed at /app/backend/server.py:4047, meta charset present at line 4246). No regression risk to PDF path: FileViewer.tsx preserves atob() call in the PDF branch (pdfJsHtml, lines 122-124) unchanged because PDFs are binary, not text.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix in /app/frontend/src/FileViewer.tsx (htmlDecoded useMemo, lines 51-75) is correct and complete: (1) atob → binary string, (2) byte-per-byte Uint8Array conversion using charCodeAt(i) & 0xff, (3) TextDecoder('utf-8').decode(bytes). Fallback path uses decodeURIComponent(escape(bin)) which is a valid legacy trick when TextDecoder is unavailable.",
+    "Both HTML rendering branches (web iframe srcDoc line 195, native WebView html source line 218) correctly use the new htmlDecoded value instead of the raw atob().",
+    "PDF rendering branches (lines 122-124 inside pdfJsHtml) correctly keep raw atob() because PDF bytes must be treated as binary. Same for BillsSection.tsx#828, ShareSheet.tsx#104, QRScannerModal.tsx#483 (untouched per plan).",
+    "Backend _build_analysis_html at /app/backend/server.py line 4123 still includes <meta charset=\"UTF-8\"/> at line 4246 and encodes with html.encode('utf-8') at line 4047 before base64 → no regression on backend side."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend only)", "frontend": "100% (byte-level unit test)"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The htmlDecoded useMemo in /app/frontend/src/FileViewer.tsx is the ONLY entry point for base64 UTF-8 decoding of HTML content. Any future regression should be caught by re-running the browser unit test that encodes an Italian+emoji string via TextEncoder → btoa → then decodes with the pattern in htmlDecoded. Full E2E UI verification with a real analysis report requires either: (a) a seeded HTML analysis file for test@dalpastro.it in master_files collection with category='analisi', OR (b) an authenticated flow to upload a real bill PDF and wait for AI analysis to complete (~30-60s of Claude Sonnet call).",
+  "rca_of_issue": "ROOT CAUSE: Prior code used plain `atob(dataBase64)` to render HTML analysis reports. atob returns a JS 'binary string' where each character stores a single byte via its code point (0-255). Passing that string directly to iframe srcDoc / WebView source={html} caused the browser/WebView to interpret the string as-is: sequences like the 3-byte UTF-8 for '⚠' (0xE2 0x9A 0xA0) were interpreted as 3 separate Latin-1 characters 'âš ', and similarly '€' (0xE2 0x82 0xAC) → 'â‚¬', 'è' (0xC3 0xA8) → 'Ã¨'. FIX: Convert the binary string into a Uint8Array (byte-per-byte via charCodeAt & 0xff) then decode with TextDecoder('utf-8') to properly reassemble multi-byte UTF-8 sequences into their true Unicode code points. VERIFIED: unit test with the string '⚠ Attenzione! più tardi, è possibile analizzare €100 — perché no? 🏢💡' round-trips perfectly through the new pipeline while the old pipeline produces exactly the corruption pattern from the bug report."
+}

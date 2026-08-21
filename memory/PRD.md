@@ -1,5 +1,29 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.0 Bug Fix — Encoding UTF-8 negli HTML report (Feb 2026)
+### 🐛 Bug segnalato
+Emoji e caratteri accentati corrotti (mostrati come `âš `, `Ã¨`, `â‚¬` invece di ⚠, è, €) negli HTML analysis report renderizzati nel FileViewer (master-files → Analisi).
+### 🔬 Root cause
+`FileViewer.tsx` decodificava base64 HTML con `atob(dataBase64)` diretto. `atob()` restituisce una **binary string** (1 char = 1 byte, Latin-1). I caratteri multi-byte UTF-8 (emoji = 4 bytes, `è` = 2 bytes, `€` = 3 bytes) venivano quindi corrotti perché ogni byte veniva interpretato come Latin-1 separato.
+### ✅ Fix applicato
+`/app/frontend/src/FileViewer.tsx`:
+- Aggiunto `useMemo htmlDecoded` che:
+  1. `atob(base64)` → binary string
+  2. Byte-per-byte in `Uint8Array` (via `charCodeAt(i) & 0xff`)
+  3. `new TextDecoder('utf-8').decode(bytes)` → stringa Unicode corretta
+  4. Fallback graceful con `decodeURIComponent/escape` per runtime senza TextDecoder
+  5. Never throws (ritorna "" su errore)
+- Sostituito in ENTRAMBI i punti di rendering: `<iframe srcDoc>` (web) e `<WebView source={html}>` (native)
+- Non toccato il path PDF (binary bytes, va OK con atob diretto)
+### ✅ Test
+- `testing_agent` iterazione 67 — byte-level unit test in browser:
+  - OLD path (plain atob) su input `"⚠ Attenzione! più tardi, è possibile analizzare €100 — perché no? 🏢💡"` produce ESATTAMENTE la corruzione riportata: `"â  Attenzione! piÃ¹ tardi, Ã¨ possibile analizzare â¬100 â perchÃ© no? ð¢ð¡"`
+  - NEW path (atob → Uint8Array → TextDecoder) → roundtrip perfetto, tutti i simboli corretti
+- Backend confermato corretto: `<meta charset="UTF-8"/>` + `html.encode('utf-8')`
+### ⚠ Nota per produzione
+Fix attivo in **preview**. Per attivarlo in produzione: **Redeploy** dal pannello Emergent.
+
+
 ## v1.9 Bug Fix — JSON parsing robusto nel Fiscal Check (Feb 2026)
 ### 🐛 Bug segnalato
 Modulo `invoice-analysis` → Fiscal Check mostrava "JSON parse error" rosso quando la risposta AI era malformata (sia preview che produzione).
