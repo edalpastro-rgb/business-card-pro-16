@@ -1,5 +1,22 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.5 Bug Fix — Overlay Calcolatrice fuori posizione (Feb 2026)
+### 🐛 Bug segnalato
+L'overlay/bottom-sheet della Calcolatrice appariva fuori posizione, non centrato, e su viewport large fuoriusciva dai bordi.
+### ✅ Fix applicato
+`/app/frontend/src/CalculatorFAB.tsx` — stili del bottom-sheet:
+- `backdrop`: aggiunto `alignItems: 'center'` per centrare orizzontalmente
+- `sheet`: aggiunto `width: '100%'`, `maxWidth: 480`, `alignSelf: 'center'` (clamp responsive per desktop/tablet)
+- `sheet`: `paddingBottom` aumentato a 34px su iOS (safe-area home-indicator) e 24px su Android
+- Manteniamo `maxHeight: 62%` e `justifyContent: 'flex-end'` (pinned bottom con feel di bottom sheet)
+### Note
+- Su phone: bottom sheet a full-width come prima
+- Su desktop/tablet: sheet centrato con margine laterale (max 480px)
+- Su iOS moderni: no clip da home-indicator
+- Testing agent non invocato (esplicita richiesta utente)
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
 ## v2.4 Bug Fix — Report inline nella scheda cliente (Feb 2026)
 ### 🐛 Bug segnalato
 Il report/comparazione generato dalla scheda cliente (contact/[id] → tab Fatture → "Report fatture" / "Confronta") si apriva in una finestra esterna (browser print dialog o nuova tab) invece di essere mostrato inline come su master-files.

@@ -195,16 +195,31 @@ const styles = StyleSheet.create({
     }),
     zIndex: 100,
   },
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    // V2.5 — Center the sheet horizontally and keep it pinned to the bottom.
+    // On wide viewports (desktop web / tablet landscape) the sheet used to
+    // stretch across the whole width and could appear off-position. We now
+    // clamp to maxWidth and horizontally center it.
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
   sheet: {
     backgroundColor: "#FFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 16,
-    paddingBottom: 20,
-    // V38S — Bottom sheet at ~60% so the analysis behind stays visible while
+    // V2.5 — Extra safe-area padding at the bottom so the sheet doesn't get
+    // clipped by home-indicator on modern devices.
+    paddingBottom: Platform.OS === "ios" ? 34 : 24,
+    // V38S — Bottom sheet at ~62% so the analysis behind stays visible while
     // the calculator is open. Was 90% (basically full-screen).
     maxHeight: "62%",
+    // V2.5 — Responsive width: fills the viewport on phones, capped on desktop.
+    width: "100%",
+    maxWidth: 480,
+    alignSelf: "center",
   },
   // V38S — Drag handle at top of the calculator sheet
   dragHandle: {
