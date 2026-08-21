@@ -37,7 +37,22 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 # JWT config
-JWT_SECRET = os.environ.get('JWT_SECRET', 'dev-secret-change-me-in-prod-9827345')
+# In production JWT_SECRET MUST be provided via environment. In dev/test we allow a
+# non-persistent random fallback that is generated fresh on process start so tokens
+# never leak across environments and are never predictable.
+_JWT_SECRET_ENV = os.environ.get('JWT_SECRET')
+if _JWT_SECRET_ENV:
+    JWT_SECRET = _JWT_SECRET_ENV
+elif os.environ.get('APP_ENV', 'development').lower() in ('production', 'prod'):
+    raise RuntimeError("JWT_SECRET environment variable is required in production but was not set.")
+else:
+    import secrets as _secrets_mod
+    JWT_SECRET = _secrets_mod.token_urlsafe(64)
+    import logging as _logging_mod
+    _logging_mod.getLogger(__name__).warning(
+        "JWT_SECRET not set; generated a random per-process secret for development. "
+        "All sessions will invalidate on backend restart."
+    )
 JWT_ALG = 'HS256'
 JWT_EXP_DAYS = 30
 

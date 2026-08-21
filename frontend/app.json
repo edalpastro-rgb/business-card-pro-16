@@ -14,7 +14,9 @@
       "infoPlist": {
         "NSFaceIDUsageDescription": "Sblocca rapidamente Dal Pastro CRM",
         "NSPhotoLibraryUsageDescription": "Aggiungi immagini motivazionali al tuo spazio personale",
-        "NSCameraUsageDescription": "Scatta foto da aggiungere al tuo spazio personale"
+        "NSCameraUsageDescription": "Scatta foto da aggiungere al tuo spazio personale",
+        "NSMicrophoneUsageDescription": "Registra note vocali sui tuoi contatti",
+        "NSContactsUsageDescription": "Importa i contatti dalla tua rubrica"
       }
     },
     "android": {
@@ -29,7 +31,9 @@
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
         "VIBRATE",
-        "RECEIVE_BOOT_COMPLETED"
+        "RECEIVE_BOOT_COMPLETED",
+        "RECORD_AUDIO",
+        "READ_CONTACTS"
       ]
     },
     "web": {
