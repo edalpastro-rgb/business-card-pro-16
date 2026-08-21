@@ -1,5 +1,33 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.3 Bug Fix — Web Share API PNG condivisione (Feb 2026)
+### 🐛 Bug segnalato
+Su web, la condivisione del PNG del biglietto da visita dava sempre errore "Errore condivisione", il download fallback non veniva mai eseguito.
+### 🔬 Root cause
+La QR code image era caricata da `api.qrserver.com` (cross-origin, senza CORS headers) → html2canvas rendeva il canvas "tainted" → `combined.toDataURL('image/png')` lanciava `SecurityError` → l'intera share flow falliva prima ancora di arrivare al download fallback.
+### ✅ Fix applicato
+**`CardHtmlMirrors.tsx`**:
+- `useEffect` che genera la QR come **data URL locale** tramite libreria `qrcode` (già installata come dep transitiva di `react-native-qrcode-svg`)
+- Import dinamico → no impatto sul bundle native
+- `crossOrigin='anonymous'` sull'img come safety net
+- Config: `margin:0, width:120, color:{dark:'#1A2A6C', light:'#FFFFFF'}`
+
+**`generateShareImage.ts`**:
+- html2canvas opts: `allowTaint: false` (fail early), `imageTimeout: 15000`
+- Web Share API: gestisce **AbortError** (utente cancella) → `ok({shared:false})` no red banner
+- Guard `window.isSecureContext !== false`
+- Download fallback wrappato in try/catch — last-resort apre PNG in nuova tab
+- Never returns `err()` se PNG generato correttamente
+### ✅ Test
+- `testing_agent` iterazione 70 — end-to-end Playwright:
+  - PNG scaricato realmente: **962KB, 5328x918 RGBA**, fronte+retro affiancati, QR navy visibile su bianco ✅
+  - Zero banner "Errore condivisione" ✅
+  - Zero `SecurityError` / `Tainted canvas` in console ✅
+  - QR image `src` inizia con `data:image/png;base64,...` (locale) ✅
+- Non-regressione: flip, save, effetti PNG (v1.9), logo senza box (v2.2) tutti OK
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
 ## v2.2 Bug Fix — Box bianco attorno al logo del biglietto (Feb 2026)
 ### 🐛 Bug segnalato
 Logo del biglietto da visita mostrava un box bianco attorno all'immagine sull'anteprima live (il PNG condiviso era già fixato in v1.4/v1.8).

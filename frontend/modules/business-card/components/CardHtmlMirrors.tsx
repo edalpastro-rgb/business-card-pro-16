@@ -3,7 +3,7 @@
  * by html2canvas to generate the shared PNG. Web-only.
  * These are OFF-SCREEN and pointer-events-none; they do not affect UX.
  */
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, View } from "react-native";
 import type { BusinessCard } from "../types";
 import { computeQrValue } from "../lib/vcard";
@@ -24,8 +24,40 @@ import {
 type Props = { card: BusinessCard };
 
 export function CardHtmlMirrors({ card }: Props): React.ReactElement | null {
-  if (Platform.OS !== "web") return null;
   const qrValue = computeQrValue(card);
+
+  /**
+   * V2.3 — Generate the QR code as a LOCAL data URL (via the `qrcode` npm
+   * package) instead of loading it from api.qrserver.com. Cross-origin
+   * images without CORS headers taint the html2canvas canvas → toDataURL()
+   * throws SecurityError → share flow fails. A local data URL keeps the
+   * canvas same-origin so the PNG can always be exported.
+   */
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Dynamic import — qrcode is browser-safe but keep it out of the native bundle
+        const mod = await import("qrcode");
+        const gen = (mod as { toDataURL?: (t: string, o?: object) => Promise<string> }).toDataURL
+          || (mod as { default?: { toDataURL?: (t: string, o?: object) => Promise<string> } }).default?.toDataURL;
+        if (!gen) return;
+        const url = await gen(qrValue || " ", {
+          margin: 0,
+          width: 120,
+          color: { dark: "#1A2A6C", light: "#FFFFFF" },
+        });
+        if (!cancelled) setQrDataUrl(url);
+      } catch {
+        // Silent — the html2canvas capture will still work (QR just missing)
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [qrValue]);
+
+  if (Platform.OS !== "web") return null;
   const staticGlow =
     "0 0 0 3px rgba(212,178,106,0.85), 0 0 26px 6px rgba(240,210,130,0.75), 0 0 44px 10px rgba(212,178,106,0.35), 0 14px 30px rgba(15,23,42,0.32)";
   return (
@@ -188,10 +220,11 @@ export function CardHtmlMirrors({ card }: Props): React.ReactElement | null {
             {/* @ts-expect-error web-only */}
             <div style={{ width: 62, height: 62, background: "#FFF", padding: 3, borderRadius: 4, boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue || " ")}&size=120x120&color=1A2A6C&bgcolor=FFFFFF&margin=0`}
+                src={qrDataUrl || `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue || " ")}&size=120x120&color=1A2A6C&bgcolor=FFFFFF&margin=0`}
                 alt="qr"
                 width={56}
                 height={56}
+                crossOrigin="anonymous"
                 style={{ display: "block" }}
               />
             </div>

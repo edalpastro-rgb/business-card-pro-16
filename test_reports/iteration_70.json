@@ -1,0 +1,27 @@
+{
+  "summary": "V-BC-share-fix — Verified fix for business-card PNG share on web. Root cause (cross-origin QR from api.qrserver.com tainting the html2canvas canvas → SecurityError on toDataURL → red 'Errore condivisione' banner) is now fully resolved. QR is generated as a LOCAL data URL via the `qrcode` npm package, html2canvas runs with allowTaint:false, and the Web Share API path now catches AbortError. Playwright E2E confirmed: (a) QR <img src> in #bc-back-web mirror starts with `data:image/png;base64,...` (crossOrigin='anonymous', NOT api.qrserver.com); (b) tapping bc-share-image triggered a real download of `biglietto-Test-Refactor-F1.png` (962 KB, 5328x918 RGBA); (c) NO 'Errore condivisione' banner; (d) NO SecurityError / tainted-canvas messages in the console; (e) the downloaded PNG contains front+back side-by-side on white background, with the navy-on-white QR clearly visible on the back. Non-regression: flip Fronte/Retro OK, bc-save OK, no error banners.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/tmp/dl_biglietto-Test-Refactor-F1.png (downloaded artifact, 5328x918 RGBA, front+back+QR verified)",
+    "/tmp/dl_thumb.png (thumbnail preview used to visually confirm QR + navy-on-white)"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CardHtmlMirrors.tsx retains a graceful fallback to api.qrserver.com when the dynamic `qrcode` import fails; combined with html2canvas `allowTaint:false` + `useCORS:true` this means the capture would fail again only if BOTH the local qrcode lib fails AND CORS is denied — acceptable trade-off since qrcode is bundled as a transitive dep.",
+    "generateShareImage.ts correctly handles AbortError, falls back to <a download>, and last-resorts to opening the data URI in a new tab — never surfaces err() when the PNG is generated. Good defensive design.",
+    "Minor pre-existing (out of scope): front-card mirror shows a broken `logo` alt because `card.logo_base64` for the test user is not a valid data URI; unrelated to share flow but E1 may want to guard the <img> render or hide when invalid."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only test)", "frontend": "100%"},
+  "seed_data_creation": "None — used existing owner test account test@dalpastro.it with its pre-existing business card.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The share flow on web is verified. QR image in DOM must remain a data: URL for html2canvas to succeed — if a future change re-introduces a cross-origin QR source without CORS headers, the SecurityError will return. To regression-test, load /business-card, tap bc-share-image and assert (i) a download event fires with filename `biglietto-<display_name>.png`, (ii) no text 'Errore condivisione' appears, (iii) DOM query on #bc-back-web img has src starting with 'data:image/'.",
+  "rca_of_issue": "Original bug: html2canvas loaded the QR image from https://api.qrserver.com/... which returned no Access-Control-Allow-Origin header. Even with useCORS:true, the browser tainted the resulting canvas because the image was fetched cross-origin without CORS. `combined.toDataURL('image/png')` then threw SecurityError('Tainted canvases may not be exported'), the outer try/catch in generateAndShareCardPng returned err('Errore condivisione'), and the caller displayed the red banner. Fix (applied by E1): (1) generate the QR locally via `qrcode` npm package into a data URL — this keeps the canvas same-origin; (2) set allowTaint:false so any residual cross-origin image would fail fast rather than taint silently; (3) treat Web Share API AbortError as ok({shared:false}) so user-cancel no longer triggers the error banner. Verified working."
+}
