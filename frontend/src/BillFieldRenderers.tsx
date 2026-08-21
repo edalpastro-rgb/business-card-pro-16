@@ -234,7 +234,7 @@ export function BillFieldRow({ name, value, accent }: FieldRowProps) {
       </View>
     );
   }
-  // Note AI — bulleted list
+  // Consulenza Corporate — bulleted list (was "Note AI")
   if (name === "note_ai") {
     let items: string[] = [];
     if (Array.isArray(value)) items = value.map((x) => sanitizeAiText(x)).filter(Boolean);
@@ -246,7 +246,7 @@ export function BillFieldRow({ name, value, accent }: FieldRowProps) {
     if (items.length === 0) return null;
     return (
       <View style={styles.blockRow}>
-        <Text style={styles.blockLabel}>{label}</Text>
+        <Text style={styles.blockLabel}>Consulenza Corporate</Text>
         <View style={{ gap: 4, marginTop: 4 }}>
           {items.map((t, i) => (
             <View key={i} style={styles.bulletRow}>

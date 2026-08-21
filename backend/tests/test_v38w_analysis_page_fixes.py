@@ -145,21 +145,24 @@ class TestBuildAnalysisHtml:
         # H1 clean
         assert "<h1>Analisi Fattura Luce</h1>" in html
 
-    def test_note_title_uses_consultant_name(self):
+    def test_note_title_uses_consulenza_corporate(self):
         from server import _build_analysis_html
         html = _build_analysis_html(self._sample_extracted(), "Luce", "#EA580C", "doc", [], {"name": "Mario Rossi"})
-        assert "Note di Mario Rossi" in html
+        assert "Consulenza Corporate" in html
         assert "Note AI" not in html
+        assert "Note di " not in html
 
-    def test_note_title_falls_back_to_company(self):
+    def test_note_title_is_static_regardless_of_company(self):
         from server import _build_analysis_html
         html = _build_analysis_html(self._sample_extracted(), "Luce", "#EA580C", "doc", [], {"company_name": "Dal Pastro"})
-        assert "Note di Dal Pastro" in html
+        assert "Consulenza Corporate" in html
+        assert "Note di " not in html
 
-    def test_note_title_default_consulente(self):
+    def test_note_title_default_consulenza_corporate(self):
         from server import _build_analysis_html
         html = _build_analysis_html(self._sample_extracted(), "Luce", "#EA580C", "doc", [], {})
-        assert "Note di Consulente" in html
+        assert "Consulenza Corporate" in html
+        assert "Note di " not in html
 
     def test_verifica_markers_filtered(self):
         from server import _build_analysis_html
@@ -265,8 +268,9 @@ class TestAutoSaveDraft:
                 assert "<li" in html
                 assert "IVA errata" in html
                 assert '{"expected"' not in html
-                # (d) Note title uses consultant name (test user "name" or "company_name")
-                assert "Note di " in html
+                # (d) Note title now uses "Consulenza Corporate" (was "Note di {consultant}")
+                assert "Consulenza Corporate" in html
+                assert "Note di " not in html
                 # (e) Clean H1 + title
                 assert "<h1>Analisi Fattura Luce</h1>" in html
                 assert "<title>Analisi Fattura Luce - " in html

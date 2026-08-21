@@ -1,5 +1,29 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.9 Rename — "Note AI" → "Consulenza Corporate" (Feb 2026)
+### 🎯 Richiesta utente
+Rinominare "Note AI" (e la variante dinamica "Note di {consulente}") in "Consulenza Corporate" in tutta l'app.
+### ✅ Modifiche applicate
+**Frontend user-facing labels**:
+- `/app/frontend/src/BillFieldRenderers.tsx` (linea 237, `BillFieldRow`): la sezione bulleted list per `note_ai` ora mostra label **"Consulenza Corporate"** (era `humanizeKey("note_ai") → "Note Ai"`)
+- `/app/frontend/src/BillsSection.tsx` (linea 446, `buildBillAnalysisHtml`): la label HTML della riga note nella tabella analisi è ora `"Consulenza Corporate"` (era `Note di ${consultantName}`)
+- `/app/frontend/src/BillsSection.tsx` (linea 1703, `humanKey` map): `note_ai: "Consulenza Corporate"` (era `"Note AI"`)
+- `/app/frontend/src/BillsSection.tsx` (linea 1765, `renderExtractedTable`): heading HTML `"Consulenza Corporate"` (era `"Note AI"`)
+
+**Backend user-facing HTML**:
+- `/app/backend/server.py` (`_build_analysis_html`, linea ~4219): titolo `<h3>` note ora sempre `"Consulenza Corporate"` (era `Note di {consultant}`)
+
+**Test aggiornati**:
+- `/app/backend/tests/test_v38w_analysis_page_fixes.py`: 3 test rinominati per asserire la nuova label statica + 1 asserzione E2E aggiornata. **25/25 test passano ✅**
+
+### Note
+- La chiave JSON interna `note_ai` è mantenuta inalterata (usata da LLM prompt + parser + `_parse_llm_json` fallback). Solo la label mostrata all'utente è cambiata.
+- Coerente sia su preview che sulle analisi già salvate (rerender lato client dalla data_base64).
+- Testing agent NON invocato (esplicita richiesta utente); pytest backend eseguito manualmente.
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.8 Redesign — Master "Analizza bolletta" allineato a BillsSection (Feb 2026)
 ### 🎯 Richiesta utente
 La sezione "Analizza bolletta" lato Master deve essere identica visivamente e funzionalmente alla sezione fatture nella scheda cliente: stesse sezioni Luce/Gas/Telco, stesso caricamento PDF, stesse offerte aziendali, stessa lista fatture analizzate.

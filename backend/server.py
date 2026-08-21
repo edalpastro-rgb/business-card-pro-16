@@ -4203,7 +4203,7 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
             chart_html = _svg_bar_chart(points, unit, bt_color)
             break
 
-    # V38W — Note personalizzate col nome del consulente (era "Note AI")
+    # Consulenza Corporate (was "Note AI" / "Note di {consultant}")
     notes_html = ""
     note_val = extracted.get("note_ai")
     if note_val:
@@ -4216,7 +4216,7 @@ def _build_analysis_html(extracted: dict, bt_label: str, bt_color: str, doc_base
         else:
             items = []
         if items:
-            note_title = f"Note di {esc(consultant)}"
+            note_title = "Consulenza Corporate"
             notes_html = f"<h3 style='color:#0F172A;font-size:14px;margin:16px 0 6px;'>{note_title}</h3><ul style='padding-left:20px;margin:0;color:#334155;font-size:12px;'>" + "".join(f"<li style='margin-bottom:4px;'>{esc(it)}</li>" for it in items) + "</ul>"
 
     # V38W — Fiscal check rendered as readable rows (never JSON)

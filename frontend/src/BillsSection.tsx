@@ -437,13 +437,12 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
             </tr>`;
           }
         }
-        // V38W — render note_ai as bulleted list with consultant's name
+        // Consulenza Corporate — bulleted list (was "Note AI"/"Note di {consultant}")
         if (k === "note_ai") {
           const items = normalizeNotes(v).map(sanitizeAi).filter(Boolean);
           if (items.length > 0) {
             const ul = `<ul style="margin:0 0 0 18px;padding:0;">${items.map((it) => `<li style="font-size:11px;margin-bottom:3px;line-height:1.4;">${escHtml(it)}</li>`).join("")}</ul>`;
-            const consultantName = String(branding?.agency_name || "").trim() || "Consulente";
-            const label = `Note di ${consultantName}`;
+            const label = "Consulenza Corporate";
             return `<tr>
               <td style="padding:10px 12px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;font-weight:700;color:#0F172A;font-size:12px;width:38%;vertical-align:top;">${escHtml(label)}</td>
               <td style="padding:10px 12px;background:#FFF;border-bottom:1px solid #E2E8F0;font-size:12px;color:#0F172A;vertical-align:top;">${ul}</td>
@@ -1700,7 +1699,7 @@ function humanKey(k: string): string {
     costo_annuale_eur: "Costo annuale €",
     codice_migrazione: "Codice migrazione",
     penale_disdetta_eur: "Penale disdetta €",
-    note_ai: "Note AI",
+    note_ai: "Consulenza Corporate",
     parse_error: "Errore parsing",
   };
   return map[k] || k.replace(/_/g, " ");
@@ -1762,7 +1761,7 @@ function renderExtractedTable(ex: Record<string, any>, sectionColor = "#6366F1")
     if (k === "note_ai") {
       const items = normalizeNotes(v);
       if (items.length === 0) return;
-      notesHtml = `<div style="margin:8px 0;"><div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;">Note AI</div><ul style="margin:0 0 0 18px;padding:0;">${items.map((it) => `<li style="font-size:11px;margin-bottom:3px;line-height:1.4;">${esc(it)}</li>`).join("")}</ul></div>`;
+      notesHtml = `<div style="margin:8px 0;"><div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;">Consulenza Corporate</div><ul style="margin:0 0 0 18px;padding:0;">${items.map((it) => `<li style="font-size:11px;margin-bottom:3px;line-height:1.4;">${esc(it)}</li>`).join("")}</ul></div>`;
       return;
     }
     if (k === "servizi_inclusi" && Array.isArray(v)) {
