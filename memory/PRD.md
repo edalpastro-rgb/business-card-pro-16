@@ -1,5 +1,29 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.8 Redesign — Master "Analizza bolletta" allineato a BillsSection (Feb 2026)
+### 🎯 Richiesta utente
+La sezione "Analizza bolletta" lato Master deve essere identica visivamente e funzionalmente alla sezione fatture nella scheda cliente: stesse sezioni Luce/Gas/Telco, stesso caricamento PDF, stesse offerte aziendali, stessa lista fatture analizzate.
+### ✅ Fix applicato
+`/app/frontend/app/bill-quick.tsx` — riscritto da zero (772 → 890 righe) per rispecchiare `BillsSection.tsx`:
+- **Intro card** blu identica (`#EEF2FF` + "Fatture Energia · AI Claude Sonnet 5")
+- **Offerte aziendali accordion viola** (`#F5F3FF`/`#7C3AED`) — upload PDF offerta + textarea manuale + `VoiceDictationButton` + salva testo + lista offerte
+- **3 sezioni raggruppate Luce (giallo) / Gas (rosso) / Telco (ciano)** con header colorato + counter, ognuna con il proprio bottone dashed "Carica fattura PDF"
+- **Card fattura identica**: header con icona document-text + pdf_name + status pill colorato + trash/cancel/chevron; body espandibile con `BillFieldRow` (stesso rendering che il cliente per `consumi_mensili`, `parametri_richiesti`, `note_ai`, fiscal_check)
+- **Params modal identico**: header colorato + emoji, `PARAMETRI STANDARD` pill toggle-able, `PARAMETRI PERSONALIZZATI` con badge viola, input custom, counter "Selezionati: N"
+- **Azioni master-specifiche**: Apri PDF · Annulla analisi · Ri-analizza · Associa a cliente · Crea cliente · Elimina (in luogo di "Salva sul cliente" del cliente)
+- **Fiscal-check config** mantenuto come bonus master-side (Verifica IVA 10/22, Accise gas, PCV)
+
+`/app/backend/server.py`:
+- Nuovo endpoint `POST /api/bill-drafts/{draft_id}/cancel` — parity con `/contacts/{id}/bills/{bill_id}/cancel` (checkpoint già rispettato in `_analyze_draft_task`)
+
+### Note
+- `/company-offers` è tenant-scoped → le stesse offerte aziendali sono ora visibili sia lato master che lato cliente.
+- Bug #1 (analisi non appariva nei file cliente) già fixato in v2.7 tramite `_push_draft_files_to_contact`.
+- Testing agent NON invocato (esplicita richiesta utente); verifica visiva via screenshot: UI identica al cliente ✅
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.7 Bug Fix — Analisi bolletta non appare nei file cliente (Feb 2026)
 ### 🐛 Bug segnalato
 Lato Master: dopo aver analizzato una fattura e averla associata a un cliente esistente, l'analisi non appariva nei "File" del cliente (tab file della scheda contatto). L'analisi restava solo nel cabinet Master del consulente.

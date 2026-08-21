@@ -4527,6 +4527,24 @@ async def reanalyze_bill_draft(draft_id: str, background: BackgroundTasks, user=
     return {"ok": True}
 
 
+@api_router.post("/bill-drafts/{draft_id}/cancel")
+async def cancel_bill_draft(draft_id: str, user=Depends(get_current_user)):
+    """v2.8 — Cancel a running/pending draft analysis. Parity with the
+    contact-side /contacts/{id}/bills/{bill_id}/cancel endpoint."""
+    d = await db.bill_drafts.find_one({"user_id": tenant_id(user), "draft_id": draft_id}, {"_id": 0, "status": 1})
+    if not d:
+        raise HTTPException(status_code=404, detail="Bozza non trovata")
+    st = d.get("status")
+    if st not in ("pending", "analyzing"):
+        raise HTTPException(status_code=400, detail=f"Impossibile annullare: stato attuale '{st}'")
+    await db.bill_drafts.update_one({"draft_id": draft_id}, {"$set": {
+        "status": "cancelled",
+        "error_message": "Analisi annullata dall'utente",
+        "analyzed_at": utcnow(),
+    }})
+    return {"ok": True, "status": "cancelled"}
+
+
 class DraftAssociateIn(BaseModel):
     contact_id: str
 
