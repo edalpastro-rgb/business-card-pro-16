@@ -333,7 +333,7 @@ function CalendarioScreen() {
       {viewMode !== "year" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 60 }}
+          contentContainerStyle={{ paddingBottom: 180 }}
           showsVerticalScrollIndicator={true}
           testID="cal-scroll"
         >
@@ -758,7 +758,7 @@ function YearGrid({
     }
   }
   return (
-    <ScrollView>
+    <ScrollView contentContainerStyle={{ paddingBottom: 180 }}>
       <View style={styles.navRow}>
         <Pressable testID="year-prev" onPress={() => onNavYear(-1)} style={styles.navBtn}>
           <Ionicons name="chevron-back" size={16} color={theme.color.onSurface} />

@@ -242,7 +242,7 @@ function ImpostazioniScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}><Text style={styles.title}>Profilo & Impostazioni</Text></View>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 180 }}>
         <View style={styles.card}>
           <View style={styles.profileHead}>
             <Pressable testID="profile-avatar-btn" onPress={changeAvatar} style={styles.avatarWrap} disabled={avatarBusy}>

@@ -28,12 +28,16 @@ export default function TabsLayout() {
         tabBarActiveTintColor: TAB_ACTIVE,
         tabBarInactiveTintColor: TAB_INACTIVE,
         tabBarStyle: {
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
           backgroundColor: TAB_BG,
           borderTopColor: TAB_BORDER,
           borderTopWidth: 1,
-          height: Platform.select({ ios: 94, android: 80, default: 80 }),
+          height: 85,
           paddingTop: 10,
-          paddingBottom: Platform.select({ ios: 28, android: 16, default: 16 }),
+          paddingBottom: 20,
           ...Platform.select({
             ios: {
               shadowColor: "#0F172A",

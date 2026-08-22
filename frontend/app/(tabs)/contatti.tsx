@@ -137,7 +137,7 @@ function ContattiScreen() {
         <FlatList
           data={items}
           keyExtractor={(i) => i.contact_id}
-          contentContainerStyle={{ padding: 16, paddingTop: 4 }}
+          contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 180 }}
           renderItem={({ item }) => (
             <Pressable
               testID={`contact-${item.contact_id}`}

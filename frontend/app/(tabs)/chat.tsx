@@ -97,7 +97,7 @@ function ChatListScreen() {
         <FlatList
           data={items}
           keyExtractor={(i) => i.channel_id}
-          contentContainerStyle={{ padding: 16, paddingTop: 4 }}
+          contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 180 }}
           renderItem={({ item }) => (
             <Pressable testID={`chat-${item.channel_id}`} onPress={() => router.push(`/chat/${item.channel_id}`)} style={styles.card}>
               <View style={styles.avatar}>

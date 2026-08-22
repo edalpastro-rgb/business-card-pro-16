@@ -70,7 +70,7 @@ export default function ReportScreen() {
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 180 }}>
           {renderArea("energy")}
           {renderArea("network")}
 

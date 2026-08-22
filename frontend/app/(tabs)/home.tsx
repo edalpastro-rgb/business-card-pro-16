@@ -572,7 +572,7 @@ const cardShadow = Platform.select({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scroll: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 160 },
+  scroll: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 180 },
 
   /* Header */
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
