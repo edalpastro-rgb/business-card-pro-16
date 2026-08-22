@@ -29,6 +29,8 @@ type Invite = {
   invited_user?: { user_id: string; name?: string; email?: string; subscription?: { status: string } };
 };
 
+type TeamMember = { user_id: string; name?: string; email?: string; role?: string };
+
 export default function InviteCollaboratorScreen() {
   const router = useRouter();
   const [role, setRole] = useState<Role>("basic");
@@ -40,6 +42,9 @@ export default function InviteCollaboratorScreen() {
   const [loadingList, setLoadingList] = useState(true);
   const [editRole, setEditRole] = useState<Invite | null>(null);
   const [savingRole, setSavingRole] = useState(false);
+  // V27 — Assign under an existing team member
+  const [assignParentId, setAssignParentId] = useState<string | null>(null); // null = assign directly to master
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
   const loadInvites = useCallback(async () => {
     try {
@@ -52,7 +57,16 @@ export default function InviteCollaboratorScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { loadInvites(); }, [loadInvites]));
+  const loadTeam = useCallback(async () => {
+    try {
+      const r = await api<{ items: TeamMember[] }>("/team/members");
+      setTeamMembers(r.items || []);
+    } catch (e: any) {
+      console.warn("team list", e?.message);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadInvites(); loadTeam(); }, [loadInvites, loadTeam]));
 
   const generate = async () => {
     if (!collaboratorName.trim()) { notify("Nome richiesto", "Inserisci il nome del collaboratore."); return; }
@@ -60,7 +74,14 @@ export default function InviteCollaboratorScreen() {
       setGenerating(true);
       const r = await api<{ invite_token: string; invite_role?: string }>("/invites", {
         method: "POST",
-        body: { trial_days: 30, note, role, collaborator_name: collaboratorName.trim() },
+        body: {
+          trial_days: 30,
+          note,
+          role,
+          collaborator_name: collaboratorName.trim(),
+          // Master figlio is a sub-tenant, so we ignore parent override for it.
+          assign_parent_user_id: role !== "master_figlio" ? assignParentId : null,
+        },
       });
       setInvite({ invite_token: r.invite_token, role: r.invite_role });
       await loadInvites();
@@ -157,6 +178,53 @@ export default function InviteCollaboratorScreen() {
                 {role === r.id && <Ionicons name="checkmark-circle" size={22} color={r.color} />}
               </Pressable>
             ))}
+
+            {/* V27 — Assegnazione gerarchica (non applicabile a Master figlio che apre un sub-tenant) */}
+            {role !== "master_figlio" && (
+              <>
+                <Text style={styles.label}>Assegna sotto</Text>
+                <Pressable
+                  onPress={() => setAssignParentId(null)}
+                  testID="assign-self"
+                  style={[styles.roleCard, assignParentId === null && { borderColor: "#0891B2", backgroundColor: "#0891B212" }]}
+                >
+                  <View style={[styles.roleIcon, { backgroundColor: "#0891B2" }]}><Ionicons name="person-circle" size={22} color="#FFF" /></View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.roleTitle}>Direttamente a te (Master)</Text>
+                    <Text style={styles.roleDesc}>Il nuovo collaboratore risponde direttamente al tuo account.</Text>
+                  </View>
+                  {assignParentId === null && <Ionicons name="checkmark-circle" size={22} color="#0891B2" />}
+                </Pressable>
+                {teamMembers.length > 0 && (
+                  <>
+                    <Text style={styles.subLabel}>Oppure sotto un collaboratore esistente:</Text>
+                    {teamMembers.map((tm) => {
+                      const on = assignParentId === tm.user_id;
+                      const tmRoleLabel = tm.role === "admin" ? "Manager" : tm.role === "owner" ? "Master" : "Basic";
+                      return (
+                        <Pressable
+                          key={tm.user_id}
+                          onPress={() => setAssignParentId(tm.user_id)}
+                          testID={`assign-parent-${tm.user_id}`}
+                          style={[styles.memberRow, on && { borderColor: "#F59E0B", backgroundColor: "#F59E0B12" }]}
+                        >
+                          <View style={[styles.avatarSmall, { backgroundColor: on ? "#F59E0B" : "#94A3B8" }]}>
+                            <Text style={{ color: "#FFF", fontWeight: "800", fontSize: 12 }}>
+                              {(tm.name || tm.email || "?")[0]?.toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text style={styles.memberName} numberOfLines={1}>{tm.name || tm.email || "—"}</Text>
+                            <Text style={styles.memberSub} numberOfLines={1}>{tmRoleLabel}{tm.email ? ` · ${tm.email}` : ""}</Text>
+                          </View>
+                          {on && <Ionicons name="checkmark-circle" size={20} color="#F59E0B" />}
+                        </Pressable>
+                      );
+                    })}
+                  </>
+                )}
+              </>
+            )}
 
             <Text style={styles.label}>Nota (opzionale)</Text>
             <TextInput value={note} onChangeText={setNote} style={[styles.input, { height: 60, textAlignVertical: "top" }]} multiline placeholder="Es. Team Milano" testID="invite-note" />
@@ -273,6 +341,11 @@ const styles = StyleSheet.create({
   headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
   headerTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
   label: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 16, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 },
+  subLabel: { fontSize: 11, fontWeight: "700", color: theme.color.onSurfaceTertiary, marginTop: 6, marginBottom: 6 },
+  memberRow: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 12, borderWidth: 2, borderColor: theme.color.border, backgroundColor: theme.color.surface, marginBottom: 6 },
+  avatarSmall: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  memberName: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
+  memberSub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
   roleCard: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 2, borderColor: theme.color.border, backgroundColor: theme.color.surface, marginBottom: 8 },
   roleIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   roleTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },

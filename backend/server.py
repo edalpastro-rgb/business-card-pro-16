@@ -2317,6 +2317,7 @@ class InviteIn(BaseModel):
     note: str = ""
     role: Optional[str] = None  # "basic" | "manager" | "master_figlio" (mapped to member/admin/owner)
     collaborator_name: Optional[str] = None  # display name of the invited collaborator
+    assign_parent_user_id: Optional[str] = None  # V27 — assign new collaborator under an existing team member (must be tenant member)
 
 
 class InviteRegisterIn(BaseModel):
@@ -2382,6 +2383,17 @@ async def create_invite(body: InviteIn, user=Depends(get_current_user)):
         "owner": "owner",
     }
     invite_role = role_map.get((body.role or "").lower(), "member") if body.role else None
+    # V27 — Validate assign_parent_user_id: must be a member of the current tenant
+    assign_parent_user_id: Optional[str] = None
+    if body.assign_parent_user_id and invite_role in ("member", "admin"):
+        tid = tenant_id(user)
+        target = await db.users.find_one(
+            {"user_id": body.assign_parent_user_id, "$or": [{"user_id": tid}, {"parent_user_id": tid}]},
+            {"_id": 0, "user_id": 1}
+        )
+        if not target:
+            raise HTTPException(status_code=400, detail="Collaboratore di destinazione non valido")
+        assign_parent_user_id = body.assign_parent_user_id
     doc = {
         "invite_token": tok,
         "created_by": user["user_id"],
@@ -2389,6 +2401,7 @@ async def create_invite(body: InviteIn, user=Depends(get_current_user)):
         "note": body.note,
         "invite_role": invite_role,  # role to assign upon acceptance
         "collaborator_name": (body.collaborator_name or "").strip() or None,
+        "assign_parent_user_id": assign_parent_user_id,  # V27 — override parent at registration
         "created_at": utcnow(),
         "used_at": None,
         "used_by_user_id": None,
@@ -2456,12 +2469,14 @@ async def register_via_invite(token: str, body: InviteRegisterIn):
     # Support role-based invites (Basic/Manager/Master figlio)
     invite_role = inv.get("invite_role")  # "member" | "admin" | "owner" | None
     creator_id = inv.get("created_by")
+    # V27 — Optional override: assign under an existing team member instead of directly under master
+    assign_parent_override = inv.get("assign_parent_user_id")
     if invite_role == "member":
         role = "member"
-        parent_user_id = creator_id
+        parent_user_id = assign_parent_override or creator_id
     elif invite_role == "admin":
         role = "admin"
-        parent_user_id = creator_id
+        parent_user_id = assign_parent_override or creator_id
     elif invite_role == "owner":
         role = "owner"
         parent_user_id = creator_id  # sub-master (Master figlio) — separate tenant with lineage

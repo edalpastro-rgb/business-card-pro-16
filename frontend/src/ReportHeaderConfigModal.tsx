@@ -23,48 +23,32 @@ import { useAuth } from "@/src/auth";
 type Props = { visible: boolean; onClose: () => void };
 
 /**
- * StableTextInput — uncontrolled TextInput that avoids re-render on every keystroke.
- * Reads its initial value from `initialValue` when `resetKey` changes (e.g. modal opens),
- * writes to parent via `onCommit` only on blur or when the modal saves. This fixes the
- * bug where the parent's re-render (triggered by live preview state) reset the caret
- * or dropped characters mid-typing on web / Android.
+ * StableTextInput — TRULY uncontrolled TextInput.
+ * The parent uses `key={someResetKey}` to force a remount when the modal opens/closes,
+ * so this component captures the initial value ONCE on mount and never touches its
+ * value again in response to parent re-renders. The parent reads the current value
+ * via the imperative ref (`.getValue()`) at Save time. `onCommit` fires only onBlur.
  */
 type StableInputHandle = { getValue: () => string };
-const StableTextInput = React.memo(React.forwardRef<StableInputHandle, {
+const StableTextInput = React.forwardRef<StableInputHandle, {
   initialValue: string;
   onCommit: (v: string) => void;
-  resetKey: any;
   placeholder?: string;
   maxLength?: number;
   multiline?: boolean;
   style?: any;
   testID?: string;
-}>(function StableTextInput({ initialValue, onCommit, resetKey, placeholder, maxLength, multiline, style, testID }, ref) {
+}>(function StableTextInput({ initialValue, onCommit, placeholder, maxLength, multiline, style, testID }, ref) {
+  // Snapshot the initial value on FIRST render only, then ignore parent changes.
+  const initialSnapshot = useRef<string>(initialValue || "");
   const valueRef = useRef<string>(initialValue || "");
   const inputRef = useRef<TextInput>(null);
-
-  // On modal (re)open, sync ref + native input from parent
-  // NOTE: we intentionally depend only on `resetKey`, not `initialValue`.
-  // Re-syncing on every parent state change would reintroduce the very
-  // re-render bug this component is designed to avoid.
-  useEffect(() => {
-    valueRef.current = initialValue || "";
-    if (Platform.OS === "web") {
-      // Force update the underlying HTMLInputElement without re-rendering
-      const el: any = inputRef.current;
-      if (el && typeof el.value !== "undefined") {
-        el.value = initialValue || "";
-      }
-    } else {
-      inputRef.current?.setNativeProps({ text: initialValue || "" });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKey]);
 
   // Expose imperative getter so parent can flush the latest typed value on Save
   React.useImperativeHandle(ref, () => ({ getValue: () => valueRef.current }), []);
 
   const handleChange = useCallback((e: NativeSyntheticEvent<TextInputChangeEventData>) => {
+    // Store latest text WITHOUT triggering any React re-render
     valueRef.current = e.nativeEvent.text ?? "";
   }, []);
   const handleBlur = useCallback(() => {
@@ -75,7 +59,7 @@ const StableTextInput = React.memo(React.forwardRef<StableInputHandle, {
     <TextInput
       ref={inputRef}
       testID={testID}
-      defaultValue={initialValue}
+      defaultValue={initialSnapshot.current}
       onChange={handleChange}
       onBlur={handleBlur}
       placeholder={placeholder}
@@ -86,7 +70,7 @@ const StableTextInput = React.memo(React.forwardRef<StableInputHandle, {
       textAlignVertical={multiline ? "top" : undefined}
     />
   );
-}));
+});
 
 export function ReportHeaderConfigModal({ visible, onClose }: Props) {
   const { user, refresh } = useAuth();
@@ -103,6 +87,12 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
   const sloganRef = useRef<StableInputHandle>(null);
   const contactsRef = useRef<StableInputHandle>(null);
 
+  // Bump this whenever the modal opens: it's used as a key on the inputs so they
+  // fully remount AFTER `reset()` has populated the state — that way the initial
+  // snapshot each input captures matches the user's saved value, not the empty
+  // pre-reset state.
+  const [openTick, setOpenTick] = useState(0);
+
   // v2.17 — Auto-load current values from user profile when the modal opens
   const reset = useCallback(() => {
     setName(user?.company_name || "");
@@ -111,7 +101,12 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
     setLogoB64(user?.company_logo_base64 || "");
   }, [user]);
 
-  useEffect(() => { if (visible) reset(); }, [visible, reset]);
+  useEffect(() => {
+    if (visible) {
+      reset();
+      setOpenTick((k) => k + 1);
+    }
+  }, [visible, reset]);
 
   const pickLogo = async () => {
     setLogoBusy(true);
@@ -210,11 +205,11 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
 
             <Text style={styles.lbl}>Nome azienda</Text>
             <StableTextInput
+              key={`name-${openTick}`}
               ref={nameRef}
               testID="rhc-company-name"
               initialValue={name}
               onCommit={setName}
-              resetKey={visible}
               placeholder="Es. Dal Pastro Energie"
               style={styles.input}
               maxLength={80}
@@ -222,11 +217,11 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
 
             <Text style={styles.lbl}>Slogan / Payoff (facoltativo)</Text>
             <StableTextInput
+              key={`slogan-${openTick}`}
               ref={sloganRef}
               testID="rhc-slogan"
               initialValue={slogan}
               onCommit={setSlogan}
-              resetKey={visible}
               placeholder="Es. Il tuo consulente energia di fiducia"
               style={styles.input}
               maxLength={140}
@@ -234,11 +229,11 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
 
             <Text style={styles.lbl}>Contatti (facoltativo)</Text>
             <StableTextInput
+              key={`contacts-${openTick}`}
               ref={contactsRef}
               testID="rhc-contacts"
               initialValue={contacts}
               onCommit={setContacts}
-              resetKey={visible}
               placeholder={"Tel. +39 333 1234567\ninfo@daltua.it\nwww.daltua.it"}
               style={[styles.input, { minHeight: 80 }]}
               multiline

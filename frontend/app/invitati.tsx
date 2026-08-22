@@ -123,7 +123,7 @@ export default function InvitatiScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
-        <Text style={styles.title}>Clienti invitati</Text>
+        <Text style={styles.title}>Invita Prospect</Text>
         <View style={{ width: 26 }} />
       </View>
 

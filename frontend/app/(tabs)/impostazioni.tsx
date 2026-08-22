@@ -349,11 +349,11 @@ function ImpostazioniScreen() {
         )}
 
         {!user?.parent_user_id && (
-          <Pressable testID="invitati-link" onPress={() => router.push("/invitati")} style={styles.linkCard}>
+          <Pressable testID="invitati-link" onPress={() => router.push("/invita" as any)} style={styles.linkCard}>
             <Ionicons name="person-add" size={26} color={theme.color.brandPrimary} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>Clienti invitati</Text>
-              <Text style={styles.linkSub}>Genera link invito, monitora trial, estendi giorni</Text>
+              <Text style={styles.linkTitle}>Invita Prospect o Collaboratore</Text>
+              <Text style={styles.linkSub}>Prospect esterno o Collaboratore del tuo team</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
           </Pressable>
