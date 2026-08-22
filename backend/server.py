@@ -1769,6 +1769,60 @@ async def create_appointment(body: AppointmentIn, user=Depends(get_current_user)
     return doc
 
 
+# v2.19 — Statistiche appuntamenti per collaboratore
+@api_router.get("/appointments/stats")
+async def appointments_stats(
+    range_days: int = 30,
+    user=Depends(get_current_user),
+):
+    """Return counts done/undone per user (self + team) over the last N days.
+    Owner/admin see all tenant members; members see only their own row."""
+    tid = tenant_id(user)
+    since = utcnow() - timedelta(days=max(1, min(range_days, 365)))
+    # Fetch team members within tenant
+    members = await db.users.find(
+        {"$or": [{"user_id": tid}, {"parent_user_id": tid}]},
+        {"_id": 0, "user_id": 1, "name": 1, "email": 1, "role": 1}
+    ).to_list(200)
+    is_master = user.get("role") in ("owner", "admin")
+    if not is_master:
+        members = [m for m in members if m["user_id"] == user["user_id"]]
+    # Aggregate counts per created_by
+    pipeline = [
+        {"$match": {"user_id": tid, "start_at": {"$gte": since}, "is_broadcast": {"$ne": True}}},
+        {"$group": {
+            "_id": "$created_by",
+            "total": {"$sum": 1},
+            "done": {"$sum": {"$cond": [{"$eq": ["$done", True]}, 1, 0]}},
+        }},
+    ]
+    agg = {}
+    async for row in db.appointments.aggregate(pipeline):
+        agg[row["_id"]] = {"total": row["total"], "done": row["done"]}
+    per_user = []
+    for m in members:
+        st = agg.get(m["user_id"], {"total": 0, "done": 0})
+        per_user.append({
+            "user_id": m["user_id"],
+            "name": m.get("name") or m.get("email") or "—",
+            "role": m.get("role"),
+            "total": st["total"],
+            "done": st["done"],
+            "undone": st["total"] - st["done"],
+        })
+    # Sort by total desc for a leaderboard feel
+    per_user.sort(key=lambda x: (-x["total"], x["name"]))
+    my_row = next((r for r in per_user if r["user_id"] == user["user_id"]), {"total": 0, "done": 0, "undone": 0})
+    group_total = sum(r["total"] for r in per_user)
+    group_done = sum(r["done"] for r in per_user)
+    return {
+        "range_days": max(1, min(range_days, 365)),
+        "mine": {"total": my_row["total"], "done": my_row["done"], "undone": my_row["undone"]},
+        "group": {"total": group_total, "done": group_done, "undone": group_total - group_done},
+        "per_user": per_user,
+    }
+
+
 @api_router.get("/appointments/{appointment_id}")
 async def get_appointment(appointment_id: str, user=Depends(get_current_user)):
     # Fetch within tenant (allow broadcast visibility)

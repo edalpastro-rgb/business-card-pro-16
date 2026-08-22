@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
+import { pickCommonFile } from "@/src/utils/filePicker";
+import { notify } from "@/src/utils/notify";
 import * as FileSystem from "expo-file-system/legacy";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { api } from "@/src/api";
@@ -136,9 +138,10 @@ function ChatDetailScreen() {
   };
 
   const pickFile = async () => {
-    const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
-    if (res.canceled || !res.assets?.[0]) return;
-    const asset = res.assets[0];
+    // v2.20 — centralized common-formats picker + validation
+    const { asset, error } = await pickCommonFile();
+    if (error) { notify("Formato non supportato", error); return; }
+    if (!asset) return;
     try {
       const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
       await send({

@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
+import { pickCommonFile } from "@/src/utils/filePicker";
+import { notify } from "@/src/utils/notify";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -227,9 +229,10 @@ function ContactDetail() {
   };
 
   const pickFile = async () => {
-    const res = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"], multiple: false, copyToCacheDirectory: true });
-    if (res.canceled || !res.assets?.[0]) return;
-    const asset = res.assets[0];
+    // v2.20 — accept all common formats (PDF/images/docs/sheets/JSON) + validation
+    const { asset, error } = await pickCommonFile();
+    if (error) { notify("Formato non supportato", error); return; }
+    if (!asset) return;
     setBusy(true);
     try {
       const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
@@ -242,9 +245,10 @@ function ContactDetail() {
   };
 
   const addFileNote = async () => {
-    const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
-    if (res.canceled || !res.assets?.[0]) return;
-    const asset = res.assets[0];
+    // v2.20 — same common-formats validator on note attachments
+    const { asset, error } = await pickCommonFile();
+    if (error) { notify("Formato non supportato", error); return; }
+    if (!asset) return;
     setBusy(true);
     try {
       const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });

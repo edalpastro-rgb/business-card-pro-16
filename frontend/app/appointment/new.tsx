@@ -16,6 +16,7 @@ import { notify } from "@/src/utils/notify";
 import { WheelPickerModal, WheelItem } from "@/src/WheelPicker";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { AppointmentShareActions } from "@/src/AppointmentShareActions";
+import { pickCommonFile } from "@/src/utils/filePicker";
 
 type Attachment = {
   id: string;
@@ -209,9 +210,10 @@ function NewAppointmentScreen() {
 
   const pickFile = async () => {
     try {
-      const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
-      if (res.canceled || !res.assets?.[0]) return;
-      const asset = res.assets[0];
+      // v2.20 — centralized common-formats picker + validation
+      const { asset, error } = await pickCommonFile();
+      if (error) { notify("Formato non supportato", error); return; }
+      if (!asset) return;
       const b64 = await uriToBase64(asset.uri);
       if (base64ByteSize(b64) > 15 * 1024 * 1024) {
         notify("File troppo grande", "Massimo 15 MB");

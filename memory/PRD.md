@@ -1,5 +1,89 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.20 Feature — File upload: formati unificati + validazione (Feb 2026)
+### 🎯 Richiesta utente
+Ovunque nell'app sia possibile caricare un file, accettare tutti i formati comuni (PDF, immagini JPG/PNG/GIF/WEBP/HEIC, documenti TXT/DOC/DOCX, fogli XLS/XLSX/CSV) con validazione chiara se il formato non è supportato. Segnalare le sezioni dove manca completamente.
+
+### ✅ Nuovo helper centralizzato `/app/frontend/src/utils/filePicker.ts`
+- `COMMON_FILE_MIME_TYPES` — 23 MIME types (PDF, 8 image, 6 doc/text, 5 spreadsheet, 2 slide, JSON)
+- `COMMON_FILE_EXTS` — 24 estensioni per fallback validazione (Android/iOS a volte riportano MIME vuoto o `application/octet-stream`)
+- `COMMON_FILE_LABEL` — stringa human-readable per messaggi d'errore
+- `validateCommonFile(asset)` — ritorna null se ok, o messaggio errore IT
+- `pickCommonFile({multiple?})` — wrapper `DocumentPicker.getDocumentAsync` con validazione + ritorna `{asset, error}`
+
+### ✅ Punti aggiornati (5 pickers)
+1. **`/app/frontend/app/chat/[id].tsx`** — allegato chat: era `*/*` senza validazione → ora accetta solo comuni + notify errore
+2. **`/app/frontend/app/contact/[id].tsx`** — file cliente: era solo PDF+image → ora tutti i formati comuni
+3. **`/app/frontend/app/contact/[id].tsx`** (note attachment): era `*/*` → validato
+4. **`/app/frontend/app/contact/new.tsx`** — allegato in creazione contatto (email + generic): era `*/*` → validato
+5. **`/app/frontend/app/appointment/new.tsx`** — note attachment appuntamento: era `*/*` → validato
+
+### ✅ Punti già ok (non modificati)
+- `bill-quick.tsx` — PDF only intenzionale (fatture)
+- `event-banners.tsx` — PDF (programma) + audio only intenzionali
+- `master-files.tsx` — già ha lista ampia formati specifica per categoria
+
+### 📋 Sezioni SENZA possibilità di allegare file (segnalate come richiesto, non modificate)
+- **`/app/frontend/app/callback/new.tsx` + `[id].tsx`** — Richiami/callback: nessun allegato (utile per foto documento POD?)
+- **`/app/frontend/app/appointment/[id].tsx`** — Vista appuntamento: non permette di AGGIUNGERE nuovi allegati dopo creazione (solo la new.tsx ha il picker)
+- **`/app/frontend/app/corporate/new.tsx`** — Contratto corporate: solo dati testuali
+- **`/app/frontend/app/contract/new.tsx`** — Contratto: solo dati testuali (potrebbe voler allegare copia contratto firmato)
+- **`/app/frontend/app/groups/[id].tsx`** — Dettaglio gruppo contatti: no file
+- **`/app/frontend/app/neo-memory.tsx`** — Memoria AI (probabilmente non applicabile)
+
+### ✅ Verifica (senza testing agent)
+- Lint pulito su tutti i 5 file modificati + nuovo utility ✅
+- Expo restart senza errori ✅
+
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
+## v2.19 Feature — Calendario: riordino UI + backlog persistente + statistiche (Feb 2026)
+### 🎯 Richieste utente
+1) Vista predefinita = **Mese**
+2) Sposta filtri categoria + visibilità **SOTTO** il calendario (per non coprire la griglia)
+3) Rimuovi il pulsante "Tutti" duplicato (era in scope + area filter)
+4) Sotto il calendario, elenco persistente di tutti gli appuntamenti miei non completati (oggi + arretrati) — restano visibili finché non vengono segnati come fatti o riprogrammati
+5) Appuntamenti completati visibili solo fino a mezzanotte del giorno stesso
+6) Sezione statistiche appuntamenti: fatti/non fatti per me, gruppo, e per ogni collaboratore
+
+### ✅ Backend (`/app/backend/server.py`)
+- Nuovo endpoint `GET /api/appointments/stats?range_days=30`
+  - Aggregazione MongoDB `$group` per `created_by` con conteggi total/done
+  - RBAC: owner/admin vedono tutti i membri del tenant; member vede solo se stesso
+  - Ritorna `{range_days, mine, group, per_user[]}` con ranking per total desc
+
+### ✅ Frontend
+`/app/frontend/app/(tabs)/calendario.tsx`:
+1. **Default view = "month"** (era "week") — 1 riga cambiata
+2. **Filtri riposizionati**: rimosso il blocco scope + area + membri dall'header; inseriti DENTRO la ScrollView interna, subito DOPO `MonthGrid` (o WeekView/YearGrid) → la griglia calendario resta sempre visibile in cima
+3. **Rimossa duplicazione "Tutti"**: scope tab "Tutti" rinominato → **"Io + Team"** (mantenendo semantica: mine=solo io, team=solo altri, all=entrambi). Il "Tutti" nell'area filter (categoria) resta invariato → una sola etichetta "Tutti" visibile
+4. **Backlog persistente** (`backlogItems` memoized):
+   - Filtra `items` per `kind === "appt" && is_mine !== false && !done`
+   - Solo eventi con `start_at <= fine di oggi (23:59:59)` → include oggi + tutti gli arretrati
+   - Rispetta l'area filter attivo
+   - Ordinato per data ascendente (più vecchi in alto)
+   - Card colorata: giallo per oggi, rosso per arretrati ("N giorni fa")
+   - Header con conteggio + hint "Restano visibili finché non li segni come fatti o riprogrammi"
+5. **Completati filtrati a mezzanotte**: implicito nel `dayItems` esistente (`sameDay` esclude passato); nel backlog il filtro `!done` esclude già i completati; se un evento è completato entro le 23:59 di oggi resta comunque nel day view della data corrispondente
+6. **Link statistiche**: bottone "Statistiche appuntamenti" chevron-forward sotto i filtri → naviga a `/appointment-stats`
+
+**Nuova schermata `/app/frontend/app/appointment-stats.tsx`**:
+- Range selector (7g / 30g / 3mesi / 6mesi / 1anno)
+- 2 KPI card: **I miei** (blu) e **Gruppo** (viola) con total + badge done/undone + % completati
+- Search filter per nome collaboratore
+- Lista per collaboratore con nome, ruolo, total, badge ✓/✗, progress bar %
+
+### ✅ Verifica end-to-end (senza testing agent)
+- Backend `/appointments/stats?range_days=30` → 200 OK, ritorna mine/group/per_user con 4 righe reali ✅
+- Fix: `datetime.timedelta` → `timedelta` (import già esistente)
+- Lint pulito ✅
+
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.18 Feature — Banner Evento: range date + descrizione + audio (Feb 2026)
 ### 🎯 Richieste utente
 1) Range date: aggiungere data fine opzionale + selettore nativo calendario/orologio (DateTimePicker) per data inizio e fine.

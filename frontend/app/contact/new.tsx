@@ -6,6 +6,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Contacts from "expo-contacts";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import * as DocumentPicker from "expo-document-picker";
+import { pickCommonFile } from "@/src/utils/filePicker";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -660,9 +661,10 @@ function NewContactScreen() {
 
   const pickFileFor = async (target: "email" | "general") => {
     try {
-      const res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false, copyToCacheDirectory: true });
-      if (res.canceled || !res.assets?.[0]) return;
-      const asset = res.assets[0];
+      // v2.20 — centralized common-formats picker + validation
+      const { asset, error } = await pickCommonFile();
+      if (error) { notify("Formato non supportato", error); return; }
+      if (!asset) return;
       const b64 = await uriToBase64(asset.uri);
       if (base64ByteSize(b64) > 15 * 1024 * 1024) { notify("File troppo grande", "Max 15 MB"); return; }
       addAttachmentFor(target, {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -73,7 +73,7 @@ function CalendarioScreen() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "energy" | "network" | "birthday">("all");
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
-  const [viewMode, setViewMode] = useState<"week" | "month" | "year">("week");
+  const [viewMode, setViewMode] = useState<"week" | "month" | "year">("month");
   // V38T — New: scope tab (Mine / Team / All)
   const [scope, setScope] = useState<CalScope>("mine");
   // V38T — Selected collaborator filter (multi-select). Empty = show all.
@@ -220,6 +220,19 @@ function CalendarioScreen() {
   });
   const dayItems = filteredItems.filter((a) => sameDay(a.start_at, selectedDate));
 
+  // v2.19 — Persistent backlog: MY non-done appointments in the past or today.
+  // Stays visible until user marks them done or reschedules them to a future date.
+  const backlogItems = React.useMemo(() => {
+    const now = new Date();
+    const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    return items
+      .filter((it) => it.kind === "appt" && it.is_mine !== false && !it.done)
+      .filter((it) => it.start_at <= endToday)
+      // Apply the same area filter as the main list so it stays consistent
+      .filter((it) => filter === "all" || it.area === filter)
+      .sort((a, b) => a.start_at.getTime() - b.start_at.getTime());
+  }, [items, filter]);
+
   const colorFor = (area: string) => {
     if (area === "energy") return settings?.energy_color || theme.color.energy;
     if (area === "network") return settings?.network_color || theme.color.network;
@@ -263,25 +276,6 @@ function CalendarioScreen() {
         <Text style={styles.greenAddTxt}>Aggiungi Appuntamento</Text>
       </Pressable>
 
-      {/* V38T — Scope tab bar: Mine / Team / All */}
-      <View style={styles.scopeBar}>
-        {([
-          { k: "mine" as const, label: "I miei", icon: "person" as const },
-          { k: "team" as const, label: "Team", icon: "people" as const },
-          { k: "all" as const, label: "Tutti", icon: "layers" as const },
-        ]).map((s) => (
-          <Pressable
-            key={s.k}
-            testID={`scope-${s.k}`}
-            onPress={() => { setScope(s.k); setMemberFilter(new Set()); }}
-            style={[styles.scopeBtn, scope === s.k && styles.scopeBtnOn]}
-          >
-            <Ionicons name={s.icon} size={14} color={scope === s.k ? "#FFF" : theme.color.muted} />
-            <Text style={[styles.scopeTxt, scope === s.k && styles.scopeTxtOn]}>{s.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-
       <View style={styles.segment}>
         {(["week", "month", "year"] as const).map((m) => (
           <Pressable
@@ -296,51 +290,6 @@ function CalendarioScreen() {
           </Pressable>
         ))}
       </View>
-
-      {/* Area/merceologica filter — always visible in every view */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow} style={{ maxHeight: 44 }} testID="cal-area-filters">
-        {(["all", "energy", "network", "birthday"] as const).map((f) => (
-          <Pressable key={f} testID={`cal-filter-${f}`} onPress={() => setFilter(f)} style={[styles.chip, filter === f && styles.chipActive]}>
-            <Text style={[styles.chipTxt, filter === f && styles.chipTxtActive]}>
-              {f === "all" ? "Tutti" : f === "energy" ? (settings?.energy_title || "Energia") : f === "network" ? (settings?.network_title || "Network") : "Compleanni"}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      {/* V38T — Collaborator filter chips (only in team/all mode) */}
-      {(scope === "team" || scope === "all") && teamMembers.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersRow}
-          style={{ maxHeight: 44 }}
-          testID="cal-member-filters"
-        >
-          {teamMembers
-            // In Team tab, hide self from the chips list (we're viewing others)
-            .filter((m) => scope === "all" || !m.is_me)
-            .map((m) => {
-              const active = memberFilter.has(m.user_id);
-              return (
-                <Pressable
-                  key={m.user_id}
-                  testID={`member-filter-${m.user_id}`}
-                  onPress={() => toggleMember(m.user_id)}
-                  style={[
-                    styles.memberChip,
-                    active && { backgroundColor: m.color, borderColor: m.color },
-                  ]}
-                >
-                  <View style={[styles.memberDot, { backgroundColor: m.color }]} />
-                  <Text style={[styles.chipTxt, active && styles.chipTxtActive]} numberOfLines={1}>
-                    {m.is_me ? "Io" : (m.name?.split(" ")[0] || m.name || "Coll.")}
-                  </Text>
-                </Pressable>
-              );
-            })}
-        </ScrollView>
-      )}
 
       {viewMode === "week" && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.daysRow}>
@@ -402,6 +351,75 @@ function CalendarioScreen() {
               }}
             />
           )}
+
+          {/* v2.19 — Filters moved BELOW the calendar so the grid stays visible */}
+          <View style={styles.scopeBar}>
+            {([
+              { k: "mine" as const, label: "I miei", icon: "person" as const },
+              { k: "team" as const, label: "Team", icon: "people" as const },
+              { k: "all" as const, label: "Io + Team", icon: "layers" as const },
+            ]).map((s) => (
+              <Pressable
+                key={s.k}
+                testID={`scope-${s.k}`}
+                onPress={() => { setScope(s.k); setMemberFilter(new Set()); }}
+                style={[styles.scopeBtn, scope === s.k && styles.scopeBtnOn]}
+              >
+                <Ionicons name={s.icon} size={14} color={scope === s.k ? "#FFF" : theme.color.muted} />
+                <Text style={[styles.scopeTxt, scope === s.k && styles.scopeTxtOn]}>{s.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow} style={{ maxHeight: 44 }} testID="cal-area-filters">
+            {(["all", "energy", "network", "birthday"] as const).map((f) => (
+              <Pressable key={f} testID={`cal-filter-${f}`} onPress={() => setFilter(f)} style={[styles.chip, filter === f && styles.chipActive]}>
+                <Text style={[styles.chipTxt, filter === f && styles.chipTxtActive]}>
+                  {f === "all" ? "Tutti" : f === "energy" ? (settings?.energy_title || "Energia") : f === "network" ? (settings?.network_title || "Network") : "Compleanni"}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {(scope === "team" || scope === "all") && teamMembers.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtersRow}
+              style={{ maxHeight: 44 }}
+              testID="cal-member-filters"
+            >
+              {teamMembers
+                .filter((m) => scope === "all" || !m.is_me)
+                .map((m) => {
+                  const active = memberFilter.has(m.user_id);
+                  return (
+                    <Pressable
+                      key={m.user_id}
+                      testID={`member-filter-${m.user_id}`}
+                      onPress={() => toggleMember(m.user_id)}
+                      style={[styles.memberChip, active && { backgroundColor: m.color, borderColor: m.color }]}
+                    >
+                      <View style={[styles.memberDot, { backgroundColor: m.color }]} />
+                      <Text style={[styles.chipTxt, active && styles.chipTxtActive]} numberOfLines={1}>
+                        {m.is_me ? "Io" : (m.name?.split(" ")[0] || m.name || "Coll.")}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+            </ScrollView>
+          )}
+
+          {/* v2.19 — Stats link */}
+          <Pressable
+            testID="cal-stats-link"
+            onPress={() => router.push("/appointment-stats" as any)}
+            style={styles.statsLink}
+          >
+            <Ionicons name="stats-chart" size={16} color={theme.color.brandPrimary} />
+            <Text style={styles.statsLinkTxt}>Statistiche appuntamenti</Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.color.brandPrimary} />
+          </Pressable>
 
           <View style={styles.dateHeader}>
             <Text style={styles.dateTxt}>{selectedDate.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</Text>
@@ -486,6 +504,41 @@ function CalendarioScreen() {
                   })()}
                 </Pressable>
               ))}
+            </View>
+          )}
+
+          {/* v2.19 — Persistent backlog of my non-done appointments (today + past) */}
+          {backlogItems.length > 0 && (
+            <View style={{ marginTop: 12, marginBottom: 20 }}>
+              <View style={styles.backlogHdr}>
+                <Ionicons name="alarm" size={16} color="#B45309" />
+                <Text style={styles.backlogTitle}>Da recuperare · {backlogItems.length}</Text>
+              </View>
+              <Text style={styles.backlogHint}>Appuntamenti miei non ancora fatti (oggi + arretrati). Restano visibili finché non li segni come fatti o li riprogrammi.</Text>
+              {backlogItems.map((item) => {
+                const dt = new Date(item.start_at);
+                const dateFmt = dt.toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+                const timeFmt = dt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+                const daysAgo = Math.floor((Date.now() - dt.getTime()) / 86400000);
+                const isPast = daysAgo > 0;
+                return (
+                  <Pressable
+                    key={`bk-${item.id}`}
+                    testID={`backlog-item-${item.id}`}
+                    onPress={() => router.push(`/appointment/${item.id}` as any)}
+                    style={[styles.backlogItem, isPast && styles.backlogItemPast]}
+                  >
+                    <View style={[styles.backlogDot, { backgroundColor: colorFor(item) }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.backlogItemTitle} numberOfLines={1}>{item.title}</Text>
+                      <Text style={styles.backlogItemMeta}>
+                        {dateFmt} · {timeFmt}{isPast ? ` · ${daysAgo} ${daysAgo === 1 ? "giorno" : "giorni"} fa` : " · oggi"}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                  </Pressable>
+                );
+              })}
             </View>
           )}
         </ScrollView>
@@ -578,6 +631,26 @@ const styles = StyleSheet.create({
   yearCell: { width: "31%", backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, padding: 10, alignItems: "center", gap: 4 },
   yearMonthName: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface, textTransform: "capitalize" },
   yearMonthCount: { fontSize: 11, color: theme.color.muted },
+  // v2.19 — Stats link + backlog
+  statsLink: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingVertical: 10, paddingHorizontal: 14,
+    backgroundColor: "#EEF2FF", borderRadius: 10, marginTop: 10, marginBottom: 4,
+  },
+  statsLinkTxt: { flex: 1, fontSize: 13, fontWeight: "800", color: theme.color.brandPrimary },
+  backlogHdr: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+  backlogTitle: { fontSize: 14, fontWeight: "800", color: "#B45309", textTransform: "uppercase", letterSpacing: 0.4 },
+  backlogHint: { fontSize: 11, color: theme.color.muted, marginBottom: 8, lineHeight: 15 },
+  backlogItem: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: "#FFF7ED", borderRadius: 10, borderWidth: 1, borderColor: "#FED7AA",
+    marginBottom: 6,
+  },
+  backlogItemPast: { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" },
+  backlogDot: { width: 10, height: 10, borderRadius: 5 },
+  backlogItemTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
+  backlogItemMeta: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
   yearDots: { flexDirection: "row", gap: 3, marginTop: 4 },
 });
 
