@@ -32,7 +32,7 @@ export default function InvitaHubScreen() {
 
         <Pressable
           testID="hub-invite-prospect"
-          onPress={() => router.push("/invitati" as any)}
+          onPress={() => router.push("/invita-pick?intent=prospect" as any)}
           style={[styles.card, { borderColor: "#0891B2" }]}
         >
           <View style={[styles.iconBadge, { backgroundColor: "#0891B2" }]}>
@@ -59,7 +59,7 @@ export default function InvitaHubScreen() {
 
         <Pressable
           testID="hub-invite-collaborator"
-          onPress={() => router.push("/invite-collaborator" as any)}
+          onPress={() => router.push("/invita-pick?intent=collaborator" as any)}
           style={[styles.card, { borderColor: "#7C3AED" }]}
         >
           <View style={[styles.iconBadge, { backgroundColor: "#7C3AED" }]}>

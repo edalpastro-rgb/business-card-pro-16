@@ -485,6 +485,8 @@ class ContactIn(BaseModel):
     general_note: str = ""
     tags: List[str] = Field(default_factory=list)
     group_ids: List[str] = Field(default_factory=list)
+    # V27 — Contact status classification (Master can change any time from the detail screen)
+    status: Literal["prospect", "collaborator", "client"] = "prospect"
 
 
 class ContactUpdate(BaseModel):
@@ -533,6 +535,8 @@ class ContactUpdate(BaseModel):
     tags: Optional[List[str]] = None
     group_ids: Optional[List[str]] = None
     avatar_base64: Optional[str] = None
+    # V27 — Contact status
+    status: Optional[Literal["prospect", "collaborator", "client"]] = None
 
 
 class ProfileUpdate(BaseModel):
@@ -2318,6 +2322,15 @@ class InviteIn(BaseModel):
     role: Optional[str] = None  # "basic" | "manager" | "master_figlio" (mapped to member/admin/owner)
     collaborator_name: Optional[str] = None  # display name of the invited collaborator
     assign_parent_user_id: Optional[str] = None  # V27 — assign new collaborator under an existing team member (must be tenant member)
+    # V27 — Contact linkage: invite an existing contact from the rubrica.
+    # If contact_id is provided, the invite is bound to that contact and status is updated on registration.
+    # If contact_id is None but contact_quick fields are provided, a new contact is created on the fly.
+    contact_id: Optional[str] = None
+    contact_quick_first_name: Optional[str] = None
+    contact_quick_last_name: Optional[str] = None
+    contact_quick_email: Optional[str] = None
+    contact_quick_phone: Optional[str] = None
+    contact_intent: Optional[Literal["prospect", "collaborator"]] = None  # what the invite is FOR
 
 
 class InviteRegisterIn(BaseModel):
@@ -2383,10 +2396,10 @@ async def create_invite(body: InviteIn, user=Depends(get_current_user)):
         "owner": "owner",
     }
     invite_role = role_map.get((body.role or "").lower(), "member") if body.role else None
+    tid = tenant_id(user)
     # V27 — Validate assign_parent_user_id: must be a member of the current tenant
     assign_parent_user_id: Optional[str] = None
     if body.assign_parent_user_id and invite_role in ("member", "admin"):
-        tid = tenant_id(user)
         target = await db.users.find_one(
             {"user_id": body.assign_parent_user_id, "$or": [{"user_id": tid}, {"parent_user_id": tid}]},
             {"_id": 0, "user_id": 1}
@@ -2394,6 +2407,48 @@ async def create_invite(body: InviteIn, user=Depends(get_current_user)):
         if not target:
             raise HTTPException(status_code=400, detail="Collaboratore di destinazione non valido")
         assign_parent_user_id = body.assign_parent_user_id
+
+    # V27 — Contact linkage: bind to existing contact or create one on the fly
+    contact_id_final: Optional[str] = None
+    if body.contact_id:
+        ct = await db.contacts.find_one({"contact_id": body.contact_id, "user_id": tid}, {"_id": 0, "contact_id": 1})
+        if not ct:
+            raise HTTPException(status_code=400, detail="Contatto non valido")
+        contact_id_final = body.contact_id
+    elif body.contact_quick_first_name or body.contact_quick_email or body.contact_quick_phone:
+        fn = (body.contact_quick_first_name or "").strip()
+        ln = (body.contact_quick_last_name or "").strip()
+        em = (body.contact_quick_email or "").strip().lower()
+        ph = (body.contact_quick_phone or "").strip()
+        if not (fn or em or ph):
+            raise HTTPException(status_code=400, detail="Servono almeno nome, email o telefono per creare il contatto")
+        cid = f"contact_{uuid.uuid4().hex[:12]}"
+        intent_status = body.contact_intent or ("collaborator" if invite_role else "prospect")
+        contact_doc = {
+            "contact_id": cid,
+            "user_id": tid,
+            "assigned_to_user_id": user["user_id"],
+            "created_by": user["user_id"],
+            "first_name": fn or (em.split("@")[0] if em else "—"),
+            "last_name": ln,
+            "email": em,
+            "phone": ph,
+            "area": "energy",
+            "additional_areas": [],
+            "source": "personal",
+            "status": intent_status,
+            "created_at": utcnow(),
+            "updated_at": utcnow(),
+        }
+        await db.contacts.insert_one(contact_doc)
+        contact_id_final = cid
+    # Sync contact status to the invite intent immediately (visible in rubrica even before registration)
+    if contact_id_final and body.contact_intent:
+        await db.contacts.update_one(
+            {"contact_id": contact_id_final, "user_id": tid},
+            {"$set": {"status": body.contact_intent, "updated_at": utcnow()}}
+        )
+
     doc = {
         "invite_token": tok,
         "created_by": user["user_id"],
@@ -2402,6 +2457,8 @@ async def create_invite(body: InviteIn, user=Depends(get_current_user)):
         "invite_role": invite_role,  # role to assign upon acceptance
         "collaborator_name": (body.collaborator_name or "").strip() or None,
         "assign_parent_user_id": assign_parent_user_id,  # V27 — override parent at registration
+        "contact_id": contact_id_final,  # V27 — linked contact
+        "contact_intent": body.contact_intent,  # V27 — prospect|collaborator
         "created_at": utcnow(),
         "used_at": None,
         "used_by_user_id": None,
@@ -2503,6 +2560,20 @@ async def register_via_invite(token: str, body: InviteRegisterIn):
         {"invite_token": token},
         {"$set": {"used_at": now, "used_by_user_id": uid}},
     )
+    # V27 — Update linked contact status + link to registered user
+    inv_contact_id = inv.get("contact_id")
+    inv_intent = inv.get("contact_intent") or ("collaborator" if invite_role else "prospect")
+    if inv_contact_id and inv["created_by"]:
+        # Update inside the inviter's tenant (creator is a master, so its user_id IS the tenant_id)
+        await db.contacts.update_one(
+            {"contact_id": inv_contact_id, "user_id": inv["created_by"]},
+            {"$set": {
+                "status": inv_intent,
+                "linked_user_id": uid,  # V27 — link the newly-registered user back to the master's rubrica entry
+                "email": body.email.lower().strip() or None,
+                "updated_at": now,
+            }}
+        )
     token_jwt = jwt.encode({"sub": uid, "email": user_doc["email"]}, JWT_SECRET, algorithm=JWT_ALG)
     return {
         "token": token_jwt,

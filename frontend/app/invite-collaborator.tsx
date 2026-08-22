@@ -1,8 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Share, Platform, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
 import * as Clipboard from "expo-clipboard";
 import { api } from "@/src/api";
@@ -33,6 +33,8 @@ type TeamMember = { user_id: string; name?: string; email?: string; role?: strin
 
 export default function InviteCollaboratorScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ contact_id?: string; contact_name?: string; contact_email?: string; intent?: string }>();
+  const linkedContactId = params.contact_id || null;
   const [role, setRole] = useState<Role>("basic");
   const [collaboratorName, setCollaboratorName] = useState("");
   const [note, setNote] = useState("");
@@ -45,6 +47,14 @@ export default function InviteCollaboratorScreen() {
   // V27 — Assign under an existing team member
   const [assignParentId, setAssignParentId] = useState<string | null>(null); // null = assign directly to master
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
+  // V27 — Prefill collaboratore name from linked contact (if picked from rubrica)
+  useEffect(() => {
+    if (params.contact_name && !collaboratorName) {
+      setCollaboratorName(String(params.contact_name));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.contact_name]);
 
   const loadInvites = useCallback(async () => {
     try {
@@ -81,6 +91,8 @@ export default function InviteCollaboratorScreen() {
           collaborator_name: collaboratorName.trim(),
           // Master figlio is a sub-tenant, so we ignore parent override for it.
           assign_parent_user_id: role !== "master_figlio" ? assignParentId : null,
+          contact_id: linkedContactId,
+          contact_intent: "collaborator",
         },
       });
       setInvite({ invite_token: r.invite_token, role: r.invite_role });

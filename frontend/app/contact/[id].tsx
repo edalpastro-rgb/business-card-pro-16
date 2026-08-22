@@ -41,6 +41,14 @@ type Contact = {
   notes: Note[]; files: CFile[]; avatar_base64?: string;
   assigned_to_user_id?: string;
   contact_code?: string;
+  status?: "prospect" | "collaborator" | "client";
+  linked_user_id?: string;
+};
+
+const STATUS_META: Record<string, { label: string; color: string; icon: any }> = {
+  prospect: { label: "Prospect", color: "#0891B2", icon: "person-outline" },
+  collaborator: { label: "Collaboratore", color: "#7C3AED", icon: "people" },
+  client: { label: "Cliente", color: "#16A34A", icon: "briefcase" },
 };
 
 export default function ContactDetailRoute() {
@@ -102,6 +110,16 @@ function ContactDetail() {
       load();
     } catch (e: any) {
       // eslint-disable-next-line no-alert
+      if (typeof window !== "undefined") window.alert("Errore: " + (e?.message || ""));
+    }
+  };
+
+  // V27 — Change contact status (Prospect | Collaboratore | Cliente)
+  const setStatus = async (status: "prospect" | "collaborator" | "client") => {
+    try {
+      await api(`/contacts/${id}`, { method: "PUT", body: { status } });
+      load();
+    } catch (e: any) {
       if (typeof window !== "undefined") window.alert("Errore: " + (e?.message || ""));
     }
   };
@@ -406,6 +424,25 @@ function ContactDetail() {
             ))}
           </View>
         )}
+
+        {/* V27 — Contact status selector (Prospect | Collaboratore | Cliente) */}
+        <View style={styles.statusRow} testID="contact-status-row">
+          {(["prospect", "collaborator", "client"] as const).map((s) => {
+            const meta = STATUS_META[s];
+            const on = (c.status || "prospect") === s;
+            return (
+              <Pressable
+                key={s}
+                testID={`status-${s}`}
+                onPress={() => setStatus(s)}
+                style={[styles.statusChip, on && { backgroundColor: meta.color, borderColor: meta.color }]}
+              >
+                <Ionicons name={meta.icon} size={12} color={on ? "#FFF" : meta.color} />
+                <Text style={[styles.statusChipTxt, on && { color: "#FFF" }, !on && { color: meta.color }]}>{meta.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
 
       <View style={styles.tabs}>
@@ -1000,6 +1037,9 @@ const styles = StyleSheet.create({
   areaTagCompact: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 1 },
   assignPill: { marginTop: 8, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: theme.color.brandTertiary, borderRadius: 20 },
   assignPillTxt: { fontSize: 11, color: theme.color.brandPrimary, fontWeight: "700" },
+  statusRow: { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
+  statusChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5 },
+  statusChipTxt: { fontSize: 11, fontWeight: "800" },
   tabs: { flexDirection: "row", backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: theme.color.border },
   tabIcon: { flex: 1, paddingVertical: 10, alignItems: "center", justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabIconActive: { borderBottomColor: theme.color.brandPrimary, backgroundColor: theme.color.brandPrimary + "10" },

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Platform, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
@@ -21,11 +21,19 @@ function getPublicOrigin(): string {
 
 export default function InvitatiScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ contact_id?: string; contact_name?: string; contact_email?: string }>();
+  const linkedContactId = params.contact_id || null;
   const [items, setItems] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [trialDays, setTrialDays] = useState("30");
   const [note, setNote] = useState("");
+
+  // V27 — Prefill note with contact name when arriving from picker
+  useEffect(() => {
+    if (params.contact_name && !note) setNote(`Invito per ${String(params.contact_name)}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.contact_name]);
 
   const load = async () => {
     setLoading(true);
@@ -40,7 +48,7 @@ export default function InvitatiScreen() {
     const days = parseInt(trialDays, 10) || 30;
     setCreating(true);
     try {
-      const inv = await api<Invite>("/invites", { method: "POST", body: { trial_days: days, note } });
+      const inv = await api<Invite>("/invites", { method: "POST", body: { trial_days: days, note, contact_id: linkedContactId, contact_intent: "prospect" } });
       setNote("");
       await load();
       // Share link automatically
@@ -123,7 +131,7 @@ export default function InvitatiScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
-        <Text style={styles.title}>Invita Prospect</Text>
+        <Text style={styles.title}>{linkedContactId ? `Invita Prospect: ${params.contact_name || "…"}` : "Invita Prospect"}</Text>
         <View style={{ width: 26 }} />
       </View>
 
