@@ -1,5 +1,37 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.14 Feature — "Invia dettagli" in creazione appuntamento (Feb 2026)
+### 🎯 Richiesta utente
+Nella sezione Appuntamenti, quando si crea o visualizza un appuntamento con numero di telefono del cliente, manca il pulsante per inviare i dettagli via SMS/WhatsApp. Aggiungerlo alla schermata di creazione con testo pre-compilato (data, ora, luogo).
+
+### 🔬 Root cause / stato attuale
+- `/app/frontend/app/appointment/[id].tsx` (view) — sezione share Email/WhatsApp/SMS **già presente** (linee 361-405)
+- `/app/frontend/app/appointment/new.tsx` (create) — **mancante**: dopo `submit()`, `router.back()` immediato senza dare la possibilità di condividere
+
+### ✅ Fix applicato
+**Nuovo componente condiviso** `/app/frontend/src/AppointmentShareActions.tsx`:
+- Helper `buildAppointmentMessage(appt, contact)` esportato — testo IT localizzato con emoji (📅 titolo, 🗓 data lunga `dateStyle:full timeStyle:short`, 📍 luogo, 📞 telefonico, Note)
+- Componente `<AppointmentShareActions appt contact />` con 3 bottoni: Email (mailto), WhatsApp (wa.me), SMS (sms:) — auto-disabled se manca il canale
+- Warning inline se il contatto non ha né phone né email
+
+**Integrato in** `/app/frontend/app/appointment/new.tsx`:
+- Nuovo state `postSave` popolato in `submit()` dopo la POST riuscita
+- Se il contatto selezionato ha phone o email → apre bottom-sheet modal "Appuntamento creato ✅ — Vuoi inviare i dettagli al cliente ora?" con `<AppointmentShareActions />`
+- Se nessun canale disponibile → `router.back()` come prima (nessuna regressione)
+- Al tap "Chiudi senza inviare" → `router.back()`
+- testID: `appt-share-email`, `appt-share-whatsapp`, `appt-share-sms`, `post-save-close`
+
+**`[id].tsx` (view)** non modificato — codice share esistente conservato (testID storici `share-email`/`share-whatsapp`/`share-sms` preservati per backward compat).
+
+### ✅ Verifica (senza testing agent)
+- Node inline: `buildAppointmentMessage()` genera 280 char testo IT localizzato ✅
+- Lint pulito su entrambi i file ✅
+- Expo riavvia senza errori ✅
+
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.13 Bug Fix — Parsing data italiana in Banner Evento (Feb 2026)
 ### 🐛 Bug segnalato
 `event-banners.tsx:223` — `new Date("27.08.2036T20:30:00").toISOString()` lanciava `RangeError: Invalid time value` perché `Date()` non parsa il formato italiano DD.MM.YYYY, blocca il salvataggio dell'evento.

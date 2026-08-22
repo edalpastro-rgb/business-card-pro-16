@@ -15,6 +15,7 @@ import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/med
 import { notify } from "@/src/utils/notify";
 import { WheelPickerModal, WheelItem } from "@/src/WheelPicker";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { AppointmentShareActions } from "@/src/AppointmentShareActions";
 
 type Attachment = {
   id: string;
@@ -160,6 +161,8 @@ function NewAppointmentScreen() {
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [wheelPicker, setWheelPicker] = useState<null | "duration" | "reminder">(null);
   const [busy, setBusy] = useState(false);
+  // v2.14 — Post-save "Invia dettagli" modal
+  const [postSave, setPostSave] = useState<null | { appt: { title: string; start_at: Date; is_phone: boolean; location: string; notes: string }; contact: { first_name?: string; last_name?: string; phone?: string; whatsapp?: string; email?: string } | null }>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [recording, setRecording] = useState(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -343,7 +346,32 @@ function NewAppointmentScreen() {
           await api(`/appointments/${reschedule_from}`, { method: "PUT", body: { rescheduled_to: created.appointment_id } });
         } catch (e) { console.warn(e); }
       }
-      router.back();
+      // v2.14 — If the selected contact has a phone/email, show the share
+      // modal so the consultant can send the appointment details right away.
+      const selectedContact = form.contact_id
+        ? (contacts.find((c) => c.contact_id === form.contact_id) || null)
+        : null;
+      const hasChannel = !!(selectedContact && (selectedContact.phone || selectedContact.email));
+      if (hasChannel && selectedContact) {
+        setPostSave({
+          appt: {
+            title: form.title.trim(),
+            start_at: form.start_at,
+            is_phone: form.is_phone,
+            location: form.location,
+            notes: form.notes,
+          },
+          contact: {
+            first_name: selectedContact.first_name,
+            last_name: selectedContact.last_name,
+            phone: selectedContact.phone,
+            whatsapp: (selectedContact as any).whatsapp,
+            email: selectedContact.email,
+          },
+        });
+      } else {
+        router.back();
+      }
     } finally { setBusy(false); }
   };
 
@@ -907,6 +935,35 @@ function NewAppointmentScreen() {
         onClose={() => setWheelPicker(null)}
         testID="ap-reminder-modal"
       />
+
+      {/* v2.14 — Post-save "Invia dettagli" modal */}
+      <Modal visible={!!postSave} animationType="slide" transparent onRequestClose={() => { setPostSave(null); router.back(); }}>
+        <View style={mstyles.postSaveBack}>
+          <View style={mstyles.postSaveCard}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <View style={mstyles.checkCircle}>
+                <Ionicons name="checkmark" size={20} color="#FFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={mstyles.postSaveTitle}>Appuntamento creato</Text>
+                <Text style={mstyles.postSaveSub}>Vuoi inviare i dettagli al cliente ora?</Text>
+              </View>
+            </View>
+
+            {postSave && (
+              <AppointmentShareActions appt={postSave.appt} contact={postSave.contact} />
+            )}
+
+            <Pressable
+              testID="post-save-close"
+              onPress={() => { setPostSave(null); router.back(); }}
+              style={mstyles.postSaveClose}
+            >
+              <Text style={mstyles.postSaveCloseTxt}>Chiudi senza inviare</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -918,6 +975,14 @@ const mstyles = StyleSheet.create({
   hint: { color: theme.color.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
   input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface, marginTop: 6 },
   btn: { flex: 1, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center" },
+  // v2.14 — Post-save Invia dettagli modal
+  postSaveBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
+  postSaveCard: { backgroundColor: "#FFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18 },
+  postSaveTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
+  postSaveSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  checkCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#16A34A", alignItems: "center", justifyContent: "center" },
+  postSaveClose: { paddingVertical: 12, alignItems: "center", marginTop: 10 },
+  postSaveCloseTxt: { fontSize: 13, fontWeight: "700", color: theme.color.muted },
 });
 
 const styles = StyleSheet.create({
