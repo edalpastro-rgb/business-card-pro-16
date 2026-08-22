@@ -28,6 +28,18 @@ if (Platform.OS === "web" && typeof document !== "undefined") {
     meta.name = "google";
     meta.content = "notranslate";
     document.head.appendChild(meta);
+
+    // V27 — ensure viewport-fit=cover so CSS env(safe-area-inset-*) works
+    // and the Android system nav bar doesn't overlap the bottom tab labels.
+    let vp = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null;
+    if (!vp) {
+      vp = document.createElement("meta");
+      vp.name = "viewport";
+      document.head.appendChild(vp);
+    }
+    if (!/viewport-fit=cover/.test(vp.content || "")) {
+      vp.content = "width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover";
+    }
   } catch {}
 }
 

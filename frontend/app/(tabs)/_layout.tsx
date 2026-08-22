@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { View, ActivityIndicator, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // V27 palette (used only for tab bar styling, no global theme override)
 const TAB_ACTIVE = "#FF6B35";
@@ -12,6 +13,12 @@ const TAB_BORDER = "#EEF0F4";
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
+  const insets = useSafeAreaInsets();
+  // Ensure at least 16px bottom padding even on browsers that report insets.bottom = 0
+  // (fixes Android web where system nav bar overlaps tab labels)
+  const bottomInset = Math.max(insets.bottom || 0, 16);
+  const tabBarHeight = 60 + bottomInset;
+
   if (loading) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surface }}>
@@ -35,9 +42,9 @@ export default function TabsLayout() {
           backgroundColor: TAB_BG,
           borderTopColor: TAB_BORDER,
           borderTopWidth: 1,
-          height: 85,
+          height: tabBarHeight,
           paddingTop: 10,
-          paddingBottom: 20,
+          paddingBottom: bottomInset,
           ...Platform.select({
             ios: {
               shadowColor: "#0F172A",
