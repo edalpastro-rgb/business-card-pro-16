@@ -42,3 +42,22 @@ export const VISUAL_EFFECTS: readonly { id: "none" | "shimmer" | "border"; label
   { id: "shimmer", label: "Shimmer", hint: "Luce diagonale che scorre ogni 10s" },
   { id: "border", label: "Bordo luminoso", hint: "Filo di luce sul perimetro in loop" },
 ];
+
+// V27 — Themes for the public link redesign. Each is a preset of colors that
+// the backend also knows about (server.py mirrors this list).
+export type ThemePreset = {
+  id: "sunset" | "midnight" | "ivory" | "mono" | "gold";
+  label: string;
+  hint: string;
+  swatchTop: string;
+  swatchBot: string;
+  primary: string;
+  secondary: string;
+};
+export const CARD_THEMES: readonly ThemePreset[] = [
+  { id: "sunset",   label: "Sunset",   hint: "Arancio + Navy · default",       swatchTop: "#FF6B35", swatchBot: "#1B2B4B", primary: "#FF6B35", secondary: "#1B2B4B" },
+  { id: "midnight", label: "Midnight", hint: "Navy pieno con accento arancio", swatchTop: "#1B2B4B", swatchBot: "#FF6B35", primary: "#1B2B4B", secondary: "#FF6B35" },
+  { id: "ivory",    label: "Ivory",    hint: "Navy su fondo crema · elegante",  swatchTop: "#FFFBF3", swatchBot: "#1B2B4B", primary: "#1B2B4B", secondary: "#B8845A" },
+  { id: "mono",     label: "Mono",     hint: "Bianco/Nero · minimal estremo",  swatchTop: "#FFFFFF", swatchBot: "#0F172A", primary: "#0F172A", secondary: "#0F172A" },
+  { id: "gold",     label: "Gold",     hint: "Navy + Oro · premium",           swatchTop: "#1B2B4B", swatchBot: "#D4A853", primary: "#1B2B4B", secondary: "#D4A853" },
+];

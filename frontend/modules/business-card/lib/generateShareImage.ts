@@ -55,18 +55,34 @@ export async function generateAndShareCardPng(opts: ShareImageOpts = {}): Promis
       html2canvas(backEl as HTMLElement, h2cOpts),
     ]);
 
-    const gap = 16 * 3;
-    const w = frontCanvas.width + backCanvas.width + gap;
-    const h = Math.max(frontCanvas.height, backCanvas.height);
+    // V27 — Stack the two faces VERTICALLY (front on top, back below) so the
+    // exported image is closer to a square/portrait ratio — ideal for
+    // WhatsApp status and social sharing. The result is padded to a perfect
+    // square with a subtle radial gradient background for a premium finish.
+    const pad = 40 * 3;               // outer padding (scale = 3 → 40 CSS px)
+    const gap = 20 * 3;               // vertical gap between the two cards
+    const contentW = Math.max(frontCanvas.width, backCanvas.width);
+    const contentH = frontCanvas.height + gap + backCanvas.height;
+    const side = Math.max(contentW + pad * 2, contentH + pad * 2); // square canvas
     const combined = doc.createElement("canvas");
-    combined.width = w;
-    combined.height = h;
+    combined.width = side;
+    combined.height = side;
     const ctx = combined.getContext("2d");
     if (!ctx) return err<{ shared: boolean }>("Canvas non supportato");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(frontCanvas, 0, (h - frontCanvas.height) / 2);
-    ctx.drawImage(backCanvas, frontCanvas.width + gap, (h - backCanvas.height) / 2);
+
+    // Premium background — subtle vertical gradient
+    const grad = ctx.createLinearGradient(0, 0, 0, side);
+    grad.addColorStop(0, "#FFFFFF");
+    grad.addColorStop(1, "#FFF1E9");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, side, side);
+
+    // Center the stack on the square canvas
+    const stackTop = Math.round((side - contentH) / 2);
+    const frontX = Math.round((side - frontCanvas.width) / 2);
+    const backX = Math.round((side - backCanvas.width) / 2);
+    ctx.drawImage(frontCanvas, frontX, stackTop);
+    ctx.drawImage(backCanvas, backX, stackTop + frontCanvas.height + gap);
 
     const dataUri = combined.toDataURL("image/png");
     const fileName = (opts.fileName || "biglietto") + ".png";

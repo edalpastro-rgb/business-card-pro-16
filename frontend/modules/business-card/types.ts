@@ -5,6 +5,8 @@
 
 export type QrType = "app" | "website" | "text" | "vcard";
 export type VisualEffect = "none" | "shimmer" | "border";
+/** V27 — Card theme (public link redesign) */
+export type CardTheme = "sunset" | "midnight" | "ivory" | "mono" | "gold";
 
 /** The persisted business card document (mirrors backend response). */
 export type BusinessCard = {
@@ -25,6 +27,9 @@ export type BusinessCard = {
   demo_app_link?: string;
   link_title?: string;
   visual_effect?: VisualEffect;
+  // V27 — Redesign fields
+  card_theme?: CardTheme;
+  show_photo?: boolean;
 };
 
 /** Minimum fields needed to build a vCard string. */

@@ -5290,6 +5290,9 @@ class BusinessCardIn(BaseModel):
     # V38V — Public page customization
     link_title: Optional[str] = Field(default=None, max_length=200)
     visual_effect: Optional[str] = None  # "none" | "shimmer" | "border"
+    # V27 — Theme selection (orange/navy redesign)
+    card_theme: Optional[str] = None  # "sunset" | "midnight" | "ivory" | "mono" | "gold" (default "sunset")
+    show_photo: Optional[bool] = None  # V27 — whether to show the agent photo on the public link
 
 
 @api_router.get("/master/business-card")
@@ -5328,6 +5331,7 @@ async def update_business_card(body: BusinessCardIn, user=Depends(get_current_us
         "address", "tagline", "logo_base64", "photo_base64", "accent_color",
         "qr_type", "qr_content", "demo_app_link", "social_links",
         "link_title", "visual_effect",  # V38V
+        "card_theme", "show_photo",  # V27
     ]:
         v = getattr(body, field, None)
         if v is not None:
@@ -5336,6 +5340,8 @@ async def update_business_card(body: BusinessCardIn, user=Depends(get_current_us
         raise HTTPException(status_code=400, detail="qr_type deve essere: app | website | text | vcard")
     if body.visual_effect and body.visual_effect not in {"none", "shimmer", "border"}:
         raise HTTPException(status_code=400, detail="visual_effect deve essere: none | shimmer | border")
+    if body.card_theme and body.card_theme not in {"sunset", "midnight", "ivory", "mono", "gold"}:
+        raise HTTPException(status_code=400, detail="card_theme non valido")
     tid = tenant_id(user)
     existing = await db.business_cards.find_one({"user_id": tid})
     if not existing:
@@ -5382,13 +5388,13 @@ def _build_vcard(d: dict) -> str:
 
 
 def _build_public_card_html(d: dict, card_id: str) -> str:
-    """V38V — Server-side HTML page for the public /master/business-card/public/{card_id}
-    endpoint. Contains name, logo, contacts, QR, vCard download button, and
-    a mobile-first 'save to phonebook' banner. Optional visual effect
-    (shimmer / animated border) applied via pure CSS.
+    """V27 — Server-side HTML page for the public /master/business-card/public/{card_id}
+    endpoint. Redesigned with orange/navy palette, clean/minimal typography,
+    optional agent photo, and 5 selectable themes (sunset · midnight · ivory ·
+    mono · gold). Optional visual effect (shimmer / animated border) applied
+    via pure CSS.
     """
     from html import escape as esc
-    accent = d.get("accent_color") or "#6366F1"
     name = esc(d.get("display_name") or "Biglietto")
     title = esc(d.get("title") or "")
     company = esc(d.get("company_name") or "")
@@ -5400,8 +5406,33 @@ def _build_public_card_html(d: dict, card_id: str) -> str:
     tagline = esc(d.get("tagline") or "")
     logo = d.get("logo_base64") or ""
     logo_esc = esc(logo)
+    photo = d.get("photo_base64") or ""
+    photo_esc = esc(photo)
+    show_photo_pref = d.get("show_photo")
+    show_photo = bool(photo) and (show_photo_pref is not False)  # default: show if photo present
     page_title = esc(d.get("link_title") or f"Biglietto da visita — {d.get('display_name') or ''}".strip())
     effect = (d.get("visual_effect") or "none").lower()
+    card_theme = (d.get("card_theme") or "sunset").lower()
+    # V27 palette
+    THEMES = {
+        # sunset: orange primary + navy accent (default)
+        "sunset":   {"primary": "#FF6B35", "secondary": "#1B2B4B", "bg1": "#FFFFFF", "bg2": "#FFF1E9", "text": "#0F172A", "muted": "#64748B", "card_bg": "#FFFFFF", "stripe": "#FF6B35", "surface": "#F8FAFC"},
+        # midnight: pure navy with orange accent
+        "midnight": {"primary": "#1B2B4B", "secondary": "#FF6B35", "bg1": "#1B2B4B", "bg2": "#0F172A", "text": "#FFFFFF", "muted": "#94A3B8", "card_bg": "#0F172A", "stripe": "#FF6B35", "surface": "#1E2A44"},
+        # ivory: light navy on cream
+        "ivory":    {"primary": "#1B2B4B", "secondary": "#B8845A", "bg1": "#FFFBF3", "bg2": "#F5EDDF", "text": "#1B2B4B", "muted": "#6B5A47", "card_bg": "#FFFDF7", "stripe": "#1B2B4B", "surface": "#F5EDDF"},
+        # mono: pure black/white minimal
+        "mono":     {"primary": "#0F172A", "secondary": "#0F172A", "bg1": "#FFFFFF", "bg2": "#F1F5F9", "text": "#0F172A", "muted": "#94A3B8", "card_bg": "#FFFFFF", "stripe": "#0F172A", "surface": "#F8FAFC"},
+        # gold: navy with gold accent
+        "gold":     {"primary": "#1B2B4B", "secondary": "#D4A853", "bg1": "#F8F5EE", "bg2": "#EFE7D2", "text": "#1B2B4B", "muted": "#7A6C4C", "card_bg": "#FFFFFF", "stripe": "#D4A853", "surface": "#F8F5EE"},
+    }
+    T = THEMES.get(card_theme, THEMES["sunset"])
+    primary = T["primary"]
+    secondary = T["secondary"]
+    bg1 = T["bg1"]; bg2 = T["bg2"]
+    text_c = T["text"]; muted_c = T["muted"]; card_bg = T["card_bg"]
+    stripe_c = T["stripe"]
+    surface_c = T["surface"]
     qr_type = d.get("qr_type") or "website"
     if qr_type == "app":
         qr_value = d.get("demo_app_link") or d.get("qr_content") or ""
@@ -5411,9 +5442,12 @@ def _build_public_card_html(d: dict, card_id: str) -> str:
         qr_value = _build_vcard(d)
     else:
         qr_value = d.get("qr_content") or ""
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?data={_quote_plus_std(qr_value or ' ')}&size=220x220&color={accent.replace('#','')}&bgcolor=FFFFFF"
+    # QR — use the primary color for dark modules; on midnight theme use white bg
+    qr_color = primary.replace("#", "")
+    qr_bg = "FFFFFF" if card_theme != "midnight" else "FFFFFF"
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?data={_quote_plus_std(qr_value or ' ')}&size=280x280&color={qr_color}&bgcolor={qr_bg}"
 
-    # Effect styles — pure CSS (no external libs)
+    # Effect styles — pure CSS
     effect_css = ""
     effect_class = ""
     if effect == "shimmer":
@@ -5421,49 +5455,36 @@ def _build_public_card_html(d: dict, card_id: str) -> str:
         effect_css = """
         .card.with-shimmer { position: relative; overflow: hidden; }
         .card.with-shimmer::before {
-          content: "";
-          position: absolute;
-          top: 0; left: -100%;
-          width: 50%; height: 100%;
-          background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%);
-          animation: bc-shimmer 10s infinite;
-          pointer-events: none;
+          content: ""; position: absolute; top: 0; left: -100%; width: 55%; height: 100%;
+          background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.4) 50%, transparent 70%);
+          animation: bc-shimmer 10s infinite; pointer-events: none;
         }
-        @keyframes bc-shimmer {
-          0% { left: -100%; }
-          10% { left: 120%; }
-          100% { left: 120%; }
-        }
+        @keyframes bc-shimmer { 0% { left: -100%; } 12% { left: 120%; } 100% { left: 120%; } }
         """
     elif effect == "border":
         effect_class = "with-border-glow"
         effect_css = f"""
         .card.with-border-glow {{ position: relative; }}
         .card.with-border-glow::after {{
-          content: "";
-          position: absolute;
-          inset: -3px;
-          border-radius: 20px;
-          padding: 3px;
-          background: conic-gradient(from 0deg, transparent 60%, {accent}, transparent 100%);
+          content: ""; position: absolute; inset: -3px; border-radius: 26px;
+          padding: 3px; background: conic-gradient(from 0deg, transparent 60%, {secondary}, transparent 100%);
           -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          -webkit-mask-composite: xor;
-                  mask-composite: exclude;
-          animation: bc-border-spin 3s linear infinite;
-          pointer-events: none;
+          -webkit-mask-composite: xor; mask-composite: exclude;
+          animation: bc-border-spin 3s linear infinite; pointer-events: none;
         }}
-        @keyframes bc-border-spin {{
-          to {{ transform: rotate(360deg); }}
-        }}
+        @keyframes bc-border-spin {{ to {{ transform: rotate(360deg); }} }}
         """
+
+    # Contact rows — icon-only labels for a cleaner minimal look
     contacts_rows = "".join([
-        (f'<div class="row"><span class="ico">📞</span><a href="tel:{phone}">{phone}</a></div>' if phone else ""),
-        (f'<div class="row"><span class="ico">✉️</span><a href="mailto:{email}">{email}</a></div>' if email else ""),
-        (f'<div class="row"><span class="ico">🌐</span><a href="{website_esc if website.startswith("http") else "https://" + website_esc}" target="_blank" rel="noopener">{website_esc}</a></div>' if website else ""),
+        (f'<a class="row" href="tel:{phone}"><span class="ico">📞</span><span>{phone}</span></a>' if phone else ""),
+        (f'<a class="row" href="mailto:{email}"><span class="ico">✉️</span><span>{email}</span></a>' if email else ""),
+        (f'<a class="row" href="{website_esc if website.startswith("http") else "https://" + website_esc}" target="_blank" rel="noopener"><span class="ico">🌐</span><span>{website_esc}</span></a>' if website else ""),
         (f'<div class="row"><span class="ico">📍</span><span>{address}</span></div>' if address else ""),
     ])
     logo_html = f'<img class="logo" src="{logo_esc}" alt="Logo"/>' if logo else ""
-    tagline_html = f'<div class="tagline">{tagline}</div>' if tagline else ""
+    photo_html = f'<img class="photo" src="{photo_esc}" alt="{name}"/>' if show_photo else ""
+    tagline_html = f'<div class="tagline">« {tagline} »</div>' if tagline else ""
     title_html = f'<div class="role">{title}</div>' if title else ""
     company_html = f'<div class="company">{company}</div>' if company else ""
 
@@ -5471,43 +5492,89 @@ def _build_public_card_html(d: dict, card_id: str) -> str:
 <html lang="it">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover"/>
 <title>{page_title}</title>
 <meta property="og:title" content="{page_title}"/>
 <meta property="og:description" content="{tagline or name}"/>
+<meta name="theme-color" content="{primary}"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-  * {{ box-sizing: border-box; }}
-  html, body {{ margin: 0; padding: 0; background: linear-gradient(135deg, #F8FAFC 0%, {accent}22 100%);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; color: #0F172A; }}
-  .wrap {{ max-width: 460px; margin: 0 auto; padding: 24px 16px; }}
-  .banner {{ background: {accent}; color: #FFF; padding: 12px 14px; border-radius: 12px; margin-bottom: 14px;
-    display: none; align-items: center; gap: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.12); }}
-  .banner .txt {{ flex: 1; font-size: 13px; line-height: 1.35; }}
-  .banner button {{ background: #FFF; color: {accent}; border: none; padding: 8px 14px; border-radius: 8px;
-    font-weight: 700; font-size: 12px; cursor: pointer; }}
-  .banner .close {{ background: transparent; color: #FFF; padding: 0 4px; font-size: 18px; }}
-  .card {{ background: #FFF; border-radius: 18px; border: 2px solid {accent}; overflow: hidden;
-    box-shadow: 0 10px 30px rgba(15,23,42,0.10); }}
-  .stripe {{ height: 10px; background: {accent}; }}
-  .head {{ display: flex; padding: 20px 20px 12px; gap: 14px; align-items: center; }}
-  .logo {{ width: 76px; height: 76px; object-fit: contain; background: #F8FAFC; border-radius: 14px; border: 1px solid {accent}; }}
-  .name {{ font-size: 22px; font-weight: 900; color: {accent}; line-height: 1.15; }}
-  .role {{ font-size: 13px; color: #475569; margin-top: 3px; }}
-  .company {{ font-size: 12px; color: #64748B; margin-top: 2px; }}
-  .contacts {{ padding: 0 20px 8px; display: flex; flex-direction: column; gap: 6px; }}
-  .row {{ display: flex; align-items: center; gap: 8px; font-size: 14px; color: #334155; }}
-  .row a {{ color: {accent}; text-decoration: none; word-break: break-all; }}
-  .row .ico {{ width: 20px; text-align: center; }}
-  .tagline {{ padding: 4px 20px 12px; font-size: 12.5px; font-style: italic; color: {accent}; text-align: center; }}
-  .qr-box {{ padding: 18px; border-top: 1px solid #F1F5F9; display: flex; flex-direction: column; align-items: center; gap: 8px; }}
-  .qr-box img {{ width: 220px; height: 220px; }}
-  .actions {{ padding: 14px 16px 22px; display: flex; flex-direction: column; gap: 8px; }}
-  .btn {{ display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 16px;
-    border-radius: 10px; font-weight: 700; font-size: 14px; text-decoration: none; cursor: pointer; border: none; }}
-  .btn-primary {{ background: {accent}; color: #FFF; }}
-  .btn-secondary {{ background: #FFF; color: {accent}; border: 2px solid {accent}; }}
-  .footer {{ text-align: center; color: #94A3B8; font-size: 10px; padding: 12px; }}
+  * {{ box-sizing: border-box; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }}
+  html, body {{ margin: 0; padding: 0; min-height: 100vh; background: linear-gradient(160deg, {bg1} 0%, {bg2} 100%);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: {text_c}; letter-spacing: -0.011em; }}
+  .wrap {{ max-width: 460px; margin: 0 auto; padding: 20px 16px 40px; }}
+  .banner {{ background: {primary}; color: #FFF; padding: 12px 14px; border-radius: 14px; margin-bottom: 16px;
+    display: none; align-items: center; gap: 10px; box-shadow: 0 6px 20px {primary}44; }}
+  .banner .txt {{ flex: 1; font-size: 13px; line-height: 1.4; font-weight: 500; }}
+  .banner button {{ background: #FFF; color: {primary}; border: none; padding: 9px 16px; border-radius: 10px;
+    font-weight: 800; font-size: 12px; cursor: pointer; font-family: inherit; }}
+  .banner .close {{ background: transparent; color: #FFF; padding: 0 4px; font-size: 20px; }}
+
+  .card {{ background: {card_bg}; border-radius: 24px; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(15,23,42,0.12), 0 6px 18px rgba(15,23,42,0.06);
+    position: relative;
+  }}
+  .stripe {{ height: 6px; background: linear-gradient(90deg, {primary} 0%, {secondary} 100%); }}
+
+  /* Photo (optional) — perfectly round, orange ring */
+  .photo-wrap {{ display: flex; justify-content: center; margin-top: -46px; margin-bottom: 6px; position: relative; z-index: 2; }}
+  .photo {{ width: 110px; height: 110px; border-radius: 50%; object-fit: cover;
+    border: 4px solid {card_bg}; box-shadow: 0 0 0 3px {primary}, 0 10px 24px rgba(15,23,42,0.18); }}
+
+  /* Header — logo + name + role, generous spacing */
+  .head {{ padding: 26px 26px 8px; text-align: center; }}
+  .head.head-no-photo {{ padding-top: 32px; }}
+  .logo-wrap {{ display: flex; justify-content: center; margin-bottom: 14px; }}
+  .logo {{ max-width: 140px; max-height: 46px; object-fit: contain; }}
+  .name {{ font-size: 30px; font-weight: 900; color: {secondary}; line-height: 1.05; letter-spacing: -0.03em; }}
+  .role {{ font-size: 14px; color: {primary}; margin-top: 6px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }}
+  .company {{ font-size: 13px; color: {muted_c}; margin-top: 4px; font-weight: 600; }}
+  .divider {{ height: 2px; width: 40px; background: {primary}; margin: 18px auto 4px; border-radius: 999px; }}
+
+  /* Contact block */
+  .contacts {{ padding: 6px 22px 18px; display: flex; flex-direction: column; gap: 4px; }}
+  .row {{ display: flex; align-items: center; gap: 12px; padding: 12px 14px; font-size: 15px;
+    color: {text_c}; text-decoration: none; border-radius: 12px; font-weight: 600;
+    background: {surface_c}; transition: background 0.2s; word-break: break-all; }}
+  .row:hover {{ background: {primary}18; }}
+  a.row {{ color: {text_c}; }}
+  a.row span:last-child {{ color: {text_c}; }}
+  .row .ico {{ font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }}
+
+  .tagline {{ padding: 6px 26px 20px; font-size: 14px; font-weight: 500; color: {primary};
+    text-align: center; font-style: italic; line-height: 1.45; }}
+
+  /* QR area */
+  .qr-box {{ padding: 22px 22px 28px; border-top: 1px solid {primary}18; text-align: center; }}
+  .qr-frame {{ display: inline-block; padding: 14px; background: #FFF; border-radius: 20px;
+    box-shadow: 0 8px 22px rgba(15,23,42,0.10); }}
+  .qr-frame img {{ display: block; width: 200px; height: 200px; }}
+  .qr-hint {{ font-size: 11px; color: {muted_c}; text-transform: uppercase;
+    letter-spacing: 1.6px; font-weight: 800; margin-top: 12px; }}
+
+  /* Actions */
+  .actions {{ padding: 18px 16px 6px; display: flex; flex-direction: column; gap: 10px; }}
+  .btn {{ display: flex; align-items: center; justify-content: center; gap: 10px; padding: 15px 18px;
+    border-radius: 14px; font-weight: 800; font-size: 15px; text-decoration: none; cursor: pointer;
+    border: none; font-family: inherit; letter-spacing: 0.01em; transition: transform 0.15s, box-shadow 0.15s; }}
+  .btn:active {{ transform: scale(0.98); }}
+  .btn-primary {{ background: {primary}; color: #FFF; box-shadow: 0 8px 22px {primary}55; }}
+  .btn-primary:hover {{ box-shadow: 0 10px 28px {primary}77; }}
+  .btn-secondary {{ background: transparent; color: {secondary}; border: 2px solid {secondary}; }}
+
+  .footer {{ text-align: center; color: {muted_c}; font-size: 10px; padding: 24px 0 8px;
+    letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }}
+
   {effect_css}
+
+  @media (max-width: 380px) {{
+    .name {{ font-size: 26px; }}
+    .photo {{ width: 96px; height: 96px; }}
+    .qr-frame img {{ width: 180px; height: 180px; }}
+  }}
 </style>
 </head>
 <body>
@@ -5520,32 +5587,32 @@ def _build_public_card_html(d: dict, card_id: str) -> str:
 
     <div class="card {effect_class}">
       <div class="stripe"></div>
-      <div class="head">
-        {logo_html}
-        <div>
-          <div class="name">{name}</div>
-          {title_html}
-          {company_html}
-        </div>
+      {"<div class='photo-wrap'>" + photo_html + "</div>" if show_photo else ""}
+      <div class="head {'head-no-photo' if not show_photo else ''}">
+        {("<div class='logo-wrap'>" + logo_html + "</div>") if logo else ""}
+        <div class="name">{name}</div>
+        {title_html}
+        {company_html}
+        <div class="divider"></div>
       </div>
       <div class="contacts">{contacts_rows}</div>
       {tagline_html}
       <div class="qr-box">
-        <img src="{qr_url}" alt="QR code"/>
-        <div style="font-size:10px;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;">Scansiona con la fotocamera</div>
+        <div class="qr-frame"><img src="{qr_url}" alt="QR code"/></div>
+        <div class="qr-hint">Scansiona con la fotocamera</div>
       </div>
     </div>
 
     <div class="actions">
       <button class="btn btn-primary" onclick="downloadVCard()">
-        📇 Salva in rubrica (.vcf)
+        📇 Salva in rubrica
       </button>
       <a class="btn btn-secondary" href="/api/master/business-card/public/{card_id}.vcf" target="_blank" rel="noopener">
         ⬇️ Scarica vCard
       </a>
     </div>
 
-    <div class="footer">Dal Pastro CRM · Biglietto digitale</div>
+    <div class="footer">Biglietto digitale</div>
   </div>
 
 <script>
@@ -5558,12 +5625,9 @@ def _build_public_card_html(d: dict, card_id: str) -> str:
     if (b) b.style.display = 'none';
     try {{ localStorage.setItem('bc_banner_dismissed_{card_id}', '1'); }} catch(e) {{}}
   }}
-  // Show banner on first mobile access only
   (function() {{
     if (!isMobile()) return;
-    try {{
-      if (localStorage.getItem('bc_banner_dismissed_{card_id}') === '1') return;
-    }} catch(e) {{}}
+    try {{ if (localStorage.getItem('bc_banner_dismissed_{card_id}') === '1') return; }} catch(e) {{}}
     var b = document.getElementById('save-banner');
     if (b) b.style.display = 'flex';
   }})();

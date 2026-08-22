@@ -39,6 +39,7 @@ import {
   CARD_H,
   QR_TYPES,
   VISUAL_EFFECTS,
+  CARD_THEMES,
 } from "../constants";
 import { useBusinessCard } from "../hooks/useBusinessCard";
 import { injectAnimationCss } from "../lib/injectAnimationCss";
@@ -364,6 +365,47 @@ export function BusinessCardScreen(): React.ReactElement {
         <Text style={styles.section}>Pagina pubblica (link condiviso)</Text>
         <Field label="Testo link (titolo della pagina)" testID="bc-link-title" value={card.link_title || ""} onChange={upd("link_title")} />
         <Text style={styles.helperTxt}>Es. &quot;Biglietto da visita digitale Emanuele Dal Pastro&quot;. Se vuoto, viene usato il tuo nome.</Text>
+
+        {/* V27 — Theme picker (5 presets) */}
+        <Text style={styles.section}>Tema pagina pubblica</Text>
+        <Text style={styles.helperTxt}>Scegli lo stile grafico: verrà applicato al link condiviso.</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }} contentContainerStyle={{ gap: 10, paddingRight: 16 }}>
+          {CARD_THEMES.map((t) => {
+            const on = (card.card_theme || "sunset") === t.id;
+            return (
+              <Pressable
+                key={t.id}
+                testID={`bc-theme-${t.id}`}
+                onPress={() => save({ card_theme: t.id })}
+                style={{
+                  width: 110, alignItems: "center", gap: 6, padding: 8,
+                  borderRadius: 14, borderWidth: 2, borderColor: on ? "#FF6B35" : theme.color.border,
+                  backgroundColor: on ? "#FFF1E9" : "#FFF",
+                }}
+              >
+                <View style={{ width: 70, height: 70, borderRadius: 12, overflow: "hidden", position: "relative", backgroundColor: t.swatchTop, borderWidth: 1, borderColor: theme.color.border }}>
+                  <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "50%", backgroundColor: t.swatchBot }} />
+                </View>
+                <Text style={{ fontSize: 12, fontWeight: "800", color: on ? "#FF6B35" : theme.color.onSurface }}>{t.label}</Text>
+                <Text style={{ fontSize: 10, color: theme.color.muted, textAlign: "center", height: 24 }} numberOfLines={2}>{t.hint}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {/* V27 — Optional agent photo on the public link */}
+        <Text style={styles.section}>Foto agente sul link</Text>
+        <Pressable
+          testID="bc-toggle-show-photo"
+          onPress={() => save({ show_photo: !(card.show_photo !== false) })}
+          style={[styles.radioRow, (card.show_photo !== false) && { borderColor: "#FF6B35", backgroundColor: "#FFF1E9" }]}
+        >
+          <Ionicons name={(card.show_photo !== false) ? "checkmark-circle" : "ellipse-outline"} size={22} color={(card.show_photo !== false) ? "#FF6B35" : theme.color.muted} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.radioLbl}>{(card.show_photo !== false) ? "Mostra la foto sul link condiviso" : "Nascondi la foto (solo logo e testi)"}</Text>
+            <Text style={styles.radioHint}>{card.photo_base64 ? "Foto già caricata" : "Nessuna foto caricata — carica dal profilo per usarla"}</Text>
+          </View>
+        </Pressable>
 
         <Text style={styles.section}>Effetto visivo pagina pubblica</Text>
         <View style={{ gap: 6 }}>
