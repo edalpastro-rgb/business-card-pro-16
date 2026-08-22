@@ -403,9 +403,38 @@ export function BusinessCardScreen(): React.ReactElement {
           <Ionicons name={(card.show_photo !== false) ? "checkmark-circle" : "ellipse-outline"} size={22} color={(card.show_photo !== false) ? "#FF6B35" : theme.color.muted} />
           <View style={{ flex: 1 }}>
             <Text style={styles.radioLbl}>{(card.show_photo !== false) ? "Mostra la foto sul link condiviso" : "Nascondi la foto (solo logo e testi)"}</Text>
-            <Text style={styles.radioHint}>{card.photo_base64 ? "Foto già caricata" : "Nessuna foto caricata — carica dal profilo per usarla"}</Text>
+            <Text style={styles.radioHint}>{card.photo_base64 ? "Foto caricata" : "Nessuna foto — usa il bottone qui sotto per caricarla"}</Text>
           </View>
         </Pressable>
+
+        {/* V27 — Photo picker (explicit, no auto-load): user chooses which image to upload from gallery */}
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+          <Pressable
+            testID="bc-pick-photo"
+            onPress={() => pickAndSaveLogo("photo_base64")}
+            style={[styles.imgBtn, { borderColor: "#FF6B35", backgroundColor: "#FFF1E9", flex: 1 }]}
+            disabled={busy}
+          >
+            {card.photo_base64 ? (
+              <RNImage source={{ uri: card.photo_base64 }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+            ) : (
+              <Ionicons name="camera" size={22} color="#FF6B35" />
+            )}
+            <Text style={{ color: "#FF6B35", fontWeight: "800", fontSize: 13 }}>
+              {card.photo_base64 ? "Cambia foto" : "Scegli foto dalla galleria"}
+            </Text>
+          </Pressable>
+          {card.photo_base64 ? (
+            <Pressable
+              testID="bc-remove-photo"
+              onPress={() => save({ photo_base64: "" })}
+              style={[styles.imgBtn, { borderColor: "#DC2626", backgroundColor: "#FEE2E2", paddingHorizontal: 14 }]}
+              disabled={busy}
+            >
+              <Ionicons name="trash-outline" size={20} color="#DC2626" />
+            </Pressable>
+          ) : null}
+        </View>
 
         <Text style={styles.section}>Effetto visivo pagina pubblica</Text>
         <View style={{ gap: 6 }}>

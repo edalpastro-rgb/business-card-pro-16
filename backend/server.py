@@ -5334,7 +5334,7 @@ async def get_business_card(user=Depends(get_current_user)):
             "address": "",
             "tagline": "",
             "logo_base64": user.get("company_logo_base64") or "",
-            "photo_base64": user.get("avatar_base64") or "",
+            "photo_base64": "",  # V27 — no auto-load; user must explicitly pick a photo
             "accent_color": "#6366F1",
             "qr_type": "website",
             "qr_content": "",
@@ -5468,7 +5468,7 @@ def _build_public_card_html(d: dict, card_id: str) -> str:
     # QR — use the primary color for dark modules; on midnight theme use white bg
     qr_color = primary.replace("#", "")
     qr_bg = "FFFFFF" if card_theme != "midnight" else "FFFFFF"
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?data={_quote_plus_std(qr_value or ' ')}&size=280x280&color={qr_color}&bgcolor={qr_bg}"
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?data={_quote_plus_std(qr_value or ' ')}&size=200x200&color={qr_color}&bgcolor={qr_bg}"
 
     # Effect styles — pure CSS
     effect_css = ""
@@ -5528,75 +5528,75 @@ def _build_public_card_html(d: dict, card_id: str) -> str:
   html, body {{ margin: 0; padding: 0; min-height: 100vh; background: linear-gradient(160deg, {bg1} 0%, {bg2} 100%);
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: {text_c}; letter-spacing: -0.011em; }}
-  .wrap {{ max-width: 460px; margin: 0 auto; padding: 20px 16px 40px; }}
-  .banner {{ background: {primary}; color: #FFF; padding: 12px 14px; border-radius: 14px; margin-bottom: 16px;
-    display: none; align-items: center; gap: 10px; box-shadow: 0 6px 20px {primary}44; }}
-  .banner .txt {{ flex: 1; font-size: 13px; line-height: 1.4; font-weight: 500; }}
-  .banner button {{ background: #FFF; color: {primary}; border: none; padding: 9px 16px; border-radius: 10px;
-    font-weight: 800; font-size: 12px; cursor: pointer; font-family: inherit; }}
-  .banner .close {{ background: transparent; color: #FFF; padding: 0 4px; font-size: 20px; }}
+  .wrap {{ max-width: 440px; margin: 0 auto; padding: 16px 14px 32px; }}
+  .banner {{ background: {primary}; color: #FFF; padding: 10px 12px; border-radius: 12px; margin-bottom: 12px;
+    display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px {primary}44; }}
+  .banner .txt {{ flex: 1; font-size: 12.5px; line-height: 1.35; font-weight: 500; }}
+  .banner button {{ background: #FFF; color: {primary}; border: none; padding: 7px 14px; border-radius: 8px;
+    font-weight: 800; font-size: 11.5px; cursor: pointer; font-family: inherit; }}
+  .banner .close {{ background: transparent; color: #FFF; padding: 0 4px; font-size: 18px; }}
 
-  .card {{ background: {card_bg}; border-radius: 24px; overflow: hidden;
-    box-shadow: 0 20px 60px rgba(15,23,42,0.12), 0 6px 18px rgba(15,23,42,0.06);
+  .card {{ background: {card_bg}; border-radius: 22px; overflow: hidden;
+    box-shadow: 0 16px 48px rgba(15,23,42,0.11), 0 4px 14px rgba(15,23,42,0.05);
     position: relative;
   }}
-  .stripe {{ height: 6px; background: linear-gradient(90deg, {primary} 0%, {secondary} 100%); }}
+  .stripe {{ height: 5px; background: linear-gradient(90deg, {primary} 0%, {secondary} 100%); }}
 
-  /* Photo (optional) — perfectly round, orange ring */
-  .photo-wrap {{ display: flex; justify-content: center; margin-top: -46px; margin-bottom: 6px; position: relative; z-index: 2; }}
-  .photo {{ width: 110px; height: 110px; border-radius: 50%; object-fit: cover;
-    border: 4px solid {card_bg}; box-shadow: 0 0 0 3px {primary}, 0 10px 24px rgba(15,23,42,0.18); }}
+  /* Photo — fully INSIDE the card (no negative margin), integrated into the header block */
+  .photo-wrap {{ display: flex; justify-content: center; padding: 16px 0 4px; position: relative; z-index: 2; }}
+  .photo {{ width: 92px; height: 92px; border-radius: 50%; object-fit: cover;
+    border: 3px solid {card_bg}; box-shadow: 0 0 0 3px {primary}, 0 6px 16px rgba(15,23,42,0.15); }}
 
-  /* Header — logo + name + role, generous spacing */
-  .head {{ padding: 26px 26px 8px; text-align: center; }}
-  .head.head-no-photo {{ padding-top: 32px; }}
-  .logo-wrap {{ display: flex; justify-content: center; margin-bottom: 14px; }}
-  .logo {{ max-width: 140px; max-height: 46px; object-fit: contain; }}
-  .name {{ font-size: 30px; font-weight: 900; color: {secondary}; line-height: 1.05; letter-spacing: -0.03em; }}
-  .role {{ font-size: 14px; color: {primary}; margin-top: 6px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }}
-  .company {{ font-size: 13px; color: {muted_c}; margin-top: 4px; font-weight: 600; }}
-  .divider {{ height: 2px; width: 40px; background: {primary}; margin: 18px auto 4px; border-radius: 999px; }}
+  /* Header — logo + name + role, compact spacing */
+  .head {{ padding: 6px 20px 4px; text-align: center; }}
+  .head.head-no-photo {{ padding-top: 22px; }}
+  .logo-wrap {{ display: flex; justify-content: center; margin-bottom: 10px; }}
+  .logo {{ max-width: 130px; max-height: 40px; object-fit: contain; }}
+  .name {{ font-size: 25px; font-weight: 900; color: {secondary}; line-height: 1.05; letter-spacing: -0.03em; }}
+  .role {{ font-size: 12px; color: {primary}; margin-top: 4px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }}
+  .company {{ font-size: 12px; color: {muted_c}; margin-top: 3px; font-weight: 600; }}
+  .divider {{ height: 2px; width: 32px; background: {primary}; margin: 12px auto 2px; border-radius: 999px; }}
 
-  /* Contact block */
-  .contacts {{ padding: 6px 22px 18px; display: flex; flex-direction: column; gap: 4px; }}
-  .row {{ display: flex; align-items: center; gap: 12px; padding: 12px 14px; font-size: 15px;
-    color: {text_c}; text-decoration: none; border-radius: 12px; font-weight: 600;
+  /* Contact block — tighter */
+  .contacts {{ padding: 8px 18px 12px; display: flex; flex-direction: column; gap: 3px; }}
+  .row {{ display: flex; align-items: center; gap: 10px; padding: 9px 12px; font-size: 14px;
+    color: {text_c}; text-decoration: none; border-radius: 10px; font-weight: 600;
     background: {surface_c}; transition: background 0.2s; word-break: break-all; }}
   .row:hover {{ background: {primary}18; }}
   a.row {{ color: {text_c}; }}
   a.row span:last-child {{ color: {text_c}; }}
-  .row .ico {{ font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }}
+  .row .ico {{ font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }}
 
-  .tagline {{ padding: 6px 26px 20px; font-size: 14px; font-weight: 500; color: {primary};
-    text-align: center; font-style: italic; line-height: 1.45; }}
+  .tagline {{ padding: 4px 22px 14px; font-size: 13px; font-weight: 500; color: {primary};
+    text-align: center; font-style: italic; line-height: 1.4; }}
 
-  /* QR area */
-  .qr-box {{ padding: 22px 22px 28px; border-top: 1px solid {primary}18; text-align: center; }}
-  .qr-frame {{ display: inline-block; padding: 14px; background: #FFF; border-radius: 20px;
-    box-shadow: 0 8px 22px rgba(15,23,42,0.10); }}
-  .qr-frame img {{ display: block; width: 200px; height: 200px; }}
-  .qr-hint {{ font-size: 11px; color: {muted_c}; text-transform: uppercase;
-    letter-spacing: 1.6px; font-weight: 800; margin-top: 12px; }}
+  /* QR area — smaller, tighter */
+  .qr-box {{ padding: 14px 18px 18px; border-top: 1px solid {primary}18; text-align: center; }}
+  .qr-frame {{ display: inline-block; padding: 10px; background: #FFF; border-radius: 16px;
+    box-shadow: 0 6px 16px rgba(15,23,42,0.08); }}
+  .qr-frame img {{ display: block; width: 140px; height: 140px; }}
+  .qr-hint {{ font-size: 10px; color: {muted_c}; text-transform: uppercase;
+    letter-spacing: 1.4px; font-weight: 800; margin-top: 8px; }}
 
   /* Actions */
-  .actions {{ padding: 18px 16px 6px; display: flex; flex-direction: column; gap: 10px; }}
-  .btn {{ display: flex; align-items: center; justify-content: center; gap: 10px; padding: 15px 18px;
-    border-radius: 14px; font-weight: 800; font-size: 15px; text-decoration: none; cursor: pointer;
+  .actions {{ padding: 14px 14px 4px; display: flex; flex-direction: column; gap: 8px; }}
+  .btn {{ display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 16px;
+    border-radius: 12px; font-weight: 800; font-size: 14px; text-decoration: none; cursor: pointer;
     border: none; font-family: inherit; letter-spacing: 0.01em; transition: transform 0.15s, box-shadow 0.15s; }}
   .btn:active {{ transform: scale(0.98); }}
-  .btn-primary {{ background: {primary}; color: #FFF; box-shadow: 0 8px 22px {primary}55; }}
-  .btn-primary:hover {{ box-shadow: 0 10px 28px {primary}77; }}
+  .btn-primary {{ background: {primary}; color: #FFF; box-shadow: 0 6px 18px {primary}55; }}
+  .btn-primary:hover {{ box-shadow: 0 8px 22px {primary}77; }}
   .btn-secondary {{ background: transparent; color: {secondary}; border: 2px solid {secondary}; }}
 
-  .footer {{ text-align: center; color: {muted_c}; font-size: 10px; padding: 24px 0 8px;
+  .footer {{ text-align: center; color: {muted_c}; font-size: 10px; padding: 18px 0 4px;
     letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }}
 
   {effect_css}
 
   @media (max-width: 380px) {{
-    .name {{ font-size: 26px; }}
-    .photo {{ width: 96px; height: 96px; }}
-    .qr-frame img {{ width: 180px; height: 180px; }}
+    .name {{ font-size: 22px; }}
+    .photo {{ width: 82px; height: 82px; }}
+    .qr-frame img {{ width: 128px; height: 128px; }}
   }}
 </style>
 </head>
