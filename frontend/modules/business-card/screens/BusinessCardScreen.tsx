@@ -52,6 +52,18 @@ export function BusinessCardScreen(): React.ReactElement {
   const { resource, card, busy, errorMsg, update, save, pickAndSaveLogo } = useBusinessCard();
   const [flipped, setFlipped] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // v2.15 — Re-entrance guard: prevents a second tap from running while a
+  // share is already in flight (state updates lag one render cycle).
+  const sharingRef = useRef(false);
+  // v2.15 — Eagerly preload html2canvas on mount so the FIRST tap doesn't
+  // pay the ~1s dynamic-import cost that breaks the browser's user-gesture
+  // context and makes navigator.share() get denied by Chrome/Safari.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    import("html2canvas").catch(() => {
+      /* pre-warm optional — silent fallback keeps the button responsive */
+    });
+  }, []);
   const cardBackRef = useRef<Animated.View | null>(null);
   const flip = useRef(new Animated.Value(0)).current;
 
@@ -90,7 +102,16 @@ export function BusinessCardScreen(): React.ReactElement {
   const backRotate = flip.interpolate({ inputRange: [0, 1], outputRange: ["180deg", "360deg"] });
 
   const shareAsImage = async (): Promise<void> => {
+    // v2.15 — Re-entrance guard (state-updates lag by one render frame)
+    if (sharingRef.current) return;
+    sharingRef.current = true;
     setSharing(true);
+    // v2.15 — Fail-safe: guarantee the spinner stops even if a share promise
+    // never resolves (some browsers stall nav.share() after user completes).
+    const safetyTimer = setTimeout(() => {
+      sharingRef.current = false;
+      setSharing(false);
+    }, 30000);
     try {
       if (Platform.OS === "web") {
         const fileName = `biglietto-${(card.display_name || "master").replace(/\s+/g, "-")}`;
@@ -105,8 +126,14 @@ export function BusinessCardScreen(): React.ReactElement {
       if (canShare) await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Condividi biglietto da visita" });
       else await Share.share({ url: uri, title: "Biglietto da visita" });
     } catch (e) {
-      notify("Errore condivisione", e instanceof Error ? e.message : "");
+      // AbortError = user canceled the native share sheet → NOT an error
+      const err = e as Error & { name?: string };
+      if (err?.name !== "AbortError") {
+        notify("Errore condivisione", err?.message || "");
+      }
     } finally {
+      clearTimeout(safetyTimer);
+      sharingRef.current = false;
       setSharing(false);
     }
   };

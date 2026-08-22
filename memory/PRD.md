@@ -1,5 +1,29 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.15 Bug Fix — Condivisione Biglietto da Visita (Feb 2026)
+### 🐛 Bug segnalato
+Nel Biglietto da Visita, il bottone "Condividi" richiedeva 2 tap per funzionare, e la rotellina di caricamento continuava a girare anche dopo che la condivisione era avvenuta.
+
+### 🔬 Root cause
+1. **Double-tap**: `await import("html2canvas")` in `generateShareImage.ts` esegue un dynamic import al primo tap (~1s di lazy-load bundle). Durante quell'attesa il browser perde il contesto user-gesture, quindi `navigator.share()` viene rifiutata (NotAllowedError/SecurityError) e il codice cade in fallback download silente. Al secondo tap html2canvas è già in cache → gesture preservato → share funziona.
+2. **Spinner infinito**: `setSharing(false)` era solo nel `finally` block. In alcuni browser `nav.share()` può stallare la promise dopo il completamento nativo, lasciando lo state bloccato.
+
+### ✅ Fix applicato (`/app/frontend/modules/business-card/screens/BusinessCardScreen.tsx`)
+1. **Pre-warm eager di html2canvas** in `useEffect` al mount (solo web) → il primo tap non paga più il costo di lazy-load, gesture preservato.
+2. **Re-entrance guard** con `sharingRef = useRef(false)` — impedisce double-execution nel gap di 1 render frame tra tap e disabled prop.
+3. **Safety timer** (30s) via `setTimeout` in `try/finally` che force-resetta sempre `sharing=false` anche se la promise di `nav.share()` non risolve mai.
+4. **Handle AbortError** esplicito nel catch dell'outer wrapper — se l'utente annulla il share sheet nativo, non mostrare un banner d'errore rosso.
+5. `finally` clean garantito: `clearTimeout(safetyTimer)` + `sharingRef.current = false` + `setSharing(false)`.
+
+### ✅ Verifica
+- Lint pulito ✅
+- Expo restart senza errori ✅
+- Il codice esistente in `generateShareImage.ts` già gestisce AbortError correttamente e ritorna `ok({shared:false})` invece di errore, quindi il finally si triggera come atteso.
+
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.14 Feature — "Invia dettagli" in creazione appuntamento (Feb 2026)
 ### 🎯 Richiesta utente
 Nella sezione Appuntamenti, quando si crea o visualizza un appuntamento con numero di telefono del cliente, manca il pulsante per inviare i dettagli via SMS/WhatsApp. Aggiungerlo alla schermata di creazione con testo pre-compilato (data, ora, luogo).
