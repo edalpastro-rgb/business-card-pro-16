@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, TextInput, ActivityIndicator, ScrollView, Image, Platform } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, StyleSheet, Modal, Pressable, TextInput, ActivityIndicator, ScrollView, Image, Platform, NativeSyntheticEvent, TextInputChangeEventData } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
@@ -22,6 +22,72 @@ import { useAuth } from "@/src/auth";
  */
 type Props = { visible: boolean; onClose: () => void };
 
+/**
+ * StableTextInput — uncontrolled TextInput that avoids re-render on every keystroke.
+ * Reads its initial value from `initialValue` when `resetKey` changes (e.g. modal opens),
+ * writes to parent via `onCommit` only on blur or when the modal saves. This fixes the
+ * bug where the parent's re-render (triggered by live preview state) reset the caret
+ * or dropped characters mid-typing on web / Android.
+ */
+type StableInputHandle = { getValue: () => string };
+const StableTextInput = React.memo(React.forwardRef<StableInputHandle, {
+  initialValue: string;
+  onCommit: (v: string) => void;
+  resetKey: any;
+  placeholder?: string;
+  maxLength?: number;
+  multiline?: boolean;
+  style?: any;
+  testID?: string;
+}>(function StableTextInput({ initialValue, onCommit, resetKey, placeholder, maxLength, multiline, style, testID }, ref) {
+  const valueRef = useRef<string>(initialValue || "");
+  const inputRef = useRef<TextInput>(null);
+
+  // On modal (re)open, sync ref + native input from parent
+  // NOTE: we intentionally depend only on `resetKey`, not `initialValue`.
+  // Re-syncing on every parent state change would reintroduce the very
+  // re-render bug this component is designed to avoid.
+  useEffect(() => {
+    valueRef.current = initialValue || "";
+    if (Platform.OS === "web") {
+      // Force update the underlying HTMLInputElement without re-rendering
+      const el: any = inputRef.current;
+      if (el && typeof el.value !== "undefined") {
+        el.value = initialValue || "";
+      }
+    } else {
+      inputRef.current?.setNativeProps({ text: initialValue || "" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
+
+  // Expose imperative getter so parent can flush the latest typed value on Save
+  React.useImperativeHandle(ref, () => ({ getValue: () => valueRef.current }), []);
+
+  const handleChange = useCallback((e: NativeSyntheticEvent<TextInputChangeEventData>) => {
+    valueRef.current = e.nativeEvent.text ?? "";
+  }, []);
+  const handleBlur = useCallback(() => {
+    onCommit(valueRef.current);
+  }, [onCommit]);
+
+  return (
+    <TextInput
+      ref={inputRef}
+      testID={testID}
+      defaultValue={initialValue}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      placeholder={placeholder}
+      placeholderTextColor="#94A3B8"
+      style={style}
+      maxLength={maxLength}
+      multiline={multiline}
+      textAlignVertical={multiline ? "top" : undefined}
+    />
+  );
+}));
+
 export function ReportHeaderConfigModal({ visible, onClose }: Props) {
   const { user, refresh } = useAuth();
   const [name, setName] = useState("");
@@ -30,6 +96,12 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
   const [logoB64, setLogoB64] = useState("");
   const [logoBusy, setLogoBusy] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Imperative refs so we can flush the latest typed value on Save (in case user
+  // taps Save without blurring the field first — common on iOS keyboard "Save" tap)
+  const nameRef = useRef<StableInputHandle>(null);
+  const sloganRef = useRef<StableInputHandle>(null);
+  const contactsRef = useRef<StableInputHandle>(null);
 
   // v2.17 — Auto-load current values from user profile when the modal opens
   const reset = useCallback(() => {
@@ -60,12 +132,16 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
   const save = async () => {
     setSaving(true);
     try {
+      // Flush any un-blurred typing from all three inputs before persisting
+      const latestName = (nameRef.current?.getValue() ?? name).trim().slice(0, 80);
+      const latestSlogan = (sloganRef.current?.getValue() ?? slogan).trim().slice(0, 140);
+      const latestContacts = (contactsRef.current?.getValue() ?? contacts).trim().slice(0, 240);
       await api("/auth/profile", {
         method: "PUT",
         body: {
-          company_name: name.trim().slice(0, 80),
-          report_slogan: slogan.trim().slice(0, 140),
-          report_contacts: contacts.trim().slice(0, 240),
+          company_name: latestName,
+          report_slogan: latestSlogan,
+          report_contacts: latestContacts,
           company_logo_base64: logoB64,
         },
       });
@@ -133,35 +209,38 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
             </View>
 
             <Text style={styles.lbl}>Nome azienda</Text>
-            <TextInput
+            <StableTextInput
+              ref={nameRef}
               testID="rhc-company-name"
-              value={name}
-              onChangeText={setName}
+              initialValue={name}
+              onCommit={setName}
+              resetKey={visible}
               placeholder="Es. Dal Pastro Energie"
-              placeholderTextColor="#94A3B8"
               style={styles.input}
               maxLength={80}
             />
 
             <Text style={styles.lbl}>Slogan / Payoff (facoltativo)</Text>
-            <TextInput
+            <StableTextInput
+              ref={sloganRef}
               testID="rhc-slogan"
-              value={slogan}
-              onChangeText={setSlogan}
+              initialValue={slogan}
+              onCommit={setSlogan}
+              resetKey={visible}
               placeholder="Es. Il tuo consulente energia di fiducia"
-              placeholderTextColor="#94A3B8"
               style={styles.input}
               maxLength={140}
             />
 
             <Text style={styles.lbl}>Contatti (facoltativo)</Text>
-            <TextInput
+            <StableTextInput
+              ref={contactsRef}
               testID="rhc-contacts"
-              value={contacts}
-              onChangeText={setContacts}
+              initialValue={contacts}
+              onCommit={setContacts}
+              resetKey={visible}
               placeholder={"Tel. +39 333 1234567\ninfo@daltua.it\nwww.daltua.it"}
-              placeholderTextColor="#94A3B8"
-              style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
+              style={[styles.input, { minHeight: 80 }]}
               multiline
               maxLength={240}
             />
