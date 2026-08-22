@@ -1,5 +1,47 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.16 Feature — Share fallback + Indirizzo strutturato Appuntamenti (Feb 2026)
+### 🎯 Richieste utente
+1) I bottoni Email/WhatsApp/SMS di "Condividi con il cliente" devono funzionare anche senza contatto collegato, usando telefono/email inseriti nell'appuntamento.
+2) Il campo Indirizzo deve essere suddiviso in 5 campi separati: Via/Piazza, Numero civico, Città, CAP, Provincia.
+
+### ✅ Backend (`/app/backend/server.py`)
+`AppointmentIn` + `AppointmentUpdate` estesi con:
+- `email: str = ""` — email diretta appuntamento
+- `address_street`, `address_number`, `address_city`, `address_zip`, `address_province` — 5 campi indirizzo strutturato
+
+I campi originali `location` e `full_address` sono mantenuti per backward-compat.
+
+### ✅ Frontend
+**`/app/frontend/src/AppointmentShareActions.tsx`** (v2.16):
+- Nuovo helper esportato `composeAppointmentAddress(appt)` che costruisce l'indirizzo `Via Numero, CAP Città (PROV)` dai campi strutturati, con fallback al campo `location` legacy
+- Il tipo `ApptDetails` ora accetta i campi indirizzo strutturato + `phone_mobile`/`phone_work`/`email`
+- La logica dei bottoni usa `effectivePhone/effectiveWhatsapp/effectiveEmail` che risolvono in cascata: contact.field → appt.field
+- Warning testuale aggiornato: *"Inserisci telefono o email nell'appuntamento (o associa un contatto)..."*
+- `buildAppointmentMessage()` usa `composeAppointmentAddress()` per l'output finale
+
+**`/app/frontend/app/appointment/new.tsx`**:
+- Form state esteso con `email` + 5 campi indirizzo
+- 3 nuovi gruppi UI: `[Via/Piazza | N. civico]`, `[CAP | Città | Prov]`, `Email cliente`
+- CAP → number-pad, max 5 cifre; Provincia → uppercase, max 2 caratteri
+- `submit()` compone `location` legacy dai campi strutturati se l'utente non l'ha compilato manualmente
+- `postSave` modal ora include phone/email/indirizzo → `AppointmentShareActions` mostra i bottoni attivi
+
+**`/app/frontend/app/appointment/[id].tsx`**:
+- Tipo `Appointment` esteso con i nuovi campi opzionali
+- Sezione "Condividi con il cliente" rifattorizzata per usare direttamente `<AppointmentShareActions>` con fallback appt → i bottoni ora si attivano se l'appuntamento ha phone/email anche senza contact collegato
+- Rimosso codice duplicato inline (compone testo + 3 Pressable manuali → 40 righe eliminate)
+- Warning aggiornato: *"Nessun contatto collegato — puoi comunque usare i canali sopra se hai inserito telefono/email nell'appuntamento."*
+
+### ✅ Verifica end-to-end (senza testing agent)
+- Backend: POST/GET/PUT con nuovi campi → **200 OK, tutti persistiti + editabili** ✅
+- `composeAppointmentAddress` Node inline test: 4/4 casi ok (completo, parziale, legacy, empty) ✅
+- Lint pulito ✅
+
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.15 Bug Fix — Condivisione Biglietto da Visita (Feb 2026)
 ### 🐛 Bug segnalato
 Nel Biglietto da Visita, il bottone "Condividi" richiedeva 2 tap per funzionare, e la rotellina di caricamento continuava a girare anche dopo che la condivisione era avvenuta.

@@ -9,6 +9,7 @@ import { theme } from "@/src/theme";
 import { scheduleAppointmentReminder, cancelAppointmentReminder, scheduleCallbackReminder } from "@/src/notifications";
 import { openGoogleCalendar, openOutlookCalendar, shareIcs } from "@/src/calendar-export";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { AppointmentShareActions } from "@/src/AppointmentShareActions";
 
 type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
 type Settings = { appointment_outcomes?: Outcome[] };
@@ -23,6 +24,15 @@ type Appointment = {
   broadcast_notify_advance_min?: number;
   read_only?: boolean;
   created_by?: string;
+  // v2.16 — Direct phone/email + structured address (optional)
+  phone_mobile?: string;
+  phone_work?: string;
+  email?: string;
+  address_street?: string;
+  address_number?: string;
+  address_city?: string;
+  address_zip?: string;
+  address_province?: string;
 };
 type ContactLite = { contact_id: string; first_name: string; last_name: string; phone?: string; whatsapp?: string; email?: string };
 type ContactSearchResult = { contact_id: string; first_name: string; last_name: string; phone?: string; email?: string; area?: string };
@@ -360,54 +370,37 @@ function AppointmentDetail() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Condividi con il cliente</Text>
-          <Text style={styles.shareHint}>Invia i dati dell&apos;appuntamento tramite Email, WhatsApp o SMS senza uscire dall&apos;app</Text>
-          {(() => {
-            const dateStr = new Date(a.start_at).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" });
-            const bodyText = `Ciao${contact ? " " + contact.first_name : ""},\n\nti confermo il nostro appuntamento:\n\n📅 ${a.title}\n🗓 ${dateStr}${a.location ? `\n📍 ${a.location}` : ""}${a.is_phone ? "\n📞 Appuntamento telefonico" : ""}${a.notes ? `\n\nNote: ${a.notes}` : ""}\n\nA presto!`;
-            return (
-              <View style={styles.shareRow}>
-                <Pressable
-                  testID="share-email"
-                  disabled={!contact?.email}
-                  onPress={() => Linking.openURL(`mailto:${contact?.email}?subject=${encodeURIComponent("Appuntamento: " + a.title)}&body=${encodeURIComponent(bodyText)}`)}
-                  style={[styles.shareBtn, { backgroundColor: "#0F766E" }, !contact?.email && { opacity: 0.4 }]}
-                >
-                  <Ionicons name="mail" size={16} color="#FFF" />
-                  <Text style={styles.shareBtnTxt}>Email</Text>
-                </Pressable>
-                <Pressable
-                  testID="share-whatsapp"
-                  disabled={!contact?.phone && !contact?.whatsapp}
-                  onPress={() => {
-                    const num = (contact?.whatsapp || contact?.phone || "").replace(/[^\d+]/g, "");
-                    Linking.openURL(`https://wa.me/${num}?text=${encodeURIComponent(bodyText)}`);
-                  }}
-                  style={[styles.shareBtn, { backgroundColor: "#25D366" }, !(contact?.phone || contact?.whatsapp) && { opacity: 0.4 }]}
-                >
-                  <Ionicons name="logo-whatsapp" size={16} color="#FFF" />
-                  <Text style={styles.shareBtnTxt}>WhatsApp</Text>
-                </Pressable>
-                <Pressable
-                  testID="share-sms"
-                  disabled={!contact?.phone}
-                  onPress={() => {
-                    const num = (contact?.phone || "").replace(/\s/g, "");
-                    const sep = Platform.OS === "ios" ? "&" : "?";
-                    Linking.openURL(`sms:${num}${sep}body=${encodeURIComponent(bodyText)}`);
-                  }}
-                  style={[styles.shareBtn, { backgroundColor: theme.color.brandSecondary }, !contact?.phone && { opacity: 0.4 }]}
-                >
-                  <Ionicons name="chatbubble-ellipses" size={16} color="#FFF" />
-                  <Text style={styles.shareBtnTxt}>SMS</Text>
-                </Pressable>
-              </View>
-            );
-          })()}
+          {/* v2.16 — use shared component with fallback phone/email from appt */}
+          <AppointmentShareActions
+            appt={{
+              title: a.title,
+              start_at: a.start_at,
+              is_phone: a.is_phone,
+              location: a.location,
+              notes: a.notes,
+              phone_mobile: a.phone_mobile,
+              phone_work: a.phone_work,
+              email: a.email,
+              address_street: a.address_street,
+              address_number: a.address_number,
+              address_city: a.address_city,
+              address_zip: a.address_zip,
+              address_province: a.address_province,
+            }}
+            contact={contact ? {
+              first_name: contact.first_name,
+              last_name: contact.last_name,
+              phone: contact.phone,
+              whatsapp: contact.whatsapp,
+              email: contact.email,
+            } : null}
+            compact
+          />
           {!contact && (
             <View style={styles.linkContactBlock}>
               <View style={styles.linkContactRow}>
                 <Ionicons name="link" size={16} color={theme.color.muted} />
-                <Text style={styles.shareWarn}>Nessun contatto collegato — associane uno per abilitare Email, WhatsApp e SMS.</Text>
+                <Text style={styles.shareWarn}>Nessun contatto collegato — puoi comunque usare i canali sopra se hai inserito telefono/email nell&apos;appuntamento.</Text>
               </View>
               <Pressable
                 testID="link-contact-btn"

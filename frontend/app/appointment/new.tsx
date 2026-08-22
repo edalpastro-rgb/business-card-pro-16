@@ -132,9 +132,16 @@ function NewAppointmentScreen() {
     phone_mobile: "",
     phone_work: "",
     phone_target: "" as "" | "mobile" | "work",
+    email: "",  // v2.16 — email diretta appuntamento
     location: prefLoc || "",
     map_address: "",
     full_address: "",
+    // v2.16 — Structured address parts
+    address_street: "",
+    address_number: "",
+    address_city: "",
+    address_zip: "",
+    address_province: "",
     notes: prefNotes || "",
     value_amount: "",
     appointment_type_tags: [] as string[],
@@ -162,7 +169,8 @@ function NewAppointmentScreen() {
   const [wheelPicker, setWheelPicker] = useState<null | "duration" | "reminder">(null);
   const [busy, setBusy] = useState(false);
   // v2.14 — Post-save "Invia dettagli" modal
-  const [postSave, setPostSave] = useState<null | { appt: { title: string; start_at: Date; is_phone: boolean; location: string; notes: string }; contact: { first_name?: string; last_name?: string; phone?: string; whatsapp?: string; email?: string } | null }>(null);
+  // v2.16 — Extended to carry direct phone/email + structured address parts
+  const [postSave, setPostSave] = useState<null | { appt: any; contact: { first_name?: string; last_name?: string; phone?: string; whatsapp?: string; email?: string } | null }>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [recording, setRecording] = useState(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -325,8 +333,18 @@ function NewAppointmentScreen() {
     if (!form.title.trim()) return;
     setBusy(true);
     try {
+      // v2.16 — Compose legacy `location` from structured address parts (only
+      // if the user filled them and didn't override `location` manually).
+      const composedAddr = [
+        [form.address_street, form.address_number].filter(Boolean).join(" "),
+        [form.address_zip, form.address_city].filter(Boolean).join(" ") +
+          (form.address_province ? ` (${form.address_province})` : ""),
+      ].filter((p) => p.trim()).join(", ").trim();
+      const effectiveLocation = form.location.trim() || composedAddr;
+
       const payload: any = {
         ...form,
+        location: effectiveLocation,
         start_at: form.start_at.toISOString(),
         value_amount: form.value_amount ? parseFloat(form.value_amount) : 0,
         note_attachments: attachments,
@@ -346,28 +364,37 @@ function NewAppointmentScreen() {
           await api(`/appointments/${reschedule_from}`, { method: "PUT", body: { rescheduled_to: created.appointment_id } });
         } catch (e) { console.warn(e); }
       }
-      // v2.14 — If the selected contact has a phone/email, show the share
-      // modal so the consultant can send the appointment details right away.
+      // v2.14 + v2.16 — Show share modal if we have any channel (contact OR
+      // direct phone/email fields on the appointment itself).
       const selectedContact = form.contact_id
         ? (contacts.find((c) => c.contact_id === form.contact_id) || null)
         : null;
-      const hasChannel = !!(selectedContact && (selectedContact.phone || selectedContact.email));
-      if (hasChannel && selectedContact) {
+      const hasContactChannel = !!(selectedContact && (selectedContact.phone || selectedContact.email));
+      const hasDirectChannel = !!(form.phone_mobile || form.phone_work || form.email);
+      if (hasContactChannel || hasDirectChannel) {
         setPostSave({
           appt: {
             title: form.title.trim(),
             start_at: form.start_at,
             is_phone: form.is_phone,
-            location: form.location,
+            location: effectiveLocation,
             notes: form.notes,
-          },
-          contact: {
+            phone_mobile: form.phone_mobile,
+            phone_work: form.phone_work,
+            email: form.email,
+            address_street: form.address_street,
+            address_number: form.address_number,
+            address_city: form.address_city,
+            address_zip: form.address_zip,
+            address_province: form.address_province,
+          } as any,
+          contact: selectedContact ? {
             first_name: selectedContact.first_name,
             last_name: selectedContact.last_name,
             phone: selectedContact.phone,
             whatsapp: (selectedContact as any).whatsapp,
             email: selectedContact.email,
-          },
+          } : null,
         });
       } else {
         router.back();
@@ -730,6 +757,83 @@ function NewAppointmentScreen() {
             multiline
             placeholder="Es. Via Roma 10, 20100 Milano MI"
             placeholderTextColor="#94A3B8"
+          />
+
+          {/* v2.16 — Structured address fields */}
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flex: 2 }}>
+              <Text style={styles.lbl}>Via / Piazza</Text>
+              <TextInput
+                testID="ap-address-street"
+                value={form.address_street}
+                onChangeText={(t) => setForm({ ...form, address_street: t })}
+                style={styles.input}
+                placeholder="Es. Via Roma"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.lbl}>N. civico</Text>
+              <TextInput
+                testID="ap-address-number"
+                value={form.address_number}
+                onChangeText={(t) => setForm({ ...form, address_number: t })}
+                style={styles.input}
+                placeholder="10"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.lbl}>CAP</Text>
+              <TextInput
+                testID="ap-address-zip"
+                value={form.address_zip}
+                onChangeText={(t) => setForm({ ...form, address_zip: t.replace(/[^0-9]/g, "").slice(0, 5) })}
+                style={styles.input}
+                placeholder="20100"
+                placeholderTextColor="#94A3B8"
+                keyboardType="number-pad"
+                maxLength={5}
+              />
+            </View>
+            <View style={{ flex: 2 }}>
+              <Text style={styles.lbl}>Città</Text>
+              <TextInput
+                testID="ap-address-city"
+                value={form.address_city}
+                onChangeText={(t) => setForm({ ...form, address_city: t })}
+                style={styles.input}
+                placeholder="Milano"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.lbl}>Prov.</Text>
+              <TextInput
+                testID="ap-address-province"
+                value={form.address_province}
+                onChangeText={(t) => setForm({ ...form, address_province: t.toUpperCase().slice(0, 2) })}
+                style={styles.input}
+                placeholder="MI"
+                placeholderTextColor="#94A3B8"
+                maxLength={2}
+                autoCapitalize="characters"
+              />
+            </View>
+          </View>
+
+          <Text style={styles.lbl}>Email cliente (per invio dettagli)</Text>
+          <TextInput
+            testID="ap-email"
+            value={form.email}
+            onChangeText={(t) => setForm({ ...form, email: t })}
+            style={styles.input}
+            placeholder="cliente@example.com"
+            placeholderTextColor="#94A3B8"
+            keyboardType="email-address"
+            autoCapitalize="none"
           />
 
           <Text style={styles.lbl}>Luogo (visualizzato in agenda)</Text>

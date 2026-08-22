@@ -5,12 +5,9 @@ import { theme } from "@/src/theme";
 
 /**
  * v2.14 — Shared "Invia dettagli" panel for appointments.
+ * v2.16 — Now supports fallback phone/email from the appointment itself
+ *         (used when there's no linked contact), and structured address fields.
  * Renders Email + WhatsApp + SMS buttons with a pre-composed message.
- * Buttons are disabled if the corresponding channel is not available.
- *
- * Kept dumb / stateless: the caller provides the appointment fields and the
- * (optional) contact so the same component works both in the create-flow
- * ("appuntamento appena creato") and the view-flow ("appointment/[id]").
  */
 export type ApptContactLite = {
   first_name?: string;
@@ -24,15 +21,45 @@ export type ApptDetails = {
   title: string;
   start_at: Date | string;
   is_phone?: boolean;
+  /** Legacy free-form location string (kept for backward compat) */
   location?: string;
+  /** v2.16 — Structured address parts. If any is set, the full address is
+   *  rebuilt as "street number, zip city (province)". */
+  address_street?: string;
+  address_number?: string;
+  address_city?: string;
+  address_zip?: string;
+  address_province?: string;
   notes?: string;
+  /** v2.16 — Optional phone/email inserted directly on the appointment
+   *  (used as fallbacks when the appointment has no linked contact). */
+  phone_mobile?: string;
+  phone_work?: string;
+  email?: string;
 };
+
+export function composeAppointmentAddress(appt: ApptDetails): string {
+  const street = (appt.address_street || "").trim();
+  const number = (appt.address_number || "").trim();
+  const city = (appt.address_city || "").trim();
+  const zip = (appt.address_zip || "").trim();
+  const prov = (appt.address_province || "").trim();
+  const hasStructured = street || number || city || zip || prov;
+  if (hasStructured) {
+    const line1 = [street, number].filter(Boolean).join(" ");
+    const line2 = [zip, city].filter(Boolean).join(" ");
+    const withProv = prov ? `${line2}${line2 ? " " : ""}(${prov})` : line2;
+    return [line1, withProv].filter(Boolean).join(", ").trim();
+  }
+  return (appt.location || "").trim();
+}
 
 export function buildAppointmentMessage(appt: ApptDetails, contact?: ApptContactLite | null): string {
   const dt = typeof appt.start_at === "string" ? new Date(appt.start_at) : appt.start_at;
   const dateStr = dt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" });
   const greet = contact?.first_name ? `Ciao ${contact.first_name}` : "Ciao";
-  const loc = appt.location ? `\n📍 ${appt.location}` : "";
+  const addr = composeAppointmentAddress(appt);
+  const loc = addr ? `\n📍 ${addr}` : "";
   const phone = appt.is_phone ? "\n📞 Appuntamento telefonico" : "";
   const notes = appt.notes && appt.notes.trim() ? `\n\nNote: ${appt.notes.trim()}` : "";
   return `${greet},\n\nti confermo il nostro appuntamento:\n\n📅 ${appt.title}\n🗓 ${dateStr}${loc}${phone}${notes}\n\nA presto!`;
@@ -47,26 +74,35 @@ type Props = {
 
 export function AppointmentShareActions({ appt, contact, compact = false }: Props) {
   const bodyText = useMemo(() => buildAppointmentMessage(appt, contact), [appt, contact]);
-  const hasEmail = !!contact?.email;
-  const hasWa = !!(contact?.whatsapp || contact?.phone);
-  const hasSms = !!contact?.phone;
+
+  // v2.16 — Effective channels: prefer contact fields when present, else
+  // fall back to the appointment's own phone/email fields.
+  const effectivePhone = (contact?.phone || appt.phone_mobile || appt.phone_work || "").trim();
+  const effectiveWhatsapp = (contact?.whatsapp || contact?.phone || appt.phone_mobile || appt.phone_work || "").trim();
+  const effectiveEmail = (contact?.email || appt.email || "").trim();
+
+  const hasEmail = !!effectiveEmail;
+  const hasWa = !!effectiveWhatsapp;
+  const hasSms = !!effectivePhone;
 
   const openEmail = () => {
     if (!hasEmail) return;
     const subject = encodeURIComponent(`Appuntamento: ${appt.title}`);
-    Linking.openURL(`mailto:${contact!.email}?subject=${subject}&body=${encodeURIComponent(bodyText)}`);
+    Linking.openURL(`mailto:${effectiveEmail}?subject=${subject}&body=${encodeURIComponent(bodyText)}`);
   };
   const openWhatsapp = () => {
     if (!hasWa) return;
-    const num = (contact?.whatsapp || contact?.phone || "").replace(/[^\d+]/g, "");
+    const num = effectiveWhatsapp.replace(/[^\d+]/g, "");
     Linking.openURL(`https://wa.me/${num}?text=${encodeURIComponent(bodyText)}`);
   };
   const openSms = () => {
     if (!hasSms) return;
-    const num = (contact?.phone || "").replace(/\s/g, "");
+    const num = effectivePhone.replace(/\s/g, "");
     const sep = Platform.OS === "ios" ? "&" : "?";
     Linking.openURL(`sms:${num}${sep}body=${encodeURIComponent(bodyText)}`);
   };
+
+  const anyChannel = hasEmail || hasWa || hasSms;
 
   return (
     <View style={[styles.card, compact && styles.cardCompact]}>
@@ -104,9 +140,9 @@ export function AppointmentShareActions({ appt, contact, compact = false }: Prop
           <Text style={styles.btnTxt}>SMS</Text>
         </Pressable>
       </View>
-      {!hasEmail && !hasWa && !hasSms && (
+      {!anyChannel && (
         <Text style={styles.warn}>
-          Aggiungi telefono o email al contatto per abilitare l&apos;invio dei dettagli.
+          Inserisci un telefono o email nell&apos;appuntamento (o associa un contatto) per abilitare l&apos;invio dei dettagli.
         </Text>
       )}
     </View>

@@ -558,9 +558,16 @@ class AppointmentIn(BaseModel):
     phone_mobile: str = ""  # V26.p: numero cellulare per chiamata
     phone_work: str = ""    # V26.p: numero aziendale per chiamata
     phone_target: Literal["mobile", "work", ""] = ""  # V26.p: quale numero usare
+    email: str = ""         # v2.16 — email diretta appuntamento (fallback per share sheet)
     location: str = ""
     map_address: str = ""
     full_address: str = ""  # V26.p: indirizzo completo (auto-fill dal contatto)
+    # v2.16 — Indirizzo strutturato (in aggiunta a location per backward compat)
+    address_street: str = ""    # Via/Piazza
+    address_number: str = ""    # Numero civico
+    address_city: str = ""      # Città
+    address_zip: str = ""       # CAP
+    address_province: str = ""  # Provincia
     notes: str = ""
     note_attachments: List[Dict[str, Any]] = Field(default_factory=list)
     reminder_minutes: int = 15
@@ -586,10 +593,17 @@ class AppointmentUpdate(BaseModel):
     phone_mobile: Optional[str] = None
     phone_work: Optional[str] = None
     phone_target: Optional[Literal["mobile", "work", ""]] = None
+    email: Optional[str] = None  # v2.16
     done: Optional[bool] = None
     location: Optional[str] = None
     map_address: Optional[str] = None
     full_address: Optional[str] = None
+    # v2.16 — structured address parts
+    address_street: Optional[str] = None
+    address_number: Optional[str] = None
+    address_city: Optional[str] = None
+    address_zip: Optional[str] = None
+    address_province: Optional[str] = None
     notes: Optional[str] = None
     note_attachments: Optional[List[Dict[str, Any]]] = None
     outcome_tags: Optional[List[str]] = None
