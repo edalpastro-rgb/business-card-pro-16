@@ -376,6 +376,9 @@ class SettingsModel(BaseModel):
     callback_notify_default_advance_min: int = 10
     disable_callback_notifications: bool = False
     contact_source_options: List[Dict[str, Any]] = Field(default_factory=list)
+    # V27 — Referral / Call script templates (configured by Master, used by all agents)
+    wa_referral_template: str = ""  # WhatsApp message for "Chiedi Referenze" (customer → their contacts). Supports {name} placeholder.
+    call_script: str = ""  # Floating script overlay for agents during phone calls
 
 
 DEFAULT_CALL_OUTCOMES = [
@@ -1044,6 +1047,26 @@ async def get_settings(user=Depends(get_current_user)):
     if not s.get("contact_source_options"):
         s["contact_source_options"] = DEFAULT_SOURCE_OPTIONS
         await db.settings.update_one({"user_id": tid}, {"$set": {"contact_source_options": DEFAULT_SOURCE_OPTIONS}})
+    # V27 — Referral / Call script default seeds
+    if "wa_referral_template" not in s:
+        s["wa_referral_template"] = (
+            "Ciao {name}! Volevo consigliarti il mio consulente energia che mi ha "
+            "fatto risparmiare in bolletta. È preparato, trasparente e disponibile. "
+            "Ti lascio il suo contatto se ti va di sentirlo. 🙂"
+        )
+        await db.settings.update_one({"user_id": tid}, {"$set": {"wa_referral_template": s["wa_referral_template"]}})
+    if "call_script" not in s:
+        s["call_script"] = (
+            "APERTURA\n"
+            "Buongiorno {name}, sono {agent} — la disturbo un attimo?\n\n"
+            "SCOPO\n"
+            "La chiamo perché aiuto famiglie e aziende a risparmiare in bolletta con un check gratuito.\n\n"
+            "AGGANCIO\n"
+            "Le posso fare una foto della sua bolletta e in 24h le mostro esattamente quanto può risparmiare — senza impegno.\n\n"
+            "CHIUSURA\n"
+            "Le va bene se ci vediamo giovedì alle 18:00 o preferisce venerdì mattina?"
+        )
+        await db.settings.update_one({"user_id": tid}, {"$set": {"call_script": s["call_script"]}})
     return s
 
 

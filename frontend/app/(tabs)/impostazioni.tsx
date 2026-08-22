@@ -17,6 +17,9 @@ type Settings = {
   custom_appointment_types?: string[];
   custom_product_categories?: { name: string; subs?: string[] }[];
   custom_areas?: { id: string; name: string; color: string; icon?: string }[];
+  // V27 — templates configurable by Master, used by agents
+  wa_referral_template?: string;
+  call_script?: string;
 };
 
 const COLOR_SWATCHES = ["#EF4444", "#F97316", "#F59E0B", "#22C55E", "#10B981", "#06B6D4", "#3B82F6", "#2563EB", "#8B5CF6", "#EC4899", "#F43F5E", "#84CC16"];
@@ -601,6 +604,46 @@ function ImpostazioniScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>
+
+        {!user?.parent_user_id && (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Script telefonata & Messaggio referenze</Text>
+          <Text style={{ fontSize: 12, color: theme.color.muted, marginBottom: 8 }}>
+            Questi due testi vengono usati da tutti gli agenti del tuo team. Il primo compare nel widget floating
+            &quot;Script&quot; durante le chiamate; il secondo è il messaggio WhatsApp che il cliente invia ai suoi contatti
+            dopo aver firmato.
+          </Text>
+
+          <Text style={styles.label}>Script telefonata (widget floating)</Text>
+          <TextInput
+            testID="settings-call-script"
+            value={s.call_script || ""}
+            onChangeText={(t) => setS({ ...s, call_script: t })}
+            multiline
+            style={[styles.input, { minHeight: 140, textAlignVertical: "top" }]}
+            placeholder={"APERTURA\nBuongiorno {name}, sono {agent}…"}
+            placeholderTextColor="#94A3B8"
+          />
+          <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 4 }}>
+            Placeholder: <Text style={{ fontWeight: "800" }}>{"{name}"}</Text> = nome cliente ·{" "}
+            <Text style={{ fontWeight: "800" }}>{"{agent}"}</Text> = tuo nome
+          </Text>
+
+          <Text style={[styles.label, { marginTop: 16 }]}>Messaggio WhatsApp &quot;Chiedi Referenze&quot;</Text>
+          <TextInput
+            testID="settings-wa-template"
+            value={s.wa_referral_template || ""}
+            onChangeText={(t) => setS({ ...s, wa_referral_template: t })}
+            multiline
+            style={[styles.input, { minHeight: 110, textAlignVertical: "top" }]}
+            placeholder={"Ciao {name}! Volevo consigliarti…"}
+            placeholderTextColor="#94A3B8"
+          />
+          <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 4 }}>
+            Placeholder disponibile: <Text style={{ fontWeight: "800" }}>{"{name}"}</Text> = nome del cliente che ha firmato
+          </Text>
+        </View>
+        )}
 
         {!user?.parent_user_id && (
         <View style={styles.card}>

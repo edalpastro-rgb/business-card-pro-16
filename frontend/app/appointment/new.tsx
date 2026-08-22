@@ -115,9 +115,13 @@ function NewAppointmentScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
-  const { contactId, reschedule_from, title: prefTitle, area: prefArea, location: prefLoc, notes: prefNotes, contact_id: prefContact, is_phone: prefPhone } = useLocalSearchParams<{
+  const { contactId, reschedule_from, title: prefTitle, area: prefArea, location: prefLoc, notes: prefNotes, contact_id: prefContact, is_phone: prefPhone, chain, back_to } = useLocalSearchParams<{
     contactId?: string; reschedule_from?: string; title?: string; area?: string; location?: string; notes?: string; contact_id?: string; is_phone?: string;
+    chain?: string; back_to?: string;
   }>();
+  // V27 — Chain referral flow: after saving, go back to the referrer's Referenze tab
+  const chainMode = chain === "1";
+  const chainBackTo = back_to || null;
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [form, setForm] = useState({
@@ -399,7 +403,12 @@ function NewAppointmentScreen() {
           } : null,
         });
       } else {
-        router.back();
+        // V27 — Chain mode: after saving the appointment, jump back to the referrer's Referenze tab
+        if (chainMode && chainBackTo) {
+          router.replace(`/contact/${chainBackTo}?refs=1` as any);
+        } else {
+          router.back();
+        }
       }
     } finally { setBusy(false); }
   };

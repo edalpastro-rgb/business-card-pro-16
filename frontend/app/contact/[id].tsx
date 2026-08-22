@@ -27,6 +27,7 @@ import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { DocumentScannerModal } from "@/src/DocumentScannerModal";
+import { ContactReferralsTab } from "@/src/ContactReferralsTab";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -61,10 +62,15 @@ export default function ContactDetailRoute() {
 }
 
 function ContactDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, refs: refsParam } = useLocalSearchParams<{ id: string; refs?: string }>();
   const router = useRouter();
   const [c, setC] = useState<Contact | null>(null);
-  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio" | "calls" | "appts">("info");
+  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio" | "calls" | "appts" | "refs">("info");
+
+  // V27 — Deep-link to Referenze tab via ?refs=1 (used by chain flow after saving an appointment)
+  useEffect(() => {
+    if (refsParam === "1") setTab("refs");
+  }, [refsParam]);
   const [noteText, setNoteText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
@@ -448,15 +454,16 @@ function ContactDetail() {
       </View>
 
       <View style={styles.tabs}>
-        {(["info", "notes", "files", "bills", "audio", "calls", "appts"] as const).map((t) => {
+        {(["info", "notes", "files", "bills", "audio", "calls", "appts", "refs"] as const).map((t) => {
           const iconName: any = t === "info" ? "person"
             : t === "notes" ? "create"
             : t === "files" ? "folder"
             : t === "bills" ? "document-text"
             : t === "audio" ? "mic"
             : t === "calls" ? "call"
+            : t === "refs" ? "share-social"
             : "calendar";
-          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Telefonate" : "Appuntamenti";
+          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Telefonate" : t === "refs" ? "Referenze" : "Appuntamenti";
           const active = tab === t;
           // V38E: All non-selected tabs are neutral grey; only the active tab is colored.
           // Fatture tab keeps a distinctive orange when active (still the most important section).
@@ -503,6 +510,12 @@ function ContactDetail() {
         />
       ) : tab === "appts" ? (
         <ContactAppointmentsSection contactId={id} />
+      ) : tab === "refs" ? (
+        <ContactReferralsTab
+          contactId={id}
+          contactName={`${c.first_name} ${c.last_name}`.trim()}
+          contactPhone={c.phone}
+        />
       ) : (
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {tab === "info" && (

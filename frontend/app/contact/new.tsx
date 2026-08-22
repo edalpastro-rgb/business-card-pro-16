@@ -52,9 +52,12 @@ export default function NewContactRoute() {
 function NewContactScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; source?: string; referred_by?: string; chain?: string; back_to?: string }>();
   const editId = params.id;
   const isEdit = !!editId;
+  // V27 — Chain referral flow: come from a client card, add referral(s) back-to-back
+  const chainMode = params.chain === "1";
+  const chainBackTo = params.back_to || null;
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
   const [contacts, setContacts] = useState<ContactLite[]>([]);
   const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
@@ -119,6 +122,20 @@ function NewContactScreen() {
       setUserEmails(Array.from(new Set(list)));
     }).catch(() => {});
   }, []);
+
+  // V27 — Prefill referral fields when arriving from a client's Referenze tab
+  useEffect(() => {
+    if (isEdit) return;
+    if (params.source === "referral" && params.referred_by) {
+      setForm((f) => ({
+        ...f,
+        source: "referral",
+        referral_type: "from_contact",
+        referred_by_contact_id: String(params.referred_by),
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.source, params.referred_by, isEdit]);
 
   useEffect(() => {
     if (!isEdit || !editId) return;
@@ -1748,9 +1765,11 @@ function NewContactScreen() {
               <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#DCFCE7", justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
                 <Ionicons name="checkmark-circle" size={40} color="#16A34A" />
               </View>
-              <Text style={[styles.modalTitle, { textAlign: "center" }]}>Contatto salvato ✅</Text>
+              <Text style={[styles.modalTitle, { textAlign: "center" }]}>{chainMode ? "Referenza aggiunta ✅" : "Contatto salvato ✅"}</Text>
               <Text style={{ fontSize: 13, color: theme.color.muted, textAlign: "center", marginTop: 4 }}>
-                Vuoi programmare subito un appuntamento con {postCreateModal?.name}?
+                {chainMode
+                  ? `Vuoi fissare subito un appuntamento con ${postCreateModal?.name}?`
+                  : `Vuoi programmare subito un appuntamento con ${postCreateModal?.name}?`}
               </Text>
             </View>
             <View style={{ gap: 10, marginTop: 8 }}>
@@ -1761,26 +1780,59 @@ function NewContactScreen() {
                   const name = postCreateModal?.name || "";
                   setPostCreateModal(null);
                   if (id) {
-                    router.replace(`/appointment/new?contact_id=${encodeURIComponent(id)}&contact_name=${encodeURIComponent(name)}`);
+                    // V27 — In chain mode: after saving the appointment, come back to the REFERRER contact card (Referenze tab)
+                    const chainQuery = chainMode && chainBackTo
+                      ? `&chain=1&back_to=${encodeURIComponent(chainBackTo)}`
+                      : "";
+                    router.replace(`/appointment/new?contact_id=${encodeURIComponent(id)}&contact_name=${encodeURIComponent(name)}${chainQuery}` as any);
                   }
                 }}
                 style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary, flexDirection: "row", justifyContent: "center", gap: 8 }]}
               >
                 <Ionicons name="calendar" size={18} color="#FFF" />
-                <Text style={{ color: "#FFF", fontWeight: "700" }}>Crea appuntamento per questo contatto</Text>
+                <Text style={{ color: "#FFF", fontWeight: "700" }}>Fissa appuntamento</Text>
               </Pressable>
-              <Pressable
-                testID="post-create-skip-btn"
-                onPress={() => {
-                  const id = postCreateModal?.contact_id;
-                  setPostCreateModal(null);
-                  if (id) router.replace(`/contact/${id}`);
-                }}
-                style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, flexDirection: "row", justifyContent: "center", gap: 8 }]}
-              >
-                <Ionicons name="arrow-forward" size={18} color={theme.color.onSurface} />
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Salta, vai alla scheda</Text>
-              </Pressable>
+
+              {chainMode && chainBackTo ? (
+                <>
+                  {/* V27 — Chain mode: continue with another referral */}
+                  <Pressable
+                    testID="chain-add-another-btn"
+                    onPress={() => {
+                      setPostCreateModal(null);
+                      router.replace(`/contact/new?source=referral&referred_by=${chainBackTo}&chain=1&back_to=${chainBackTo}` as any);
+                    }}
+                    style={[styles.modalBtn, { backgroundColor: "#FFF1E9", borderWidth: 2, borderColor: "#FF6B35", flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                  >
+                    <Ionicons name="person-add" size={18} color="#FF6B35" />
+                    <Text style={{ color: "#FF6B35", fontWeight: "800" }}>Aggiungi altra referenza</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="chain-finish-btn"
+                    onPress={() => {
+                      setPostCreateModal(null);
+                      router.replace("/(tabs)/home" as any);
+                    }}
+                    style={[styles.modalBtn, { backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: theme.color.border, flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                  >
+                    <Ionicons name="checkmark-done" size={18} color={theme.color.onSurface} />
+                    <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Finito · Torna alla Home</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable
+                  testID="post-create-skip-btn"
+                  onPress={() => {
+                    const id = postCreateModal?.contact_id;
+                    setPostCreateModal(null);
+                    if (id) router.replace(`/contact/${id}`);
+                  }}
+                  style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                >
+                  <Ionicons name="arrow-forward" size={18} color={theme.color.onSurface} />
+                  <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Salta, vai alla scheda</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         </View>
