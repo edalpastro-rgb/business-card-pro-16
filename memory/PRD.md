@@ -1,5 +1,27 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.13 Bug Fix — Parsing data italiana in Banner Evento (Feb 2026)
+### 🐛 Bug segnalato
+`event-banners.tsx:223` — `new Date("27.08.2036T20:30:00").toISOString()` lanciava `RangeError: Invalid time value` perché `Date()` non parsa il formato italiano DD.MM.YYYY, blocca il salvataggio dell'evento.
+
+### ✅ Fix applicato (`/app/frontend/app/event-banners.tsx`)
+- Nuovo helper `parseItalianDateTime(d, t)` con regex robusti:
+  - Data: `DD.MM.YYYY` | `DD/MM/YYYY` | `DD-MM-YYYY` | `YYYY-MM-DD` (backward compat) | `DD.MM.YY` (anno corto → 20xx)
+  - Ora: `HH:MM` | `HH.MM` | `HH,MM` | `HHMM` (no separatore)
+- Validazione range: anno 1970-3000, mese 1-12, giorno 1-31, ora 0-23, min 0-59
+- Round-trip check: rifiuta 31 febbraio, 32 agosto ecc. (JS `Date` wrap-around detection)
+- Se parse fallisce → notify user: *"Data o ora non valida. Usa il formato GG.MM.AAAA (es. 27.08.2036) e HH:MM (es. 20:30)"*
+- Placeholder aggiornati: `GG.MM.AAAA` e `HH:MM` (era `YYYY-MM-DD` misleading)
+- `openEdit()` ora precompila i campi in formato italiano `DD.MM.YYYY` invece di ISO
+- Su native: `keyboardType="numbers-and-punctuation"` per tastiera numerica con `.`/`:` diretti
+
+### ✅ Verifica (test unit inline con Node)
+11/11 test passano: formati IT ok, backward compat ISO ok, rifiuta feb31/day32/hour25/garbage ✅
+
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.12 Feature — CTE Comparativa (Multi-Bill Upload + Report) (Feb 2026)
 ### 🎯 Richiesta utente
 Il consulente deve poter caricare più PDF fatture (luce/gas/telco) contemporaneamente per un singolo cliente. L'AI analizza tutte le fatture e genera un **report comparativo** con: consumi nel tempo, andamento spesa, confronto tra fornitori diversi, e suggerimento del fornitore più conveniente. Visualizzabile inline e condivisibile come PDF/HTML.

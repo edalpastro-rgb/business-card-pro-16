@@ -102,7 +102,8 @@ function EventBannersScreen() {
       const dt = new Date(full.event_at);
       const y = dt.getFullYear(), m = String(dt.getMonth() + 1).padStart(2, "0"), d = String(dt.getDate()).padStart(2, "0");
       const hh = String(dt.getHours()).padStart(2, "0"), mm = String(dt.getMinutes()).padStart(2, "0");
-      setDateStr(`${y}-${m}-${d}`);
+      // v2.13 — Show dates in Italian format DD.MM.YYYY / HH:MM (matches placeholders)
+      setDateStr(`${d}.${m}.${y}`);
       setTimeStr(`${hh}:${mm}`);
       setCover(full.cover_base64 ? { base64: full.cover_base64, mime: full.cover_mime || "image/jpeg" } : null);
       setVisibilityKind(full.visibility_kind || "all");
@@ -216,11 +217,66 @@ function EventBannersScreen() {
     } finally { setAiBusy(false); }
   };
 
+  // v2.13 — Parse Italian date/time formats: DD.MM.YYYY (or DD/MM/YYYY, DD-MM-YYYY)
+  // and HH.MM (or HH:MM). Accepts also the ISO short form YYYY-MM-DD for backwards compat.
+  // Returns an ISO 8601 UTC string or null if invalid.
+  const parseItalianDateTime = (d: string, t: string): string | null => {
+    const dTrim = (d || "").trim();
+    const tTrim = (t || "").trim();
+    if (!dTrim || !tTrim) return null;
+
+    // Parse date: accept 27.08.2036 | 27/08/2036 | 27-08-2036 | 2036-08-27
+    let day: number, month: number, year: number;
+    const isoMatch = dTrim.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    const itMatch = dTrim.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+    if (isoMatch) {
+      year = parseInt(isoMatch[1], 10);
+      month = parseInt(isoMatch[2], 10);
+      day = parseInt(isoMatch[3], 10);
+    } else if (itMatch) {
+      day = parseInt(itMatch[1], 10);
+      month = parseInt(itMatch[2], 10);
+      year = parseInt(itMatch[3], 10);
+      if (year < 100) year += 2000; // 2-digit year → 20xx
+    } else {
+      return null;
+    }
+
+    // Parse time: accept 20.30 | 20:30 | 20,30
+    const timeMatch = tTrim.match(/^(\d{1,2})[.:,]?(\d{2})$/);
+    if (!timeMatch) return null;
+    const hours = parseInt(timeMatch[1], 10);
+    const minutes = parseInt(timeMatch[2], 10);
+
+    // Validate ranges
+    if (
+      year < 1970 || year > 3000 ||
+      month < 1 || month > 12 ||
+      day < 1 || day > 31 ||
+      hours < 0 || hours > 23 ||
+      minutes < 0 || minutes > 59
+    ) return null;
+
+    const dt = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    if (isNaN(dt.getTime())) return null;
+    // Sanity re-check (e.g. 31 feb → JS wraps; verify components round-trip)
+    if (
+      dt.getFullYear() !== year ||
+      dt.getMonth() !== month - 1 ||
+      dt.getDate() !== day
+    ) return null;
+    return dt.toISOString();
+  };
+
   const save = async () => {
     if (!title.trim()) { notify("Titolo mancante", "Inserisci un titolo per l'evento."); return; }
     if (!dateStr || !timeStr) { notify("Data mancante", "Inserisci data e ora dell'evento."); return; }
     if (!cover?.base64 && !editing?.event_id) { notify("Copertina mancante", "Carica un'immagine di copertina."); return; }
-    const iso = new Date(`${dateStr}T${timeStr}:00`).toISOString();
+    const iso = parseItalianDateTime(dateStr, timeStr);
+    if (!iso) {
+      notify("Data o ora non valida", "Usa il formato GG.MM.AAAA (es. 27.08.2036) e HH:MM (es. 20:30).");
+      return;
+    }
     setSaving(true);
     try {
       const body: any = {
@@ -373,9 +429,10 @@ function EventBannersScreen() {
                     testID="event-date"
                     value={dateStr}
                     onChangeText={setDateStr}
-                    placeholder="YYYY-MM-DD"
+                    placeholder="GG.MM.AAAA"
                     placeholderTextColor="#94A3B8"
                     style={styles.input}
+                    keyboardType={Platform.OS === "web" ? "default" : "numbers-and-punctuation"}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -387,6 +444,7 @@ function EventBannersScreen() {
                     placeholder="HH:MM"
                     placeholderTextColor="#94A3B8"
                     style={styles.input}
+                    keyboardType={Platform.OS === "web" ? "default" : "numbers-and-punctuation"}
                   />
                 </View>
               </View>
