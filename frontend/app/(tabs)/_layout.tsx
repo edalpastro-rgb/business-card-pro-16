@@ -31,9 +31,9 @@ export default function TabsLayout() {
           backgroundColor: TAB_BG,
           borderTopColor: TAB_BORDER,
           borderTopWidth: 1,
-          height: Platform.select({ ios: 88, android: 74, default: 74 }),
+          height: Platform.select({ ios: 94, android: 80, default: 80 }),
           paddingTop: 10,
-          paddingBottom: Platform.select({ ios: 24, android: 12, default: 12 }),
+          paddingBottom: Platform.select({ ios: 28, android: 16, default: 16 }),
           ...Platform.select({
             ios: {
               shadowColor: "#0F172A",
@@ -44,7 +44,7 @@ export default function TabsLayout() {
             android: { elevation: 8 },
           }),
         },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: "700", letterSpacing: 0.2, marginTop: 3 },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: "700", letterSpacing: 0.2, marginTop: 3, marginBottom: 0, includeFontPadding: false },
         tabBarItemStyle: { paddingVertical: 2 },
       }}
     >
