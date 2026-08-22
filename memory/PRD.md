@@ -1,5 +1,38 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.21 Feature — Home Dashboard V27 Modern Redesign (Giugno 2026)
+### 🎯 Richiesta utente
+"Senza usare il testing agent: ridisegna SOLO la schermata Home (dashboard principale) con un nuovo stile grafico moderno."
+
+### 🎨 Design system applicato
+- Sfondo bianco pulito `#FFFFFF`
+- Card con ombra leggera + bordi arrotondati (radius 14-18px)
+- KPI in tipografia grande e bold (32px, weight 900, letter-spacing -1)
+- Colore accento primario: **arancio `#FF6B35`**
+- Colore secondario: **blu navy `#1B2B4B`**
+- Grafici: donut SVG custom (appuntamenti fatti vs da fare, ultimi 30gg) + bar chart orizzontale (ritelefonate per area/ritardo)
+- Bottom navigation bar minimal con icone outline/filled a seconda dello stato attivo
+- Palette locale (const `C`) — nessuna modifica al `theme.ts` globale
+
+### ✅ File modificati (scope isolato come richiesto)
+1. **`/app/frontend/app/(tabs)/home.tsx`** — riscritto (funzionalità 100% preservate: callbacks, master, event banner, my-thing, azioni rapide)
+2. **`/app/frontend/app/(tabs)/_layout.tsx`** — stile tab bar (arancio attivo, icone outline/filled duale, ombra top, safe area iOS)
+
+### ✅ Nuove sezioni Home
+- **Header pulito**: eyebrow data + "Ciao, <nome>" con nome in arancio, avatar tappabile → Profilo
+- **4 KPI cards** (2×2 grid): Ritelefonate oggi, Appuntamenti 30gg, Contatti totali, Fatte oggi — ciascuna tappabile
+- **Master card** (solo Master/Owner)
+- **Event Banner** (invariato)
+- **Charts row**: Donut Appuntamenti (%fatti al centro) + Bar chart Ritelefonate per area
+- **My Thing** con empty state "Personalizza il tuo spazio"
+- **Ritelefonate di oggi** con pill contatore + bottone Add arancio + area blocks
+- **Azioni rapide** con icon badge colorati
+
+### 📊 Nuovi endpoint richiamati
+- `GET /api/appointments/stats?range_days=30` (già esistente) → dati donut
+- `GET /api/contacts` → count per KPI
+
+
 ## v2.20 Feature — File upload: formati unificati + validazione (Feb 2026)
 ### 🎯 Richiesta utente
 Ovunque nell'app sia possibile caricare un file, accettare tutti i formati comuni (PDF, immagini JPG/PNG/GIF/WEBP/HEIC, documenti TXT/DOC/DOCX, fogli XLS/XLSX/CSV) con validazione chiara se il formato non è supportato. Segnalare le sezioni dove manca completamente.

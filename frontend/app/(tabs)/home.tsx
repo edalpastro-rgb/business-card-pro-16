@@ -1,18 +1,41 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image, ImageBackground, Platform, Animated, Easing, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
+import Svg, { Circle, G } from "react-native-svg";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { HomeEventBanner } from "@/src/HomeEventBanner";
+
+/* ────────────────────────────────────────────────────────────────
+   V27 — Modern Dashboard Redesign
+   Palette: primary orange #FF6B35 · secondary navy #1B2B4B
+   White background · rounded shadow cards · bold KPIs · SVG charts
+   ──────────────────────────────────────────────────────────────── */
+const C = {
+  primary: "#FF6B35",
+  primarySoft: "#FFF1E9",
+  navy: "#1B2B4B",
+  navySoft: "#EEF1F7",
+  white: "#FFFFFF",
+  bg: "#FFFFFF",
+  border: "#EEF0F4",
+  muted: "#7A8794",
+  text: "#111820",
+  success: "#16A34A",
+  successSoft: "#DCFCE7",
+  danger: "#DC2626",
+  dangerSoft: "#FEE2E2",
+  warning: "#F59E0B",
+  warningSoft: "#FEF3C7",
+};
 
 type CustomArea = { id: string; name: string; color: string };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_areas?: CustomArea[] };
 type Callback = { callback_id: string; title: string; area: "energy" | "network"; scheduled_at: string; note: string; done: boolean; contact_id?: string; phone?: string };
+type ApptStats = { mine: { total: number; done: number; undone: number }; group: { total: number; done: number; undone: number } };
 type MyThingImage = { item_id: string; image_base64?: string | null };
 
 export default function HomeScreen() {
@@ -26,23 +49,28 @@ export default function HomeScreen() {
   const [myThingImages, setMyThingImages] = useState<string[]>([]);
   const [myThingIdx, setMyThingIdx] = useState(0);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
+  const [apptStats, setApptStats] = useState<ApptStats | null>(null);
+  const [contactsCount, setContactsCount] = useState<number>(0);
 
   const load = useCallback(async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const [s, c, sub, mt] = await Promise.all([
+      const [s, c, sub, mt, ast, cts] = await Promise.all([
         api<Settings>("/settings"),
         api<{ items: Callback[] }>("/callbacks", { query: { day: today, include_done: true } }),
         api<any>("/subscription/status").catch(() => null),
         api<{ items: MyThingImage[] }>("/my-thing", { query: { kind: "image" } }).catch(() => ({ items: [] })),
+        api<ApptStats>("/appointments/stats", { query: { range_days: 30 } }).catch(() => null),
+        api<{ items: any[] }>("/contacts").catch(() => ({ items: [] })),
       ]);
       setSettings(s);
       setCallbacks(c.items);
       setSubscription(sub);
+      setApptStats(ast);
+      setContactsCount((cts?.items || []).length);
       const imgs = (mt.items || [])
         .map((it) => it.image_base64)
         .filter((v): v is string => !!v && v.length > 20);
-      // Shuffle for random rotation
       for (let i = imgs.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [imgs[i], imgs[j]] = [imgs[j], imgs[i]];
@@ -59,25 +87,22 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // V26.s — Refresh a mezzanotte per svuotare le ritelefonate del giorno precedente
+  // Refresh at midnight
   useEffect(() => {
     const t = setInterval(() => {
       const d = new Date();
-      // Se sono le 00:00-00:01, forziamo un reload per aggiornare "oggi"
       if (d.getHours() === 0 && d.getMinutes() < 2) load();
     }, 60000);
     return () => clearInterval(t);
   }, [load]);
 
-  // Auto-cycle My Thing images every 4s with crossfade
+  // Auto-cycle My Thing images
   const myThingFade = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (myThingImages.length < 2) return;
     const id = setInterval(() => {
-      // Fade out
       Animated.timing(myThingFade, { toValue: 0, duration: 350, useNativeDriver: true }).start(() => {
         setMyThingIdx((n) => (n + 1) % myThingImages.length);
-        // Fade in
         Animated.timing(myThingFade, { toValue: 1, duration: 350, useNativeDriver: true }).start();
       });
     }, 10000);
@@ -86,69 +111,164 @@ export default function HomeScreen() {
 
   const myThingImg = myThingImages.length > 0 ? myThingImages[myThingIdx] : null;
 
+  // KPI derived values
+  const nowMs = Date.now();
+  const cbTodayTotal = callbacks.length;
+  const cbDone = callbacks.filter((c) => c.done).length;
+  const cbLate = callbacks.filter((c) => !c.done && new Date(c.scheduled_at).getTime() < nowMs).length;
+  const cbPending = cbTodayTotal - cbDone;
+  const cbEnergy = callbacks.filter((c) => c.area === "energy").length;
+  const cbNetwork = callbacks.filter((c) => c.area === "network").length;
+  const apptTotal = apptStats?.mine?.total || 0;
+  const apptDone = apptStats?.mine?.done || 0;
+  const apptUndone = apptStats?.mine?.undone || 0;
+
   if (loading) {
     return (
       <SafeAreaView style={styles.root} edges={["top"]}>
-        <View style={styles.center}><ActivityIndicator color={theme.color.brandPrimary} /></View>
+        <View style={styles.center}><ActivityIndicator color={C.primary} /></View>
       </SafeAreaView>
     );
   }
 
-  const energyColor = settings?.energy_color || theme.color.energy;
-  const networkColor = settings?.network_color || theme.color.network;
-
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      <LinearGradient colors={["#0F2438", "#1C4869"]} style={styles.hero}>
-        <View style={styles.heroInner}>
-          <View style={styles.heroTop}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.helloEyebrow}>{new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</Text>
-              <Text style={styles.hi} testID="home-greeting">Ciao, {user?.name?.split(" ")[0] || ""}</Text>
-            </View>
-            {user?.avatar_base64 ? (
-              <Image source={{ uri: user.avatar_base64 }} style={styles.heroAvatar} />
-            ) : (
-              <View style={styles.heroAvatarFallback}><Text style={styles.heroAvatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text></View>
-            )}
-          </View>
-        </View>
-      </LinearGradient>
-
       <ScrollView
         contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.primary} />}
       >
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.eyebrow}>{new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</Text>
+            <Text style={styles.hi} testID="home-greeting">Ciao, <Text style={{ color: C.primary }}>{user?.name?.split(" ")[0] || ""}</Text></Text>
+          </View>
+          <Pressable onPress={() => router.push("/impostazioni" as any)} hitSlop={8}>
+            {user?.avatar_base64 ? (
+              <Image source={{ uri: user.avatar_base64 }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarFallback}><Text style={styles.avatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text></View>
+            )}
+          </Pressable>
+        </View>
+
+        {/* ── Trial banners ── */}
         {subscription?.status === "trial" && (subscription.days_left ?? 999) <= 7 && (
-          <View style={[styles.trialBanner, { backgroundColor: (subscription.days_left ?? 0) <= 3 ? "#FEE2E2" : "#FEF3C7", borderColor: (subscription.days_left ?? 0) <= 3 ? theme.color.error : theme.color.warning }]}>
-            <Ionicons name="time" size={18} color={(subscription.days_left ?? 0) <= 3 ? theme.color.error : theme.color.warning} />
-            <Text style={styles.trialBannerTxt}>
-              Trial in scadenza: {subscription.days_left} giorni residui
-            </Text>
+          <View style={[styles.banner, { backgroundColor: (subscription.days_left ?? 0) <= 3 ? C.dangerSoft : C.warningSoft, borderColor: (subscription.days_left ?? 0) <= 3 ? C.danger : C.warning }]}>
+            <Ionicons name="time" size={18} color={(subscription.days_left ?? 0) <= 3 ? C.danger : C.warning} />
+            <Text style={styles.bannerTxt}>Trial in scadenza: {subscription.days_left} giorni residui</Text>
           </View>
         )}
         {subscription?.status === "expired" && (
-          <View style={[styles.trialBanner, { backgroundColor: "#FEE2E2", borderColor: theme.color.error }]}>
-            <Ionicons name="alert-circle" size={18} color={theme.color.error} />
-            <Text style={[styles.trialBannerTxt, { color: theme.color.error }]}>Trial scaduto — contatta chi ti ha invitato per rinnovare</Text>
+          <View style={[styles.banner, { backgroundColor: C.dangerSoft, borderColor: C.danger }]}>
+            <Ionicons name="alert-circle" size={18} color={C.danger} />
+            <Text style={[styles.bannerTxt, { color: C.danger }]}>Trial scaduto — contatta chi ti ha invitato per rinnovare</Text>
           </View>
         )}
+
+        {/* ── KPI Row ── */}
+        <View style={styles.kpiRow}>
+          <KpiCard
+            testID="kpi-callbacks"
+            label="Ritelefonate oggi"
+            value={cbTodayTotal}
+            icon="call"
+            accent={C.primary}
+            hint={cbLate > 0 ? `${cbLate} in ritardo` : cbDone > 0 ? `${cbDone} completate` : "nessuna urgenza"}
+            hintColor={cbLate > 0 ? C.danger : C.success}
+            onPress={() => router.push("/callbacks-list" as any)}
+          />
+          <KpiCard
+            testID="kpi-appointments"
+            label="Appuntamenti 30gg"
+            value={apptTotal}
+            icon="calendar"
+            accent={C.navy}
+            hint={`${apptDone} fatti · ${apptUndone} da fare`}
+            hintColor={C.muted}
+            onPress={() => router.push("/(tabs)/calendario" as any)}
+          />
+        </View>
+        <View style={[styles.kpiRow, { marginTop: 12 }]}>
+          <KpiCard
+            testID="kpi-contacts"
+            label="Contatti totali"
+            value={contactsCount}
+            icon="people"
+            accent={C.primary}
+            hint="in rubrica"
+            hintColor={C.muted}
+            onPress={() => router.push("/(tabs)/contatti" as any)}
+          />
+          <KpiCard
+            testID="kpi-done-today"
+            label="Fatte oggi"
+            value={cbDone}
+            icon="checkmark-done"
+            accent={C.navy}
+            hint={cbPending > 0 ? `${cbPending} da chiudere` : "tutto ok"}
+            hintColor={cbPending > 0 ? C.warning : C.success}
+            onPress={() => router.push("/callbacks-list" as any)}
+          />
+        </View>
+
+        {/* ── Master button ── */}
         {!user?.parent_user_id && (
-          <Pressable testID="home-master-btn" onPress={() => router.push("/master" as any)} style={styles.masterBtn}>
+          <Pressable testID="home-master-btn" onPress={() => router.push("/master" as any)} style={styles.masterCard}>
             <View style={styles.masterIcon}>
-              <Ionicons name="grid" size={22} color="#FFF" />
+              <Ionicons name="grid" size={20} color={C.white} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.masterTitle}>Interfaccia Master</Text>
-              <Text style={styles.masterSub}>Accesso rapido: Agenda, Contatti, Contratti, Team</Text>
+              <Text style={styles.masterSub}>Agenda · Contatti · Contratti · Team</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#FFF" />
+            <Ionicons name="chevron-forward" size={18} color={C.white} />
           </Pressable>
         )}
 
-        {/* v2.10 — Event banner (visible to all authenticated users when active) */}
+        {/* Event banner (kept untouched) */}
         <HomeEventBanner />
 
+        {/* ── Charts ── */}
+        {(apptTotal > 0 || cbTodayTotal > 0) && (
+          <View style={styles.chartsRow}>
+            {/* Donut: Appuntamenti fatti vs da fare */}
+            <View style={[styles.card, styles.donutCard]}>
+              <Text style={styles.cardTitle}>Appuntamenti</Text>
+              <Text style={styles.cardSub}>ultimi 30 giorni</Text>
+              <View style={styles.donutWrap}>
+                <DonutChart
+                  size={120}
+                  strokeWidth={14}
+                  segments={[
+                    { value: apptDone, color: C.primary },
+                    { value: apptUndone, color: C.navy },
+                  ]}
+                  centerLabel={apptTotal > 0 ? `${Math.round((apptDone / apptTotal) * 100)}%` : "0%"}
+                  centerSub="fatti"
+                />
+              </View>
+              <View style={styles.legend}>
+                <LegendDot color={C.primary} label={`Fatti · ${apptDone}`} />
+                <LegendDot color={C.navy} label={`Da fare · ${apptUndone}`} />
+              </View>
+            </View>
+
+            {/* Bar chart: Ritelefonate per area (oggi) */}
+            <View style={[styles.card, styles.donutCard]}>
+              <Text style={styles.cardTitle}>Ritelefonate</Text>
+              <Text style={styles.cardSub}>di oggi per area</Text>
+              <View style={{ marginTop: 14, marginBottom: 8 }}>
+                <BarRow label={settings?.energy_title || "Energy"} value={cbEnergy} max={Math.max(1, cbEnergy, cbNetwork)} color={C.primary} />
+                <BarRow label={settings?.network_title || "Network"} value={cbNetwork} max={Math.max(1, cbEnergy, cbNetwork)} color={C.navy} />
+                <BarRow label="In ritardo" value={cbLate} max={Math.max(1, cbEnergy, cbNetwork, cbLate)} color={C.danger} />
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ── My Thing (immersive rotating banner) ── */}
         <Pressable testID="home-my-thing-btn" onPress={() => router.push("/my-thing")} style={styles.myThingBtn}>
           {myThingImg ? (
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: myThingFade }]} pointerEvents="none">
@@ -159,29 +279,41 @@ export default function HomeScreen() {
                 imageStyle={Platform.OS === "web" ? ({ objectFit: "cover", width: "100%", height: "100%" } as any) : undefined}
               />
             </Animated.View>
-          ) : null}
+          ) : (
+            <View style={styles.myThingEmpty}>
+              <Ionicons name="images-outline" size={22} color={C.primary} />
+              <Text style={styles.myThingEmptyTxt}>Personalizza il tuo spazio</Text>
+            </View>
+          )}
         </Pressable>
 
+        {/* ── Ritelefonate di oggi ── */}
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Ritelefonate di oggi</Text>
+            <View style={styles.pill}><Text style={styles.pillTxt}>{cbTodayTotal}</Text></View>
           </View>
-          {/* V38S — Long green "Aggiungi Telefonata" button */}
-          <Pressable testID="add-callback-btn" onPress={() => router.push("/callback/new")} style={styles.greenAddBtn}>
-            <Ionicons name="call" size={18} color="#FFF" />
-            <Text style={styles.greenAddTxt}>Aggiungi Telefonata</Text>
+          <Pressable testID="add-callback-btn" onPress={() => router.push("/callback/new")} style={styles.addBtn}>
+            <Ionicons name="add-circle" size={20} color={C.white} />
+            <Text style={styles.addBtnTxt}>Aggiungi Telefonata</Text>
           </Pressable>
           {callbacks.length === 0 && (
-            <View style={styles.empty}><Ionicons name="call-outline" size={28} color={theme.color.muted} /><Text style={styles.emptyTxt}>Nessuna ritelefonata programmata</Text></View>
+            <View style={styles.empty}>
+              <Ionicons name="call-outline" size={28} color={C.muted} />
+              <Text style={styles.emptyTxt}>Nessuna ritelefonata programmata</Text>
+            </View>
           )}
           {["energy", "network"].map((area) => {
             const list = callbacks.filter((c) => c.area === area);
             if (list.length === 0) return null;
-            const color = area === "energy" ? energyColor : networkColor;
+            const color = area === "energy" ? (settings?.energy_color || C.primary) : (settings?.network_color || C.navy);
             const title = area === "energy" ? settings?.energy_title : settings?.network_title;
             return (
               <View key={area} style={styles.areaBlock}>
-                <View style={styles.areaHead}><View style={[styles.dot, { backgroundColor: color }]} /><Text style={styles.areaTitle}>{title}</Text></View>
+                <View style={styles.areaHead}>
+                  <View style={[styles.dot, { backgroundColor: color }]} />
+                  <Text style={styles.areaTitle}>{title}</Text>
+                </View>
                 {list.map((cb) => (
                   <CallbackRow
                     key={cb.callback_id}
@@ -191,15 +323,8 @@ export default function HomeScreen() {
                       if (cb.contact_id) {
                         router.push(`/contact/${cb.contact_id}`);
                       } else if (cb.phone) {
-                        // Nessun contatto ma abbiamo un telefono: apri CallActionSheet direttamente
-                        setCallTarget({
-                          phone: cb.phone,
-                          contact_id: null,
-                          callback_id: cb.callback_id,
-                          display_name: cb.title,
-                        });
+                        setCallTarget({ phone: cb.phone, contact_id: null, callback_id: cb.callback_id, display_name: cb.title });
                       } else {
-                        // Né contatto né telefono
                         if (Platform.OS === "web") {
                           window.alert("Questa ritelefonata non ha un contatto collegato né un numero di telefono. Usa l'icona matita per aggiungerlo.");
                         } else {
@@ -221,15 +346,20 @@ export default function HomeScreen() {
           })}
         </View>
 
+        {/* ── Azioni rapide ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Azioni rapide</Text>
           <View style={styles.quickRow}>
             <Pressable testID="qa-new-appt" style={styles.quick} onPress={() => router.push("/appointment/new")}>
-              <Ionicons name="calendar-outline" size={22} color={theme.color.brandPrimary} />
+              <View style={[styles.quickIcon, { backgroundColor: C.primarySoft }]}>
+                <Ionicons name="calendar-outline" size={20} color={C.primary} />
+              </View>
               <Text style={styles.quickTxt}>Nuovo appuntamento</Text>
             </Pressable>
             <Pressable testID="qa-new-contact" style={styles.quick} onPress={() => router.push("/contact/new")}>
-              <Ionicons name="person-add-outline" size={22} color={theme.color.brandPrimary} />
+              <View style={[styles.quickIcon, { backgroundColor: C.navySoft }]}>
+                <Ionicons name="person-add-outline" size={20} color={C.navy} />
+              </View>
               <Text style={styles.quickTxt}>Nuovo contatto</Text>
             </Pressable>
           </View>
@@ -237,6 +367,7 @@ export default function HomeScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
       <CallActionSheet
         visible={!!callTarget}
         target={callTarget}
@@ -245,7 +376,6 @@ export default function HomeScreen() {
           setCallTarget(null);
           load();
           if (res?.outcome_id === "call_appointment") {
-            // Se il callback aveva un contatto, apri new appt per quel contatto
             const cid = callTarget?.contact_id;
             if (cid) router.push(`/appointment/new?contact_id=${cid}`);
           }
@@ -254,6 +384,104 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
+
+/* ═══════════════════════ Reusable UI bits ═══════════════════════ */
+
+function KpiCard({ testID, label, value, icon, accent, hint, hintColor, onPress }: {
+  testID?: string; label: string; value: number; icon: any; accent: string; hint?: string; hintColor?: string; onPress?: () => void;
+}) {
+  return (
+    <Pressable testID={testID} onPress={onPress} style={({ pressed }) => [styles.kpi, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}>
+      <View style={[styles.kpiIconBadge, { backgroundColor: accent + "18" }]}>
+        <Ionicons name={icon} size={16} color={accent} />
+      </View>
+      <Text style={styles.kpiValue}>{value}</Text>
+      <Text style={styles.kpiLabel} numberOfLines={1}>{label}</Text>
+      {!!hint && <Text style={[styles.kpiHint, { color: hintColor || C.muted }]} numberOfLines={1}>{hint}</Text>}
+    </Pressable>
+  );
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendDot, { backgroundColor: color }]} />
+      <Text style={styles.legendLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function BarRow({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  const pct = max > 0 ? Math.max(6, (value / max) * 100) : 0;
+  return (
+    <View style={styles.barRow}>
+      <View style={styles.barTop}>
+        <Text style={styles.barLabel} numberOfLines={1}>{label}</Text>
+        <Text style={styles.barValue}>{value}</Text>
+      </View>
+      <View style={styles.barTrack}>
+        <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: value > 0 ? color : "transparent" }]} />
+      </View>
+    </View>
+  );
+}
+
+/* Simple animated SVG donut chart */
+function DonutChart({ size, strokeWidth, segments, centerLabel, centerSub }: {
+  size: number; strokeWidth: number; segments: { value: number; color: string }[]; centerLabel?: string; centerSub?: string;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const total = segments.reduce((a, b) => a + b.value, 0);
+  const hasData = total > 0;
+
+  let offset = 0;
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Svg width={size} height={size}>
+        <G rotation={-90} origin={`${size / 2}, ${size / 2}`}>
+          {/* Track */}
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={C.border}
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          {hasData && segments.map((seg, i) => {
+            if (seg.value <= 0) return null;
+            const dash = (seg.value / total) * circumference;
+            const el = (
+              <Circle
+                key={i}
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                stroke={seg.color}
+                strokeWidth={strokeWidth}
+                fill="transparent"
+                strokeDasharray={`${dash} ${circumference - dash}`}
+                strokeDashoffset={-offset}
+                strokeLinecap="butt"
+              />
+            );
+            offset += dash;
+            return el;
+          })}
+        </G>
+      </Svg>
+      <View style={StyleSheet.absoluteFill as any} pointerEvents="none">
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <Text style={styles.donutCenterLabel}>{centerLabel}</Text>
+          {!!centerSub && <Text style={styles.donutCenterSub}>{centerSub}</Text>}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/* ═══════════════════════ Callback Row (kept behavior, updated look) ═══════════════════════ */
 
 function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback; color: string; onOpen: () => void; onEdit: () => void; onToggleDone: () => void }) {
   const [now, setNow] = useState(Date.now());
@@ -271,7 +499,6 @@ function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback
   const soon = !cb.done && !urgent && diffMin <= 30;
   const upcoming = !cb.done && !urgent && !soon;
 
-  // V26.o: progress sweep animation (left → right) instead of blink
   useEffect(() => {
     if (!urgent && !soon) { sweep.setValue(0); return; }
     const cycle = urgent ? 2000 : 3200;
@@ -285,26 +512,20 @@ function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback
     return () => loop.stop();
   }, [urgent, soon, sweep]);
 
-  const bg = cb.done ? "#FFF" : urgent ? "#FEE2E2" : soon ? "#FFEDD5" : upcoming ? "#FEF9C3" : "#FFF";
-  const border = cb.done ? "transparent" : urgent ? "#DC2626" : soon ? "#F59E0B" : upcoming ? "#EAB308" : "transparent";
-  const sweepColor = urgent ? "rgba(220,38,38,0.28)" : "rgba(245,158,11,0.22)";
+  const bg = cb.done ? C.white : urgent ? C.dangerSoft : soon ? "#FFEDD5" : upcoming ? C.warningSoft : C.white;
+  const border = cb.done ? C.border : urgent ? C.danger : soon ? "#F59E0B" : upcoming ? "#EAB308" : C.border;
+  const sweepColor = urgent ? "rgba(220,38,38,0.22)" : "rgba(245,158,11,0.18)";
 
   return (
     <View style={{ opacity: cb.done ? 0.55 : 1 }} testID={`callback-${cb.callback_id}`}>
-      <View
-        style={{ flexDirection: "row", backgroundColor: bg, borderRadius: 12, marginBottom: 8, alignItems: "stretch", overflow: "hidden", borderWidth: 1.5, borderColor: border, position: "relative" }}
-      >
+      <View style={{ flexDirection: "row", backgroundColor: bg, borderRadius: 14, marginBottom: 8, alignItems: "stretch", overflow: "hidden", borderWidth: 1, borderColor: border, position: "relative" }}>
         {(urgent || soon) && !cb.done ? (
           <Animated.View
             pointerEvents="none"
             style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              bottom: 0,
+              position: "absolute", left: 0, top: 0, bottom: 0,
               width: sweep.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
-              backgroundColor: sweepColor,
-              zIndex: 0,
+              backgroundColor: sweepColor, zIndex: 0,
             }}
           />
         ) : null}
@@ -315,9 +536,9 @@ function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback
           style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", opacity: pressed ? 0.75 : 1, zIndex: 1 }]}
         >
           <View style={{ width: 5, backgroundColor: color, alignSelf: "stretch" }} />
-          <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 10 }}>
-            <Text style={[{ fontSize: 15, fontWeight: "700", color: theme.color.onSurface }, cb.done && { textDecorationLine: "line-through" }]}>{cb.title}</Text>
-            <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
+          <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 12 }}>
+            <Text style={[{ fontSize: 15, fontWeight: "700", color: C.text }, cb.done && { textDecorationLine: "line-through" }]}>{cb.title}</Text>
+            <Text style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
               {new Date(cb.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               {!cb.done && !past && urgent ? "  ⚠ tra pochi minuti" : ""}
               {!cb.done && !past && soon ? "  ⏰ tra meno di 30 min" : ""}
@@ -326,98 +547,122 @@ function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback
             </Text>
           </View>
         </Pressable>
-        <Pressable
-          testID={`callback-edit-${cb.callback_id}`}
-          onPress={onEdit}
-          hitSlop={8}
-          style={({ pressed }) => [{ paddingHorizontal: 8, justifyContent: "center", opacity: pressed ? 0.55 : 1, zIndex: 1 }]}
-        >
-          <Ionicons name="pencil" size={18} color={theme.color.brandPrimary} />
+        <Pressable testID={`callback-edit-${cb.callback_id}`} onPress={onEdit} hitSlop={8} style={({ pressed }) => [{ paddingHorizontal: 8, justifyContent: "center", opacity: pressed ? 0.55 : 1, zIndex: 1 }]}>
+          <Ionicons name="pencil" size={18} color={C.primary} />
         </Pressable>
-        <Pressable
-          testID={`callback-toggle-${cb.callback_id}`}
-          onPress={onToggleDone}
-          hitSlop={8}
-          style={({ pressed }) => [{ paddingHorizontal: 12, justifyContent: "center", opacity: pressed ? 0.6 : 1, zIndex: 1 }]}
-        >
-          <Ionicons name={cb.done ? "checkmark-circle" : "ellipse-outline"} size={26} color={cb.done ? theme.color.success : theme.color.muted} />
+        <Pressable testID={`callback-toggle-${cb.callback_id}`} onPress={onToggleDone} hitSlop={8} style={({ pressed }) => [{ paddingHorizontal: 12, justifyContent: "center", opacity: pressed ? 0.6 : 1, zIndex: 1 }]}>
+          <Ionicons name={cb.done ? "checkmark-circle" : "ellipse-outline"} size={26} color={cb.done ? C.success : C.muted} />
         </Pressable>
       </View>
     </View>
   );
 }
 
+/* ═══════════════════════ Styles ═══════════════════════ */
+
+const cardShadow = Platform.select({
+  ios: { shadowColor: "#0F172A", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
+  android: { elevation: 3 },
+  default: { shadowColor: "#0F172A", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
+});
+
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  hero: { paddingBottom: 20 },
-  heroInner: { paddingHorizontal: 20, paddingTop: 14, gap: 14 },
-  heroTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  helloEyebrow: { color: "rgba(255,255,255,0.75)", fontSize: 12, textTransform: "capitalize", fontWeight: "600" },
-  hi: { color: "#FFF", fontSize: 24, fontWeight: "700", marginTop: 2 },
-  heroAvatar: { width: 46, height: 46, borderRadius: 23, borderWidth: 2, borderColor: "rgba(255,255,255,0.4)" },
-  heroAvatarFallback: { width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-  heroAvatarTxt: { color: "#FFF", fontSize: 18, fontWeight: "700" },
-  scroll: { paddingHorizontal: 16, paddingTop: 16 },
-  statsRow: { flexDirection: "row", gap: 12 },
-  statCard: { flex: 1, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderLeftWidth: 4, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  statBadge: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  statTitle: { fontSize: 11, fontWeight: "700", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
-  statRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 3 },
-  statNum: { fontSize: 20, fontWeight: "700", color: theme.color.onSurface },
-  statLbl: { fontSize: 11, color: theme.color.muted },
+  scroll: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24 },
+
+  /* Header */
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
+  eyebrow: { color: C.muted, fontSize: 12, textTransform: "capitalize", fontWeight: "600" },
+  hi: { color: C.navy, fontSize: 26, fontWeight: "800", marginTop: 2, letterSpacing: -0.5 },
+  avatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: C.primarySoft },
+  avatarFallback: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.navy, alignItems: "center", justifyContent: "center" },
+  avatarTxt: { color: C.white, fontSize: 16, fontWeight: "800" },
+
+  /* Banners */
+  banner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
+  bannerTxt: { flex: 1, fontWeight: "700", fontSize: 13, color: C.text },
+
+  /* KPI */
+  kpiRow: { flexDirection: "row", gap: 12, marginTop: 8 },
+  kpi: {
+    flex: 1, backgroundColor: C.white, borderRadius: 18, padding: 14,
+    borderWidth: 1, borderColor: C.border,
+    ...(cardShadow as any),
+  },
+  kpiIconBadge: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  kpiValue: { fontSize: 32, fontWeight: "900", color: C.navy, letterSpacing: -1 },
+  kpiLabel: { fontSize: 12, fontWeight: "700", color: C.text, marginTop: 2 },
+  kpiHint: { fontSize: 11, fontWeight: "600", marginTop: 4 },
+
+  /* Master */
+  masterCard: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: C.navy,
+    paddingHorizontal: 14, paddingVertical: 14, borderRadius: 16,
+    marginTop: 16, marginBottom: 12,
+    ...(cardShadow as any),
+  },
+  masterIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" },
+  masterTitle: { color: C.white, fontWeight: "800", fontSize: 15 },
+  masterSub: { color: "rgba(255,255,255,0.75)", fontSize: 11, marginTop: 2, fontWeight: "600" },
+
+  /* Charts */
+  chartsRow: { flexDirection: "row", gap: 12, marginTop: 12 },
+  card: { flex: 1, backgroundColor: C.white, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: C.border, ...(cardShadow as any) },
+  donutCard: { minHeight: 220 },
+  cardTitle: { fontSize: 14, fontWeight: "800", color: C.navy },
+  cardSub: { fontSize: 11, color: C.muted, marginTop: 2, fontWeight: "600" },
+  donutWrap: { alignItems: "center", justifyContent: "center", marginTop: 10 },
+  donutCenterLabel: { fontSize: 20, fontWeight: "900", color: C.navy, letterSpacing: -0.5 },
+  donutCenterSub: { fontSize: 10, color: C.muted, fontWeight: "700", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.6 },
+  legend: { marginTop: 12, gap: 6 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 8 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendLabel: { fontSize: 11, fontWeight: "700", color: C.text },
+
+  /* Bars */
+  barRow: { marginBottom: 12 },
+  barTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  barLabel: { fontSize: 12, fontWeight: "700", color: C.text, flex: 1 },
+  barValue: { fontSize: 14, fontWeight: "900", color: C.navy },
+  barTrack: { height: 8, borderRadius: 4, backgroundColor: C.navySoft, overflow: "hidden" },
+  barFill: { height: 8, borderRadius: 4 },
+
+  /* My Thing */
+  myThingBtn: { backgroundColor: C.primarySoft, borderRadius: 16, marginTop: 12, marginBottom: 4, overflow: "hidden", position: "relative", height: 120, borderWidth: 1, borderColor: C.border },
+  myThingEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
+  myThingEmptyTxt: { color: C.primary, fontWeight: "700", fontSize: 13 },
+
+  /* Section */
   section: { marginTop: 22 },
-  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: theme.color.onSurface },
-  linkTxt: { color: theme.color.brandPrimary, fontWeight: "600" },
-  // V38S — Long green button for "Aggiungi Telefonata"
-  greenAddBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#16A34A", paddingVertical: 12, borderRadius: 10, marginBottom: 10 },
-  greenAddTxt: { color: "#FFF", fontSize: 14, fontWeight: "800" },
-  empty: { alignItems: "center", padding: 22, gap: 8, backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, borderStyle: "dashed" },
-  emptyTxt: { color: theme.color.muted },
+  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  sectionTitle: { fontSize: 17, fontWeight: "800", color: C.navy, letterSpacing: -0.3 },
+  pill: { backgroundColor: C.primarySoft, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
+  pillTxt: { color: C.primary, fontWeight: "800", fontSize: 12 },
+
+  addBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: C.primary, paddingVertical: 13, borderRadius: 14, marginBottom: 12,
+    ...(cardShadow as any),
+  },
+  addBtnTxt: { color: C.white, fontSize: 14, fontWeight: "800" },
+
+  empty: { alignItems: "center", padding: 22, gap: 8, backgroundColor: C.white, borderRadius: 14, borderWidth: 1, borderColor: C.border, borderStyle: "dashed" },
+  emptyTxt: { color: C.muted, fontWeight: "600" },
+
   areaBlock: { marginBottom: 8 },
   areaHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6, marginTop: 6 },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  areaTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurfaceTertiary },
-  cbCard: { flexDirection: "row", backgroundColor: "#FFF", borderRadius: theme.radius.md, marginBottom: 8, alignItems: "center", overflow: "hidden" },
-  cbBar: { width: 4, height: "100%", alignSelf: "stretch" },
-  cbTitle: { fontSize: 15, fontWeight: "600", color: theme.color.onSurface, paddingHorizontal: 12, paddingTop: 12 },
-  cbTime: { fontSize: 12, color: theme.color.muted, paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2 },
-  checkBtn: { padding: 12 },
-  callIconBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#16A34A", alignItems: "center", justifyContent: "center", marginRight: 4 },
+  areaTitle: { fontSize: 12, fontWeight: "800", color: C.navy, textTransform: "uppercase", letterSpacing: 0.5 },
+
+  /* Quick */
   quickRow: { flexDirection: "row", gap: 12 },
-  quick: { flex: 1, backgroundColor: "#FFF", padding: 16, borderRadius: theme.radius.md, alignItems: "center", gap: 8, borderWidth: 1, borderColor: theme.color.border },
-  quickTxt: { fontWeight: "600", color: theme.color.onSurface, fontSize: 13, textAlign: "center" },
-  chatCard: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border },
-  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.surface, borderRadius: theme.radius.md, paddingHorizontal: 10, paddingVertical: 8 },
-  searchInput: { flex: 1, fontSize: 14, color: theme.color.onSurface, ...Platform.select({ web: { outlineStyle: "none" as any } }) },
-  filterRow: { gap: 6, paddingVertical: 10 },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
-  filterChipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurfaceTertiary },
-  chatEmpty: { alignItems: "center", padding: 22, gap: 6 },
-  resultCard: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: theme.radius.md, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border },
-  avatarLg: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  avatarLgTxt: { fontWeight: "700", fontSize: 13 },
-  resultName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  resultSub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
-  commRow: { flexDirection: "row", gap: 4 },
-  iconBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
-  grpBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
-  grpBadgeTxt: { color: "#FFF", fontWeight: "700", fontSize: 11 },
-  trialBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, marginBottom: 12 },
-  trialBannerTxt: { flex: 1, fontWeight: "700", fontSize: 13, color: theme.color.onSurface },
-  inviteBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: theme.color.brandPrimary, paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
-  inviteTitle: { color: "#FFF", fontWeight: "700", fontSize: 14 },
-  inviteSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },
-  myThingBtn: { backgroundColor: "#F1F5F9", borderRadius: theme.radius.md, marginBottom: 12, overflow: "hidden", position: "relative", height: 120 },
-  myThingBgImg: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%", resizeMode: "cover" },
-  masterBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#1E3A8A", paddingHorizontal: 14, paddingVertical: 12, borderRadius: theme.radius.md, marginBottom: 12 },
-  masterIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  masterTitle: { color: "#FFF", fontWeight: "800", fontSize: 15 },
-  masterSub: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 2 },
-  mtBanner: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, marginBottom: 12 },
-  mtBannerImg: { width: 52, height: 52, borderRadius: 8 },
-  mtBannerIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  mtBannerTitle: { fontSize: 14, fontWeight: "800" },
-  mtBannerBody: { fontSize: 12, color: theme.color.onSurface, marginTop: 2 },
+  quick: {
+    flex: 1, backgroundColor: C.white, padding: 14, borderRadius: 16, alignItems: "flex-start", gap: 10,
+    borderWidth: 1, borderColor: C.border,
+    ...(cardShadow as any),
+  },
+  quickIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  quickTxt: { fontWeight: "800", color: C.navy, fontSize: 13 },
 });
