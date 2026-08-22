@@ -26,6 +26,7 @@ import { ContactReferralsSection } from "@/src/ContactReferralsSection";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { DocumentScannerModal } from "@/src/DocumentScannerModal";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -78,6 +79,7 @@ function ContactDetail() {
   const [callsRefreshTick, setCallsRefreshTick] = useState(0);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [viewerFile, setViewerFile] = useState<CFile | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const { user } = useAuth();
   const canAssign = user?.role === "owner" || user?.role === "admin";
 
@@ -922,10 +924,16 @@ function ContactDetail() {
 
         {tab === "files" && (
           <>
-            <Pressable testID="file-add-btn" onPress={pickFile} style={styles.addFileBtn} disabled={busy}>
-              <Ionicons name="cloud-upload-outline" size={20} color={theme.color.brandPrimary} />
-              <Text style={styles.addFileTxt}>Carica PDF o immagine</Text>
-            </Pressable>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable testID="file-add-btn" onPress={pickFile} style={[styles.addFileBtn, { flex: 1 }]} disabled={busy}>
+                <Ionicons name="cloud-upload-outline" size={20} color={theme.color.brandPrimary} />
+                <Text style={styles.addFileTxt}>Carica</Text>
+              </Pressable>
+              <Pressable testID="file-scan-btn" onPress={() => setScannerOpen(true)} style={[styles.addFileBtn, { flex: 1, borderColor: "#FF6B35" }]} disabled={busy}>
+                <Ionicons name="scan-outline" size={20} color="#FF6B35" />
+                <Text style={[styles.addFileTxt, { color: "#FF6B35" }]}>Scanner</Text>
+              </Pressable>
+            </View>
             {c.files && c.files.length > 0 ? c.files.map((f) => (
               <Pressable
                 key={f.id}
@@ -988,6 +996,27 @@ function ContactDetail() {
         dataBase64={viewerFile?.data_base64 || ""}
         onClose={() => setViewerFile(null)}
         onShare={viewerFile ? () => { const f = viewerFile; setViewerFile(null); shareFile(f); } : undefined}
+      />
+      <DocumentScannerModal
+        visible={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        defaultName={`Scan-${c?.first_name || ""}-${new Date().toISOString().slice(0,10)}`.replace(/\s+/g, "-")}
+        hintTitle={`Scansione documento per ${c?.first_name || ""} ${c?.last_name || ""}`.trim()}
+        onSaved={async ({ pdf_base64, name, page_count }) => {
+          try {
+            await api(`/contacts/${id}/files`, {
+              method: "POST",
+              body: {
+                name,
+                mime: "application/pdf",
+                data_base64: pdf_base64,
+                size: Math.floor((pdf_base64.length * 3) / 4),
+              },
+            });
+            await load();
+            notify("Scansione salvata", `${page_count} pagina/e unite in PDF.`);
+          } catch (e: any) { notify("Errore upload", e?.message || ""); }
+        }}
       />
     </SafeAreaView>
   );

@@ -7864,6 +7864,171 @@ async def public_event_page(public_token: str):
     return HTMLResponse(html)
 
 
+# ================================================================
+# V27 — Document Scanner (multi-page + auto-crop + PDF merge)
+# ================================================================
+class ScannerPageIn(BaseModel):
+    data_base64: str
+    mime: str  # image/jpeg | image/png | application/pdf
+
+
+class ScannerMergeIn(BaseModel):
+    pages: List[ScannerPageIn]
+    enhance: bool = True
+    autocrop: bool = True  # detect document borders + perspective correction
+    grayscale: bool = False
+    name: Optional[str] = None
+
+
+def _cv2_scan_document(img_bytes: bytes, enhance: bool, autocrop: bool, grayscale: bool) -> bytes:
+    """CamScanner-like pipeline on a single image using OpenCV.
+    - EXIF-aware auto-orientation (via PIL)
+    - Document edge detection + 4-point perspective warp (autocrop)
+    - Adaptive contrast + sharpen (enhance)
+    - Optional grayscale
+    Returns JPEG bytes.
+    """
+    import cv2  # local import so absent cv2 doesn't crash the app on boot
+    import numpy as np
+    from PIL import Image, ImageOps
+
+    # Auto-orient via PIL, then convert to CV2 BGR
+    pil = Image.open(io.BytesIO(img_bytes))
+    pil = ImageOps.exif_transpose(pil).convert("RGB")
+    src = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
+    h0, w0 = src.shape[:2]
+
+    warped = src
+    if autocrop:
+        try:
+            # 1. Downscale for speed
+            ratio = 900.0 / max(h0, w0)
+            small = cv2.resize(src, None, fx=ratio, fy=ratio) if ratio < 1 else src.copy()
+            gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+            gray = cv2.GaussianBlur(gray, (5, 5), 0)
+            edges = cv2.Canny(gray, 60, 180)
+            edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+            page_contour = None
+            for c in contours:
+                peri = cv2.arcLength(c, True)
+                approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+                if len(approx) == 4 and cv2.contourArea(approx) > (small.shape[0] * small.shape[1] * 0.20):
+                    page_contour = approx
+                    break
+            if page_contour is not None:
+                pts = page_contour.reshape(4, 2).astype("float32") / (ratio if ratio < 1 else 1.0)
+                # Sort corners: tl, tr, br, bl
+                s = pts.sum(axis=1); diff = np.diff(pts, axis=1)
+                tl = pts[np.argmin(s)]; br = pts[np.argmax(s)]
+                tr = pts[np.argmin(diff)]; bl = pts[np.argmax(diff)]
+                rect = np.array([tl, tr, br, bl], dtype="float32")
+                wA = np.linalg.norm(br - bl); wB = np.linalg.norm(tr - tl)
+                hA = np.linalg.norm(tr - br); hB = np.linalg.norm(tl - bl)
+                maxW = int(max(wA, wB)); maxH = int(max(hA, hB))
+                if maxW > 200 and maxH > 200:
+                    dst = np.array([[0, 0], [maxW - 1, 0], [maxW - 1, maxH - 1], [0, maxH - 1]], dtype="float32")
+                    M = cv2.getPerspectiveTransform(rect, dst)
+                    warped = cv2.warpPerspective(src, M, (maxW, maxH))
+        except Exception as _e:
+            logger.warning("scanner autocrop failed: %s", _e)
+
+    if enhance:
+        try:
+            # Contrast Limited Adaptive Histogram Equalization on luminance
+            lab = cv2.cvtColor(warped, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+            l = clahe.apply(l)
+            warped = cv2.cvtColor(cv2.merge((l, a, b)), cv2.COLOR_LAB2BGR)
+            # Unsharp mask for crisper text
+            blur = cv2.GaussianBlur(warped, (0, 0), sigmaX=1.5)
+            warped = cv2.addWeighted(warped, 1.5, blur, -0.5, 0)
+        except Exception as _e:
+            logger.warning("scanner enhance failed: %s", _e)
+
+    if grayscale:
+        try:
+            g = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+            warped = cv2.cvtColor(g, cv2.COLOR_GRAY2BGR)
+        except Exception:
+            pass
+
+    # Encode JPEG
+    ok, buf = cv2.imencode(".jpg", warped, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
+    if not ok:
+        raise HTTPException(status_code=500, detail="Impossibile codificare l'immagine")
+    return buf.tobytes()
+
+
+@api_router.post("/scanner/merge-pdf")
+async def scanner_merge_pdf(body: ScannerMergeIn, user=Depends(get_current_user)):
+    """Enhance + merge multiple pages (images or PDFs) into a single PDF.
+    Returns { pdf_base64, name, page_count }.
+    """
+    if not body.pages:
+        raise HTTPException(status_code=400, detail="Nessuna pagina fornita")
+    if len(body.pages) > 30:
+        raise HTTPException(status_code=400, detail="Max 30 pagine per scansione")
+
+    from PIL import Image
+    import fitz  # PyMuPDF
+
+    processed_images: List[Image.Image] = []
+    for i, pg in enumerate(body.pages):
+        try:
+            raw = base64.b64decode(pg.data_base64.split(",")[-1] if pg.data_base64.startswith("data:") else pg.data_base64)
+        except Exception:
+            raise HTTPException(status_code=400, detail=f"Pagina {i + 1}: base64 non valido")
+        mime = (pg.mime or "").lower()
+        if mime == "application/pdf":
+            # Rasterize each PDF page as an image at 200 DPI
+            try:
+                doc = fitz.open(stream=raw, filetype="pdf")
+                for pn in range(doc.page_count):
+                    page = doc.load_page(pn)
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+                    img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+                    processed_images.append(img)
+                doc.close()
+            except Exception as e:
+                logger.warning("PDF rasterize fail: %s", e)
+                raise HTTPException(status_code=400, detail=f"Pagina {i + 1}: PDF non valido")
+        else:
+            try:
+                out = _cv2_scan_document(raw, enhance=body.enhance, autocrop=body.autocrop, grayscale=body.grayscale)
+                processed_images.append(Image.open(io.BytesIO(out)).convert("RGB"))
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning("scan image fail: %s", e)
+                # Fall back to raw image without processing
+                try:
+                    processed_images.append(Image.open(io.BytesIO(raw)).convert("RGB"))
+                except Exception:
+                    raise HTTPException(status_code=400, detail=f"Pagina {i + 1}: immagine non valida")
+
+    if not processed_images:
+        raise HTTPException(status_code=400, detail="Nessuna pagina elaborabile")
+
+    # Merge into PDF using PIL
+    buf = io.BytesIO()
+    first, rest = processed_images[0], processed_images[1:]
+    first.save(buf, format="PDF", save_all=True, append_images=rest, resolution=150.0)
+    pdf_bytes = buf.getvalue()
+
+    safe_name = (body.name or "Scansione").strip() or "Scansione"
+    if not safe_name.lower().endswith(".pdf"):
+        safe_name += ".pdf"
+    return {
+        "pdf_base64": base64.b64encode(pdf_bytes).decode(),
+        "name": safe_name,
+        "page_count": len(processed_images),
+    }
+
+
+
 # Include router & CORS
 app.include_router(api_router)
 

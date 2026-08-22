@@ -13,6 +13,7 @@ import { uriToBase64 } from "@/src/utils/media";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
+import { DocumentScannerModal, suggestBillScanName } from "@/src/DocumentScannerModal";
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { FileViewer } from "@/src/FileViewer";
 import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
@@ -138,6 +139,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   // V38E — source picker (device vs contact files)
   const [sourcePickerBillType, setSourcePickerBillType] = useState<BillType | null>(null);
   const [contactFilesPicker, setContactFilesPicker] = useState<null | { bill_type: BillType }>(null);
+  const [scannerBillType, setScannerBillType] = useState<BillType | null>(null);
   const [contactPdfFiles, setContactPdfFiles] = useState<any[]>([]);
   const [loadingContactFiles, setLoadingContactFiles] = useState(false);
   // V38I — Branding (logo + agency name + V38U slogan/contacts) for PDFs
@@ -751,6 +753,18 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       mimeType: f.mime || "application/pdf",
       uri: `contactfile://${f.id}`,
       _base64: f.data_base64 || "",
+    } as any;
+    openParamsModalFor(bill_type, asset);
+  };
+
+  // V27 — Scanner-produced PDF flows through the same params modal
+  const receiveScannedBill = (bill_type: BillType, pdf_base64: string, name: string) => {
+    setScannerBillType(null);
+    const asset = {
+      name,
+      mimeType: "application/pdf",
+      uri: `scanner://${Date.now()}`,
+      _base64: pdf_base64,
     } as any;
     openParamsModalFor(bill_type, asset);
   };
@@ -1589,6 +1603,21 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
             </Pressable>
+            {/* V27 — Scanner documenti multi-pagina */}
+            <Pressable
+              testID="bill-source-scanner"
+              onPress={() => { const bt = sourcePickerBillType; setSourcePickerBillType(null); setScannerBillType(bt); }}
+              style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#FF6B35", gap: 12 }}
+            >
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#FFF1E9", justifyContent: "center", alignItems: "center" }}>
+                <Ionicons name="scan" size={22} color="#FF6B35" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: theme.color.onSurface }}>Scanner documenti</Text>
+                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>Multi-pagina · Autocrop · Migliora contrasto</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1673,6 +1702,16 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       />
       {/* v2.17 — Report header (branding) config modal */}
       <ReportHeaderConfigModal visible={headerCfgOpen} onClose={() => setHeaderCfgOpen(false)} />
+      {/* V27 — Scanner documenti multi-pagina */}
+      <DocumentScannerModal
+        visible={scannerBillType !== null}
+        onClose={() => setScannerBillType(null)}
+        defaultName={scannerBillType ? suggestBillScanName(scannerBillType, contactName) : "Scansione"}
+        hintTitle={scannerBillType ? `Bolletta ${scannerBillType.toUpperCase()} — ${contactName || ""}` : undefined}
+        onSaved={async ({ pdf_base64, name }) => {
+          if (scannerBillType) receiveScannedBill(scannerBillType, pdf_base64, name);
+        }}
+      />
     </View>
   );
 }
