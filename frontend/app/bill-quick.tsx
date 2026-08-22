@@ -13,6 +13,7 @@ import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
+import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
 
 // ---------- Types ----------
 
@@ -118,6 +119,8 @@ function BillQuickScreen() {
   const [masterFilePicker, setMasterFilePicker] = useState<null | BillType>(null);
   const [masterFiles, setMasterFiles] = useState<MasterFileLite[]>([]);
   const [loadingMasterFiles, setLoadingMasterFiles] = useState(false);
+  // v2.17 — Report header (branding) configuration modal
+  const [headerCfgOpen, setHeaderCfgOpen] = useState(false);
 
   // ---------- Data loading ----------
 
@@ -448,6 +451,19 @@ function BillQuickScreen() {
             </Text>
           </View>
         </View>
+
+        {/* v2.17 — Configura intestazione report (branding) */}
+        <Pressable
+          testID="bq-header-cfg-btn"
+          onPress={() => setHeaderCfgOpen(true)}
+          style={{
+            flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+            backgroundColor: "#0F172A", paddingVertical: 12, borderRadius: 12, marginBottom: 16,
+          }}
+        >
+          <Ionicons name="settings-outline" size={18} color="#FFF" />
+          <Text style={{ color: "#FFF", fontWeight: "800", fontSize: 13 }}>Configura intestazione report</Text>
+        </Pressable>
 
         {/* Company Offers accordion — identical to BillsSection */}
         <View style={styles.offersCard}>
@@ -1042,6 +1058,8 @@ function BillQuickScreen() {
       </Modal>
 
       <CalculatorFAB />
+      {/* v2.17 — Report header (branding) config modal */}
+      <ReportHeaderConfigModal visible={headerCfgOpen} onClose={() => setHeaderCfgOpen(false)} />
     </SafeAreaView>
   );
 }

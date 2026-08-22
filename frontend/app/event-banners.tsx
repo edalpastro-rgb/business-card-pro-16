@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Image, Platform, Modal, Switch } from "react-native";
+import React, { useCallback, useEffect, useState, useRef } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Image, Platform, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { AudioModule, useAudioRecorder, useAudioPlayer, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
@@ -53,6 +55,10 @@ function EventBannersScreen() {
   const [title, setTitle] = useState("");
   const [dateStr, setDateStr] = useState(""); // yyyy-mm-dd
   const [timeStr, setTimeStr] = useState(""); // HH:mm
+  // v2.18 — optional end date/time
+  const [endDateStr, setEndDateStr] = useState("");
+  const [endTimeStr, setEndTimeStr] = useState("");
+  const [description, setDescription] = useState(""); // v2.18
   const [cover, setCover] = useState<{ base64: string; mime: string } | null>(null);
   const [visibilityKind, setVisibilityKind] = useState<"all" | "specific">("all");
   const [selUsers, setSelUsers] = useState<Set<string>>(new Set());
@@ -63,6 +69,15 @@ function EventBannersScreen() {
   const [aiDuration, setAiDuration] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [saving, setSaving] = useState(false);
+  // v2.18 — Audio attachment (record or upload)
+  const [audio, setAudio] = useState<{ base64: string; name: string; mime: string } | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioPlayer = useAudioPlayer(audio ? `data:${audio.mime};base64,${audio.base64}` : undefined);
+  const recSecRef = useRef<any>(null);
+  // v2.18 — Native DateTimePicker triggers
+  const [dtPicker, setDtPicker] = useState<null | { field: "start-date" | "start-time" | "end-date" | "end-time"; value: Date }>(null);
 
   const load = useCallback(async () => {
     try {
@@ -76,7 +91,8 @@ function EventBannersScreen() {
   useEffect(() => { load(); }, [load]);
 
   const openCreate = async () => {
-    setTitle(""); setDateStr(""); setTimeStr(""); setCover(null);
+    setTitle(""); setDateStr(""); setTimeStr(""); setEndDateStr(""); setEndTimeStr("");
+    setDescription(""); setCover(null); setAudio(null);
     setVisibilityKind("all");
     setSelUsers(new Set()); setSelContacts(new Set()); setSelGroups(new Set());
     setProgramPdf(null); setAiDesc(""); setAiDuration("");
@@ -105,6 +121,23 @@ function EventBannersScreen() {
       // v2.13 — Show dates in Italian format DD.MM.YYYY / HH:MM (matches placeholders)
       setDateStr(`${d}.${m}.${y}`);
       setTimeStr(`${hh}:${mm}`);
+      // v2.18 — end date/time (optional)
+      if (full.event_end_at) {
+        const edt = new Date(full.event_end_at);
+        const ey = edt.getFullYear(), em = String(edt.getMonth() + 1).padStart(2, "0"), ed = String(edt.getDate()).padStart(2, "0");
+        const ehh = String(edt.getHours()).padStart(2, "0"), emm = String(edt.getMinutes()).padStart(2, "0");
+        setEndDateStr(`${ed}.${em}.${ey}`);
+        setEndTimeStr(`${ehh}:${emm}`);
+      } else { setEndDateStr(""); setEndTimeStr(""); }
+      setDescription(full.description || "");
+      // v2.18 — audio: fetch lazily only if the event has one, keep null otherwise
+      setAudio(null);
+      if (full.has_audio) {
+        try {
+          const a = await api<{ name: string; mime: string; data_base64: string }>(`/event-banners/${b.event_id}/audio`);
+          setAudio({ base64: a.data_base64, name: a.name, mime: a.mime });
+        } catch {}
+      }
       setCover(full.cover_base64 ? { base64: full.cover_base64, mime: full.cover_mime || "image/jpeg" } : null);
       setVisibilityKind(full.visibility_kind || "all");
       setSelUsers(new Set(full.visible_user_ids || []));
@@ -277,11 +310,23 @@ function EventBannersScreen() {
       notify("Data o ora non valida", "Usa il formato GG.MM.AAAA (es. 27.08.2036) e HH:MM (es. 20:30).");
       return;
     }
+    // v2.18 — parse optional end date/time
+    let endIso: string | null = null;
+    if (endDateStr || endTimeStr) {
+      endIso = parseItalianDateTime(endDateStr || dateStr, endTimeStr || timeStr);
+      if (!endIso) { notify("Data fine non valida", "Usa GG.MM.AAAA e HH:MM anche per la data fine."); return; }
+      if (new Date(endIso).getTime() < new Date(iso).getTime()) {
+        notify("Range non valido", "La data fine deve essere dopo la data inizio.");
+        return;
+      }
+    }
     setSaving(true);
     try {
       const body: any = {
         title: title.trim(),
         event_at: iso,
+        event_end_at: endIso,  // v2.18
+        description: description.trim() || null,  // v2.18
         visibility_kind: visibilityKind,
         visible_user_ids: Array.from(selUsers),
         visible_contact_ids: Array.from(selContacts),
@@ -289,6 +334,11 @@ function EventBannersScreen() {
       };
       if (cover?.base64) { body.cover_base64 = cover.base64; body.cover_mime = cover.mime; }
       if (programPdf) { body.program_pdf_base64 = programPdf.base64; body.program_pdf_name = programPdf.name; }
+      if (audio) {  // v2.18
+        body.audio_base64 = audio.base64;
+        body.audio_mime = audio.mime;
+        body.audio_name = audio.name;
+      }
 
       if (editing?.event_id) {
         await api(`/event-banners/${editing.event_id}`, { method: "PUT", body });
@@ -313,6 +363,109 @@ function EventBannersScreen() {
       await api(`/event-banners/${b.event_id}`, { method: "DELETE" });
       await load();
     } catch (e: any) { notify("Errore", e?.message || ""); }
+  };
+
+  // v2.18 — Audio: start recording (native only; on web, prompt to upload)
+  const startRec = async () => {
+    if (Platform.OS === "web") {
+      notify("Registrazione non disponibile", "Su web, usa 'Carica audio' per allegare un file esistente.");
+      return;
+    }
+    try {
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        notify("Permesso negato", "Autorizza l'accesso al microfono nelle impostazioni.");
+        return;
+      }
+      await AudioModule.setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setRecording(true);
+      setRecordSeconds(0);
+      recSecRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } catch (e: any) {
+      notify("Errore registrazione", e?.message || "");
+    }
+  };
+
+  const stopRec = async () => {
+    if (recSecRef.current) { clearInterval(recSecRef.current); recSecRef.current = null; }
+    try {
+      await audioRecorder.stop();
+      setRecording(false);
+      const uri = audioRecorder.uri;
+      if (!uri) return;
+      const b64 = await uriToBase64(uri);
+      const bytes = Math.round((b64.length * 3) / 4);
+      if (bytes > 20 * 1024 * 1024) {
+        notify("Audio troppo lungo", "La registrazione supera i 20MB. Registra un audio più breve.");
+        return;
+      }
+      setAudio({ base64: b64, name: `registrazione-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.m4a`, mime: "audio/mp4" });
+    } catch (e: any) {
+      setRecording(false);
+      notify("Errore stop", e?.message || "");
+    }
+  };
+
+  const pickAudioFile = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ["audio/mpeg", "audio/mp4", "audio/m4a", "audio/wav", "audio/x-wav", "audio/aac", "audio/ogg", "audio/*"],
+        multiple: false,
+        copyToCacheDirectory: true,
+      });
+      if (res.canceled || !res.assets?.[0]) return;
+      const a = res.assets[0];
+      const b64 = await uriToBase64(a.uri);
+      const bytes = Math.round((b64.length * 3) / 4);
+      if (bytes > 20 * 1024 * 1024) { notify("File troppo grande", "Max 20 MB per l'audio."); return; }
+      setAudio({ base64: b64, name: a.name || "audio.mp3", mime: a.mimeType || "audio/mpeg" });
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    }
+  };
+
+  const clearAudio = async () => {
+    const ok = await confirmAsync("Rimuovi audio", "Vuoi rimuovere l'audio allegato?");
+    if (!ok) return;
+    try { audioPlayer?.pause(); } catch {}
+    setAudio(null);
+  };
+
+  const togglePlayAudio = () => {
+    if (!audio) return;
+    try {
+      if (audioPlayer.playing) audioPlayer.pause();
+      else { audioPlayer.seekTo(0); audioPlayer.play(); }
+    } catch (e: any) {
+      notify("Errore riproduzione", e?.message || "");
+    }
+  };
+
+  // v2.18 — DateTimePicker helpers (native + web fallback to text input)
+  const parseCurrentDT = (dStr: string, tStr: string): Date => {
+    const iso = parseItalianDateTime(dStr || `01.01.${new Date().getFullYear()}`, tStr || "09:00");
+    return iso ? new Date(iso) : new Date();
+  };
+
+  const openDtPicker = (field: "start-date" | "start-time" | "end-date" | "end-time") => {
+    if (Platform.OS === "web") return; // web falls back to plain TextInput
+    const isEnd = field.startsWith("end");
+    setDtPicker({ field, value: parseCurrentDT(isEnd ? endDateStr : dateStr, isEnd ? endTimeStr : timeStr) });
+  };
+
+  const onDtChange = (event: any, selected?: Date) => {
+    // Android auto-dismisses; iOS keeps modal open until user taps Done
+    if (Platform.OS === "android") setDtPicker(null);
+    if (event?.type === "dismissed" || !selected) return;
+    if (!dtPicker) return;
+    const y = selected.getFullYear(), m = String(selected.getMonth() + 1).padStart(2, "0"), d = String(selected.getDate()).padStart(2, "0");
+    const hh = String(selected.getHours()).padStart(2, "0"), mm = String(selected.getMinutes()).padStart(2, "0");
+    if (dtPicker.field === "start-date") setDateStr(`${d}.${m}.${y}`);
+    else if (dtPicker.field === "start-time") setTimeStr(`${hh}:${mm}`);
+    else if (dtPicker.field === "end-date") setEndDateStr(`${d}.${m}.${y}`);
+    else if (dtPicker.field === "end-time") setEndTimeStr(`${hh}:${mm}`);
   };
 
   return (
@@ -421,33 +574,173 @@ function EventBannersScreen() {
                 style={styles.input}
               />
 
-              {/* Date + time */}
+              {/* Date + time (inizio + fine opzionale) — v2.18 native DateTimePicker */}
+              <Text style={styles.lbl}>Data inizio</Text>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.lbl}>Data</Text>
-                  <TextInput
-                    testID="event-date"
-                    value={dateStr}
-                    onChangeText={setDateStr}
-                    placeholder="GG.MM.AAAA"
-                    placeholderTextColor="#94A3B8"
-                    style={styles.input}
-                    keyboardType={Platform.OS === "web" ? "default" : "numbers-and-punctuation"}
-                  />
+                  <Pressable
+                    testID="event-date-picker"
+                    onPress={() => openDtPicker("start-date")}
+                    style={[styles.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
+                  >
+                    <Text style={{ color: dateStr ? theme.color.onSurface : "#94A3B8", fontSize: 13 }}>
+                      {dateStr || "GG.MM.AAAA"}
+                    </Text>
+                    <Ionicons name="calendar-outline" size={16} color={theme.color.muted} />
+                  </Pressable>
+                  {Platform.OS === "web" && (
+                    <TextInput
+                      testID="event-date"
+                      value={dateStr}
+                      onChangeText={setDateStr}
+                      placeholder="GG.MM.AAAA"
+                      placeholderTextColor="#94A3B8"
+                      style={[styles.input, { marginTop: 4 }]}
+                    />
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.lbl}>Ora</Text>
-                  <TextInput
-                    testID="event-time"
-                    value={timeStr}
-                    onChangeText={setTimeStr}
-                    placeholder="HH:MM"
-                    placeholderTextColor="#94A3B8"
-                    style={styles.input}
-                    keyboardType={Platform.OS === "web" ? "default" : "numbers-and-punctuation"}
-                  />
+                  <Pressable
+                    testID="event-time-picker"
+                    onPress={() => openDtPicker("start-time")}
+                    style={[styles.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
+                  >
+                    <Text style={{ color: timeStr ? theme.color.onSurface : "#94A3B8", fontSize: 13 }}>
+                      {timeStr || "HH:MM"}
+                    </Text>
+                    <Ionicons name="time-outline" size={16} color={theme.color.muted} />
+                  </Pressable>
+                  {Platform.OS === "web" && (
+                    <TextInput
+                      testID="event-time"
+                      value={timeStr}
+                      onChangeText={setTimeStr}
+                      placeholder="HH:MM"
+                      placeholderTextColor="#94A3B8"
+                      style={[styles.input, { marginTop: 4 }]}
+                    />
+                  )}
                 </View>
               </View>
+
+              <Text style={styles.lbl}>Data fine (opzionale — per eventi multi-giorno)</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Pressable
+                    testID="event-end-date-picker"
+                    onPress={() => openDtPicker("end-date")}
+                    style={[styles.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
+                  >
+                    <Text style={{ color: endDateStr ? theme.color.onSurface : "#94A3B8", fontSize: 13 }}>
+                      {endDateStr || "GG.MM.AAAA"}
+                    </Text>
+                    <Ionicons name="calendar-outline" size={16} color={theme.color.muted} />
+                  </Pressable>
+                  {Platform.OS === "web" && (
+                    <TextInput
+                      testID="event-end-date"
+                      value={endDateStr}
+                      onChangeText={setEndDateStr}
+                      placeholder="GG.MM.AAAA"
+                      placeholderTextColor="#94A3B8"
+                      style={[styles.input, { marginTop: 4 }]}
+                    />
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Pressable
+                    testID="event-end-time-picker"
+                    onPress={() => openDtPicker("end-time")}
+                    style={[styles.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
+                  >
+                    <Text style={{ color: endTimeStr ? theme.color.onSurface : "#94A3B8", fontSize: 13 }}>
+                      {endTimeStr || "HH:MM"}
+                    </Text>
+                    <Ionicons name="time-outline" size={16} color={theme.color.muted} />
+                  </Pressable>
+                  {Platform.OS === "web" && (
+                    <TextInput
+                      testID="event-end-time"
+                      value={endTimeStr}
+                      onChangeText={setEndTimeStr}
+                      placeholder="HH:MM"
+                      placeholderTextColor="#94A3B8"
+                      style={[styles.input, { marginTop: 4 }]}
+                    />
+                  )}
+                </View>
+                {(endDateStr || endTimeStr) && (
+                  <Pressable
+                    testID="event-end-clear"
+                    onPress={() => { setEndDateStr(""); setEndTimeStr(""); }}
+                    style={[styles.input, { paddingHorizontal: 10, justifyContent: "center", alignItems: "center", flex: 0 }]}
+                  >
+                    <Ionicons name="close-circle" size={18} color="#DC2626" />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* v2.18 — Descrizione libera */}
+              <Text style={styles.lbl}>Descrizione evento</Text>
+              <TextInput
+                testID="event-description"
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Aggiungi dettagli, temi, relatori, dress code o istruzioni…"
+                placeholderTextColor="#94A3B8"
+                style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
+                multiline
+                maxLength={1000}
+              />
+
+              {/* v2.18 — Audio attachment */}
+              <Text style={styles.lbl}>Audio evento (opzionale — condivisibile con la locandina)</Text>
+              {audio ? (
+                <View style={{ backgroundColor: "#F1F5F9", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: theme.color.border }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Pressable
+                      testID="event-audio-play"
+                      onPress={togglePlayAudio}
+                      style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" }}
+                    >
+                      <Ionicons name={audioPlayer?.playing ? "pause" : "play"} size={16} color="#FFF" />
+                    </Pressable>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: theme.color.onSurface }} numberOfLines={1}>{audio.name}</Text>
+                      <Text style={{ fontSize: 11, color: theme.color.muted }}>{Math.round((audio.base64.length * 3) / 4 / 1024)} KB · {audio.mime}</Text>
+                    </View>
+                    <Pressable testID="event-audio-clear" onPress={clearAudio} style={{ padding: 6 }}>
+                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {recording ? (
+                    <Pressable
+                      testID="event-audio-stop"
+                      onPress={stopRec}
+                      style={[styles.uploadBtn, { flex: 1, borderColor: "#DC2626", backgroundColor: "#FEE2E2" }]}
+                    >
+                      <Ionicons name="stop-circle" size={18} color="#DC2626" />
+                      <Text style={[styles.uploadTxt, { color: "#DC2626" }]}>Registrando… {Math.floor(recordSeconds / 60).toString().padStart(2, "0")}:{(recordSeconds % 60).toString().padStart(2, "0")} · Tocca per fermare</Text>
+                    </Pressable>
+                  ) : (
+                    <>
+                      {Platform.OS !== "web" && (
+                        <Pressable testID="event-audio-record" onPress={startRec} style={[styles.uploadBtn, { flex: 1, borderColor: "#DC2626" }]}>
+                          <Ionicons name="mic" size={16} color="#DC2626" />
+                          <Text style={[styles.uploadTxt, { color: "#DC2626" }]}>Registra audio</Text>
+                        </Pressable>
+                      )}
+                      <Pressable testID="event-audio-upload" onPress={pickAudioFile} style={[styles.uploadBtn, { flex: 1, borderColor: "#0891B2" }]}>
+                        <Ionicons name="cloud-upload-outline" size={16} color="#0891B2" />
+                        <Text style={[styles.uploadTxt, { color: "#0891B2" }]}>Carica audio</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
+              )}
 
               {/* Visibility */}
               <Text style={styles.lbl}>Visibilità</Text>
@@ -603,6 +896,18 @@ function EventBannersScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* v2.18 — Native DateTimePicker (iOS/Android). Web uses TextInput fallback above. */}
+      {dtPicker && Platform.OS !== "web" && (
+        <DateTimePicker
+          testID="event-dt-picker"
+          value={dtPicker.value}
+          mode={dtPicker.field.endsWith("date") ? "date" : "time"}
+          is24Hour
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={onDtChange}
+        />
+      )}
     </SafeAreaView>
   );
 }

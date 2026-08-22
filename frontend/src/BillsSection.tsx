@@ -15,6 +15,7 @@ import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { FileViewer } from "@/src/FileViewer";
+import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
 
 type BillType = "luce" | "gas" | "telco";
 export type QuickBillType = BillType;
@@ -127,6 +128,8 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   // v2.12 — CTE comparativa (multi-bill report)
   const [cteBusy, setCteBusy] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  // v2.17 — Report header (branding) configuration modal
+  const [headerCfgOpen, setHeaderCfgOpen] = useState(false);
   // V38 — pending upload waiting for user parameter selection
   const [pendingUpload, setPendingUpload] = useState<null | { bill_type: BillType; asset: { name?: string; mimeType?: string; uri: string } }>(null);
   const [selectedParams, setSelectedParams] = useState<Set<string>>(new Set());
@@ -1304,11 +1307,21 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         );
       })}
 
+      {/* v2.17 — Configura intestazione (branding report) */}
+      <Pressable
+        testID="bills-header-cfg-btn"
+        onPress={() => setHeaderCfgOpen(true)}
+        style={[styles.reportBtn, { backgroundColor: "#0F172A", flexDirection: "row" }]}
+      >
+        <Ionicons name="settings-outline" size={18} color="#FFF" />
+        <Text style={styles.reportBtnTxt}>Configura intestazione</Text>
+      </Pressable>
+
       <Pressable
         testID="bills-report-btn"
         disabled={totalDone === 0 || reportBusy}
         onPress={generateReport}
-        style={[styles.reportBtn, { opacity: totalDone === 0 || reportBusy ? 0.5 : 1 }]}
+        style={[styles.reportBtn, { opacity: totalDone === 0 || reportBusy ? 0.5 : 1, marginTop: 12 }]}
       >
         {reportBusy ? (
           <ActivityIndicator color="#FFF" />
@@ -1658,6 +1671,8 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         dataBase64={viewerOpen?.data_base64 || ""}
         onClose={() => setViewerOpen(null)}
       />
+      {/* v2.17 — Report header (branding) config modal */}
+      <ReportHeaderConfigModal visible={headerCfgOpen} onClose={() => setHeaderCfgOpen(false)} />
     </View>
   );
 }

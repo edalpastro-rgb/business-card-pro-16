@@ -7227,11 +7227,17 @@ async def birthday_history(contact_id: str, user=Depends(get_current_user)):
 class EventBannerIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     event_at: datetime
+    event_end_at: Optional[datetime] = None  # v2.18 — optional end date for ranges
+    description: Optional[str] = None  # v2.18 — free-text description
     cover_base64: str = Field(min_length=10)
     cover_mime: str = "image/jpeg"
     program_pdf_base64: Optional[str] = None
     program_pdf_name: Optional[str] = None
     program_html: Optional[str] = None  # AI-generated OR manually provided
+    # v2.18 — Optional audio attachment (announcement/promo voice message)
+    audio_base64: Optional[str] = None
+    audio_mime: Optional[str] = None  # audio/mpeg | audio/mp4 | audio/wav | audio/m4a
+    audio_name: Optional[str] = None
     # Visibility
     visibility_kind: str = "all"  # "all" | "specific"
     visible_user_ids: List[str] = Field(default_factory=list)
@@ -7242,11 +7248,16 @@ class EventBannerIn(BaseModel):
 class EventBannerUpdate(BaseModel):
     title: Optional[str] = None
     event_at: Optional[datetime] = None
+    event_end_at: Optional[datetime] = None
+    description: Optional[str] = None
     cover_base64: Optional[str] = None
     cover_mime: Optional[str] = None
     program_pdf_base64: Optional[str] = None
     program_pdf_name: Optional[str] = None
     program_html: Optional[str] = None
+    audio_base64: Optional[str] = None
+    audio_mime: Optional[str] = None
+    audio_name: Optional[str] = None
     visibility_kind: Optional[str] = None
     visible_user_ids: Optional[List[str]] = None
     visible_contact_ids: Optional[List[str]] = None
@@ -7291,11 +7302,16 @@ async def create_event_banner(body: EventBannerIn, user=Depends(get_current_user
         "created_by": user["user_id"],
         "title": body.title.strip(),
         "event_at": body.event_at,
+        "event_end_at": body.event_end_at,  # v2.18
+        "description": (body.description or "").strip() or None,  # v2.18
         "cover_base64": body.cover_base64,
         "cover_mime": body.cover_mime or "image/jpeg",
         "program_pdf_base64": body.program_pdf_base64,
         "program_pdf_name": body.program_pdf_name,
         "program_html": body.program_html,
+        "audio_base64": body.audio_base64,  # v2.18
+        "audio_mime": body.audio_mime,
+        "audio_name": body.audio_name,
         "visibility_kind": body.visibility_kind,
         "visible_user_ids": body.visible_user_ids or [],
         "visible_contact_ids": body.visible_contact_ids or [],
@@ -7323,11 +7339,11 @@ async def list_event_banners(user=Depends(get_current_user)):
 async def list_active_event_banners(user=Depends(get_current_user)):
     """Any authenticated user (master + collaborators) can call this to fetch
     the banners currently visible to them (event_at in future, visibility ok).
-    Returns light payload (cover_base64 included for rendering, no PDF/HTML)."""
+    Returns light payload (cover_base64 included for rendering, no PDF/HTML/audio)."""
     now = utcnow()
     all_banners = await db.event_banners.find(
         {"user_id": tenant_id(user), "event_at": {"$gte": now}},
-        {"_id": 0, "program_pdf_base64": 0, "program_html": 0},
+        {"_id": 0, "program_pdf_base64": 0, "program_html": 0, "audio_base64": 0},
     ).sort("event_at", 1).to_list(50)
     visible = [b for b in all_banners if _event_visible_to_user(b, user)]
     return {"items": visible}
@@ -7337,19 +7353,30 @@ async def list_active_event_banners(user=Depends(get_current_user)):
 async def get_event_banner(event_id: str, user=Depends(get_current_user)):
     b = await db.event_banners.find_one(
         {"user_id": tenant_id(user), "event_id": event_id},
-        {"_id": 0},
+        {"_id": 0, "audio_base64": 0},  # v2.18 — audio via dedicated /audio endpoint
     )
     if not b:
         raise HTTPException(status_code=404, detail="Evento non trovato")
     if not _event_visible_to_user(b, user):
         raise HTTPException(status_code=403, detail="Non hai accesso a questo evento")
+    # v2.18 — Expose a boolean "has_audio" flag so UI can toggle the playback button
+    b["has_audio"] = False
+    audio_check = await db.event_banners.find_one(
+        {"event_id": event_id}, {"_id": 0, "audio_base64": 1}
+    )
+    if audio_check and audio_check.get("audio_base64"):
+        b["has_audio"] = True
     return b
 
 
 @api_router.put("/event-banners/{event_id}")
 async def update_event_banner(event_id: str, body: EventBannerUpdate, user=Depends(get_current_user)):
     _ensure_master(user)
-    upd = {k: v for k, v in body.dict(exclude_unset=True).items() if v is not None or k in ("program_pdf_base64", "program_pdf_name", "program_html")}
+    # v2.18 — audio/program fields must be settable to None (to clear them)
+    _nullable_ok = ("program_pdf_base64", "program_pdf_name", "program_html",
+                    "audio_base64", "audio_mime", "audio_name",
+                    "event_end_at", "description")
+    upd = {k: v for k, v in body.dict(exclude_unset=True).items() if v is not None or k in _nullable_ok}
     upd["updated_at"] = utcnow()
     r = await db.event_banners.update_one(
         {"user_id": tenant_id(user), "event_id": event_id},
@@ -7446,6 +7473,26 @@ async def generate_event_program(event_id: str, body: EventProgramAIIn, user=Dep
         {"$set": {"program_html": full, "updated_at": utcnow()}},
     )
     return {"ok": True, "program_html": full}
+
+
+@api_router.get("/event-banners/{event_id}/audio")
+async def get_event_audio(event_id: str, user=Depends(get_current_user)):
+    """v2.18 — Return the audio attachment for an event (if present)."""
+    b = await db.event_banners.find_one(
+        {"user_id": tenant_id(user), "event_id": event_id},
+        {"_id": 0, "audio_base64": 1, "audio_mime": 1, "audio_name": 1, "user_id": 1, "visibility_kind": 1, "visible_user_ids": 1},
+    )
+    if not b:
+        raise HTTPException(status_code=404, detail="Evento non trovato")
+    if not _event_visible_to_user(b, user):
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo evento")
+    if not b.get("audio_base64"):
+        raise HTTPException(status_code=404, detail="Nessuna audio-registrazione allegata")
+    return {
+        "name": b.get("audio_name") or "audio.m4a",
+        "mime": b.get("audio_mime") or "audio/mp4",
+        "data_base64": b["audio_base64"],
+    }
 
 
 @api_router.get("/event-banners/{event_id}/program")

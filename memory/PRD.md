@@ -1,5 +1,83 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.18 Feature — Banner Evento: range date + descrizione + audio (Feb 2026)
+### 🎯 Richieste utente
+1) Range date: aggiungere data fine opzionale + selettore nativo calendario/orologio (DateTimePicker) per data inizio e fine.
+2) Aggiungere campo testo libero "Descrizione evento".
+3) Aggiungere allegato audio (registrazione o upload mp3/m4a/wav) condivisibile con la locandina PDF.
+
+### ✅ Backend (`/app/backend/server.py`)
+`EventBannerIn` + `EventBannerUpdate` estesi con:
+- `event_end_at: Optional[datetime]` — data/ora fine evento (opzionale)
+- `description: Optional[str]` — descrizione libera
+- `audio_base64` + `audio_mime` + `audio_name` — allegato audio
+
+**Endpoint nuovi**:
+- `GET /api/event-banners/{id}/audio` — restituisce l'audio (lazy, RBAC via `_event_visible_to_user`)
+
+**Endpoint modificati**:
+- `POST /api/event-banners` — persiste i nuovi campi
+- `PUT /api/event-banners/{id}` — whitelist campi nullable estesa a `audio_*`, `event_end_at`, `description` per consentirne il clear via `null`
+- `GET /api/event-banners/{id}` — proietta OUT `audio_base64` (per performance) e aggiunge flag `has_audio: bool`
+- `GET /api/event-banners/active` — proietta OUT anche `audio_base64` per rispose leggere
+
+### ✅ Frontend (`/app/frontend/app/event-banners.tsx`)
+- Import di `@react-native-community/datetimepicker@8.4.4` + `expo-audio@1.1.1`
+- **DateTimePicker nativo** su iOS/Android per Data inizio, Ora inizio, Data fine, Ora fine — tap sui campi apre picker calendario/orologio; su web fallback a TextInput con formato IT `GG.MM.AAAA` (parseItalianDateTime esistente)
+- **Data fine opzionale** con bottone ✕ per resettare; validazione: se presente, deve essere > data inizio (altrimenti `notify("Range non valido")`)
+- **Campo Descrizione** TextInput multiline, max 1000 char
+- **Audio recording** (solo native): `useAudioRecorder(RecordingPresets.HIGH_QUALITY)`, permesso runtime via `AudioModule.requestRecordingPermissionsAsync()`, timer contatore secondi live, stop → base64 encode → salva come `registrazione-{timestamp}.m4a` (audio/mp4)
+- **Audio upload** (native+web): DocumentPicker `audio/*` accetta mp3/m4a/wav/aac/ogg — max 20 MB
+- **Playback dell'audio caricato**: `useAudioPlayer(dataUri)` con toggle play/pause + rewind, `seekTo(0)` prima di ogni play
+- **Clear audio** con conferma → pause player + audio=null
+- In `openEdit()` se `has_audio: true` → fetch dedicato `/event-banners/{id}/audio` per pre-caricare in editing
+
+### ✅ Verifica end-to-end (senza testing agent)
+- Create con event_end_at + description + audio → 200 OK ✅
+- GET evento: `has_audio: true`, `audio_base64` NOT in main response ✅
+- GET `/audio` endpoint: ritorna name/mime/data_base64 correttamente ✅
+- Update con `audio_base64: null` → `has_audio: false` ✅ (dopo fix whitelist)
+- Lint pulito ✅
+
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent. Test audio recording richiede build reale (native only, non funziona in Expo Go Web preview).
+
+
+
+## v2.17 Feature — Configura intestazione report (Feb 2026)
+### 🎯 Richiesta utente
+Nel modulo analisi fatture e report CTE, aggiungere una schermata di configurazione intestazione: logo aziendale, nome azienda, slogan, contatti. I dati devono apparire nell'header del report al posto del default, salvati automaticamente e modificabili in qualsiasi momento.
+
+### ✅ Stato preesistente
+Backend già preparato dai versioni V38I/V38U:
+- 4 campi in `User`/`UserOut`: `company_name`, `company_logo_base64`, `report_slogan`, `report_contacts`
+- Endpoint `PUT /api/auth/profile` accetta tutti e 4
+- `_build_analysis_html` e `_build_cte_report_html` già leggono da `db.users` e producono l'header brandizzato
+
+**Mancava** solo un accesso rapido dalla sezione Fatture (finora era solo in `impostazioni.tsx`).
+
+### ✅ Fix applicato
+**Nuovo componente** `/app/frontend/src/ReportHeaderConfigModal.tsx`:
+- Bottom-sheet modal riusabile con 4 campi + logo picker (`pickAvatarBase64`)
+- **Live preview** in cima al form (logo + nome + slogan + contatti) con lo stesso styling che verrà usato nel report reale
+- Auto-load valori attuali da `user` all'apertura (via `useAuth`)
+- Save via `PUT /api/auth/profile` con `refresh()` per riflettere i cambi ovunque
+- Limiti: name 80 / slogan 140 / contacts 240 chars
+- testID: `rhc-close`, `rhc-logo-pick`, `rhc-logo-clear`, `rhc-company-name`, `rhc-slogan`, `rhc-contacts`, `rhc-save`
+
+**Integrato in 2 punti**:
+- `/app/frontend/src/BillsSection.tsx` (scheda cliente) — bottone nero `bills-header-cfg-btn` "Configura intestazione" con icona ⚙ ingranaggio, posizionato subito prima di "Genera Report PDF"
+- `/app/frontend/app/bill-quick.tsx` (master) — bottone nero `bq-header-cfg-btn` "Configura intestazione report" posizionato subito dopo la intro card, prima delle "Offerte aziendali"
+
+### ✅ Verifica end-to-end (senza testing agent)
+- PUT `/auth/profile` con 4 campi → 200 OK ✅
+- GET `/auth/me` restituisce tutti i valori inseriti (name / slogan / contacts multi-line / logo base64) ✅
+- Lint pulito ✅
+- Modal apre correttamente e i valori pre-esistenti vengono caricati automaticamente ✅
+
+### ⚠ Per attivarlo in **produzione**: **Redeploy** dal pannello Emergent.
+
+
+
 ## v2.16 Feature — Share fallback + Indirizzo strutturato Appuntamenti (Feb 2026)
 ### 🎯 Richieste utente
 1) I bottoni Email/WhatsApp/SMS di "Condividi con il cliente" devono funzionare anche senza contatto collegato, usando telefono/email inseriti nell'appuntamento.
