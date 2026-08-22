@@ -51,6 +51,22 @@ export default function HomeScreen() {
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
   const [apptStats, setApptStats] = useState<ApptStats | null>(null);
   const [contactsCount, setContactsCount] = useState<number>(0);
+  const [nowTick, setNowTick] = useState<number>(Date.now());
+
+  // Update header clock every minute (aligned to the next :00 second)
+  useEffect(() => {
+    let intervalId: any = null;
+    const d = new Date();
+    const msToNextMinute = (60 - d.getSeconds()) * 1000 - d.getMilliseconds();
+    const timeoutId = setTimeout(() => {
+      setNowTick(Date.now());
+      intervalId = setInterval(() => setNowTick(Date.now()), 60000);
+    }, Math.max(500, msToNextMinute));
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -141,7 +157,11 @@ export default function HomeScreen() {
         {/* ── Header ── */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.eyebrow}>{new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</Text>
+            <Text style={styles.eyebrow}>
+              {new Date(nowTick).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+              {" · "}
+              {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+            </Text>
             <Text style={styles.hi} testID="home-greeting">Ciao, <Text style={{ color: C.primary }}>{user?.name?.split(" ")[0] || ""}</Text></Text>
           </View>
           <Pressable onPress={() => router.push("/impostazioni" as any)} hitSlop={8}>
