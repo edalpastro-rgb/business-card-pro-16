@@ -167,108 +167,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ── KPI Row ── */}
-        <View style={styles.kpiRow}>
-          <KpiCard
-            testID="kpi-callbacks"
-            label="Ritelefonate oggi"
-            value={cbTodayTotal}
-            icon="call"
-            accent={C.primary}
-            hint={cbLate > 0 ? `${cbLate} in ritardo` : cbDone > 0 ? `${cbDone} completate` : "nessuna urgenza"}
-            hintColor={cbLate > 0 ? C.danger : C.success}
-            onPress={() => router.push("/callbacks-list" as any)}
-          />
-          <KpiCard
-            testID="kpi-appointments"
-            label="Appuntamenti 30gg"
-            value={apptTotal}
-            icon="calendar"
-            accent={C.navy}
-            hint={`${apptDone} fatti · ${apptUndone} da fare`}
-            hintColor={C.muted}
-            onPress={() => router.push("/(tabs)/calendario" as any)}
-          />
-        </View>
-        <View style={[styles.kpiRow, { marginTop: 12 }]}>
-          <KpiCard
-            testID="kpi-contacts"
-            label="Contatti totali"
-            value={contactsCount}
-            icon="people"
-            accent={C.primary}
-            hint="in rubrica"
-            hintColor={C.muted}
-            onPress={() => router.push("/(tabs)/contatti" as any)}
-          />
-          <KpiCard
-            testID="kpi-done-today"
-            label="Fatte oggi"
-            value={cbDone}
-            icon="checkmark-done"
-            accent={C.navy}
-            hint={cbPending > 0 ? `${cbPending} da chiudere` : "tutto ok"}
-            hintColor={cbPending > 0 ? C.warning : C.success}
-            onPress={() => router.push("/callbacks-list" as any)}
-          />
-        </View>
-
-        {/* ── Master button ── */}
-        {!user?.parent_user_id && (
-          <Pressable testID="home-master-btn" onPress={() => router.push("/master" as any)} style={styles.masterCard}>
-            <View style={styles.masterIcon}>
-              <Ionicons name="grid" size={20} color={C.white} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.masterTitle}>Interfaccia Master</Text>
-              <Text style={styles.masterSub}>Agenda · Contatti · Contratti · Team</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.white} />
-          </Pressable>
-        )}
-
-        {/* Event banner (kept untouched) */}
-        <HomeEventBanner />
-
-        {/* ── Charts ── */}
-        {(apptTotal > 0 || cbTodayTotal > 0) && (
-          <View style={styles.chartsRow}>
-            {/* Donut: Appuntamenti fatti vs da fare */}
-            <View style={[styles.card, styles.donutCard]}>
-              <Text style={styles.cardTitle}>Appuntamenti</Text>
-              <Text style={styles.cardSub}>ultimi 30 giorni</Text>
-              <View style={styles.donutWrap}>
-                <DonutChart
-                  size={120}
-                  strokeWidth={14}
-                  segments={[
-                    { value: apptDone, color: C.primary },
-                    { value: apptUndone, color: C.navy },
-                  ]}
-                  centerLabel={apptTotal > 0 ? `${Math.round((apptDone / apptTotal) * 100)}%` : "0%"}
-                  centerSub="fatti"
-                />
-              </View>
-              <View style={styles.legend}>
-                <LegendDot color={C.primary} label={`Fatti · ${apptDone}`} />
-                <LegendDot color={C.navy} label={`Da fare · ${apptUndone}`} />
-              </View>
-            </View>
-
-            {/* Bar chart: Ritelefonate per area (oggi) */}
-            <View style={[styles.card, styles.donutCard]}>
-              <Text style={styles.cardTitle}>Ritelefonate</Text>
-              <Text style={styles.cardSub}>di oggi per area</Text>
-              <View style={{ marginTop: 14, marginBottom: 8 }}>
-                <BarRow label={settings?.energy_title || "Energy"} value={cbEnergy} max={Math.max(1, cbEnergy, cbNetwork)} color={C.primary} />
-                <BarRow label={settings?.network_title || "Network"} value={cbNetwork} max={Math.max(1, cbEnergy, cbNetwork)} color={C.navy} />
-                <BarRow label="In ritardo" value={cbLate} max={Math.max(1, cbEnergy, cbNetwork, cbLate)} color={C.danger} />
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* ── My Thing (immersive rotating banner) ── */}
+        {/* ── 2) Banner My Thing (immersive rotating) ── */}
         <Pressable testID="home-my-thing-btn" onPress={() => router.push("/my-thing")} style={styles.myThingBtn}>
           {myThingImg ? (
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: myThingFade }]} pointerEvents="none">
@@ -287,7 +186,24 @@ export default function HomeScreen() {
           )}
         </Pressable>
 
-        {/* ── Ritelefonate di oggi ── */}
+        {/* ── 2b) Banner Evento ── */}
+        <HomeEventBanner />
+
+        {/* ── 3) Bottone Interfaccia Master ── */}
+        {!user?.parent_user_id && (
+          <Pressable testID="home-master-btn" onPress={() => router.push("/master" as any)} style={styles.masterCard}>
+            <View style={styles.masterIcon}>
+              <Ionicons name="grid" size={20} color={C.white} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.masterTitle}>Interfaccia Master</Text>
+              <Text style={styles.masterSub}>Agenda · Contatti · Contratti · Team</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.white} />
+          </Pressable>
+        )}
+
+        {/* ── 4) Ritelefonate di oggi ── */}
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Ritelefonate di oggi</Text>
@@ -346,7 +262,7 @@ export default function HomeScreen() {
           })}
         </View>
 
-        {/* ── Azioni rapide ── */}
+        {/* ── 5) Azioni rapide ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Azioni rapide</Text>
           <View style={styles.quickRow}>
@@ -363,6 +279,93 @@ export default function HomeScreen() {
               <Text style={styles.quickTxt}>Nuovo contatto</Text>
             </Pressable>
           </View>
+        </View>
+
+        {/* ── 6) Statistiche ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Statistiche</Text>
+
+          {/* KPI cards 2×2 */}
+          <View style={styles.kpiRow}>
+            <KpiCard
+              testID="kpi-callbacks"
+              label="Ritelefonate oggi"
+              value={cbTodayTotal}
+              icon="call"
+              accent={C.primary}
+              hint={cbLate > 0 ? `${cbLate} in ritardo` : cbDone > 0 ? `${cbDone} completate` : "nessuna urgenza"}
+              hintColor={cbLate > 0 ? C.danger : C.success}
+              onPress={() => router.push("/callbacks-list" as any)}
+            />
+            <KpiCard
+              testID="kpi-appointments"
+              label="Appuntamenti 30gg"
+              value={apptTotal}
+              icon="calendar"
+              accent={C.navy}
+              hint={`${apptDone} fatti · ${apptUndone} da fare`}
+              hintColor={C.muted}
+              onPress={() => router.push("/(tabs)/calendario" as any)}
+            />
+          </View>
+          <View style={[styles.kpiRow, { marginTop: 12 }]}>
+            <KpiCard
+              testID="kpi-contacts"
+              label="Contatti totali"
+              value={contactsCount}
+              icon="people"
+              accent={C.primary}
+              hint="in rubrica"
+              hintColor={C.muted}
+              onPress={() => router.push("/(tabs)/contatti" as any)}
+            />
+            <KpiCard
+              testID="kpi-done-today"
+              label="Fatte oggi"
+              value={cbDone}
+              icon="checkmark-done"
+              accent={C.navy}
+              hint={cbPending > 0 ? `${cbPending} da chiudere` : "tutto ok"}
+              hintColor={cbPending > 0 ? C.warning : C.success}
+              onPress={() => router.push("/callbacks-list" as any)}
+            />
+          </View>
+
+          {/* Charts: donut + bar */}
+          {(apptTotal > 0 || cbTodayTotal > 0) && (
+            <View style={[styles.chartsRow, { marginTop: 12 }]}>
+              <View style={[styles.card, styles.donutCard]}>
+                <Text style={styles.cardTitle}>Appuntamenti</Text>
+                <Text style={styles.cardSub}>ultimi 30 giorni</Text>
+                <View style={styles.donutWrap}>
+                  <DonutChart
+                    size={120}
+                    strokeWidth={14}
+                    segments={[
+                      { value: apptDone, color: C.primary },
+                      { value: apptUndone, color: C.navy },
+                    ]}
+                    centerLabel={apptTotal > 0 ? `${Math.round((apptDone / apptTotal) * 100)}%` : "0%"}
+                    centerSub="fatti"
+                  />
+                </View>
+                <View style={styles.legend}>
+                  <LegendDot color={C.primary} label={`Fatti · ${apptDone}`} />
+                  <LegendDot color={C.navy} label={`Da fare · ${apptUndone}`} />
+                </View>
+              </View>
+
+              <View style={[styles.card, styles.donutCard]}>
+                <Text style={styles.cardTitle}>Ritelefonate</Text>
+                <Text style={styles.cardSub}>di oggi per area</Text>
+                <View style={{ marginTop: 14, marginBottom: 8 }}>
+                  <BarRow label={settings?.energy_title || "Energy"} value={cbEnergy} max={Math.max(1, cbEnergy, cbNetwork)} color={C.primary} />
+                  <BarRow label={settings?.network_title || "Network"} value={cbNetwork} max={Math.max(1, cbEnergy, cbNetwork)} color={C.navy} />
+                  <BarRow label="In ritardo" value={cbLate} max={Math.max(1, cbEnergy, cbNetwork, cbLate)} color={C.danger} />
+                </View>
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={{ height: 40 }} />
@@ -569,7 +572,7 @@ const cardShadow = Platform.select({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scroll: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24 },
+  scroll: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 120 },
 
   /* Header */
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
