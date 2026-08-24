@@ -14,6 +14,10 @@ import { scheduleOneShot, scheduleDailyAt, scheduleYearlyAt, cancelByTag, ensure
 
 type Kind = "message" | "image" | "event" | "anniversary";
 
+// V28.d — Banner customization types
+type FontFamilyKey = "system" | "serif" | "monospace" | "rounded";
+type FontSizeKey = "small" | "medium" | "large";
+
 type MyThingItem = {
   item_id: string;
   kind: Kind;
@@ -27,7 +31,34 @@ type MyThingItem = {
   notify: boolean;
   active: boolean;
   color: string;
+  font_family?: FontFamilyKey | null;
+  font_size?: FontSizeKey | null;
 };
+
+// Return a px number for each size preset (used both in native and web)
+function sizePxFor(key: FontSizeKey | undefined | null): number {
+  const m = SIZE_OPTIONS.find((s) => s.id === key);
+  return m ? m.px : 16;
+}
+
+// V28.d — Utility: parse #RRGGBB into perceived luminance in [0..1]
+function _luminance(hex: string): number {
+  const h = (hex || "").replace("#", "").trim();
+  if (h.length !== 6) return 0.5;
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  // Perceived luminance (sRGB)
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function isLightColor(hex: string): boolean {
+  return _luminance(hex) > 0.72;
+}
+
+function contrastTextColor(bg: string): string {
+  return isLightColor(bg) ? "#1B2B4B" : "#FFFFFF";
+}
 
 const TABS: { id: Kind; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: "message", label: "Messaggi", icon: "chatbubble-ellipses" },
@@ -36,7 +67,37 @@ const TABS: { id: Kind; label: string; icon: keyof typeof Ionicons.glyphMap }[] 
   { id: "anniversary", label: "Ricorrenze", icon: "gift" },
 ];
 
-const COLORS = ["#3A739C", "#C83232", "#1B6CB0", "#2D7A5A", "#B77C14", "#7A2E8E", "#0B7285", "#E67700"];
+// V28.d — White is now the default; light backgrounds first, then dark accents.
+const COLORS = ["#FFFFFF", "#F5F5F5", "#FFF7ED", "#FEF9C3", "#DCFCE7", "#DBEAFE", "#EDE9FE", "#FCE7F3", "#3A739C", "#C83232", "#1B6CB0", "#2D7A5A", "#B77C14", "#7A2E8E", "#0B7285", "#E67700"];
+
+// V28.d — Font families (3+ options as requested)
+const FONT_OPTIONS: { id: FontFamilyKey; label: string; sample: string }[] = [
+  { id: "system", label: "Standard", sample: "Aa" },
+  { id: "serif", label: "Serif", sample: "Aa" },
+  { id: "monospace", label: "Mono", sample: "Aa" },
+  { id: "rounded", label: "Arrotondato", sample: "Aa" },
+];
+
+const SIZE_OPTIONS: { id: FontSizeKey; label: string; px: number }[] = [
+  { id: "small", label: "Piccolo", px: 13 },
+  { id: "medium", label: "Medio", px: 16 },
+  { id: "large", label: "Grande", px: 20 },
+];
+
+// Return a native/web fontFamily string for each preset
+function fontFamilyFor(key: FontFamilyKey | undefined | null): string | undefined {
+  switch (key) {
+    case "serif":
+      return Platform.select({ ios: "Georgia", android: "serif", default: "Georgia, 'Times New Roman', serif" });
+    case "monospace":
+      return Platform.select({ ios: "Menlo", android: "monospace", default: "'SF Mono', Menlo, Consolas, monospace" });
+    case "rounded":
+      return Platform.select({ ios: "Avenir Next", android: "sans-serif-medium", default: "'Nunito', 'Avenir Next', system-ui, sans-serif" });
+    case "system":
+    default:
+      return undefined; // system default
+  }
+}
 
 export default function MyThingScreen() {
   const router = useRouter();
@@ -56,7 +117,10 @@ export default function MyThingScreen() {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
   const [notify, setNotify] = useState(false);
-  const [color, setColor] = useState(COLORS[0]);
+  const [color, setColor] = useState<string>(COLORS[0]);
+  // V28.d — banner customization for message slides
+  const [fontFamily, setFontFamily] = useState<FontFamilyKey>("system");
+  const [fontSize, setFontSize] = useState<FontSizeKey>("medium");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,6 +142,8 @@ export default function MyThingScreen() {
       setScheduledAt(it.scheduled_at ? new Date(it.scheduled_at) : null);
       setNotify(!!it.notify);
       setColor(it.color || COLORS[0]);
+      setFontFamily((it.font_family as FontFamilyKey) || "system");
+      setFontSize((it.font_size as FontSizeKey) || "medium");
     } else {
       setEditing(null);
       setTitle("");
@@ -88,6 +154,8 @@ export default function MyThingScreen() {
       setScheduledAt(null);
       setNotify(false);
       setColor(COLORS[0]);
+      setFontFamily("system");
+      setFontSize("medium");
     }
     setEditorOpen(true);
   };
@@ -154,6 +222,9 @@ export default function MyThingScreen() {
       notify,
       active: true,
       color,
+      // V28.d — persist banner customization only for message-kind items
+      font_family: active === "message" ? fontFamily : undefined,
+      font_size: active === "message" ? fontSize : undefined,
     };
 
     try {
@@ -500,16 +571,101 @@ export default function MyThingScreen() {
                 </View>
               </View>
 
+              {/* V28.d — Banner customization (message-kind only) */}
+              {active === "message" && (
+                <View style={styles.formCard}>
+                  <Text style={styles.label}>Anteprima banner</Text>
+                  <View
+                    style={[
+                      styles.bannerPreview,
+                      { backgroundColor: color, borderColor: isLightColor(color) ? "#E2E8F0" : "transparent" },
+                    ]}
+                  >
+                    {title.trim() ? (
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.bannerPreviewTitle,
+                          { color: contrastTextColor(color), fontFamily: fontFamilyFor(fontFamily) },
+                        ]}
+                      >
+                        {title.trim().toUpperCase()}
+                      </Text>
+                    ) : null}
+                    <Text
+                      numberOfLines={3}
+                      style={{
+                        color: contrastTextColor(color),
+                        fontWeight: "700",
+                        textAlign: "center",
+                        fontFamily: fontFamilyFor(fontFamily),
+                        fontSize: sizePxFor(fontSize),
+                        lineHeight: sizePxFor(fontSize) * 1.4,
+                      }}
+                    >
+                      {body.trim() || "Anteprima del messaggio: scrivi qui sopra e vedrai il risultato."}
+                    </Text>
+                  </View>
+
+                  <Text style={[styles.label, { marginTop: 12 }]}>Font</Text>
+                  <View style={styles.chipsRow}>
+                    {FONT_OPTIONS.map((f) => {
+                      const on = fontFamily === f.id;
+                      return (
+                        <Pressable
+                          key={f.id}
+                          testID={`mt-font-${f.id}`}
+                          onPress={() => setFontFamily(f.id)}
+                          style={[styles.fontChip, on && styles.fontChipOn]}
+                        >
+                          <Text style={[styles.fontChipSample, on && styles.fontChipTxtOn, { fontFamily: fontFamilyFor(f.id) }]}>{f.sample}</Text>
+                          <Text style={[styles.fontChipLbl, on && styles.fontChipTxtOn]}>{f.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <Text style={[styles.label, { marginTop: 12 }]}>Dimensione testo</Text>
+                  <View style={styles.segment}>
+                    {SIZE_OPTIONS.map((s) => {
+                      const on = fontSize === s.id;
+                      return (
+                        <Pressable
+                          key={s.id}
+                          testID={`mt-size-${s.id}`}
+                          onPress={() => setFontSize(s.id)}
+                          style={[styles.segItem, on && styles.segItemOn]}
+                        >
+                          <Text
+                            style={[
+                              styles.segTxt,
+                              on && { color: "#FFF" },
+                              { fontSize: s.px * 0.65 + 4 },
+                            ]}
+                          >
+                            {s.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
               <View style={styles.formCard}>
-                <Text style={styles.label}>Colore</Text>
+                <Text style={styles.label}>Colore sfondo{active === "message" ? " banner" : ""}</Text>
                 <View style={styles.swatches}>
                   {COLORS.map((c) => (
                     <Pressable
                       key={c}
                       onPress={() => setColor(c)}
-                      style={[styles.swatch, { backgroundColor: c }, color === c && styles.swatchOn]}
+                      style={[
+                        styles.swatch,
+                        { backgroundColor: c, borderColor: isLightColor(c) ? "#CBD5E1" : "transparent" },
+                        color === c && styles.swatchOn,
+                      ]}
                     >
-                      {color === c && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                      {color === c && <Ionicons name="checkmark" size={14} color={contrastTextColor(c)} />}
                     </Pressable>
                   ))}
                 </View>
@@ -574,6 +730,38 @@ const styles = StyleSheet.create({
   swatches: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   swatch: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
   swatchOn: { borderColor: theme.color.onSurface },
+  // V28.d — banner customization
+  bannerPreview: {
+    borderRadius: 14,
+    padding: 16,
+    minHeight: 88,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+  },
+  bannerPreviewTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+    opacity: 0.85,
+  },
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  fontChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.color.surfaceTertiary,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  fontChipOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
+  fontChipSample: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
+  fontChipLbl: { fontSize: 12, fontWeight: "700", color: theme.color.muted },
+  fontChipTxtOn: { color: "#FFF" },
   saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, marginTop: 4 },
   saveBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
   imgBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: theme.radius.md },

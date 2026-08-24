@@ -1,5 +1,41 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.31 My Thing banner — Font + Size + Colore personalizzabile (Giugno 2026)
+### 🎯 Richiesta utente
+"Banner My Thing in home: testo centrato, padding 12-16px. Possibilità di scegliere font (min 3 opzioni) e dimensione testo (piccolo/medio/grande). Sfondo del banner personalizzabile con scelta colore — default bianco."
+
+### ✅ Backend (`server.py`)
+- **`MyThingIn` / `MyThingUpdate`** estesi con `font_family` (Optional[str]) e `font_size` (Optional[str]).
+- **Default color**: cambiato da `#3A739C` a `#FFFFFF` per allinearsi alla richiesta ("default bianco").
+- **`POST /my-thing`**: persiste `font_family` (default `"system"`) e `font_size` (default `"medium"`) nel documento.
+- Retro-compatibilità: documenti legacy senza font_* vengono trattati dal frontend come `system` / `medium`.
+
+### ✅ Frontend
+1. **`/app/frontend/app/my-thing.tsx`** — editor completamente potenziato per i messaggi:
+   - **Palette colori estesa**: 8 tinte chiare (bianco, grigio, arancio pastello, giallo pastello, verde, blu, viola, rosa) + 8 accent scuri legacy. `#FFFFFF` è ora il primo swatch (default).
+   - **Anteprima banner live** in cima all'editor: mostra il messaggio esattamente come apparirà in home (colore + font + size + contrasto testo).
+   - **4 font opzionali** (min 3 richiesti): Standard (system) / Serif (Georgia) / Mono (Menlo) / Arrotondato (Avenir Next). Ogni chip mostra un "Aa" sample con il font applicato.
+   - **3 taglie testo**: Piccolo (13px) / Medio (16px) / Grande (20px). Segmented control con dimensione visiva della label proporzionale al preset.
+   - **Contrasto automatico**: helper `_luminance(hex)` + `contrastTextColor(bg)` calcolano il colore testo (navy `#1B2B4B` per bg chiari, bianco per scuri) per garantire leggibilità.
+   - Nuovi campi salvati nel payload solo per `kind === "message"` (immagini/eventi/ricorrenze non ne hanno bisogno).
+2. **`/app/frontend/app/(tabs)/home.tsx`** — rendering banner potenziato:
+   - `MyThingBannerSlide` esteso con `fontFamily`, `fontSize`, `textColor` per i messaggi.
+   - Testo **centrato** (`textAlign: "center"` + `alignItems: "center"`), padding **14px** (nel range 12-16 richiesto).
+   - Applica dinamicamente `fontFamily` + `fontSize` + `lineHeight` proporzionale ai preset scelti nell'editor.
+   - Testo colorato con `_hContrastText(bg)` per contrasto automatico (senza serve intervento utente).
+   - Title uppercase con letter-spacing per gerarchia visiva pulita.
+
+### 🧪 Test manuali eseguiti
+- ✅ POST /my-thing con `font_family: serif, font_size: large, color: #FFFFFF` → salvataggio verificato.
+- ✅ POST /my-thing con `font_family: monospace, font_size: medium, color: #FEF9C3` → salvataggio verificato.
+- ✅ Screenshot home banner ciclo 1: sfondo giallo pastello, font monospace, testo scuro centrato "MEETING / Team Energia Q3".
+- ✅ Screenshot home banner ciclo 2: sfondo bianco, font serif large, testo blu scuro centrato "RICORDATI / Chiama Mario alle 18".
+- ✅ Screenshot editor: anteprima banner live, 4 chip font (Standard/Serif/Mono/Arrotondato), 3 chip dimensione (Piccolo/Medio/Grande), 16 colori (bianco = primo swatch).
+- ✅ Testing agent NON usato (vincolo utente).
+- ✅ Cleanup di 2 documenti test.
+
+
+
 ## v2.30 Scheda cliente — Rimozione bottoni stato + auto-log comunicazioni (Giugno 2026)
 ### 🎯 Richiesta utente
 "Scheda cliente: rimuovi i bottoni Prospect/Collaboratore/Cliente. Registro telefonate: quando clicco Chiama la chiamata deve essere registrata automaticamente con data e ora. Scheda cliente comunicazioni: mostrare storico di tutti i canali in un unico elenco cronologico (telefonate, SMS, WhatsApp, Email)."

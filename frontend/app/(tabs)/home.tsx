@@ -45,10 +45,54 @@ type MyThingItem = {
   image_base64?: string | null;
   color?: string | null;
   active?: boolean;
+  // V28.d — banner customization
+  font_family?: string | null;
+  font_size?: string | null;
 };
 type MyThingBannerSlide =
   | { kind: "image"; image: string }
-  | { kind: "message"; title: string; body: string; color: string };
+  | {
+      kind: "message";
+      title: string;
+      body: string;
+      color: string;
+      fontFamily: string | undefined;
+      fontSize: number;
+      textColor: string;
+    };
+
+// V28.d — helpers shared with /my-thing editor (kept in-lined here to avoid a
+// cross-module import for such a tiny utility set).
+function _hLuminance(hex: string): number {
+  const h = (hex || "").replace("#", "").trim();
+  if (h.length !== 6) return 0.5;
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function _hContrastText(bg: string): string {
+  return _hLuminance(bg) > 0.72 ? "#1B2B4B" : "#FFFFFF";
+}
+function _hFontFamily(key: string | null | undefined): string | undefined {
+  switch ((key || "system") as string) {
+    case "serif":
+      return Platform.select({ ios: "Georgia", android: "serif", default: "Georgia, 'Times New Roman', serif" });
+    case "monospace":
+      return Platform.select({ ios: "Menlo", android: "monospace", default: "'SF Mono', Menlo, Consolas, monospace" });
+    case "rounded":
+      return Platform.select({ ios: "Avenir Next", android: "sans-serif-medium", default: "'Nunito', 'Avenir Next', system-ui, sans-serif" });
+    default:
+      return undefined;
+  }
+}
+function _hFontSize(key: string | null | undefined): number {
+  switch ((key || "medium") as string) {
+    case "small":  return 13;
+    case "large":  return 20;
+    default:       return 16;
+  }
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -105,12 +149,18 @@ export default function HomeScreen() {
       // Build combined banner slides (images + messages), shuffle for variety
       const messageSlides: MyThingBannerSlide[] = (mtMsgs.items || [])
         .filter((it) => it.active !== false && ((it.body || "").trim() || (it.title || "").trim()))
-        .map((it) => ({
-          kind: "message" as const,
-          title: (it.title || "").trim(),
-          body: (it.body || "").trim(),
-          color: it.color || "#1B2B4B",
-        }));
+        .map((it) => {
+          const bg = it.color || "#FFFFFF";
+          return {
+            kind: "message" as const,
+            title: (it.title || "").trim(),
+            body: (it.body || "").trim(),
+            color: bg,
+            fontFamily: _hFontFamily(it.font_family),
+            fontSize: _hFontSize(it.font_size),
+            textColor: _hContrastText(bg),
+          };
+        });
       const imageSlides: MyThingBannerSlide[] = imgs.map((img) => ({ kind: "image" as const, image: img }));
       const combined: MyThingBannerSlide[] = [...imageSlides, ...messageSlides];
       for (let i = combined.length - 1; i > 0; i--) {
@@ -227,12 +277,25 @@ export default function HomeScreen() {
               ) : (
                 <View style={[StyleSheet.absoluteFill, styles.myThingMsg, { backgroundColor: myThingSlide.color }]}>
                   {myThingSlide.title ? (
-                    <Text style={styles.myThingMsgTitle} numberOfLines={1}>
+                    <Text
+                      style={[
+                        styles.myThingMsgTitle,
+                        { color: myThingSlide.textColor, fontFamily: myThingSlide.fontFamily },
+                      ]}
+                      numberOfLines={1}
+                    >
                       {myThingSlide.title}
                     </Text>
                   ) : null}
                   <Text
-                    style={[styles.myThingMsgBody, myThingSlide.title ? null : { fontSize: 16 }]}
+                    style={{
+                      color: myThingSlide.textColor,
+                      fontWeight: "700",
+                      textAlign: "center",
+                      fontFamily: myThingSlide.fontFamily,
+                      fontSize: myThingSlide.fontSize,
+                      lineHeight: myThingSlide.fontSize * 1.35,
+                    }}
                     numberOfLines={myThingSlide.title ? 3 : 4}
                   >
                     {myThingSlide.body}
@@ -698,10 +761,10 @@ const styles = StyleSheet.create({
   myThingBtn: { backgroundColor: C.primarySoft, borderRadius: 16, marginTop: 12, marginBottom: 4, overflow: "hidden", position: "relative", height: 120, borderWidth: 1, borderColor: C.border },
   myThingEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
   myThingEmptyTxt: { color: C.primary, fontWeight: "700", fontSize: 13 },
-  // V28.b — Message-style slide inside the My Thing banner
-  myThingMsg: { padding: 16, justifyContent: "center", alignItems: "flex-start", gap: 6 },
-  myThingMsgTitle: { color: "#FFF", fontWeight: "800", fontSize: 14, letterSpacing: 0.2, textTransform: "uppercase", opacity: 0.9 },
-  myThingMsgBody: { color: "#FFF", fontWeight: "700", fontSize: 15, lineHeight: 21 },
+  // V28.b/d — Message-style slide inside the My Thing banner (centered + customizable)
+  myThingMsg: { padding: 14, justifyContent: "center", alignItems: "center", gap: 6 },
+  myThingMsgTitle: { fontWeight: "800", fontSize: 12, letterSpacing: 0.3, textTransform: "uppercase", opacity: 0.85, textAlign: "center" },
+  myThingMsgBody: { fontWeight: "700", fontSize: 15, lineHeight: 21, textAlign: "center" },
 
   /* Section */
   section: { marginTop: 22 },

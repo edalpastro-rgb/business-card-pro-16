@@ -685,7 +685,10 @@ class MyThingIn(BaseModel):
     display_mode: Literal["random", "scheduled"] = "random"
     notify: bool = False
     active: bool = True
-    color: str = "#3A739C"
+    color: str = "#FFFFFF"
+    # V28.d — banner customization for message slides on the home dashboard
+    font_family: Optional[str] = None  # "system" | "serif" | "monospace" | "rounded"
+    font_size: Optional[str] = None    # "small" | "medium" | "large"
 
 
 class MyThingUpdate(BaseModel):
@@ -699,6 +702,8 @@ class MyThingUpdate(BaseModel):
     notify: Optional[bool] = None
     active: Optional[bool] = None
     color: Optional[str] = None
+    font_family: Optional[str] = None
+    font_size: Optional[str] = None
 
 
 # =========================
@@ -3248,6 +3253,9 @@ async def my_thing_create(body: MyThingIn, user=Depends(get_current_user)):
         "notify": body.notify,
         "active": body.active,
         "color": body.color,
+        # V28.d — banner customization (message-kind only)
+        "font_family": body.font_family or "system",
+        "font_size": body.font_size or "medium",
         "created_at": utcnow(),
         "updated_at": utcnow(),
     }
