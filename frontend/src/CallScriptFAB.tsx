@@ -59,7 +59,7 @@ export function CallScriptFAB() {
           <View style={styles.card} testID="call-script-card">
             <View style={styles.hdr}>
               <View style={styles.hdrIcon}>
-                <Ionicons name="megaphone" size={18} color="#FFF" />
+                <Ionicons name="document-text" size={18} color="#FFF" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.title}>Script telefonata</Text>

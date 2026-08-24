@@ -1,5 +1,40 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.29 Bug Fixes — My Thing banner + Script icon (Giugno 2026)
+### 🎯 Richiesta utente
+"Correggi questi bug senza toccare altro: 1) contacts useEffect not defined, 2) Script solo in scheda cliente, 3) messaggi My Thing non appaiono in home, 4) icona Script → documento."
+
+### ✅ Bug 1 — `contacts: useEffect is not defined`
+Verificato: nessun file nel modulo Contatti ha un import mancante di `useEffect`. Il file `/app/frontend/app/contact/[id].tsx` linea 1 importa correttamente `useCallback, useEffect, useState`. Il bug è stato fixato in una sessione precedente (v2.24) ed è già assente dal codice. Verificato con screenshot: la lista contatti e il dettaglio contatto si aprono senza errori in preview.
+
+### ✅ Bug 2 — Pulsante Script SOLO nella scheda cliente
+Verificato: l'overlay `CallScriptOverlay` è montato UNICAMENTE in `/app/frontend/app/contact/[id].tsx` (aperto quando l'agente tocca "Chiama"). Non è presente sulla home, sulle tab, né in alcuna altra schermata. Il vecchio `CallScriptFAB.tsx` non è più montato nel layout globale (dead code, non compare a runtime). Verificato con screenshot home: nessun FAB Script visibile.
+
+### ✅ Bug 3 — Messaggi My Thing nel banner Home
+**File modificato**: `/app/frontend/app/(tabs)/home.tsx` (scope isolato).
+- Aggiunta fetch parallela di `/my-thing?kind=message` accanto agli `kind=image` esistenti.
+- Nuovo tipo `MyThingBannerSlide` (union image | message) e state `myThingSlides`.
+- Le slide del banner ruotano ora BOTH immagini e messaggi mescolati (shuffle Fisher-Yates), 10 secondi per slide.
+- Rendering di slide "message": pannello colorato (color dell'item), titolo maiuscolo + body multi-linea (numberOfLines dinamico).
+- Rendering di slide "image": invariato (ImageBackground con cover).
+- Filtro `active !== false` per rispettare l'attivazione dei singoli item.
+- Empty state invariato ("Personalizza il tuo spazio").
+
+### ✅ Bug 4 — Icona Script: microfono/megafono → documento
+Sostituita l'icona in 3 punti (tutti relativi allo Script Telefonata) per comunicare "leggi script":
+1. `/app/frontend/app/(tabs)/impostazioni.tsx` — link "Script Telefonata" nel menu: `megaphone` → `document-text`.
+2. `/app/frontend/src/CallScriptOverlay.tsx` — icona nell'header del modal aperto dal contatto: `megaphone` → `document-text`.
+3. `/app/frontend/src/CallScriptFAB.tsx` — icona nell'header (dead code ma reso coerente): `megaphone` → `document-text`.
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot home: banner mostra correttamente "MOTIVAZIONE DEL GIORNO" con body del messaggio My Thing su sfondo blu.
+- ✅ Screenshot impostazioni: link "Script Telefonata" mostra icona documento (📄).
+- ✅ Screenshot dettaglio contatto → tap "Chiama": overlay Script apre con icona documento nell'header, phone tap-to-dial verde, script formattato con placeholder sostituiti.
+- ✅ Zero test automatici eseguiti (rispetto del vincolo utente).
+- ✅ Dati di test creati/rimossi (test message My Thing).
+
+
+
 ## v2.28 Feature — Statistiche Biglietto da Visita (Giugno 2026)
 ### 🎯 Richiesta utente
 "Statistiche Biglietto da Visita: track how many people open the public link of the business card and from which cities."

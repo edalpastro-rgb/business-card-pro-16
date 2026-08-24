@@ -36,7 +36,19 @@ type CustomArea = { id: string; name: string; color: string };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_areas?: CustomArea[] };
 type Callback = { callback_id: string; title: string; area: "energy" | "network"; scheduled_at: string; note: string; done: boolean; contact_id?: string; phone?: string };
 type ApptStats = { mine: { total: number; done: number; undone: number }; group: { total: number; done: number; undone: number } };
-type MyThingImage = { item_id: string; image_base64?: string | null };
+// V28.b — My Thing banner can rotate BOTH images and messages (Messaggi tab)
+type MyThingItem = {
+  item_id: string;
+  kind: "message" | "image" | "event" | "anniversary";
+  title?: string | null;
+  body?: string | null;
+  image_base64?: string | null;
+  color?: string | null;
+  active?: boolean;
+};
+type MyThingBannerSlide =
+  | { kind: "image"; image: string }
+  | { kind: "message"; title: string; body: string; color: string };
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -46,7 +58,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [subscription, setSubscription] = useState<{ status: string; days_left?: number | null; is_active: boolean } | null>(null);
-  const [myThingImages, setMyThingImages] = useState<string[]>([]);
+  const [myThingSlides, setMyThingSlides] = useState<MyThingBannerSlide[]>([]);
   const [myThingIdx, setMyThingIdx] = useState(0);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
   const [apptStats, setApptStats] = useState<ApptStats | null>(null);
@@ -71,11 +83,13 @@ export default function HomeScreen() {
   const load = useCallback(async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const [s, c, sub, mt, ast, cts] = await Promise.all([
+      const [s, c, sub, mtImgs, mtMsgs, ast, cts] = await Promise.all([
         api<Settings>("/settings"),
         api<{ items: Callback[] }>("/callbacks", { query: { day: today, include_done: true } }),
         api<any>("/subscription/status").catch(() => null),
-        api<{ items: MyThingImage[] }>("/my-thing", { query: { kind: "image" } }).catch(() => ({ items: [] })),
+        api<{ items: MyThingItem[] }>("/my-thing", { query: { kind: "image" } }).catch(() => ({ items: [] })),
+        // V28.b — also fetch Messaggi so they appear in the rotating banner
+        api<{ items: MyThingItem[] }>("/my-thing", { query: { kind: "message" } }).catch(() => ({ items: [] })),
         api<ApptStats>("/appointments/stats", { query: { range_days: 30 } }).catch(() => null),
         api<{ items: any[] }>("/contacts").catch(() => ({ items: [] })),
       ]);
@@ -84,14 +98,26 @@ export default function HomeScreen() {
       setSubscription(sub);
       setApptStats(ast);
       setContactsCount((cts?.items || []).length);
-      const imgs = (mt.items || [])
+      const imgs = (mtImgs.items || [])
+        .filter((it) => it.active !== false)
         .map((it) => it.image_base64)
         .filter((v): v is string => !!v && v.length > 20);
-      for (let i = imgs.length - 1; i > 0; i--) {
+      // Build combined banner slides (images + messages), shuffle for variety
+      const messageSlides: MyThingBannerSlide[] = (mtMsgs.items || [])
+        .filter((it) => it.active !== false && ((it.body || "").trim() || (it.title || "").trim()))
+        .map((it) => ({
+          kind: "message" as const,
+          title: (it.title || "").trim(),
+          body: (it.body || "").trim(),
+          color: it.color || "#1B2B4B",
+        }));
+      const imageSlides: MyThingBannerSlide[] = imgs.map((img) => ({ kind: "image" as const, image: img }));
+      const combined: MyThingBannerSlide[] = [...imageSlides, ...messageSlides];
+      for (let i = combined.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [imgs[i], imgs[j]] = [imgs[j], imgs[i]];
+        [combined[i], combined[j]] = [combined[j], combined[i]];
       }
-      setMyThingImages(imgs);
+      setMyThingSlides(combined);
       setMyThingIdx(0);
     } catch (e) {
       console.warn(e);
@@ -112,20 +138,20 @@ export default function HomeScreen() {
     return () => clearInterval(t);
   }, [load]);
 
-  // Auto-cycle My Thing images
+  // Auto-cycle My Thing banner (images + messages)
   const myThingFade = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    if (myThingImages.length < 2) return;
+    if (myThingSlides.length < 2) return;
     const id = setInterval(() => {
       Animated.timing(myThingFade, { toValue: 0, duration: 350, useNativeDriver: true }).start(() => {
-        setMyThingIdx((n) => (n + 1) % myThingImages.length);
+        setMyThingIdx((n) => (n + 1) % myThingSlides.length);
         Animated.timing(myThingFade, { toValue: 1, duration: 350, useNativeDriver: true }).start();
       });
     }, 10000);
     return () => clearInterval(id);
-  }, [myThingImages, myThingFade]);
+  }, [myThingSlides, myThingFade]);
 
-  const myThingImg = myThingImages.length > 0 ? myThingImages[myThingIdx] : null;
+  const myThingSlide = myThingSlides.length > 0 ? myThingSlides[myThingIdx] : null;
 
   // KPI derived values
   const nowMs = Date.now();
@@ -187,16 +213,32 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ── 2) Banner My Thing (immersive rotating) ── */}
+        {/* ── 2) Banner My Thing (immersive rotating: images + messages) ── */}
         <Pressable testID="home-my-thing-btn" onPress={() => router.push("/my-thing")} style={styles.myThingBtn}>
-          {myThingImg ? (
+          {myThingSlide ? (
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: myThingFade }]} pointerEvents="none">
-              <ImageBackground
-                source={{ uri: myThingImg }}
-                resizeMode="cover"
-                style={StyleSheet.absoluteFill}
-                imageStyle={Platform.OS === "web" ? ({ objectFit: "cover", width: "100%", height: "100%" } as any) : undefined}
-              />
+              {myThingSlide.kind === "image" ? (
+                <ImageBackground
+                  source={{ uri: myThingSlide.image }}
+                  resizeMode="cover"
+                  style={StyleSheet.absoluteFill}
+                  imageStyle={Platform.OS === "web" ? ({ objectFit: "cover", width: "100%", height: "100%" } as any) : undefined}
+                />
+              ) : (
+                <View style={[StyleSheet.absoluteFill, styles.myThingMsg, { backgroundColor: myThingSlide.color }]}>
+                  {myThingSlide.title ? (
+                    <Text style={styles.myThingMsgTitle} numberOfLines={1}>
+                      {myThingSlide.title}
+                    </Text>
+                  ) : null}
+                  <Text
+                    style={[styles.myThingMsgBody, myThingSlide.title ? null : { fontSize: 16 }]}
+                    numberOfLines={myThingSlide.title ? 3 : 4}
+                  >
+                    {myThingSlide.body}
+                  </Text>
+                </View>
+              )}
             </Animated.View>
           ) : (
             <View style={styles.myThingEmpty}>
@@ -656,6 +698,10 @@ const styles = StyleSheet.create({
   myThingBtn: { backgroundColor: C.primarySoft, borderRadius: 16, marginTop: 12, marginBottom: 4, overflow: "hidden", position: "relative", height: 120, borderWidth: 1, borderColor: C.border },
   myThingEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
   myThingEmptyTxt: { color: C.primary, fontWeight: "700", fontSize: 13 },
+  // V28.b — Message-style slide inside the My Thing banner
+  myThingMsg: { padding: 16, justifyContent: "center", alignItems: "flex-start", gap: 6 },
+  myThingMsgTitle: { color: "#FFF", fontWeight: "800", fontSize: 14, letterSpacing: 0.2, textTransform: "uppercase", opacity: 0.9 },
+  myThingMsgBody: { color: "#FFF", fontWeight: "700", fontSize: 15, lineHeight: 21 },
 
   /* Section */
   section: { marginTop: 22 },

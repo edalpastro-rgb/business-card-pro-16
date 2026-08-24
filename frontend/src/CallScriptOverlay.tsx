@@ -51,7 +51,7 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
         <View style={styles.card} testID="call-script-overlay">
           {/* Header */}
           <View style={styles.hdr}>
-            <View style={styles.hdrIcon}><Ionicons name="megaphone" size={18} color="#FFF" /></View>
+            <View style={styles.hdrIcon}><Ionicons name="document-text" size={18} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Chiamata: {contactName || "Cliente"}</Text>
               <Text style={styles.sub}>Leggi lo script mentre chiami</Text>
