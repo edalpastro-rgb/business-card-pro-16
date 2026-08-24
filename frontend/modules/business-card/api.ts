@@ -4,7 +4,7 @@
  */
 import { apiCall } from "@/src/shared";
 import type { Result } from "@/src/shared";
-import type { BusinessCard } from "./types";
+import type { BusinessCard, BusinessCardStats } from "./types";
 
 export function fetchBusinessCard(): Promise<Result<BusinessCard>> {
   return apiCall<BusinessCard>("/master/business-card");
@@ -12,6 +12,11 @@ export function fetchBusinessCard(): Promise<Result<BusinessCard>> {
 
 export function saveBusinessCard(card: BusinessCard): Promise<Result<BusinessCard>> {
   return apiCall<BusinessCard>("/master/business-card", { method: "PUT", body: card });
+}
+
+/** V28 — Fetch aggregated analytics for the public link. */
+export function fetchBusinessCardStats(): Promise<Result<BusinessCardStats>> {
+  return apiCall<BusinessCardStats>("/master/business-card/stats");
 }
 
 /** Build the public share URL for a saved card. */

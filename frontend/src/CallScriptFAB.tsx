@@ -45,7 +45,7 @@ export function CallScriptFAB() {
         style={styles.fab}
         accessibilityLabel="Apri script telefonata"
       >
-        <Ionicons name="mic-outline" size={22} color="#FFF" />
+        <Ionicons name="document-text-outline" size={22} color="#FFF" />
         <Text style={styles.fabLbl}>Script</Text>
       </Pressable>
 

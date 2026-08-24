@@ -5686,19 +5686,233 @@ async def get_public_business_card_vcf(card_id: str):
     )
 
 
+# =========================
+# Business Card Analytics (V28)
+# Track opens of the public share link and aggregate stats by city.
+# Uses ip-api.com (free, no key) for reverse-geolocation with graceful
+# fallback when the network is unavailable or the lookup fails.
+# =========================
+
+
+def _client_ip_from_request(request: Request) -> str:
+    """Extract the best-effort real client IP behind the ingress proxy."""
+    xff = request.headers.get("x-forwarded-for") or ""
+    if xff:
+        # X-Forwarded-For: "client, proxy1, proxy2" — client IP is the first.
+        first = xff.split(",")[0].strip()
+        if first:
+            return first
+    real = request.headers.get("x-real-ip")
+    if real:
+        return real.strip()
+    try:
+        return request.client.host if request.client else ""
+    except Exception:
+        return ""
+
+
+def _is_private_ip(ip: str) -> bool:
+    """Return True for loopback / RFC1918 / link-local addresses where a
+    geo-lookup would only return 'unknown'."""
+    if not ip:
+        return True
+    if ip.startswith(("10.", "127.", "169.254.", "192.168.")):
+        return True
+    if ip.startswith("172."):
+        try:
+            second = int(ip.split(".")[1])
+            if 16 <= second <= 31:
+                return True
+        except Exception:
+            pass
+    if ip in ("::1", "0.0.0.0", "localhost"):
+        return True
+    return False
+
+
+async def _geolocate_ip(ip: str) -> Dict[str, str]:
+    """Look up city/region/country for an IP via ip-api.com. Best-effort,
+    silent fallback to empty strings when offline / rate-limited."""
+    if not ip or _is_private_ip(ip):
+        return {"city": "", "region": "", "country": "", "country_code": ""}
+    try:
+        url = f"http://ip-api.com/json/{ip}?fields=status,country,countryCode,regionName,city"
+        async with httpx.AsyncClient(timeout=4) as hx:
+            r = await hx.get(url)
+            if r.status_code != 200:
+                return {"city": "", "region": "", "country": "", "country_code": ""}
+            j = r.json()
+            if j.get("status") != "success":
+                return {"city": "", "region": "", "country": "", "country_code": ""}
+            return {
+                "city": j.get("city") or "",
+                "region": j.get("regionName") or "",
+                "country": j.get("country") or "",
+                "country_code": (j.get("countryCode") or "").upper(),
+            }
+    except Exception:
+        return {"city": "", "region": "", "country": "", "country_code": ""}
+
+
+async def _record_business_card_view(card_id: str, user_id: str, ip: str, user_agent: str) -> None:
+    """Insert a single view document. Runs in background; never raises."""
+    try:
+        geo = await _geolocate_ip(ip)
+        doc = {
+            "view_id": f"bcv_{uuid.uuid4().hex[:12]}",
+            "card_id": card_id,
+            "user_id": user_id,
+            "ip": ip or "",
+            "user_agent": (user_agent or "")[:400],
+            "city": geo["city"],
+            "region": geo["region"],
+            "country": geo["country"],
+            "country_code": geo["country_code"],
+            "timestamp": utcnow(),
+        }
+        await db.business_card_views.insert_one(doc)
+    except Exception as exc:  # pragma: no cover — analytics must never break the page
+        logging.getLogger(__name__).warning("business_card_view record failed: %s", exc)
+
+
 @api_router.get("/master/business-card/public/{card_id}", response_class=HTMLResponse)
-async def get_public_business_card(card_id: str):
+async def get_public_business_card(card_id: str, request: Request, background_tasks: BackgroundTasks):
     """V38V — Public HTML page (no auth) rendered server-side. Includes vCard
     download button + mobile 'save to phonebook' banner + optional CSS effect.
+    V28 — Also records an anonymous analytics view (city aggregation).
     """
-    d = await db.business_cards.find_one({"card_id": card_id}, {"_id": 0, "user_id": 0})
+    d = await db.business_cards.find_one({"card_id": card_id}, {"_id": 0})
     if not d:
         return HTMLResponse(
             content="<html><body style='font-family:sans-serif;padding:40px;text-align:center;color:#DC2626'>"
                     "<h1>Biglietto non trovato</h1><p>Il link è scaduto o non valido.</p></body></html>",
             status_code=404,
         )
+    # V28 — Record analytics in background so the HTML response is instant.
+    ip = _client_ip_from_request(request)
+    ua = request.headers.get("user-agent") or ""
+    background_tasks.add_task(_record_business_card_view, card_id, d.get("user_id") or "", ip, ua)
+    # Strip user_id from data used to render the public page
+    d.pop("user_id", None)
     return HTMLResponse(content=_build_public_card_html(d, card_id))
+
+
+@api_router.get("/master/business-card/stats")
+async def get_business_card_stats(user=Depends(get_current_user)):
+    """V28 — Aggregated stats for the current master's business card.
+
+    Returns:
+      - total_views: all-time
+      - unique_views: distinct IPs all-time
+      - views_last_7_days: [{date: "YYYY-MM-DD", count}] most-recent last
+      - views_last_30_days: total count in the last 30 days
+      - top_cities: [{city, country, country_code, count}] top 10
+      - top_countries: [{country, country_code, count}] top 5
+      - recent_views: [{city, country, country_code, timestamp}] last 20
+    """
+    tid = tenant_id(user)
+    # Fetch the card_id belonging to this tenant (some legacy docs might not have one)
+    card = await db.business_cards.find_one({"user_id": tid}, {"_id": 0, "card_id": 1})
+    card_id = (card or {}).get("card_id")
+    if not card_id:
+        return {
+            "total_views": 0, "unique_views": 0,
+            "views_last_7_days": [], "views_last_30_days": 0,
+            "top_cities": [], "top_countries": [], "recent_views": [],
+            "card_id": None,
+        }
+    q = {"$or": [{"card_id": card_id}, {"user_id": tid}]}
+    now = utcnow()
+    since_7 = now - timedelta(days=7)
+    since_30 = now - timedelta(days=30)
+
+    total_views = await db.business_card_views.count_documents(q)
+    unique_views_agg = await db.business_card_views.aggregate([
+        {"$match": q},
+        {"$group": {"_id": "$ip"}},
+        {"$count": "n"},
+    ]).to_list(1)
+    unique_views = (unique_views_agg[0]["n"] if unique_views_agg else 0)
+
+    views_last_30_days = await db.business_card_views.count_documents({**q, "timestamp": {"$gte": since_30}})
+
+    # Timeline last 7 days
+    daily_agg = await db.business_card_views.aggregate([
+        {"$match": {**q, "timestamp": {"$gte": since_7}}},
+        {"$group": {
+            "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$timestamp"}},
+            "count": {"$sum": 1},
+        }},
+    ]).to_list(31)
+    daily_map = {row["_id"]: row["count"] for row in daily_agg}
+    views_last_7_days: List[Dict[str, Any]] = []
+    for i in range(6, -1, -1):
+        day = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+        views_last_7_days.append({"date": day, "count": int(daily_map.get(day, 0))})
+
+    # Top cities
+    top_cities_raw = await db.business_card_views.aggregate([
+        {"$match": {**q, "city": {"$ne": ""}}},
+        {"$group": {
+            "_id": {"city": "$city", "country": "$country", "country_code": "$country_code"},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"count": -1}},
+        {"$limit": 10},
+    ]).to_list(10)
+    top_cities = [
+        {
+            "city": r["_id"]["city"],
+            "country": r["_id"].get("country") or "",
+            "country_code": r["_id"].get("country_code") or "",
+            "count": r["count"],
+        }
+        for r in top_cities_raw
+    ]
+
+    # Top countries
+    top_countries_raw = await db.business_card_views.aggregate([
+        {"$match": {**q, "country": {"$ne": ""}}},
+        {"$group": {
+            "_id": {"country": "$country", "country_code": "$country_code"},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"count": -1}},
+        {"$limit": 5},
+    ]).to_list(5)
+    top_countries = [
+        {
+            "country": r["_id"]["country"],
+            "country_code": r["_id"].get("country_code") or "",
+            "count": r["count"],
+        }
+        for r in top_countries_raw
+    ]
+
+    # Recent views (last 20)
+    recent_raw = await db.business_card_views.find(
+        q, {"_id": 0, "city": 1, "country": 1, "country_code": 1, "timestamp": 1}
+    ).sort("timestamp", -1).limit(20).to_list(20)
+    recent_views = [
+        {
+            "city": r.get("city") or "",
+            "country": r.get("country") or "",
+            "country_code": r.get("country_code") or "",
+            "timestamp": (r.get("timestamp").isoformat() if r.get("timestamp") else ""),
+        }
+        for r in recent_raw
+    ]
+
+    return {
+        "card_id": card_id,
+        "total_views": int(total_views),
+        "unique_views": int(unique_views),
+        "views_last_7_days": views_last_7_days,
+        "views_last_30_days": int(views_last_30_days),
+        "top_cities": top_cities,
+        "top_countries": top_countries,
+        "recent_views": recent_views,
+    }
 
 
 @api_router.get("/master-files")

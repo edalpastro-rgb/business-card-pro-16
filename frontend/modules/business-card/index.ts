@@ -11,10 +11,12 @@
  *  - BusinessCard, QrType, VisualEffect, VCardInput, ShareImageOptions : strict types
  */
 export { BusinessCardScreen } from "./screens/BusinessCardScreen";
+export { BusinessCardStatsScreen } from "./screens/BusinessCardStatsScreen";
 export { buildVCard, computeQrValue } from "./lib/vcard";
 export { getPublicShareUrl } from "./api";
 export type {
   BusinessCard,
+  BusinessCardStats,
   QrType,
   VisualEffect,
   VCardInput,

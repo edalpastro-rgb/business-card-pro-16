@@ -1,5 +1,41 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.28 Feature — Statistiche Biglietto da Visita (Giugno 2026)
+### 🎯 Richiesta utente
+"Statistiche Biglietto da Visita: track how many people open the public link of the business card and from which cities."
+
+### ✅ Implementazione
+- **Tracking anonimo** sulla pagina pubblica `/api/master/business-card/public/{card_id}`: ogni apertura viene registrata in background (via `BackgroundTasks`) senza rallentare la risposta HTML. IP client estratto da `X-Forwarded-For` (ingress-safe), user-agent troncato a 400 char.
+- **Geolocalizzazione via ip-api.com** (free tier, nessuna chiave): city / regionName / country / countryCode. IP privati/loopback vengono skippati automaticamente. Fallback silenzioso in caso di rate-limit o network failure — non blocca la registrazione.
+- **Collezione `business_card_views`**: `{view_id, card_id, user_id, ip, user_agent, city, region, country, country_code, timestamp}`.
+
+### ✅ Nuovo endpoint (auth Master)
+`GET /api/master/business-card/stats` → aggregazioni server-side (aggregation pipeline MongoDB):
+- `total_views`, `unique_views` (distinct IP)
+- `views_last_7_days`: array di 7 elementi `{date: YYYY-MM-DD, count}` — ultimo elemento = oggi
+- `views_last_30_days`: totale ultimi 30gg
+- `top_cities`: top 10 `{city, country, country_code, count}`
+- `top_countries`: top 5
+- `recent_views`: ultime 20 aperture `{city, country, country_code, timestamp}`
+
+### ✅ File modificati (scope isolato)
+1. **Backend `server.py`**: aggiunti `_client_ip_from_request`, `_is_private_ip`, `_geolocate_ip`, `_record_business_card_view`, endpoint `GET /master/business-card/stats`, e patch dell'endpoint pubblico per registrare la view via background task.
+2. **Frontend `/app/frontend/modules/business-card/api.ts`**: nuovo `fetchBusinessCardStats()`.
+3. **Frontend `/app/frontend/modules/business-card/types.ts`**: nuovo tipo `BusinessCardStats`.
+4. **Frontend `/app/frontend/modules/business-card/screens/BusinessCardStatsScreen.tsx`** (NEW): schermata statistiche con 4 KPI card, sparkline 7 giorni pure-RN (bar oggi in arancio, storico in navy), lista città con barre di progresso, chips paesi, feed aperture recenti, footer note privacy.
+5. **Frontend `/app/frontend/modules/business-card/screens/BusinessCardScreen.tsx`**: aggiunta icona `stats-chart` nell'header (accanto a Salva) + CTA card arancione "Statistiche del link" sotto la share row (due entry point per massima discoverability).
+6. **Frontend `/app/frontend/app/business-card-stats.tsx`** (NEW): route file thin-wrapper con `ModuleErrorBoundary`.
+7. **Frontend `/app/frontend/modules/business-card/index.ts`**: export della nuova schermata e tipo.
+
+### 🧪 Test verificati manualmente
+- ✅ Backend: 3 view simulate con IP diversi (Google DNS, Fastly, ISP italiano) → geolocalizzate correttamente in Ashburn/US, Montreal/CA, Elmas/IT.
+- ✅ Endpoint stats restituisce tutte le sezioni con dati corretti (total, unique, timeline 7gg, city ranking).
+- ✅ UI screenshot: KPI card, sparkline, lista città e chips paesi renderizzano correttamente.
+- ✅ Empty state "Nessuna apertura ancora" mostrato quando `total_views === 0`.
+- ✅ Testing agent NON usato (rispetto del vincolo utente "Non eseguire test automatici al termine").
+
+
+
 ## v2.21 Feature — Home Dashboard V27 Modern Redesign (Giugno 2026)
 ### 🎯 Richiesta utente
 "Senza usare il testing agent: ridisegna SOLO la schermata Home (dashboard principale) con un nuovo stile grafico moderno."

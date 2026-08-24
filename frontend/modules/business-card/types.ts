@@ -47,3 +47,15 @@ export type ShareImageOptions = {
   /** Optional PNG file name (without extension). */
   fileName?: string;
 };
+
+/** V28 — Aggregated analytics for the public link. */
+export type BusinessCardStats = {
+  card_id: string | null;
+  total_views: number;
+  unique_views: number;
+  views_last_7_days: { date: string; count: number }[];
+  views_last_30_days: number;
+  top_cities: { city: string; country: string; country_code: string; count: number }[];
+  top_countries: { country: string; country_code: string; count: number }[];
+  recent_views: { city: string; country: string; country_code: string; timestamp: string }[];
+};

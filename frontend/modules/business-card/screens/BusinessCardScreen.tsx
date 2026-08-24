@@ -164,9 +164,18 @@ export function BusinessCardScreen(): React.ReactElement {
           <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
         </Pressable>
         <Text style={styles.title}>Biglietto da visita</Text>
-        <Pressable testID="bc-save" onPress={() => save()} hitSlop={10}>
-          <Ionicons name="save" size={22} color={CARD_NAVY} />
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+          <Pressable
+            testID="bc-open-stats"
+            onPress={() => router.push("/business-card-stats")}
+            hitSlop={10}
+          >
+            <Ionicons name="stats-chart" size={22} color={CARD_NAVY} />
+          </Pressable>
+          <Pressable testID="bc-save" onPress={() => save()} hitSlop={10}>
+            <Ionicons name="save" size={22} color={CARD_NAVY} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
@@ -307,6 +316,22 @@ export function BusinessCardScreen(): React.ReactElement {
             <Text style={styles.shareTxt}>Condividi link</Text>
           </Pressable>
         </View>
+
+        {/* V28 — Public link analytics entry point */}
+        <Pressable
+          testID="bc-stats-cta"
+          onPress={() => router.push("/business-card-stats")}
+          style={styles.statsCta}
+        >
+          <View style={styles.statsCtaIcon}>
+            <Ionicons name="stats-chart" size={20} color="#FFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.statsCtaTitle}>Statistiche del link</Text>
+            <Text style={styles.statsCtaSub}>Quante persone hanno aperto il biglietto e da quali città</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#FF6B35" />
+        </Pressable>
 
         <Text style={styles.section}>Contenuti</Text>
         <Field label="Nome consulente" testID="bc-name" value={card.display_name || ""} onChange={upd("display_name")} />
@@ -552,6 +577,25 @@ const styles = StyleSheet.create({
   shareRow: { flexDirection: "row", gap: 8, marginTop: 14, marginBottom: 6 },
   shareBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 10 },
   shareTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  // V28 — Stats CTA (public link analytics)
+  statsCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    marginTop: 10,
+    borderRadius: 12,
+    backgroundColor: "#FFF1E9",
+    borderWidth: 1,
+    borderColor: "#FFCDB5",
+  },
+  statsCtaIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "#FF6B35",
+    alignItems: "center", justifyContent: "center",
+  },
+  statsCtaTitle: { fontSize: 14, fontWeight: "800", color: "#B4451F" },
+  statsCtaSub: { fontSize: 11, color: "#B4451F", opacity: 0.85, marginTop: 2 },
   section: { fontSize: 12, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 20, marginBottom: 8 },
   label: { fontSize: 12, fontWeight: "600", color: theme.color.muted, marginBottom: 4 },
   input: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 14, color: theme.color.onSurface },
