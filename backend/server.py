@@ -8689,7 +8689,22 @@ async def ai_teach_refresh_url(url_id: str, user=Depends(get_current_user)):
     doc = await db.ai_teach_urls.find_one({"url_id": url_id, "user_id": tid})
     if not doc:
         raise HTTPException(status_code=404, detail="URL non trovato")
-    return await _ai_teach_refresh_url(doc)
+    res = await _ai_teach_refresh_url(doc)
+    # V28.j — Record a single-URL run in the refresh history
+    entry = {"url_id": doc.get("url_id"), "name": doc.get("name") or "", "url": doc.get("url") or ""}
+    ok = bool(res.get("ok"))
+    await db.ai_teach_refresh_history.insert_one({
+        "run_id": f"aitr_{uuid.uuid4().hex[:12]}",
+        "user_id": tid,
+        "started_at": utcnow(),
+        "mode": "manual_single",
+        "total": 1,
+        "success_count": 1 if ok else 0,
+        "failure_count": 0 if ok else 1,
+        "successes": [entry] if ok else [],
+        "failures": [] if ok else [{**entry, "error": (res.get("error") or "errore")[:200]}],
+    })
+    return res
 
 
 # V28.g — Force refresh of ALL monitored URLs (regardless of frequency)
@@ -8700,15 +8715,43 @@ async def ai_teach_refresh_all_urls(user=Depends(get_current_user)):
     cur = db.ai_teach_urls.find({"user_id": tid})
     total = 0
     ok = 0
-    errors: List[str] = []
+    successes: List[Dict[str, str]] = []
+    failures: List[Dict[str, str]] = []
     async for doc in cur:
         total += 1
         res = await _ai_teach_refresh_url(doc)
+        entry = {"url_id": doc.get("url_id"), "name": doc.get("name") or "", "url": doc.get("url") or ""}
         if res.get("ok"):
             ok += 1
+            successes.append(entry)
         else:
-            errors.append(f"{doc.get('name')}: {res.get('error') or 'errore'}")
-    return {"ok": True, "total": total, "success": ok, "errors": errors[:10]}
+            failures.append({**entry, "error": (res.get("error") or "errore")[:200]})
+    # V28.j — Persist a history record for the Master's "Storico aggiornamenti" tab
+    await db.ai_teach_refresh_history.insert_one({
+        "run_id": f"aitr_{uuid.uuid4().hex[:12]}",
+        "user_id": tid,
+        "started_at": utcnow(),
+        "mode": "manual_all",
+        "total": total,
+        "success_count": ok,
+        "failure_count": len(failures),
+        "successes": successes,
+        "failures": failures,
+    })
+    return {"ok": True, "total": total, "success": ok, "errors": [f"{f['name']}: {f['error']}" for f in failures[:10]]}
+
+
+# V28.j — Refresh history: cronologia esecuzioni "Aggiorna ora"
+@api_router.get("/ai-teach/refresh-history")
+async def ai_teach_refresh_history(limit: int = 30, user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    cur = db.ai_teach_refresh_history.find({"user_id": tid}).sort("started_at", -1).limit(max(1, min(limit, 100)))
+    items = []
+    async for r in cur:
+        r.pop("_id", None)
+        items.append(r)
+    return {"items": items}
 
 
 async def build_ai_teach_context(tenant: str, category: str) -> str:
@@ -8746,9 +8789,36 @@ async def build_ai_teach_context(tenant: str, category: str) -> str:
         if summary:
             url_parts.append(f"[{u.get('name') or u.get('url')}]: {summary[:600]}")
     # Best-effort refresh of a couple of stale URLs (don't block on all)
+    auto_successes: List[Dict[str, str]] = []
+    auto_failures: List[Dict[str, str]] = []
     for u in stale_ids[:3]:
         try:
-            await _ai_teach_refresh_url(u)
+            r = await _ai_teach_refresh_url(u)
+            entry = {"url_id": u.get("url_id"), "name": u.get("name") or "", "url": u.get("url") or ""}
+            if r.get("ok"):
+                auto_successes.append(entry)
+            else:
+                auto_failures.append({**entry, "error": (r.get("error") or "errore")[:200]})
+        except Exception as exc:
+            auto_failures.append({
+                "url_id": u.get("url_id"), "name": u.get("name") or "", "url": u.get("url") or "",
+                "error": str(exc)[:200],
+            })
+    # V28.j — Persist an "automatic" history record when the opportunistic
+    # refresh actually did something.
+    if auto_successes or auto_failures:
+        try:
+            await db.ai_teach_refresh_history.insert_one({
+                "run_id": f"aitr_{uuid.uuid4().hex[:12]}",
+                "user_id": tenant,
+                "started_at": utcnow(),
+                "mode": "automatic",
+                "total": len(auto_successes) + len(auto_failures),
+                "success_count": len(auto_successes),
+                "failure_count": len(auto_failures),
+                "successes": auto_successes,
+                "failures": auto_failures,
+            })
         except Exception:
             pass
     blocks: List[str] = []

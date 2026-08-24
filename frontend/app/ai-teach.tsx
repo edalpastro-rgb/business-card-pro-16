@@ -18,6 +18,18 @@ import { pickCommonFile } from "@/src/utils/filePicker";
 
 type Rule = { rule_id: string; category: string; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string };
 type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: string };
+// V28.j — Storico aggiornamenti (elenco esecuzioni di "Aggiorna ora" automatico o manuale)
+type HistoryRunEntry = { url_id: string; name: string; url: string; error?: string };
+type HistoryRun = {
+  run_id: string;
+  started_at: string;
+  mode: "manual_all" | "manual_single" | "automatic";
+  total: number;
+  success_count: number;
+  failure_count: number;
+  successes: HistoryRunEntry[];
+  failures: HistoryRunEntry[];
+};
 
 // Categorie preset suggerite — l'utente può digitarne anche di nuove.
 const PRESET_CATEGORIES = ["Clienti", "Contratti", "Comunicazioni", "Vendita", "Luce", "Gas", "Telco", "Generale"];
@@ -43,26 +55,31 @@ export default function AiTeachScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
-  const [tab, setTab] = useState<"rules" | "urls">("rules");
+  const [tab, setTab] = useState<"rules" | "urls" | "history">("rules");
   const [filter, setFilter] = useState<string>("all");
   const [rules, setRules] = useState<Rule[]>([]);
   const [urls, setUrls] = useState<UrlItem[]>([]);
+  const [history, setHistory] = useState<HistoryRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [editRule, setEditRule] = useState<Partial<Rule> | null>(null);
   const [editUrl, setEditUrl] = useState<Partial<UrlItem> | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshingAll, setRefreshingAll] = useState(false);
+  // V28.j — Info modal per tab (Regole / Fonti URL / Storico)
+  const [infoTab, setInfoTab] = useState<null | "rules" | "urls" | "history">(null);
 
   const load = useCallback(async () => {
     if (!isMaster) return;
     try {
       setLoading(true);
-      const [r, u] = await Promise.all([
+      const [r, u, h] = await Promise.all([
         api<{ items: Rule[] }>("/ai-teach/rules"),
         api<{ items: UrlItem[] }>("/ai-teach/urls"),
+        api<{ items: HistoryRun[] }>("/ai-teach/refresh-history").catch(() => ({ items: [] })),
       ]);
       setRules(r.items || []);
       setUrls(u.items || []);
+      setHistory(h.items || []);
     } catch (e: any) {
       notify("Errore", e?.message || "Impossibile caricare i dati");
     } finally { setLoading(false); }
@@ -150,16 +167,35 @@ export default function AiTeachScreen() {
     try { await api(`/ai-teach/urls/${id}/refresh`, { method: "POST" }); notify("Aggiornato ✅", "Contenuto scaricato via Tavily"); load(); } catch (e: any) { notify("Errore refresh", e?.message || ""); }
   };
 
-  // V28.g — Force refresh of ALL URLs at once
+  // V28.g/j — Force refresh of ALL URLs at once + emit notification with details
   const refreshAll = async () => {
     if (urls.length === 0) { notify("Nessun URL", "Aggiungi prima almeno un URL da monitorare"); return; }
     try {
       setRefreshingAll(true);
       const res = await api<{ total: number; success: number; errors: string[] }>("/ai-teach/urls/refresh-all", { method: "POST" });
-      const msg = `${res.success}/${res.total} URL aggiornati${res.errors?.length ? ` · ${res.errors.length} errori` : ""}`;
-      notify("Aggiornamento completato ✅", msg);
+      // V28.j — In-app notification con dettagli sommari; lo storico completo è nel tab dedicato
+      const when = new Date().toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+      const parts: string[] = [`${res.success}/${res.total} URL aggiornati`];
+      if (res.errors?.length) parts.push(`${res.errors.length} falliti`);
+      notify(`Axon: aggiornamento ${when}`, parts.join(" · ") + (res.errors?.length ? `\n${res.errors.slice(0, 3).join("\n")}` : ""));
       load();
     } catch (e: any) { notify("Errore aggiornamento", e?.message || ""); } finally { setRefreshingAll(false); }
+  };
+
+  // V28.j — Info strings shown when the ℹ️ next to a tab is tapped
+  const TAB_INFO: Record<string, { title: string; body: string }> = {
+    rules: {
+      title: "Regole manuali",
+      body: "Insegna ad Axon come deve comportarsi. Aggiungi regole libere organizzate per categoria (es. Clienti, Contratti, Vendita). Ogni regola ha un titolo e un testo — verranno usate come contesto PRIORITARIO nelle risposte e nelle analisi. Puoi allegare PDF per esempi concreti (contratti, procedure). Le categorie sono libere: digitane una nuova o usa i preset.",
+    },
+    urls: {
+      title: "Fonti URL monitorate",
+      body: "Aggiungi siti web da cui Axon apprende automaticamente (es. arera.it, gse.it, siti del tuo settore). Per siti protetti da login inserisci username e password. Scegli la frequenza di aggiornamento: Manuale (solo quando premi Aggiorna ora), Giornaliera, Settimanale o Mensile. I contenuti vengono estratti tramite Tavily e passati ad Axon come contesto secondario.",
+    },
+    history: {
+      title: "Storico aggiornamenti",
+      body: "Elenco cronologico di tutte le esecuzioni di aggiornamento URL — manuali (con Aggiorna ora) e automatiche (in base alla frequenza). Per ogni esecuzione vedi data/ora, quali URL sono stati aggiornati con successo e quali hanno fallito (con motivo dell'errore).",
+    },
   };
 
   if (!isMaster) {
@@ -193,10 +229,23 @@ export default function AiTeachScreen() {
         <Pressable testID="tab-rules" onPress={() => setTab("rules")} style={[styles.tabBtn, tab === "rules" && styles.tabBtnOn]}>
           <Ionicons name="book" size={16} color={tab === "rules" ? "#FFF" : C.navy} />
           <Text style={[styles.tabTxt, tab === "rules" && { color: "#FFF" }]}>Regole ({rules.length})</Text>
+          <Pressable testID="info-tab-rules" onPress={() => setInfoTab("rules")} hitSlop={10} style={styles.infoBtn}>
+            <Ionicons name="information-circle" size={16} color={tab === "rules" ? "#FFF" : C.primary} />
+          </Pressable>
         </Pressable>
         <Pressable testID="tab-urls" onPress={() => setTab("urls")} style={[styles.tabBtn, tab === "urls" && styles.tabBtnOn]}>
           <Ionicons name="globe" size={16} color={tab === "urls" ? "#FFF" : C.navy} />
-          <Text style={[styles.tabTxt, tab === "urls" && { color: "#FFF" }]}>URL ({urls.length})</Text>
+          <Text style={[styles.tabTxt, tab === "urls" && { color: "#FFF" }]}>Fonti URL ({urls.length})</Text>
+          <Pressable testID="info-tab-urls" onPress={() => setInfoTab("urls")} hitSlop={10} style={styles.infoBtn}>
+            <Ionicons name="information-circle" size={16} color={tab === "urls" ? "#FFF" : C.primary} />
+          </Pressable>
+        </Pressable>
+        <Pressable testID="tab-history" onPress={() => setTab("history")} style={[styles.tabBtn, tab === "history" && styles.tabBtnOn]}>
+          <Ionicons name="time" size={16} color={tab === "history" ? "#FFF" : C.navy} />
+          <Text style={[styles.tabTxt, tab === "history" && { color: "#FFF" }]}>Storico ({history.length})</Text>
+          <Pressable testID="info-tab-history" onPress={() => setInfoTab("history")} hitSlop={10} style={styles.infoBtn}>
+            <Ionicons name="information-circle" size={16} color={tab === "history" ? "#FFF" : C.primary} />
+          </Pressable>
         </Pressable>
       </View>
 
@@ -291,6 +340,53 @@ export default function AiTeachScreen() {
             ))}
           </>
         )}
+
+        {tab === "history" && (
+          <>
+            {history.length === 0 ? (
+              <View style={styles.empty}><Text style={styles.emptyTxt}>Nessun aggiornamento ancora eseguito. Vai su Fonti URL e tocca &quot;Aggiorna ora&quot; per la prima esecuzione.</Text></View>
+            ) : history.map((h) => {
+              const when = new Date(h.started_at).toLocaleString("it-IT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+              const modeLabel = h.mode === "manual_all" ? "Aggiorna ora" : h.mode === "manual_single" ? "Refresh singolo" : "Automatico";
+              const modeIcon: keyof typeof Ionicons.glyphMap = h.mode === "automatic" ? "sync" : "refresh";
+              const allOk = h.failure_count === 0;
+              return (
+                <View key={h.run_id} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: allOk ? "#16A34A" : "#DC2626" }]} testID={`history-${h.run_id}`}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Ionicons name={modeIcon} size={16} color={C.navy} />
+                    <Text style={styles.cardTitle} numberOfLines={1}>{modeLabel}</Text>
+                    <View style={[styles.freqPill, allOk ? { backgroundColor: "#DCFCE7" } : { backgroundColor: "#FEE2E2" }]}>
+                      <Text style={[styles.freqPillTxt, { color: allOk ? "#166534" : "#DC2626" }]}>
+                        {h.success_count}/{h.total} OK
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.metaTxt}>🕒 {when}</Text>
+                  {h.successes?.length ? (
+                    <View style={styles.historyGroup}>
+                      <Text style={styles.historyGroupTitle}>✓ Aggiornati con successo ({h.successes.length})</Text>
+                      {h.successes.slice(0, 5).map((s) => (
+                        <Text key={s.url_id} style={styles.historyItemOk} numberOfLines={1}>• {s.name || s.url}</Text>
+                      ))}
+                      {h.successes.length > 5 ? <Text style={styles.metaTxt}>… e altri {h.successes.length - 5}</Text> : null}
+                    </View>
+                  ) : null}
+                  {h.failures?.length ? (
+                    <View style={styles.historyGroup}>
+                      <Text style={[styles.historyGroupTitle, { color: "#DC2626" }]}>✗ Falliti ({h.failures.length})</Text>
+                      {h.failures.slice(0, 5).map((f) => (
+                        <View key={f.url_id}>
+                          <Text style={styles.historyItemErr} numberOfLines={1}>• {f.name || f.url}</Text>
+                          {f.error ? <Text style={styles.historyErrMsg} numberOfLines={2}>{f.error}</Text> : null}
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </>
+        )}
       </ScrollView>
       )}
 
@@ -380,6 +476,26 @@ export default function AiTeachScreen() {
           </View>
         </View>
       </Modal>
+      {/* V28.j — Info modal per Regole / Fonti URL / Storico */}
+      <Modal transparent visible={!!infoTab} animationType="fade" onRequestClose={() => setInfoTab(null)}>
+        <View style={styles.backdrop}>
+          <View style={[styles.sheet, { maxHeight: "60%" }]}>
+            <View style={styles.sheetHdr}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                <Ionicons name="information-circle" size={22} color={C.primary} />
+                <Text style={styles.sheetTitle}>{infoTab ? TAB_INFO[infoTab].title : ""}</Text>
+              </View>
+              <Pressable onPress={() => setInfoTab(null)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingTop: 6, paddingBottom: 12 }}>
+              <Text style={styles.infoBody}>{infoTab ? TAB_INFO[infoTab].body : ""}</Text>
+              <Pressable onPress={() => setInfoTab(null)} style={[styles.saveBtn, { backgroundColor: C.primary, marginTop: 10 }]}>
+                <Text style={styles.saveBtnTxt}>Ho capito</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -391,9 +507,17 @@ const styles = StyleSheet.create({
   sub: { fontSize: 11, color: C.muted, marginTop: 2, fontWeight: "600" },
   badge: { width: 32, height: 32, borderRadius: 10, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" },
   tabsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginTop: 6 },
-  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#FFF", paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, borderColor: theme.color.border },
+  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: "#FFF", paddingVertical: 10, paddingHorizontal: 6, borderRadius: 12, borderWidth: 1.5, borderColor: theme.color.border },
   tabBtnOn: { backgroundColor: C.primary, borderColor: C.primary },
-  tabTxt: { fontSize: 13, fontWeight: "800", color: C.navy },
+  tabTxt: { fontSize: 12, fontWeight: "800", color: C.navy, flexShrink: 1 },
+  infoBtn: { padding: 2 },
+  infoBody: { fontSize: 13, color: C.navy, lineHeight: 19, padding: 4, fontWeight: "600" },
+  // V28.j — Storico aggiornamenti
+  historyGroup: { marginTop: 8, gap: 3 },
+  historyGroupTitle: { fontSize: 12, fontWeight: "800", color: "#166534", marginBottom: 2 },
+  historyItemOk: { fontSize: 12, color: "#166534", fontWeight: "600" },
+  historyItemErr: { fontSize: 12, color: "#DC2626", fontWeight: "700" },
+  historyErrMsg: { fontSize: 11, color: "#DC2626", fontStyle: "italic", marginLeft: 10 },
   filterRow: { flexDirection: "row", gap: 6, marginBottom: 4, paddingRight: 20 },
   presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6, marginBottom: 4 },
   chip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5 },
