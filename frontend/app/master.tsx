@@ -163,6 +163,7 @@ function MasterScreen() {
     { label: "I miei file", icon: "folder-open", color: "#0891B2", onPress: () => goto("/master-files") },
     { label: "Biglietto da visita", icon: "id-card", color: "#7C3AED", onPress: () => goto("/business-card") },
     { label: "Banner Evento", icon: "megaphone", color: "#F59E0B", onPress: () => goto("/event-banners") },
+    { label: "Script Telefonata", icon: "document-text", color: "#0F766E", onPress: () => goto("/call-script-config") },
   ];
 
   return (
