@@ -8592,14 +8592,17 @@ class AiTeachFileIn(BaseModel):
 
 class AiTeachRuleIn(BaseModel):
     # V28.g — Categorie libere (es. Clienti, Contratti, Comunicazioni, Luce, Gas, Telco, Generale).
-    # Per retrocompatibilità, `category` è ora una stringa qualsiasi (default "Generale").
-    category: str = "Generale"
+    # V28.n — Ora supportiamo MULTI-CATEGORIA. `categories` è la lista canonica; `category`
+    # resta per retrocompatibilità (lo espandiamo automaticamente in [category] se `categories` è vuoto).
+    category: Optional[str] = None
+    categories: List[str] = Field(default_factory=list)
     title: str = Field(min_length=1, max_length=200)
     text: str = Field(min_length=1)
     files: List[AiTeachFileIn] = Field(default_factory=list)
 
 class AiTeachRulePatch(BaseModel):
     category: Optional[str] = None
+    categories: Optional[List[str]] = None
     title: Optional[str] = None
     text: Optional[str] = None
     files: Optional[List[AiTeachFileIn]] = None
@@ -8632,10 +8635,35 @@ def _require_master(user: Dict[str, Any]) -> None:
 async def ai_teach_list_rules(user=Depends(get_current_user)):
     _require_master(user)
     tid = tenant_id(user)
+    # V28.n — Lazy migration: rules with only `category` (str) get `categories: [category]`.
+    # We update in-place so subsequent reads/writes are consistent.
     cur = db.ai_teach_rules.find({"user_id": tid}).sort("updated_at", -1)
     items = []
     async for r in cur:
         r.pop("_id", None)
+        # Normalize categories field: prefer `categories` array; fallback to legacy `category` string.
+        cats = r.get("categories")
+        if not isinstance(cats, list) or not cats:
+            legacy = (r.get("category") or "").strip()
+            cats = [legacy] if legacy else ["Generale"]
+            # Persist the migration (best-effort, non-blocking on error)
+            try:
+                await db.ai_teach_rules.update_one(
+                    {"rule_id": r.get("rule_id"), "user_id": tid},
+                    {"$set": {"categories": cats}},
+                )
+            except Exception:
+                pass
+        # Deduplicate while preserving order
+        seen = set(); norm = []
+        for c in cats:
+            key = (c or "").strip()
+            if not key: continue
+            if key.lower() in seen: continue
+            seen.add(key.lower()); norm.append(key)
+        r["categories"] = norm or ["Generale"]
+        # Keep `category` mirrored to first element for backward-compat with older clients
+        r["category"] = r["categories"][0]
         # Strip file base64 from list (keep only metadata) — client fetches full file separately when needed
         r["files"] = [{"name": f.get("name"), "mime": f.get("mime"), "size": f.get("size", 0)} for f in (r.get("files") or [])]
         items.append(r)
@@ -8655,11 +8683,27 @@ async def ai_teach_create_rule(body: AiTeachRuleIn, user=Depends(get_current_use
         except Exception:
             size = 0
         files.append({"name": f.name, "mime": f.mime, "data_base64": raw, "size": size})
+    # V28.n — Normalize multi-category. Prefer `categories` list; fall back to legacy single `category`.
+    raw_cats: List[str] = []
+    if body.categories:
+        raw_cats = [c for c in body.categories if isinstance(c, str)]
+    elif body.category:
+        raw_cats = [body.category]
+    seen = set(); cats: List[str] = []
+    for c in raw_cats:
+        key = (c or "").strip()
+        if not key: continue
+        if key.lower() in seen: continue
+        seen.add(key.lower()); cats.append(key)
+    if not cats:
+        cats = ["Generale"]
     doc = {
         "rule_id": rid,
         "user_id": tid,
         "created_by": user["user_id"],
-        "category": body.category,
+        # Store BOTH: canonical `categories` list + mirrored `category` (first) for backward-compat
+        "categories": cats,
+        "category": cats[0],
         "title": body.title.strip(),
         "text": body.text.strip(),
         "files": files,
@@ -8677,7 +8721,23 @@ async def ai_teach_update_rule(rule_id: str, body: AiTeachRulePatch, user=Depend
     _require_master(user)
     tid = tenant_id(user)
     patch: Dict[str, Any] = {"updated_at": utcnow()}
-    if body.category is not None: patch["category"] = body.category
+    # V28.n — Handle multi-category updates. `categories` is canonical; `category` mirrored.
+    if body.categories is not None or body.category is not None:
+        raw_cats: List[str] = []
+        if body.categories is not None:
+            raw_cats = [c for c in body.categories if isinstance(c, str)]
+        elif body.category is not None:
+            raw_cats = [body.category]
+        seen = set(); cats: List[str] = []
+        for c in raw_cats:
+            key = (c or "").strip()
+            if not key: continue
+            if key.lower() in seen: continue
+            seen.add(key.lower()); cats.append(key)
+        if not cats:
+            cats = ["Generale"]
+        patch["categories"] = cats
+        patch["category"] = cats[0]
     if body.title is not None: patch["title"] = body.title.strip()
     if body.text is not None: patch["text"] = body.text.strip()
     if body.files is not None:
@@ -8888,8 +8948,19 @@ async def build_ai_teach_context(tenant: str, category: str) -> str:
     Refreshes stale monitored URLs opportunistically (best-effort).
     """
     now = utcnow()
-    # Manual rules for this category
-    rules_cur = db.ai_teach_rules.find({"user_id": tenant, "category": category}).limit(30)
+    # V28.n — Manual rules matching this category. We match on both the new
+    # `categories` array AND the legacy `category` string for backward-compat.
+    # A rule tagged with multiple categories (e.g. Luce+Gas) appears for each of them.
+    cat_lc = (category or "").lower()
+    rules_cur = db.ai_teach_rules.find({
+        "user_id": tenant,
+        "$or": [
+            {"categories": {"$in": [category]}},
+            {"category": category},
+            # Also match case-insensitive on legacy `category` for safety
+            {"category": {"$regex": f"^{cat_lc}$", "$options": "i"}} if cat_lc else {"category": category},
+        ],
+    }).limit(30)
     rules_text_parts: List[str] = []
     async for r in rules_cur:
         title = (r.get("title") or "").strip()

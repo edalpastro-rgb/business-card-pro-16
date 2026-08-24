@@ -17,7 +17,7 @@ import { notify } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import * as FileSystem from "expo-file-system/legacy";
 
-type Rule = { rule_id: string; category: string; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string };
+type Rule = { rule_id: string; category?: string; categories?: string[]; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string };
 type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: string };
 // V28.j — Storico aggiornamenti (elenco esecuzioni di "Aggiorna ora" automatico o manuale)
 type HistoryRunEntry = { url_id: string; name: string; url: string; error?: string };
@@ -50,6 +50,25 @@ function colorFor(category: string): string {
   let h = 0;
   for (let i = 0; i < category.length; i++) h = (h * 31 + category.charCodeAt(i)) >>> 0;
   return palette[h % palette.length];
+}
+
+// V28.n — Normalize a rule's categories: prefer `categories` array, fallback to legacy `category`.
+function normalizeRuleCategories(r: Partial<Rule> | null | undefined): string[] {
+  if (!r) return [];
+  const raw = Array.isArray(r.categories) && r.categories.length
+    ? r.categories
+    : (r.category ? [r.category] : []);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of raw) {
+    const key = (c || "").trim();
+    if (!key) continue;
+    const lk = key.toLowerCase();
+    if (seen.has(lk)) continue;
+    seen.add(lk);
+    out.push(key);
+  }
+  return out;
 }
 
 export default function AiTeachScreen() {
@@ -88,15 +107,26 @@ export default function AiTeachScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // V28.g — Filter chips built from actually used categories + "Tutte"
+  // V28.n — Multi-category: raccogliamo TUTTE le categorie usate su TUTTE le regole.
   const availableCategories = useMemo(() => {
     const s = new Set<string>();
-    rules.forEach((r) => s.add(r.category || "Generale"));
+    rules.forEach((r) => {
+      const cats = normalizeRuleCategories(r);
+      if (cats.length === 0) s.add("Generale");
+      else cats.forEach((c) => s.add(c));
+    });
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [rules]);
 
+  // V28.n — Una regola compare nel filtro se AL MENO UNA delle sue categorie combacia.
   const filteredRules = useMemo(
-    () => (filter === "all" ? rules : rules.filter((r) => (r.category || "Generale") === filter)),
+    () => (filter === "all"
+      ? rules
+      : rules.filter((r) => {
+          const cats = normalizeRuleCategories(r);
+          const list = cats.length ? cats : ["Generale"];
+          return list.some((c) => c.toLowerCase() === filter.toLowerCase());
+        })),
     [rules, filter],
   );
 
@@ -104,8 +134,13 @@ export default function AiTeachScreen() {
     if (!editRule) return;
     try {
       setBusy(true);
+      // V28.n — Multi-category: normalizziamo l'array e lo passiamo come `categories`.
+      // Il backend salva sia `categories` che `category` (prima categoria) per retrocompat.
+      const cats = normalizeRuleCategories(editRule);
+      const finalCats = cats.length ? cats : ["Generale"];
       const payload: any = {
-        category: (editRule.category || "Generale").trim() || "Generale",
+        categories: finalCats,
+        category: finalCats[0], // backward-compat
         title: (editRule.title || "").trim(),
         text: (editRule.text || "").trim(),
       };
@@ -121,6 +156,28 @@ export default function AiTeachScreen() {
       load();
     } catch (e: any) { notify("Errore salvataggio", e?.message || ""); } finally { setBusy(false); }
   };
+
+  // V28.n — Toggle di una categoria nel selettore multi-chip.
+  const toggleEditCategory = useCallback((cat: string) => {
+    setEditRule((r) => {
+      const current = normalizeRuleCategories(r);
+      const lk = cat.toLowerCase();
+      const has = current.some((c) => c.toLowerCase() === lk);
+      const next = has
+        ? current.filter((c) => c.toLowerCase() !== lk)
+        : [...current, cat];
+      return { ...(r || {}), categories: next, category: next[0] } as Partial<Rule>;
+    });
+  }, []);
+
+  // V28.n — Aggiungere una categoria custom digitata dall'utente.
+  const [customCatInput, setCustomCatInput] = useState<string>("");
+  const addCustomCategory = useCallback(() => {
+    const val = customCatInput.trim();
+    if (!val) return;
+    toggleEditCategory(val);
+    setCustomCatInput("");
+  }, [customCatInput, toggleEditCategory]);
 
   const removeRule = async (id: string) => {
     try { await api(`/ai-teach/rules/${id}`, { method: "DELETE" }); load(); } catch (e: any) { notify("Errore", e?.message || ""); }
@@ -299,21 +356,28 @@ export default function AiTeachScreen() {
                 })}
               </ScrollView>
             ) : null}
-            <Pressable testID="add-rule-btn" onPress={() => setEditRule({ category: filter !== "all" ? filter : "Generale", title: "", text: "" })} style={styles.addBtn}>
+            <Pressable testID="add-rule-btn" onPress={() => setEditRule({ categories: filter !== "all" ? [filter] : ["Generale"], category: filter !== "all" ? filter : "Generale", title: "", text: "" })} style={styles.addBtn}>
               <Ionicons name="add-circle" size={20} color="#FFF" />
               <Text style={styles.addBtnTxt}>Aggiungi regola</Text>
             </Pressable>
             {filteredRules.length === 0 ? (
               <View style={styles.empty}><Text style={styles.emptyTxt}>Nessuna regola. Aggiungi la prima per iniziare a insegnare ad Axon.</Text></View>
             ) : filteredRules.map((r) => {
-              const catLabel = r.category || "Generale";
-              const col = colorFor(catLabel);
+              const catList = normalizeRuleCategories(r);
+              const displayCats = catList.length ? catList : ["Generale"];
               return (
                 <View key={r.rule_id} style={styles.card} testID={`rule-${r.rule_id}`}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <View style={[styles.catBadge, { backgroundColor: col }]}><Ionicons name="pricetag" size={11} color="#FFF" /><Text style={styles.catBadgeTxt}>{catLabel}</Text></View>
-                    <Text style={styles.cardTitle} numberOfLines={1}>{r.title}</Text>
-                    <Pressable testID={`edit-rule-${r.rule_id}`} onPress={() => setEditRule({ ...r })} hitSlop={8}><Ionicons name="pencil" size={16} color={C.primary} /></Pressable>
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+                    <View style={styles.catBadgeWrap}>
+                      {displayCats.map((cat) => (
+                        <View key={cat} style={[styles.catBadge, { backgroundColor: colorFor(cat) }]}>
+                          <Ionicons name="pricetag" size={11} color="#FFF" />
+                          <Text style={styles.catBadgeTxt}>{cat}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    <Text style={styles.cardTitle} numberOfLines={2}>{r.title}</Text>
+                    <Pressable testID={`edit-rule-${r.rule_id}`} onPress={() => setEditRule({ ...r, categories: catList.length ? catList : ["Generale"] })} hitSlop={8}><Ionicons name="pencil" size={16} color={C.primary} /></Pressable>
                     <Pressable testID={`del-rule-${r.rule_id}`} onPress={() => removeRule(r.rule_id)} hitSlop={8}><Ionicons name="trash-outline" size={16} color="#DC2626" /></Pressable>
                   </View>
                   <Text style={styles.cardTxt} numberOfLines={4}>{r.text}</Text>
@@ -429,25 +493,56 @@ export default function AiTeachScreen() {
               <Pressable onPress={() => setEditRule(null)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>
             </View>
             <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-              <Text style={styles.lbl}>Categoria</Text>
-              <TextInput
-                testID="rule-category-input"
-                value={editRule?.category || ""}
-                onChangeText={(t) => setEditRule((r) => ({ ...(r || {}), category: t }))}
-                placeholder="Es. Clienti, Contratti, Comunicazioni…"
-                placeholderTextColor="#94A3B8"
-                style={styles.input}
-              />
+              <Text style={styles.lbl}>Categorie (seleziona una o più)</Text>
+              {/* V28.n — Chip presenti (selezionate) mostrate in alto, con X per rimuoverle. */}
+              {(() => {
+                const selected = normalizeRuleCategories(editRule);
+                if (selected.length === 0) {
+                  return <Text style={styles.metaTxt} testID="rule-selected-cats-empty">Nessuna categoria selezionata — verrà usata &quot;Generale&quot;</Text>;
+                }
+                return (
+                  <View style={styles.selectedCatsRow} testID="rule-selected-cats">
+                    {selected.map((c) => (
+                      <Pressable key={c} testID={`selected-cat-${c}`} onPress={() => toggleEditCategory(c)} style={[styles.selectedCatChip, { backgroundColor: colorFor(c) }]}>
+                        <Ionicons name="pricetag" size={11} color="#FFF" />
+                        <Text style={styles.selectedCatTxt}>{c}</Text>
+                        <Ionicons name="close-circle" size={14} color="rgba(255,255,255,0.85)" />
+                      </Pressable>
+                    ))}
+                  </View>
+                );
+              })()}
+              {/* Preset chips: tap to toggle */}
+              <Text style={[styles.lbl, { marginTop: 10 }]}>Preset</Text>
               <View style={styles.presetRow}>
                 {PRESET_CATEGORIES.map((c) => {
-                  const on = (editRule?.category || "").toLowerCase() === c.toLowerCase();
+                  const selected = normalizeRuleCategories(editRule);
+                  const on = selected.some((s) => s.toLowerCase() === c.toLowerCase());
                   const col = colorFor(c);
                   return (
-                    <Pressable key={c} testID={`preset-cat-${c}`} onPress={() => setEditRule((r) => ({ ...(r || {}), category: c }))} style={[styles.chip, { borderColor: col }, on && { backgroundColor: col }]}>
+                    <Pressable key={c} testID={`preset-cat-${c}`} onPress={() => toggleEditCategory(c)} style={[styles.chip, { borderColor: col }, on && { backgroundColor: col }]}>
+                      {on ? <Ionicons name="checkmark" size={12} color="#FFF" /> : null}
                       <Text style={[styles.chipTxt, on ? { color: "#FFF" } : { color: col }]}>{c}</Text>
                     </Pressable>
                   );
                 })}
+              </View>
+              {/* Custom category input */}
+              <Text style={[styles.lbl, { marginTop: 10 }]}>Aggiungi categoria personalizzata</Text>
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                <TextInput
+                  testID="rule-custom-cat-input"
+                  value={customCatInput}
+                  onChangeText={setCustomCatInput}
+                  onSubmitEditing={addCustomCategory}
+                  returnKeyType="done"
+                  placeholder="Es. Backoffice, Fibra…"
+                  placeholderTextColor="#94A3B8"
+                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                />
+                <Pressable testID="rule-add-custom-cat" onPress={addCustomCategory} style={styles.addCatBtn}>
+                  <Ionicons name="add" size={20} color="#FFF" />
+                </Pressable>
               </View>
 
               <Text style={styles.lbl}>Titolo</Text>
@@ -552,6 +647,12 @@ const styles = StyleSheet.create({
   presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6, marginBottom: 4 },
   chip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5 },
   chipTxt: { fontSize: 11, fontWeight: "800" },
+  // V28.n — Multi-category selector
+  selectedCatsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4, marginBottom: 2 },
+  selectedCatChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  selectedCatTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
+  addCatBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" },
+  catBadgeWrap: { flexDirection: "row", flexWrap: "wrap", gap: 4, flexShrink: 1, maxWidth: "60%" },
   addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.primary, paddingVertical: 13, borderRadius: 14 },
   refreshAllBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.navy, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14 },
   addBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },

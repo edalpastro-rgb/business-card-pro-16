@@ -1,5 +1,37 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.n Multi-categoria "Insegna ad Axon" (Giugno 2026)
+### 🎯 Richiesta utente
+"Regole 'Insegna ad Axon': la selezione categoria deve essere multipla. L'utente deve poter selezionare più chip contemporaneamente."
+
+### ✅ Backend (`server.py`)
+- **`AiTeachRuleIn`** e **`AiTeachRulePatch`**: aggiunto campo canonico `categories: List[str]` (mantiene `category: Optional[str]` per retrocompat legacy).
+- **`POST /api/ai-teach/rules`**: normalizza input (`categories` prima, altrimenti `[category]`), dedupe case-insensitive, salva sempre entrambi (`categories` array + `category` = prima cat, mirror per client vecchi).
+- **`PUT /api/ai-teach/rules/{rule_id}`**: stesso trattamento — se `categories` o `category` passati, aggiorna entrambi i campi mantenendoli sincronizzati.
+- **`GET /api/ai-teach/rules`**: **migrazione lazy** — regole legacy con solo `category: str` vengono aggiornate on-read con `categories: [category]` (persistita in Mongo, non-blocking on error). Ritorna sempre `categories: List[str]` normalizzato.
+- **`build_ai_teach_context`**: query estesa con `$or: [{categories: {$in: [cat]}}, {category: cat}, {category: /^cat$/i}]` — così una regola multi-cat (es. Luce+Gas) appare correttamente sia per query "Luce" sia per query "Gas".
+
+### ✅ Frontend `/app/frontend/app/ai-teach.tsx`
+- **Tipo `Rule`**: aggiunto `categories?: string[]` opzionale.
+- **`normalizeRuleCategories()`**: helper che preferisce `categories`, fallback `[category]`, dedupe case-insensitive.
+- **`availableCategories`**: ora flattens tutte le categorie da tutte le regole (una regola con N cat contribuisce N filtri).
+- **`filteredRules`**: una regola compare se almeno una delle sue categorie combacia col filtro (case-insensitive).
+- **Rule card**: `catBadge` singolo sostituito da wrap di **multipli chip** colorati (ognuno con colore deterministico).
+- **Modal editor** completamente ridisegnato:
+  - Sezione "Categorie (seleziona una o più)" mostra chip selezionati con X per rimuovere.
+  - Riga "Preset" con toggle behavior: tap aggiunge/rimuove; chip attivi mostrano checkmark ✓.
+  - Nuova sezione "Aggiungi categoria personalizzata" con TextInput + bottone + per aggiungere cat custom (dedupe automatico).
+- **`saveRule`**: payload ora invia `categories: string[]` + `category: categories[0]` (backward-compat).
+
+### 🧪 Test eseguiti
+- ✅ curl: POST con `categories:["Luce","Gas"]` → risposta contiene entrambi i campi.
+- ✅ curl: PUT che aggiunge terza cat → GET restituisce array completo.
+- ✅ Screenshot: modal mostra 4 chip selezionati (Generale/Luce/Gas/Vendita) + preset con checkmark su quelli attivi.
+- ✅ Screenshot: card regola visualizza 4 chip colorati distinti.
+- ✅ Screenshot: filtro "Gas" mostra correttamente la regola tagged Luce+Gas+Vendita+Generale.
+- ✅ Screenshot: apertura in edit mode carica correttamente tutte le categorie precedenti.
+
+
 ## v2.34 Insegna ad Axon (Giugno 2026)
 ### 🎯 Richiesta utente
 "Sezione 'Insegna ad Axon' accessibile solo dal profilo Master: regole per categoria libera (Clienti, Contratti, Comunicazioni…), URL con credenziali opzionali e frequenza (manuale/giornaliera/settimanale/mensile), pulsante 'Aggiorna ora' via Tavily."
