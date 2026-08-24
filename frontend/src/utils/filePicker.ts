@@ -1,4 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
+import { Platform } from "react-native";
 
 /**
  * v2.20 — Centralized "common file formats" list used by any generic file
@@ -73,10 +74,79 @@ export function validateCommonFile(asset: CommonFileAsset | null | undefined): s
 
 /**
  * Wrapper around DocumentPicker that returns the picked asset validated
- * against the common formats. Returns `{ asset, error }` — caller decides
- * whether to `notify` the error or ignore.
+ * against the common formats. Returns `{ asset, error, base64 }` — caller
+ * decides whether to `notify` the error or ignore.
+ *
+ * V28.m — Web workaround: su browser (specialmente Android) il selettore
+ * DocumentPicker mostra solo Camera/Foto quando la lista di MIME include
+ * troppi image/*. Su web usiamo un `<input type="file">` con accept limitato
+ * a documenti (PDF, Excel, CSV, Word…) così il browser apre direttamente il
+ * file manager. Ritorniamo anche `base64` già decodificato per evitare che i
+ * chiamanti debbano ri-leggere via FileReader/expo-file-system.
  */
-export async function pickCommonFile(opts?: { multiple?: boolean }): Promise<{ asset: CommonFileAsset | null; error: string | null }> {
+export const WEB_FALLBACK_ACCEPT =
+  "application/pdf," +
+  "application/vnd.ms-excel," +
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet," +
+  "text/csv," +
+  ".docx,.doc,.xls,.xlsx,.csv,.pdf,.txt,.md,.rtf,.odt,.ods,.ppt,.pptx,.json";
+
+async function pickCommonFileWeb(): Promise<{ asset: CommonFileAsset | null; error: string | null; base64?: string }> {
+  return new Promise((resolve) => {
+    if (typeof document === "undefined") {
+      resolve({ asset: null, error: "DOM non disponibile su questa piattaforma." });
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = WEB_FALLBACK_ACCEPT;
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    input.style.top = "-9999px";
+    input.style.opacity = "0";
+    let settled = false;
+    const cleanup = () => { try { document.body.removeChild(input); } catch { /* ignore */ } };
+    // Some browsers don't fire cancel; fall back to a focus listener
+    const onCancel = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve({ asset: null, error: null });
+    };
+    input.addEventListener("cancel", onCancel);
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) { onCancel(); return; }
+      settled = true;
+      const reader = new FileReader();
+      reader.onerror = () => { cleanup(); resolve({ asset: null, error: "Errore lettura file" }); };
+      reader.onload = () => {
+        cleanup();
+        const dataUrl = String(reader.result || "");
+        const comma = dataUrl.indexOf(",");
+        const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : "";
+        const asset: CommonFileAsset = {
+          uri: dataUrl,
+          name: file.name,
+          mimeType: file.type || null,
+          size: file.size,
+        };
+        const err = validateCommonFile(asset);
+        resolve({ asset: err ? null : asset, error: err, base64: err ? undefined : b64 });
+      };
+      reader.readAsDataURL(file);
+    };
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+export async function pickCommonFile(opts?: { multiple?: boolean }): Promise<{ asset: CommonFileAsset | null; error: string | null; base64?: string }> {
+  // V28.m — Web fallback: bypass del DocumentPicker (che su Android mostra
+  // solo Camera/Foto) usando un input HTML nativo con accept documenti.
+  if (Platform.OS === "web") {
+    return pickCommonFileWeb();
+  }
   try {
     const res = await DocumentPicker.getDocumentAsync({
       type: COMMON_FILE_MIME_TYPES,
