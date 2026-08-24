@@ -16,6 +16,7 @@ import {
   Share,
   Image as RNImage,
   Animated,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -53,6 +54,9 @@ export function BusinessCardScreen(): React.ReactElement {
   const { resource, card, busy, errorMsg, update, save, pickAndSaveLogo } = useBusinessCard();
   const [flipped, setFlipped] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // V28.h — Fallback modal when Web Share API is missing / user cancels / throws
+  const [shareFallback, setShareFallback] = useState<{ text: string; link: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   // v2.15 — Re-entrance guard: prevents a second tap from running while a
   // share is already in flight (state updates lag one render cycle).
   const sharingRef = useRef(false);
@@ -149,12 +153,47 @@ export function BusinessCardScreen(): React.ReactElement {
     const link = getPublicShareUrl(cid);
     try { await Clipboard.setStringAsync(link); } catch { /* clipboard optional */ }
     // V28.h — Formato richiesto: "Nome — Biglietto da visita digitale [link]".
-    // Passiamo SOLO `message`: se aggiungessimo anche `url`, alcune piattaforme
-    // (WhatsApp incluso) incollerebbero il link due volte nel testo condiviso.
+    // Solo `message`: passare anche `url` fa duplicare il link su WhatsApp.
     const name = (card.display_name || "").trim() || "Biglietto";
     const message = `${name} — Biglietto da visita digitale ${link}`;
+
+    // V28.h — Detect Web Share API availability on web BEFORE calling Share.share.
+    // On mobile (iOS/Android), Share.share always works via the OS share sheet.
+    // On web, RN uses navigator.share() which is unavailable on desktop Chrome/Firefox
+    // and on many in-app browsers — in those cases we fall back to a copy-link modal.
+    const webShareSupported =
+      Platform.OS === "web" &&
+      typeof navigator !== "undefined" &&
+      typeof (navigator as { share?: unknown }).share === "function";
+    const isWeb = Platform.OS === "web";
+
+    if (isWeb && !webShareSupported) {
+      setShareFallback({ text: message, link });
+      setCopied(false);
+      return;
+    }
+
     try {
       await Share.share({ message });
+    } catch (e) {
+      // Web Share can throw for many reasons (permissions, user gesture, etc.).
+      // Fall back to the copy-link modal so the user is never stuck.
+      if (isWeb) {
+        setShareFallback({ text: message, link });
+        setCopied(false);
+      } else {
+        notify("Errore", e instanceof Error ? e.message : "");
+      }
+    }
+  };
+
+  // V28.h — Copy the pre-formatted message to clipboard from the fallback modal
+  const copyFallback = async (): Promise<void> => {
+    if (!shareFallback) return;
+    try {
+      await Clipboard.setStringAsync(shareFallback.text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch (e) {
       notify("Errore", e instanceof Error ? e.message : "");
     }
@@ -487,6 +526,60 @@ export function BusinessCardScreen(): React.ReactElement {
           })}
         </View>
       </ScrollView>
+
+      {/* V28.h — Fallback share modal (Web Share API not available) */}
+      <Modal
+        visible={!!shareFallback}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShareFallback(null)}
+      >
+        <View style={styles.shareBackdrop}>
+          <View style={styles.shareCard} testID="share-fallback-modal">
+            <View style={styles.shareHead}>
+              <View style={styles.shareIcon}>
+                <Ionicons name="link" size={20} color="#FFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.shareTitle}>Condividi biglietto</Text>
+                <Text style={styles.shareSub}>Copia il testo e incollalo dove vuoi</Text>
+              </View>
+              <Pressable
+                testID="share-fallback-close"
+                onPress={() => setShareFallback(null)}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={22} color={CARD_NAVY} />
+              </Pressable>
+            </View>
+
+            {/* Message preview — selectable so power users can grab manually too */}
+            <View style={styles.shareTextBox}>
+              <Text selectable style={styles.shareTextTxt}>{shareFallback?.text || ""}</Text>
+            </View>
+
+            <Pressable
+              testID="share-fallback-copy"
+              onPress={copyFallback}
+              style={[styles.copyBtn, copied && { backgroundColor: "#16A34A" }]}
+            >
+              <Ionicons
+                name={copied ? "checkmark-circle" : "copy"}
+                size={18}
+                color="#FFF"
+              />
+              <Text style={styles.copyBtnTxt}>
+                {copied ? "Copiato ✓" : "Copia link"}
+              </Text>
+            </Pressable>
+
+            <Text style={styles.shareHint}>
+              Il tuo browser non supporta la condivisione diretta. Il testo è
+              pronto: incollalo su WhatsApp, Telegram, email o SMS.
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -611,4 +704,66 @@ const styles = StyleSheet.create({
   radioLbl: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
   radioHint: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
   helperTxt: { fontSize: 11, color: theme.color.muted, marginTop: 6, fontStyle: "italic" },
+  // V28.h — Fallback share modal (Web Share API not supported)
+  shareBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  shareCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: "#FFF",
+    borderRadius: 18,
+    padding: 20,
+    gap: 12,
+    ...Platform.select({
+      ios: { shadowColor: "#0F172A", shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
+      android: { elevation: 10 },
+      default: {},
+    }),
+  },
+  shareHead: { flexDirection: "row", alignItems: "center", gap: 10 },
+  shareIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: CARD_NAVY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shareTitle: { fontSize: 16, fontWeight: "800", color: CARD_NAVY, letterSpacing: -0.2 },
+  shareSub: { fontSize: 11, color: theme.color.muted, marginTop: 2, fontWeight: "600" },
+  shareTextBox: {
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    borderRadius: 10,
+    padding: 12,
+  },
+  shareTextTxt: {
+    fontSize: 13,
+    color: theme.color.onSurface,
+    lineHeight: 19,
+    fontWeight: "600",
+  },
+  copyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FF6B35",
+    paddingVertical: 13,
+    borderRadius: 12,
+  },
+  copyBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
+  shareHint: {
+    fontSize: 11,
+    color: theme.color.muted,
+    textAlign: "center",
+    lineHeight: 16,
+    fontStyle: "italic",
+  },
 });
