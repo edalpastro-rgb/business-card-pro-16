@@ -7235,7 +7235,7 @@ def _detect_energy_query(text: str) -> bool:
     return False
 
 
-async def _tavily_search(query: str, max_results: int = 5) -> Optional[dict]:
+async def _tavily_search(query: str, max_results: int = 5, country: Optional[str] = None) -> Optional[dict]:
     """V38T — Query the Tavily search API. Returns a compact answer block or None.
 
     Docs: https://docs.tavily.com — POST /search with `api_key`, `query`,
@@ -7245,22 +7245,25 @@ async def _tavily_search(query: str, max_results: int = 5) -> Optional[dict]:
     if not key:
         return None
     try:
+        payload: Dict[str, Any] = {
+            "api_key": key,
+            "query": query,
+            "search_depth": "advanced",
+            "include_answer": True,
+            "include_raw_content": False,
+            "max_results": max_results,
+            "include_domains": [
+                "arera.it", "mercatoelettrico.org", "gse.it",
+                "gme.it", "snam.it", "terna.it", "acquirente-unico.it",
+                "borsaitaliana.it", "governo.it", "gazzettaufficiale.it",
+            ],
+        }
+        if country:
+            payload["country"] = country
         async with httpx.AsyncClient(timeout=15) as hx:
             r = await hx.post(
                 "https://api.tavily.com/search",
-                json={
-                    "api_key": key,
-                    "query": query,
-                    "search_depth": "advanced",
-                    "include_answer": True,
-                    "include_raw_content": False,
-                    "max_results": max_results,
-                    "include_domains": [
-                        "arera.it", "mercatoelettrico.org", "gse.it",
-                        "gme.it", "snam.it", "terna.it", "acquirente-unico.it",
-                        "borsaitaliana.it", "governo.it", "gazzettaufficiale.it",
-                    ],
-                },
+                json=payload,
                 headers={"Content-Type": "application/json"},
             )
             r.raise_for_status()
@@ -8654,12 +8657,22 @@ async def ai_teach_delete_url(url_id: str, user=Depends(get_current_user)):
 
 
 async def _ai_teach_refresh_url(doc: Dict[str, Any]) -> Dict[str, Any]:
-    """Fetch a monitored URL via Tavily (if configured) and update last_summary."""
+    """Fetch a monitored URL via Tavily (if configured) and update last_summary.
+
+    V28.k — Il riepilogo deve essere sempre in italiano: prefissiamo la query con
+    un'istruzione esplicita e passiamo country="italy" per privilegiare fonti IT.
+    """
     try:
         summary = ""
-        # Prefer Tavily's answer for the exact URL as query context
-        q = f"{doc.get('name') or ''} {doc.get('url')}".strip()
-        res = await _tavily_search(q, max_results=4)
+        # V28.k — Query in italiano: Tavily genera l'answer nella lingua della query
+        name = (doc.get("name") or "").strip()
+        url = (doc.get("url") or "").strip()
+        it_query = (
+            f"Riassumi in italiano i contenuti principali di questa pagina. "
+            f"Rispondi SEMPRE in italiano, in prosa chiara, max 6 frasi. "
+            f"Pagina: {name} {url}".strip()
+        )
+        res = await _tavily_search(it_query, max_results=4, country="italy")
         if res:
             summary = (res.get("answer") or "").strip()
             # Include result snippets for richer context
