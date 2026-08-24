@@ -21,6 +21,7 @@ import { theme } from "@/src/theme";
 import { useFabStack } from "@/src/FabStack";
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { pickCommonFile } from "@/src/utils/filePicker";
+import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 
 const ASSISTANT_COLOR = "#8B5CF6"; // violet — distinct from red mic and blue brand
 const ASSISTANT_COLOR_DARK = "#6D28D9";
@@ -1171,7 +1172,24 @@ function MessageBubble({
             )}
           </View>
         )}
-        <Text style={[styles.bubbleText, isUser && { color: "#FFF" }]}>{msg.content}</Text>
+        {/* V28.p — Rende il contenuto in segmenti: testo normale + tabelle markdown con Export */}
+        {(() => {
+          if (isUser) {
+            // Utente: sempre testo semplice
+            return <Text style={[styles.bubbleText, { color: "#FFF" }]}>{msg.content}</Text>;
+          }
+          const segments = parseMessageSegments(msg.content || "");
+          if (segments.length === 0) return null;
+          return (
+            <View style={{ gap: 6 }}>
+              {segments.map((seg, si) => (
+                seg.type === "text"
+                  ? <Text key={`s-${si}`} style={styles.bubbleText}>{seg.content}</Text>
+                  : <ChatTableExport key={`s-${si}`} table={seg.table} assistantColor={ASSISTANT_COLOR} />
+              ))}
+            </View>
+          );
+        })()}
         {/* V38T — Save-to-Master button on responses that used web search */}
         {!isUser && onSaveToMaster && (
           <Pressable

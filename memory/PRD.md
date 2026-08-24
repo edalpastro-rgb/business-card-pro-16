@@ -1,5 +1,39 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.p Export tabelle chat Axon (Giugno 2026)
+### 🎯 Richiesta utente
+"Quando Axon produce una tabella dati nella chat, mostra un pulsante 'Esporta' sotto la tabella. Al tap tre opzioni: Excel, CSV, PDF. File scaricabile/condivisibile e salvato di default tra i file Axon per autoimparare."
+
+### ✅ Nuova dipendenza
+- `xlsx` (SheetJS) — installato via `yarn expo install xlsx`. Cross-platform: base64 output funziona su Expo Web e nativo.
+
+### ✅ Frontend `/app/frontend/src/ChatTableExport.tsx` (NUOVO)
+- **`parseMessageSegments(content)`**: splitta il contenuto di un messaggio assistente in segmenti `{type:'text'} | {type:'table', headers, rows, raw}`. Rileva tabelle markdown standard (linea header con `|` + linea separatore `|---|---|` + N righe dati).
+- **`splitRow()`, `tableToCSV()`, `tableToHTML()`, `tableToXlsxBase64()`**: converter dedicati per i 3 formati. CSV con escape doppie virgolette/comma/newline. XLSX con auto-width heuristico (max 40 char). HTML stile brand viola con badge Axon + meta timestamp per stampa PDF.
+- **`saveToAxonKnowledge()`**: chiama `POST /api/ai-teach/rules` con categoria "Dati esportati", titolo `Tabella esportata · <timestamp>`, testo con preview markdown (max 60 righe) + file allegato base64. Ritorna false silenziosamente per non-Master (403) o errori.
+- **`<ChatTableExport table />`**: componente React che renderizza:
+  - Preview tabella scrollabile orizzontalmente (max 30 righe visibili, il resto in "… e altre N righe").
+  - Header row viola con testo bianco, zebra rows bianche/#F8FAFC.
+  - Bottone "Esporta tabella" (borderless outlined viola).
+  - Modal picker con 3 card colorate: **Excel** verde .xlsx / **CSV** blu .csv / **PDF** rosso .pdf (su Web: `.html (stampa in PDF)` perché expo-print non è affidabile sul web).
+  - Su iOS/Android: `expo-print` → base64 → `shareDataUri` (share sheet nativo).
+  - Su Web: HTML generato → download tramite `shareDataUri` (con fallback `a.download`).
+  - Auto-save silente in ai-teach se Master; notifica `notify("Salvato tra i file Axon", ...)`.
+
+### ✅ Frontend `/app/frontend/src/AssistantChat.tsx`
+- Import di `ChatTableExport` + `parseMessageSegments`.
+- `MessageBubble` per messaggi assistant ora chiama `parseMessageSegments(msg.content)` e renderizza:
+  - segmenti `text` come `<Text>` normale
+  - segmenti `table` come `<ChatTableExport>` con Export button
+- Nessuna modifica al rendering utente (sempre testo semplice).
+
+### 🧪 Test eseguiti
+- ✅ curl: `POST /api/ai-teach/rules` accetta files array e `categories: ["Dati esportati"]` — nuova regola creata correttamente.
+- ✅ Screenshot Playwright: chat con 1 messaggio contenente 5-row markdown table → renderizzata come tabella viola scrollabile con Export button.
+- ✅ Screenshot: modal picker 3 opzioni colorate + hint auto-save Axon.
+- ✅ Verifica DB: dopo export CSV, nuova regola in `ai_teach_rules` con category "Dati esportati" + 1 file CSV allegato base64.
+
+
 ## v2.o Azioni rapide personalizzabili chat Axon (Giugno 2026)
 ### 🎯 Richiesta utente
 "Il Master deve poter personalizzare i pulsanti di azione rapida che appaiono nella schermata iniziale della chat Axon. Aggiungi una sezione 'Azioni rapide' nelle impostazioni Master dove aggiungere, modificare ed eliminare questi pulsanti. Ogni pulsante ha un testo e un comando predefinito da inviare ad Axon al tap."
