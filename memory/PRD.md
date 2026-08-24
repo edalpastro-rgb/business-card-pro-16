@@ -1,5 +1,40 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.33 Pacchetto Comunicazioni + Contact UX (Giugno 2026)
+### 🎯 Richiesta utente
+"Modifica esito/durata chiamata dalla timeline, timer visibile alla chiamata, script multipli (freddo/caldo/prospect), Business/Privato per area, collapse-after-selection per Aree/Gruppi nella scheda modifica contatto."
+
+### ✅ Backend (`server.py`)
+- **`SettingsModel.call_scripts: List[Dict]`** — nuova collezione di script nominati `{id, name, content}`. Legacy `call_script` (string) preservato come fallback ("Standard").
+- **`ContactBase.customer_types: Dict[str, str]`** — mapping `{area_id: "business"|"private"}` per distinguere il tipo cliente su ogni area assegnata.
+- **`ContactUpdate.customer_types`** — supporto PATCH nel payload di modifica.
+- **`PATCH /api/calls/log/{log_id}`** — nuovo endpoint per modificare `outcome_id`, `duration_sec`, `note` di un log esistente. Autorizzato via `scope_query(user)` (tenant-safe). Modello `CallLogPatch` con tutti i campi Optional.
+
+### ✅ Frontend
+1. **`/app/frontend/src/CallTimerOverlay.tsx`** (NEW): timer count-up (mm:ss) con anello pulsante, nome contatto, telefono, pulsante "Termina e registra" (rosso) e "Chiudi senza salvare durata". Al termine PATCHa `/calls/log/{id}` con `duration_sec` misurato.
+2. **`/app/frontend/src/CallScriptOverlay.tsx`** (RIS): chip selector per script multipli (`settings.call_scripts`). Fallback su legacy `call_script` come "Standard". Placeholder `{name}`, `{agent}` sostituiti runtime.
+3. **`/app/frontend/app/call-script-config.tsx`** (RIS): editor Master multi-script con tab (Freddo/Caldo/Prospect/…), campo Nome + textarea Contenuto, "Nuovo" e "Elimina" per gestione dinamica. Legacy string sincronizzato al primo script.
+4. **`/app/frontend/src/ContactCallsSection.tsx`**: pulsante ✏️ **edit** su ogni riga log; modale bottom-sheet con selettore esito (pill colorate da `settings.call_outcomes`), campi min/sec numerici, textarea nota, salva PATCH.
+5. **`/app/frontend/app/contact/[id].tsx`**: onPress "Chiama" ora apre `CallTimerOverlay` in parallelo al `tel:` (`logComm` restituisce `log_id`); `onCallStarted` della tab Comunicazioni idem.
+6. **`/app/frontend/app/contact/new.tsx`** (usato anche da `/contact/edit/{id}`):
+   - Nuovo stato `customer_types: Record<string, "business"|"private">`; salvato nel payload PUT.
+   - **Collapse-after-selection**: `expandAreas` / `expandGroups` gestiscono la visibilità dell'elenco completo. Quando ci sono selezioni:
+     - **Vista collapsed** (default): mostra solo le pill selezionate + bottone "Cambia" (dashed).
+     - **Vista expanded** (dopo tap "Cambia"): elenco completo + "Fine" per collassare.
+   - **Tipo cliente per area**: per ogni area assegnata, riga con dot colorato + nome + segmented toggle **Privato / Business** salvato in `customer_types[areaId]`.
+
+### 🧪 Test manuali eseguiti
+- ✅ Configurati 3 script (Freddo/Caldo/Prospect) via PUT /settings/call_scripts.
+- ✅ Screenshot Script Overlay: 3 chip visibili, chip attiva arancio, contenuto placeholder sostituiti (`TEST_V38Z`, `Test`), phone tap-to-dial.
+- ✅ Screenshot Timer: mostra 00:02 con anello pulsante verde, "Termina e registra" e "Chiudi senza salvare".
+- ✅ Screenshot Comunicazioni: log con durata 2s salvato correttamente dal timer + icona edit.
+- ✅ Screenshot Modale modifica: 6 esiti disponibili, min/sec editabili, nota textarea, Salva modifiche.
+- ✅ Screenshot Modifica contatto: aree collassate mostrano solo "Consulente Energetico ★" + Cambia + Business/Privato toggle; dopo Cambia si espande con Networker + Fine.
+- ✅ Screenshot Multi-script Master: 3 tab + Nuovo + Elimina + Salva.
+- ✅ Testing agent NON usato (vincolo utente).
+
+
+
 ## v2.32 Chiama diretto + Script manuale + Banner pause/play (Giugno 2026)
 ### 🎯 Richiesta utente
 "Script solo in scheda cliente e nelle ritelefonate anche senza anagrafica. Chiama = telefonata diretta senza modali. Log automatico chiamata. Banner My Thing: testo scrollabile, tap = pausa/play, non aprire modifica."

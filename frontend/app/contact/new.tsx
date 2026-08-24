@@ -96,11 +96,17 @@ function NewContactScreen() {
     tags: [] as string[],
     tag_input: "",
     group_ids: [] as string[],
+    // V28.f — Customer type per area: {"energy": "business", "network": "private"}
+    customer_types: {} as Record<string, "business" | "private">,
     photos: [] as string[],
     avatar_base64: "",
   });
   const [busy, setBusy] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  // V28.f — Collapse-after-selection UX: sezione "Aree" e "Gruppi" mostrano
+  // solo la scelta fatta; l'utente tocca "Cambia" per riespandere l'elenco.
+  const [expandAreas, setExpandAreas] = useState(false);
+  const [expandGroups, setExpandGroups] = useState(false);
   const [postCreateModal, setPostCreateModal] = useState<{ contact_id: string; name: string } | null>(null);
   // V38H — user's sender emails (main + additional) for the birthday email picker
   const [userEmails, setUserEmails] = useState<string[]>([]);
@@ -171,6 +177,7 @@ function NewContactScreen() {
           general_note: c.general_note || "",
           tags: c.tags || [],
           group_ids: c.group_ids || [],
+          customer_types: (c.customer_types || {}) as Record<string, "business" | "private">,
           anniversaries: c.anniversaries || [],
         }));
       } catch (e) { console.warn(e); }
@@ -1031,74 +1038,170 @@ function NewContactScreen() {
           </Section>
 
           <Section title="Aree di appartenenza *">
-            <Text style={styles.hintTxt}>Puoi selezionare più aree contemporaneamente. La prima selezionata è quella principale (colora la scheda).</Text>
-            <View style={styles.pillsRow}>
-              {allAreas.map((a) => {
-                const on = isAreaSelected(a.id);
-                const primary = form.area === a.id;
-                return (
-                  <Pressable
-                    key={a.id}
-                    testID={`c-area-${a.id}`}
-                    onPress={() => toggleArea(a.id)}
-                    style={[styles.pill, { flexDirection: "row", alignItems: "center" }, on && { backgroundColor: a.color, borderColor: a.color }]}
-                  >
-                    {on && <Ionicons name="checkmark" size={14} color="#FFF" style={{ marginRight: 4 }} />}
-                    <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{a.name}{primary ? " ★" : ""}</Text>
-                  </Pressable>
-                );
-              })}
-              <Pressable testID="c-area-new" onPress={() => setNewAreaModal(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}>
-                <Ionicons name="add" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
-                <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Nuova area</Text>
-              </Pressable>
-            </View>
-            {(form.area || form.additional_areas.length > 0) && (
-              <View style={{ marginTop: 10 }}>
-                <Text style={styles.hintTxt}>
-                  {[form.area && allAreas.find((a) => a.id === form.area)?.name, ...form.additional_areas.map((id) => allAreas.find((a) => a.id === id)?.name)].filter(Boolean).join(" · ")}
-                </Text>
-              </View>
-            )}
+            {(() => {
+              const selectedAreaIds = [form.area, ...form.additional_areas].filter(Boolean) as string[];
+              const hasSelection = selectedAreaIds.length > 0;
+              const showPicker = !hasSelection || expandAreas;
+              return (
+                <>
+                  {!showPicker ? (
+                    <>
+                      <Text style={styles.hintTxt}>Aree assegnate ({selectedAreaIds.length}):</Text>
+                      <View style={styles.pillsRow}>
+                        {selectedAreaIds.map((id) => {
+                          const a = allAreas.find((x) => x.id === id);
+                          if (!a) return null;
+                          const isPrimary = id === form.area;
+                          return (
+                            <View key={id} style={[styles.pill, { flexDirection: "row", alignItems: "center", backgroundColor: a.color, borderColor: a.color }]}>
+                              <Ionicons name="checkmark" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                              <Text style={[styles.pillTxt, styles.pillTxtActive]}>{a.name}{isPrimary ? " ★" : ""}</Text>
+                            </View>
+                          );
+                        })}
+                        <Pressable testID="c-area-change" onPress={() => setExpandAreas(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}>
+                          <Ionicons name="create-outline" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
+                          <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Cambia</Text>
+                        </Pressable>
+                      </View>
+
+                      {/* V28.f — Business / Privato per each assigned area */}
+                      <Text style={[styles.hintTxt, { marginTop: 14 }]}>Tipo cliente per area:</Text>
+                      {selectedAreaIds.map((id) => {
+                        const a = allAreas.find((x) => x.id === id);
+                        if (!a) return null;
+                        const currentType = form.customer_types?.[id] || "private";
+                        return (
+                          <View key={`ct-${id}`} style={styles.customerTypeRow}>
+                            <View style={[styles.customerTypeDot, { backgroundColor: a.color }]} />
+                            <Text style={styles.customerTypeArea}>{a.name}</Text>
+                            <View style={styles.customerTypeSeg}>
+                              {(["private", "business"] as const).map((v) => {
+                                const on = currentType === v;
+                                return (
+                                  <Pressable
+                                    key={v}
+                                    testID={`c-type-${id}-${v}`}
+                                    onPress={() => setForm({ ...form, customer_types: { ...form.customer_types, [id]: v } })}
+                                    style={[styles.customerTypeBtn, on && styles.customerTypeBtnOn]}
+                                  >
+                                    <Ionicons name={v === "business" ? "business" : "person"} size={12} color={on ? "#FFF" : theme.color.brandPrimary} />
+                                    <Text style={[styles.customerTypeBtnTxt, on && { color: "#FFF" }]}>{v === "business" ? "Business" : "Privato"}</Text>
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.hintTxt}>Puoi selezionare più aree contemporaneamente. La prima selezionata è quella principale (colora la scheda).</Text>
+                      <View style={styles.pillsRow}>
+                        {allAreas.map((a) => {
+                          const on = isAreaSelected(a.id);
+                          const primary = form.area === a.id;
+                          return (
+                            <Pressable
+                              key={a.id}
+                              testID={`c-area-${a.id}`}
+                              onPress={() => toggleArea(a.id)}
+                              style={[styles.pill, { flexDirection: "row", alignItems: "center" }, on && { backgroundColor: a.color, borderColor: a.color }]}
+                            >
+                              {on && <Ionicons name="checkmark" size={14} color="#FFF" style={{ marginRight: 4 }} />}
+                              <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{a.name}{primary ? " ★" : ""}</Text>
+                            </Pressable>
+                          );
+                        })}
+                        <Pressable testID="c-area-new" onPress={() => setNewAreaModal(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}>
+                          <Ionicons name="add" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
+                          <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Nuova area</Text>
+                        </Pressable>
+                        {hasSelection ? (
+                          <Pressable testID="c-area-done" onPress={() => setExpandAreas(false)} style={[styles.pill, { flexDirection: "row", alignItems: "center", backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}>
+                            <Ionicons name="checkmark" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                            <Text style={[styles.pillTxt, styles.pillTxtActive]}>Fine</Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </Section>
 
           <Section title="Gruppi">
-            <Text style={styles.hintTxt}>Assegna il contatto ai gruppi (per invii bulk email/WhatsApp/Telegram). Tocca a lungo un gruppo per rinominarlo o eliminarlo.</Text>
-            <View style={styles.pillsRow}>
-              {availableGroups.map((g) => {
-                const on = form.group_ids.includes(g.group_id);
-                return (
-                  <Pressable
-                    key={g.group_id}
-                    testID={`c-group-${g.group_id}`}
-                    onPress={() => setForm({
-                      ...form,
-                      group_ids: on ? form.group_ids.filter((x) => x !== g.group_id) : [...form.group_ids, g.group_id],
+            {(() => {
+              const showPicker = form.group_ids.length === 0 || expandGroups;
+              return showPicker ? (
+                <>
+                  <Text style={styles.hintTxt}>Assegna il contatto ai gruppi (per invii bulk email/WhatsApp/Telegram). Tocca a lungo un gruppo per rinominarlo o eliminarlo.</Text>
+                  <View style={styles.pillsRow}>
+                    {availableGroups.map((g) => {
+                      const on = form.group_ids.includes(g.group_id);
+                      return (
+                        <Pressable
+                          key={g.group_id}
+                          testID={`c-group-${g.group_id}`}
+                          onPress={() => setForm({
+                            ...form,
+                            group_ids: on ? form.group_ids.filter((x) => x !== g.group_id) : [...form.group_ids, g.group_id],
+                          })}
+                          onLongPress={() => {
+                            notify(g.name, "Cosa vuoi fare?", [
+                              { text: "Annulla", style: "cancel" },
+                              { text: "Rinomina / colore", onPress: () => openEditGroup(g) },
+                              { text: "Elimina", style: "destructive", onPress: () => deleteGroupInline(g) },
+                            ]);
+                          }}
+                          style={[styles.pill, { flexDirection: "row", alignItems: "center" }, on && { backgroundColor: g.color, borderColor: g.color }]}
+                        >
+                          {on && <Ionicons name="checkmark-circle" size={14} color="#FFF" style={{ marginRight: 4 }} />}
+                          <View style={[styles.dot, { backgroundColor: on ? "#FFF" : g.color }]} />
+                          <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{g.name}</Text>
+                        </Pressable>
+                      );
                     })}
-                    onLongPress={() => {
-                      notify(g.name, "Cosa vuoi fare?", [
-                        { text: "Annulla", style: "cancel" },
-                        { text: "Rinomina / colore", onPress: () => openEditGroup(g) },
-                        { text: "Elimina", style: "destructive", onPress: () => deleteGroupInline(g) },
-                      ]);
-                    }}
-                    style={[styles.pill, { flexDirection: "row", alignItems: "center" }, on && { backgroundColor: g.color, borderColor: g.color }]}
-                  >
-                    {on && <Ionicons name="checkmark-circle" size={14} color="#FFF" style={{ marginRight: 4 }} />}
-                    <View style={[styles.dot, { backgroundColor: on ? "#FFF" : g.color }]} />
-                    <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{g.name}</Text>
-                  </Pressable>
-                );
-              })}
-              <Pressable
-                testID="c-group-new"
-                onPress={openNewGroup}
-                style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}
-              >
-                <Ionicons name="add" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
-                <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Nuovo gruppo</Text>
-              </Pressable>
-            </View>
+                    <Pressable
+                      testID="c-group-new"
+                      onPress={openNewGroup}
+                      style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}
+                    >
+                      <Ionicons name="add" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
+                      <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Nuovo gruppo</Text>
+                    </Pressable>
+                    {form.group_ids.length > 0 ? (
+                      <Pressable testID="c-group-done" onPress={() => setExpandGroups(false)} style={[styles.pill, { flexDirection: "row", alignItems: "center", backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}>
+                        <Ionicons name="checkmark" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                        <Text style={[styles.pillTxt, styles.pillTxtActive]}>Fine</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.hintTxt}>Gruppi assegnati ({form.group_ids.length}):</Text>
+                  <View style={styles.pillsRow}>
+                    {form.group_ids.map((gid) => {
+                      const g = availableGroups.find((x) => x.group_id === gid);
+                      if (!g) return null;
+                      return (
+                        <View key={gid} style={[styles.pill, { flexDirection: "row", alignItems: "center", backgroundColor: g.color, borderColor: g.color }]}>
+                          <View style={[styles.dot, { backgroundColor: "#FFF" }]} />
+                          <Text style={[styles.pillTxt, styles.pillTxtActive]}>{g.name}</Text>
+                        </View>
+                      );
+                    })}
+                    <Pressable testID="c-group-change" onPress={() => setExpandGroups(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}>
+                      <Ionicons name="create-outline" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
+                      <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Cambia</Text>
+                    </Pressable>
+                  </View>
+                </>
+              );
+            })()}
             {form.group_ids.length > 0 && (
               <View style={styles.selectedBox}>
                 <Ionicons name="checkmark-circle" size={16} color={theme.color.success} />
@@ -2159,6 +2262,34 @@ const styles = StyleSheet.create({
   hintTxt: { color: theme.color.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
   annRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
   selectedBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F0FDF4", borderRadius: theme.radius.md, padding: 10, marginTop: 10, borderWidth: 1, borderColor: theme.color.success },
+  // V28.f — customer type per area
+  customerTypeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  customerTypeDot: { width: 10, height: 10, borderRadius: 5 },
+  customerTypeArea: { flex: 1, fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
+  customerTypeSeg: {
+    flexDirection: "row",
+    backgroundColor: "#FFF",
+    borderRadius: theme.radius.pill,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    overflow: "hidden",
+  },
+  customerTypeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  customerTypeBtnOn: { backgroundColor: theme.color.brandPrimary },
+  customerTypeBtnTxt: { fontSize: 12, fontWeight: "800", color: theme.color.brandPrimary },
   selectedTxt: { flex: 1, color: theme.color.success, fontSize: 12, fontWeight: "600" },
   modalBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
   modalCard: { width: "100%", maxWidth: 420, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 18 },

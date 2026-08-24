@@ -379,6 +379,10 @@ class SettingsModel(BaseModel):
     # V27 — Referral / Call script templates (configured by Master, used by all agents)
     wa_referral_template: str = ""  # WhatsApp message for "Chiedi Referenze" (customer → their contacts). Supports {name} placeholder.
     call_script: str = ""  # Floating script overlay for agents during phone calls
+    # V28.f — Multiple named scripts (freddo/caldo/prospect). Legacy `call_script`
+    # remains supported (rendered as the "Default" entry when no items exist).
+    # Each entry: {"id": str, "name": str, "content": str}
+    call_scripts: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 DEFAULT_CALL_OUTCOMES = [
@@ -490,6 +494,8 @@ class ContactIn(BaseModel):
     group_ids: List[str] = Field(default_factory=list)
     # V27 — Contact status classification (Master can change any time from the detail screen)
     status: Literal["prospect", "collaborator", "client"] = "prospect"
+    # V28.f — Customer type per assigned area: {"energy": "business"|"private", ...}
+    customer_types: Dict[str, str] = Field(default_factory=dict)
 
 
 class ContactUpdate(BaseModel):
@@ -540,6 +546,8 @@ class ContactUpdate(BaseModel):
     avatar_base64: Optional[str] = None
     # V27 — Contact status
     status: Optional[Literal["prospect", "collaborator", "client"]] = None
+    # V28.f — Customer type per area
+    customer_types: Optional[Dict[str, str]] = None
 
 
 class ProfileUpdate(BaseModel):
@@ -2273,6 +2281,33 @@ async def list_call_logs(contact_id: Optional[str] = None, limit: int = 50, user
         q["contact_id"] = contact_id
     items = await db.call_logs.find(q, {"_id": 0}).sort("created_at", -1).to_list(limit)
     return {"items": items}
+
+
+# V28.f — Edit outcome / duration / note of a persisted call log
+class CallLogPatch(BaseModel):
+    outcome_id: Optional[str] = None
+    duration_sec: Optional[int] = None
+    note: Optional[str] = None
+
+
+@api_router.patch("/calls/log/{log_id}")
+async def patch_call_log(log_id: str, body: CallLogPatch, user=Depends(get_current_user)):
+    existing = await db.call_logs.find_one(scope_query(user, {"log_id": log_id}))
+    if not existing:
+        raise HTTPException(status_code=404, detail="Log non trovato")
+    upd: Dict[str, Any] = {}
+    if body.outcome_id is not None:
+        upd["outcome_id"] = body.outcome_id
+    if body.duration_sec is not None:
+        upd["duration_sec"] = max(0, int(body.duration_sec))
+    if body.note is not None:
+        upd["note"] = body.note
+    if not upd:
+        raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
+    upd["updated_at"] = utcnow()
+    await db.call_logs.update_one({"log_id": log_id}, {"$set": upd})
+    doc = await db.call_logs.find_one({"log_id": log_id}, {"_id": 0})
+    return {"log": doc}
 
 
 # =========================

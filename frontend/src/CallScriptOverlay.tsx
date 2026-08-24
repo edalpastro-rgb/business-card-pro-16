@@ -1,8 +1,8 @@
 /**
- * V27 — CallScriptOverlay: opens when the agent taps "Chiama" / "Contatta cliente"
- * on the contact card. Shows the phone number prominently + the Master-configured
- * script (with {name}/{agent} placeholders substituted). The agent reads the
- * script while manually dialing (or taps the big number to open the dialer).
+ * V27 — CallScriptOverlay: opens when the agent taps "Script" on a contact card
+ * or ritelefonata. Shows the phone number prominently + the Master-configured
+ * script (with {name}/{agent} placeholders substituted). V28.f: supports MULTIPLE
+ * named scripts (freddo/caldo/prospect) — user picks one via chip selector.
  */
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Modal, Pressable, ScrollView, Linking, Platform } from "react-native";
@@ -19,21 +19,33 @@ type Props = {
   contactPhone?: string;
 };
 
+type NamedScript = { id: string; name: string; content: string };
+
 export function CallScriptOverlay({ visible, onClose, contactName, contactPhone }: Props) {
   const { user } = useAuth();
-  const [script, setScript] = useState("");
+  const [scripts, setScripts] = useState<NamedScript[]>([]);
+  const [activeId, setActiveId] = useState<string>("");
   const [fontSize, setFontSize] = useState(16);
 
   const load = useCallback(async () => {
     try {
-      const s = await api<{ call_script?: string }>("/settings");
-      setScript(s.call_script || "");
-    } catch { setScript(""); }
-  }, []);
+      const s = await api<{ call_script?: string; call_scripts?: NamedScript[] }>("/settings");
+      const list = Array.isArray(s.call_scripts) ? s.call_scripts.filter((x) => x && x.content) : [];
+      // Legacy fallback: expose the single `call_script` as "Standard" if no list configured
+      if (list.length === 0 && s.call_script) {
+        list.push({ id: "_default", name: "Standard", content: s.call_script });
+      }
+      setScripts(list);
+      if (list.length > 0 && !list.some((x) => x.id === activeId)) {
+        setActiveId(list[0].id);
+      }
+    } catch { setScripts([]); }
+  }, [activeId]);
 
   useEffect(() => { if (visible) load(); }, [visible, load]);
 
-  const rendered = (script || "")
+  const current = scripts.find((s) => s.id === activeId) || scripts[0];
+  const rendered = (current?.content || "")
     .replace(/\{agent\}/g, user?.name?.split(" ")[0] || "")
     .replace(/\{name\}/g, (contactName || "").split(" ")[0] || "cliente");
 
@@ -60,6 +72,26 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
             <Pressable onPress={() => setFontSize((s) => Math.min(26, s + 2))} hitSlop={8} style={styles.zoomBtn}><Ionicons name="add" size={18} color={C.navy} /></Pressable>
             <Pressable onPress={onClose} hitSlop={8} testID="call-script-overlay-close"><Ionicons name="close" size={22} color={C.navy} /></Pressable>
           </View>
+
+          {/* V28.f — Multiple named scripts */}
+          {scripts.length > 1 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll} contentContainerStyle={styles.chipsRow}>
+              {scripts.map((s) => {
+                const on = s.id === (current?.id || activeId);
+                return (
+                  <Pressable
+                    key={s.id}
+                    testID={`script-chip-${s.id}`}
+                    onPress={() => setActiveId(s.id)}
+                    style={[styles.chip, on && { backgroundColor: C.primary, borderColor: C.primary }]}
+                  >
+                    <Ionicons name={on ? "checkmark-circle" : "document-outline"} size={13} color={on ? "#FFF" : C.primary} />
+                    <Text style={[styles.chipTxt, on && { color: "#FFF" }]}>{s.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
 
           {/* Phone (tap to dial) */}
           {contactPhone ? (
@@ -108,6 +140,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: "800", color: C.navy, letterSpacing: -0.2 },
   sub: { fontSize: 11, color: C.muted, marginTop: 2, fontWeight: "600" },
   zoomBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: C.primarySoft, alignItems: "center", justifyContent: "center" },
+  chipsScroll: { paddingHorizontal: 14, paddingTop: 10 },
+  chipsRow: { gap: 8, paddingRight: 20 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5, borderColor: C.primary },
+  chipTxt: { fontSize: 12, fontWeight: "800", color: C.primary },
   phoneCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#DCFCE7", padding: 14, marginHorizontal: 14, marginTop: 14, borderRadius: 14 },
   phoneIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.success, alignItems: "center", justifyContent: "center" },
   phoneLbl: { fontSize: 11, fontWeight: "700", color: "#166534", textTransform: "uppercase", letterSpacing: 0.5 },

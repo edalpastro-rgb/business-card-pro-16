@@ -25,6 +25,7 @@ import { ContactAppointmentsSection } from "@/src/ContactAppointmentsSection";
 import { ContactReferralsSection } from "@/src/ContactReferralsSection";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { CallScriptOverlay } from "@/src/CallScriptOverlay";
+import { CallTimerOverlay } from "@/src/CallTimerOverlay";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { DocumentScannerModal } from "@/src/DocumentScannerModal";
@@ -84,6 +85,9 @@ function ContactDetail() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
   const [callScriptOpen, setCallScriptOpen] = useState(false);
+  // V28.f — Call timer overlay state (shown when user taps Chiama)
+  const [timerLogId, setTimerLogId] = useState<string | null>(null);
+  const [timerOpen, setTimerOpen] = useState(false);
   const [callsRefreshTick, setCallsRefreshTick] = useState(0);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [viewerFile, setViewerFile] = useState<CFile | null>(null);
@@ -140,8 +144,10 @@ function ContactDetail() {
   // V28.c — Auto-log a communication event (phone/sms/whatsapp/email/telegram)
   // Fires the POST /calls/log with the appropriate channel so the "Comunicazioni"
   // timeline stays in sync. Fire-and-forget — never blocks the user's action.
+  // V28.f — For phone calls, also captures the log_id so the timer can later
+  // PATCH its duration_sec on close.
   const logComm = (channel: "phone" | "sms" | "whatsapp" | "email" | "telegram", phone?: string) => {
-    api("/calls/log", {
+    return api<{ log: { log_id: string } }>("/calls/log", {
       method: "POST",
       body: {
         contact_id: id,
@@ -152,10 +158,11 @@ function ContactDetail() {
         duration_sec: 0,
       },
     })
-      .then(() => setCallsRefreshTick((t) => t + 1))
-      .catch(() => {
-        /* silent — communication tracking must never break user flow */
-      });
+      .then((res) => {
+        setCallsRefreshTick((t) => t + 1);
+        return res?.log?.log_id || null;
+      })
+      .catch(() => null);
   };
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -598,10 +605,16 @@ function ContactDetail() {
                 {c.phone ? (
                   <Pressable
                     testID="comm-call"
-                    onPress={() => {
-                      logComm("phone", c.phone);
-                      const num = c.phone.replace(/\s/g, "");
+                    onPress={async () => {
+                      const num = (c.phone || "").replace(/\s/g, "");
+                      // Fire the log and open the timer BEFORE launching the dialer,
+                      // so the timer starts while the OS dial screen appears.
+                      const logIdPromise = logComm("phone", c.phone);
+                      setTimerLogId(null);
+                      setTimerOpen(true);
                       Linking.openURL(`tel:${num}`).catch(() => {});
+                      const logId = await logIdPromise;
+                      setTimerLogId(logId);
                     }}
                     style={[styles.commBtn, { backgroundColor: "#0F766E" }]}
                   >
@@ -1070,6 +1083,14 @@ function ContactDetail() {
         onClose={() => setCallScriptOpen(false)}
         contactName={`${c?.first_name || ""} ${c?.last_name || ""}`.trim()}
         contactPhone={c?.phone}
+      />
+      {/* V28.f — Call timer overlay */}
+      <CallTimerOverlay
+        visible={timerOpen}
+        logId={timerLogId}
+        contactName={`${c?.first_name || ""} ${c?.last_name || ""}`.trim()}
+        contactPhone={c?.phone}
+        onClose={() => { setTimerOpen(false); setTimerLogId(null); setCallsRefreshTick((t) => t + 1); }}
       />
     </SafeAreaView>
   );
