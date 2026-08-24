@@ -30,6 +30,8 @@ export type BusinessCard = {
   // V27 — Redesign fields
   card_theme?: CardTheme;
   show_photo?: boolean;
+  // V28.i — URL personalizzato: advisoros.it/bv/<slug>
+  slug?: string;
 };
 
 /** Minimum fields needed to build a vCard string. */

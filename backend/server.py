@@ -5381,6 +5381,9 @@ class BusinessCardIn(BaseModel):
     # V27 — Theme selection (orange/navy redesign)
     card_theme: Optional[str] = None  # "sunset" | "midnight" | "ivory" | "mono" | "gold" (default "sunset")
     show_photo: Optional[bool] = None  # V27 — whether to show the agent photo on the public link
+    # V28.i — Custom URL slug (e.g. "emanuele" -> /api/bc/emanuele redirects to the public card)
+    # Case-insensitive, unique globally, letters/digits/hyphens only, 2..40 chars.
+    slug: Optional[str] = None
 
 
 @api_router.get("/master/business-card")
@@ -5431,6 +5434,26 @@ async def update_business_card(body: BusinessCardIn, user=Depends(get_current_us
     if body.card_theme and body.card_theme not in {"sunset", "midnight", "ivory", "mono", "gold"}:
         raise HTTPException(status_code=400, detail="card_theme non valido")
     tid = tenant_id(user)
+    # V28.i — Slug validation + uniqueness (case-insensitive, globally unique so
+    # advisoros.it/<slug> always resolves to the correct owner).
+    if body.slug is not None:
+        s = (body.slug or "").strip().lower()
+        if s == "":
+            patch["slug"] = None
+        else:
+            import re as _re
+            if not _re.fullmatch(r"[a-z0-9][a-z0-9-]{0,38}[a-z0-9]", s):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Slug non valido: usa 2-40 caratteri minuscoli (a-z), cifre e trattini. Deve iniziare e finire con lettera/cifra.",
+                )
+            RESERVED = {"api", "admin", "app", "bc", "bv", "public", "auth", "login", "logout", "www", "static", "assets"}
+            if s in RESERVED:
+                raise HTTPException(status_code=400, detail=f"Slug riservato: '{s}' non è disponibile.")
+            clash = await db.business_cards.find_one({"slug": s, "user_id": {"$ne": tid}}, {"_id": 1})
+            if clash:
+                raise HTTPException(status_code=409, detail=f"Slug '{s}' già usato da un altro utente. Scegline un altro.")
+            patch["slug"] = s
     existing = await db.business_cards.find_one({"user_id": tid})
     if not existing:
         patch["user_id"] = tid
@@ -5826,6 +5849,35 @@ async def _record_business_card_view(card_id: str, user_id: str, ip: str, user_a
         await db.business_card_views.insert_one(doc)
     except Exception as exc:  # pragma: no cover — analytics must never break the page
         logging.getLogger(__name__).warning("business_card_view record failed: %s", exc)
+
+
+# V28.i — Public slug resolver: advisoros.it/bv/<slug> (or /bc/<slug>) → biglietto pubblico
+# Redirect 302 verso l'URL canonico HTML del biglietto. Se lo slug non esiste, ritorna 404 HTML.
+@api_router.get("/bc/{slug}", response_class=HTMLResponse)
+@api_router.get("/bv/{slug}", response_class=HTMLResponse)
+async def resolve_business_card_slug(slug: str, request: Request):
+    s = (slug or "").strip().lower()
+    if not s:
+        return HTMLResponse(
+            content=(
+                "<html><body style='font-family:sans-serif;padding:40px;text-align:center;color:#DC2626'>"
+                "<h1>Slug mancante</h1></body></html>"
+            ),
+            status_code=400,
+        )
+    d = await db.business_cards.find_one({"slug": s}, {"_id": 0, "card_id": 1})
+    if not d or not d.get("card_id"):
+        return HTMLResponse(
+            content=(
+                "<html><body style='font-family:sans-serif;padding:40px;text-align:center;color:#DC2626'>"
+                f"<h1>Biglietto non trovato</h1><p>Lo slug &quot;{s}&quot; non &egrave; associato ad alcun biglietto.</p></body></html>"
+            ),
+            status_code=404,
+        )
+    # 302 redirect verso l'endpoint canonico (che gestisce anche l'analytics view)
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=f"/api/master/business-card/public/{d['card_id']}", status_code=302)
+
 
 
 @api_router.get("/master/business-card/public/{card_id}", response_class=HTMLResponse)

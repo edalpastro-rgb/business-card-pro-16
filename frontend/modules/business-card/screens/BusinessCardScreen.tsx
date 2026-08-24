@@ -435,6 +435,39 @@ export function BusinessCardScreen(): React.ReactElement {
         <Field label="Testo link (titolo della pagina)" testID="bc-link-title" value={card.link_title || ""} onChange={upd("link_title")} />
         <Text style={styles.helperTxt}>Es. &quot;Biglietto da visita digitale Emanuele Dal Pastro&quot;. Se vuoto, viene usato il tuo nome.</Text>
 
+        {/* V28.i — Custom slug for advisoros.it/bv/<slug> */}
+        <View style={{ marginTop: 12 }}>
+          <Text style={styles.label}>URL personalizzato (opzionale)</Text>
+          <View style={styles.slugRow}>
+            <View style={styles.slugPrefix}>
+              <Text style={styles.slugPrefixTxt}>advisoros.it/bv/</Text>
+            </View>
+            <TextInput
+              testID="bc-slug"
+              value={card.slug || ""}
+              onChangeText={(v: string) => upd("slug")(v.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40))}
+              placeholder="emanuele"
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.slugInput}
+            />
+          </View>
+          {card.slug ? (
+            <View style={styles.slugPreview}>
+              <Ionicons name="link" size={13} color="#0F766E" />
+              <Text style={styles.slugPreviewTxt} numberOfLines={1}>
+                advisoros.it/bv/{card.slug}
+              </Text>
+              <Text style={styles.slugPreviewAlt}>· anche advisoros.it/{card.slug}</Text>
+            </View>
+          ) : null}
+          <Text style={styles.helperTxt}>
+            Solo lettere minuscole, cifre e trattini (2-40 caratteri). Es. &quot;emanuele&quot; o
+            &quot;emanuele-dal-pastro&quot;. Lascia vuoto per usare solo il link standard.
+          </Text>
+        </View>
+
         {/* V27 — Theme picker (5 presets) */}
         <Text style={styles.section}>Tema pagina pubblica</Text>
         <Text style={styles.helperTxt}>Scegli lo stile grafico: verrà applicato al link condiviso.</Text>
@@ -704,7 +737,46 @@ const styles = StyleSheet.create({
   radioLbl: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
   radioHint: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
   helperTxt: { fontSize: 11, color: theme.color.muted, marginTop: 6, fontStyle: "italic" },
-  // V28.h — Fallback share modal (Web Share API not supported)
+  // V28.i — Custom slug input row
+  slugRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    borderRadius: 8,
+    backgroundColor: "#FFF",
+    overflow: "hidden",
+  },
+  slugPrefix: {
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === "ios" ? 10 : 8,
+    backgroundColor: "#F1F5F9",
+    borderRightWidth: 1,
+    borderRightColor: theme.color.border,
+  },
+  slugPrefixTxt: { fontSize: 13, fontWeight: "700", color: theme.color.muted, letterSpacing: -0.2 },
+  slugInput: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === "ios" ? 10 : 8,
+    fontSize: 14,
+    color: theme.color.onSurface,
+    fontWeight: "700",
+  },
+  slugPreview: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  slugPreviewTxt: { flex: 0, fontSize: 12, fontWeight: "800", color: "#0F766E" },
+  slugPreviewAlt: { flex: 1, fontSize: 11, color: "#0F766E", opacity: 0.75, marginLeft: 4 },
   shareBackdrop: {
     flex: 1,
     backgroundColor: "rgba(15,23,42,0.55)",
