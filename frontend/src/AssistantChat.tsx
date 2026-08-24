@@ -120,7 +120,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [transcribing, setTranscribing] = useState(false);
   const [recDuration, setRecDuration] = useState(0);
   const [responseMode, setResponseMode] = useState<ResponseMode>("text");
-  const [assistantVoice, setAssistantVoice] = useState<string>("nova");
+  // V28.o — Quick actions personalizzabili (mostrate nell'empty state della chat).
+  // `null` = non ancora caricate; array vuoto = utente ha esplicitamente rimosso tutte le azioni.
+  const [quickActions, setQuickActions] = useState<{ id: string; label: string; prompt: string }[] | null>(null);  const [assistantVoice, setAssistantVoice] = useState<string>("nova");
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
   const [showModeMenu, setShowModeMenu] = useState(false);
   // V38T — Save-to-master modal state (opens with default filename)
@@ -159,7 +161,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     try {
       const [hist, us] = await Promise.all([
         api<{ session_id: string | null; messages: ChatMsg[]; assistant_name: string }>("/assistant/history"),
-        api<{ assistant_name?: string; assistant_response_mode?: string; assistant_voice?: string }>("/user-settings").catch(() => ({} as any)),
+        api<{ assistant_name?: string; assistant_response_mode?: string; assistant_voice?: string; assistant_quick_actions?: { id: string; label: string; prompt: string }[] }>("/user-settings").catch(() => ({} as any)),
       ]);
       setAssistantName(hist?.assistant_name || us?.assistant_name || "Neo");
       setSessionId(hist?.session_id || null);
@@ -167,6 +169,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       const m = (us?.assistant_response_mode || "text") as ResponseMode;
       setResponseMode(MODE_ORDER.includes(m) ? m : "text");
       if (us?.assistant_voice) setAssistantVoice(us.assistant_voice);
+      // V28.o — Se l'utente ha personalizzato le quick actions, usale; altrimenti il backend
+      // ritorna comunque i default. In caso di array vuoto (utente ha rimosso tutto), non
+      // mostriamo nulla — è una scelta valida.
+      if (Array.isArray(us?.assistant_quick_actions)) {
+        setQuickActions(us.assistant_quick_actions);
+      }
     } catch {
       // ignore
     } finally {
@@ -762,12 +770,18 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     }
   };
 
-  const suggestions = [
-    "Qual è il mio prossimo appuntamento?",
-    "Quante telefonate ho fatto oggi?",
-    "Clienti senza appuntamento",
-    "Ritelefonate urgenti",
-  ];
+  // V28.o — Quick actions now come from user settings (customizable by Master).
+  // - `quickActions === null`: caricamento ancora in corso o fetch fallito → mostra fallback statici.
+  // - `quickActions === []`: l'utente ha esplicitamente rimosso tutti i chip → non mostrare nulla.
+  // - Altrimenti usa la lista personalizzata.
+  const suggestions = quickActions !== null
+    ? quickActions
+    : [
+        { id: "fb1", label: "Prossimo appuntamento", prompt: "Qual è il mio prossimo appuntamento?" },
+        { id: "fb2", label: "Telefonate di oggi", prompt: "Quante telefonate ho fatto oggi?" },
+        { id: "fb3", label: "Clienti senza appuntamento", prompt: "Mostrami i clienti senza appuntamento futuro" },
+        { id: "fb4", label: "Ritelefonate urgenti", prompt: "Quali sono le ritelefonate urgenti da fare oggi?" },
+      ];
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -856,13 +870,14 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   <View style={styles.suggestWrap}>
                     {suggestions.map((s) => (
                       <Pressable
-                        key={s}
+                        key={s.id}
+                        testID={`qa-chip-${s.id}`}
                         style={styles.suggestChip}
-                        onPress={() => send(s)}
+                        onPress={() => send(s.prompt)}
                         disabled={sending}
                       >
                         <Ionicons name="sparkles" size={14} color={ASSISTANT_COLOR_DARK} />
-                        <Text style={styles.suggestTxt}>{s}</Text>
+                        <Text style={styles.suggestTxt}>{s.label}</Text>
                       </Pressable>
                     ))}
                   </View>

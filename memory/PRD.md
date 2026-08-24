@@ -1,5 +1,43 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.o Azioni rapide personalizzabili chat Axon (Giugno 2026)
+### 🎯 Richiesta utente
+"Il Master deve poter personalizzare i pulsanti di azione rapida che appaiono nella schermata iniziale della chat Axon. Aggiungi una sezione 'Azioni rapide' nelle impostazioni Master dove aggiungere, modificare ed eliminare questi pulsanti. Ogni pulsante ha un testo e un comando predefinito da inviare ad Axon al tap."
+
+### ✅ Backend (`server.py`)
+- **`QuickActionIn`** (nuovo modello): `{id?: str, label: str, prompt: str}`.
+- **`UserSettingsIn`** esteso con `assistant_quick_actions: Optional[List[QuickActionIn]]`.
+- **`DEFAULT_QUICK_ACTIONS`** costante con 4 preset di default (Prossimo appuntamento, Telefonate di oggi, Clienti senza appuntamento, Ritelefonate urgenti).
+- **`_normalize_quick_actions()`**: helper che scarta voci vuote, trima label (max 80 char) e prompt (max 2000 char), assegna un `id` univoco (`qa_<uuid10>`) se mancante.
+- **`GET /api/user-settings`**: se il documento non ha `assistant_quick_actions` (utente mai configurato) ritorna i default. Altrimenti normalizza e ritorna la lista utente (array vuoto = scelta esplicita del Master).
+- **`PUT /api/user-settings`**: normalizza le quick actions in ingresso e persiste. Il PUT sostituisce interamente la lista (replace semantics).
+
+### ✅ Frontend `/app/frontend/app/quick-actions.tsx` (NUOVO)
+- Nuova schermata Master-only con:
+  - Bottone "Aggiungi azione rapida" (viola, in cima).
+  - Card per ogni azione con: icona sparkles, label, comando in italic sotto, controlli chevron-up/chevron-down (riordino), pencil (edit), trash (delete).
+  - Empty state con bottone "Ripristina i default" (crea 4 azioni base).
+  - Sezione "Preset consigliati": 8 chip cliccabili (Prossimo appuntamento, Telefonate di oggi, Clienti senza appuntamento, Ritelefonate urgenti, Contratti recenti, Compleanni del mese, Analisi bolletta luce, Report settimanale) che si aggiungono con tap. Dedupe automatica su (label, prompt) uguali.
+  - Modal editor: TextInput label (max 80) + TextInput prompt multiline (max 2000) con helper text. Validazione: campi obbligatori.
+- Non-Master vede lock screen "Sezione riservata al Master".
+
+### ✅ Frontend `/app/frontend/src/AssistantChat.tsx`
+- Rimosso array hardcoded `suggestions`. Ora fetch da `/user-settings.assistant_quick_actions`.
+- State `quickActions: null | QuickAction[]`:
+  - `null` = caricamento in corso o fetch fallito → usa **fallback statici hardcoded** (default identici a backend).
+  - `[]` = Master ha esplicitamente rimosso tutte le azioni → **nessun chip mostrato**.
+  - array pieno = mostra i chip personalizzati.
+- Chip empty-state ora sono `{id, label, prompt}`: mostra `label`, invia `prompt` ad Axon on-tap.
+
+### ✅ Frontend `/app/frontend/app/master.tsx`
+- Aggiunto pulsante "Azioni rapide" (icona `flash`, viola #8B5CF6) dopo "Insegna ad Axon" nella griglia Master.
+
+### 🧪 Test eseguiti
+- ✅ curl GET/PUT `/api/user-settings` con `assistant_quick_actions` — normalizzazione, dedupe, empty-string filter, id auto-assegnati funzionano.
+- ✅ Screenshot Playwright: schermata Master `/quick-actions` empty state + con 5 azioni + preset grid.
+- ✅ Screenshot: chat Axon empty state mostra i 5 chip personalizzati (4 default + custom "Bollette da analizzare"), tap invia il prompt corretto.
+
+
 ## v2.n Multi-categoria "Insegna ad Axon" (Giugno 2026)
 ### 🎯 Richiesta utente
 "Regole 'Insegna ad Axon': la selezione categoria deve essere multipla. L'utente deve poter selezionare più chip contemporaneamente."

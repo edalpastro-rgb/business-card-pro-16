@@ -6513,6 +6513,12 @@ class AudioRecordIn(BaseModel):
     title: Optional[str] = None
 
 
+class QuickActionIn(BaseModel):
+    id: Optional[str] = None
+    label: str
+    prompt: str
+
+
 class UserSettingsIn(BaseModel):
     theme: Optional[str] = None  # "light" | "dark" | "auto"
     accent_color: Optional[str] = None  # hex e.g. "#7C3AED"
@@ -6520,6 +6526,9 @@ class UserSettingsIn(BaseModel):
     assistant_name: Optional[str] = None  # AI assistant custom name (default "Neo")
     assistant_response_mode: Optional[str] = None  # "text" | "voice" | "both" (default "text")
     assistant_voice: Optional[str] = None  # OpenAI TTS voice: alloy | echo | fable | onyx | nova | shimmer
+    # V28.o — Azioni rapide personalizzabili mostrate nell'empty state della chat Axon.
+    # Ogni voce: {id: str, label: str (max ~50 char), prompt: str (comando da inviare)}.
+    assistant_quick_actions: Optional[List[QuickActionIn]] = None
 
 
 class AssistantAttachmentIn(BaseModel):
@@ -6794,7 +6803,33 @@ async def delete_audio_record(audio_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 
-# ---- User Settings (theme / accent / banner) ----
+# ---- User Settings (theme / accent / banner / quick actions) ----
+# V28.o — Default quick actions (used when user has not customized them).
+DEFAULT_QUICK_ACTIONS: List[Dict[str, str]] = [
+    {"id": "qa_default_1", "label": "Prossimo appuntamento", "prompt": "Qual è il mio prossimo appuntamento?"},
+    {"id": "qa_default_2", "label": "Telefonate di oggi", "prompt": "Quante telefonate ho fatto oggi?"},
+    {"id": "qa_default_3", "label": "Clienti senza appuntamento", "prompt": "Mostrami i clienti senza appuntamento futuro"},
+    {"id": "qa_default_4", "label": "Ritelefonate urgenti", "prompt": "Quali sono le ritelefonate urgenti da fare oggi?"},
+]
+
+
+def _normalize_quick_actions(raw: Any) -> List[Dict[str, str]]:
+    """Ensures every quick action has a stable id + trimmed label/prompt."""
+    if not isinstance(raw, list):
+        return []
+    out: List[Dict[str, str]] = []
+    for it in raw:
+        if not isinstance(it, dict):
+            continue
+        label = str(it.get("label") or "").strip()
+        prompt = str(it.get("prompt") or "").strip()
+        if not label or not prompt:
+            continue
+        qid = str(it.get("id") or "").strip() or f"qa_{uuid.uuid4().hex[:10]}"
+        out.append({"id": qid, "label": label[:80], "prompt": prompt[:2000]})
+    return out
+
+
 @api_router.get("/user-settings")
 async def get_user_settings(user=Depends(get_current_user)):
     s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"_id": 0}) or {
@@ -6806,6 +6841,12 @@ async def get_user_settings(user=Depends(get_current_user)):
         s["assistant_response_mode"] = "text"
     if not s.get("assistant_voice"):
         s["assistant_voice"] = "nova"
+    # V28.o — Se l'utente non ha personalizzato le azioni rapide, restituiamo i default
+    # (senza persistere: l'utente può cominciare da zero o dai preset a sua scelta).
+    if not isinstance(s.get("assistant_quick_actions"), list):
+        s["assistant_quick_actions"] = list(DEFAULT_QUICK_ACTIONS)
+    else:
+        s["assistant_quick_actions"] = _normalize_quick_actions(s.get("assistant_quick_actions"))
     return s
 
 
@@ -6814,6 +6855,9 @@ async def update_user_settings(body: UserSettingsIn, user=Depends(get_current_us
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         return {"ok": True}
+    # V28.o — Normalize quick_actions (attach ids, trim, drop empties)
+    if "assistant_quick_actions" in updates:
+        updates["assistant_quick_actions"] = _normalize_quick_actions(updates["assistant_quick_actions"])
     updates["updated_at"] = utcnow()
     now = utcnow()
     await db.user_settings.update_one(
@@ -6822,6 +6866,8 @@ async def update_user_settings(body: UserSettingsIn, user=Depends(get_current_us
         upsert=True,
     )
     s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if isinstance(s.get("assistant_quick_actions"), list):
+        s["assistant_quick_actions"] = _normalize_quick_actions(s.get("assistant_quick_actions"))
     return s
 
 
