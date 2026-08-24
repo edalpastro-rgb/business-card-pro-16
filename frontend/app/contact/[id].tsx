@@ -522,11 +522,14 @@ function ContactDetail() {
           contactName={`${c.first_name} ${c.last_name}`.trim()}
           contactPhone={c.phone}
           refreshTick={callsRefreshTick}
-          onCallStarted={() => setCallTarget({
-            phone: c.phone || null,
-            contact_id: id,
-            display_name: `${c.first_name} ${c.last_name}`.trim(),
-          })}
+          onCallStarted={() => {
+            // V28.e — direct call: log + tel: link, no intermediate modal
+            if (c.phone) {
+              logComm("phone", c.phone);
+              const num = c.phone.replace(/\s/g, "");
+              Linking.openURL(`tel:${num}`).catch(() => {});
+            }
+          }}
         />
       ) : tab === "appts" ? (
         <ContactAppointmentsSection contactId={id} />
@@ -595,10 +598,23 @@ function ContactDetail() {
                 {c.phone ? (
                   <Pressable
                     testID="comm-call"
-                    onPress={() => { logComm("phone", c.phone); setCallScriptOpen(true); }}
+                    onPress={() => {
+                      logComm("phone", c.phone);
+                      const num = c.phone.replace(/\s/g, "");
+                      Linking.openURL(`tel:${num}`).catch(() => {});
+                    }}
                     style={[styles.commBtn, { backgroundColor: "#0F766E" }]}
                   >
                     <Ionicons name="call" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Chiama</Text>
+                  </Pressable>
+                ) : null}
+                {c.phone ? (
+                  <Pressable
+                    testID="comm-script"
+                    onPress={() => setCallScriptOpen(true)}
+                    style={[styles.commBtn, { backgroundColor: "#1B2B4B" }]}
+                  >
+                    <Ionicons name="document-text" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Script</Text>
                   </Pressable>
                 ) : null}
                 {c.phone ? (

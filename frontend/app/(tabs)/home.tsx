@@ -7,6 +7,7 @@ import Svg, { Circle, G } from "react-native-svg";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
+import { CallScriptOverlay } from "@/src/CallScriptOverlay";
 import { HomeEventBanner } from "@/src/HomeEventBanner";
 
 /* ────────────────────────────────────────────────────────────────
@@ -104,7 +105,11 @@ export default function HomeScreen() {
   const [subscription, setSubscription] = useState<{ status: string; days_left?: number | null; is_active: boolean } | null>(null);
   const [myThingSlides, setMyThingSlides] = useState<MyThingBannerSlide[]>([]);
   const [myThingIdx, setMyThingIdx] = useState(0);
+  // V28.e — Tap-to-pause the banner (user request: NON aprire la scheda di modifica)
+  const [bannerPaused, setBannerPaused] = useState(false);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
+  // V28.e — Script overlay for callbacks (opens ONLY on user's manual tap)
+  const [scriptTarget, setScriptTarget] = useState<{ name: string; phone?: string } | null>(null);
   const [apptStats, setApptStats] = useState<ApptStats | null>(null);
   const [contactsCount, setContactsCount] = useState<number>(0);
   const [nowTick, setNowTick] = useState<number>(Date.now());
@@ -188,10 +193,10 @@ export default function HomeScreen() {
     return () => clearInterval(t);
   }, [load]);
 
-  // Auto-cycle My Thing banner (images + messages)
+  // Auto-cycle My Thing banner (images + messages) — respects pause state
   const myThingFade = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    if (myThingSlides.length < 2) return;
+    if (myThingSlides.length < 2 || bannerPaused) return;
     const id = setInterval(() => {
       Animated.timing(myThingFade, { toValue: 0, duration: 350, useNativeDriver: true }).start(() => {
         setMyThingIdx((n) => (n + 1) % myThingSlides.length);
@@ -199,7 +204,7 @@ export default function HomeScreen() {
       });
     }, 10000);
     return () => clearInterval(id);
-  }, [myThingSlides, myThingFade]);
+  }, [myThingSlides, myThingFade, bannerPaused]);
 
   const myThingSlide = myThingSlides.length > 0 ? myThingSlides[myThingIdx] : null;
 
@@ -263,53 +268,88 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ── 2) Banner My Thing (immersive rotating: images + messages) ── */}
-        <Pressable testID="home-my-thing-btn" onPress={() => router.push("/my-thing")} style={styles.myThingBtn}>
+        {/* ── 2) Banner My Thing (images + messages, tap = pause/play, edit via icon) ── */}
+        <View style={styles.myThingBtn} testID="home-my-thing-banner">
           {myThingSlide ? (
-            <Animated.View style={[StyleSheet.absoluteFill, { opacity: myThingFade }]} pointerEvents="none">
-              {myThingSlide.kind === "image" ? (
-                <ImageBackground
-                  source={{ uri: myThingSlide.image }}
-                  resizeMode="cover"
-                  style={StyleSheet.absoluteFill}
-                  imageStyle={Platform.OS === "web" ? ({ objectFit: "cover", width: "100%", height: "100%" } as any) : undefined}
-                />
-              ) : (
-                <View style={[StyleSheet.absoluteFill, styles.myThingMsg, { backgroundColor: myThingSlide.color }]}>
-                  {myThingSlide.title ? (
-                    <Text
-                      style={[
-                        styles.myThingMsgTitle,
-                        { color: myThingSlide.textColor, fontFamily: myThingSlide.fontFamily },
-                      ]}
-                      numberOfLines={1}
+            <Pressable
+              testID="home-my-thing-toggle"
+              onPress={() => setBannerPaused((p) => !p)}
+              style={StyleSheet.absoluteFill}
+              accessibilityLabel={bannerPaused ? "Riprendi rotazione banner" : "Metti in pausa banner"}
+            >
+              <Animated.View style={[StyleSheet.absoluteFill, { opacity: myThingFade }]} pointerEvents="none">
+                {myThingSlide.kind === "image" ? (
+                  <ImageBackground
+                    source={{ uri: myThingSlide.image }}
+                    resizeMode="cover"
+                    style={StyleSheet.absoluteFill}
+                    imageStyle={Platform.OS === "web" ? ({ objectFit: "cover", width: "100%", height: "100%" } as any) : undefined}
+                  />
+                ) : (
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: myThingSlide.color }]}>
+                    <ScrollView
+                      contentContainerStyle={styles.myThingMsg}
+                      showsVerticalScrollIndicator={false}
                     >
-                      {myThingSlide.title}
-                    </Text>
-                  ) : null}
-                  <Text
-                    style={{
-                      color: myThingSlide.textColor,
-                      fontWeight: "700",
-                      textAlign: "center",
-                      fontFamily: myThingSlide.fontFamily,
-                      fontSize: myThingSlide.fontSize,
-                      lineHeight: myThingSlide.fontSize * 1.35,
-                    }}
-                    numberOfLines={myThingSlide.title ? 3 : 4}
-                  >
-                    {myThingSlide.body}
-                  </Text>
-                </View>
-              )}
-            </Animated.View>
+                      {myThingSlide.title ? (
+                        <Text
+                          style={[
+                            styles.myThingMsgTitle,
+                            { color: myThingSlide.textColor, fontFamily: myThingSlide.fontFamily },
+                          ]}
+                        >
+                          {myThingSlide.title}
+                        </Text>
+                      ) : null}
+                      <Text
+                        style={{
+                          color: myThingSlide.textColor,
+                          fontWeight: "700",
+                          textAlign: "center",
+                          fontFamily: myThingSlide.fontFamily,
+                          fontSize: myThingSlide.fontSize,
+                          lineHeight: myThingSlide.fontSize * 1.35,
+                        }}
+                      >
+                        {myThingSlide.body}
+                      </Text>
+                    </ScrollView>
+                  </View>
+                )}
+              </Animated.View>
+            </Pressable>
           ) : (
-            <View style={styles.myThingEmpty}>
+            <Pressable
+              testID="home-my-thing-empty"
+              onPress={() => router.push("/my-thing")}
+              style={styles.myThingEmpty}
+            >
               <Ionicons name="images-outline" size={22} color={C.primary} />
               <Text style={styles.myThingEmptyTxt}>Personalizza il tuo spazio</Text>
-            </View>
+            </Pressable>
           )}
-        </Pressable>
+
+          {/* Pause/play indicator (visible only when paused) */}
+          {myThingSlide && bannerPaused ? (
+            <View style={styles.bannerPausePill} pointerEvents="none">
+              <Ionicons name="pause" size={11} color="#FFF" />
+              <Text style={styles.bannerPausePillTxt}>In pausa</Text>
+            </View>
+          ) : null}
+
+          {/* Edit shortcut — small icon top-right, doesn't interfere with tap-to-pause */}
+          {myThingSlide ? (
+            <Pressable
+              testID="home-my-thing-edit"
+              onPress={() => router.push("/my-thing")}
+              hitSlop={8}
+              style={styles.bannerEditBtn}
+              accessibilityLabel="Modifica My Thing"
+            >
+              <Ionicons name="create-outline" size={16} color="#FFF" />
+            </Pressable>
+          ) : null}
+        </View>
 
         {/* ── 2b) Banner Evento ── */}
         <HomeEventBanner />
@@ -373,6 +413,7 @@ export default function HomeScreen() {
                         }
                       }
                     }}
+                    onScript={() => setScriptTarget({ name: cb.title, phone: cb.phone })}
                     onEdit={() => router.push(`/callback/${cb.callback_id}`)}
                     onToggleDone={async () => {
                       try {
@@ -509,6 +550,14 @@ export default function HomeScreen() {
           }
         }}
       />
+
+      {/* V28.e — Script overlay for callbacks (manual open, no autopopup) */}
+      <CallScriptOverlay
+        visible={!!scriptTarget}
+        onClose={() => setScriptTarget(null)}
+        contactName={scriptTarget?.name}
+        contactPhone={scriptTarget?.phone}
+      />
     </SafeAreaView>
   );
 }
@@ -611,7 +660,7 @@ function DonutChart({ size, strokeWidth, segments, centerLabel, centerSub }: {
 
 /* ═══════════════════════ Callback Row (kept behavior, updated look) ═══════════════════════ */
 
-function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback; color: string; onOpen: () => void; onEdit: () => void; onToggleDone: () => void }) {
+function CallbackRow({ cb, color, onOpen, onScript, onEdit, onToggleDone }: { cb: Callback; color: string; onOpen: () => void; onScript: () => void; onEdit: () => void; onToggleDone: () => void }) {
   const [now, setNow] = useState(Date.now());
   const sweep = useRef(new Animated.Value(0)).current;
 
@@ -674,6 +723,9 @@ function CallbackRow({ cb, color, onOpen, onEdit, onToggleDone }: { cb: Callback
               {cb.note ? "  · " + cb.note : ""}
             </Text>
           </View>
+        </Pressable>
+        <Pressable testID={`callback-script-${cb.callback_id}`} onPress={onScript} hitSlop={8} style={({ pressed }) => [{ paddingHorizontal: 8, justifyContent: "center", opacity: pressed ? 0.55 : 1, zIndex: 1 }]}>
+          <Ionicons name="document-text" size={18} color={C.navy} />
         </Pressable>
         <Pressable testID={`callback-edit-${cb.callback_id}`} onPress={onEdit} hitSlop={8} style={({ pressed }) => [{ paddingHorizontal: 8, justifyContent: "center", opacity: pressed ? 0.55 : 1, zIndex: 1 }]}>
           <Ionicons name="pencil" size={18} color={C.primary} />
@@ -758,13 +810,38 @@ const styles = StyleSheet.create({
   barFill: { height: 8, borderRadius: 4 },
 
   /* My Thing */
-  myThingBtn: { backgroundColor: C.primarySoft, borderRadius: 16, marginTop: 12, marginBottom: 4, overflow: "hidden", position: "relative", height: 120, borderWidth: 1, borderColor: C.border },
+  myThingBtn: { backgroundColor: C.primarySoft, borderRadius: 16, marginTop: 12, marginBottom: 4, overflow: "hidden", position: "relative", height: 160, borderWidth: 1, borderColor: C.border },
   myThingEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
   myThingEmptyTxt: { color: C.primary, fontWeight: "700", fontSize: 13 },
-  // V28.b/d — Message-style slide inside the My Thing banner (centered + customizable)
-  myThingMsg: { padding: 14, justifyContent: "center", alignItems: "center", gap: 6 },
+  // V28.b/d/e — Message-style slide inside the My Thing banner (centered, scrollable, customizable)
+  myThingMsg: { paddingVertical: 16, paddingHorizontal: 20, alignItems: "center", justifyContent: "center", gap: 6, minHeight: 158 },
   myThingMsgTitle: { fontWeight: "800", fontSize: 12, letterSpacing: 0.3, textTransform: "uppercase", opacity: 0.85, textAlign: "center" },
   myThingMsgBody: { fontWeight: "700", fontSize: 15, lineHeight: 21, textAlign: "center" },
+  // V28.e — pause pill + edit shortcut
+  bannerPausePill: {
+    position: "absolute",
+    bottom: 8,
+    left: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "rgba(15,23,42,0.62)",
+  },
+  bannerPausePillTxt: { color: "#FFF", fontSize: 10, fontWeight: "800", letterSpacing: 0.2 },
+  bannerEditBtn: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(15,23,42,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   /* Section */
   section: { marginTop: 22 },

@@ -1,5 +1,36 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.32 Chiama diretto + Script manuale + Banner pause/play (Giugno 2026)
+### 🎯 Richiesta utente
+"Script solo in scheda cliente e nelle ritelefonate anche senza anagrafica. Chiama = telefonata diretta senza modali. Log automatico chiamata. Banner My Thing: testo scrollabile, tap = pausa/play, non aprire modifica."
+
+### ✅ Frontend `/app/frontend/app/contact/[id].tsx`
+- **Chiama** (`comm-call`): rimosso `setCallScriptOpen(true)`. Ora al tap logga con `logComm("phone", c.phone)` e apre direttamente `tel:<numero>` via `Linking.openURL`. Zero modali intermedi.
+- **Script** (`comm-script`): nuovo pulsante navy accanto a Chiama (visibile solo se `c.phone`). Apre `CallScriptOverlay` manualmente al tap dell'utente. Icona `document-text`.
+- **Tab Comunicazioni**: il bottone "Chiama" del header della cronologia (`onCallStarted`) ora chiama direttamente `tel:` invece di aprire `CallActionSheet`.
+
+### ✅ Frontend `/app/frontend/app/(tabs)/home.tsx`
+- **CallbackRow**: aggiunta nuova prop `onScript` e nuova icona **📄 document-text** (navy) accanto a matita e toggle done. Visibile su TUTTE le ritelefonate, anche senza `contact_id` (il "senza anagrafica" richiesto).
+- **`CallScriptOverlay` montato in home** (state `scriptTarget`): apre solo se l'utente tocca l'icona documento sulla riga della callback. Passa `contactName` e `contactPhone` dal callback stesso.
+- **Banner My Thing**:
+  - Altezza aumentata da 120 → **160px**; padding orizzontale 20, verticale 16.
+  - Contenuto messaggio ora dentro `ScrollView` verticale con `showsVerticalScrollIndicator={false}` → il testo lungo scorre invece di essere troncato.
+  - **Tap = toggle pause/play** (state `bannerPaused`): l'`useEffect` che gestisce il ciclo di 10 sec include `bannerPaused` nelle dipendenze e non avvia il timer se in pausa.
+  - **Pill "❚❚ In pausa"** visibile in basso-sinistra quando il banner è in pausa (`pointerEvents="none"` per non intercettare i tap).
+  - **Icona matita** in alto-destra (cerchio semi-trasparente scuro) come shortcut esplicito verso `/my-thing` — il tap sul corpo del banner NON naviga più all'editor come da richiesta.
+  - Empty state ("Personalizza il tuo spazio") mantiene il push a `/my-thing` (nessun contenuto da mettere in pausa).
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot home: banner con messaggio lungo scrollabile (testo di 5 righe visibile), icona matita in alto-destra, tap sul banner mostra pill "In pausa".
+- ✅ Screenshot contact detail: bottoni Chiama (verde teal, tel: diretto) e Script (navy, apre overlay) affiancati e ben distinti.
+- ✅ Screenshot ritelefonata senza contatto: icona Script visibile sulla riga; tap apre overlay con nome/telefono del callback (`3331234567`).
+- ✅ Screenshot Script overlay dal callback: script Master formattato mostrato, phone tap-to-dial funzionante.
+- ✅ POST /calls/log verificato via logging automatico (`outcome_id: auto_started` in call_logs collection).
+- ✅ Testing agent NON usato (vincolo utente).
+- ✅ Cleanup: rimosso 1 messaggio my-thing test, 1 callback test, 3 call_logs auto_started.
+
+
+
 ## v2.31 My Thing banner — Font + Size + Colore personalizzabile (Giugno 2026)
 ### 🎯 Richiesta utente
 "Banner My Thing in home: testo centrato, padding 12-16px. Possibilità di scegliere font (min 3 opzioni) e dimensione testo (piccolo/medio/grande). Sfondo del banner personalizzabile con scelta colore — default bianco."
