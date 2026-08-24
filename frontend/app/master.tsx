@@ -164,6 +164,7 @@ function MasterScreen() {
     { label: "Biglietto da visita", icon: "id-card", color: "#7C3AED", onPress: () => goto("/business-card") },
     { label: "Banner Evento", icon: "megaphone", color: "#F59E0B", onPress: () => goto("/event-banners") },
     { label: "Script Telefonata", icon: "document-text", color: "#0F766E", onPress: () => goto("/call-script-config") },
+    { label: "Insegna ad Axon", icon: "sparkles", color: "#FF6B35", onPress: () => goto("/ai-teach") },
   ];
 
   return (

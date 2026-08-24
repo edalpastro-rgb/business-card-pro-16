@@ -366,8 +366,8 @@ function ImpostazioniScreen() {
           <Pressable testID="ai-teach-link" onPress={() => router.push("/ai-teach" as any)} style={styles.linkCard}>
             <Ionicons name="sparkles" size={26} color="#FF6B35" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>Insegna all&apos;AI</Text>
-              <Text style={styles.linkSub}>Regole prioritarie + URL da monitorare per l&apos;analisi bollette</Text>
+              <Text style={styles.linkTitle}>Insegna ad Axon</Text>
+              <Text style={styles.linkSub}>Regole per categoria + fonti URL con aggiornamento manuale/automatico via Tavily</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
           </Pressable>

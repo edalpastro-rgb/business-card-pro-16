@@ -8420,13 +8420,15 @@ class AiTeachFileIn(BaseModel):
     data_base64: str
 
 class AiTeachRuleIn(BaseModel):
-    category: Literal["luce", "gas", "telco"]
+    # V28.g — Categorie libere (es. Clienti, Contratti, Comunicazioni, Luce, Gas, Telco, Generale).
+    # Per retrocompatibilità, `category` è ora una stringa qualsiasi (default "Generale").
+    category: str = "Generale"
     title: str = Field(min_length=1, max_length=200)
     text: str = Field(min_length=1)
     files: List[AiTeachFileIn] = Field(default_factory=list)
 
 class AiTeachRulePatch(BaseModel):
-    category: Optional[Literal["luce", "gas", "telco"]] = None
+    category: Optional[str] = None
     title: Optional[str] = None
     text: Optional[str] = None
     files: Optional[List[AiTeachFileIn]] = None
@@ -8434,16 +8436,17 @@ class AiTeachRulePatch(BaseModel):
 class AiTeachUrlIn(BaseModel):
     url: str = Field(min_length=1)
     name: str = Field(min_length=1, max_length=200)
-    category: Optional[Literal["luce", "gas", "telco", "generic"]] = "generic"
-    frequency: Literal["daily", "weekly", "monthly"] = "weekly"
+    category: Optional[str] = "generic"
+    # V28.g — added "manual": no automated refresh; user forces it via "Aggiorna ora"
+    frequency: Literal["manual", "daily", "weekly", "monthly"] = "weekly"
     username: Optional[str] = None
     password: Optional[str] = None
 
 class AiTeachUrlPatch(BaseModel):
     url: Optional[str] = None
     name: Optional[str] = None
-    category: Optional[Literal["luce", "gas", "telco", "generic"]] = None
-    frequency: Optional[Literal["daily", "weekly", "monthly"]] = None
+    category: Optional[str] = None
+    frequency: Optional[Literal["manual", "daily", "weekly", "monthly"]] = None
     username: Optional[str] = None
     password: Optional[str] = None
 
@@ -8637,6 +8640,25 @@ async def ai_teach_refresh_url(url_id: str, user=Depends(get_current_user)):
     return await _ai_teach_refresh_url(doc)
 
 
+# V28.g — Force refresh of ALL monitored URLs (regardless of frequency)
+@api_router.post("/ai-teach/urls/refresh-all")
+async def ai_teach_refresh_all_urls(user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    cur = db.ai_teach_urls.find({"user_id": tid})
+    total = 0
+    ok = 0
+    errors: List[str] = []
+    async for doc in cur:
+        total += 1
+        res = await _ai_teach_refresh_url(doc)
+        if res.get("ok"):
+            ok += 1
+        else:
+            errors.append(f"{doc.get('name')}: {res.get('error') or 'errore'}")
+    return {"ok": True, "total": total, "success": ok, "errors": errors[:10]}
+
+
 async def build_ai_teach_context(tenant: str, category: str) -> str:
     """Build a compact block that will be prepended to bill-analysis system prompts.
     Refreshes stale monitored URLs opportunistically (best-effort).
@@ -8657,7 +8679,14 @@ async def build_ai_teach_context(tenant: str, category: str) -> str:
     urls_cur = db.ai_teach_urls.find({"user_id": tenant, "$or": [{"category": category}, {"category": "generic"}, {"category": None}]}).limit(30)
     async for u in urls_cur:
         last = u.get("last_fetched_at")
-        freq_days = thresholds.get(u.get("frequency") or "weekly", 7)
+        freq = u.get("frequency") or "weekly"
+        # V28.g — "manual" freq skips opportunistic refresh entirely
+        if freq == "manual":
+            summary = (u.get("last_summary") or "").strip()
+            if summary:
+                url_parts.append(f"[{u.get('name') or u.get('url')}]: {summary[:600]}")
+            continue
+        freq_days = thresholds.get(freq, 7)
         stale = (not last) or ((now - last).days >= freq_days)
         if stale:
             stale_ids.append(u)

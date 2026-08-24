@@ -1,5 +1,41 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.34 Insegna ad Axon (Giugno 2026)
+### 🎯 Richiesta utente
+"Sezione 'Insegna ad Axon' accessibile solo dal profilo Master: regole per categoria libera (Clienti, Contratti, Comunicazioni…), URL con credenziali opzionali e frequenza (manuale/giornaliera/settimanale/mensile), pulsante 'Aggiorna ora' via Tavily."
+
+### ✅ Backend (`server.py`)
+- **`AiTeachRuleIn.category`**: da `Literal["luce","gas","telco"]` a `str` libero (default "Generale"). Preserva tutte le regole esistenti (category "luce/gas/telco" restano valide).
+- **`AiTeachRulePatch.category`**: idem, ora Optional[str].
+- **`AiTeachUrlIn.frequency`**: aggiunto `"manual"` all'union → `Literal["manual","daily","weekly","monthly"]`.
+- **`AiTeachUrlIn.category` / `AiTeachUrlPatch.category`**: da Literal fisso a Optional[str] (nessuna migrazione necessaria).
+- **`POST /api/ai-teach/urls/refresh-all`** (NEW): endpoint Master-only per forzare il refresh sequenziale di tutti gli URL del tenant. Ritorna `{total, success, errors[]}`.
+- **`build_ai_teach_context`**: URL con `frequency=manual` esclusi dal refresh opportunistico automatico — verranno aggiornati solo quando il Master preme "Aggiorna ora".
+
+### ✅ Frontend `/app/frontend/app/ai-teach.tsx` (RIS)
+- Titolo rinominato **"Insegna ad Axon"** (era "Insegna all'AI"). Sottotitolo: "Regole e fonti che Axon usa come contesto prioritario".
+- **Regole**: categoria ora è una **stringa libera** (TextInput) con 8 preset chip suggeriti (Clienti · Contratti · Comunicazioni · Vendita · Luce · Gas · Telco · Generale). Ogni categoria ottiene un colore deterministico dalla palette (hash del nome). Filtro dinamico basato sulle categorie effettivamente presenti.
+- **URL**: nel picker frequenza ora 4 chip **Manuale / Giornaliera / Settimanale / Mensile** (era 3).
+- **Pulsante globale "Aggiorna ora"** in cima alla lista URL (navy scuro con icona ↻). Chiama il nuovo endpoint refresh-all, mostra spinner durante l'aggiornamento e notifica "N/M URL aggiornati".
+- Ogni card URL mantiene il pulsante refresh singolo per il refresh mirato.
+
+### ✅ Frontend `/app/frontend/app/master.tsx`
+- Aggiunta voce **"Insegna ad Axon"** con icona ✨ arancio nel menu Master (dopo "Script Telefonata"). Accessibile solo perché il menu Master è già filtrato per il ruolo owner.
+
+### ✅ Frontend `/app/frontend/app/(tabs)/impostazioni.tsx`
+- Link rinominato "Insegna ad Axon"; sub-title aggiornato: "Regole per categoria + fonti URL con aggiornamento manuale/automatico via Tavily".
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot menu Master: nuova voce "Insegna..." con icona sparkles accanto a Script Telefonata.
+- ✅ Screenshot ai-teach empty: titolo aggiornato, 2 tab, empty state pulito.
+- ✅ Creazione regola con categoria "Clienti" (chip preset rosso): salvata e visualizzata con badge colorato.
+- ✅ Tab URL: pulsante "Aggiungi URL" e "Aggiorna ora" (navy) affiancati.
+- ✅ Frequency picker con 4 opzioni: Manuale, Giornaliera, Settimanale, Mensile.
+- ✅ Testing agent NON usato (vincolo utente).
+- ✅ Cleanup: rimossa regola test.
+
+
+
 ## v2.33 Pacchetto Comunicazioni + Contact UX (Giugno 2026)
 ### 🎯 Richiesta utente
 "Modifica esito/durata chiamata dalla timeline, timer visibile alla chiamata, script multipli (freddo/caldo/prospect), Business/Privato per area, collapse-after-selection per Aree/Gruppi nella scheda modifica contatto."
