@@ -125,13 +125,37 @@ function ContactDetail() {
   };
 
   // V27 — Change contact status (Prospect | Collaboratore | Cliente)
-  const setStatus = async (status: "prospect" | "collaborator" | "client") => {
+  // V28.c — No longer called from the contact detail (status is now edited via
+  // the edit form). Kept as a helper in case future flows need it. eslint-disable
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _setStatus = async (status: "prospect" | "collaborator" | "client") => {
     try {
       await api(`/contacts/${id}`, { method: "PUT", body: { status } });
       load();
     } catch (e: any) {
       if (typeof window !== "undefined") window.alert("Errore: " + (e?.message || ""));
     }
+  };
+
+  // V28.c — Auto-log a communication event (phone/sms/whatsapp/email/telegram)
+  // Fires the POST /calls/log with the appropriate channel so the "Comunicazioni"
+  // timeline stays in sync. Fire-and-forget — never blocks the user's action.
+  const logComm = (channel: "phone" | "sms" | "whatsapp" | "email" | "telegram", phone?: string) => {
+    api("/calls/log", {
+      method: "POST",
+      body: {
+        contact_id: id,
+        phone: phone || undefined,
+        channel,
+        outcome_id: channel === "phone" ? "auto_started" : `auto_${channel}`,
+        note: "",
+        duration_sec: 0,
+      },
+    })
+      .then(() => setCallsRefreshTick((t) => t + 1))
+      .catch(() => {
+        /* silent — communication tracking must never break user flow */
+      });
   };
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -435,24 +459,18 @@ function ContactDetail() {
           </View>
         )}
 
-        {/* V27 — Contact status selector (Prospect | Collaboratore | Cliente) */}
-        <View style={styles.statusRow} testID="contact-status-row">
-          {(["prospect", "collaborator", "client"] as const).map((s) => {
-            const meta = STATUS_META[s];
-            const on = (c.status || "prospect") === s;
+        {/* V28.c — Status shown as a read-only label (editable only from the edit form) */}
+        {c.status ? (
+          (() => {
+            const meta = STATUS_META[c.status] || STATUS_META.prospect;
             return (
-              <Pressable
-                key={s}
-                testID={`status-${s}`}
-                onPress={() => setStatus(s)}
-                style={[styles.statusChip, on && { backgroundColor: meta.color, borderColor: meta.color }]}
-              >
-                <Ionicons name={meta.icon} size={12} color={on ? "#FFF" : meta.color} />
-                <Text style={[styles.statusChipTxt, on && { color: "#FFF" }, !on && { color: meta.color }]}>{meta.label}</Text>
-              </Pressable>
+              <View style={styles.statusLabel} testID="contact-status-label">
+                <Ionicons name={meta.icon} size={12} color={meta.color} />
+                <Text style={[styles.statusLabelTxt, { color: meta.color }]}>{meta.label}</Text>
+              </View>
             );
-          })}
-        </View>
+          })()
+        ) : null}
       </View>
 
       <View style={styles.tabs}>
@@ -462,10 +480,10 @@ function ContactDetail() {
             : t === "files" ? "folder"
             : t === "bills" ? "document-text"
             : t === "audio" ? "mic"
-            : t === "calls" ? "call"
+            : t === "calls" ? "chatbubbles"
             : t === "refs" ? "share-social"
             : "calendar";
-          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Telefonate" : t === "refs" ? "Referenze" : "Appuntamenti";
+          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Comunicazioni" : t === "refs" ? "Referenze" : "Appuntamenti";
           const active = tab === t;
           // V38E: All non-selected tabs are neutral grey; only the active tab is colored.
           // Fatture tab keeps a distinctive orange when active (still the most important section).
@@ -577,32 +595,34 @@ function ContactDetail() {
                 {c.phone ? (
                   <Pressable
                     testID="comm-call"
-                    onPress={() => setCallScriptOpen(true)}
+                    onPress={() => { logComm("phone", c.phone); setCallScriptOpen(true); }}
                     style={[styles.commBtn, { backgroundColor: "#0F766E" }]}
                   >
                     <Ionicons name="call" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Chiama</Text>
                   </Pressable>
                 ) : null}
                 {c.phone ? (
-                  <Pressable testID="comm-sms" onPress={() => Linking.openURL(`sms:${c.phone.replace(/\s/g, "")}`)} style={[styles.commBtn, { backgroundColor: theme.color.brandSecondary }]}>
+                  <Pressable testID="comm-sms" onPress={() => { logComm("sms", c.phone); Linking.openURL(`sms:${c.phone.replace(/\s/g, "")}`); }} style={[styles.commBtn, { backgroundColor: theme.color.brandSecondary }]}>
                     <Ionicons name="chatbubble-ellipses" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>SMS</Text>
                   </Pressable>
                 ) : null}
                 {(c.whatsapp || c.phone) ? (
                   <Pressable testID="comm-whatsapp" onPress={() => {
-                    const num = (c.whatsapp || c.phone).replace(/[^\d+]/g, "");
+                    const raw = (c.whatsapp || c.phone) || "";
+                    const num = raw.replace(/[^\d+]/g, "");
+                    logComm("whatsapp", raw);
                     Linking.openURL(`https://wa.me/${num}`);
                   }} style={[styles.commBtn, { backgroundColor: "#25D366" }]}>
                     <Ionicons name="logo-whatsapp" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>WhatsApp</Text>
                   </Pressable>
                 ) : null}
                 {c.telegram ? (
-                  <Pressable testID="comm-telegram" onPress={() => openTelegram(c.telegram || "")} style={[styles.commBtn, { backgroundColor: "#0088CC" }]}>
+                  <Pressable testID="comm-telegram" onPress={() => { logComm("telegram"); openTelegram(c.telegram || ""); }} style={[styles.commBtn, { backgroundColor: "#0088CC" }]}>
                     <Ionicons name="paper-plane" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Telegram</Text>
                   </Pressable>
                 ) : null}
                 {c.email ? (
-                  <Pressable testID="comm-email" onPress={() => Linking.openURL(`mailto:${c.email}`)} style={[styles.commBtn, { backgroundColor: "#0F2438" }]}>
+                  <Pressable testID="comm-email" onPress={() => { logComm("email"); Linking.openURL(`mailto:${c.email}`); }} style={[styles.commBtn, { backgroundColor: "#0F2438" }]}>
                     <Ionicons name="mail" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Email</Text>
                   </Pressable>
                 ) : null}
@@ -1083,6 +1103,9 @@ const styles = StyleSheet.create({
   areaTagCompact: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 1 },
   assignPill: { marginTop: 8, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: theme.color.brandTertiary, borderRadius: 20 },
   assignPillTxt: { fontSize: 11, color: theme.color.brandPrimary, fontWeight: "700" },
+  // V28.c — Read-only status label (edit only via edit form)
+  statusLabel: { marginTop: 8, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: "#FFF", borderRadius: 999, borderWidth: 1, borderColor: "rgba(255,255,255,0.35)" },
+  statusLabelTxt: { fontSize: 11, fontWeight: "800" },
   statusRow: { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
   statusChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5 },
   statusChipTxt: { fontSize: 11, fontWeight: "800" },

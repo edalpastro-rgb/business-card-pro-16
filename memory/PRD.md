@@ -1,5 +1,39 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.30 Scheda cliente — Rimozione bottoni stato + auto-log comunicazioni (Giugno 2026)
+### 🎯 Richiesta utente
+"Scheda cliente: rimuovi i bottoni Prospect/Collaboratore/Cliente. Registro telefonate: quando clicco Chiama la chiamata deve essere registrata automaticamente con data e ora. Scheda cliente comunicazioni: mostrare storico di tutti i canali in un unico elenco cronologico (telefonate, SMS, WhatsApp, Email)."
+
+### ✅ Backend (`server.py`)
+- **`CallLogIn`** esteso con nuovo campo opzionale `channel` (values: `phone|sms|whatsapp|email|telegram`, default `phone`). `outcome_id` è ora Optional (default `auto_started` per phone, `auto_{channel}` per gli altri).
+- **`POST /api/calls/log`** ora persiste il campo `channel` nel documento `call_logs`. La logica di reschedule callback resta invariata (funziona solo per phone perché non passa `outcome_id` da UI).
+- Backward-compatibility: i log storici senza `channel` vengono trattati come `phone` dal frontend.
+
+### ✅ Frontend
+1. **`/app/frontend/app/contact/[id].tsx`**:
+   - Rimossa la statusRow (3 bottoni Prospect/Collaboratore/Cliente). Ora lo stato appare come una piccola pill white read-only con icona colorata + testo (`testID="contact-status-label"`).
+   - La funzione `setStatus` non è più chiamata dalla scheda (marcata `_setStatus` per lint compliance). Lo stato è editabile solo via `/contact/edit/{id}`.
+   - Nuovo helper `logComm(channel, phone)` — POST `/calls/log` fire-and-forget con `channel` corrispondente + auto-refresh della tab Comunicazioni via `callsRefreshTick`.
+   - **onPress dei bottoni Chiama/SMS/WhatsApp/Email/Telegram** ora chiamano `logComm(...)` PRIMA di aprire lo script overlay o il link nativo. Silent-fail: se il logging fallisce, l'utente non se ne accorge.
+   - Tab `calls` rinominata da **"Telefonate"** a **"Comunicazioni"**, icona da `call` a `chatbubbles`.
+2. **`/app/frontend/src/ContactCallsSection.tsx`** — riscritto:
+   - Titolo header: "Cronologia comunicazioni" (era "Cronologia telefonate").
+   - Nuovo mapping `CHANNEL_META` con label/color/icon per phone/sms/whatsapp/email/telegram.
+   - Ogni log ha ora un chip colorato dedicato al canale, una descrizione automatica ("Chiamata avviata", "SMS aperto", "WhatsApp aperto", "Email aperta", "Telegram aperto") e data/ora sempre visibili.
+   - Preserva la resa degli outcome espliciti (quando l'utente registra un esito phone dal `CallActionSheet`).
+   - Empty state aggiornato: "Nessuna comunicazione registrata".
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot contatto: nessun bottone Prospect/Collaboratore/Cliente. Etichetta "Cliente" visibile come pill white.
+- ✅ Tap Chiama → chiamata loggata con `channel: phone` + Script overlay aperto.
+- ✅ Tap SMS → SMS loggato con `channel: sms`.
+- ✅ Tap WhatsApp → WhatsApp loggato con `channel: whatsapp`.
+- ✅ Screenshot tab Comunicazioni: timeline unificata con 3 chip colorati distinti (WhatsApp verde, SMS indigo, Telefonata teal), sorted newest-first, data + ora + telefono per ogni entry.
+- ✅ Testing agent NON usato (vincolo utente).
+- ✅ Log di test cleanup con `db.call_logs.delete_many({outcome_id: /^auto_/})`.
+
+
+
 ## v2.29 Bug Fixes — My Thing banner + Script icon (Giugno 2026)
 ### 🎯 Richiesta utente
 "Correggi questi bug senza toccare altro: 1) contacts useEffect not defined, 2) Script solo in scheda cliente, 3) messaggi My Thing non appaiono in home, 4) icona Script → documento."

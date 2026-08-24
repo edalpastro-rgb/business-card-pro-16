@@ -659,9 +659,12 @@ class CallLogIn(BaseModel):
     callback_id: Optional[str] = None
     appointment_id: Optional[str] = None
     phone: Optional[str] = None
-    outcome_id: str
+    outcome_id: Optional[str] = None
     note: str = ""
     duration_sec: int = 0
+    # V28.c — Communication channel (phone by default). Enables the unified
+    # "Comunicazioni" timeline in the contact card. Values: phone|sms|whatsapp|email|telegram.
+    channel: Optional[str] = None
     # If outcome triggers a reschedule
     reschedule_at: Optional[datetime] = None
     reschedule_delta_min: Optional[int] = None  # Alternative to reschedule_at
@@ -2172,10 +2175,16 @@ async def delete_callback(callback_id: str, user=Depends(get_current_user)):
 # =========================
 @api_router.post("/calls/log")
 async def log_call(body: CallLogIn, user=Depends(get_current_user)):
-    """Records the outcome of a phone call. Optionally creates a follow-up callback
-    if the outcome indicates a reschedule (reschedule_at or reschedule_delta_min).
+    """Records a communication event (phone call, SMS, WhatsApp, email, telegram).
+    Optionally creates a follow-up callback if the outcome indicates a reschedule
+    (reschedule_at or reschedule_delta_min). V28.c: added `channel` field so the
+    frontend can render a unified communications timeline.
     """
     log_id = f"cl_{uuid.uuid4().hex[:12]}"
+    channel = (body.channel or "phone").lower()
+    if channel not in {"phone", "sms", "whatsapp", "email", "telegram"}:
+        channel = "phone"
+    outcome_id = body.outcome_id or ("auto_started" if channel == "phone" else f"auto_{channel}")
     doc = {
         "log_id": log_id,
         "user_id": tenant_id(user),
@@ -2184,7 +2193,8 @@ async def log_call(body: CallLogIn, user=Depends(get_current_user)):
         "callback_id": body.callback_id,
         "appointment_id": body.appointment_id,
         "phone": body.phone,
-        "outcome_id": body.outcome_id,
+        "channel": channel,
+        "outcome_id": outcome_id,
         "note": body.note,
         "duration_sec": body.duration_sec,
         "created_at": utcnow(),
@@ -2197,7 +2207,7 @@ async def log_call(body: CallLogIn, user=Depends(get_current_user)):
         await db.callbacks.update_one(
             scope_query(user, {"callback_id": body.callback_id}),
             {"$set": {
-                "last_call_outcome_id": body.outcome_id,
+                "last_call_outcome_id": outcome_id,
                 "last_call_at": utcnow(),
                 "done": True,  # by default; a reschedule creates a new callback
             }},
