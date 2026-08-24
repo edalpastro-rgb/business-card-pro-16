@@ -352,6 +352,17 @@ function ImpostazioniScreen() {
         )}
 
         {!user?.parent_user_id && (
+          <Pressable testID="ai-teach-link" onPress={() => router.push("/ai-teach" as any)} style={styles.linkCard}>
+            <Ionicons name="sparkles" size={26} color="#FF6B35" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkTitle}>Insegna all&apos;AI</Text>
+              <Text style={styles.linkSub}>Regole prioritarie + URL da monitorare per l&apos;analisi bollette</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+          </Pressable>
+        )}
+
+        {!user?.parent_user_id && (
           <Pressable testID="invitati-link" onPress={() => router.push("/invita" as any)} style={styles.linkCard}>
             <Ionicons name="person-add" size={26} color={theme.color.brandPrimary} />
             <View style={{ flex: 1 }}>

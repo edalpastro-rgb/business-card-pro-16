@@ -3820,7 +3820,7 @@ def _extract_pdf_text(pdf_base64: str) -> str:
     return text
 
 
-async def _llm_analyze_bill_text(bill_type: str, text: str, analysis_params: Optional[List[str]] = None) -> dict:
+async def _llm_analyze_bill_text(bill_type: str, text: str, analysis_params: Optional[List[str]] = None, tenant: Optional[str] = None) -> dict:
     """Send extracted PDF text to Claude Sonnet 5 and get structured JSON."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     key = os.environ.get("EMERGENT_LLM_KEY")
@@ -3831,6 +3831,18 @@ async def _llm_analyze_bill_text(bill_type: str, text: str, analysis_params: Opt
         "gas": BILL_SYSTEM_PROMPT_GAS,
         "telco": BILL_SYSTEM_PROMPT_TELCO,
     }.get(bill_type, BILL_SYSTEM_PROMPT_LUCE)
+    # V27 — Insegna all'AI: prepend Master-configured rules + monitored URLs as PRIORITY context
+    if tenant:
+        try:
+            teach = await build_ai_teach_context(tenant, bill_type if bill_type in ("luce", "gas", "telco") else "luce")
+            if teach:
+                system = (
+                    "CONTESTO PRIORITARIO CONFIGURATO DAL MASTER (usa queste regole PRIMA di qualsiasi altra fonte):\n"
+                    f"{teach}\n\n"
+                    "———\n\n"
+                ) + system
+        except Exception as _e:
+            logger.warning("ai_teach context build failed: %s", _e)
     # V38: if user selected specific parameters to focus on, append them to the system prompt
     fiscal_directives: List[str] = []
     display_params: List[str] = []
@@ -3928,7 +3940,7 @@ async def _analyze_bill_task(bill_id: str):
         if curr and curr.get("status") == "cancelled":
             return
         extracted = await _llm_analyze_bill_text(
-            bill["bill_type"], text, analysis_params=bill.get("analysis_params")
+            bill["bill_type"], text, analysis_params=bill.get("analysis_params"), tenant=bill.get("user_id")
         )
         # Final check: if cancelled during LLM, don't overwrite
         curr = await db.energy_bills.find_one({"bill_id": bill_id}, {"status": 1})
@@ -4924,7 +4936,7 @@ async def _analyze_draft_task(draft_id: str):
         if curr and curr.get("status") == "cancelled":
             return
         extracted = await _llm_analyze_bill_text(
-            draft.get("bill_type") or "luce", text, draft.get("analysis_params") or None
+            draft.get("bill_type") or "luce", text, draft.get("analysis_params") or None, tenant=draft.get("user_id")
         )
         curr = await db.bill_drafts.find_one({"draft_id": draft_id}, {"status": 1})
         if curr and curr.get("status") == "cancelled":
@@ -8113,6 +8125,278 @@ async def scanner_merge_pdf(body: ScannerMergeIn, user=Depends(get_current_user)
         "name": safe_name,
         "page_count": len(processed_images),
     }
+
+
+
+# =========================================================================
+# V27 — "Insegna all'AI" (Master-only knowledge base)
+#   - Manual rules per category (luce | gas | telco) with optional PDF files
+#   - URL watchlist refreshed via Tavily by frequency (daily/weekly/monthly)
+#   - Content is prepended to bill-analysis system prompts as priority context
+# =========================================================================
+
+class AiTeachFileIn(BaseModel):
+    name: str
+    mime: str
+    data_base64: str
+
+class AiTeachRuleIn(BaseModel):
+    category: Literal["luce", "gas", "telco"]
+    title: str = Field(min_length=1, max_length=200)
+    text: str = Field(min_length=1)
+    files: List[AiTeachFileIn] = Field(default_factory=list)
+
+class AiTeachRulePatch(BaseModel):
+    category: Optional[Literal["luce", "gas", "telco"]] = None
+    title: Optional[str] = None
+    text: Optional[str] = None
+    files: Optional[List[AiTeachFileIn]] = None
+
+class AiTeachUrlIn(BaseModel):
+    url: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=200)
+    category: Optional[Literal["luce", "gas", "telco", "generic"]] = "generic"
+    frequency: Literal["daily", "weekly", "monthly"] = "weekly"
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+class AiTeachUrlPatch(BaseModel):
+    url: Optional[str] = None
+    name: Optional[str] = None
+    category: Optional[Literal["luce", "gas", "telco", "generic"]] = None
+    frequency: Optional[Literal["daily", "weekly", "monthly"]] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+
+def _require_master(user: Dict[str, Any]) -> None:
+    """Only owners (Master) can access this feature."""
+    if (user.get("role") or "member") != "owner":
+        raise HTTPException(status_code=403, detail="Sezione riservata al Master")
+
+
+@api_router.get("/ai-teach/rules")
+async def ai_teach_list_rules(user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    cur = db.ai_teach_rules.find({"user_id": tid}).sort("updated_at", -1)
+    items = []
+    async for r in cur:
+        r.pop("_id", None)
+        # Strip file base64 from list (keep only metadata) — client fetches full file separately when needed
+        r["files"] = [{"name": f.get("name"), "mime": f.get("mime"), "size": f.get("size", 0)} for f in (r.get("files") or [])]
+        items.append(r)
+    return {"items": items}
+
+
+@api_router.post("/ai-teach/rules")
+async def ai_teach_create_rule(body: AiTeachRuleIn, user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    rid = f"aitr_{uuid.uuid4().hex[:12]}"
+    files = []
+    for f in body.files:
+        raw = f.data_base64.split(",")[-1] if f.data_base64.startswith("data:") else f.data_base64
+        try:
+            size = len(base64.b64decode(raw))
+        except Exception:
+            size = 0
+        files.append({"name": f.name, "mime": f.mime, "data_base64": raw, "size": size})
+    doc = {
+        "rule_id": rid,
+        "user_id": tid,
+        "created_by": user["user_id"],
+        "category": body.category,
+        "title": body.title.strip(),
+        "text": body.text.strip(),
+        "files": files,
+        "created_at": utcnow(),
+        "updated_at": utcnow(),
+    }
+    await db.ai_teach_rules.insert_one(doc)
+    doc.pop("_id", None)
+    doc["files"] = [{"name": f["name"], "mime": f["mime"], "size": f["size"]} for f in files]
+    return doc
+
+
+@api_router.put("/ai-teach/rules/{rule_id}")
+async def ai_teach_update_rule(rule_id: str, body: AiTeachRulePatch, user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    patch: Dict[str, Any] = {"updated_at": utcnow()}
+    if body.category is not None: patch["category"] = body.category
+    if body.title is not None: patch["title"] = body.title.strip()
+    if body.text is not None: patch["text"] = body.text.strip()
+    if body.files is not None:
+        norm = []
+        for f in body.files:
+            raw = f.data_base64.split(",")[-1] if f.data_base64.startswith("data:") else f.data_base64
+            try: size = len(base64.b64decode(raw))
+            except Exception: size = 0
+            norm.append({"name": f.name, "mime": f.mime, "data_base64": raw, "size": size})
+        patch["files"] = norm
+    r = await db.ai_teach_rules.update_one({"rule_id": rule_id, "user_id": tid}, {"$set": patch})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Regola non trovata")
+    return {"ok": True}
+
+
+@api_router.delete("/ai-teach/rules/{rule_id}")
+async def ai_teach_delete_rule(rule_id: str, user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    r = await db.ai_teach_rules.delete_one({"rule_id": rule_id, "user_id": tid})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Regola non trovata")
+    return {"ok": True}
+
+
+@api_router.get("/ai-teach/urls")
+async def ai_teach_list_urls(user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    cur = db.ai_teach_urls.find({"user_id": tid}).sort("updated_at", -1)
+    items = []
+    async for r in cur:
+        r.pop("_id", None)
+        # Mask password on list
+        if r.get("password"):
+            r["password_masked"] = True
+            r.pop("password", None)
+        items.append(r)
+    return {"items": items}
+
+
+@api_router.post("/ai-teach/urls")
+async def ai_teach_create_url(body: AiTeachUrlIn, user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    uid_ = f"aitu_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "url_id": uid_,
+        "user_id": tid,
+        "created_by": user["user_id"],
+        "url": body.url.strip(),
+        "name": body.name.strip(),
+        "category": body.category or "generic",
+        "frequency": body.frequency,
+        "username": (body.username or "").strip() or None,
+        "password": (body.password or "").strip() or None,
+        "last_fetched_at": None,
+        "last_summary": "",
+        "last_error": None,
+        "created_at": utcnow(),
+        "updated_at": utcnow(),
+    }
+    await db.ai_teach_urls.insert_one(doc)
+    doc.pop("_id", None)
+    if doc.get("password"): doc["password_masked"] = True; doc.pop("password", None)
+    return doc
+
+
+@api_router.put("/ai-teach/urls/{url_id}")
+async def ai_teach_update_url(url_id: str, body: AiTeachUrlPatch, user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    patch: Dict[str, Any] = {"updated_at": utcnow()}
+    for field in ["url", "name", "category", "frequency", "username", "password"]:
+        v = getattr(body, field, None)
+        if v is not None:
+            patch[field] = (v.strip() if isinstance(v, str) else v) or None
+    r = await db.ai_teach_urls.update_one({"url_id": url_id, "user_id": tid}, {"$set": patch})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="URL non trovato")
+    return {"ok": True}
+
+
+@api_router.delete("/ai-teach/urls/{url_id}")
+async def ai_teach_delete_url(url_id: str, user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    r = await db.ai_teach_urls.delete_one({"url_id": url_id, "user_id": tid})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="URL non trovato")
+    return {"ok": True}
+
+
+async def _ai_teach_refresh_url(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """Fetch a monitored URL via Tavily (if configured) and update last_summary."""
+    try:
+        summary = ""
+        # Prefer Tavily's answer for the exact URL as query context
+        q = f"{doc.get('name') or ''} {doc.get('url')}".strip()
+        res = await _tavily_search(q, max_results=4)
+        if res:
+            summary = (res.get("answer") or "").strip()
+            # Include result snippets for richer context
+            for it in (res.get("results") or [])[:3]:
+                if it.get("content"):
+                    summary += f"\n- {it.get('title') or ''}: {it.get('content')}"
+        else:
+            summary = f"[Tavily non configurato o non disponibile] URL: {doc.get('url')}"
+        now = utcnow()
+        await db.ai_teach_urls.update_one(
+            {"url_id": doc["url_id"]},
+            {"$set": {"last_fetched_at": now, "last_summary": summary[:4000], "last_error": None}},
+        )
+        return {"ok": True, "summary_len": len(summary)}
+    except Exception as e:
+        await db.ai_teach_urls.update_one(
+            {"url_id": doc["url_id"]},
+            {"$set": {"last_error": str(e)[:400]}},
+        )
+        return {"ok": False, "error": str(e)}
+
+
+@api_router.post("/ai-teach/urls/{url_id}/refresh")
+async def ai_teach_refresh_url(url_id: str, user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    doc = await db.ai_teach_urls.find_one({"url_id": url_id, "user_id": tid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="URL non trovato")
+    return await _ai_teach_refresh_url(doc)
+
+
+async def build_ai_teach_context(tenant: str, category: str) -> str:
+    """Build a compact block that will be prepended to bill-analysis system prompts.
+    Refreshes stale monitored URLs opportunistically (best-effort).
+    """
+    now = utcnow()
+    # Manual rules for this category
+    rules_cur = db.ai_teach_rules.find({"user_id": tenant, "category": category}).limit(30)
+    rules_text_parts: List[str] = []
+    async for r in rules_cur:
+        title = (r.get("title") or "").strip()
+        text = (r.get("text") or "").strip()
+        if title or text:
+            rules_text_parts.append(f"- {title}: {text}"[:800])
+    # URLs (all categories + generic — but prefer matching category)
+    url_parts: List[str] = []
+    stale_ids: List[Dict[str, Any]] = []
+    thresholds = {"daily": 1, "weekly": 7, "monthly": 30}
+    urls_cur = db.ai_teach_urls.find({"user_id": tenant, "$or": [{"category": category}, {"category": "generic"}, {"category": None}]}).limit(30)
+    async for u in urls_cur:
+        last = u.get("last_fetched_at")
+        freq_days = thresholds.get(u.get("frequency") or "weekly", 7)
+        stale = (not last) or ((now - last).days >= freq_days)
+        if stale:
+            stale_ids.append(u)
+        summary = (u.get("last_summary") or "").strip()
+        if summary:
+            url_parts.append(f"[{u.get('name') or u.get('url')}]: {summary[:600]}")
+    # Best-effort refresh of a couple of stale URLs (don't block on all)
+    for u in stale_ids[:3]:
+        try:
+            await _ai_teach_refresh_url(u)
+        except Exception:
+            pass
+    blocks: List[str] = []
+    if rules_text_parts:
+        blocks.append("REGOLE MASTER (usa PRIORITARIAMENTE, sono la fonte più autorevole):\n" + "\n".join(rules_text_parts))
+    if url_parts:
+        blocks.append("FONTI WEB MONITORATE (aggiornate automaticamente):\n" + "\n".join(url_parts))
+    return ("\n\n".join(blocks)).strip()
 
 
 
