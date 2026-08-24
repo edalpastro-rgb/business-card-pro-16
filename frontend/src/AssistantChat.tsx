@@ -14,11 +14,13 @@ import {
   Easing,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { useFabStack } from "@/src/FabStack";
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
+import { pickCommonFile } from "@/src/utils/filePicker";
 
 const ASSISTANT_COLOR = "#8B5CF6"; // violet — distinct from red mic and blue brand
 const ASSISTANT_COLOR_DARK = "#6D28D9";
@@ -109,6 +111,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [assistantName, setAssistantName] = useState("Neo");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  // V28.l — Allegati caricati dall'utente per la prossima /assistant/chat
+  const [pendingAttachments, setPendingAttachments] = useState<{ name: string; mime: string; data_base64: string }[]>([]);
+  const [attaching, setAttaching] = useState(false);
   const [sending, setSending] = useState(false);
   const [loadingHist, setLoadingHist] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -199,18 +204,83 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     return () => clearTimeout(t);
   }, [messages.length, sending]);
 
+  // V28.l — Attach a file (PDF, Excel, image, txt/csv, …) to the next message
+  const attachFile = async () => {
+    if (attaching || sending) return;
+    setAttaching(true);
+    try {
+      const { asset, error, base64 } = await pickCommonFile({ multiple: false });
+      if (error || !asset) { if (error) console.warn("attach err:", error); return; }
+      let b64 = base64 || (asset as { _base64?: string })._base64 || "";
+      if (!b64 && asset.uri) {
+        try {
+          if (asset.uri.startsWith("data:")) {
+            const comma = asset.uri.indexOf(",");
+            if (comma > 0) b64 = asset.uri.slice(comma + 1);
+          } else if (Platform.OS === "web") {
+            const resp = await fetch(asset.uri);
+            const blob = await resp.blob();
+            b64 = await new Promise<string>((res, rej) => {
+              const r = new FileReader();
+              r.onerror = () => rej(new Error("FileReader error"));
+              r.onload = () => {
+                const s = String(r.result || "");
+                const c = s.indexOf(",");
+                res(c >= 0 ? s.slice(c + 1) : s);
+              };
+              r.readAsDataURL(blob);
+            });
+          } else {
+            b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+          }
+        } catch (e) {
+          console.warn("read err:", e);
+          return;
+        }
+      }
+      if (!b64) return;
+      // ~10MB cap per file (base64 length ~ 4/3 × bytes)
+      if (b64.length > 14_000_000) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `⚠️ File "${asset.name}" troppo grande (>10MB). Riducilo prima di allegarlo.`, created_at: new Date().toISOString() },
+        ]);
+        return;
+      }
+      setPendingAttachments((arr) => [
+        ...arr,
+        { name: asset.name, mime: asset.mimeType || "application/octet-stream", data_base64: b64 },
+      ]);
+    } finally { setAttaching(false); }
+  };
+
+
   const send = async (text?: string, opts?: { forceSpeak?: boolean; onSpoken?: () => void }) => {
     const msg = (text ?? input).trim();
-    if (!msg || sending) return;
+    // V28.l — Consenti l'invio se c'è ALMENO un allegato, anche senza testo
+    if ((!msg && pendingAttachments.length === 0) || sending) return;
     setSending(true);
     setInput("");
-    // Optimistic add
-    const optimistic: ChatMsg = { role: "user", content: msg, created_at: new Date().toISOString() };
+    // Optimistic add — include attachment names in the shown message
+    const attSummary = pendingAttachments.length
+      ? `\n\n📎 ${pendingAttachments.map((a) => a.name).join(", ")}`
+      : "";
+    const displayMsg = (msg || "(analizza gli allegati)") + attSummary;
+    const optimistic: ChatMsg = { role: "user", content: displayMsg, created_at: new Date().toISOString() };
     setMessages((prev) => [...prev, optimistic]);
+    const attachmentsPayload = pendingAttachments;
+    setPendingAttachments([]);
     try {
       const r = await api<{ session_id: string; reply: string; assistant_name: string; used_web_search?: boolean; web_sources?: { title: string; url: string }[] }>(
         "/assistant/chat",
-        { method: "POST", body: { message: msg, session_id: sessionId || undefined } }
+        {
+          method: "POST",
+          body: {
+            message: msg || "Analizza gli allegati.",
+            session_id: sessionId || undefined,
+            attachments: attachmentsPayload,
+          },
+        }
       );
       setSessionId(r.session_id);
       setAssistantName(r.assistant_name || assistantName);
@@ -831,8 +901,38 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
             {/* Input bar (hidden while in conversation mode) */}
             {!convMode && (
-            <View style={styles.inputBar}>
-              {voiceSupported && (
+            <View>
+              {/* V28.l — Preview allegati in attesa di invio */}
+              {pendingAttachments.length > 0 ? (
+                <View style={styles.attRow}>
+                  {pendingAttachments.map((a, i) => (
+                    <View key={`${a.name}-${i}`} style={styles.attChip}>
+                      <Ionicons name={a.mime.startsWith("image/") ? "image" : a.mime.includes("pdf") ? "document" : "document-attach"} size={13} color="#6D28D9" />
+                      <Text style={styles.attChipTxt} numberOfLines={1}>{a.name}</Text>
+                      <Pressable onPress={() => setPendingAttachments((arr) => arr.filter((_, k) => k !== i))} hitSlop={6}>
+                        <Ionicons name="close" size={13} color="#6D28D9" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              <View style={styles.inputBar}>
+                {/* V28.l — Pulsante allegato (PDF, Excel, immagini, txt, csv…) */}
+                <Pressable
+                  onPress={attachFile}
+                  disabled={sending || attaching}
+                  hitSlop={4}
+                  style={[styles.attachBtn, { backgroundColor: attaching ? "#6B7280" : "#F1F0FF" }]}
+                  accessibilityLabel="Allega file"
+                  testID="assistant-attach"
+                >
+                  {attaching ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Ionicons name="attach" size={20} color={ASSISTANT_COLOR_DARK} />
+                  )}
+                </Pressable>
+                {voiceSupported && (
                 <Pressable
                   onPress={recording ? stopRec : startRec}
                   disabled={sending || transcribing}
@@ -852,32 +952,33 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     />
                   )}
                 </Pressable>
-              )}
-              <TextInput
-                value={recording ? `Ascolto… ${recDuration}s` : input}
-                onChangeText={setInput}
-                editable={!recording && !transcribing}
-                placeholder={`Scrivi a ${assistantName}…`}
-                placeholderTextColor="#94A3B8"
-                style={styles.input}
-                multiline
-                onSubmitEditing={() => send()}
-                blurOnSubmit={false}
-                returnKeyType="send"
-                testID="assistant-input"
-              />
-              <Pressable
-                onPress={() => send()}
-                disabled={sending || !input.trim()}
-                style={[styles.sendBtn, { opacity: sending || !input.trim() ? 0.5 : 1 }]}
-                testID="assistant-send"
-              >
-                {sending ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Ionicons name="arrow-up" size={20} color="#FFF" />
                 )}
-              </Pressable>
+                <TextInput
+                  value={recording ? `Ascolto… ${recDuration}s` : input}
+                  onChangeText={setInput}
+                  editable={!recording && !transcribing}
+                  placeholder={pendingAttachments.length ? "Aggiungi un contesto (facoltativo)…" : `Scrivi a ${assistantName}…`}
+                  placeholderTextColor="#94A3B8"
+                  style={styles.input}
+                  multiline
+                  onSubmitEditing={() => send()}
+                  blurOnSubmit={false}
+                  returnKeyType="send"
+                  testID="assistant-input"
+                />
+                <Pressable
+                  onPress={() => send()}
+                  disabled={sending || (!input.trim() && pendingAttachments.length === 0)}
+                  style={[styles.sendBtn, { opacity: sending || (!input.trim() && pendingAttachments.length === 0) ? 0.5 : 1 }]}
+                  testID="assistant-send"
+                >
+                  {sending ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Ionicons name="arrow-up" size={20} color="#FFF" />
+                  )}
+                </Pressable>
+              </View>
             </View>
             )}
           </KeyboardAvoidingView>
@@ -1392,6 +1493,42 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
+  },
+  // V28.l — Attach button + preview chips
+  attachBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  attRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#FAF9FF",
+    borderTopWidth: 1,
+    borderTopColor: "#E1DAFF",
+  },
+  attChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "#EDE9FE",
+    borderWidth: 1,
+    borderColor: "#C4B5FD",
+    maxWidth: 220,
+  },
+  attChipTxt: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6D28D9",
+    flexShrink: 1,
   },
   input: {
     flex: 1,

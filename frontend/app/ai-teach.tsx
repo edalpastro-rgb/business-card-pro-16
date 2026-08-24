@@ -6,7 +6,7 @@
  * Il contenuto viene usato da Axon come contesto prioritario durante l'analisi.
  */
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -15,6 +15,7 @@ import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
+import * as FileSystem from "expo-file-system/legacy";
 
 type Rule = { rule_id: string; category: string; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string };
 type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: string };
@@ -125,15 +126,44 @@ export default function AiTeachScreen() {
     try { await api(`/ai-teach/rules/${id}`, { method: "DELETE" }); load(); } catch (e: any) { notify("Errore", e?.message || ""); }
   };
 
+  // V28.l — Ora accetta QUALSIASI file (PDF, Excel, immagini, txt, csv…). Il file
+  // viene letto in base64 tramite FileSystem/fetch e allegato alla regola.
   const attachPdf = async () => {
     const { asset, error, base64 } = await pickCommonFile({ multiple: false });
     if (error || !asset) { if (error) notify("Errore", error); return; }
-    const b64 = base64 || (asset as any)._base64 || "";
+    let b64 = base64 || (asset as { _base64?: string })._base64 || "";
+    // Native (iOS/Android): read the file URI via expo-file-system as base64
+    if (!b64 && asset.uri) {
+      try {
+        if (asset.uri.startsWith("data:")) {
+          const comma = asset.uri.indexOf(",");
+          if (comma > 0) b64 = asset.uri.slice(comma + 1);
+        } else if (Platform.OS === "web") {
+          const resp = await fetch(asset.uri);
+          const blob = await resp.blob();
+          b64 = await new Promise<string>((res, rej) => {
+            const r = new FileReader();
+            r.onerror = () => rej(new Error("FileReader error"));
+            r.onload = () => {
+              const s = String(r.result || "");
+              const c = s.indexOf(",");
+              res(c >= 0 ? s.slice(c + 1) : s);
+            };
+            r.readAsDataURL(blob);
+          });
+        } else {
+          b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+        }
+      } catch (e: any) {
+        notify("Errore lettura file", e?.message || String(e));
+        return;
+      }
+    }
     if (!b64) { notify("Errore", "Impossibile leggere il file"); return; }
     setEditRule((r) => ({
       ...(r || {}),
-      _pendingFiles: [...(((r as any)?._pendingFiles) || []), { name: asset.name, mime: asset.mimeType || "application/pdf", data_base64: b64 }],
-    } as any));
+      _pendingFiles: [...(((r as { _pendingFiles?: unknown[] } | null)?._pendingFiles) || []), { name: asset.name, mime: asset.mimeType || "application/octet-stream", data_base64: b64 }],
+    } as Partial<Rule>));
   };
 
   const saveUrl = async () => {
@@ -424,7 +454,7 @@ export default function AiTeachScreen() {
               <TextInput testID="rule-title-input" value={editRule?.title || ""} onChangeText={(t) => setEditRule((r) => ({ ...(r || {}), title: t }))} placeholder="Es. Procedura acquisizione nuovi clienti" placeholderTextColor="#94A3B8" style={styles.input} />
               <Text style={styles.lbl}>Testo della regola</Text>
               <TextInput testID="rule-text-input" value={editRule?.text || ""} onChangeText={(t) => setEditRule((r) => ({ ...(r || {}), text: t }))} multiline placeholder="Descrivi la regola in modo dettagliato…" placeholderTextColor="#94A3B8" style={[styles.input, { minHeight: 130, textAlignVertical: "top" }]} />
-              <Pressable onPress={attachPdf} style={styles.pdfBtn}><Ionicons name="attach" size={17} color={C.navy} /><Text style={styles.pdfBtnTxt}>Allega PDF (opzionale)</Text></Pressable>
+              <Pressable onPress={attachPdf} style={styles.pdfBtn}><Ionicons name="attach" size={17} color={C.navy} /><Text style={styles.pdfBtnTxt}>Allega file (PDF, Excel, immagine…)</Text></Pressable>
               {(editRule as any)?._pendingFiles?.length ? (
                 <Text style={styles.metaTxt}>Nuovi allegati: {(editRule as any)._pendingFiles.length}</Text>
               ) : editRule?.files?.length ? (

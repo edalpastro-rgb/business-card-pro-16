@@ -6522,9 +6522,18 @@ class UserSettingsIn(BaseModel):
     assistant_voice: Optional[str] = None  # OpenAI TTS voice: alloy | echo | fable | onyx | nova | shimmer
 
 
+class AssistantAttachmentIn(BaseModel):
+    name: str
+    mime: Optional[str] = None
+    data_base64: str
+
+
 class AssistantChatIn(BaseModel):
     message: str
     session_id: Optional[str] = None
+    # V28.l — Attachments (PDF, Excel, images, txt/csv, ...) inviati con il messaggio.
+    # Axon estrae il testo e lo include nel prompt come "contesto allegato".
+    attachments: List[AssistantAttachmentIn] = Field(default_factory=list)
 
 
 class AssistantTTSIn(BaseModel):
@@ -7367,6 +7376,94 @@ async def _maybe_save_memory(user_id: str, session_id: str, assistant_name: str)
 
 
 
+# V28.l — Estrae testo da un allegato inviato in chat (PDF, immagini, TXT/CSV, Excel).
+async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
+    """Best-effort text extraction. Never raises to caller.
+
+    - PDF (application/pdf): via PyMuPDF (fitz), tutti i testi delle pagine.
+    - Immagini (image/*): via Gemini vision se disponibile, altrimenti [Immagine allegata].
+    - Excel (.xlsx / spreadsheet mime): via openpyxl in modalità read-only.
+    - CSV / TXT / JSON / Markdown: decodifica UTF-8 diretta.
+    - Altri: [Formato non supportato].
+    """
+    import base64 as _b64
+    try:
+        raw = _b64.b64decode(att.data_base64, validate=False)
+    except Exception as exc:
+        return f"[Impossibile decodificare {att.name}: {exc}]"
+    mime = (att.mime or "").lower()
+    name = (att.name or "").lower()
+
+    # PDF
+    if mime == "application/pdf" or name.endswith(".pdf"):
+        try:
+            import fitz  # PyMuPDF
+            doc = fitz.open(stream=raw, filetype="pdf")
+            pages = []
+            for p in doc:
+                t = (p.get_text() or "").strip()
+                if t:
+                    pages.append(t)
+                if sum(len(x) for x in pages) > 18000:
+                    break
+            doc.close()
+            return "\n\n".join(pages) if pages else "[PDF senza testo estraibile]"
+        except Exception as exc:
+            return f"[Errore lettura PDF: {exc}]"
+
+    # Excel .xlsx
+    if name.endswith(".xlsx") or "spreadsheet" in mime or "excel" in mime:
+        try:
+            import io as _io
+            from openpyxl import load_workbook
+            wb = load_workbook(filename=_io.BytesIO(raw), read_only=True, data_only=True)
+            out = []
+            for sh in wb.sheetnames[:6]:
+                ws = wb[sh]
+                out.append(f"### Foglio: {sh}")
+                for i, row in enumerate(ws.iter_rows(values_only=True)):
+                    if i > 200:
+                        out.append("... (righe successive omesse)")
+                        break
+                    cells = [str(c) if c is not None else "" for c in row]
+                    if any(cells):
+                        out.append(" | ".join(cells))
+            wb.close()
+            return "\n".join(out) if out else "[Excel vuoto]"
+        except Exception as exc:
+            return f"[Errore lettura Excel: {exc}]"
+
+    # Testo semplice / CSV / JSON / Markdown
+    if mime.startswith("text/") or name.endswith((".txt", ".csv", ".json", ".md", ".log", ".yml", ".yaml")):
+        try:
+            return raw.decode("utf-8", errors="replace")
+        except Exception as exc:
+            return f"[Errore decodifica testo: {exc}]"
+
+    # Immagini — analizza tramite Gemini se disponibile, altrimenti descrizione minima
+    if mime.startswith("image/") or name.endswith((".png", ".jpg", ".jpeg", ".webp")):
+        try:
+            # Riutilizziamo la vision helper già esistente per l'analisi bollette
+            from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+            key = os.environ.get("EMERGENT_LLM_KEY")
+            if not key:
+                return f"[Immagine {att.name} ({len(raw)} byte) — LLM vision non configurato]"
+            chat = LlmChat(
+                api_key=key, session_id=f"attach_{uuid.uuid4().hex[:8]}",
+                system_message="Sei un assistente che descrive immagini in modo dettagliato in italiano. Estrai testo (OCR) e descrivi grafici, tabelle, dati numerici e contesto generale.",
+            ).with_model("gemini", "gemini-2.5-flash")
+            msg = UserMessage(
+                text=f"Analizza questa immagine ('{att.name}') e descrivine il contenuto in italiano. Se contiene testo, riportalo. Se contiene numeri/tabelle, elencali.",
+                file_contents=[ImageContent(image_base64=att.data_base64)],
+            )
+            resp = await chat.send_message(msg)
+            return (str(resp) or "").strip() or f"[Immagine {att.name} — nessun contenuto estratto]"
+        except Exception as exc:
+            return f"[Immagine {att.name} — analisi non disponibile: {exc}]"
+
+    return f"[File {att.name} — tipo {mime or 'sconosciuto'} non supportato per estrazione testo]"
+
+
 @api_router.post("/assistant/chat")
 async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     """Personal AI assistant. Uses Claude Sonnet 5 via Emergent LLM Key.
@@ -7415,6 +7512,24 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
 
     # V38T — Load persistent memories for this user
     memories = await _load_neo_memories(user["user_id"], limit=5)
+
+    # V28.l — Extract text from any attachments the user sent with the message
+    attachments_section = ""
+    if body.attachments:
+        parts = []
+        for att in body.attachments[:5]:  # cap at 5 files per message
+            try:
+                extracted = await _extract_attachment_text(att)
+            except Exception as exc:  # pragma: no cover — never fail the chat
+                extracted = f"[Errore lettura {att.name}: {exc}]"
+            if extracted:
+                parts.append(f"--- File: {att.name} ({att.mime or 'unknown'}) ---\n{extracted[:6000]}")
+        if parts:
+            attachments_section = (
+                "\n\nALLEGATI CARICATI DALL'UTENTE (analizzali come contesto principale della domanda):\n"
+                + "\n\n".join(parts)
+                + "\n\nQuando rispondi, cita esplicitamente il contenuto rilevante degli allegati e nomi dei file.\n"
+            )
 
     import json as _json
     ctx_json = _json.dumps(context, ensure_ascii=False, default=str)
@@ -7485,6 +7600,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         f"{weather_section}"
         f"{web_section}"
         f"{memory_section}"
+        f"{attachments_section}"
     )
 
     from emergentintegrations.llm.chat import LlmChat, UserMessage
