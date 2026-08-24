@@ -352,6 +352,17 @@ function ImpostazioniScreen() {
         )}
 
         {!user?.parent_user_id && (
+          <Pressable testID="script-tel-link" onPress={() => router.push("/call-script-config" as any)} style={styles.linkCard}>
+            <Ionicons name="megaphone" size={26} color="#0F766E" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkTitle}>Script Telefonata</Text>
+              <Text style={styles.linkSub}>Testo mostrato agli agenti durante le chiamate</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+          </Pressable>
+        )}
+
+        {!user?.parent_user_id && (
           <Pressable testID="ai-teach-link" onPress={() => router.push("/ai-teach" as any)} style={styles.linkCard}>
             <Ionicons name="sparkles" size={26} color="#FF6B35" />
             <View style={{ flex: 1 }}>

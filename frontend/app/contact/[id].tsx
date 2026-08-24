@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Linking, Platform, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,6 +24,7 @@ import { ContactCallsSection } from "@/src/ContactCallsSection";
 import { ContactAppointmentsSection } from "@/src/ContactAppointmentsSection";
 import { ContactReferralsSection } from "@/src/ContactReferralsSection";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
+import { CallScriptOverlay } from "@/src/CallScriptOverlay";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { DocumentScannerModal } from "@/src/DocumentScannerModal";
@@ -82,6 +83,7 @@ function ContactDetail() {
   const [team, setTeam] = useState<Array<{ user_id: string; name: string; role: string }>>([]);
   const [assignOpen, setAssignOpen] = useState(false);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
+  const [callScriptOpen, setCallScriptOpen] = useState(false);
   const [callsRefreshTick, setCallsRefreshTick] = useState(0);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [viewerFile, setViewerFile] = useState<CFile | null>(null);
@@ -575,11 +577,7 @@ function ContactDetail() {
                 {c.phone ? (
                   <Pressable
                     testID="comm-call"
-                    onPress={() => setCallTarget({
-                      phone: c.phone || null,
-                      contact_id: id,
-                      display_name: `${c.first_name} ${c.last_name}`.trim(),
-                    })}
+                    onPress={() => setCallScriptOpen(true)}
                     style={[styles.commBtn, { backgroundColor: "#0F766E" }]}
                   >
                     <Ionicons name="call" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Chiama</Text>
@@ -1030,6 +1028,12 @@ function ContactDetail() {
             notify("Scansione salvata", `${page_count} pagina/e unite in PDF.`);
           } catch (e: any) { notify("Errore upload", e?.message || ""); }
         }}
+      />
+      <CallScriptOverlay
+        visible={callScriptOpen}
+        onClose={() => setCallScriptOpen(false)}
+        contactName={`${c?.first_name || ""} ${c?.last_name || ""}`.trim()}
+        contactPhone={c?.phone}
       />
     </SafeAreaView>
   );

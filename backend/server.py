@@ -7580,8 +7580,20 @@ async def list_active_event_banners(user=Depends(get_current_user)):
     the banners currently visible to them (event_at in future, visibility ok).
     Returns light payload (cover_base64 included for rendering, no PDF/HTML/audio)."""
     now = utcnow()
+    # V27 fix — show banners that are UPCOMING (event_at in future) OR ONGOING
+    # (event_at in past but event_end_at in future OR within 24h grace period).
+    # This fixes the bug where Master-created banners with "TUTTI" didn't appear
+    # if their event_at was already reached.
+    grace_cutoff = now - timedelta(hours=24)
     all_banners = await db.event_banners.find(
-        {"user_id": tenant_id(user), "event_at": {"$gte": now}},
+        {
+            "user_id": tenant_id(user),
+            "$or": [
+                {"event_at": {"$gte": now}},
+                {"event_end_at": {"$gte": now}},
+                {"event_at": {"$gte": grace_cutoff}, "event_end_at": None},
+            ],
+        },
         {"_id": 0, "program_pdf_base64": 0, "program_html": 0, "audio_base64": 0},
     ).sort("event_at", 1).to_list(50)
     visible = [b for b in all_banners if _event_visible_to_user(b, user)]
