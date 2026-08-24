@@ -148,8 +148,13 @@ export function BusinessCardScreen(): React.ReactElement {
     if (!cid) { notify("Card non salvata", "Salva prima le modifiche."); return; }
     const link = getPublicShareUrl(cid);
     try { await Clipboard.setStringAsync(link); } catch { /* clipboard optional */ }
+    // V28.h — Formato richiesto: "Nome — Biglietto da visita digitale [link]".
+    // Passiamo SOLO `message`: se aggiungessimo anche `url`, alcune piattaforme
+    // (WhatsApp incluso) incollerebbero il link due volte nel testo condiviso.
+    const name = (card.display_name || "").trim() || "Biglietto";
+    const message = `${name} — Biglietto da visita digitale ${link}`;
     try {
-      await Share.share({ message: `${card.display_name || "Biglietto"} - ${link}`, url: link, title: "Biglietto da visita" });
+      await Share.share({ message });
     } catch (e) {
       notify("Errore", e instanceof Error ? e.message : "");
     }
