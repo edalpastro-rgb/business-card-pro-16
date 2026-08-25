@@ -1115,6 +1115,7 @@ async def delete_my_account(body: DeleteAccountIn, authorization: Optional[str] 
         "corporate_records", "contract_records", "contact_files",
         "chat_conversations", "chat_messages", "assistant_chat_sessions",
         "events", "event_registrations", "smtp_configs",
+        "axon_analyses",
     ]
     user_collections = [
         "user_settings", "business_cards", "google_drive_connections",
@@ -1729,12 +1730,23 @@ async def delete_contact(contact_id: str, user=Depends(get_current_user)):
 
 
 @api_router.post("/contacts/{contact_id}/notes")
-async def add_note(contact_id: str, body: ContactNote, user=Depends(get_current_user)):
+async def add_note(contact_id: str, body: ContactNote, background: BackgroundTasks, user=Depends(get_current_user)):
     c = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0})
     if not c:
         raise HTTPException(status_code=404, detail="Contatto non trovato")
     note = body.model_dump()
     await db.contacts.update_one({"contact_id": contact_id}, {"$push": {"notes": note}})
+    # V29.g — Trigger analisi Axon (fire-and-forget) sulla nota testuale
+    note_txt = (note.get("text") or "").strip()
+    if note_txt and note.get("kind") in (None, "text"):
+        _schedule_axon_analysis(
+            background=background,
+            user=user,
+            contact_id=contact_id,
+            interaction_type="note",
+            interaction_ref_id=note.get("id"),
+            interaction_summary=note_txt,
+        )
     return note
 
 
@@ -2450,7 +2462,7 @@ async def delete_callback(callback_id: str, user=Depends(get_current_user)):
 # Call logs & outcomes
 # =========================
 @api_router.post("/calls/log")
-async def log_call(body: CallLogIn, user=Depends(get_current_user)):
+async def log_call(body: CallLogIn, background: BackgroundTasks, user=Depends(get_current_user)):
     """Records a communication event (phone call, SMS, WhatsApp, email, telegram).
     Optionally creates a follow-up callback if the outcome indicates a reschedule
     (reschedule_at or reschedule_delta_min). V28.c: added `channel` field so the
@@ -2534,6 +2546,20 @@ async def log_call(body: CallLogIn, user=Depends(get_current_user)):
         strip_id(cb_doc)
         new_callback = cb_doc
 
+    # V29.g — Trigger analisi Axon per la chiamata: usa nota+esito+canale+durata
+    if body.contact_id:
+        ctx_bits = [f"canale: {channel}", f"esito: {outcome_id}"]
+        if body.duration_sec: ctx_bits.append(f"durata: {int(body.duration_sec)}s")
+        if body.note and body.note.strip(): ctx_bits.append(f"note: {body.note.strip()}")
+        _schedule_axon_analysis(
+            background=background,
+            user=user,
+            contact_id=body.contact_id,
+            interaction_type="call",
+            interaction_ref_id=log_id,
+            interaction_summary=" | ".join(ctx_bits),
+        )
+
     return {"log": doc, "new_callback": new_callback}
 
 
@@ -2554,7 +2580,7 @@ class CallLogPatch(BaseModel):
 
 
 @api_router.patch("/calls/log/{log_id}")
-async def patch_call_log(log_id: str, body: CallLogPatch, user=Depends(get_current_user)):
+async def patch_call_log(log_id: str, body: CallLogPatch, background: BackgroundTasks, user=Depends(get_current_user)):
     existing = await db.call_logs.find_one(scope_query(user, {"log_id": log_id}))
     if not existing:
         raise HTTPException(status_code=404, detail="Log non trovato")
@@ -2570,6 +2596,21 @@ async def patch_call_log(log_id: str, body: CallLogPatch, user=Depends(get_curre
     upd["updated_at"] = utcnow()
     await db.call_logs.update_one({"log_id": log_id}, {"$set": upd})
     doc = await db.call_logs.find_one({"log_id": log_id}, {"_id": 0})
+    # V29.g — Se la nota è stata aggiornata, rigenera l'analisi Axon (nuova entry, le vecchie restano)
+    if body.note is not None and body.note.strip() and existing.get("contact_id"):
+        merged_note = body.note.strip()
+        ctx_bits = [f"canale: {existing.get('channel')}", f"esito: {upd.get('outcome_id') or existing.get('outcome_id')}"]
+        dur = upd.get("duration_sec") if upd.get("duration_sec") is not None else existing.get("duration_sec")
+        if dur: ctx_bits.append(f"durata: {int(dur)}s")
+        ctx_bits.append(f"note: {merged_note}")
+        _schedule_axon_analysis(
+            background=background,
+            user=user,
+            contact_id=existing.get("contact_id"),
+            interaction_type="call",
+            interaction_ref_id=log_id,
+            interaction_summary=" | ".join(ctx_bits),
+        )
     return {"log": doc}
 
 
@@ -4853,6 +4894,176 @@ async def upcoming_deadlines(days: Optional[int] = None, user=Depends(get_curren
     for d in out:
         counts[d.get("status", "ok")] = counts.get(d.get("status", "ok"), 0) + 1
     return {"items": out, "counts": counts, "days": days}
+
+
+
+# =========================
+# V29.g — Analisi Axon per interazione
+# Dopo ogni interazione con un contatto (chiamata, nota, messaggio) Axon
+# genera automaticamente un riassunto intelligente e lo archivia nel profilo.
+# I riassunti si accumulano (nessuna sovrascrittura), sono derivati e possono
+# essere rigenerati riprocessando l'interazione sorgente.
+# =========================
+
+_TONE_NORMALIZE = {
+    "positive": "positive", "positivo": "positive",
+    "neutral": "neutral", "neutro": "neutral",
+    "skeptical": "skeptical", "scettico": "skeptical",
+    "interested": "interested", "interessato": "interested",
+    "negative": "negative", "negativo": "negative",
+}
+
+
+async def _axon_analyze_interaction_bg(
+    tenant: str,
+    user_id: str,
+    contact_id: str,
+    interaction_type: str,
+    interaction_ref_id: Optional[str],
+    interaction_summary: str,
+    contact_ctx: Optional[dict] = None,
+):
+    """Fire-and-forget: chiama Claude per estrarre tono/argomenti/obiezioni/next_step
+    e salva su `axon_analyses`. Non solleva mai eccezioni al chiamante."""
+    try:
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+        except Exception as e:
+            logger.warning("[axon-analyze] emergentintegrations not available: %s", e)
+            return
+        key = os.environ.get("EMERGENT_LLM_KEY")
+        if not key:
+            logger.warning("[axon-analyze] EMERGENT_LLM_KEY missing")
+            return
+        if not interaction_summary or not interaction_summary.strip():
+            return
+
+        ctx = contact_ctx or {}
+        contact_name = " ".join([ctx.get("first_name") or "", ctx.get("last_name") or ""]).strip() or "il cliente"
+        area = ctx.get("area") or "energy"
+
+        system = (
+            "Sei Axon, l'assistente CRM di un consulente energetico e networker italiano. "
+            "Analizza l'interazione fornita e restituisci ESCLUSIVAMENTE JSON valido, "
+            "senza testo prima o dopo, con questa struttura:\n"
+            "{\n"
+            "  \"tone\": one of [\"positive\", \"neutral\", \"skeptical\", \"interested\", \"negative\"],\n"
+            "  \"topics\": [3-5 argomenti brevi in italiano],\n"
+            "  \"objections\": [0-4 obiezioni rilevate, o [] se nessuna],\n"
+            "  \"next_step\": una singola frase in italiano che dice al consulente il prossimo passo consigliato,\n"
+            "  \"summary\": una frase riassuntiva dell'interazione in italiano\n"
+            "}\n"
+            "Non aggiungere spiegazioni. Ogni topic e obiezione deve essere di 2-6 parole. "
+            "Se l'interazione e' troppo breve per essere analizzata, restituisci tono \"neutral\", "
+            "topics vuoto, obiezioni vuote, next_step con un suggerimento generico."
+        )
+        prompt = (
+            f"Contatto: {contact_name} (area: {area}).\n"
+            f"Tipo interazione: {interaction_type}.\n"
+            f"Contenuto:\n\"\"\"\n{interaction_summary[:4000]}\n\"\"\"\n\n"
+            "Rispondi con il JSON."
+        )
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"axon-a-{uuid.uuid4().hex[:8]}",
+            system_message=system,
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        try:
+            raw = await chat.send_message(UserMessage(text=prompt))
+        except Exception as e:
+            logger.warning("[axon-analyze] LLM error: %s", e)
+            return
+        data = _parse_llm_json(raw or "", fallback_key="summary")
+        if not isinstance(data, dict):
+            return
+        tone_raw = str(data.get("tone") or "neutral").strip().lower()
+        tone = _TONE_NORMALIZE.get(tone_raw, "neutral")
+        topics = data.get("topics") or []
+        objections = data.get("objections") or []
+        next_step = str(data.get("next_step") or "").strip()
+        summary = str(data.get("summary") or "").strip()
+        if not isinstance(topics, list): topics = []
+        if not isinstance(objections, list): objections = []
+        topics = [str(t).strip() for t in topics if str(t or "").strip()][:8]
+        objections = [str(t).strip() for t in objections if str(t or "").strip()][:6]
+
+        doc = {
+            "analysis_id": f"aa_{uuid.uuid4().hex[:12]}",
+            "user_id": tenant,
+            "created_by": user_id,
+            "contact_id": contact_id,
+            "interaction_type": interaction_type,
+            "interaction_ref_id": interaction_ref_id,
+            "interaction_snippet": interaction_summary[:400],
+            "tone": tone,
+            "topics": topics,
+            "objections": objections,
+            "next_step": next_step or None,
+            "summary": summary or None,
+            "created_at": utcnow(),
+        }
+        await db.axon_analyses.insert_one(doc)
+    except Exception as e:
+        logger.exception("[axon-analyze] unexpected failure: %s", e)
+
+
+async def _fetch_contact_ctx(user: dict, contact_id: str) -> Optional[dict]:
+    """Recupera un piccolo dict con dati anagrafici per contestualizzare l'LLM."""
+    try:
+        return await db.contacts.find_one(
+            scope_query(user, {"contact_id": contact_id}),
+            {"_id": 0, "first_name": 1, "last_name": 1, "area": 1, "contact_id": 1},
+        )
+    except Exception:
+        return None
+
+
+def _schedule_axon_analysis(
+    background: Optional[BackgroundTasks],
+    user: dict,
+    contact_id: str,
+    interaction_type: str,
+    interaction_ref_id: Optional[str],
+    interaction_summary: str,
+):
+    """Utility che accoda l'analisi asincrona sull'evento CRM."""
+    if not background:
+        return
+    if not interaction_summary or not interaction_summary.strip():
+        return
+
+    async def _run():
+        ctx = await _fetch_contact_ctx(user, contact_id)
+        await _axon_analyze_interaction_bg(
+            tenant=tenant_id(user),
+            user_id=user["user_id"],
+            contact_id=contact_id,
+            interaction_type=interaction_type,
+            interaction_ref_id=interaction_ref_id,
+            interaction_summary=interaction_summary,
+            contact_ctx=ctx,
+        )
+
+    background.add_task(_run)
+
+
+@api_router.get("/contacts/{contact_id}/axon-analyses")
+async def list_axon_analyses(
+    contact_id: str,
+    limit: int = 20,
+    user=Depends(get_current_user),
+):
+    """Ritorna la timeline "Analisi Axon" per un contatto, dalla piu' recente."""
+    c = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0, "contact_id": 1})
+    if not c:
+        raise HTTPException(status_code=404, detail="Contatto non trovato")
+    limit = max(1, min(int(limit or 20), 100))
+    items = await db.axon_analyses.find(
+        {"user_id": tenant_id(user), "contact_id": contact_id},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(limit)
+    return {"items": items}
+
 
 
 

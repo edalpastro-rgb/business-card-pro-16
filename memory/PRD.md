@@ -1,4 +1,46 @@
-# Dal Pastro CRM — PRD v1.8
+# Dal Pastro CRM — PRD v1.9
+
+## v2.ah Analisi Axon automatiche per contatto (Giugno 2026)
+### 🎯 Richiesta utente
+Dopo ogni interazione con un contatto (chiamata, nota, messaggio) Axon genera automaticamente un riassunto intelligente e lo salva nel profilo. Deve includere tono, argomenti, obiezioni, next_step. Appare come "Analisi Axon" con data + tipo. Si accumulano nel tempo senza sovrascrivere. Nessuna azione manuale.
+
+### ✅ Backend `/app/backend/server.py`
+- Nuova collezione `axon_analyses` (indicizzata implicitamente da user_id + contact_id).
+- Helper `_axon_analyze_interaction_bg(...)` async fire-and-forget:
+  - Usa `emergentintegrations.llm.chat.LlmChat` + `claude-sonnet-4-5-20250929`.
+  - System prompt italiano tuned per CRM che restituisce JSON strutturato `{tone, topics, objections, next_step, summary}`.
+  - Sanitize output (max 8 topics, 6 objections; tone normalizzato ai 5 valori canonici).
+  - Insert in `db.axon_analyses`. Non solleva mai eccezioni.
+- Utility `_schedule_axon_analysis(background, user, contact_id, type, ref, summary)` per accodare via BackgroundTasks.
+- Trigger inseriti in:
+  - `POST /api/contacts/{id}/notes` — quando `kind=text` con testo non vuoto.
+  - `POST /api/calls/log` — costruisce contesto "canale | esito | durata | note".
+  - `PATCH /api/calls/log/{id}` — se la nota viene aggiornata rigenera l'analisi (le vecchie restano).
+- Endpoint `GET /api/contacts/{id}/axon-analyses?limit=N` — ritorna timeline ordinata dalla più recente (max 100).
+- Cleanup: `axon_analyses` aggiunta alla lista tenant_collections dell'endpoint `DELETE /api/auth/me`.
+
+### ✅ Frontend
+- `/app/frontend/src/AxonAnalysesSection.tsx` (NEW): sezione con toggle expand/collapse. Header con logo AxonOS + contatore. Per ogni entry:
+  - Pill "Tipo" (Chiamata/Nota/Messaggio) + pill "Tono" con icona (Positivo · Interessato · Neutro · Scettico · Negativo).
+  - Data DD/MM/YY · HH:MM.
+  - Frase riassuntiva.
+  - Chip topic viola (max 8).
+  - Box giallo "OBIEZIONI" (se presenti).
+  - Box viola "PROSSIMO PASSO" con evidenza.
+  - Mostra 3 entry per default + "Mostra tutte le N analisi".
+- Polling leggero: ricarica dopo 4/10/20s dall'apertura del contatto per catturare l'analisi background in arrivo (~5-15s dal trigger).
+- `/app/frontend/app/contact/[id].tsx`: `<AxonAnalysesSection contactId={id} />` inserita nel tab Info, subito sotto la sezione Referenze bidirezionali.
+
+### 🧪 Test manuali eseguiti
+- ✅ Backend end-to-end: contatto creato, note POST + call log POST → dopo 15s `GET /axon-analyses` restituisce 2 entry. Test con testo italiano reale sulla penale disdetta Enel — Axon ha correttamente estratto tono=interested, 5 topics (cambio fornitore, penale disdetta Enel, blocco prezzi, costi fissi, preventivi comparativi), 1 objection e next_step operativo.
+- ✅ UI screenshot: sezione visibile collassata + espansa con tutti i blocchi (pill tono/tipo, chips topics, box obiezioni, box next_step).
+- ✅ Le analisi si accumulano (2 entry create in tempi diversi, entrambe visibili).
+
+### 📌 Note
+- L'analisi viene generata via LLM background: latenza tipica 5-15s dopo l'evento. Il polling frontend copre questa finestra.
+- Modello: Claude Sonnet 4.5 (via Emergent LLM key). Costo minimo per chiamata (~150-400 token I/O).
+
+---
 
 ## v2.ag Brand identity — splash screen + firma email agente (Giugno 2026)
 ### 🎯 Richiesta utente
