@@ -34,6 +34,7 @@ import { ContactReferralsTab } from "@/src/ContactReferralsTab";
 import { DeadlinesSection } from "@/src/DeadlinesSection";
 import { PromoteToAgentModal } from "@/src/PromoteToAgentModal";
 import { AxonAnalysesSection } from "@/src/AxonAnalysesSection";
+import { AxonProfileCard } from "@/src/AxonProfileCard";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -673,6 +674,9 @@ function ContactDetail() {
               contactId={id}
               contactName={`${c.first_name} ${c.last_name}`.trim()}
             />
+
+            {/* V29.i — Profilo Axon (Fase 2 · sintesi comportamentale aggregata) */}
+            <AxonProfileCard contactId={id} />
 
             {/* V29.g — Analisi Axon (timeline riassunti automatici) */}
             <AxonAnalysesSection contactId={id} />

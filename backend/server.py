@@ -1116,6 +1116,7 @@ async def delete_my_account(body: DeleteAccountIn, authorization: Optional[str] 
         "chat_conversations", "chat_messages", "assistant_chat_sessions",
         "events", "event_registrations", "smtp_configs",
         "axon_analyses",
+        "axon_profiles",
     ]
     user_collections = [
         "user_settings", "business_cards", "google_drive_connections",
@@ -5003,6 +5004,11 @@ async def _axon_analyze_interaction_bg(
             "created_at": utcnow(),
         }
         await db.axon_analyses.insert_one(doc)
+        # V29.i — Fase 2: rigenera il profilo comportamentale aggregato dopo ogni analisi
+        try:
+            await _axon_build_profile_bg(tenant=tenant, user_id=user_id, contact_id=contact_id, contact_ctx=ctx)
+        except Exception as e2:
+            logger.warning("[axon-profile] build failed: %s", e2)
     except Exception as e:
         logger.exception("[axon-analyze] unexpected failure: %s", e)
 
@@ -5063,6 +5069,194 @@ async def list_axon_analyses(
         {"_id": 0},
     ).sort("created_at", -1).to_list(limit)
     return {"items": items}
+
+
+# =========================
+# V29.i — Fase 2: Profilo comportamentale Axon
+# Aggrega N analisi (Fase 1) e sintetizza un profilo aggiornato del cliente:
+# stile comunicazione, livello interesse, obiezioni ricorrenti, momento migliore
+# di contatto, suggerimento strategico. Upsert su axon_profiles.
+# =========================
+
+_STYLE_NORMALIZE = {
+    "analitico": "analitico", "analytical": "analitico",
+    "emotivo": "emotivo", "emotional": "emotivo",
+    "diretto": "diretto", "direct": "diretto",
+    "cauto": "cauto", "cautious": "cauto",
+    "espansivo": "espansivo", "expansive": "espansivo", "socievole": "espansivo",
+    "riservato": "riservato", "reserved": "riservato",
+    "pragmatico": "pragmatico", "pragmatic": "pragmatico",
+}
+_INTEREST_NORMALIZE = {
+    "high": "high", "alto": "high",
+    "medium": "medium", "medio": "medium",
+    "low": "low", "basso": "low",
+}
+_TIME_NORMALIZE = {
+    "mattina": "mattina", "morning": "mattina",
+    "pranzo": "pranzo", "midday": "pranzo",
+    "pomeriggio": "pomeriggio", "afternoon": "pomeriggio",
+    "sera": "sera", "serata": "sera", "evening": "sera",
+    "weekend": "weekend",
+}
+
+
+async def _axon_build_profile_bg(
+    tenant: str,
+    user_id: str,
+    contact_id: str,
+    contact_ctx: Optional[dict] = None,
+):
+    """Aggrega le ultime analisi per il contatto e (ri)genera il profilo comportamentale.
+    Idempotente: sovrascrive il documento in `axon_profiles` con la sintesi corrente.
+    Non solleva mai eccezioni al chiamante."""
+    try:
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+        except Exception as e:
+            logger.warning("[axon-profile] emergentintegrations not available: %s", e)
+            return
+        key = os.environ.get("EMERGENT_LLM_KEY")
+        if not key:
+            logger.warning("[axon-profile] EMERGENT_LLM_KEY missing")
+            return
+
+        analyses = await db.axon_analyses.find(
+            {"user_id": tenant, "contact_id": contact_id},
+            {"_id": 0, "created_at": 1, "interaction_type": 1, "tone": 1,
+             "topics": 1, "objections": 1, "next_step": 1, "summary": 1},
+        ).sort("created_at", -1).to_list(30)
+        if not analyses:
+            return
+
+        ctx = contact_ctx or {}
+        contact_name = " ".join([ctx.get("first_name") or "", ctx.get("last_name") or ""]).strip() or "il cliente"
+        area = ctx.get("area") or "energy"
+
+        # Compatto un bullet per ogni analisi (dalla più recente alla più vecchia)
+        bullets: List[str] = []
+        for a in analyses[:20]:
+            try:
+                dt = a.get("created_at")
+                if hasattr(dt, "strftime"):
+                    ds = dt.strftime("%d/%m/%Y %H:%M")
+                else:
+                    ds = str(dt or "")[:16]
+            except Exception:
+                ds = ""
+            bullets.append(
+                f"- [{ds}] tipo={a.get('interaction_type')} tono={a.get('tone')}"
+                + (f" topics={', '.join(a.get('topics') or [])}" if a.get('topics') else "")
+                + (f" obiezioni={', '.join(a.get('objections') or [])}" if a.get('objections') else "")
+                + (f" nextStep={a.get('next_step')}" if a.get('next_step') else "")
+                + (f" | {a.get('summary')}" if a.get('summary') else "")
+            )
+        interactions_txt = "\n".join(bullets)
+
+        system = (
+            "Sei Axon, l'assistente CRM di un consulente energetico e networker italiano. "
+            "Ti fornisco lo storico delle analisi delle interazioni di un contatto: "
+            "sintetizza un PROFILO COMPORTAMENTALE aggiornato del cliente. "
+            "Rispondi ESCLUSIVAMENTE con JSON valido nel seguente schema, senza testo prima o dopo:\n"
+            "{\n"
+            "  \"communication_style\": one of [\"analitico\", \"emotivo\", \"diretto\", \"cauto\", \"espansivo\", \"riservato\", \"pragmatico\"],\n"
+            "  \"style_reason\": frase italiana breve (max 18 parole) che spiega perché,\n"
+            "  \"interest_level\": one of [\"high\", \"medium\", \"low\"],\n"
+            "  \"interest_trend\": one of [\"up\", \"flat\", \"down\"],\n"
+            "  \"recurring_objections\": [0-5 obiezioni ricorrenti in italiano, 2-6 parole ciascuna],\n"
+            "  \"best_contact_time\": one of [\"mattina\", \"pranzo\", \"pomeriggio\", \"sera\", \"weekend\", \"non rilevabile\"],\n"
+            "  \"best_contact_time_reason\": frase italiana breve (max 15 parole),\n"
+            "  \"strategic_suggestion\": una singola frase italiana (max 40 parole) con il prossimo passo strategico consigliato al consulente,\n"
+            "  \"key_topics\": [3-6 argomenti di interesse ricorrenti]\n"
+            "}\n"
+            "Regole: se un dato non è deducibile dalle interazioni, usa \"non rilevabile\" per best_contact_time e stringa vuota per style_reason/best_contact_time_reason. "
+            "Non ripetere pari-pari il testo delle singole interazioni: sintetizza."
+        )
+        prompt = (
+            f"Contatto: {contact_name} (area: {area}).\n"
+            f"Numero interazioni analizzate: {len(analyses)}.\n"
+            f"Storico (dalla più recente):\n{interactions_txt}\n\n"
+            "Genera il JSON del profilo."
+        )
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"axon-p-{uuid.uuid4().hex[:8]}",
+            system_message=system,
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        try:
+            raw = await chat.send_message(UserMessage(text=prompt))
+        except Exception as e:
+            logger.warning("[axon-profile] LLM error: %s", e)
+            return
+        data = _parse_llm_json(raw or "", fallback_key="strategic_suggestion")
+        if not isinstance(data, dict):
+            return
+
+        style_raw = str(data.get("communication_style") or "").strip().lower()
+        style = _STYLE_NORMALIZE.get(style_raw, "pragmatico")
+        interest_raw = str(data.get("interest_level") or "").strip().lower()
+        interest = _INTEREST_NORMALIZE.get(interest_raw, "medium")
+        trend_raw = str(data.get("interest_trend") or "flat").strip().lower()
+        trend = trend_raw if trend_raw in ("up", "flat", "down") else "flat"
+        best_time_raw = str(data.get("best_contact_time") or "").strip().lower()
+        best_time = _TIME_NORMALIZE.get(best_time_raw, None)
+        # Also accept the explicit italian "non rilevabile"
+        if not best_time and "rilev" in best_time_raw:
+            best_time = None
+
+        rec_objs = data.get("recurring_objections") or []
+        if not isinstance(rec_objs, list): rec_objs = []
+        rec_objs = [str(o).strip() for o in rec_objs if str(o or "").strip()][:6]
+
+        key_topics = data.get("key_topics") or []
+        if not isinstance(key_topics, list): key_topics = []
+        key_topics = [str(t).strip() for t in key_topics if str(t or "").strip()][:8]
+
+        style_reason = str(data.get("style_reason") or "").strip()
+        best_time_reason = str(data.get("best_contact_time_reason") or "").strip()
+        suggestion = str(data.get("strategic_suggestion") or "").strip()
+
+        now = utcnow()
+        doc = {
+            "user_id": tenant,
+            "contact_id": contact_id,
+            "communication_style": style,
+            "style_reason": style_reason,
+            "interest_level": interest,
+            "interest_trend": trend,
+            "recurring_objections": rec_objs,
+            "best_contact_time": best_time,   # None se non rilevabile
+            "best_contact_time_reason": best_time_reason,
+            "strategic_suggestion": suggestion,
+            "key_topics": key_topics,
+            "based_on_count": len(analyses),
+            "last_analysis_at": analyses[0].get("created_at"),
+            "updated_at": now,
+            "updated_by": user_id,
+        }
+        await db.axon_profiles.update_one(
+            {"user_id": tenant, "contact_id": contact_id},
+            {"$set": doc, "$setOnInsert": {"created_at": now, "profile_id": f"ap_{uuid.uuid4().hex[:12]}"}},
+            upsert=True,
+        )
+    except Exception as e:
+        logger.exception("[axon-profile] unexpected failure: %s", e)
+
+
+@api_router.get("/contacts/{contact_id}/axon-profile")
+async def get_axon_profile(contact_id: str, user=Depends(get_current_user)):
+    """Ritorna il profilo comportamentale Axon corrente per il contatto (Fase 2).
+    Se non esiste ancora perché non ci sono analisi, torna {profile: null, has_analyses: bool}."""
+    c = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0, "contact_id": 1})
+    if not c:
+        raise HTTPException(status_code=404, detail="Contatto non trovato")
+    tid = tenant_id(user)
+    prof = await db.axon_profiles.find_one({"user_id": tid, "contact_id": contact_id}, {"_id": 0})
+    has_any = await db.axon_analyses.count_documents({"user_id": tid, "contact_id": contact_id}) > 0
+    return {"profile": prof, "has_analyses": has_any}
+
+
+
 
 
 

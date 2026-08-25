@@ -1,4 +1,40 @@
-# Dal Pastro CRM — PRD v1.10
+# Dal Pastro CRM — PRD v1.11
+
+## v2.aj Fase 2 — Profilo comportamentale Axon (Giugno 2026)
+### 🎯 Richiesta utente
+Aggregare nel tempo tutti i riassunti Fase 1 e costruire un profilo comportamentale: stile comunicazione, livello interesse, obiezioni ricorrenti, momento migliore di contatto, suggerimento strategico. Auto-aggiornato ad ogni nuova interazione.
+
+### ✅ Backend `/app/backend/server.py`
+- Nuova collezione `axon_profiles` (1 documento per contatto, upsert).
+- Helper `_axon_build_profile_bg(tenant, user_id, contact_id, ctx)` async:
+  - Carica ultime 30 analisi da `axon_analyses` ordinate desc.
+  - Compatta ogni analisi in un bullet compresso (data, tipo, tono, topics, obiezioni, next_step, summary).
+  - Prompt italiano → Claude Sonnet 4.5 → JSON strutturato con: `communication_style` (7 valori), `style_reason`, `interest_level` (high/medium/low), `interest_trend` (up/flat/down), `recurring_objections`, `best_contact_time` (mattina/pranzo/pomeriggio/sera/weekend), `best_contact_time_reason`, `strategic_suggestion`, `key_topics`.
+  - Sanitize output (normalizza sinonimi it/en, clamp array, "non rilevabile" → null).
+  - `upsert` in `axon_profiles` (setOnInsert su `created_at` e `profile_id`).
+- Trigger: dopo ogni `db.axon_analyses.insert_one(...)` chiamiamo `_axon_build_profile_bg` in-place (l'analisi è già in background task).
+- Endpoint `GET /api/contacts/{contact_id}/axon-profile` → `{profile, has_analyses}`. 404 se contatto non visibile.
+- Cleanup account: `axon_profiles` aggiunta alle tenant_collections eliminate dal DELETE /auth/me.
+
+### ✅ Frontend
+- `/app/frontend/src/AxonProfileCard.tsx` (NEW): card renderizza 5 blocchi tematici:
+  1. **Stile comunicazione** — card colorata per stile con icona (calcolatrice/cuore/flash/scudo/chat/lucchetto/valigetta), etichetta grande e frase di motivazione.
+  2. **Livello di interesse** — meter con progress bar colorata (verde/ambra/rosso) + pill "trend" con icona trending-up/remove/trending-down.
+  3. **Obiezioni ricorrenti** — box giallo con chips.
+  4. **Momento migliore per contattarlo** — card azzurra con icona meteo (sunny/moon/etc.) o placeholder se `null`.
+  5. **Suggerimento strategico** — box viola con `MaterialCommunityIcons lightbulb-on` e testo evidenziato.
+- Polling breve (7s/15s/25s) per catturare l'update background dopo un'interazione.
+- `/app/frontend/app/contact/[id].tsx`: `<AxonProfileCard>` inserita nel tab Info sopra `<AxonAnalysesSection>`.
+
+### 🧪 Test manuali eseguiti
+- ✅ Backend: dopo aver aggiunto una nota italiana ricca di segnali ("preferisce mattina", "vuole confronti numerici"), il profilo generato mostra correttamente `communication_style=analitico`, `interest_level=high`, `interest_trend=up`, `best_contact_time=mattina`, obiezioni pertinenti e suggerimento strategico operativo.
+- ✅ UI screenshot: tutti i 5 blocchi renderizzati correttamente per Marco TEST_UI (based_on_count: 3 interazioni).
+
+### 📌 Note
+- Il profilo si ricostruisce integralmente a ogni nuova interazione (idempotente). Costo minimo per rebuild (~300-700 token I/O).
+- Latenza tipica update: 5-15s dopo l'evento CRM.
+
+---
 
 ## v2.ai Login screen polish (logo grande + responsive) (Giugno 2026)
 ### 🎯 Richiesta utente
