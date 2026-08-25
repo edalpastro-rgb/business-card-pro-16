@@ -496,6 +496,10 @@ class ContactIn(BaseModel):
     status: Literal["prospect", "collaborator", "client"] = "prospect"
     # V28.f — Customer type per assigned area: {"energy": "business"|"private", ...}
     customer_types: Dict[str, str] = Field(default_factory=dict)
+    # V28.q — Bidirectional peer references (chip list mostrata nella scheda).
+    # NB: la sync bidirezionale è gestita dagli endpoint dedicati; il campo qui esiste
+    # solo per permettere set iniziale in fase di creazione (raro).
+    reference_contact_ids: List[str] = Field(default_factory=list)
 
 
 class ContactUpdate(BaseModel):
@@ -548,6 +552,8 @@ class ContactUpdate(BaseModel):
     status: Optional[Literal["prospect", "collaborator", "client"]] = None
     # V28.f — Customer type per area
     customer_types: Optional[Dict[str, str]] = None
+    # V28.q — Bidirectional peer references (opzionale: normalmente si usa endpoint dedicato)
+    reference_contact_ids: Optional[List[str]] = None
 
 
 class ProfileUpdate(BaseModel):
@@ -1425,6 +1431,64 @@ async def get_contact_referrals(contact_id: str, user=Depends(get_current_user))
             {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "contact_code": 1, "area": 1},
         )
     return {"referred_by": referred_by, "referrals": referrals}
+
+
+# =========================================================================
+# V28.q — References (bidirectional peer links)
+# Contact A e B si "referenziano" a vicenda: aggiungere B come referenza di A
+# aggiunge automaticamente A come referenza di B (e viceversa in rimozione).
+# =========================================================================
+
+
+@api_router.get("/contacts/{contact_id}/references")
+async def get_contact_references(contact_id: str, user=Depends(get_current_user)):
+    """Returns the list of contacts linked as peer references (bidirectional)."""
+    c = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0})
+    if not c:
+        raise HTTPException(status_code=404, detail="Contatto non trovato")
+    ref_ids = c.get("reference_contact_ids") or []
+    if not ref_ids:
+        return {"items": []}
+    # Fetch summaries (avoid heavy fields)
+    cursor = db.contacts.find(
+        scope_query(user, {"contact_id": {"$in": list(ref_ids)}}),
+        {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "avatar_base64": 1, "area": 1, "contact_code": 1, "status": 1},
+    )
+    items = [c async for c in cursor]
+    # Preserve requested order
+    id_index = {rid: i for i, rid in enumerate(ref_ids)}
+    items.sort(key=lambda x: id_index.get(x.get("contact_id"), 9999))
+    return {"items": items}
+
+
+@api_router.post("/contacts/{contact_id}/references/{ref_id}")
+async def add_contact_reference(contact_id: str, ref_id: str, user=Depends(get_current_user)):
+    """Link ref_id as a peer reference of contact_id. Bidirectional (also updates ref_id)."""
+    if contact_id == ref_id:
+        raise HTTPException(status_code=400, detail="Non puoi collegare un contatto a se stesso")
+    # Ensure both contacts belong to this tenant / visibility scope
+    a = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0, "contact_id": 1, "reference_contact_ids": 1})
+    b = await db.contacts.find_one(scope_query(user, {"contact_id": ref_id}), {"_id": 0, "contact_id": 1, "reference_contact_ids": 1})
+    if not a or not b:
+        raise HTTPException(status_code=404, detail="Contatto non trovato")
+    now = utcnow()
+    # Use $addToSet for idempotency + symmetry
+    await db.contacts.update_one({"contact_id": contact_id}, {"$addToSet": {"reference_contact_ids": ref_id}, "$set": {"updated_at": now}})
+    await db.contacts.update_one({"contact_id": ref_id}, {"$addToSet": {"reference_contact_ids": contact_id}, "$set": {"updated_at": now}})
+    return {"ok": True}
+
+
+@api_router.delete("/contacts/{contact_id}/references/{ref_id}")
+async def remove_contact_reference(contact_id: str, ref_id: str, user=Depends(get_current_user)):
+    """Unlink ref_id from contact_id references. Bidirectional."""
+    a = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0, "contact_id": 1})
+    b = await db.contacts.find_one(scope_query(user, {"contact_id": ref_id}), {"_id": 0, "contact_id": 1})
+    if not a or not b:
+        raise HTTPException(status_code=404, detail="Contatto non trovato")
+    now = utcnow()
+    await db.contacts.update_one({"contact_id": contact_id}, {"$pull": {"reference_contact_ids": ref_id}, "$set": {"updated_at": now}})
+    await db.contacts.update_one({"contact_id": ref_id}, {"$pull": {"reference_contact_ids": contact_id}, "$set": {"updated_at": now}})
+    return {"ok": True}
 
 
 @api_router.get("/contacts/{contact_id}")

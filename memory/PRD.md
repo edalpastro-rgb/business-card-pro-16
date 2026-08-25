@@ -1,5 +1,35 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.q Referenze bidirezionali + rimozione badge "Assegnato: Te stesso" (Giugno 2026)
+### 🎯 Richiesta utente
+"Sezione 'Referenze' nella vista principale dell'anagrafica: il Master collega altre anagrafiche come referenze. Chip cliccabile con nome + foto → apre l'anagrafica collegata. Bidirezionale. Rimuovi il badge 'Assegnato: Te stesso'."
+
+### ✅ Backend (`server.py`)
+- **`ContactIn.reference_contact_ids: List[str]`** + **`ContactUpdate.reference_contact_ids: Optional[List[str]]`**: nuovo campo persistito.
+- **`GET /api/contacts/{contact_id}/references`**: ritorna `{items: [{contact_id, first_name, last_name, avatar_base64, area, contact_code, status}]}` in ordine originale.
+- **`POST /api/contacts/{contact_id}/references/{ref_id}`**: link bidirezionale (`$addToSet` idempotente su ENTRAMBI i documenti). 400 su self-link, 404 se uno dei due non è in scope.
+- **`DELETE /api/contacts/{contact_id}/references/{ref_id}`**: unlink bidirezionale (`$pull` su entrambi).
+- Tutti gli endpoint rispettano `scope_query` per multi-tenant + RBAC visibility.
+
+### ✅ Frontend `/app/frontend/src/ContactReferencesSection.tsx` (NUOVO)
+- Card viola con header "Referenze N" + bottone "Aggiungi" (visibile solo al Master).
+- Se ci sono referenze: chip row con avatar (foto o iniziali su sfondo colore-area) + nome + X per rimuovere.
+- Tap sul chip → `router.push('/contact/{id}')` (naviga alla scheda della referenza).
+- Modal picker con search box + lista scrollabile di TUTTI i contatti del tenant (esclusi self + già collegati).
+- Per non-Master: sezione visibile solo in lettura (nessun bottone Aggiungi, nessun X); nascosta completamente se lista vuota.
+
+### ✅ Frontend `/app/frontend/app/contact/[id].tsx`
+- Import + mount di `<ContactReferencesSection>` nell'info tab, subito dopo la sezione `<ContactReferralsSection>` (segnalazioni) e prima della card "Comunica con".
+- **Rimosso badge "Assegnato: Te stesso"**: la pill `assignPill` ora non compare quando `c.assigned_to_user_id === user?.user_id` (ridondante — l'utente sa già di essere assegnato ai suoi contatti). Continua a mostrarsi per assegnazioni ad altri collaboratori o quando il contatto è orfano.
+
+### 🧪 Test manuali eseguiti
+- ✅ curl: POST/DELETE/GET references — dedupe idempotente, symmetric update, 400 self-link, 404 out-of-scope.
+- ✅ Screenshot Playwright: contatto A (empty) → tap Aggiungi → picker con lista → tap contatto B → chip appare in A.
+- ✅ Screenshot: apertura contatto B → chip di A appare come referenza (bidirezionalità verificata).
+- ✅ Screenshot: tap sul chip → naviga alla scheda contatto collegato.
+- ✅ Screenshot: nessuna pill "Assegnato: Te stesso" sulla scheda TEST_V38Z (assegnato all'utente loggato).
+
+
 ## v2.p Export tabelle chat Axon (Giugno 2026)
 ### 🎯 Richiesta utente
 "Quando Axon produce una tabella dati nella chat, mostra un pulsante 'Esporta' sotto la tabella. Al tap tre opzioni: Excel, CSV, PDF. File scaricabile/condivisibile e salvato di default tra i file Axon per autoimparare."

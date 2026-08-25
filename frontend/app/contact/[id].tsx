@@ -23,6 +23,7 @@ import { ContactAudioSection } from "@/src/ContactAudioSection";
 import { ContactCallsSection } from "@/src/ContactCallsSection";
 import { ContactAppointmentsSection } from "@/src/ContactAppointmentsSection";
 import { ContactReferralsSection } from "@/src/ContactReferralsSection";
+import { ContactReferencesSection } from "@/src/ContactReferencesSection";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { CallScriptOverlay } from "@/src/CallScriptOverlay";
 import { CallTimerOverlay } from "@/src/CallTimerOverlay";
@@ -435,18 +436,18 @@ function ContactDetail() {
           </Pressable>
         </View>
 
-        {canAssign && (
+        {canAssign && !(c.assigned_to_user_id && c.assigned_to_user_id === user?.user_id) && (
           <Pressable testID="assign-btn" onPress={() => setAssignOpen(!assignOpen)} style={styles.assignPill}>
             <Ionicons name="person" size={11} color={theme.color.brandPrimary} />
             <Text style={styles.assignPillTxt}>
               {c.assigned_to_user_id
-                ? "Assegnato: " + (team.find((m) => m.user_id === c.assigned_to_user_id)?.name || (c.assigned_to_user_id === user?.user_id ? "Te stesso" : c.assigned_to_user_id.slice(0, 8)))
+                ? "Assegnato: " + (team.find((m) => m.user_id === c.assigned_to_user_id)?.name || c.assigned_to_user_id.slice(0, 8))
                 : "Non assegnato — tocca per assegnare"}
             </Text>
             <Ionicons name={assignOpen ? "chevron-up" : "chevron-down"} size={11} color={theme.color.brandPrimary} />
           </Pressable>
         )}
-        {canAssign && assignOpen && (
+        {canAssign && !(c.assigned_to_user_id && c.assigned_to_user_id === user?.user_id) && assignOpen && (
           <View style={{ marginTop: 6, backgroundColor: "#FFF", borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, padding: 6 }}>
             <Pressable testID="assign-none" onPress={() => doAssign(null)} style={{ padding: 8 }}>
               <Text style={{ color: theme.color.muted, fontStyle: "italic" }}>— Nessuno (orfano) —</Text>
@@ -599,6 +600,11 @@ function ContactDetail() {
               contactName={`${c.first_name} ${c.last_name}`.trim()}
             />
 
+            {/* V28.q — Bidirectional peer references */}
+            <ContactReferencesSection
+              contactId={id}
+              contactName={`${c.first_name} ${c.last_name}`.trim()}
+            />
             <View style={styles.card}>
               <Text style={styles.commSectionTitle}>Comunica con {c.first_name}</Text>
               <View style={styles.commGrid}>
