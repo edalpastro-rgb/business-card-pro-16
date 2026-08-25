@@ -1,5 +1,35 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.y Salva regola/fonte a fine risposta Axon (Giugno 2026)
+### 🎯 Richiesta utente
+"Al termine di ogni conversazione con Axon in cui è emersa un'informazione utile, mostra un prompt discreto: 'Vuoi salvare questo come regola?' o 'Vuoi aggiungere questa fonte ad Axon?'. Il Master conferma con un tap — la regola/fonte viene aggiunta direttamente a Insegna ad Axon senza uscire dalla chat."
+
+### ✅ Frontend `/app/frontend/src/SaveToAxonPrompt.tsx` (NUOVO)
+- **`extractUrls(text)`**: helper che estrae URL http/https dedu­plicati preservando l'ordine.
+- **`suggestRuleTitle(content)`**: helper che genera un titolo di ≤60 char dalla prima riga significativa.
+- **`<SaveToAxonPrompt content isMaster />`**: componente compatto mostrato SOTTO ogni bubble assistant. Filtri:
+  - Nascosto se `!isMaster` (endpoint ai-teach richiede il ruolo)
+  - Nascosto se contenuto <40 char (non abbastanza sostanzioso per essere utile)
+- Due chip cliccabili viola pallidi:
+  - 🔖 **"Salva come regola"** → apre mini-modal con TextInput title (max 120) + TextInput text multiline (max 2000) pre-popolati, tap "Salva regola" → POST `/api/ai-teach/rules` con `categories: ["Generale"]`.
+  - 🔗 **"Aggiungi fonte (N)"** (mostrato solo se estrae ≥1 URL) → apre modal con lista degli URL parsati, tap per ognuno → POST `/api/ai-teach/urls` con `name: hostname`, `category: generic`, `frequency: manual`.
+- **Stati locali**: `savedRule: boolean` (chip diventa verde ✓ "Regola salvata"), `savedUrls: Set<string>` (righe con checkmark verde).
+- **Feedback**: `notify()` per successo/errore.
+
+### ✅ Frontend `/app/frontend/src/AssistantChat.tsx`
+- Import di `SaveToAxonPrompt`.
+- Nel componente principale `AssistantChatModal`: aggiunto `const { user } = useAuth()` + `isMaster = !user?.parent_user_id && user?.role === "owner"`.
+- `<MessageBubble>` ora riceve prop `isMaster?: boolean` e la passa a `<SaveToAxonPrompt content isMaster />` mostrato subito dopo il footer "Fonti web" (che è la parte più in basso della bubble assistant).
+- Rendering ottimizzato: il prompt appare in-line dopo OGNI risposta assistente per il Master, non solo alla fine della conversazione — l'utente decide risposta-per-risposta cosa vale la pena salvare (approccio più flessibile del "fine chat").
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot: chat con risposta contenente 2 URL → i chip "Salva come regola" e "Aggiungi fonte (2)" appaiono in basso al bubble.
+- ✅ Screenshot: tap "Salva come regola" → modal con titolo suggerito ("Le detrazioni fiscali per impianti…") + testo full pre-popolato + bottone viola "Salva regola".
+- ✅ Screenshot: dopo Salva → chip diventa verde ✓ "Regola salvata" (chip "Aggiungi fonte" rimane cliccabile).
+- ✅ Screenshot: tap "Aggiungi fonte (2)" → modal con 2 righe (`agenziaentrate.gov.it` e `gse.it`) con hostname pulito + URL completo + bottone + per aggiungere.
+- ✅ Verifica DB: `ai_teach_rules` mostra nuova voce con `categories: ["Generale"]` e titolo suggerito correttamente.
+
+
 ## v2.x Fix "Rendered more hooks" nel modulo eventi (Giugno 2026)
 ### 🎯 Richiesta utente
 "Cliccando su 'Programma' o 'Data' nel banner evento in home page appare l'errore 'Rendered more hooks than during the previous render'. Il numero di hook React deve essere costante tra i render."

@@ -23,6 +23,7 @@ import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
+import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 
 const ASSISTANT_COLOR = "#8B5CF6"; // violet — distinct from red mic and blue brand
 const ASSISTANT_COLOR_DARK = "#6D28D9";
@@ -109,6 +110,9 @@ async function playAudioBase64(
 }
 
 export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
+  const { user } = useAuth();
+  // V28.y — Only the Master can save rules/URLs to Insegna ad Axon
+  const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [assistantName, setAssistantName] = useState("Neo");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -1024,6 +1028,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   paused={paused}
                   onTogglePause={togglePause}
                   onSaveToMaster={m.role === "assistant" && m.used_web_search ? () => openSaveToMaster(m.content) : undefined}
+                  isMaster={isMaster}
                 />
               ))}
               {sending && (
@@ -1259,6 +1264,7 @@ function MessageBubble({
   paused,
   onTogglePause,
   onSaveToMaster,
+  isMaster,
 }: {
   msg: ChatMsg;
   assistantName: string;
@@ -1267,6 +1273,7 @@ function MessageBubble({
   paused?: boolean;
   onTogglePause?: () => void;
   onSaveToMaster?: () => void;
+  isMaster?: boolean;
 }) {
   const isUser = msg.role === "user";
   return (
@@ -1356,6 +1363,10 @@ function MessageBubble({
               <Text key={k} style={styles.sourceTxt} numberOfLines={1}>• {s.title || s.url}</Text>
             ))}
           </View>
+        )}
+        {/* V28.y — Prompt discreto "Salva come regola" / "Aggiungi fonte" — solo Master */}
+        {!isUser && (
+          <SaveToAxonPrompt content={msg.content} assistantColor={ASSISTANT_COLOR_DARK} isMaster={!!isMaster} />
         )}
       </View>
     </View>
