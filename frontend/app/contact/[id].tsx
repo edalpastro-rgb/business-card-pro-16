@@ -31,6 +31,8 @@ import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/image
 import { ModuleErrorBoundary } from "@/src/shared";
 import { DocumentScannerModal } from "@/src/DocumentScannerModal";
 import { ContactReferralsTab } from "@/src/ContactReferralsTab";
+import { DeadlinesSection } from "@/src/DeadlinesSection";
+import { PromoteToAgentModal } from "@/src/PromoteToAgentModal";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -110,6 +112,8 @@ function ContactDetail() {
   const isMaster = user?.role === "owner" && !user?.parent_user_id;
   const [contactCodeEdit, setContactCodeEdit] = useState<string>("");
   const [contactCodeSaving, setContactCodeSaving] = useState(false);
+  // V29 — Promuovi ad agente modal (solo Master)
+  const [promoteOpen, setPromoteOpen] = useState(false);
   useEffect(() => { setContactCodeEdit(c?.contact_code || ""); }, [c?.contact_code]);
   const saveContactCode = async () => {
     const next = contactCodeEdit.trim();
@@ -544,11 +548,14 @@ function ContactDetail() {
       </View>
 
       {tab === "bills" ? (
-        <BillsSection
-          contactId={id}
-          contactName={`${c.first_name} ${c.last_name}`.trim()}
-          onContactFilesChanged={load}
-        />
+        <View>
+          <DeadlinesSection contactId={id} />
+          <BillsSection
+            contactId={id}
+            contactName={`${c.first_name} ${c.last_name}`.trim()}
+            onContactFilesChanged={load}
+          />
+        </View>
       ) : tab === "audio" ? (
         <ContactAudioSection contactId={id} />
       ) : tab === "calls" ? (
@@ -665,6 +672,35 @@ function ContactDetail() {
               contactId={id}
               contactName={`${c.first_name} ${c.last_name}`.trim()}
             />
+
+            {/* V29 — Promuovi ad agente (solo Master, contatto NON già collaborator) */}
+            {isMaster && c.status !== "collaborator" && !c.linked_user_id ? (
+              <Pressable
+                testID="promote-agent-btn"
+                onPress={() => setPromoteOpen(true)}
+                style={styles.promoteBtn}
+              >
+                <View style={styles.promoteIconWrap}>
+                  <Ionicons name="rocket" size={18} color="#FFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.promoteTitle}>Promuovi ad agente</Text>
+                  <Text style={styles.promoteSub}>
+                    Crea account collaboratore, biglietto con QR e invia le credenziali
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#EA580C" />
+              </Pressable>
+            ) : null}
+            {isMaster && c.status === "collaborator" ? (
+              <View style={styles.collabInfoBox}>
+                <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+                <Text style={styles.collabInfoTxt}>
+                  Questo contatto è già un collaboratore del team.
+                </Text>
+              </View>
+            ) : null}
+
             <View style={styles.card}>
               <Text style={styles.commSectionTitle}>Comunica con {c.first_name}</Text>
               <View style={styles.commGrid}>
@@ -1153,6 +1189,14 @@ function ContactDetail() {
         contactName={`${c?.first_name || ""} ${c?.last_name || ""}`.trim()}
         contactPhone={c?.phone}
       />
+      <PromoteToAgentModal
+        visible={promoteOpen}
+        onClose={() => setPromoteOpen(false)}
+        contactId={id}
+        contactName={`${c?.first_name || ""} ${c?.last_name || ""}`.trim()}
+        contactEmail={c?.email}
+        onPromoted={load}
+      />
     </SafeAreaView>
   );
 }
@@ -1259,4 +1303,38 @@ const styles = StyleSheet.create({
   commGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   commBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: theme.radius.md, minWidth: 108, flexGrow: 1, justifyContent: "center" },
   commBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  // V29 — Promuovi ad agente
+  promoteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    backgroundColor: "#FFF7ED",
+    marginBottom: 12,
+  },
+  promoteIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#EA580C",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promoteTitle: { fontSize: 14, fontWeight: "800", color: "#9A3412" },
+  promoteSub: { fontSize: 12, color: "#9A3412", opacity: 0.75, marginTop: 2, lineHeight: 16 },
+  collabInfoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    backgroundColor: "#F0FDF4",
+    marginBottom: 12,
+  },
+  collabInfoTxt: { flex: 1, fontSize: 13, color: "#166534", fontWeight: "600" },
 });

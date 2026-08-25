@@ -113,6 +113,10 @@ export default function HomeScreen() {
   const [apptStats, setApptStats] = useState<ApptStats | null>(null);
   const [contactsCount, setContactsCount] = useState<number>(0);
   const [nowTick, setNowTick] = useState<number>(Date.now());
+  // V29 — Scadenze imminenti (widget Home)
+  const [deadlines, setDeadlines] = useState<any[]>([]);
+  const [deadlinesDays, setDeadlinesDays] = useState<number>(60);
+  const [deadlinesLoading, setDeadlinesLoading] = useState<boolean>(true);
 
   // Update header clock every minute (aligned to the next :00 second)
   useEffect(() => {
@@ -132,7 +136,7 @@ export default function HomeScreen() {
   const load = useCallback(async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const [s, c, sub, mtImgs, mtMsgs, ast, cts] = await Promise.all([
+      const [s, c, sub, mtImgs, mtMsgs, ast, cts, us, dl] = await Promise.all([
         api<Settings>("/settings"),
         api<{ items: Callback[] }>("/callbacks", { query: { day: today, include_done: true } }),
         api<any>("/subscription/status").catch(() => null),
@@ -141,12 +145,19 @@ export default function HomeScreen() {
         api<{ items: MyThingItem[] }>("/my-thing", { query: { kind: "message" } }).catch(() => ({ items: [] })),
         api<ApptStats>("/appointments/stats", { query: { range_days: 30 } }).catch(() => null),
         api<{ items: any[] }>("/contacts").catch(() => ({ items: [] })),
+        api<any>("/user-settings").catch(() => null),
+        api<any>("/deadlines/upcoming").catch(() => ({ items: [], days: 60 })),
       ]);
       setSettings(s);
       setCallbacks(c.items);
       setSubscription(sub);
       setApptStats(ast);
       setContactsCount((cts?.items || []).length);
+      // V29 — Scadenze
+      const winDays = Number(us?.deadlines_window_days) > 0 ? Number(us.deadlines_window_days) : 60;
+      setDeadlinesDays(winDays);
+      setDeadlines(Array.isArray(dl?.items) ? dl.items : []);
+      setDeadlinesLoading(false);
       const imgs = (mtImgs.items || [])
         .filter((it) => it.active !== false)
         .map((it) => it.image_base64)
@@ -219,6 +230,21 @@ export default function HomeScreen() {
   const apptTotal = apptStats?.mine?.total || 0;
   const apptDone = apptStats?.mine?.done || 0;
   const apptUndone = apptStats?.mine?.undone || 0;
+
+  // V29 — Cambio finestra scadenze: salva su user_settings e ricarica il widget
+  const changeDeadlinesDays = useCallback(async (days: number) => {
+    setDeadlinesDays(days);
+    setDeadlinesLoading(true);
+    try {
+      await api("/user-settings", { method: "PUT", body: { deadlines_window_days: days } });
+      const dl = await api<any>(`/deadlines/upcoming`, { query: { days } }).catch(() => ({ items: [] }));
+      setDeadlines(Array.isArray(dl?.items) ? dl.items : []);
+    } catch (e) {
+      console.warn("changeDeadlinesDays failed", e);
+    } finally {
+      setDeadlinesLoading(false);
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -447,6 +473,33 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* ── V29 · Scadenze imminenti ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>Scadenze imminenti</Text>
+            <View style={styles.dlChipsRow}>
+              {[30, 60, 90, 180].map((d) => {
+                const active = d === deadlinesDays;
+                return (
+                  <Pressable
+                    key={d}
+                    testID={`dl-window-${d}`}
+                    onPress={() => { if (!active) changeDeadlinesDays(d); }}
+                    style={[styles.dlChip, active && styles.dlChipActive]}
+                  >
+                    <Text style={[styles.dlChipTxt, active && styles.dlChipTxtActive]}>{d}gg</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <DeadlinesWidget
+            items={deadlines}
+            loading={deadlinesLoading}
+            onOpenContact={(cid) => router.push(`/contact/${cid}?tab=bills` as any)}
+          />
+        </View>
+
         {/* ── 6) Statistiche ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Statistiche</Text>
@@ -563,6 +616,87 @@ export default function HomeScreen() {
 }
 
 /* ═══════════════════════ Reusable UI bits ═══════════════════════ */
+
+// V29 — Widget "Scadenze imminenti" per la Home. Ogni card è cliccabile e
+// apre l'anagrafica del contatto sulla tab Fatture per intervenire subito.
+function DeadlinesWidget({
+  items,
+  loading,
+  onOpenContact,
+}: {
+  items: any[];
+  loading: boolean;
+  onOpenContact: (contactId: string) => void;
+}) {
+  const TYPE = { luce: { i: "flash", c: "#F59E0B" }, gas: { i: "flame", c: "#EA580C" }, telco: { i: "wifi", c: "#0891B2" } } as const;
+  const STATUS = {
+    expired: { l: "Scaduta", fg: C.danger, bg: C.dangerSoft },
+    critical: { l: "Urgente", fg: "#B45309", bg: C.warningSoft },
+    warning: { l: "In arrivo", fg: "#0369A1", bg: "#DBEAFE" },
+    ok: { l: "OK", fg: C.success, bg: C.successSoft },
+  } as any;
+  if (loading) {
+    return (
+      <View style={[styles.card, { alignItems: "center", paddingVertical: 22 }]}>
+        <ActivityIndicator color={C.primary} />
+      </View>
+    );
+  }
+  if (!items || items.length === 0) {
+    return (
+      <View style={[styles.card, { flexDirection: "row", alignItems: "center", gap: 10 }]}>
+        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: C.successSoft, alignItems: "center", justifyContent: "center" }}>
+          <Ionicons name="checkmark" size={18} color={C.success} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: "700", color: C.text }}>Tutto in ordine</Text>
+          <Text style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Nessun contratto in scadenza nella finestra selezionata.</Text>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View>
+      {items.slice(0, 5).map((d) => {
+        const tm = (TYPE as any)[d.bill_type] || TYPE.luce;
+        const sm = STATUS[d.status] || STATUS.ok;
+        const c = d.contact || {};
+        const label = `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Contatto";
+        const dl = typeof d.days_left === "number" ? d.days_left : null;
+        const dlTxt = dl === null ? "" : dl < 0 ? `${Math.abs(dl)} gg fa` : dl === 0 ? "oggi" : dl === 1 ? "domani" : `tra ${dl} gg`;
+        return (
+          <Pressable
+            key={d.bill_id}
+            testID={`deadline-${d.bill_id}`}
+            onPress={() => c.contact_id && onOpenContact(c.contact_id)}
+            style={({ pressed }) => [styles.deadlineRow, pressed && { opacity: 0.85 }]}
+          >
+            <View style={[styles.deadlineIcon, { backgroundColor: tm.c + "1A" }]}>
+              <Ionicons name={tm.i as any} size={16} color={tm.c} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.deadlineName} numberOfLines={1}>{label}</Text>
+              <Text style={styles.deadlineMeta} numberOfLines={1}>
+                {(d.nome_offerta || d.fornitore || "Contratto")} · scade il {(() => {
+                  try { const [y, m, dd] = String(d.expiry_date).split("-"); return `${dd}/${m}/${y}`; } catch { return d.expiry_date; }
+                })()}
+              </Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <View style={[styles.deadlinePill, { backgroundColor: sm.bg }]}>
+                <Text style={[styles.deadlinePillTxt, { color: sm.fg }]}>{sm.l}</Text>
+              </View>
+              {!!dlTxt && <Text style={[styles.deadlineDays, { color: sm.fg }]}>{dlTxt}</Text>}
+            </View>
+          </Pressable>
+        );
+      })}
+      {items.length > 5 && (
+        <Text style={styles.deadlineMore}>+{items.length - 5} altre scadenze nel periodo selezionato</Text>
+      )}
+    </View>
+  );
+}
 
 function KpiCard({ testID, label, value, icon, accent, hint, hintColor, onPress }: {
   testID?: string; label: string; value: number; icon: any; accent: string; hint?: string; hintColor?: string; onPress?: () => void;
@@ -874,4 +1008,30 @@ const styles = StyleSheet.create({
   },
   quickIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   quickTxt: { fontWeight: "800", color: C.navy, fontSize: 13 },
+
+  /* V29 · Scadenze */
+  dlChipsRow: { flexDirection: "row", gap: 6 },
+  dlChip: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: C.navySoft, borderWidth: 1, borderColor: C.border },
+  dlChipActive: { backgroundColor: C.primarySoft, borderColor: C.primary },
+  dlChipTxt: { fontSize: 11, fontWeight: "800", color: C.navy },
+  dlChipTxtActive: { color: C.primary },
+  deadlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    ...(cardShadow as any),
+  },
+  deadlineIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  deadlineName: { fontSize: 14, fontWeight: "800", color: C.text },
+  deadlineMeta: { fontSize: 12, color: C.muted, marginTop: 2 },
+  deadlinePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  deadlinePillTxt: { fontSize: 10.5, fontWeight: "800", letterSpacing: 0.2 },
+  deadlineDays: { fontSize: 11.5, fontWeight: "700", marginTop: 4 },
+  deadlineMore: { fontSize: 12, color: C.muted, textAlign: "center", marginTop: 4, marginBottom: 4 },
 });

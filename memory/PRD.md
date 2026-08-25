@@ -1,4 +1,62 @@
-# Dal Pastro CRM — PRD v1.3
+# Dal Pastro CRM — PRD v1.4
+
+## v2.ac Scadenze contratti + Promuovi cliente → agente (Giugno 2026)
+### 🎯 Richiesta utente
+1. **Sezione "Scadenze" nell'anagrafica contatto**: Axon calcola automaticamente la scadenza (12 mesi dall'attivazione) dalle bollette caricate, con sezione dedicata nel contatto + riepilogo scadenze imminenti in Home configurabile.
+2. **Upgrade cliente → agente + biglietto automatico** (solo Master): pulsante "Promuovi ad agente" nell'anagrafica contatto → crea account collaboratore, Biglietto da Visita con QR, invia email di benvenuto con credenziali.
+
+### ✅ Backend `/app/backend/server.py`
+- **Scadenze**: nuovi helper `_parse_italian_date`, `_add_months`, `_deadline_status`, `_compute_bill_deadline`, `_bill_deadline_entry` che derivano le scadenze dalle bollette analizzate (`data_scadenza` esplicita → altrimenti `data_attivazione + durata_contratto_mesi` o + 12 mesi come fallback).
+  - Endpoint `GET /api/contacts/{cid}/deadlines` — scadenze per il contatto (con status expired/critical/warning/ok).
+  - Endpoint `GET /api/deadlines/upcoming?days=N` — scadenze imminenti su tutti i contatti visibili nella finestra `days` (default: `user_settings.deadlines_window_days` = 60).
+  - `UserSettingsIn` esteso con `deadlines_window_days: Optional[int]` (clamp 7..365, default 60).
+- **Promuovi ad agente**: `POST /api/contacts/{cid}/promote-to-agent` (owner-only) crea utente `member` con `parent_user_id=Master`, imposta contatto `status=collaborator` + `linked_user_id`, seed di `business_cards` con QR di tipo vcard, invia email di benvenuto via SMTP se configurato (background task). Password provvisoria random restituita al Master una sola volta.
+- Validazioni: 400 se email mancante, 400 se email già registrata, 400 se contatto già collaboratore, 403 se non-Master.
+
+### ✅ Frontend
+- `/app/frontend/src/DeadlinesSection.tsx` (NEW): sezione mostrata nel tab **Fatture** del contatto — 1 card per bolletta con badge tipo (luce/gas/telco), data attivazione, data scadenza, giorni residui e pill di status colorato. Etichetta "· stimata" quando la scadenza è calcolata.
+- `/app/frontend/app/(tabs)/home.tsx`: nuovo widget **"Scadenze imminenti"** con chip 30gg/60gg/90gg/180gg — il valore viene persistito su `user_settings.deadlines_window_days`. Ogni card è tap-to-open verso `/contact/{id}?tab=bills`.
+- `/app/frontend/src/PromoteToAgentModal.tsx` (NEW): bottom-sheet a 2 step (config + risultato). Selettore aree operative, toggle invio email, dopo la creazione mostra credenziali provvisorie con pulsanti "Copia email", "Copia password", "Copia entrambe" e shortcut al Biglietto.
+- `/app/frontend/app/contact/[id].tsx`: pulsante arancione **"Promuovi ad agente"** visibile solo se `isMaster` e `status !== "collaborator"`. Se già collaboratore mostra una banner verde di conferma.
+
+### 🧪 Test manuali eseguiti
+- ✅ Backend endpoints: `/api/deadlines/upcoming` (finestra default 60), `/api/user-settings` (PUT `deadlines_window_days` con clamp 7..365).
+- ✅ Backend `promote-to-agent`: creazione riuscita con SMTP mancante → `email_status:smtp_missing`; contatto aggiornato a status=collaborator + linked_user_id; business_card seed OK.
+- ✅ Guardrail: 400 per contatto senza email, 400 per email già registrata, 400 per contatto già collaborator, 403 per sub-user non-Master.
+- ✅ Screenshot UI: widget Scadenze in Home visibile con chip attivo; modal "Promuovi ad agente" apre correttamente con selettore aree + toggle email.
+
+### 📌 Note
+- La sezione Scadenze del contatto è **derivata**: non duplica dati in DB, quindi rianalizzare una bolletta aggiorna automaticamente le scadenze.
+- L'invio email di benvenuto sfrutta l'infrastruttura SMTP esistente (`smtp_configs`). Se SMTP non è configurato, l'endpoint torna comunque `ok:true` con `email_status:smtp_missing` e mostra le credenziali al Master per condivisione manuale.
+- La password generata è **visibile una sola volta** al Master; il modal la evidenzia con warning + pulsante Copia.
+
+---
+
+## v2.ab PDF extraction in Insegna ad Axon URL refresh (Giugno 2026)
+### 🎯 Richiesta utente
+"Nella funzione di lettura URL periodica di 'Insegna ad Axon', aggiungi il supporto alla lettura di PDF linkati direttamente. Quando Axon visita un URL e trova un link a un file PDF, lo scarica e ne estrae il testo con una libreria di parsing PDF. Il testo estratto viene integrato nella memoria di Axon esattamente come il contenuto di una pagina web normale."
+
+### ✅ Backend `/app/backend/server.py`
+Aggiornata `_refresh_ai_teach_url_doc()`:
+- **Fase 1 (nuova)**: fetch diretto dell'URL con `httpx.AsyncClient(follow_redirects=True)` + User-Agent `AxonBot/1.0`.
+  - Caso A: `content-type` = `application/pdf` OPPURE bytes iniziano con `%PDF-` → estrai testo direttamente con PyMuPDF (`fitz`).
+  - Caso B: contenuto HTML → parse con regex `href="..\.pdf(?:\?...)?"`, risolvi URL relativi con `urljoin`, scarica i primi 3 PDF trovati e ne estrai testo.
+  - Errori di rete/parsing sono non-blocking (fallback silente a Tavily-only).
+- **Fase 2 (invariata)**: sintesi Tavily in italiano come prima.
+- **Merge**: se sono stati estratti PDF, viene appesa alla sintesi una sezione `\n\n---\nContenuti PDF collegati:\n[PDF diretto/trovato: URL]\n<testo estratto>` che Axon usa come qualsiasi altro contesto di memoria.
+- **`_extract_pdf_text_bytes(data)`**: nuovo helper — apre PDF via `fitz.open(stream=..., filetype="pdf")`, estrae `get_text("text")` dalle prime 30 pagine, cappa a 8000 char per PDF per non far esplodere la memoria.
+- **`_find_pdf_links(html_text, base_url)`**: nuovo helper regex-based (evita dipendenza da BeautifulSoup) — trova href a `.pdf` (opzionale query string), risolve a URL assoluti, dedup preservando ordine, cappa a 10.
+- **Persistenza**: nuova chiave `last_pdf_count` in `ai_teach_urls` (numero di PDF estratti in questa refresh). `last_summary` esteso da 4000 → 12000 char per accogliere contenuti PDF.
+
+### 🧪 Test manuali eseguiti
+- ✅ curl: refresh su URL con PDF diretto `https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf` → response `pdf_extracted:1`, `last_summary` contiene `[PDF diretto: ...]\nDummy PDF file...`, `last_pdf_count:1` persistito in DB.
+- ✅ Unit test isolato: `_find_pdf_links()` con HTML fixture → estrae correttamente 3 link (relativi risolti, case-insensitive, dedupe funzionanti).
+
+### 📌 Note
+- Il PDF binario NON viene salvato in DB — solo il **testo estratto** entra in `last_summary`, così la memoria resta leggera.
+- Il refresh manuale (`POST /api/ai-teach/urls/{id}/refresh`) e batch (`refresh-all`) beneficiano automaticamente della nuova logica.
+- Sul cron scheduler daily/weekly/monthly (già esistente) l'estrazione PDF avviene ogni volta che gli URL vengono visitati periodicamente.
+
 
 ## v2.aa Fix "Invalid PDF structure" nel programma evento (Giugno 2026)
 ### 🎯 Richiesta utente

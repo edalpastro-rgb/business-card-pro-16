@@ -4167,6 +4167,185 @@ async def _ensure_contact_owned(contact_id: str, user: dict) -> dict:
     return c
 
 
+# =========================
+# V29 — Promuovi cliente → agente (solo Master)
+# Converte un contatto in un account collaboratore reale del team.
+# Solo l'Owner (Master) può eseguire questa operazione.
+# =========================
+
+class PromoteContactIn(BaseModel):
+    areas: Optional[List[Literal["energy", "network"]]] = None
+    send_welcome_email: bool = True
+
+
+def _generate_random_password(length: int = 12) -> str:
+    """Generate a memorable-yet-strong password: letters + digits + one symbol."""
+    import string, secrets as _s
+    alphabet = string.ascii_letters + string.digits
+    pwd = "".join(_s.choice(alphabet) for _ in range(length - 2))
+    pwd += _s.choice("!@#$%&*?")
+    pwd += _s.choice(string.digits)
+    if not any(c.isupper() for c in pwd):
+        pwd = _s.choice(string.ascii_uppercase) + pwd[1:]
+    if not any(c.islower() for c in pwd):
+        pwd = pwd[:-1] + _s.choice(string.ascii_lowercase)
+    return pwd
+
+
+def _welcome_email_html(agent_name: str, master_name: str, email: str, password: str, login_url: str):
+    text = (
+        f"Ciao {agent_name},\n\n"
+        f"{master_name or 'Il tuo referente'} ti ha attivato un account come collaboratore su Dal Pastro CRM.\n\n"
+        f"Credenziali di accesso:\n"
+        f"  - Email: {email}\n"
+        f"  - Password provvisoria: {password}\n\n"
+        f"Accedi qui: {login_url}\n\n"
+        f"Ti consigliamo di cambiare la password al primo accesso da Impostazioni -> Sicurezza.\n\n"
+        f"Benvenuto nel team!"
+    )
+    html = f"""<!doctype html><html><body style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#F6F7FA;padding:24px;color:#111820">
+  <div style="max-width:520px;margin:0 auto;background:#FFF;border-radius:14px;padding:28px;border:1px solid #E5E7EB">
+    <h2 style="margin:0 0 8px;color:#EA580C;letter-spacing:-0.3px">Benvenuto nel team!</h2>
+    <p style="margin:0 0 14px;color:#334155;line-height:1.5">
+      Ciao <b>{agent_name}</b>, <b>{master_name or 'il tuo referente'}</b> ti ha attivato un account
+      come collaboratore su <b>Dal Pastro CRM</b>.
+    </p>
+    <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:14px 16px;margin:14px 0">
+      <div style="font-size:12px;color:#9A3412;font-weight:800;letter-spacing:0.3px;text-transform:uppercase">Credenziali provvisorie</div>
+      <div style="margin-top:6px;font-family:ui-monospace,Menlo,monospace;color:#111820">
+        <div><b>Email:</b> {email}</div>
+        <div><b>Password:</b> {password}</div>
+      </div>
+    </div>
+    <a href="{login_url}" style="display:inline-block;background:#EA580C;color:#FFF;text-decoration:none;padding:11px 18px;border-radius:10px;font-weight:800">Accedi ora</a>
+    <p style="margin:18px 0 0;color:#64748B;font-size:12.5px;line-height:1.5">
+      Per sicurezza, cambia la password al primo accesso da <b>Impostazioni -> Sicurezza</b>.
+    </p>
+  </div>
+</body></html>"""
+    return text, html
+
+
+@api_router.post("/contacts/{contact_id}/promote-to-agent")
+async def promote_contact_to_agent(contact_id: str, body: PromoteContactIn, background: BackgroundTasks, user=Depends(get_current_user)):
+    """Promuovi un contatto ad account collaboratore (solo Master).
+    - Crea un nuovo utente `member` con parent_user_id=Master.
+    - Aggiorna il contatto: status=collaborator, linked_user_id=nuovo utente.
+    - Seed un business_card di default per il nuovo utente.
+    - Invia una email di benvenuto con le credenziali via SMTP (se configurato).
+    Ritorna anche la password generata (visibile UNA SOLA VOLTA al Master)."""
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master puo promuovere un contatto ad agente")
+    contact = await _ensure_contact_owned(contact_id, user)
+
+    if contact.get("linked_user_id") or contact.get("status") == "collaborator":
+        raise HTTPException(status_code=400, detail="Questo contatto e' gia' collegato a un account collaboratore")
+
+    email = (contact.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Il contatto non ha un'email: impossibile creare l'account")
+    name_parts = [contact.get("first_name") or "", contact.get("last_name") or ""]
+    full_name = " ".join(p for p in name_parts if p).strip() or email.split("@")[0]
+
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Esiste gia' un account con questa email")
+
+    areas = body.areas or ["energy", "network"]
+    if not areas:
+        areas = ["energy", "network"]
+
+    password = _generate_random_password(12)
+    new_uid = f"user_{uuid.uuid4().hex[:12]}"
+    now = utcnow()
+
+    user_doc = {
+        "user_id": new_uid,
+        "email": email,
+        "name": full_name,
+        "password_hash": hash_password(password),
+        "role": "member",
+        "areas": areas,
+        "parent_user_id": user["user_id"],
+        "picture": None,
+        "created_at": now,
+        "promoted_from_contact_id": contact_id,
+    }
+    await db.users.insert_one(user_doc)
+
+    contact_upd: Dict[str, Any] = {
+        "status": "collaborator",
+        "linked_user_id": new_uid,
+        "updated_at": now,
+    }
+    await db.contacts.update_one(
+        {"contact_id": contact_id, "user_id": tenant_id(user)},
+        {"$set": contact_upd},
+    )
+
+    bc: Dict[str, Any] = {}
+    try:
+        bc = {
+            "card_id": f"bc_{uuid.uuid4().hex[:12]}",
+            "user_id": new_uid,
+            "display_name": full_name,
+            "title": "Consulente",
+            "company_name": (user.get("company_name") or "").strip() or "",
+            "phone": (contact.get("phone") or "").strip(),
+            "email": email,
+            "website": "",
+            "address": (contact.get("address") or "").strip(),
+            "tagline": "",
+            "logo_base64": user.get("company_logo_base64") or "",
+            "photo_base64": contact.get("avatar_base64") or "",
+            "accent_color": "#EA580C",
+            "qr_type": "vcard",
+            "qr_content": "",
+            "demo_app_link": "",
+            "social_links": {},
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.business_cards.insert_one(bc)
+    except Exception as e:
+        logger.warning(f"[promote] business_card seed failed for {new_uid}: {e}")
+
+    email_status = "skipped"
+    email_error: Optional[str] = None
+    if body.send_welcome_email:
+        cfg = await db.smtp_configs.find_one({"user_id": tenant_id(user)}, {"_id": 0})
+        if cfg and cfg.get("host") and cfg.get("password"):
+            base_url = os.environ.get("APP_PUBLIC_URL") or os.environ.get("EXPO_PUBLIC_APP_URL") or "https://app.dalpastro.it"
+            login_url = f"{base_url.rstrip('/')}/login"
+            text, html = _welcome_email_html(full_name, user.get("name") or "", email, password, login_url)
+
+            def _send():
+                try:
+                    _send_smtp_email(cfg, email, "Benvenuto nel team - Dal Pastro CRM", text, html)
+                except Exception as exc:
+                    logger.exception(f"[promote] welcome email failed: {exc}")
+
+            background.add_task(_send)
+            email_status = "queued"
+        else:
+            email_status = "smtp_missing"
+            email_error = "SMTP non configurato: le credenziali sono qui sotto, condividile manualmente."
+
+    return {
+        "ok": True,
+        "user_id": new_uid,
+        "email": email,
+        "name": full_name,
+        "password": password,
+        "areas": areas,
+        "business_card_id": bc.get("card_id"),
+        "email_status": email_status,
+        "email_error": email_error,
+    }
+
+
+
+
 @api_router.post("/contacts/{contact_id}/bills")
 async def create_bill(contact_id: str, body: EnergyBillIn, background: BackgroundTasks, user=Depends(get_current_user)):
     if body.bill_type not in BILL_TYPES:
@@ -4341,6 +4520,201 @@ async def bills_report(contact_id: str, user=Depends(get_current_user)):
         "ai_suggestions": ai_suggestions,
         "generated_at": utcnow(),
     }
+
+
+# =========================
+# V29 — Scadenze contratti (deadlines)
+# Le bollette LUCE/GAS/TELCO estraggono già `data_attivazione`, `data_scadenza`
+# e `durata_contratto_mesi`. Ricaviamo le scadenze in modo derivato senza
+# duplicare il dato in DB, così se l'utente rianalizza una bolletta le
+# scadenze si aggiornano automaticamente.
+# =========================
+
+
+def _parse_italian_date(raw: Any):
+    """Parse a date-like string commonly found in Italian bills.
+    Accepts DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, DD.MM.YYYY (also with 2-digit year).
+    Returns a datetime.date or None."""
+    from datetime import date as _date
+    if not raw:
+        return None
+    if isinstance(raw, datetime):
+        return raw.date()
+    s = str(raw).strip()
+    if not s:
+        return None
+    s = s.replace(".", "/").replace("-", "/").replace(" ", "")
+    parts = [p for p in s.split("/") if p]
+    if len(parts) != 3:
+        return None
+    try:
+        # Detect order: if first component is 4-digit → YYYY/MM/DD, else DD/MM/YYYY
+        if len(parts[0]) == 4:
+            y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+        else:
+            d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+        if y < 100:
+            y += 2000 if y < 70 else 1900
+        return _date(y, m, d)
+    except Exception:
+        return None
+
+
+def _add_months(d, months: int):
+    """Add N months to a date, clamping the day if the target month is shorter."""
+    if not d or not months:
+        return d
+    import calendar as _cal
+    total = d.month - 1 + int(months)
+    y = d.year + total // 12
+    m = total % 12 + 1
+    last_day = _cal.monthrange(y, m)[1]
+    return d.replace(year=y, month=m, day=min(d.day, last_day))
+
+
+def _deadline_status(days_left: Optional[int]) -> str:
+    if days_left is None:
+        return "unknown"
+    if days_left < 0:
+        return "expired"
+    if days_left <= 30:
+        return "critical"
+    if days_left <= 90:
+        return "warning"
+    return "ok"
+
+
+def _compute_bill_deadline(bill: dict) -> Optional[dict]:
+    """Return {activation_date, expiry_date (iso), days_left, status, source}
+    for a bill, or None if no dates can be derived."""
+    ext = (bill or {}).get("extracted") or {}
+    if not isinstance(ext, dict):
+        return None
+    activation = _parse_italian_date(ext.get("data_attivazione"))
+    explicit_expiry = _parse_italian_date(ext.get("data_scadenza"))
+    duration_m = ext.get("durata_contratto_mesi")
+    try:
+        duration_m = int(duration_m) if duration_m else None
+    except Exception:
+        duration_m = None
+
+    expiry = explicit_expiry
+    source = "data_scadenza" if explicit_expiry else None
+    if not expiry and activation:
+        # Fallback: attivazione + durata_contratto_mesi. Se manca la durata, 12 mesi.
+        months = duration_m if (duration_m and duration_m > 0) else 12
+        expiry = _add_months(activation, months)
+        source = "calcolata"
+    if not expiry:
+        return None
+    from datetime import date as _date
+    today = _date.today()
+    days_left = (expiry - today).days
+    return {
+        "activation_date": activation.isoformat() if activation else None,
+        "expiry_date": expiry.isoformat(),
+        "days_left": days_left,
+        "status": _deadline_status(days_left),
+        "source": source or "data_scadenza",
+        "duration_months": duration_m,
+    }
+
+
+def _bill_deadline_entry(bill: dict) -> Optional[dict]:
+    """Enriched deadline dict including bill metadata."""
+    d = _compute_bill_deadline(bill)
+    if not d:
+        return None
+    ext = bill.get("extracted") or {}
+    return {
+        "bill_id": bill.get("bill_id"),
+        "contact_id": bill.get("contact_id"),
+        "bill_type": bill.get("bill_type"),
+        "pdf_name": bill.get("pdf_name"),
+        "fornitore": ext.get("fornitore"),
+        "nome_offerta": ext.get("nome_offerta"),
+        **d,
+    }
+
+
+@api_router.get("/contacts/{contact_id}/deadlines")
+async def contact_deadlines(contact_id: str, user=Depends(get_current_user)):
+    """List all derived deadlines for a single contact (from its analysed bills)."""
+    await _ensure_contact_owned(contact_id, user)
+    items = await db.energy_bills.find(
+        {"user_id": tenant_id(user), "contact_id": contact_id, "status": "done"},
+        {"_id": 0, "pdf_base64": 0},
+    ).sort("created_at", -1).to_list(200)
+    out: List[dict] = []
+    for it in items:
+        entry = _bill_deadline_entry(it)
+        if entry:
+            out.append(entry)
+    # Sort by days_left ascending (expired/critical first)
+    out.sort(key=lambda x: (x.get("days_left") is None, x.get("days_left") or 999999))
+    counts = {"expired": 0, "critical": 0, "warning": 0, "ok": 0}
+    for d in out:
+        counts[d.get("status", "ok")] = counts.get(d.get("status", "ok"), 0) + 1
+    return {"items": out, "counts": counts}
+
+
+@api_router.get("/deadlines/upcoming")
+async def upcoming_deadlines(days: Optional[int] = None, user=Depends(get_current_user)):
+    """Upcoming deadlines across all visible contacts, within `days` days from today.
+    If `days` is not provided, falls back to user_settings.deadlines_window_days (default 60).
+    Includes already expired items (days_left < 0) so users can act on overdue contracts."""
+    settings = await db.user_settings.find_one({"user_id": user["user_id"]}, {"deadlines_window_days": 1}) or {}
+    if not days or days <= 0:
+        days = int(settings.get("deadlines_window_days") or 60)
+    days = max(7, min(int(days), 365))
+
+    # Only bills belonging to contacts the user can see
+    tid = tenant_id(user)
+    vis = await contact_visibility_filter(user)
+    contact_query: Dict[str, Any] = {"user_id": tid}
+    if vis:
+        contact_query.update(vis)
+    contacts = await db.contacts.find(
+        contact_query,
+        {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "contact_code": 1, "phone": 1},
+    ).to_list(5000)
+    cmap = {c["contact_id"]: c for c in contacts}
+    if not cmap:
+        return {"items": [], "counts": {"expired": 0, "critical": 0, "warning": 0, "ok": 0}, "days": days}
+
+    bills = await db.energy_bills.find(
+        {"user_id": tid, "contact_id": {"$in": list(cmap.keys())}, "status": "done"},
+        {"_id": 0, "pdf_base64": 0},
+    ).to_list(20000)
+
+    out: List[dict] = []
+    for b in bills:
+        entry = _bill_deadline_entry(b)
+        if not entry:
+            continue
+        dl = entry.get("days_left")
+        if dl is None:
+            continue
+        # Include expired (dl < 0) and upcoming within window
+        if dl > days:
+            continue
+        c = cmap.get(entry.get("contact_id")) or {}
+        entry["contact"] = {
+            "contact_id": c.get("contact_id"),
+            "first_name": c.get("first_name"),
+            "last_name": c.get("last_name"),
+            "contact_code": c.get("contact_code"),
+            "phone": c.get("phone"),
+        }
+        out.append(entry)
+
+    out.sort(key=lambda x: x.get("days_left") if x.get("days_left") is not None else 999999)
+    counts = {"expired": 0, "critical": 0, "warning": 0, "ok": 0}
+    for d in out:
+        counts[d.get("status", "ok")] = counts.get(d.get("status", "ok"), 0) + 1
+    return {"items": out, "counts": counts, "days": days}
+
+
 
 
 # =========================
@@ -6665,6 +7039,9 @@ class UserSettingsIn(BaseModel):
     # V28.o — Azioni rapide personalizzabili mostrate nell'empty state della chat Axon.
     # Ogni voce: {id: str, label: str (max ~50 char), prompt: str (comando da inviare)}.
     assistant_quick_actions: Optional[List[QuickActionIn]] = None
+    # V29 — Finestra (giorni) per il widget "Scadenze imminenti" in Home.
+    # Valori consigliati: 30 | 60 | 90 | 180. Default 60.
+    deadlines_window_days: Optional[int] = None
 
 
 class AssistantAttachmentIn(BaseModel):
@@ -6977,6 +7354,9 @@ async def get_user_settings(user=Depends(get_current_user)):
         s["assistant_response_mode"] = "text"
     if not s.get("assistant_voice"):
         s["assistant_voice"] = "nova"
+    # V29 — Default finestra scadenze
+    if not isinstance(s.get("deadlines_window_days"), int) or s.get("deadlines_window_days") <= 0:
+        s["deadlines_window_days"] = 60
     # V28.o — Se l'utente non ha personalizzato le azioni rapide, restituiamo i default
     # (senza persistere: l'utente può cominciare da zero o dai preset a sua scelta).
     if not isinstance(s.get("assistant_quick_actions"), list):
@@ -6994,6 +7374,13 @@ async def update_user_settings(body: UserSettingsIn, user=Depends(get_current_us
     # V28.o — Normalize quick_actions (attach ids, trim, drop empties)
     if "assistant_quick_actions" in updates:
         updates["assistant_quick_actions"] = _normalize_quick_actions(updates["assistant_quick_actions"])
+    # V29 — Clamp deadlines window in a sane range
+    if "deadlines_window_days" in updates:
+        try:
+            v = int(updates["deadlines_window_days"])
+        except Exception:
+            v = 60
+        updates["deadlines_window_days"] = max(7, min(v, 365))
     updates["updated_at"] = utcnow()
     now = utcnow()
     await db.user_settings.update_one(
@@ -9080,14 +9467,50 @@ async def ai_teach_delete_url(url_id: str, user=Depends(get_current_user)):
 async def _ai_teach_refresh_url(doc: Dict[str, Any]) -> Dict[str, Any]:
     """Fetch a monitored URL via Tavily (if configured) and update last_summary.
 
-    V28.k — Il riepilogo deve essere sempre in italiano: prefissiamo la query con
-    un'istruzione esplicita e passiamo country="italy" per privilegiare fonti IT.
+    V28.k — Il riepilogo deve essere sempre in italiano.
+    V28.ab — Se l'URL è un PDF diretto o la pagina contiene link a PDF, li scarichiamo
+    e ne estraiamo il testo con PyMuPDF; il testo estratto si integra nella memoria di
+    Axon come qualunque altra pagina.
     """
     try:
         summary = ""
+        pdf_text_blocks: List[str] = []
         # V28.k — Query in italiano: Tavily genera l'answer nella lingua della query
         name = (doc.get("name") or "").strip()
         url = (doc.get("url") or "").strip()
+
+        # V28.ab — Fase 1: prova a fetchare direttamente l'URL per rilevare PDF o link a PDF
+        try:
+            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+                head_resp = await client.get(url, headers={"User-Agent": "AxonBot/1.0 (+advisoros.it)"})
+                ct = (head_resp.headers.get("content-type") or "").lower()
+                body = head_resp.content or b""
+                # Caso 1: l'URL stesso è un PDF
+                if "application/pdf" in ct or body[:5] == b"%PDF-":
+                    txt = _extract_pdf_text_bytes(body)
+                    if txt:
+                        pdf_text_blocks.append(f"[PDF diretto: {url}]\n{txt}")
+                # Caso 2: HTML — cerchiamo link a PDF nella pagina
+                elif "text/html" in ct or body[:15].lower().lstrip().startswith(b"<!doctype") or body[:6].lower().startswith(b"<html"):
+                    try:
+                        page_text = body.decode(head_resp.encoding or "utf-8", errors="replace")
+                    except Exception:
+                        page_text = body.decode("utf-8", errors="replace")
+                    pdf_links = _find_pdf_links(page_text, base_url=str(head_resp.url))
+                    for pdf_url in pdf_links[:3]:  # max 3 PDF per pagina
+                        try:
+                            pr = await client.get(pdf_url, headers={"User-Agent": "AxonBot/1.0"})
+                            if (pr.headers.get("content-type") or "").lower().startswith("application/pdf") or (pr.content or b"")[:5] == b"%PDF-":
+                                txt = _extract_pdf_text_bytes(pr.content or b"")
+                                if txt:
+                                    pdf_text_blocks.append(f"[PDF trovato: {pdf_url}]\n{txt}")
+                        except Exception:
+                            continue  # skip PDF failed
+        except Exception:
+            # network/parsing errors non-blocking: la sintesi Tavily può comunque partire
+            pass
+
+        # Fase 2: sintesi Tavily della pagina come prima
         it_query = (
             f"Riassumi in italiano i contenuti principali di questa pagina. "
             f"Rispondi SEMPRE in italiano, in prosa chiara, max 6 frasi. "
@@ -9096,24 +9519,75 @@ async def _ai_teach_refresh_url(doc: Dict[str, Any]) -> Dict[str, Any]:
         res = await _tavily_search(it_query, max_results=4, country="italy")
         if res:
             summary = (res.get("answer") or "").strip()
-            # Include result snippets for richer context
             for it in (res.get("results") or [])[:3]:
                 if it.get("content"):
                     summary += f"\n- {it.get('title') or ''}: {it.get('content')}"
-        else:
+        elif not pdf_text_blocks:
             summary = f"[Tavily non configurato o non disponibile] URL: {doc.get('url')}"
+
+        # V28.ab — Merge testo PDF estratto nella sintesi finale (integrato come memoria)
+        if pdf_text_blocks:
+            merged = "\n\n---\nContenuti PDF collegati:\n" + "\n\n".join(pdf_text_blocks)
+            summary = (summary or "").strip() + merged
+
         now = utcnow()
         await db.ai_teach_urls.update_one(
             {"url_id": doc["url_id"]},
-            {"$set": {"last_fetched_at": now, "last_summary": summary[:4000], "last_error": None}},
+            {"$set": {
+                "last_fetched_at": now,
+                "last_summary": summary[:12000],  # V28.ab — spazio in più per i PDF estratti
+                "last_pdf_count": len(pdf_text_blocks),
+                "last_error": None,
+            }},
         )
-        return {"ok": True, "summary_len": len(summary)}
+        return {"ok": True, "summary_len": len(summary), "pdf_extracted": len(pdf_text_blocks)}
     except Exception as e:
         await db.ai_teach_urls.update_one(
             {"url_id": doc["url_id"]},
             {"$set": {"last_error": str(e)[:400]}},
         )
         return {"ok": False, "error": str(e)}
+
+
+# V28.ab — Helper: estrae testo da bytes PDF via PyMuPDF (fitz già installato per bill analysis).
+def _extract_pdf_text_bytes(data: bytes) -> str:
+    """Estrae testo dai primi ~30 pagine di un PDF. Restituisce stringa vuota se fallisce."""
+    if not data or data[:5] != b"%PDF-":
+        return ""
+    try:
+        import fitz  # PyMuPDF
+        text_parts: List[str] = []
+        with fitz.open(stream=data, filetype="pdf") as pdf:
+            for page in pdf.pages(stop=min(pdf.page_count, 30)):
+                t = page.get_text("text") or ""
+                if t.strip():
+                    text_parts.append(t.strip())
+        joined = "\n\n".join(text_parts)
+        # Cap a ~8000 char per PDF così la memoria non esplode
+        return joined[:8000]
+    except Exception:
+        return ""
+
+
+# V28.ab — Helper: estrae link PDF assoluti da HTML (parser semplice via regex, no BS4 dep).
+def _find_pdf_links(html_text: str, base_url: str) -> List[str]:
+    import re as _re
+    from urllib.parse import urljoin
+    if not html_text:
+        return []
+    # href="..." o href='...' che finiscono in .pdf (opzionale query string)
+    pattern = _re.compile(r"""href\s*=\s*['"]([^'"]+\.pdf(?:\?[^'"]*)?)['"]""", _re.IGNORECASE)
+    matches = pattern.findall(html_text)
+    seen = set()
+    out: List[str] = []
+    for m in matches:
+        full = urljoin(base_url, m)
+        if full not in seen:
+            seen.add(full)
+            out.append(full)
+        if len(out) >= 10:
+            break
+    return out
 
 
 @api_router.post("/ai-teach/urls/{url_id}/refresh")
