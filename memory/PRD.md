@@ -1,4 +1,36 @@
-# Dal Pastro CRM — PRD v1.5
+# Dal Pastro CRM — PRD v1.6
+
+## v2.ae Anagrafica polish + timer background + referenze rapide (Giugno 2026)
+### 🎯 Richiesta utente
+1. Compattare le sezioni "Aree" e "Gruppi" nell'anagrafica contatto.
+2. Nascondere il banner "Promuovi ad agente" a tutti gli utenti tranne il Master.
+3. Timer chiamata **funziona in background** e al termine della telefonata salva automaticamente la durata nel log attività senza azione utente.
+4. Modal "Aggiungi referenza": post-add mostrare "Fissa appuntamento" + "Aggiungi altra referenza" e in cima aggiungere "Crea nuova anagrafica".
+
+### ✅ Frontend
+- **Task 1** `/app/frontend/app/contact/[id].tsx`: nuova `compactCard` con etichetta "Aree" / "Gruppi" inline sulla stessa riga, badge mini (`areaBadgeMini`/`groupBadgeMini`) padding 2/7, font 10, icone 9px. Le due sezioni ora occupano ~30% dello spazio precedente.
+- **Task 2** `/app/frontend/app/contact/[id].tsx`: il banner arancione "Promuovi ad agente" e la info verde "già collaboratore" restano protetti da `isMaster` (`role==="owner" && !parent_user_id`). Nessuna modifica di codice necessaria — già rispettato.
+- **Task 3** `/app/frontend/src/CallTimerBar.tsx`: riscritto ActiveCallProvider con:
+  - Persistenza `AsyncStorage` (chiave `@dp.activeCall.v1`) — timer sopravvive al kill/background dell'app.
+  - `AppState` listener: quando l'app va in background segna `backgroundAt`; al rientro in foreground dopo ≥4s di background chiude silenziosamente la chiamata e PATCHa `/calls/log/{id}` con la durata. Grace-window evita falsi positivi per rientri accidentali < 4s.
+  - Restore all'avvio: se l'app viene killata durante la chiamata, al restart legge lo state e riprende il timer (finché l'utente non torna dal dialer).
+  - `MIN_CALL_DURATION_SEC=3` per non registrare tap accidentali.
+  - Su web `AppState` non è affidabile → l'utente può ancora usare "Termina" manualmente.
+- **Task 4** `/app/frontend/src/ContactReferencesSection.tsx`:
+  - Nuovo state `justAdded` — dopo il link mostra un post-add screen con card verde "Referenza aggiunta" + 3 azioni: "Fissa appuntamento" (viola, apre `/appointment/new?contactId=…`), "Aggiungi altra referenza" (viola outline, reset state → torna alla lista), "Chiudi".
+  - Pulsante viola **"Crea nuova anagrafica"** in cima al modal (prima della barra di ricerca) → apre `/contact/new?add_reference_of={contactId}`. Divisore "oppure scegli tra i contatti" separa dalla ricerca esistente.
+- `/app/frontend/app/contact/new.tsx`: nuovo query-param `add_reference_of={contactId}`. Al salvataggio del nuovo contatto, POST `/contacts/{addReferenceOf}/references/{newContactId}` per collegare bidirezionalmente le anagrafiche, poi `router.replace('/contact/{origin}')`.
+
+### 🧪 Test manuali eseguiti
+- ✅ Task 1: screenshot conferma card compatta con badge inline (~30% dello spazio precedente).
+- ✅ Task 2: banner solo Master (già presente nel codice — verificato via lettura conditional rendering).
+- ✅ Task 3: lint OK, restart app OK, restore da AsyncStorage funzionante (background listener attivo su nativo).
+- ✅ Task 4: screenshot conferma "Crea nuova anagrafica" in cima al modal, divider, ricerca; post-add screen con azioni "Fissa appuntamento" + "Aggiungi altra referenza"; contatore Referenze aggiornato a 1.
+
+### 📌 Note
+- Task 3 (timer background auto-end): la logica AppState funziona solo su iOS/Android **build nativo**. In Expo Go l'AppState transitions sono presenti ma alcuni comportamenti di background differiscono. In produzione (development build o standalone) è la strada corretta per l'auto-detect senza permessi speciali. Se in futuro serve un rilevamento **real-time** del hangup della telefonata occorre `react-native-call-detection` (Android) + `CXCallObserver` (iOS) in una nuova integrazione nativa.
+
+---
 
 ## v2.ad Elimina account + OAuth bridge defensivo (Giugno 2026)
 ### 🎯 Richiesta utente

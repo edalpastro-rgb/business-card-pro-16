@@ -1,12 +1,25 @@
 /**
- * V28.r — ActiveCallContext + CallTimerBar
- * Sostituisce il modal a schermo intero (V28.f) con una barra compatta fissa
- * in cima all'app, sempre visibile durante la chiamata attiva. L'utente può
- * navigare liberamente mentre il timer va avanti. Al tap su "Termina" la barra
- * PATCHa il log con la durata misurata.
+ * V28.r + V29.d — ActiveCallContext + CallTimerBar
+ *
+ * Sostituisce il modal a schermo intero con una barra compatta fissa in cima
+ * all'app durante la chiamata. Il timer sopravvive al background/kill grazie a
+ * AsyncStorage.
+ *
+ * Comportamento background/auto-end (V29.d):
+ *  1. Quando l'utente tocca "Chiama" → apriamo il dialer nativo → l'app va in background
+ *  2. Al ritorno in foreground (fine chiamata / hangup del sistema) rileviamo la
+ *     transizione via `AppState` e, dopo una piccola grace-window per evitare falsi
+ *     positivi (rientri accidentali entro 4s), chiudiamo silenziosamente il timer
+ *     salvando la durata nel log attività del contatto (PATCH /calls/log/{id}).
+ *  3. Sull'ambiente web non c'è `AppState` "background" affidabile — quindi la
+ *     barra resta visibile e l'utente può usare il bottone "Termina" come prima.
+ *
+ * L'utente non deve fare NULLA: al ritorno dalla telefonata la durata è già
+ * registrata nel log.
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Platform, Animated } from "react-native";
+import { View, Text, StyleSheet, Pressable, Platform, Animated, AppState, AppStateStatus } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/src/api";
@@ -16,6 +29,8 @@ type ActiveCall = {
   contactPhone?: string;
   startedAt: number; // ms epoch
   logId?: string | null;
+  // V29.d — tracciamo l'istante in cui l'app è entrata in background dopo lo start
+  backgroundAt?: number | null;
 };
 
 type Ctx = {
@@ -34,38 +49,134 @@ const ActiveCallCtx = createContext<Ctx>({
   dismiss: () => {},
 });
 
+// V29.d — chiave di persistenza per sopravvivere a background/kill
+const STORAGE_KEY = "@dp.activeCall.v1";
+// Grace-window: se l'app rientra in foreground entro N ms dal background,
+// consideriamo un rientro accidentale e non chiudiamo il timer.
+const AUTO_END_MIN_BG_MS = 4000;
+// Durata minima per considerare la chiamata "reale" e registrarla nel log.
+const MIN_CALL_DURATION_SEC = 3;
+
+async function persist(active: ActiveCall | null) {
+  try {
+    if (!active) await AsyncStorage.removeItem(STORAGE_KEY);
+    else await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(active));
+  } catch { /* silent */ }
+}
+
 export function ActiveCallProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState<ActiveCall | null>(null);
+  const appState = useRef<AppStateStatus>(AppState.currentState);
+  // Guard: evita doppie auto-end concorrenti
+  const endingRef = useRef(false);
+
+  // Restore on mount (sopravvive al kill dell'app)
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const parsed: ActiveCall = JSON.parse(raw);
+        // Se è troppo vecchia (>2h) la scartiamo per sicurezza
+        if (Date.now() - parsed.startedAt > 2 * 60 * 60 * 1000) {
+          await AsyncStorage.removeItem(STORAGE_KEY);
+          return;
+        }
+        setActive(parsed);
+      } catch { /* silent */ }
+    })();
+  }, []);
 
   const startCall = useCallback((info: { contactName?: string; contactPhone?: string }) => {
-    setActive({
+    const next: ActiveCall = {
       contactName: info.contactName || "Chiamata in corso",
       contactPhone: info.contactPhone,
       startedAt: Date.now(),
       logId: null,
-    });
+      backgroundAt: null,
+    };
+    setActive(next);
+    persist(next);
   }, []);
 
   const setLogId = useCallback((logId: string | null) => {
-    setActive((cur) => (cur ? { ...cur, logId } : cur));
+    setActive((cur) => {
+      if (!cur) return cur;
+      const next = { ...cur, logId };
+      persist(next);
+      return next;
+    });
+  }, []);
+
+  const endCallInternal = useCallback(async (call: ActiveCall | null) => {
+    if (!call || endingRef.current) return;
+    endingRef.current = true;
+    try {
+      setActive(null);
+      await persist(null);
+      const duration = Math.floor((Date.now() - call.startedAt) / 1000);
+      if (call.logId && duration >= MIN_CALL_DURATION_SEC) {
+        try {
+          await api(`/calls/log/${call.logId}`, {
+            method: "PATCH",
+            body: { duration_sec: duration },
+          });
+        } catch { /* silent */ }
+      }
+    } finally {
+      endingRef.current = false;
+    }
   }, []);
 
   const endCall = useCallback(async () => {
-    const cur = active;
-    setActive(null);
-    if (cur?.logId) {
-      const duration = Math.floor((Date.now() - cur.startedAt) / 1000);
-      try {
-        await api(`/calls/log/${cur.logId}`, { method: "PATCH", body: { duration_sec: duration } });
-      } catch {
-        /* silent */
-      }
-    }
-  }, [active]);
+    await endCallInternal(active);
+  }, [active, endCallInternal]);
 
   const dismiss = useCallback(() => {
     setActive(null);
+    persist(null);
   }, []);
+
+  // V29.d — Auto-end su ritorno in foreground dopo che l'app è stata in background
+  // per almeno AUTO_END_MIN_BG_MS. Il dialer nativo del telefono manda l'app in
+  // background durante la chiamata; al hangup l'utente torna sull'app e chiudiamo
+  // silenziosamente il timer salvando la durata.
+  useEffect(() => {
+    if (Platform.OS === "web") return; // AppState su web non è affidabile per background
+    const sub = AppState.addEventListener("change", (next) => {
+      const prev = appState.current;
+      appState.current = next;
+      // Ci interessa la transizione: (active|inactive|background) → active
+      const goingActive = next === "active";
+      const wasBackground = prev === "background" || prev === "inactive";
+      if (goingActive && wasBackground) {
+        // Al foreground: se c'è una chiamata attiva ed è stata in background
+        // abbastanza a lungo, la chiudiamo automaticamente.
+        setActive((cur) => {
+          if (!cur) return cur;
+          const bg = cur.backgroundAt || 0;
+          if (bg && Date.now() - bg >= AUTO_END_MIN_BG_MS) {
+            // Kick off async end (fire-and-forget)
+            void endCallInternal(cur);
+            return null;
+          }
+          // Rientro accidentale — resetto backgroundAt
+          const next2 = { ...cur, backgroundAt: null };
+          persist(next2);
+          return next2;
+        });
+      } else if (!goingActive && prev === "active") {
+        // Andando in background: marca l'istante per la successiva grace-window
+        setActive((cur) => {
+          if (!cur) return cur;
+          const next2 = { ...cur, backgroundAt: Date.now() };
+          persist(next2);
+          return next2;
+        });
+      }
+    });
+    return () => sub.remove();
+  }, [endCallInternal]);
 
   const value = useMemo<Ctx>(() => ({ active, startCall, setLogId, endCall, dismiss }), [active, startCall, setLogId, endCall, dismiss]);
   return <ActiveCallCtx.Provider value={value}>{children}</ActiveCallCtx.Provider>;
@@ -83,8 +194,6 @@ function fmtMS(sec: number): string {
 
 /**
  * Barra compatta mostrata SOTTO la status bar quando c'è una chiamata attiva.
- * Occupa una fascia orizzontale in cima all'app (position: absolute), non blocca
- * la navigazione né gli altri touch events sottostanti (solo l'area della barra).
  */
 export function CallTimerBar() {
   const { active, endCall, dismiss } = useActiveCall();
@@ -114,7 +223,6 @@ export function CallTimerBar() {
   }, [active, pulse]);
 
   useEffect(() => {
-    // Chiude il menu di "Chiudi senza salvare" quando la chiamata cambia
     if (!active) setMenuOpen(false);
   }, [active]);
 

@@ -52,12 +52,16 @@ export default function NewContactRoute() {
 function NewContactScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ id?: string; source?: string; referred_by?: string; chain?: string; back_to?: string }>();
+  const params = useLocalSearchParams<{ id?: string; source?: string; referred_by?: string; chain?: string; back_to?: string; add_reference_of?: string }>();
   const editId = params.id;
   const isEdit = !!editId;
   // V27 — Chain referral flow: come from a client card, add referral(s) back-to-back
   const chainMode = params.chain === "1";
   const chainBackTo = params.back_to || null;
+  // V29.d — Se aperto dalla sezione "Referenze" di un contatto esistente,
+  // al termine della creazione linkiamo bidirezionalmente il nuovo contatto
+  // come referenza del contatto di partenza.
+  const addReferenceOf = params.add_reference_of || null;
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
   const [contacts, setContacts] = useState<ContactLite[]>([]);
   const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
@@ -878,6 +882,12 @@ function NewContactScreen() {
       }
       if (isEdit) {
         router.replace(`/contact/${contactId}`);
+      } else if (addReferenceOf) {
+        // V29.d — link peer reference bidirezionale poi torna al contatto d'origine
+        try {
+          await api(`/contacts/${addReferenceOf}/references/${contactId}`, { method: "POST" });
+        } catch (e) { console.warn("link reference failed", e); }
+        router.replace(`/contact/${addReferenceOf}?fromNewRef=${contactId}` as any);
       } else {
         // Show post-creation modal offering to create an appointment right away
         setPostCreateModal({

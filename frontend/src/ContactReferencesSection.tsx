@@ -47,6 +47,8 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
   const [pickerLoading, setPickerLoading] = useState(false);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
+  // V29.d — Post-add success screen state
+  const [justAdded, setJustAdded] = useState<ContactRef | null>(null);
 
   const load = useCallback(async () => {
     if (!contactId) return;
@@ -99,15 +101,40 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
     try {
       setBusy(true);
       await api(`/contacts/${contactId}/references/${ref.contact_id}`, { method: "POST" });
-      setPickerOpen(false);
       setQ("");
       await load();
+      // V29.d — mostra il post-add screen invece di chiudere il modal
+      setJustAdded(ref);
     } catch (e: any) {
       notify("Errore", e?.message || "Impossibile collegare la referenza");
     } finally {
       setBusy(false);
     }
   };
+
+  const closePicker = useCallback(() => {
+    if (busy) return;
+    setPickerOpen(false);
+    setJustAdded(null);
+    setQ("");
+  }, [busy]);
+
+  const scheduleAppointmentForJustAdded = useCallback(() => {
+    if (!justAdded) return;
+    const cid = justAdded.contact_id;
+    closePicker();
+    router.push(`/appointment/new?contactId=${cid}` as any);
+  }, [justAdded, router, closePicker]);
+
+  const addAnotherReferral = useCallback(() => {
+    setJustAdded(null);
+    setQ("");
+  }, []);
+
+  const createNewContactAsReference = useCallback(() => {
+    closePicker();
+    router.push(`/contact/new?add_reference_of=${contactId}` as any);
+  }, [contactId, router, closePicker]);
 
   const unlinkContact = async (ref: ContactRef) => {
     try {
@@ -188,74 +215,143 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
       )}
 
       {/* Picker modal */}
-      <Modal transparent visible={pickerOpen} animationType="slide" onRequestClose={() => !busy && setPickerOpen(false)}>
+      <Modal transparent visible={pickerOpen} animationType="slide" onRequestClose={closePicker}>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
             <View style={styles.sheetHdr}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sheetTitle}>Aggiungi referenza</Text>
-                <Text style={styles.sheetSub}>{contactName ? `per "${contactName}"` : "Seleziona un contatto da collegare"}</Text>
+                <Text style={styles.sheetTitle}>{justAdded ? "Referenza aggiunta" : "Aggiungi referenza"}</Text>
+                <Text style={styles.sheetSub}>
+                  {justAdded
+                    ? `${(justAdded.first_name || "") + " " + (justAdded.last_name || "")}`.trim() + " è ora collegato"
+                    : (contactName ? `per "${contactName}"` : "Seleziona un contatto da collegare")}
+                </Text>
               </View>
-              <Pressable onPress={() => !busy && setPickerOpen(false)} hitSlop={10}>
+              <Pressable onPress={closePicker} hitSlop={10} testID="ref-close">
                 <Ionicons name="close" size={22} color={theme.color.onSurface} />
               </Pressable>
             </View>
-            <View style={styles.searchWrap}>
-              <Ionicons name="search" size={16} color="#94A3B8" />
-              <TextInput
-                testID="ref-search-input"
-                value={q}
-                onChangeText={setQ}
-                placeholder="Cerca per nome o codice…"
-                placeholderTextColor="#94A3B8"
-                style={styles.searchInput}
-                autoCapitalize="none"
-              />
-              {q ? (
-                <Pressable onPress={() => setQ("")} hitSlop={8}>
-                  <Ionicons name="close-circle" size={16} color="#94A3B8" />
+
+            {justAdded ? (
+              // V29.d — Post-add success screen: 2 azioni
+              <View style={{ gap: 10, marginTop: 4 }}>
+                <View style={styles.successCard}>
+                  <View style={styles.successIcon}>
+                    <Ionicons name="checkmark" size={22} color="#FFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.successName} numberOfLines={1}>
+                      {`${justAdded.first_name || ""} ${justAdded.last_name || ""}`.trim()}
+                    </Text>
+                    <Text style={styles.successSub}>collegato come referenza</Text>
+                  </View>
+                </View>
+                <Pressable
+                  testID="ref-schedule-appt"
+                  onPress={scheduleAppointmentForJustAdded}
+                  style={[styles.primaryAction, { backgroundColor: "#7C3AED" }]}
+                >
+                  <Ionicons name="calendar" size={18} color="#FFF" />
+                  <Text style={styles.primaryActionTxt}>Fissa appuntamento</Text>
                 </Pressable>
-              ) : null}
-            </View>
-            {pickerLoading ? (
-              <ActivityIndicator color="#7C3AED" style={{ marginTop: 20 }} />
-            ) : filtered.length === 0 ? (
-              <View style={styles.emptyPicker}>
-                <Ionicons name="search" size={26} color="#94A3B8" />
-                <Text style={styles.emptyTxt}>Nessun contatto trovato</Text>
+                <Pressable
+                  testID="ref-add-another"
+                  onPress={addAnotherReferral}
+                  style={styles.secondaryAction}
+                >
+                  <Ionicons name="person-add" size={16} color="#7C3AED" />
+                  <Text style={styles.secondaryActionTxt}>Aggiungi altra referenza</Text>
+                </Pressable>
+                <Pressable
+                  testID="ref-done"
+                  onPress={closePicker}
+                  style={styles.ghostAction}
+                >
+                  <Text style={styles.ghostActionTxt}>Chiudi</Text>
+                </Pressable>
               </View>
             ) : (
-              <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
-                {filtered.map((c) => {
-                  const name = `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Contatto";
-                  const color = AREA_COLOR[c.area || "energy"] || "#7C3AED";
-                  return (
-                    <Pressable
-                      key={c.contact_id}
-                      testID={`ref-picker-${c.contact_id}`}
-                      onPress={() => linkContact(c)}
-                      disabled={busy}
-                      style={styles.pickerRow}
-                    >
-                      {c.avatar_base64 ? (
-                        <Image
-                          source={{ uri: c.avatar_base64.startsWith("data:") ? c.avatar_base64 : `data:image/jpeg;base64,${c.avatar_base64}` }}
-                          style={styles.rowAvatar}
-                        />
-                      ) : (
-                        <View style={[styles.rowAvatarFallback, { backgroundColor: color }]}>
-                          <Text style={styles.rowInitials}>{initials(c.first_name, c.last_name)}</Text>
-                        </View>
-                      )}
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.rowName} numberOfLines={1}>{name}</Text>
-                        {c.contact_code ? <Text style={styles.rowMeta}>{c.contact_code}</Text> : null}
-                      </View>
-                      <Ionicons name="add-circle-outline" size={22} color="#7C3AED" />
+              <>
+                {/* V29.d — Crea nuova anagrafica in cima al modal */}
+                <Pressable
+                  testID="ref-create-new"
+                  onPress={createNewContactAsReference}
+                  style={styles.createNewBtn}
+                >
+                  <View style={styles.createNewIcon}>
+                    <Ionicons name="person-add" size={18} color="#7C3AED" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.createNewTitle}>Crea nuova anagrafica</Text>
+                    <Text style={styles.createNewSub}>Nuovo contatto collegato come referenza</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#7C3AED" />
+                </Pressable>
+
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerTxt}>oppure scegli tra i contatti</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <View style={styles.searchWrap}>
+                  <Ionicons name="search" size={16} color="#94A3B8" />
+                  <TextInput
+                    testID="ref-search-input"
+                    value={q}
+                    onChangeText={setQ}
+                    placeholder="Cerca per nome o codice…"
+                    placeholderTextColor="#94A3B8"
+                    style={styles.searchInput}
+                    autoCapitalize="none"
+                  />
+                  {q ? (
+                    <Pressable onPress={() => setQ("")} hitSlop={8}>
+                      <Ionicons name="close-circle" size={16} color="#94A3B8" />
                     </Pressable>
-                  );
-                })}
-              </ScrollView>
+                  ) : null}
+                </View>
+                {pickerLoading ? (
+                  <ActivityIndicator color="#7C3AED" style={{ marginTop: 20 }} />
+                ) : filtered.length === 0 ? (
+                  <View style={styles.emptyPicker}>
+                    <Ionicons name="search" size={26} color="#94A3B8" />
+                    <Text style={styles.emptyTxt}>Nessun contatto trovato</Text>
+                  </View>
+                ) : (
+                  <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
+                    {filtered.map((c) => {
+                      const name = `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Contatto";
+                      const color = AREA_COLOR[c.area || "energy"] || "#7C3AED";
+                      return (
+                        <Pressable
+                          key={c.contact_id}
+                          testID={`ref-picker-${c.contact_id}`}
+                          onPress={() => linkContact(c)}
+                          disabled={busy}
+                          style={styles.pickerRow}
+                        >
+                          {c.avatar_base64 ? (
+                            <Image
+                              source={{ uri: c.avatar_base64.startsWith("data:") ? c.avatar_base64 : `data:image/jpeg;base64,${c.avatar_base64}` }}
+                              style={styles.rowAvatar}
+                            />
+                          ) : (
+                            <View style={[styles.rowAvatarFallback, { backgroundColor: color }]}>
+                              <Text style={styles.rowInitials}>{initials(c.first_name, c.last_name)}</Text>
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.rowName} numberOfLines={1}>{name}</Text>
+                            {c.contact_code ? <Text style={styles.rowMeta}>{c.contact_code}</Text> : null}
+                          </View>
+                          <Ionicons name="add-circle-outline" size={22} color="#7C3AED" />
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </>
             )}
           </View>
         </View>
@@ -296,4 +392,56 @@ const styles = StyleSheet.create({
   rowInitials: { fontSize: 13, fontWeight: "800", color: "#FFF" },
   rowName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
   rowMeta: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
+  // V29.d — Create new + post-add success
+  createNewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+    marginBottom: 10,
+  },
+  createNewIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: "#EDE9FE",
+    alignItems: "center", justifyContent: "center",
+  },
+  createNewTitle: { fontSize: 14, fontWeight: "800", color: "#5B21B6" },
+  createNewSub: { fontSize: 11.5, color: "#7C3AED", marginTop: 2 },
+  divider: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
+  dividerTxt: { fontSize: 10.5, color: theme.color.muted, fontWeight: "700", letterSpacing: 0.3 },
+  successCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    borderRadius: 12,
+  },
+  successIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "#16A34A",
+    alignItems: "center", justifyContent: "center",
+  },
+  successName: { fontSize: 14, fontWeight: "800", color: "#166534" },
+  successSub: { fontSize: 11.5, color: "#16A34A", marginTop: 2 },
+  primaryAction: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 14, borderRadius: 12,
+  },
+  primaryActionTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
+  secondaryAction: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 12, borderRadius: 12,
+    borderWidth: 1, borderColor: "#7C3AED", backgroundColor: "#F5F3FF",
+  },
+  secondaryActionTxt: { color: "#7C3AED", fontWeight: "800", fontSize: 13 },
+  ghostAction: { paddingVertical: 10, alignItems: "center" },
+  ghostActionTxt: { color: theme.color.muted, fontWeight: "700", fontSize: 13 },
 });

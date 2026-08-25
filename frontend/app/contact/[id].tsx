@@ -595,35 +595,35 @@ function ContactDetail() {
               const contactGroupObjs = (c.group_ids || []).map((gid) => groups.find((g) => g.group_id === gid)).filter(Boolean) as Array<{ group_id: string; name: string; color: string }>;
               if (contactAreas.length === 0 && contactGroupObjs.length === 0) return null;
               return (
-                <View style={styles.card}>
+                <View style={styles.compactCard}>
                   {contactAreas.length > 0 && (
-                    <>
-                      <Text style={styles.commSectionTitle}>Aree di appartenenza</Text>
-                      <View style={styles.badgesRow}>
+                    <View style={styles.compactRow}>
+                      <Text style={styles.compactRowLabel}>Aree</Text>
+                      <View style={styles.compactBadgesRow}>
                         {contactAreas.map((aid, i) => {
                           const info = areaMap[aid] || { name: aid, color: theme.color.muted };
                           return (
-                            <View key={`a-${aid}`} style={[styles.areaBadge, { backgroundColor: info.color }]}>
-                              {i === 0 && <Ionicons name="star" size={12} color="#FFF" />}
-                              <Text style={styles.areaBadgeTxt}>{info.name}</Text>
+                            <View key={`a-${aid}`} style={[styles.areaBadgeMini, { backgroundColor: info.color }]}>
+                              {i === 0 && <Ionicons name="star" size={9} color="#FFF" />}
+                              <Text style={styles.areaBadgeMiniTxt}>{info.name}</Text>
                             </View>
                           );
                         })}
                       </View>
-                    </>
+                    </View>
                   )}
                   {contactGroupObjs.length > 0 && (
-                    <>
-                      <Text style={[styles.commSectionTitle, { marginTop: 12 }]}>Gruppi</Text>
-                      <View style={styles.badgesRow}>
+                    <View style={[styles.compactRow, contactAreas.length > 0 && { marginTop: 6 }]}>
+                      <Text style={styles.compactRowLabel}>Gruppi</Text>
+                      <View style={styles.compactBadgesRow}>
                         {contactGroupObjs.map((g) => (
-                          <Pressable key={g.group_id} onPress={() => router.push(`/groups/${g.group_id}`)} style={[styles.groupBadge, { borderColor: g.color }]}>
-                            <View style={[styles.groupBadgeDot, { backgroundColor: g.color }]} />
-                            <Text style={[styles.groupBadgeTxt, { color: g.color }]}>{g.name}</Text>
+                          <Pressable key={g.group_id} onPress={() => router.push(`/groups/${g.group_id}`)} style={[styles.groupBadgeMini, { borderColor: g.color }]}>
+                            <View style={[styles.groupBadgeMiniDot, { backgroundColor: g.color }]} />
+                            <Text style={[styles.groupBadgeMiniTxt, { color: g.color }]}>{g.name}</Text>
                           </Pressable>
                         ))}
                       </View>
-                    </>
+                    </View>
                   )}
                 </View>
               );
@@ -1303,6 +1303,56 @@ const styles = StyleSheet.create({
   commGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   commBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: theme.radius.md, minWidth: 108, flexGrow: 1, justifyContent: "center" },
   commBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  // V29.c — Compact Aree + Gruppi card
+  compactCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  compactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  compactRowLabel: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: theme.color.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    minWidth: 46,
+  },
+  compactBadgesRow: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  areaBadgeMini: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  areaBadgeMiniTxt: { color: "#FFF", fontWeight: "700", fontSize: 10 },
+  groupBadgeMini: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+    backgroundColor: "#FFF",
+  },
+  groupBadgeMiniDot: { width: 6, height: 6, borderRadius: 3 },
+  groupBadgeMiniTxt: { fontWeight: "700", fontSize: 10 },
   // V29 — Promuovi ad agente
   promoteBtn: {
     flexDirection: "row",
