@@ -156,6 +156,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const cleanupAudioRef = useRef<(() => void) | null>(null);
   // V38T — Reference to current HTMLAudioElement for pause/resume
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  // V28.v — Drag-and-drop desktop: ref al contenitore + state per evidenziare la drop zone
+  const sheetContainerRef = useRef<View | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const loadHistory = useCallback(async () => {
     setLoadingHist(true);
@@ -213,6 +216,26 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     return () => clearTimeout(t);
   }, [messages.length, sending]);
 
+
+  // V28.v — Helper condiviso: aggiunge un file (già letto come base64) alla lista
+  // degli allegati pending. Ritorna true se OK, false se scartato (oversize / vuoto).
+  const addPendingAttachment = useCallback((info: { name: string; mime: string; base64: string }) => {
+    const { name, mime, base64 } = info;
+    if (!base64) return false;
+    if (base64.length > 14_000_000) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `⚠️ File "${name}" troppo grande (>10MB). Riducilo prima di allegarlo.`, created_at: new Date().toISOString() },
+      ]);
+      return false;
+    }
+    setPendingAttachments((arr) => [
+      ...arr,
+      { name, mime: mime || "application/octet-stream", data_base64: base64 },
+    ]);
+    return true;
+  }, []);
+
   // V28.l — Attach a file (PDF, Excel, image, txt/csv, …) to the next message
   const attachFile = async () => {
     if (attaching || sending) return;
@@ -248,20 +271,98 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         }
       }
       if (!b64) return;
-      // ~10MB cap per file (base64 length ~ 4/3 × bytes)
-      if (b64.length > 14_000_000) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: `⚠️ File "${asset.name}" troppo grande (>10MB). Riducilo prima di allegarlo.`, created_at: new Date().toISOString() },
-        ]);
-        return;
-      }
-      setPendingAttachments((arr) => [
-        ...arr,
-        { name: asset.name, mime: asset.mimeType || "application/octet-stream", data_base64: b64 },
-      ]);
+      addPendingAttachment({ name: asset.name, mime: asset.mimeType || "application/octet-stream", base64: b64 });
     } finally { setAttaching(false); }
   };
+
+  // V28.v — Drag-and-drop desktop: legge un DOM File come base64 e lo aggiunge come attachment.
+  // Chiamato dagli event handler drop attaccati direttamente al DOM (solo su web).
+  const handleDroppedFile = useCallback(async (file: File): Promise<void> => {
+    try {
+      const b64 = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onerror = () => rej(new Error("FileReader error"));
+        r.onload = () => {
+          const s = String(r.result || "");
+          const c = s.indexOf(",");
+          res(c >= 0 ? s.slice(c + 1) : s);
+        };
+        r.readAsDataURL(file);
+      });
+      addPendingAttachment({ name: file.name || "file", mime: file.type || "application/octet-stream", base64: b64 });
+    } catch (e) {
+      console.warn("drop read err:", e);
+    }
+  }, [addPendingAttachment]);
+
+  // V28.v — Drag-and-drop desktop: attach DOM listeners al contenitore quando la
+  // modal è visibile e siamo su web. Non tocca il picker esistente né gli altri handler.
+  useEffect(() => {
+    if (Platform.OS !== "web" || !visible) return;
+    const node: any = sheetContainerRef.current;
+    if (!node) return;
+    let dragCounter = 0;
+    const onDragEnter = (e: DragEvent) => {
+      // Consideriamo solo drag che portano file (ignora drag di testo/link interni)
+      if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes("Files")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter += 1;
+      setIsDragging(true);
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes("Files")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try { e.dataTransfer.dropEffect = "copy"; } catch {}
+    };
+    const onDragLeave = (e: DragEvent) => {
+      if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes("Files")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter = Math.max(0, dragCounter - 1);
+      if (dragCounter === 0) setIsDragging(false);
+    };
+    const onDrop = async (e: DragEvent) => {
+      if (!e.dataTransfer) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter = 0;
+      setIsDragging(false);
+      const files: File[] = Array.from(e.dataTransfer.files || []);
+      if (!files.length) return;
+      for (const f of files) {
+        // Filtro tipo: PDF, Excel, immagini, CSV, TXT — coerente con il picker esistente.
+        const mime = (f.type || "").toLowerCase();
+        const name = (f.name || "").toLowerCase();
+        const isAllowed =
+          mime.startsWith("image/") ||
+          mime.includes("pdf") || name.endsWith(".pdf") ||
+          mime.includes("spreadsheet") || mime.includes("excel") ||
+          name.endsWith(".xlsx") || name.endsWith(".xls") ||
+          mime.includes("csv") || name.endsWith(".csv") ||
+          mime.startsWith("text/") || name.endsWith(".txt");
+        if (!isAllowed) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: `⚠️ Formato non supportato per "${f.name}". Allega PDF, Excel, immagini o testo.`, created_at: new Date().toISOString() },
+          ]);
+          continue;
+        }
+        await handleDroppedFile(f);
+      }
+    };
+    node.addEventListener("dragenter", onDragEnter);
+    node.addEventListener("dragover", onDragOver);
+    node.addEventListener("dragleave", onDragLeave);
+    node.addEventListener("drop", onDrop);
+    return () => {
+      node.removeEventListener("dragenter", onDragEnter);
+      node.removeEventListener("dragover", onDragOver);
+      node.removeEventListener("dragleave", onDragLeave);
+      node.removeEventListener("drop", onDrop);
+    };
+  }, [visible, handleDroppedFile]);
 
 
   const send = async (text?: string, opts?: { forceSpeak?: boolean; onSpoken?: () => void }) => {
@@ -804,7 +905,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <Pressable style={styles.backdropTouch} onPress={onClose} />
-        <View style={styles.sheet}>
+        <View ref={sheetContainerRef} style={styles.sheet}>
+          {/* V28.v — Drop zone overlay (solo web durante drag di file) */}
+          {isDragging && Platform.OS === "web" && (
+            <View pointerEvents="none" style={styles.dropOverlay} testID="assistant-drop-overlay">
+              <View style={styles.dropInner}>
+                <Ionicons name="cloud-upload" size={44} color="#FFF" />
+                <Text style={styles.dropTitle}>Rilascia per allegare</Text>
+                <Text style={styles.dropSub}>PDF · Excel · Immagini · CSV · TXT</Text>
+              </View>
+            </View>
+          )}
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
             style={{ flex: 1 }}
@@ -1370,6 +1481,22 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 22,
     overflow: "hidden",
   },
+  // V28.v — Drop zone overlay (web-only drag&drop)
+  dropOverlay: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(139, 92, 246, 0.88)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 99,
+    borderRadius: 22,
+    borderWidth: 3,
+    borderColor: "#FFF",
+    borderStyle: "dashed",
+  },
+  dropInner: { alignItems: "center", gap: 6 },
+  dropTitle: { color: "#FFF", fontSize: 18, fontWeight: "800", letterSpacing: -0.3 },
+  dropSub: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "600" },
   header: {
     backgroundColor: ASSISTANT_COLOR,
     paddingHorizontal: 16,

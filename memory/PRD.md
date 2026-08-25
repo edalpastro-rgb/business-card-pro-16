@@ -1,5 +1,30 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.v Drag-and-drop desktop chat Axon (Giugno 2026)
+### 🎯 Richiesta utente
+"Nella chat di Axon su desktop, aggiungi il supporto drag-and-drop per caricare file PDF ed Excel. Quando l'utente trascina un file sulla finestra chat, appare una zona di drop evidenziata. Al rilascio il file viene caricato esattamente come se fosse selezionato dal picker esistente."
+
+### ✅ Frontend `/app/frontend/src/AssistantChat.tsx`
+- **`sheetContainerRef`**: nuovo `useRef<View>` sul contenitore `<View style={styles.sheet}>` della modal chat, così possiamo agganciare listener DOM al nodo sottostante.
+- **`isDragging`**: nuovo state `boolean` per mostrare/nascondere l'overlay drop-zone.
+- **`addPendingAttachment(info)`**: helper estratto dal codice di `attachFile()` che aggiunge l'attachment alla lista pending (con validazione >10MB → messaggio d'errore). Riusato da picker e drop.
+- **`handleDroppedFile(file: File)`**: helper che legge un DOM File come base64 (FileReader) e lo passa a `addPendingAttachment`.
+- **`useEffect` drag&drop (web-only)**: quando `visible=true` e `Platform.OS === "web"`, aggancia al nodo DOM:
+  - `dragenter` / `dragleave` con contatore per gestire enter/leave in cascata sui figli
+  - `dragover` con `preventDefault` (necessario per abilitare il drop) + `dropEffect = "copy"`
+  - `drop` che itera su `dataTransfer.files`, filtra i tipi supportati (PDF/Excel/immagini/CSV/TXT) e per ogni file chiama `handleDroppedFile`
+  - Tutti i listener vengono rimossi in cleanup + gli eventi ignorano drag di solo testo/link (`types.includes("Files")`).
+- **Overlay drop-zone**: nuovo `<View>` con `pointerEvents="none"`, sfondo viola `rgba(139,92,246,0.88)`, border dashed bianco, icona `cloud-upload` + titolo "Rilascia per allegare" + sub "PDF · Excel · Immagini · CSV · TXT". Mostrato SOLO quando `isDragging && Platform.OS === "web"`.
+- I file droppati vanno nella STESSA lista di attachment pending del picker (`pendingAttachments`) e vengono inviati con lo stesso payload al `/api/assistant/chat` — nessuna divergenza di logica upload.
+- File non supportati mostrano un messaggio d'errore inline: `⚠️ Formato non supportato per "..."`.
+- File >10MB: stesso limite del picker, stesso messaggio d'errore.
+
+### 🧪 Test manuali eseguiti
+- ✅ Playwright: dragover con DataTransfer contenente un `File` PDF → overlay viola con "Rilascia per allegare" visibile.
+- ✅ Playwright: drop → overlay scompare, chip attachment "bolletta-luce-agosto.pdf ✕" appare nell'input bar (identico al picker).
+- ✅ Su native (iOS/Android): l'useEffect esce subito (`Platform.OS !== "web"`), nessun effetto collaterale.
+
+
 ## v2.u Silenzio microfono → detection <1s (Giugno 2026)
 ### 🎯 Richiesta utente
 "Il microfono viene silenziato con 3-4 secondi di ritardo dopo che l'utente smette di parlare. Riduci il ritardo a meno di 1 secondo. Correggi solo la logica di rilevamento del silenzio."
