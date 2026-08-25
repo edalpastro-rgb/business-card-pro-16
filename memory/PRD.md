@@ -1,5 +1,32 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.t Export tabelle Axon → PDF vero + PNG (Giugno 2026)
+### 🎯 Richiesta utente
+"Nelle risposte di Axon che contengono tabelle, sostituisci l'export HTML con due opzioni: 'Scarica PDF' (tabella formattata in PDF vero) e 'Condividi come immagine' (PNG della tabella, condivisibile direttamente). Rimuovi qualsiasi opzione HTML esistente."
+
+### ✅ Nuove dipendenze
+- `jspdf@4.2.1` — generatore PDF cross-platform reale.
+- `jspdf-autotable@5.0.8` — rendering di tabelle formattate in PDF.
+
+### ✅ Frontend `/app/frontend/src/ChatTableExport.tsx` (RIS)
+- **Rimosse** le vecchie opzioni Excel (.xlsx), CSV (.csv) e il fallback HTML per web PDF (V28.p). Con esse anche il libraray `xlsx` non è più usato in questo componente (rimane nel package.json come dip potenziale).
+- **`tableToPdfBase64()`**: nuovo helper che usa `jsPDF` + `autoTable` per generare un PDF **reale** (orientation auto-calcolata: `landscape` se >5 colonne, altrimenti portrait). Stile: header viola brand `#7C3AED` + zebra rows `#F8FAFC` + footer meta con timestamp.
+- **PNG export**:
+  - Su **Web**: nuovo `drawTableToPngWeb()` che crea un `<canvas>` off-screen 2x retina, calcola larghezza colonne heuristica in base al testo, disegna header viola + zebra rows + row dividers + footer meta, poi `canvas.toDataURL('image/png')`.
+  - Su **Native**: usa `react-native-view-shot` (`captureRef`) per snapshotare la preview visibile della tabella come PNG base64.
+- **Nuovo picker a 2 opzioni**:
+  - 📄 **Scarica PDF** (rosso `#DC2626`, sub "Tabella formattata")
+  - 🖼️ **Condividi immagine** (cyan `#0891B2`, sub "PNG condivisibile")
+- Sia PDF che PNG passano per `shareDataUri()` (share sheet nativo iOS/Android o download web).
+- Auto-save in "Insegna ad Axon" (categoria "Dati esportati") invariato: ora salva il file vero (.pdf o .png) invece di HTML.
+- Ref `captureRefEl` aggiunto al `<View>` che contiene la preview della tabella così `captureRef` può snapshotarlo su native.
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot: chat con tabella markdown renderizzata, tap Esporta tabella → nuovo modal con solo 2 opzioni "Scarica PDF" e "Condividi immagine". Nessuna traccia di Excel/CSV/HTML.
+- ✅ Screenshot: tap "Scarica PDF" → modal si chiude dopo generazione, file `.pdf` disponibile per share/download.
+- ✅ Verifica DB: `ai_teach_rules` mostra nuova regola con `Tabella-Axon-...pdf` come file allegato (mime `application/pdf`) — non più `.csv`/`.html`.
+
+
 ## v2.s Scanner multi-pagina in "Analizza bolletta" (Giugno 2026)
 ### 🎯 Richiesta utente
 "Nella schermata 'Analizza bolletta' aggiungi una terza opzione: 'Scatta foto / Scanner'. Permette di fotografare più pagine consecutive, ogni foto viene aggiunta a una lista con anteprima, al termine tutte le pagine vengono unite in un unico PDF e inviate per l'analisi."

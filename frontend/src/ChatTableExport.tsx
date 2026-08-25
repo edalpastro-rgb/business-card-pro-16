@@ -1,18 +1,17 @@
 /**
- * V28.p — ChatTableExport
- * Rende una tabella markdown parsata (headers + rows) con un pulsante "Esporta"
- * che apre un action-sheet con 3 opzioni: Excel (.xlsx), CSV, PDF.
- * Il file viene sempre condiviso via share sheet nativo / download web, e
- * SE l'utente è Master viene anche salvato automaticamente come regola in
- * "Insegna ad Axon" (categoria "Dati esportati") così che Axon possa usare
- * la tabella come contesto in futuro.
+ * V28.p / V28.t — ChatTableExport
+ * Rende una tabella markdown parsata (headers + rows) e offre 2 opzioni di export:
+ *  1. "Scarica PDF"  → PDF vero via jsPDF + jspdf-autotable
+ *  2. "Condividi come immagine" → PNG generato da canvas (web) o view-shot (native)
+ * Se l'utente è Master il file esportato viene anche salvato in "Insegna ad Axon"
+ * (categoria "Dati esportati") per l'auto-apprendimento.
  */
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import * as XLSX from "xlsx";
-import * as Print from "expo-print";
-import * as FileSystem from "expo-file-system/legacy";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { captureRef } from "react-native-view-shot";
 import { shareDataUri } from "@/src/share";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
@@ -24,11 +23,7 @@ export type ParsedTable = {
   raw: string; // Original markdown block (for saving)
 };
 
-/**
- * Splits a chat message into segments: text vs table.
- * A markdown table is at least 2 consecutive lines starting with `|` where the
- * SECOND line is a separator like `|---|---|`.
- */
+/** Splits a chat message into segments: text vs table (markdown tables). */
 export function parseMessageSegments(content: string): Array<{ type: "text"; content: string } | { type: "table"; table: ParsedTable }> {
   const lines = content.split(/\r?\n/);
   const out: Array<{ type: "text"; content: string } | { type: "table"; table: ParsedTable }> = [];
@@ -47,10 +42,9 @@ export function parseMessageSegments(content: string): Array<{ type: "text"; con
     const looksLikeHeader = /^\s*\|.*\|\s*$/.test(line);
     const looksLikeSeparator = /^\s*\|?\s*:?-{2,}:?(\s*\|\s*:?-{2,}:?)+\s*\|?\s*$/.test(next);
     if (looksLikeHeader && looksLikeSeparator) {
-      // Parse table
       const start = i;
       const headers = splitRow(line);
-      i += 2; // skip header + separator
+      i += 2;
       const rows: string[][] = [];
       while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
         rows.push(splitRow(lines[i]));
@@ -69,63 +63,10 @@ export function parseMessageSegments(content: string): Array<{ type: "text"; con
 }
 
 function splitRow(line: string): string[] {
-  // Trim, strip leading/trailing |, split by unescaped |
   let s = line.trim();
   if (s.startsWith("|")) s = s.slice(1);
   if (s.endsWith("|")) s = s.slice(0, -1);
   return s.split(/\|/).map((c) => c.trim());
-}
-
-function tableToCSV(table: ParsedTable): string {
-  const escape = (v: string) => {
-    if (v.includes('"') || v.includes(",") || v.includes("\n")) {
-      return `"${v.replace(/"/g, '""')}"`;
-    }
-    return v;
-  };
-  const lines = [table.headers.map(escape).join(",")];
-  table.rows.forEach((r) => lines.push(r.map(escape).join(",")));
-  return lines.join("\n");
-}
-
-function tableToHTML(table: ParsedTable, title: string): string {
-  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"/><title>${esc(title)}</title>
-<style>
-  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:24px;color:#1B2B4B}
-  h1{font-size:18px;margin:0 0 12px;color:#4C1D95;letter-spacing:-0.3px}
-  .meta{font-size:11px;color:#94A3B8;margin-bottom:14px}
-  table{border-collapse:collapse;width:100%;font-size:12px}
-  th{background:#4C1D95;color:#fff;padding:8px 10px;text-align:left;border:1px solid #4C1D95}
-  td{padding:7px 10px;border:1px solid #E5E7EB}
-  tr:nth-child(even) td{background:#F8FAFC}
-  .fx{display:flex;align-items:center;gap:6px;margin-bottom:12px}
-  .badge{background:#EDE9FE;color:#4C1D95;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase}
-</style></head>
-<body>
-  <div class="fx"><span class="badge">Axon</span><span class="meta">Esportato da Dal Pastro CRM · ${new Date().toLocaleString("it-IT")}</span></div>
-  <h1>${esc(title)}</h1>
-  <table>
-    <thead><tr>${table.headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
-    <tbody>
-      ${table.rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("\n      ")}
-    </tbody>
-  </table>
-</body></html>`;
-}
-
-function tableToXlsxBase64(table: ParsedTable, sheetName = "Tabella"): string {
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([table.headers, ...table.rows]);
-  // Auto width heuristics
-  const widths = table.headers.map((h, ci) => {
-    const maxCell = table.rows.reduce((acc, r) => Math.max(acc, (r[ci] || "").length), h.length);
-    return { wch: Math.min(Math.max(maxCell + 2, 10), 40) };
-  });
-  ws["!cols"] = widths;
-  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 30) || "Tabella");
-  return XLSX.write(wb, { type: "base64", bookType: "xlsx" }) as string;
 }
 
 function nowStamp(): string {
@@ -134,11 +75,36 @@ function nowStamp(): string {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
 }
 
-/** Save the exported table as an ai-teach rule so Axon can learn from it.
- *  Silently skips on non-master (403). */
+/** V28.t — Genera un PDF reale via jsPDF + autoTable. Ritorna base64 (senza prefisso data:). */
+function tableToPdfBase64(table: ParsedTable, title: string): string {
+  const orientation = table.headers.length > 5 ? "landscape" : "portrait";
+  const doc = new jsPDF({ orientation, unit: "pt", format: "a4" });
+  // Header
+  doc.setFontSize(14);
+  doc.setTextColor(76, 29, 149); // #4C1D95 viola brand
+  doc.text(title, 40, 40);
+  doc.setFontSize(9);
+  doc.setTextColor(148, 163, 184); // muted
+  doc.text(`Esportato da Dal Pastro CRM · ${new Date().toLocaleString("it-IT")}`, 40, 56);
+  // Table
+  autoTable(doc, {
+    startY: 72,
+    head: [table.headers],
+    body: table.rows,
+    styles: { fontSize: 9, cellPadding: 5, overflow: "linebreak" },
+    headStyles: { fillColor: [124, 58, 237], textColor: 255, fontStyle: "bold" }, // #7C3AED
+    alternateRowStyles: { fillColor: [248, 250, 252] }, // #F8FAFC zebra
+    margin: { left: 40, right: 40 },
+  });
+  // jsPDF `output('datauristring')` returns "data:application/pdf;filename=...;base64,<data>"
+  const dataUri = doc.output("datauristring");
+  const b64 = dataUri.split(",").pop() || "";
+  return b64;
+}
+
+/** V28.t — Auto-save del file esportato in "Insegna ad Axon" (Master only). */
 async function saveToAxonKnowledge(table: ParsedTable, filename: string, mime: string, data_base64: string): Promise<boolean> {
   try {
-    // Build a compact text preview (max 60 rows)
     const preview = [table.headers.join(" | "), ...table.rows.slice(0, 60).map((r) => r.join(" | "))].join("\n");
     const stamped = new Date().toLocaleString("it-IT");
     await api("/ai-teach/rules", {
@@ -152,8 +118,7 @@ async function saveToAxonKnowledge(table: ParsedTable, filename: string, mime: s
       },
     });
     return true;
-  } catch (e: any) {
-    // 403 (non-Master) or other errors — silently skip.
+  } catch {
     return false;
   }
 }
@@ -162,67 +127,43 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
   const { user } = useAuth();
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const [open, setOpen] = useState(false);
-  const [busyFormat, setBusyFormat] = useState<"xlsx" | "csv" | "pdf" | null>(null);
+  const [busyFormat, setBusyFormat] = useState<"pdf" | "png" | null>(null);
+  const captureRefEl = useRef<View>(null);
 
   const previewRows = useMemo(() => table.rows.slice(0, 30), [table.rows]);
 
-  const doExport = useCallback(async (format: "xlsx" | "csv" | "pdf") => {
+  const doExport = useCallback(async (format: "pdf" | "png") => {
     try {
       setBusyFormat(format);
       const stamp = nowStamp();
       const baseName = `Tabella-Axon-${stamp}`;
-      let filename = baseName;
-      let mime = "application/octet-stream";
+      let filename = `${baseName}.${format}`;
+      const mime = format === "pdf" ? "application/pdf" : "image/png";
       let data_base64 = "";
-      if (format === "csv") {
-        filename = `${baseName}.csv`;
-        mime = "text/csv";
-        const csv = tableToCSV(table);
-        // UTF-8 base64 (browser-safe)
-        if (typeof btoa === "function") {
-          // Encode as UTF-8 first
-          const bytes = new TextEncoder().encode(csv);
-          let bin = "";
-          bytes.forEach((b) => (bin += String.fromCharCode(b)));
-          data_base64 = btoa(bin);
-        } else {
-          data_base64 = Buffer.from(csv, "utf-8").toString("base64");
-        }
-      } else if (format === "xlsx") {
-        filename = `${baseName}.xlsx`;
-        mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-        data_base64 = tableToXlsxBase64(table);
+
+      if (format === "pdf") {
+        data_base64 = tableToPdfBase64(table, `Tabella esportata (${table.rows.length} righe)`);
       } else {
-        // PDF via expo-print
-        filename = `${baseName}.pdf`;
-        mime = "application/pdf";
-        const html = tableToHTML(table, `Tabella esportata (${table.rows.length} righe)`);
+        // PNG: cross-platform capture
         if (Platform.OS === "web") {
-          // On web, expo-print isn't reliable. Fallback: share HTML with .pdf name is misleading;
-          // instead download the HTML and let the browser export to PDF via print dialog.
-          filename = `${baseName}.html`;
-          mime = "text/html";
-          const bytes = new TextEncoder().encode(html);
-          let bin = "";
-          bytes.forEach((b) => (bin += String.fromCharCode(b)));
-          data_base64 = btoa(bin);
+          // Web: draw the table on a hidden canvas
+          data_base64 = await drawTableToPngWeb(table);
         } else {
-          const { uri } = await Print.printToFileAsync({ html });
-          data_base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+          // Native: snapshot the visible preview view via view-shot
+          if (!captureRefEl.current) throw new Error("Anteprima non disponibile per lo snapshot");
+          const uri = await captureRef(captureRefEl.current, { format: "png", quality: 1, result: "base64" });
+          data_base64 = uri;
         }
       }
 
-      // Share / download
       await shareDataUri(`data:${mime};base64,${data_base64}`, filename, mime);
 
-      // Auto-save to Axon knowledge (Master only)
       if (isMaster) {
         const saved = await saveToAxonKnowledge(table, filename, mime, data_base64);
         if (saved) {
           notify("Salvato tra i file Axon", `"${filename}" è stato aggiunto alla knowledge base di Axon per l'auto-apprendimento.`);
         }
       }
-
       setOpen(false);
     } catch (e: any) {
       notify("Errore esportazione", e?.message || String(e));
@@ -233,9 +174,9 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
 
   return (
     <View style={styles.wrap}>
-      {/* Table preview (horizontally scrollable) */}
+      {/* Table preview (scrollable) — usato anche come capture-target su native */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tableScroll}>
-        <View style={styles.table}>
+        <View ref={captureRefEl} collapsable={false} style={[styles.table, { backgroundColor: "#FFF" }]}>
           <View style={[styles.row, styles.headerRow, { backgroundColor: assistantColor }]}>
             {table.headers.map((h, i) => (
               <View key={i} style={[styles.cell, i === table.headers.length - 1 && styles.cellLast]}>
@@ -258,7 +199,6 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
         <Text style={styles.moreRowsTxt}>… e altre {table.rows.length - previewRows.length} righe (incluse nell&apos;export)</Text>
       ) : null}
 
-      {/* Export button */}
       <Pressable
         testID="table-export-btn"
         onPress={() => setOpen(true)}
@@ -268,46 +208,35 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
         <Text style={[styles.exportBtnTxt, { color: assistantColor }]}>Esporta tabella</Text>
       </Pressable>
 
-      {/* Format picker modal */}
       <Modal transparent visible={open} animationType="fade" onRequestClose={() => !busyFormat && setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => !busyFormat && setOpen(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <View style={styles.sheetHdr}>
-              <Text style={styles.sheetTitle}>Esporta come</Text>
+              <Text style={styles.sheetTitle}>Esporta tabella</Text>
               <Pressable onPress={() => !busyFormat && setOpen(false)} hitSlop={10}>
                 <Ionicons name="close" size={22} color="#1B2B4B" />
               </Pressable>
             </View>
             <View style={styles.optionsRow}>
               <FormatOption
-                testID="export-xlsx"
-                icon="grid"
-                label="Excel"
-                sub=".xlsx"
-                color="#10B981"
-                busy={busyFormat === "xlsx"}
-                disabled={!!busyFormat && busyFormat !== "xlsx"}
-                onPress={() => doExport("xlsx")}
-              />
-              <FormatOption
-                testID="export-csv"
-                icon="document-text"
-                label="CSV"
-                sub=".csv"
-                color="#3B82F6"
-                busy={busyFormat === "csv"}
-                disabled={!!busyFormat && busyFormat !== "csv"}
-                onPress={() => doExport("csv")}
-              />
-              <FormatOption
                 testID="export-pdf"
                 icon="document"
-                label="PDF"
-                sub={Platform.OS === "web" ? ".html (stampa in PDF)" : ".pdf"}
+                label="Scarica PDF"
+                sub="Tabella formattata"
                 color="#DC2626"
                 busy={busyFormat === "pdf"}
                 disabled={!!busyFormat && busyFormat !== "pdf"}
                 onPress={() => doExport("pdf")}
+              />
+              <FormatOption
+                testID="export-png"
+                icon="image"
+                label="Condividi immagine"
+                sub="PNG condivisibile"
+                color="#0891B2"
+                busy={busyFormat === "png"}
+                disabled={!!busyFormat && busyFormat !== "png"}
+                onPress={() => doExport("png")}
               />
             </View>
             {isMaster ? (
@@ -324,6 +253,84 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
   );
 }
 
+/** V28.t — Disegna la tabella su un canvas HTML e ritorna PNG base64 (senza prefisso). Solo web. */
+async function drawTableToPngWeb(table: ParsedTable): Promise<string> {
+  // Dimensionamento heuristico
+  const cellPadding = 10;
+  const headerH = 32;
+  const rowH = 26;
+  const fontHeader = 13;
+  const fontCell = 12;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas non disponibile");
+  // Calcola larghezza colonne in base al testo
+  ctx.font = `bold ${fontHeader}px -apple-system, Segoe UI, Roboto, sans-serif`;
+  const colWidths = table.headers.map((h, ci) => {
+    const headW = ctx.measureText(h).width;
+    ctx.font = `${fontCell}px -apple-system, Segoe UI, Roboto, sans-serif`;
+    const cellW = table.rows.reduce((mx, r) => Math.max(mx, ctx.measureText(r[ci] || "").width), 0);
+    ctx.font = `bold ${fontHeader}px -apple-system, Segoe UI, Roboto, sans-serif`;
+    return Math.max(Math.min(Math.max(headW, cellW) + cellPadding * 2, 300), 90);
+  });
+  const totalW = colWidths.reduce((a, b) => a + b, 0);
+  const totalH = headerH + table.rows.length * rowH + 40;
+  // Retina 2x
+  const scale = 2;
+  canvas.width = totalW * scale;
+  canvas.height = totalH * scale;
+  canvas.style.width = `${totalW}px`;
+  canvas.style.height = `${totalH}px`;
+  ctx.scale(scale, scale);
+  // BG
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, totalW, totalH);
+  // Header
+  ctx.fillStyle = "#7C3AED";
+  ctx.fillRect(0, 0, totalW, headerH);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = `bold ${fontHeader}px -apple-system, Segoe UI, Roboto, sans-serif`;
+  ctx.textBaseline = "middle";
+  let x = 0;
+  table.headers.forEach((h, ci) => {
+    ctx.fillText(h, x + cellPadding, headerH / 2);
+    x += colWidths[ci];
+  });
+  // Rows
+  ctx.font = `${fontCell}px -apple-system, Segoe UI, Roboto, sans-serif`;
+  table.rows.forEach((r, ri) => {
+    const y = headerH + ri * rowH;
+    if (ri % 2 === 1) {
+      ctx.fillStyle = "#F8FAFC";
+      ctx.fillRect(0, y, totalW, rowH);
+    }
+    ctx.fillStyle = "#1B2B4B";
+    let cx = 0;
+    r.forEach((c, ci) => {
+      // Clip text to column width
+      const maxW = colWidths[ci] - cellPadding * 2;
+      let txt = c;
+      while (ctx.measureText(txt).width > maxW && txt.length > 1) txt = txt.slice(0, -1);
+      if (txt !== c) txt = txt.slice(0, -1) + "…";
+      ctx.fillText(txt, cx + cellPadding, y + rowH / 2);
+      cx += colWidths[ci];
+    });
+    // Row divider
+    ctx.strokeStyle = "#E5E7EB";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, y + rowH);
+    ctx.lineTo(totalW, y + rowH);
+    ctx.stroke();
+  });
+  // Footer meta
+  ctx.fillStyle = "#94A3B8";
+  ctx.font = `10px -apple-system, Segoe UI, Roboto, sans-serif`;
+  ctx.fillText(`Dal Pastro CRM · ${new Date().toLocaleString("it-IT")}`, cellPadding, headerH + table.rows.length * rowH + 20);
+  const dataUri = canvas.toDataURL("image/png");
+  return dataUri.split(",").pop() || "";
+}
+
 function FormatOption({ testID, icon, label, sub, color, busy, disabled, onPress }: { testID: string; icon: any; label: string; sub: string; color: string; busy: boolean; disabled: boolean; onPress: () => void }) {
   return (
     <Pressable
@@ -335,7 +342,7 @@ function FormatOption({ testID, icon, label, sub, color, busy, disabled, onPress
       {busy ? (
         <ActivityIndicator color={color} />
       ) : (
-        <Ionicons name={icon} size={24} color={color} />
+        <Ionicons name={icon} size={26} color={color} />
       )}
       <Text style={[styles.optLbl, { color }]}>{label}</Text>
       <Text style={styles.optSub}>{sub}</Text>
@@ -361,8 +368,8 @@ const styles = StyleSheet.create({
   sheetHdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sheetTitle: { fontSize: 16, fontWeight: "800", color: "#1B2B4B" },
   optionsRow: { flexDirection: "row", gap: 10 },
-  optCard: { flex: 1, alignItems: "center", justifyContent: "center", padding: 14, borderRadius: 12, borderWidth: 1.5, gap: 4, backgroundColor: "#FFF" },
-  optLbl: { fontSize: 14, fontWeight: "800" },
-  optSub: { fontSize: 10, color: "#94A3B8", fontWeight: "600" },
+  optCard: { flex: 1, alignItems: "center", justifyContent: "center", padding: 16, borderRadius: 12, borderWidth: 1.5, gap: 4, backgroundColor: "#FFF" },
+  optLbl: { fontSize: 14, fontWeight: "800", textAlign: "center" },
+  optSub: { fontSize: 10, color: "#94A3B8", fontWeight: "600", textAlign: "center" },
   hint: { fontSize: 11, color: "#64748B", fontStyle: "italic", textAlign: "center", marginTop: 2 },
 });
