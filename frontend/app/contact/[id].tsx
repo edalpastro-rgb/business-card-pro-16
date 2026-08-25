@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Linking, Platform, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,9 +24,9 @@ import { ContactCallsSection } from "@/src/ContactCallsSection";
 import { ContactAppointmentsSection } from "@/src/ContactAppointmentsSection";
 import { ContactReferralsSection } from "@/src/ContactReferralsSection";
 import { ContactReferencesSection } from "@/src/ContactReferencesSection";
+import { useActiveCall } from "@/src/CallTimerBar";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { CallScriptOverlay } from "@/src/CallScriptOverlay";
-import { CallTimerOverlay } from "@/src/CallTimerOverlay";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { DocumentScannerModal } from "@/src/DocumentScannerModal";
@@ -86,10 +86,21 @@ function ContactDetail() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
   const [callScriptOpen, setCallScriptOpen] = useState(false);
-  // V28.f — Call timer overlay state (shown when user taps Chiama)
-  const [timerLogId, setTimerLogId] = useState<string | null>(null);
-  const [timerOpen, setTimerOpen] = useState(false);
+  // V28.r — Barra timer globale (sostituisce il modal a schermo intero V28.f).
+  const activeCall = useActiveCall();
   const [callsRefreshTick, setCallsRefreshTick] = useState(0);
+
+  // V28.r — Quando la barra timer termina la chiamata (active passa a null),
+  // refreshiamo la lista comunicazioni per mostrare la durata registrata.
+  const prevActiveRef = useRef<boolean>(false);
+  useEffect(() => {
+    const isActive = !!activeCall.active;
+    if (prevActiveRef.current && !isActive) {
+      // Transizione: active -> null (chiamata terminata)
+      setCallsRefreshTick((t) => t + 1);
+    }
+    prevActiveRef.current = isActive;
+  }, [activeCall.active]);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [viewerFile, setViewerFile] = useState<CFile | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -613,14 +624,17 @@ function ContactDetail() {
                     testID="comm-call"
                     onPress={async () => {
                       const num = (c.phone || "").replace(/\s/g, "");
-                      // Fire the log and open the timer BEFORE launching the dialer,
-                      // so the timer starts while the OS dial screen appears.
+                      // V28.r — Avvia SUBITO la barra timer globale (visibile in ogni schermata),
+                      // POI parte il POST per il log e infine il dialer OS. Quando il POST torna
+                      // colleghiamo il log_id così "Termina" può PATCH-are la durata.
+                      activeCall.startCall({
+                        contactName: `${c.first_name || ""} ${c.last_name || ""}`.trim(),
+                        contactPhone: c.phone,
+                      });
                       const logIdPromise = logComm("phone", c.phone);
-                      setTimerLogId(null);
-                      setTimerOpen(true);
                       Linking.openURL(`tel:${num}`).catch(() => {});
                       const logId = await logIdPromise;
-                      setTimerLogId(logId);
+                      activeCall.setLogId(logId);
                     }}
                     style={[styles.commBtn, { backgroundColor: "#0F766E" }]}
                   >
@@ -1089,14 +1103,6 @@ function ContactDetail() {
         onClose={() => setCallScriptOpen(false)}
         contactName={`${c?.first_name || ""} ${c?.last_name || ""}`.trim()}
         contactPhone={c?.phone}
-      />
-      {/* V28.f — Call timer overlay */}
-      <CallTimerOverlay
-        visible={timerOpen}
-        logId={timerLogId}
-        contactName={`${c?.first_name || ""} ${c?.last_name || ""}`.trim()}
-        contactPhone={c?.phone}
-        onClose={() => { setTimerOpen(false); setTimerLogId(null); setCallsRefreshTick((t) => t + 1); }}
       />
     </SafeAreaView>
   );

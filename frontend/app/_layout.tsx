@@ -10,6 +10,7 @@ import { AuthProvider, useAuth, isAppLockEnabled, isTrustStillValid } from "@/sr
 import { AppLockOverlay } from "@/src/AppLock";
 import { AssistantFAB } from "@/src/AssistantChat";
 import { FabStackProvider } from "@/src/FabStack";
+import { ActiveCallProvider, CallTimerBar, useActiveCall } from "@/src/CallTimerBar";
 import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
 
@@ -86,9 +87,23 @@ function LockGate() {
   return (
     <View style={{ flex: 1 }}>
       <FabStackProvider>
-        <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
-        <AssistantFAB />
+        <ActiveCallProvider>
+          <StackWithCallBar />
+        </ActiveCallProvider>
       </FabStackProvider>
+    </View>
+  );
+}
+
+// V28.r — Wrapper che spinge tutto il contenuto giù di ~48px quando c'è una
+// chiamata attiva, così la barra timer in cima non copre il contenuto sottostante.
+function StackWithCallBar() {
+  const { active } = useActiveCall();
+  return (
+    <View style={{ flex: 1, paddingTop: active ? 44 : 0 }}>
+      <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+      <AssistantFAB />
+      <CallTimerBar />
     </View>
   );
 }

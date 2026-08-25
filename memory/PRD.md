@@ -1,5 +1,36 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.r Timer chiamata → barra compatta globale (Giugno 2026)
+### 🎯 Richiesta utente
+"Il timer della chiamata attiva non deve occupare tutto lo schermo. Sostituisci il modal a schermo intero con una barra compatta fissa in cima all'app (sotto la status bar), sempre visibile durante la chiamata. La barra mostra: nome del contatto, durata in tempo reale, bottone per terminare. L'utente deve poter navigare liberamente."
+
+### ✅ Frontend `/app/frontend/src/CallTimerBar.tsx` (NUOVO)
+- **`ActiveCallProvider` + `useActiveCall()`**: context React globale che conserva `{contactName, contactPhone, startedAt, logId}` per la chiamata attiva. API: `startCall(info)`, `setLogId(id)`, `endCall()` (PATCH duration_sec al log), `dismiss()` (chiudi senza salvare durata).
+- **`<CallTimerBar />`**: componente che si renderizza SOLO quando `active !== null`. UI:
+  - Barra verde `#16A34A`, `position: absolute` top: 0, zIndex 9999, ombra iOS/Android.
+  - Icona telefono + nome + telefono (in piccolo sotto) + timer live `mm:ss` (bianco su bg semitrasparente) + bottone rosso **Termina** + 3-dot menu con "Chiudi senza registrare durata".
+  - Punto pulsante bianco animato (Animated.loop scale 1→1.35) accanto all'icona per feedback visivo di chiamata attiva.
+  - Rispetta `useSafeAreaInsets().top` così sta sotto la status bar/notch.
+  - Timer aggiornato ogni 1s via setInterval basandosi su `Date.now() - startedAt`.
+
+### ✅ Frontend `/app/frontend/app/_layout.tsx`
+- Aggiunto `<ActiveCallProvider>` come wrapper globale intorno al `<Stack>`.
+- Nuovo componente interno `<StackWithCallBar>` che quando `active` è non-null aggiunge **paddingTop: 44** all'intera app, così la barra in cima NON copre il contenuto delle schermate (contact header, home greeting, ecc. restano visibili sotto la barra).
+- Mount di `<CallTimerBar />` come sibling di `<Stack>` e `<AssistantFAB />`.
+
+### ✅ Frontend `/app/frontend/app/contact/[id].tsx`
+- Rimosso il vecchio `<CallTimerOverlay>` modal (V28.f) e i relativi state `timerLogId`/`timerOpen`.
+- Import di `useActiveCall`; nel `onPress` di "Chiama" ora chiama `activeCall.startCall({contactName, contactPhone})` PRIMA di aprire il dialer, poi `activeCall.setLogId(id)` quando il POST torna. Al termine (`Termina` sulla barra) l'endCall PATCHa la durata.
+- Aggiunto `useEffect` con `prevActiveRef` per rilevare la transizione active→null e incrementare `callsRefreshTick` così la ContactCallsSection si aggiorna con la durata appena salvata.
+- Il vecchio file `CallTimerOverlay.tsx` resta a filesystem come dead code (nessun import) — rimozione posticipata.
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot: prima della chiamata → nessuna barra, contenuto normale.
+- ✅ Screenshot: tap Chiama → barra verde in cima con nome "TESTLINK Contact V3..." + telefono "+391234567890" + timer 00:02 + Termina.
+- ✅ Screenshot: dopo 30s la barra mostra 00:32 (timer live). Contact header sotto la barra è visibile (pushdown 44px funziona).
+- ✅ Screenshot: tap Termina → barra scompare, contenuto torna a posizione normale, PATCH `/calls/log/{id}` con `duration_sec` inviato.
+
+
 ## v2.q Referenze bidirezionali + rimozione badge "Assegnato: Te stesso" (Giugno 2026)
 ### 🎯 Richiesta utente
 "Sezione 'Referenze' nella vista principale dell'anagrafica: il Master collega altre anagrafiche come referenze. Chip cliccabile con nome + foto → apre l'anagrafica collegata. Bidirezionale. Rimuovi il badge 'Assegnato: Te stesso'."
