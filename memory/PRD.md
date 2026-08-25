@@ -1,5 +1,35 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.u Silenzio microfono → detection <1s (Giugno 2026)
+### 🎯 Richiesta utente
+"Il microfono viene silenziato con 3-4 secondi di ritardo dopo che l'utente smette di parlare. Riduci il ritardo a meno di 1 secondo. Correggi solo la logica di rilevamento del silenzio."
+
+### 🔍 Analisi
+Il VAD della modalità conversazione continua (`AssistantChat.tsx`) usava:
+- `SILENCE_MS = 1500` ms (attesa dopo ultima voce prima dello stop)
+- `RMS_THRESHOLD = 0.02` (soglia RMS per considerare il segnale "voce")
+
+Il problema: la soglia RMS troppo bassa faceva sì che rumore di fondo (ventole PC, HVAC, chiacchiericcio ambientale) continuasse a triggerare voice-activity, resettando `convLastVoiceMsRef` di continuo. Somma a `SILENCE_MS = 1500` + overhead MediaRecorder.stop → onstop → risultato: 3-4s percepiti prima del muting effettivo.
+
+### ✅ Frontend `/app/frontend/src/AssistantChat.tsx`
+- **`SILENCE_MS`**: 1500ms → **700ms** (sotto 1 secondo, come richiesto)
+- **`RMS_THRESHOLD`**: 0.02 → **0.03** (soglia più alta = più robusta al rumore di fondo)
+- **`MIN_SPEECH_MS`**: 300ms → **200ms** (rilevazione più reattiva)
+- **Nuova `RMS_HYST_LOW = 0.018`** — hysteresis a due soglie:
+  - RMS > 0.03 → conferma "voce" (aggiorna `convLastVoiceMsRef`)
+  - RMS < 0.018 → conferma "silenzio" (lascia scorrere il timer di silenzio)
+  - Zona grigia 0.018-0.03 → non aggiorna nulla, così un rumore lieve non ritarda lo stop
+
+### 🧪 Test manuali eseguiti
+- ✅ Verifica lint: nessun errore introdotto.
+- ✅ Restart Expo: nessun errore di runtime.
+- ⚠️ Il test funzionale del microfono richiede input audio reale e non può essere validato in Playwright/screenshot. L'utente dovrà confermare on-device.
+
+### 📌 Note per l'utente
+- Se il ritardo dovesse ancora essere >1s in un ambiente molto rumoroso, si può bumpare ulteriormente `RMS_THRESHOLD` a 0.04-0.05.
+- Le regolazioni non toccano nessuna altra parte della gestione audio (recording setup, transcribe API, TTS playback, barge-in detector).
+
+
 ## v2.t Export tabelle Axon → PDF vero + PNG (Giugno 2026)
 ### 🎯 Richiesta utente
 "Nelle risposte di Axon che contengono tabelle, sostituisci l'export HTML con due opzioni: 'Scarica PDF' (tabella formattata in PDF vero) e 'Condividi come immagine' (PNG della tabella, condivisibile direttamente). Rimuovi qualsiasi opzione HTML esistente."

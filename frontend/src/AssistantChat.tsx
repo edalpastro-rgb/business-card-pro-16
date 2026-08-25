@@ -497,10 +497,16 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   };
 
   // ---- Continuous conversation mode (client-side VAD loop) ----
-  const SILENCE_MS = 1500; // silence needed after speech to trigger stop
+  // V28.u — Silence detection tuning: precedentemente SILENCE_MS=1500 (+ overhead
+  // MediaRecorder.stop → onstop → onstop handler) portava a 3-4s percepiti prima
+  // che il mic venisse effettivamente silenziato. Portato a 700ms con threshold RMS
+  // leggermente più alto per resistere al rumore di fondo (che altrimenti manteneva
+  // convLastVoiceMsRef in movimento e ritardava lo stop).
+  const SILENCE_MS = 700; // silence needed after speech to trigger stop (<1s)
   const MAX_LISTEN_MS = 30000; // hard cap per cycle
-  const MIN_SPEECH_MS = 300; // ignore blips shorter than this
-  const RMS_THRESHOLD = 0.02; // voice activity threshold
+  const MIN_SPEECH_MS = 200; // ignore blips shorter than this
+  const RMS_THRESHOLD = 0.03; // voice activity threshold (alzato da 0.02 per fissità)
+  const RMS_HYST_LOW = 0.018; // hysteresis: sotto questa soglia consideriamo silenzio (evita ping-pong)
 
   const cleanupConversation = () => {
     convModeRef.current = false;
@@ -621,11 +627,21 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       const rms = Math.sqrt(sum / buffer.length);
       const now = Date.now();
       const cycleElapsed = now - convCycleStartRef.current;
-      if (rms > RMS_THRESHOLD) {
+      // V28.u — Hysteresis a due soglie:
+      //  - Prima di rilevare voce: serve RMS > RMS_THRESHOLD (0.03) per contare come "voce".
+      //  - Una volta rilevata voce, se RMS scende sotto RMS_HYST_LOW (0.018) la consideriamo
+      //    silenzio così il timer di silenzio parte subito. Se resta in mezzo (0.018→0.03)
+      //    non aggiorniamo `convLastVoiceMsRef` — così un rumore di fondo lieve non ritarda lo stop.
+      const isVoice = rms > RMS_THRESHOLD;
+      const isSilent = rms < RMS_HYST_LOW;
+      if (isVoice) {
         convLastVoiceMsRef.current = now;
         if (!convSpeechDetectedRef.current && cycleElapsed > MIN_SPEECH_MS) {
           convSpeechDetectedRef.current = true;
         }
+      } else if (!isSilent && convSpeechDetectedRef.current) {
+        // Zona grigia: non è voce chiara, ma nemmeno silenzio netto. Non facciamo nulla,
+        // così il timer di silenzio continua ad avanzare da convLastVoiceMsRef.
       }
       // Stop conditions
       if (convSpeechDetectedRef.current && convLastVoiceMsRef.current > 0) {
