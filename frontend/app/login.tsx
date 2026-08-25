@@ -1,11 +1,15 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, useWindowDimensions } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, useWindowDimensions, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
-import { AdvisorOSLogo } from "@/src/BrandLogos";
+
+// V29.j — Logo AdvisorOS trasparente (senza card bianca): asset locale con
+// alpha channel, aspect ratio 4.6:1 (compass + testo).
+const ADVISOROS_LOGO_TRANSPARENT = require("@/assets/images/advisoros-logo-transparent.png");
+const ADVISOROS_LOGO_ASPECT = 1656 / 358;
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -16,10 +20,12 @@ export default function LoginScreen() {
   const [name, setName] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // V29.h — Layout responsive (tablet/desktop) e logo più grande
+  // V29.j — Logo AdvisorOS reso direttamente sullo sfondo blu, senza card bianca.
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
-  const logoSize = isWide ? 180 : Math.min(160, Math.round(width * 0.42));
+  // Larghezza logo (aspect ratio orizzontale ~4.6:1). Cap ragionevoli.
+  const logoWidth = isWide ? 340 : Math.min(300, Math.round(width * 0.78));
+  const logoHeight = Math.round(logoWidth / ADVISOROS_LOGO_ASPECT);
 
   // 2FA state
   const [twoFAToken, setTwoFAToken] = useState<string | null>(null);
@@ -111,7 +117,12 @@ export default function LoginScreen() {
         >
           <View style={[styles.container, isWide && styles.containerWide]}>
             <View style={styles.hero}>
-              <AdvisorOSLogo size={logoSize} testID="login-logo" style={styles.heroLogo as any} />
+              <Image
+                testID="login-logo"
+                source={ADVISOROS_LOGO_TRANSPARENT}
+                style={{ width: logoWidth, height: logoHeight }}
+                resizeMode="contain"
+              />
             </View>
 
             <View style={styles.formCard}>
@@ -222,15 +233,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingTop: 24,
-    paddingBottom: 20,
-  },
-  heroLogo: {
-    // Ombra intorno alla card bianca per staccarla dal gradient
-    shadowColor: "#000",
-    shadowOpacity: 0.28,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 12,
+    paddingBottom: 24,
   },
   formCard: {
     backgroundColor: theme.color.surface,
