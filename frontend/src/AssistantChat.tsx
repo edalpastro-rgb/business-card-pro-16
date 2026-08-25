@@ -22,6 +22,7 @@ import { useFabStack } from "@/src/FabStack";
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
+import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
 
 const ASSISTANT_COLOR = "#8B5CF6"; // violet — distinct from red mic and blue brand
 const ASSISTANT_COLOR_DARK = "#6D28D9";
@@ -159,6 +160,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // V28.v — Drag-and-drop desktop: ref al contenitore + state per evidenziare la drop zone
   const sheetContainerRef = useRef<View | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  // V28.w — Google Drive picker modal
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
 
   const loadHistory = useCallback(async () => {
     setLoadingHist(true);
@@ -1075,6 +1078,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     <Ionicons name="attach" size={20} color={ASSISTANT_COLOR_DARK} />
                   )}
                 </Pressable>
+                {/* V28.w — Google Drive picker */}
+                <Pressable
+                  onPress={() => setDrivePickerOpen(true)}
+                  disabled={sending}
+                  hitSlop={4}
+                  style={[styles.attachBtn, { backgroundColor: "#F1F0FF", marginLeft: -2 }]}
+                  accessibilityLabel="Allega da Google Drive"
+                  testID="assistant-drive-attach"
+                >
+                  <Ionicons name="logo-google" size={16} color="#0F9D58" />
+                </Pressable>
                 {voiceSupported && (
                 <Pressable
                   onPress={recording ? stopRec : startRec}
@@ -1137,6 +1151,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         color="#16A34A"
         onCancel={() => setSaveTarget(null)}
         onConfirm={confirmSaveToMaster}
+      />
+      {/* V28.w — Google Drive picker for attaching authorized Drive files */}
+      <GoogleDrivePickerModal
+        visible={drivePickerOpen}
+        onClose={() => setDrivePickerOpen(false)}
+        onFilePicked={(f) => addPendingAttachment({ name: f.name, mime: f.mime, base64: f.data_base64 })}
       />
     </Modal>
   );

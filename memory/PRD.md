@@ -1,5 +1,65 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.w Google Drive OAuth integration (Giugno 2026)
+### 🎯 Richiesta utente
+"Integra Google Drive OAuth. L'utente collega il proprio Drive; Axon può accedere ai file autorizzati in sola lettura. Bottone 'Collega Google Drive' in impostazioni. File Drive accessibili come fonte per Axon come i file caricati manualmente."
+
+### 🔑 Credenziali & config
+- **Client ID**: `93796830773-q1pn6egnl3kvovjgi2vt50n1scf5efmq.apps.googleusercontent.com`
+- **Client Secret**: `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` (in `/app/backend/.env`)
+- **Redirect URI**: `https://advisoros.it/auth/google/callback` (solo produzione, come richiesto)
+- **Scope**: `https://www.googleapis.com/auth/drive.file` (accesso limitato ai file autorizzati dall'utente — NON tutto il Drive)
+- **Chiave Fernet** per cifrare refresh_token: generata automaticamente e salvata in `.env` come `GOOGLE_DRIVE_TOKEN_KEY`
+
+### ✅ Nuove dipendenze backend
+- `google-auth-oauthlib==1.4.1` (per `Flow`)
+- (`cryptography`, `google-api-python-client`, `google-auth` già presenti)
+
+### ✅ Backend `/app/backend/server.py`
+Nuova sezione **V28.w** inserita PRIMA di `app.include_router` con:
+- **`_gd_fernet`, `_gd_client_config()`, `_gd_configured()`**: helper env.
+- **`_gd_get_credentials(user_id)`**: recupera refresh_token cifrato da Mongo, decifra, ricostruisce `Credentials`, refresh automatico. In caso di token revocato cancella la connessione e ritorna 401.
+- **`GET /api/google-drive/status`** — ritorna `{connected, configured, google_email?, scopes?, updated_at?}` (mai il token).
+- **`POST /api/google-drive/oauth/start`** — genera `authorization_url` con `access_type=offline` + `prompt=consent` + state random. Persiste lo state con TTL 10 min (indice `expireAfterSeconds` su `created_at`).
+- **`POST /api/google-drive/oauth/exchange`** (body: `{code, state}`) — valida state, scambia code, riusa vecchio refresh se Google non ne emette uno nuovo, salva doc cifrato + `google_email` (best-effort via userinfo endpoint).
+- **`DELETE /api/google-drive`** — revoca il token via Google endpoint + cancella il doc locale.
+- **`GET /api/google-drive/files`** (query: `search`, `mime_type`, `page_token`) — lista files scope drive.file, ordinati per `modifiedTime desc`, campi `id, name, mimeType, size, modifiedTime, iconLink, webViewLink`.
+- **`GET /api/google-drive/files/{file_id}/content`** — scarica file (con `MediaIoBaseDownload`) o esporta doc Google-native in PDF/XLSX se `mimeType` inizia con `application/vnd.google-apps.`. Limite 10MB (413 se eccede). Ritorna `{name, mime, data_base64, size}` — stesso contratto dei file caricati manualmente.
+
+Multi-tenant: chiave `{user_id}` in `google_drive_connections`. Collezione `google_oauth_states` con TTL.
+
+### ✅ Frontend
+- **`/app/frontend/app/google-drive.tsx`** (nuovo) — schermata Impostazioni Google Drive:
+  - Card di stato (Collegato ✓ verde / Non collegato) con `google_email` e scope quando connesso.
+  - Bottone verde "Collega Google Drive" → chiama `oauth/start`, riceve URL, su web `window.location.assign(url)`, su native `WebBrowser.openAuthSessionAsync`.
+  - Bottone "Scollega" rosso con conferma via `confirm` (web) o `Alert` (native).
+  - Info box viola che spiega il scope drive.file.
+- **`/app/frontend/app/auth/google/callback.tsx`** (nuovo) — pagina di landing OAuth:
+  - Legge `code` e `state` dai query params.
+  - POST a `/google-drive/oauth/exchange`.
+  - 3 stati UI: pending (spinner), success (checkmark + auto-redirect a `/google-drive`), error (icona rossa + messaggio + bottone di ritorno).
+- **`/app/frontend/src/GoogleDrivePickerModal.tsx`** (nuovo) — modal picker per la chat Axon:
+  - Sheet bottom con search box + lista file con icone per tipo (PDF rosso, XLSX verde, DOCX blu, ecc.) + fallback a `iconLink` di Google su web.
+  - Tap su un file → GET `/files/{id}/content` → `onFilePicked({name, mime, data_base64})` → il chiamante lo aggiunge alla lista pending attachments.
+  - Empty states: non configurato (⚠️), non collegato (link a settings), nessun file trovato.
+- **`/app/frontend/src/AssistantChat.tsx`** — aggiunto:
+  - Import di `GoogleDrivePickerModal`.
+  - State `drivePickerOpen`.
+  - Nuovo pulsante 🟢 con `Ionicons name="logo-google"` verde `#0F9D58` accanto al pulsante 📎 attach classico.
+  - Mount di `<GoogleDrivePickerModal>` che chiama `addPendingAttachment` (helper condiviso V28.v).
+- **`/app/frontend/app/(tabs)/impostazioni.tsx`** — aggiunta linkCard "Google Drive" (icona `logo-google` verde) tra Sicurezza & 2FA e Branding aziendale, naviga a `/google-drive`.
+
+### 🧪 Test manuali eseguiti
+- ✅ curl `GET /api/google-drive/status` → `{connected: false, configured: true}` (env variables correttamente caricate).
+- ✅ curl `POST /api/google-drive/oauth/start` → `authorization_url` valido con: scope `drive.file`, client_id corretto, redirect_uri `https://advisoros.it/auth/google/callback`, access_type `offline`, state random 43 char.
+- ✅ Screenshot: pagina `/google-drive` con card "Non collegato" + bottone Collega + info box.
+- ✅ Screenshot: chat Axon mostra sia 📎 attach che 🟢 Drive button nella input bar.
+- ✅ Screenshot: tap sul Drive button apre il modal picker che correttamente rileva "Non collegato" e invita a collegarsi da impostazioni.
+
+### ⚠️ Test funzionale end-to-end (solo produzione)
+Il flow OAuth completo richiede il redirect `https://advisoros.it/auth/google/callback` registrato in Google Console — quindi funziona **solo dopo il Publish** in produzione. In preview il bottone genera l'URL corretto ma Google rifiuta il redirect_uri (dominio preview non registrato). L'utente confermerà il funzionamento reale in produzione.
+
+
 ## v2.v Drag-and-drop desktop chat Axon (Giugno 2026)
 ### 🎯 Richiesta utente
 "Nella chat di Axon su desktop, aggiungi il supporto drag-and-drop per caricare file PDF ed Excel. Quando l'utente trascina un file sulla finestra chat, appare una zona di drop evidenziata. Al rilascio il file viene caricato esattamente come se fosse selezionato dal picker esistente."

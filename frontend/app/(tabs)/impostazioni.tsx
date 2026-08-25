@@ -397,7 +397,16 @@ function ImpostazioniScreen() {
           <Ionicons name="shield-checkmark" size={26} color={theme.color.brandPrimary} />
           <View style={{ flex: 1 }}>
             <Text style={styles.linkTitle}>Sicurezza & 2FA</Text>
-            <Text style={styles.linkSub}>Autenticazione a due fattori, PIN e biometria</Text>
+            <Text style={styles.linkSub}>Autenticazione a due fattori, PIN e biometria</Text>          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
+        {/* V28.w — Google Drive integration */}
+        <Pressable testID="google-drive-link" onPress={() => router.push("/google-drive" as any)} style={styles.linkCard}>
+          <Ionicons name="logo-google" size={26} color="#0F9D58" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Google Drive</Text>
+            <Text style={styles.linkSub}>Collega il tuo Drive per allegare file ad Axon dalla cloud</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>

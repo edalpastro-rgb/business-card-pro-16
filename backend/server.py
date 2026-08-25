@@ -9141,6 +9141,252 @@ async def build_ai_teach_context(tenant: str, category: str) -> str:
 
 
 # Include router & CORS
+# =========================================================================
+# V28.w — Google Drive OAuth integration
+# Scope: drive.file (accesso solo a file esplicitamente autorizzati dall'utente via Picker o creati dall'app)
+# Storage: refresh_token cifrato via Fernet; state OAuth con TTL 10min.
+# =========================================================================
+import base64 as _b64
+import secrets as _secrets
+from cryptography.fernet import Fernet as _Fernet
+
+_GD_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+_GD_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+_GD_REDIRECT_URI = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "")
+_GD_TOKEN_KEY = os.getenv("GOOGLE_DRIVE_TOKEN_KEY", "")
+_GD_FRONTEND_URL = os.getenv("GOOGLE_DRIVE_FRONTEND_URL", "https://advisoros.it/profile")
+_GD_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+_gd_fernet = _Fernet(_GD_TOKEN_KEY.encode()) if _GD_TOKEN_KEY else None
+
+
+def _gd_client_config() -> Dict[str, Any]:
+    return {
+        "web": {
+            "client_id": _GD_CLIENT_ID,
+            "client_secret": _GD_CLIENT_SECRET,
+            "auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": [_GD_REDIRECT_URI],
+        }
+    }
+
+
+def _gd_configured() -> bool:
+    return bool(_GD_CLIENT_ID and _GD_CLIENT_SECRET and _GD_REDIRECT_URI and _gd_fernet)
+
+
+async def _gd_get_credentials(user_id: str):
+    """Return authenticated googleapiclient credentials (refreshed if needed) or raise 409/401."""
+    from google.oauth2.credentials import Credentials  # type: ignore
+    from google.auth.transport.requests import Request as GoogleRequest  # type: ignore
+    row = await db.google_drive_connections.find_one({"user_id": user_id})
+    if not row:
+        raise HTTPException(status_code=409, detail="Google Drive non collegato")
+    if not _gd_fernet:
+        raise HTTPException(status_code=500, detail="Google Drive non configurato lato server")
+    refresh = _gd_fernet.decrypt(row["refresh_token_enc"].encode()).decode()
+    creds = Credentials(
+        None,
+        refresh_token=refresh,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=_GD_CLIENT_ID,
+        client_secret=_GD_CLIENT_SECRET,
+        scopes=_GD_SCOPES,
+    )
+    try:
+        creds.refresh(GoogleRequest())
+    except Exception as e:
+        # Token revocato o non valido: rimuovi la connessione locale.
+        await db.google_drive_connections.delete_one({"user_id": user_id})
+        raise HTTPException(status_code=401, detail=f"Token Google revocato o non valido: forza riconnessione") from e
+    return creds
+
+
+@api_router.get("/google-drive/status")
+async def google_drive_status(user=Depends(get_current_user)):
+    """Ritorna lo stato di connessione Drive dell'utente (senza mai esporre il token)."""
+    if not _gd_configured():
+        return {"connected": False, "configured": False}
+    row = await db.google_drive_connections.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0, "scopes": 1, "updated_at": 1, "google_email": 1},
+    )
+    return {"connected": bool(row), "configured": True, **(row or {})}
+
+
+@api_router.post("/google-drive/oauth/start")
+async def google_drive_oauth_start(user=Depends(get_current_user)):
+    """Genera l'authorization URL per il flow OAuth. Lo state è persistito con TTL 10min."""
+    if not _gd_configured():
+        raise HTTPException(status_code=503, detail="Google Drive non configurato sul server")
+    from google_auth_oauthlib.flow import Flow  # type: ignore
+    nonce = _secrets.token_urlsafe(32)
+    # Salva lo state con TTL (indice creato al primo utilizzo)
+    await db.google_oauth_states.insert_one({
+        "_id": nonce,
+        "user_id": user["user_id"],
+        "expires_at": utcnow(),  # sarà + 10min via TTL index; qui salviamo now e usiamo timestamp
+        "created_at": utcnow(),
+    })
+    # Creiamo indice TTL una volta sola (idempotent)
+    try:
+        await db.google_oauth_states.create_index("created_at", expireAfterSeconds=600)
+    except Exception:
+        pass
+    flow = Flow.from_client_config(_gd_client_config(), scopes=_GD_SCOPES, state=nonce, redirect_uri=_GD_REDIRECT_URI)
+    authorization_url, _ = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent",
+    )
+    return {"authorization_url": authorization_url}
+
+
+class GoogleDriveExchangeIn(BaseModel):
+    code: str
+    state: str
+
+
+@api_router.post("/google-drive/oauth/exchange")
+async def google_drive_oauth_exchange(body: GoogleDriveExchangeIn):
+    """Scambia il code OAuth per un refresh_token. Chiamato dalla pagina di callback FE."""
+    if not _gd_configured():
+        raise HTTPException(status_code=503, detail="Google Drive non configurato")
+    s = await db.google_oauth_states.find_one_and_delete({"_id": body.state})
+    if not s:
+        raise HTTPException(status_code=400, detail="State OAuth non valido o scaduto")
+    from google_auth_oauthlib.flow import Flow  # type: ignore
+    from googleapiclient.discovery import build  # type: ignore
+    try:
+        flow = Flow.from_client_config(_gd_client_config(), scopes=_GD_SCOPES, state=body.state, redirect_uri=_GD_REDIRECT_URI)
+        flow.fetch_token(code=body.code)
+        creds = flow.credentials
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Scambio code fallito: {e}")
+    refresh = creds.refresh_token
+    if not refresh:
+        # Riuso del refresh_token vecchio se disponibile (Google non lo re-invia se già concesso)
+        old = await db.google_drive_connections.find_one({"user_id": s["user_id"]})
+        if old:
+            refresh = _gd_fernet.decrypt(old["refresh_token_enc"].encode()).decode()
+        else:
+            raise HTTPException(status_code=400, detail="Nessun refresh_token ricevuto; revoca l'accesso in Google e riprova")
+    # Tentativo di leggere l'email account per debug/UI (best-effort)
+    google_email = None
+    try:
+        oauth2_service = build("oauth2", "v2", credentials=creds, cache_discovery=False)
+        info = oauth2_service.userinfo().get().execute()
+        google_email = info.get("email")
+    except Exception:
+        pass
+    doc = {
+        "user_id": s["user_id"],
+        "refresh_token_enc": _gd_fernet.encrypt(refresh.encode()).decode(),
+        "scopes": list(creds.scopes or _GD_SCOPES),
+        "google_email": google_email,
+        "updated_at": utcnow(),
+    }
+    await db.google_drive_connections.update_one(
+        {"user_id": s["user_id"]}, {"$set": doc, "$setOnInsert": {"created_at": utcnow()}}, upsert=True
+    )
+    return {"ok": True, "google_email": google_email}
+
+
+@api_router.delete("/google-drive")
+async def google_drive_disconnect(user=Depends(get_current_user)):
+    """Revoca il refresh_token e cancella la connessione."""
+    row = await db.google_drive_connections.find_one({"user_id": user["user_id"]})
+    if not row:
+        return {"connected": False}
+    if _gd_fernet:
+        try:
+            refresh = _gd_fernet.decrypt(row["refresh_token_enc"].encode()).decode()
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post("https://oauth2.googleapis.com/revoke", params={"token": refresh})
+        except Exception:
+            pass
+    await db.google_drive_connections.delete_one({"user_id": user["user_id"]})
+    return {"connected": False}
+
+
+@api_router.get("/google-drive/files")
+async def google_drive_list_files(search: Optional[str] = None, mime_type: Optional[str] = None, page_token: Optional[str] = None, user=Depends(get_current_user)):
+    """Lista i file Drive accessibili (con scope drive.file → solo file autorizzati)."""
+    from googleapiclient.discovery import build  # type: ignore
+    from googleapiclient.errors import HttpError  # type: ignore
+    creds = await _gd_get_credentials(user["user_id"])
+    service = build("drive", "v3", credentials=creds, cache_discovery=False)
+    clauses = ["trashed = false"]
+    if search:
+        escaped = search.replace("'", "\\'")
+        clauses.append(f"name contains '{escaped}'")
+    if mime_type:
+        clauses.append(f"mimeType = '{mime_type.replace(chr(39), chr(92) + chr(39))}'")
+    try:
+        result = service.files().list(
+            q=" and ".join(clauses),
+            pageSize=50,
+            pageToken=page_token,
+            orderBy="modifiedTime desc",
+            fields="nextPageToken,files(id,name,mimeType,size,modifiedTime,iconLink,webViewLink)",
+        ).execute()
+        return result
+    except HttpError as e:
+        raise HTTPException(status_code=e.resp.status, detail=f"Google Drive list: {e}")
+
+
+@api_router.get("/google-drive/files/{file_id}/content")
+async def google_drive_download_file(file_id: str, user=Depends(get_current_user)):
+    """Scarica un file Drive e lo ritorna nel formato attachment (name, mime, data_base64)."""
+    from googleapiclient.discovery import build  # type: ignore
+    from googleapiclient.errors import HttpError  # type: ignore
+    from googleapiclient.http import MediaIoBaseDownload  # type: ignore
+    from io import BytesIO
+    creds = await _gd_get_credentials(user["user_id"])
+    service = build("drive", "v3", credentials=creds, cache_discovery=False)
+    try:
+        meta = service.files().get(fileId=file_id, fields="id,name,mimeType,size").execute()
+        out = BytesIO()
+        mime = meta.get("mimeType", "")
+        # Google-native docs devono essere esportati
+        if mime.startswith("application/vnd.google-apps."):
+            if mime.endswith("document"):
+                export_mime = "application/pdf"
+                out_ext = ".pdf"
+            elif mime.endswith("spreadsheet"):
+                export_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                out_ext = ".xlsx"
+            elif mime.endswith("presentation"):
+                export_mime = "application/pdf"
+                out_ext = ".pdf"
+            else:
+                export_mime = "application/pdf"
+                out_ext = ".pdf"
+            req = service.files().export_media(fileId=file_id, mimeType=export_mime)
+            display_name = f"{meta.get('name','file')}{out_ext}"
+            display_mime = export_mime
+        else:
+            req = service.files().get_media(fileId=file_id)
+            display_name = meta.get("name", "file")
+            display_mime = mime or "application/octet-stream"
+        downloader = MediaIoBaseDownload(out, req, chunksize=1024 * 1024)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+        raw = out.getvalue()
+        # Limita a 10MB per coerenza col picker esistente
+        if len(raw) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail=f"File troppo grande (>10MB): {display_name}")
+        return {
+            "name": display_name,
+            "mime": display_mime,
+            "data_base64": _b64.b64encode(raw).decode(),
+            "size": len(raw),
+        }
+    except HttpError as e:
+        raise HTTPException(status_code=e.resp.status, detail=f"Google Drive download: {e}")
+
+
 app.include_router(api_router)
 
 app.add_middleware(
