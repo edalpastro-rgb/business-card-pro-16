@@ -1,4 +1,31 @@
-# Dal Pastro CRM — PRD v1.7
+# Dal Pastro CRM — PRD v1.8
+
+## v2.ag Brand identity — splash screen + firma email agente (Giugno 2026)
+### 🎯 Richiesta utente
+1. Splash screen: schermata iniziale di caricamento con logo AdvisorOS (bussola sfondo bianco) centrato su sfondo navy blu.
+2. Firma email benvenuto agenti: logo AxonOS in fondo all'email di benvenuto.
+
+### ✅ Frontend
+- `/app/frontend/assets/images/splash-image.png` (OVERWRITE): sostituito con il logo ufficiale AdvisorOS (PNG 2000×2000, RGB). Curl da CDN Emergent.
+- `/app/frontend/app.json`: `expo-splash-screen` config aggiornata:
+  - `backgroundColor: "#0F2438"` (navy blu, coerente con l'hero del login)
+  - `imageWidth: 220` (leggermente più ampio per l'aspect ratio del logo)
+  - `resizeMode: "contain"` invariato — il logo mantiene le proporzioni con la sua cornice bianca arrotondata
+
+### ✅ Backend `/app/backend/server.py`
+- `_welcome_email_html` esteso:
+  - Blocco HTML footer con `<img>` remoto (AxonOS logo, cornice dark #0B1220 rounded 10px) + testo "Powered by AxonOS · L'intelligenza artificiale al servizio del tuo business".
+  - Versione text-plain: aggiunta riga `---\nPowered by AxonOS\n...` per email client che disabilitano HTML.
+
+### 🧪 Test manuali eseguiti
+- ✅ Splash: file 2000×2000 verificato via PIL, config JSON valida (backgroundColor + imageWidth aggiornati). La splash nativa è visibile solo su build iOS/Android (non su web preview).
+- ✅ Email template: import diretto di `_welcome_email_html` — testo e HTML entrambi contengono "Powered by AxonOS" e l'URL corretto del logo AxonOS.
+
+### 📌 Note
+- La splash nativa parte solo su **build iOS/Android** o su **Expo Go**. In produzione la vedrai dopo aver ripubblicato e generato la build.
+- Il logo AxonOS nella firma email è caricato via URL remoto: se il client email blocca le immagini esterne, il fallback text-plain mostra comunque "Powered by AxonOS" testuale.
+
+---
 
 ## v2.af Brand identity AdvisorOS + AxonOS (Giugno 2026)
 ### 🎯 Richiesta utente

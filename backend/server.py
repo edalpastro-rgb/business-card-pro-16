@@ -4328,7 +4328,10 @@ def _welcome_email_html(agent_name: str, master_name: str, email: str, password:
         f"  - Password provvisoria: {password}\n\n"
         f"Accedi qui: {login_url}\n\n"
         f"Ti consigliamo di cambiare la password al primo accesso da Impostazioni -> Sicurezza.\n\n"
-        f"Benvenuto nel team!"
+        f"Benvenuto nel team!\n\n"
+        f"---\n"
+        f"Powered by AxonOS\n"
+        f"L'intelligenza artificiale al servizio del tuo business"
     )
     html = f"""<!doctype html><html><body style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#F6F7FA;padding:24px;color:#111820">
   <div style="max-width:520px;margin:0 auto;background:#FFF;border-radius:14px;padding:28px;border:1px solid #E5E7EB">
@@ -4348,6 +4351,16 @@ def _welcome_email_html(agent_name: str, master_name: str, email: str, password:
     <p style="margin:18px 0 0;color:#64748B;font-size:12.5px;line-height:1.5">
       Per sicurezza, cambia la password al primo accesso da <b>Impostazioni -> Sicurezza</b>.
     </p>
+    <!-- V29.f Firma AxonOS -->
+    <div style="margin-top:26px;padding-top:16px;border-top:1px solid #E5E7EB;display:flex;align-items:center;gap:12px">
+      <div style="width:44px;height:44px;border-radius:10px;background:#0B1220;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+        <img src="https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/592863265f614b9bb4273fef7b1b8f1b_AxonOS%20logo.png" alt="AxonOS" width="36" height="36" style="display:block;border:0;outline:none;text-decoration:none;background:transparent" />
+      </div>
+      <div style="line-height:1.35">
+        <div style="font-size:13px;font-weight:800;color:#0B1220;letter-spacing:-0.2px">Powered by AxonOS</div>
+        <div style="font-size:11.5px;color:#64748B">L'intelligenza artificiale al servizio del tuo business</div>
+      </div>
+    </div>
   </div>
 </body></html>"""
     return text, html
