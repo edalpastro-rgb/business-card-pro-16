@@ -1,5 +1,30 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.s Scanner multi-pagina in "Analizza bolletta" (Giugno 2026)
+### 🎯 Richiesta utente
+"Nella schermata 'Analizza bolletta' aggiungi una terza opzione: 'Scatta foto / Scanner'. Permette di fotografare più pagine consecutive, ogni foto viene aggiunta a una lista con anteprima, al termine tutte le pagine vengono unite in un unico PDF e inviate per l'analisi."
+
+### ✅ Frontend `/app/frontend/app/bill-quick.tsx`
+- Import di `DocumentScannerModal` + `suggestBillScanName` da `@/src/DocumentScannerModal` (già esistente da V27 — usato in BillsSection nella scheda contatto).
+- Nuovo state `scannerBillType: BillType | null` per pilotare il modal.
+- Nuova funzione `openScanner()`: chiude il source-picker e apre lo scanner con il tipo di bolletta scelto.
+- Nuova funzione `onScannerSaved({pdf_base64, name})`: costruisce un asset sintetico `{name, mimeType: "application/pdf", uri: "data:application/pdf;base64,..."}` e lo passa a `openParamsModal(bill_type, asset)`. Questo consente al flusso di configurazione parametri e all'upload di funzionare identici a un PDF selezionato dal dispositivo.
+- Aggiunta della **terza card viola** ("Scatta foto / Scanner", icona `camera`, testID `bq-src-scanner`) nel source-picker modal.
+- Aggiornato il sottotitolo del modal per menzionare tutte e 3 le opzioni.
+- Mount di `<DocumentScannerModal>` con `visible={!!scannerBillType}` + `defaultName={suggestBillScanName(bill_type)}` + `hintTitle` personalizzato.
+
+### 🧪 Funzionalità dello scanner (dal componente esistente V27)
+- **Acquisizione**: Fotocamera (una pagina alla volta) / Galleria (multi-select) / PDF/File (import diretto).
+- **Anteprima grid**: ogni pagina come thumbnail con controlli riordino ↑↓ + delete.
+- **Post-processing**: Autocrop (OpenCV Canny + 4-point warp), Migliora contrasto (CLAHE + unsharp mask), B/N opzionale.
+- **Merge server-side**: il backend unisce tutte le pagine in un unico PDF che ritorna al client come base64.
+- **Nome file**: pre-riempito da `suggestBillScanName(bill_type)` (es. "Luce-Agosto-2026"), modificabile.
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot: source-picker mostra ora 3 opzioni (Da dispositivo · Dai file Master · Scatta foto/Scanner).
+- ✅ Screenshot: tap sull'opzione Scanner apre il DocumentScannerModal con i 3 pulsanti di acquisizione (Fotocamera/Galleria/PDF), toggle Autocrop/Migliora/B/N, campo Nome file pre-riempito, bottone "Salva PDF (0 pag.)" disabilitato correttamente.
+
+
 ## v2.r Timer chiamata → barra compatta globale (Giugno 2026)
 ### 🎯 Richiesta utente
 "Il timer della chiamata attiva non deve occupare tutto lo schermo. Sostituisci il modal a schermo intero con una barra compatta fissa in cima all'app (sotto la status bar), sempre visibile durante la chiamata. La barra mostra: nome del contatto, durata in tempo reale, bottone per terminare. L'utente deve poter navigare liberamente."

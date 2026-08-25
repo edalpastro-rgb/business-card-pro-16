@@ -14,6 +14,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
+import { DocumentScannerModal, suggestBillScanName } from "@/src/DocumentScannerModal";
 
 // ---------- Types ----------
 
@@ -116,6 +117,9 @@ function BillQuickScreen() {
 
   // Source picker
   const [sourcePickerFor, setSourcePickerFor] = useState<null | BillType>(null);
+  // V28.s — Bill scanner modal: quando aperto scattiamo N foto, il backend le unisce in un unico PDF
+  // e usiamo lo stesso flusso di "openParamsModal" per la configurazione dei parametri.
+  const [scannerBillType, setScannerBillType] = useState<null | BillType>(null);
   const [masterFilePicker, setMasterFilePicker] = useState<null | BillType>(null);
   const [masterFiles, setMasterFiles] = useState<MasterFileLite[]>([]);
   const [loadingMasterFiles, setLoadingMasterFiles] = useState(false);
@@ -195,6 +199,30 @@ function BillQuickScreen() {
     } catch (e: any) {
       notify("Errore caricamento file", e?.message || "");
     } finally { setLoadingMasterFiles(false); }
+  };
+
+  // V28.s — Opzione "Scatta foto / Scanner": il DocumentScannerModal permette
+  // di scattare N foto consecutive, il backend le unisce in un unico PDF, poi il
+  // flusso continua dal params modal esattamente come per un PDF caricato.
+  const openScanner = () => {
+    if (!sourcePickerFor) return;
+    const bill_type = sourcePickerFor;
+    setSourcePickerFor(null);
+    setScannerBillType(bill_type);
+  };
+
+  const onScannerSaved = ({ pdf_base64, name }: { pdf_base64: string; name: string; page_count: number; mime: string }) => {
+    const bill_type = scannerBillType;
+    setScannerBillType(null);
+    if (!bill_type) return;
+    // Usiamo la data-URI come "uri" così `uriToBase64` (in confirmUploadWithParams) la accetta
+    // senza dover leggere dal filesystem — funziona identico su Web e Native.
+    const dataUri = `data:application/pdf;base64,${pdf_base64}`;
+    openParamsModal(bill_type, {
+      name: name.endsWith(".pdf") ? name : `${name}.pdf`,
+      mimeType: "application/pdf",
+      uri: dataUri,
+    });
   };
 
   const pickFromMaster = async (mf: MasterFileLite) => {
@@ -939,7 +967,7 @@ function BillQuickScreen() {
         <Pressable style={styles.modalBack} onPress={() => setSourcePickerFor(null)}>
           <Pressable style={[styles.modalCard, { padding: 20 }]} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Da dove vuoi caricare?</Text>
-            <Text style={styles.modalSub}>Puoi scegliere un PDF dal dispositivo oppure una fattura già salvata nei tuoi file Master.</Text>
+            <Text style={styles.modalSub}>Puoi scegliere un PDF dal dispositivo, dai file Master oppure scattare foto delle pagine con la fotocamera.</Text>
             <View style={{ gap: 8, marginTop: 14 }}>
               <Pressable testID="bq-src-device" onPress={pickFromDevice} style={[styles.srcBtn, { backgroundColor: "#EA580C" }]}>
                 <Ionicons name="cloud-upload" size={18} color="#FFF" />
@@ -954,6 +982,15 @@ function BillQuickScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.srcTitle}>Dai file Master</Text>
                   <Text style={styles.srcSub}>Scegli da &lsquo;I miei file&rsquo; (Fatture / File)</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#FFF" />
+              </Pressable>
+              {/* V28.s — Terza opzione: scanner multi-pagina */}
+              <Pressable testID="bq-src-scanner" onPress={openScanner} style={[styles.srcBtn, { backgroundColor: "#7C3AED" }]}>
+                <Ionicons name="camera" size={18} color="#FFF" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.srcTitle}>Scatta foto / Scanner</Text>
+                  <Text style={styles.srcSub}>Fotografa più pagine, le uniamo in un PDF</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#FFF" />
               </Pressable>
@@ -1006,6 +1043,15 @@ function BillQuickScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* V28.s — Scanner multi-pagina per fotografare le bollette */}
+      <DocumentScannerModal
+        visible={!!scannerBillType}
+        onClose={() => setScannerBillType(null)}
+        defaultName={scannerBillType ? suggestBillScanName(scannerBillType) : "Scansione"}
+        hintTitle="Fotografa ogni pagina della bolletta, poi &quot;Salva&quot; per unirle in un PDF unico"
+        onSaved={onScannerSaved}
+      />
 
       {/* Associate contact modal */}
       <Modal visible={!!associateTarget} animationType="slide" transparent onRequestClose={() => setAssociateTarget(null)}>
