@@ -24,6 +24,7 @@ import { pickCommonFile } from "@/src/utils/filePicker";
 import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
+import { AxonOSLogo } from "@/src/BrandLogos";
 
 const ASSISTANT_COLOR = "#8B5CF6"; // violet — distinct from red mic and blue brand
 const ASSISTANT_COLOR_DARK = "#6D28D9";
@@ -929,9 +930,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           >
             {/* Header */}
             <View style={styles.header}>
-              <View style={styles.avatarWrap}>
-                <MaterialCommunityIcons name="robot-happy" size={22} color="#FFF" />
-              </View>
+              <AxonOSLogo size={38} testID="assistant-header-logo" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.headerTitle}>{assistantName}</Text>
                 <Text style={styles.headerSub}>{MODE_LABEL[responseMode]}</Text>
@@ -995,10 +994,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               )}
               {!loadingHist && messages.length === 0 && (
                 <View style={styles.emptyWrap}>
-                  <View style={styles.emptyIcon}>
-                    <MaterialCommunityIcons name="robot-happy" size={40} color={ASSISTANT_COLOR} />
-                  </View>
-                  <Text style={styles.emptyTitle}>Ciao, sono {assistantName}!</Text>
+                  <AxonOSLogo size={78} testID="assistant-empty-logo" />
+                  <Text style={[styles.emptyTitle, { marginTop: 12 }]}>Ciao, sono {assistantName}!</Text>
                   <Text style={styles.emptySub}>
                     Posso aiutarti con appuntamenti, telefonate, clienti e contratti. Prova a chiedermi:
                   </Text>
@@ -1457,7 +1454,7 @@ export function AssistantFAB() {
           accessibilityLabel="Apri assistente AI"
           testID="assistant-fab"
         >
-          <MaterialCommunityIcons name="robot-happy" size={26} color="#FFF" />
+          <AxonOSLogo size={36} testID="assistant-fab-logo" />
           <View style={styles.fabDot} />
         </Pressable>
       </Animated.View>

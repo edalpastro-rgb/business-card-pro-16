@@ -13,6 +13,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { AxonOSLogo } from "@/src/BrandLogos";
 import { notify } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -308,7 +309,7 @@ export default function AiTeachScreen() {
           <Text style={styles.title}>Insegna ad Axon</Text>
           <Text style={styles.sub}>Regole e fonti che Axon usa come contesto prioritario</Text>
         </View>
-        <View style={styles.badge}><Ionicons name="sparkles" size={16} color="#FFF" /></View>
+        <AxonOSLogo size={36} testID="ai-teach-logo" />
       </View>
 
       {/* Tabs */}

@@ -9,6 +9,7 @@ import { useAuth } from "@/src/auth";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { CallScriptOverlay } from "@/src/CallScriptOverlay";
 import { HomeEventBanner } from "@/src/HomeEventBanner";
+import { AdvisorOSLogo } from "@/src/BrandLogos";
 
 /* ────────────────────────────────────────────────────────────────
    V27 — Modern Dashboard Redesign
@@ -263,6 +264,7 @@ export default function HomeScreen() {
       >
         {/* ── Header ── */}
         <View style={styles.header}>
+          <AdvisorOSLogo size={40} testID="home-brand-logo" />
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>
               {new Date(nowTick).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}

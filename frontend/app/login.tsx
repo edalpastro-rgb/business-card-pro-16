@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { AdvisorOSLogo } from "@/src/BrandLogos";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -100,8 +101,8 @@ export default function LoginScreen() {
     <View style={styles.root}>
       <LinearGradient colors={["#0F2438", "#1C4869", "#3A739C"]} style={styles.hero}>
         <View style={styles.heroContent}>
-          <Ionicons name="briefcase" size={44} color="#FFF" />
-          <Text style={styles.title}>Dal Pastro CRM</Text>
+          <AdvisorOSLogo size={72} testID="login-logo" />
+          <Text style={styles.title}>AdvisorOS</Text>
           <Text style={styles.subtitle}>Consulenza Energetica · Network</Text>
         </View>
       </LinearGradient>

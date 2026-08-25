@@ -1,4 +1,28 @@
-# Dal Pastro CRM — PRD v1.6
+# Dal Pastro CRM — PRD v1.7
+
+## v2.af Brand identity AdvisorOS + AxonOS (Giugno 2026)
+### 🎯 Richiesta utente
+- Logo **AdvisorOS** (bussola, sfondo bianco) come logo principale in header, login screen e banner della home.
+- Logo **AxonOS** (neurone, sfondo scuro) nella sezione Insegna ad Axon, banner dell'assistente AI (FAB) e schermata di chat con Axon.
+
+### ✅ Frontend
+- `/app/frontend/src/BrandLogos.tsx` (NEW): componente centralizzato `<AdvisorOSLogo>` e `<AxonOSLogo>` con URI dei loghi ufficiali. Ogni logo ha cornice arrotondata (bianco per AdvisorOS, dark #0B1220 per AxonOS) e size configurabile.
+- `/app/frontend/app/login.tsx`: sostituita l'icona `briefcase` con `<AdvisorOSLogo size={72} />` + title cambiato in "AdvisorOS".
+- `/app/frontend/app/(tabs)/home.tsx`: aggiunto `<AdvisorOSLogo size={40} />` in cima all'header, a sinistra della data/greeting.
+- `/app/frontend/src/AssistantChat.tsx`:
+  - Header chat: `<AxonOSLogo size={38} />` al posto dell'`avatarWrap` con `robot-happy`.
+  - Empty state: `<AxonOSLogo size={78} />` al posto dell'`emptyIcon` con `robot-happy`.
+  - FAB assistente AI: `<AxonOSLogo size={36} />` al posto dell'icona `robot-happy`.
+- `/app/frontend/app/ai-teach.tsx`: badge testa header ora è `<AxonOSLogo size={36} />` invece dell'icona `sparkles`.
+
+### 🧪 Test manuali eseguiti (screenshot)
+- ✅ Login screen con logo AdvisorOS bianco su gradient scuro + titolo "AdvisorOS".
+- ✅ Home header con logo AdvisorOS pill bianco accanto a data/greeting.
+- ✅ FAB assistente con logo AxonOS su sfondo scuro (pulse animation OK).
+- ✅ Chat Axon (header) con logo AxonOS accanto al nome "Neo".
+- ✅ Insegna ad Axon con logo AxonOS in alto a destra.
+
+---
 
 ## v2.ae Anagrafica polish + timer background + referenze rapide (Giugno 2026)
 ### 🎯 Richiesta utente
