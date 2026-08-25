@@ -65,6 +65,17 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 
+# ── Lightweight unauthenticated health probes (used by K8s/ingress deploy checks)
+@app.get("/health")
+async def _root_health():
+    return {"status": "ok"}
+
+
+@api_router.get("/health")
+async def _api_health():
+    return {"status": "ok"}
+
+
 # =========================
 # Helpers
 # =========================

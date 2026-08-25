@@ -14,7 +14,7 @@
       "infoPlist": {
         "NSFaceIDUsageDescription": "Sblocca rapidamente Dal Pastro CRM",
         "NSPhotoLibraryUsageDescription": "Aggiungi immagini motivazionali al tuo spazio personale",
-        "NSCameraUsageDescription": "Scatta foto da aggiungere al tuo spazio personale",
+        "NSCameraUsageDescription": "Scatta foto e scansiona bollette e QR",
         "NSMicrophoneUsageDescription": "Registra note vocali sui tuoi contatti",
         "NSContactsUsageDescription": "Importa i contatti dalla tua rubrica"
       }
@@ -27,6 +27,8 @@
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.consulenteapp.zkleir",
       "permissions": [
+        "CAMERA",
+        "POST_NOTIFICATIONS",
         "SCHEDULE_EXACT_ALARM",
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
@@ -53,7 +55,33 @@
         }
       ],
       "expo-audio",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scatta foto e scansiona bollette e QR"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Aggiungi immagini ai tuoi contatti e bollette",
+          "cameraPermission": "Scatta foto per aggiungerle ai contatti"
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Sblocca rapidamente Dal Pastro CRM"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#EA580C"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
