@@ -1,4 +1,26 @@
-# Dal Pastro CRM — PRD v1.9
+# Dal Pastro CRM — PRD v1.10
+
+## v2.ai Login screen polish (logo grande + responsive) (Giugno 2026)
+### 🎯 Richiesta utente
+1. Logo AdvisorOS troppo piccolo/illeggibile → aumentare card e logo.
+2. Login non responsive → su tablet/desktop centrare il contenuto con max-width 480px e riempire lo schermo (no area vuota).
+3. Rimuovere il testo "AdvisorOS" e il sottotitolo "Consulenza Energetica · Network" sotto il logo.
+
+### ✅ Frontend `/app/frontend/app/login.tsx`
+- Logo ingrandito: `size = width >= 700 ? 180 : min(160, 42% larghezza)`. La card interna di `AdvisorOSLogo` scala di conseguenza. Aggiunta shadow al logo per staccarlo dal gradient.
+- Responsive: `useWindowDimensions` + breakpoint `isWide = width >= 700`.
+  - `pageScroll`: `flexGrow: 1` per riempire l'intero schermo.
+  - Quando `isWide` è true, il ScrollView contentContainer diventa `justifyContent: "center", alignItems: "center"` e il container ha `maxWidth: 480, alignSelf: "center"` — form al centro orizzontale e verticale.
+  - Su mobile mantiene layout full-width con padding 16/24.
+- Sfondo: gradient LinearGradient ora è absolute-fill che copre tutto lo schermo (non più altezza fissa "hero"). Il form è renderizzato come card bianca con ombra sopra il gradient.
+- Rimossi `<Text>AdvisorOS</Text>` e `<Text>Consulenza Energetica · Network</Text>`. Rimossi anche gli stili `title` e `subtitle` dal StyleSheet.
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot mobile 390×844: logo grande centrato, form full-width con margine.
+- ✅ Screenshot tablet 900×1200: contenuto centrato orizzontalmente, max-width 480, gradient copre tutto lo schermo.
+- ✅ Screenshot desktop 1400×900: contenuto centrato orizzontalmente e verticalmente, form compatto, nessuna area vuota ai lati o sotto.
+
+---
 
 ## v2.ah Analisi Axon automatiche per contatto (Giugno 2026)
 ### 🎯 Richiesta utente

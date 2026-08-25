@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -16,6 +16,10 @@ export default function LoginScreen() {
   const [name, setName] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // V29.h — Layout responsive (tablet/desktop) e logo più grande
+  const { width } = useWindowDimensions();
+  const isWide = width >= 700;
+  const logoSize = isWide ? 180 : Math.min(160, Math.round(width * 0.42));
 
   // 2FA state
   const [twoFAToken, setTwoFAToken] = useState<string | null>(null);
@@ -99,35 +103,37 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={["#0F2438", "#1C4869", "#3A739C"]} style={styles.hero}>
-        <View style={styles.heroContent}>
-          <AdvisorOSLogo size={72} testID="login-logo" />
-          <Text style={styles.title}>AdvisorOS</Text>
-          <Text style={styles.subtitle}>Consulenza Energetica · Network</Text>
-        </View>
-      </LinearGradient>
+      <LinearGradient colors={["#0F2438", "#1C4869", "#3A739C"]} style={StyleSheet.absoluteFillObject as any} />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.pageWrap}>
+        <ScrollView
+          contentContainerStyle={[styles.pageScroll, isWide && styles.pageScrollCentered]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={[styles.container, isWide && styles.containerWide]}>
+            <View style={styles.hero}>
+              <AdvisorOSLogo size={logoSize} testID="login-logo" style={styles.heroLogo as any} />
+            </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.formWrap}>
-        <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-          <View style={styles.segment}>
-            {(["login", "register"] as const).map((m) => (
-              <Pressable
-                key={m}
-                testID={`auth-tab-${m}`}
-                onPress={() => setMode(m)}
-                style={[styles.segItem, mode === m && styles.segItemActive]}
-              >
-                <Text style={[styles.segText, mode === m && styles.segTextActive]}>
-                  {m === "login" ? "Accedi" : "Registrati"}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+            <View style={styles.formCard}>
+              <View style={styles.segment}>
+                {(["login", "register"] as const).map((m) => (
+                  <Pressable
+                    key={m}
+                    testID={`auth-tab-${m}`}
+                    onPress={() => setMode(m)}
+                    style={[styles.segItem, mode === m && styles.segItemActive]}
+                  >
+                    <Text style={[styles.segText, mode === m && styles.segTextActive]}>
+                      {m === "login" ? "Accedi" : "Registrati"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
 
-          {mode === "register" && (
-            <View style={styles.field}>
-              <Text style={styles.label}>Nome</Text>
-              <TextInput
+              {mode === "register" && (
+                <View style={styles.field}>
+                  <Text style={styles.label}>Nome</Text>
+                  <TextInput
                 testID="auth-name-input"
                 value={name}
                 onChangeText={setName}
@@ -184,6 +190,8 @@ export default function LoginScreen() {
             <Ionicons name="logo-google" size={20} color={theme.color.brandPrimary} />
             <Text style={styles.googleBtnText}>Accedi con Google</Text>
           </Pressable>
+            </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -191,11 +199,50 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  hero: { paddingTop: 72, paddingBottom: 40, alignItems: "center", justifyContent: "center" },
-  heroContent: { alignItems: "center" },
-  title: { color: "#FFF", fontSize: 30, fontWeight: "700", marginTop: 10, letterSpacing: 0.3 },
-  subtitle: { color: "#CFE1EE", marginTop: 4, fontSize: 13 },
+  root: { flex: 1, backgroundColor: "#0F2438" },
+  pageWrap: { flex: 1 },
+  pageScroll: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+  },
+  pageScrollCentered: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  container: {
+    width: "100%",
+    alignSelf: "stretch",
+  },
+  containerWide: {
+    maxWidth: 480,
+    alignSelf: "center",
+  },
+  hero: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 24,
+    paddingBottom: 20,
+  },
+  heroLogo: {
+    // Ombra intorno alla card bianca per staccarla dal gradient
+    shadowColor: "#000",
+    shadowOpacity: 0.28,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 12,
+  },
+  formCard: {
+    backgroundColor: theme.color.surface,
+    borderRadius: 20,
+    padding: 20,
+    gap: 14,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: 10 } },
+      android: { elevation: 10 },
+      default: { boxShadow: "0 12px 32px rgba(0,0,0,0.25)" as any },
+    }),
+  },
   formWrap: { flex: 1 },
   form: { padding: 20, gap: 14 },
   segment: { flexDirection: "row", backgroundColor: theme.color.surfaceTertiary, borderRadius: theme.radius.pill, padding: 4, marginBottom: 6 },
