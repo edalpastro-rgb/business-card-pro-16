@@ -7,7 +7,106 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { confirmAsync, notify } from "@/src/utils/notify";
 
-type Member = { user_id: string; email: string; name: string; role: string; areas: string[]; created_at?: string };
+type Member = { user_id: string; email: string; name: string; role: string; areas: string[]; agent_code?: string | null; created_at?: string };
+
+// V28.z — Sotto-componente per i campi Master-only: codice agente + password dati sensibili.
+// Il team screen è già Master-only (endpoint /team ritorna 403 altrimenti), quindi qui
+// mostriamo i campi senza ulteriori check.
+function MasterOnlyFields({ member, onUpdated }: { member: Member; onUpdated: () => void }) {
+  const [agentCode, setAgentCode] = useState<string>(member.agent_code || "");
+  const [savingCode, setSavingCode] = useState(false);
+  const [sensLoading, setSensLoading] = useState(false);
+  const [sensSaving, setSensSaving] = useState(false);
+  const [sensReveal, setSensReveal] = useState(false);
+  const [sensValue, setSensValue] = useState<string>("");
+  const [sensLoaded, setSensLoaded] = useState(false);
+
+  const saveAgentCode = async () => {
+    if ((agentCode || "").trim() === (member.agent_code || "")) return;
+    try {
+      setSavingCode(true);
+      await api(`/team/${member.user_id}`, { method: "PUT", body: { agent_code: agentCode.trim() } });
+      onUpdated();
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally { setSavingCode(false); }
+  };
+
+  const loadSensitive = useCallback(async () => {
+    if (sensLoaded) return;
+    try {
+      setSensLoading(true);
+      const r = await api<{ value: string }>(`/team/${member.user_id}/sensitive-password`);
+      setSensValue(r?.value || "");
+      setSensLoaded(true);
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally { setSensLoading(false); }
+  }, [sensLoaded, member.user_id]);
+
+  const toggleReveal = async () => {
+    if (!sensReveal) { await loadSensitive(); }
+    setSensReveal((v) => !v);
+  };
+
+  const saveSensitive = async () => {
+    try {
+      setSensSaving(true);
+      await api(`/team/${member.user_id}/sensitive-password`, { method: "PUT", body: { value: sensValue } });
+      notify("Salvato", "Password dati sensibili aggiornata.");
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally { setSensSaving(false); }
+  };
+
+  return (
+    <View style={{ gap: 8, marginTop: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <Ionicons name="pricetag" size={14} color={theme.color.muted} />
+        <Text style={{ fontSize: 11, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Codice agente</Text>
+      </View>
+      <View style={{ flexDirection: "row", gap: 6 }}>
+        <TextInput
+          testID={`agent-code-${member.user_id}`}
+          value={agentCode}
+          onChangeText={setAgentCode}
+          onBlur={saveAgentCode}
+          onSubmitEditing={saveAgentCode}
+          placeholder="Es. AG-001-DP"
+          placeholderTextColor="#94A3B8"
+          style={{ flex: 1, backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: theme.color.onSurface }}
+        />
+        <Pressable onPress={saveAgentCode} disabled={savingCode} hitSlop={6} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: theme.color.brandPrimary, borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
+          {savingCode ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="save" size={14} color="#FFF" />}
+        </Pressable>
+      </View>
+
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+        <Ionicons name="lock-closed" size={14} color={theme.color.muted} />
+        <Text style={{ fontSize: 11, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Password dati sensibili</Text>
+      </View>
+      <View style={{ flexDirection: "row", gap: 6 }}>
+        <TextInput
+          testID={`sens-pwd-${member.user_id}`}
+          value={sensValue}
+          onChangeText={(t) => { setSensValue(t); setSensLoaded(true); }}
+          onFocus={loadSensitive}
+          secureTextEntry={!sensReveal}
+          placeholder={sensLoading ? "Caricamento…" : "Non impostata"}
+          placeholderTextColor="#94A3B8"
+          style={{ flex: 1, backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: theme.color.onSurface }}
+        />
+        <Pressable onPress={toggleReveal} disabled={sensLoading} hitSlop={6} style={{ width: 36, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9", borderRadius: 8 }}>
+          {sensLoading ? <ActivityIndicator size="small" /> : <Ionicons name={sensReveal ? "eye-off" : "eye"} size={16} color={theme.color.muted} />}
+        </Pressable>
+        <Pressable onPress={saveSensitive} disabled={sensSaving || !sensLoaded} hitSlop={6} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: sensLoaded ? theme.color.brandPrimary : "#94A3B8", borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
+          {sensSaving ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="save" size={14} color="#FFF" />}
+        </Pressable>
+      </View>
+      <Text style={{ fontSize: 10, color: theme.color.muted, fontStyle: "italic" }}>Cifrata a riposo (Fernet). Visibile solo a Master e diretto interessato.</Text>
+    </View>
+  );
+}
 
 export default function TeamScreen() {
   const router = useRouter();
@@ -129,6 +228,8 @@ export default function TeamScreen() {
                   <Text style={[styles.areaTxt, m.areas.includes("network") && { color: "#FFF" }]}>Network</Text>
                 </Pressable>
               </View>
+              {/* V28.z — Master only fields: codice agente + password dati sensibili */}
+              <MasterOnlyFields member={m} onUpdated={load} />
             </View>
           ))}
         </ScrollView>

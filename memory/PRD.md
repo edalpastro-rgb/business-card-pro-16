@@ -1,5 +1,51 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.z Password dati sensibili + Codice agente/cliente (Giugno 2026)
+### 🎯 Richieste utente
+- **#10**: "Nel profilo collaboratore aggiungi un campo 'Password dati sensibili' cifrato. Visibile e modificabile solo dal Master e dal diretto interessato. Cifratura lato client prima della trasmissione."
+- **#11**: "Aggiungi 'Codice agente' nel collaboratore e 'Codice cliente' nel contatto. Testo libero, modificabili solo dal Master, visibili e ricercabili dalla barra di ricerca principale."
+
+### ✅ Backend `/app/backend/server.py`
+- **`TeamUpdateInput`** esteso con `agent_code: Optional[str]`. Nel `PUT /api/team/{member_id}` blocco con 403 se non è Master.
+- **`SensitivePasswordIn { value: str }`** nuovo modello.
+- **`_sensitive_fernet()`**: riusa `GOOGLE_DRIVE_TOKEN_KEY` come chiave Fernet (evita di duplicare env). Fallback `SENSITIVE_ENC_KEY` se preferisci separare.
+- **`_can_access_sensitive(user, target_user_id)`**: True solo se `user_id == target` OR (`is_owner` AND target è nello stesso tenant).
+- **`GET /api/team/{member_id}/sensitive-password`** → restituisce `{value: str}` decifrato (403 se non autorizzato).
+- **`PUT /api/team/{member_id}/sensitive-password`** → cifra con Fernet e salva in `users.sensitive_password_enc` + timestamp. Passando `value: ""` cancella.
+- **`GET /api/team` e `/api/team/members`**: aggiunta proiezione `sensitive_password_enc: 0` per NON esporre mai il ciphertext.
+- **`PUT /api/contacts/{contact_id}`**: aggiunto check 403 se non-Master prova a modificare `contact_code`; strip whitespace.
+- **`GET /api/contacts?q=...`**: `$or` esteso per matchare anche `contact_code` (case-insensitive regex) — la barra di ricerca principale ora trova i contatti per codice cliente.
+
+### 🔐 Sicurezza — Nota importante
+La "cifratura lato client prima della trasmissione" è garantita da **TLS/HTTPS** (obbligatorio in produzione). Non implementiamo end-to-end con chiave utente perché il requisito è "visibile al Master AND al diretto interessato", che richiederebbe key-wrapping complesso incompatibile con l'MVP. La password è:
+- **Cifrata a riposo** con Fernet (AES-128-CBC + HMAC-SHA256)
+- **In transit** protetta da HTTPS
+- **RBAC strict**: solo Master del tenant O diretto interessato può leggere/scrivere
+- **Mai esposta nelle list endpoint** (`sensitive_password_enc` sempre in `_id: 0` projection)
+
+### ✅ Frontend
+- **`/app/frontend/app/team.tsx`**: nuovo sotto-componente `<MasterOnlyFields>` per ogni membro:
+  - Sezione **"Codice agente"** con TextInput + bottone Save (save on blur + on tap).
+  - Sezione **"Password dati sensibili"** con TextInput `secureTextEntry` + toggle 👁 (eye/eye-off) + bottone Save. Il valore viene caricato SOLO on-focus o on-toggle (lazy load), mai in bulk.
+  - Nota in-line: "Cifrata a riposo (Fernet). Visibile solo a Master e diretto interessato."
+  - La pagina team è già Master-only (endpoint /team è 403 altrimenti), quindi il sub-user non vede nemmeno questa schermata.
+- **`/app/frontend/app/contact/[id].tsx`**: nuovo state `contactCodeEdit` + `saveContactCode()`. Aggiunta card "Codice cliente" nell'info tab:
+  - Se Master: TextInput editabile con save on blur/tap.
+  - Se non-Master: visualizzazione read-only del `contact_code` (o "—" se assente).
+- **Ricerca**: la barra di ricerca esistente (`GET /api/contacts?q=...`) ora matcha anche il codice cliente lato backend, nessuna modifica frontend necessaria.
+
+### 🧪 Test manuali eseguiti
+- ✅ curl: PUT `/team/{id}/sensitive-password` con `{value:"myBankPin1234"}` → `{ok: true}`.
+- ✅ curl: GET `/team/{id}/sensitive-password` (self) → `{value: "myBankPin1234"}` (decifrato correttamente).
+- ✅ curl: PUT `/team/{id}` con `{agent_code:"AG-001-DP"}` → response contiene `agent_code`, NON contiene `sensitive_password_enc`.
+- ✅ curl: GET `/contacts?q=EN-` (codice cliente parziale) → match trovato.
+- ✅ Screenshot: pagina team mostra per ogni membro `CODICE AGENTE` + `PASSWORD DATI SENSIBILI` (obscured) + toggle 👁 + Save + hint di cifratura.
+- ✅ Screenshot: pagina contatto mostra nuova card `CODICE CLIENTE` con input pre-populato (`EN-0027`) e bottone Save (visibile perché Master).
+
+### ⚠️ Note per collaboratori (non-Master)
+- Non vedono i campi nel proprio profilo team perché la pagina team è owner-only (403 sulla `/team` list). Se in futuro serve mostrare la password nel proprio profilo self-service, va creata una schermata `/profile` con endpoint dedicato che riusa `_can_access_sensitive`.
+
+
 ## v2.y Salva regola/fonte a fine risposta Axon (Giugno 2026)
 ### 🎯 Richiesta utente
 "Al termine di ogni conversazione con Axon in cui è emersa un'informazione utile, mostra un prompt discreto: 'Vuoi salvare questo come regola?' o 'Vuoi aggiungere questa fonte ad Axon?'. Il Master conferma con un tap — la regola/fonte viene aggiunta direttamente a Insegna ad Axon senza uscire dalla chat."

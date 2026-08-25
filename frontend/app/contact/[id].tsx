@@ -106,6 +106,22 @@ function ContactDetail() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const { user } = useAuth();
   const canAssign = user?.role === "owner" || user?.role === "admin";
+  // V28.z — Master-only edit del codice cliente
+  const isMaster = user?.role === "owner" && !user?.parent_user_id;
+  const [contactCodeEdit, setContactCodeEdit] = useState<string>("");
+  const [contactCodeSaving, setContactCodeSaving] = useState(false);
+  useEffect(() => { setContactCodeEdit(c?.contact_code || ""); }, [c?.contact_code]);
+  const saveContactCode = async () => {
+    const next = contactCodeEdit.trim();
+    if (next === (c?.contact_code || "")) return;
+    try {
+      setContactCodeSaving(true);
+      await api(`/contacts/${id}`, { method: "PUT", body: { contact_code: next } });
+      setC((prev) => prev ? { ...prev, contact_code: next } : prev);
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally { setContactCodeSaving(false); }
+  };
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [playingUri, setPlayingUri] = useState<string | null>(null);
@@ -610,6 +626,39 @@ function ContactDetail() {
               contactId={id}
               contactName={`${c.first_name} ${c.last_name}`.trim()}
             />
+
+            {/* V28.z — Codice cliente: visibile a tutti, editabile solo dal Master */}
+            <View style={styles.card}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <Ionicons name="pricetag" size={16} color={theme.color.brandPrimary} />
+                <Text style={styles.commSectionTitle}>Codice cliente</Text>
+              </View>
+              {isMaster ? (
+                <View style={{ flexDirection: "row", gap: 6 }}>
+                  <TextInput
+                    testID="contact-code-input"
+                    value={contactCodeEdit}
+                    onChangeText={setContactCodeEdit}
+                    onBlur={saveContactCode}
+                    onSubmitEditing={saveContactCode}
+                    placeholder="Es. CL-2026-042"
+                    placeholderTextColor="#94A3B8"
+                    style={{ flex: 1, backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: theme.color.onSurface }}
+                  />
+                  <Pressable
+                    testID="contact-code-save"
+                    onPress={saveContactCode}
+                    disabled={contactCodeSaving}
+                    hitSlop={6}
+                    style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: theme.color.brandPrimary, borderRadius: 8, alignItems: "center", justifyContent: "center" }}
+                  >
+                    {contactCodeSaving ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="save" size={16} color="#FFF" />}
+                  </Pressable>
+                </View>
+              ) : (
+                <Text style={{ fontSize: 15, fontWeight: "700", color: theme.color.onSurface }}>{c.contact_code || "—"}</Text>
+              )}
+            </View>
 
             {/* V28.q — Bidirectional peer references */}
             <ContactReferencesSection
