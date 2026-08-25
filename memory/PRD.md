@@ -1,5 +1,34 @@
 # Dal Pastro CRM — PRD v1.3
 
+## v2.x Fix "Rendered more hooks" nel modulo eventi (Giugno 2026)
+### 🎯 Richiesta utente
+"Cliccando su 'Programma' o 'Data' nel banner evento in home page appare l'errore 'Rendered more hooks than during the previous render'. Il numero di hook React deve essere costante tra i render."
+
+### 🔍 Analisi
+In `/app/frontend/app/event/[id].tsx` (schermata dettaglio evento aperta dal banner home), il custom hook `useCountdown(target)` era chiamato a **riga 111**, DOPO due early return condizionali:
+- riga 87: `if (loading) return <Spinner/>`
+- riga 102: `if (!ev) return <NotAvailable/>`
+
+Al primo render (`loading=true`) React registrava N hook (useState + useCallback + useEffect + useState + useState + useState + useState + useCallback + useEffect = 9). Quando la fetch completava e ev veniva popolato, il render riusciva a superare i primi due `if`, e chiamava `useCountdown` — che dentro fa `useState + useEffect` → 2 hook aggiuntivi. Il numero totale passava da 9 a 11 → **hook order mismatch** → React lancia l'errore fatale con crash del modulo.
+
+### ✅ Frontend `/app/frontend/app/event/[id].tsx`
+- **Spostato `useCountdown(target)` PRIMA di tutti gli early return**, con `target` calcolato in modo sicuro anche quando `ev` è null:
+  ```typescript
+  const target = ev?.event_at ? new Date(ev.event_at).getTime() : Date.now();
+  const cd = useCountdown(target);
+  ```
+- Ora il hook viene chiamato SEMPRE sullo stesso ordine ad ogni render (numero costante = 11 fin dal primo render).
+- Le variabili non-hook `cover` e `dateFmt` restano dopo gli early return (accedono a `ev` che a quel punto è garantito non-null).
+- Aggiunto commento in-line V28.x che spiega perché non spostare mai il hook.
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot: apertura `/event/evt_...` — transizione da `loading=true` a `!ev=true` (visibility fuori scope) → **nessun errore hooks** più. Modal error boundary non entra in azione.
+- ✅ Lint pulito.
+
+### 📚 Nota generale
+La regola d'oro di React: **tutti gli hook devono essere chiamati nello stesso ordine ad ogni render, senza condizioni**. Regola già applicata in tutti gli altri componenti eventi controllati (`HomeEventBanner`, `event-banners.tsx` — nessun hook dopo early return).
+
+
 ## v2.w Google Drive OAuth integration (Giugno 2026)
 ### 🎯 Richiesta utente
 "Integra Google Drive OAuth. L'utente collega il proprio Drive; Axon può accedere ai file autorizzati in sola lettura. Bottone 'Collega Google Drive' in impostazioni. File Drive accessibili come fonte per Axon come i file caricati manualmente."

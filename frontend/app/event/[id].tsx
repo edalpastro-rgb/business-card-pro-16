@@ -54,6 +54,14 @@ function EventScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // V28.x — Fix "Rendered more hooks than during the previous render":
+  // useCountdown DEVE essere chiamato SEMPRE (numero di hook costante), anche quando
+  // ev è ancora null. Prima veniva chiamato dopo gli early return (loading / !ev),
+  // quindi al secondo render (ev caricato) React trovava un hook in più. Ora il target
+  // è calcolato con fallback sicuro e `useCountdown` viene sempre eseguito qui in cima.
+  const target = ev?.event_at ? new Date(ev.event_at).getTime() : Date.now();
+  const cd = useCountdown(target);
+
   const openProgram = async () => {
     try {
       const r = await api<any>(`/event-banners/${eventId}/program`);
@@ -107,8 +115,6 @@ function EventScreen() {
     );
   }
 
-  const target = new Date(ev.event_at).getTime();
-  const cd = useCountdown(target);
   const cover = ev.cover_base64 ? `data:${ev.cover_mime || "image/jpeg"};base64,${ev.cover_base64}` : null;
   const dateFmt = new Date(ev.event_at).toLocaleString("it-IT", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
