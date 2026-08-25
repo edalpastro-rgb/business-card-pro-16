@@ -76,6 +76,20 @@ async def _api_health():
     return {"status": "ok"}
 
 
+# V29.b — Defensive safety net: se per qualche misconfig di ingress il redirect
+# OAuth di Google finisce sul backend anziché sul frontend, ripiega redirigendo
+# alla pagina Expo Router che sa gestire code/state. Non impatta il flow normale.
+@app.get("/auth/google/callback")
+async def _oauth_callback_bridge(request: Request):
+    from fastapi.responses import RedirectResponse
+    qs = str(request.url.query or "")
+    target = os.getenv("GOOGLE_DRIVE_FRONTEND_URL") or "https://advisoros.it"
+    # Preferiamo la pagina Expo Router dedicata al callback
+    base = target.split("/profile")[0].rstrip("/")
+    dest = f"{base}/auth/google/callback" + (f"?{qs}" if qs else "")
+    return RedirectResponse(url=dest, status_code=302)
+
+
 # =========================
 # Helpers
 # =========================
@@ -1047,6 +1061,108 @@ async def update_profile(body: ProfileUpdate, user=Depends(get_current_user)):
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": upd})
     u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     return {"user": UserOut(**u).model_dump()}
+
+
+# =========================
+# V29.b — Elimina il mio account (Apple/Google compliance)
+# Elimina completamente l'utente + TUTTI i suoi dati (contatti, appuntamenti,
+# callback, bollette, business_card, impostazioni, connessioni Google Drive,
+# regole/fonti Insegna ad Axon, note My Thing, log chat AI, ecc.).
+# Richiede conferma con password (per account non-OAuth) e frase esatta.
+# Un Master NON può eliminare il proprio account se ha ancora sub-utenti attivi.
+# =========================
+
+class DeleteAccountIn(BaseModel):
+    password: Optional[str] = None
+    confirmation: str  # deve essere esattamente "ELIMINA IL MIO ACCOUNT"
+
+
+@api_router.delete("/auth/me")
+async def delete_my_account(body: DeleteAccountIn, authorization: Optional[str] = Header(None), user=Depends(get_current_user)):
+    """Elimina permanentemente l'account dell'utente autenticato e tutti i suoi dati.
+    Guardrail:
+      - Frase di conferma esatta ("ELIMINA IL MIO ACCOUNT")
+      - Password richiesta per account con password_hash impostato
+      - Un Master (owner) non può auto-eliminarsi finché ha sub-utenti attivi
+    """
+    expected = "ELIMINA IL MIO ACCOUNT"
+    if (body.confirmation or "").strip().upper() != expected:
+        raise HTTPException(status_code=400, detail=f"Devi digitare esattamente '{expected}' per confermare")
+
+    # Password check (solo se l'account ha una password, i.e. non-OAuth)
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    if fresh and fresh.get("password_hash"):
+        if not body.password or not verify_password(body.password, fresh["password_hash"]):
+            raise HTTPException(status_code=401, detail="Password non corretta")
+
+    uid = user["user_id"]
+    # Se è owner (Master) e ha collaboratori attivi, blocca
+    if is_owner(user):
+        sub_count = await db.users.count_documents({"parent_user_id": uid})
+        if sub_count > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Non puoi eliminare l'account: hai {sub_count} collaboratore/i attivi. Rimuovili prima dalla sezione Team.",
+            )
+
+    tid = tenant_id(user)
+
+    # Elenco collezioni da ripulire per questo user. Le collezioni tenant-scoped
+    # (contatti/appuntamenti/bollette) usano user_id = tid (tenant_id), quelle
+    # user-scoped (settings, business_card, drive) usano user_id = uid.
+    tenant_collections = [
+        "contacts", "appointments", "callbacks", "energy_bills",
+        "corporate_records", "contract_records", "contact_files",
+        "chat_conversations", "chat_messages", "assistant_chat_sessions",
+        "events", "event_registrations", "smtp_configs",
+    ]
+    user_collections = [
+        "user_settings", "business_cards", "google_drive_connections",
+        "google_oauth_states", "user_sessions", "my_thing_items",
+        "ai_teach_rules", "ai_teach_urls", "totp_secrets",
+        "assistant_memory", "assistant_teach_categories",
+    ]
+
+    deleted_summary: Dict[str, int] = {}
+    for coll in tenant_collections:
+        try:
+            r = await db[coll].delete_many({"user_id": tid})
+            deleted_summary[coll] = r.deleted_count
+        except Exception as e:
+            logger.warning(f"[delete-account] tenant collection {coll} error: {e}")
+    for coll in user_collections:
+        try:
+            r = await db[coll].delete_many({"user_id": uid})
+            deleted_summary[coll] = deleted_summary.get(coll, 0) + r.deleted_count
+        except Exception as e:
+            logger.warning(f"[delete-account] user collection {coll} error: {e}")
+
+    # Rimuovi eventuali riferimenti bidirezionali nei contatti degli altri utenti (referral)
+    try:
+        await db.contacts.update_many(
+            {"referred_by_contact_ids": {"$exists": True}},
+            {"$pull": {"referred_by_contact_ids": {"$regex": "^c_"}}},
+        )
+    except Exception:
+        pass
+
+    # Elimina infine l'utente
+    await db.users.delete_one({"user_id": uid})
+    # Rimuovi eventuali reset-password pending
+    try:
+        await db.password_reset_tokens.delete_many({"user_id": uid})
+    except Exception:
+        pass
+    # Invalida la sessione corrente
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        try:
+            await db.user_sessions.delete_one({"session_token": token})
+        except Exception:
+            pass
+
+    logger.info(f"[delete-account] user {uid} deleted. Cleaned: {deleted_summary}")
+    return {"ok": True, "deleted": deleted_summary}
 
 
 # =========================

@@ -28,7 +28,7 @@ export default function SecurityRoute() {
 
 function SecurityScreen() {
   const router = useRouter();
-  const { refresh, trustExpiresAt } = useAuth();
+  const { refresh, trustExpiresAt, logout } = useAuth();
 
   const [status, setStatus] = useState<Status | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +56,13 @@ function SecurityScreen() {
   const [pinDraft, setPinDraft] = useState("");
   const [pinConfirmDraft, setPinConfirmDraft] = useState("");
   const [showPinSetup, setShowPinSetup] = useState(false);
+
+  // V29.b — Delete account state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePwd, setDeletePwd] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const CONFIRM_PHRASE = "ELIMINA IL MIO ACCOUNT";
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -134,6 +141,39 @@ function SecurityScreen() {
     } catch (e: any) {
       Alert.alert("Errore", e.message || "Codice non valido");
     } finally { setBusy(false); }
+  };
+
+  // V29.b — Elimina account (Apple/Google compliance)
+  const doDeleteAccount = async () => {
+    const phrase = deleteConfirm.trim().toUpperCase();
+    if (phrase !== CONFIRM_PHRASE) {
+      Alert.alert("Frase non corretta", `Digita esattamente '${CONFIRM_PHRASE}' per confermare`);
+      return;
+    }
+    if (!deletePwd) {
+      Alert.alert("Password richiesta", "Inserisci la tua password per confermare");
+      return;
+    }
+    setDeleteBusy(true);
+    try {
+      await api("/auth/me", {
+        method: "DELETE",
+        body: { password: deletePwd, confirmation: CONFIRM_PHRASE },
+      });
+      // Successo: chiudi tutto e riporta al login
+      setDeleteOpen(false);
+      setDeletePwd("");
+      setDeleteConfirm("");
+      Alert.alert(
+        "Account eliminato",
+        "Il tuo account e tutti i dati associati sono stati eliminati definitivamente.",
+        [{ text: "OK", onPress: async () => { try { await logout(); } catch {} router.replace("/" as any); } }]
+      );
+    } catch (e: any) {
+      Alert.alert("Errore", e.message || "Impossibile eliminare l'account");
+    } finally {
+      setDeleteBusy(false);
+    }
   };
 
   const copyCodes = async (codes: string[]) => {
@@ -470,6 +510,78 @@ function SecurityScreen() {
             </View>
           </View>
         )}
+
+        {/* V29.b · Zona pericolo · Elimina account (Apple/Google compliance) */}
+        <View style={styles.dangerCard}>
+          <View style={styles.dangerHead}>
+            <Ionicons name="warning" size={18} color="#DC2626" />
+            <Text style={styles.dangerTitle}>Zona pericolo</Text>
+          </View>
+          <Text style={styles.dangerDesc}>
+            {"L'eliminazione dell'account è "}<Text style={{ fontWeight: "800" }}>permanente</Text>.
+            {" "}Verranno cancellati definitivamente: profilo, contatti, appuntamenti, callback, bollette,
+            biglietto da visita, impostazioni, memoria Axon e connessioni Google Drive.
+          </Text>
+          {!deleteOpen ? (
+            <Pressable
+              testID="delete-account-open"
+              onPress={() => setDeleteOpen(true)}
+              style={styles.deleteBtn}
+            >
+              <Ionicons name="trash" size={16} color="#DC2626" />
+              <Text style={styles.deleteBtnTxt}>Elimina il mio account</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.deleteForm}>
+              <Text style={styles.deleteLabel}>Password</Text>
+              <TextInput
+                testID="delete-account-password"
+                value={deletePwd}
+                onChangeText={setDeletePwd}
+                placeholder="La tua password"
+                placeholderTextColor="#94A3B8"
+                secureTextEntry
+                style={styles.input}
+              />
+              <Text style={[styles.deleteLabel, { marginTop: 10 }]}>
+                Digita <Text style={styles.mono}>{CONFIRM_PHRASE}</Text> per confermare
+              </Text>
+              <TextInput
+                testID="delete-account-confirm"
+                value={deleteConfirm}
+                onChangeText={setDeleteConfirm}
+                placeholder={CONFIRM_PHRASE}
+                placeholderTextColor="#94A3B8"
+                autoCapitalize="characters"
+                style={styles.input}
+              />
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                <Pressable
+                  onPress={() => { setDeleteOpen(false); setDeletePwd(""); setDeleteConfirm(""); }}
+                  style={[styles.secondaryBtn, { flex: 1 }]}
+                  disabled={deleteBusy}
+                >
+                  <Text style={styles.secondaryBtnTxt}>Annulla</Text>
+                </Pressable>
+                <Pressable
+                  testID="delete-account-confirm-btn"
+                  onPress={doDeleteAccount}
+                  disabled={deleteBusy}
+                  style={[styles.deleteConfirmBtn, deleteBusy && { opacity: 0.7 }]}
+                >
+                  {deleteBusy ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="trash" size={16} color="#FFF" />
+                      <Text style={styles.deleteConfirmBtnTxt}>Elimina definitivamente</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -513,4 +625,48 @@ const styles = StyleSheet.create({
   smallBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
   smallBtnDanger: { backgroundColor: theme.color.error, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   smallBtnDangerTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+
+  /* V29.b · Danger zone */
+  dangerCard: {
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    borderRadius: 14,
+    padding: 16,
+    gap: 10,
+  },
+  dangerHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  dangerTitle: { fontSize: 15, fontWeight: "800", color: "#991B1B", letterSpacing: -0.2 },
+  dangerDesc: { fontSize: 12.5, color: "#7F1D1D", lineHeight: 18 },
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#DC2626",
+    backgroundColor: "#FFF",
+  },
+  deleteBtnTxt: { color: "#DC2626", fontWeight: "800", fontSize: 14 },
+  deleteForm: { gap: 4, marginTop: 4 },
+  deleteLabel: { fontSize: 12, color: "#7F1D1D", fontWeight: "700", marginBottom: 4 },
+  mono: {
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
+    letterSpacing: 0.5,
+    fontWeight: "800",
+    color: "#991B1B",
+  },
+  deleteConfirmBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#DC2626",
+  },
+  deleteConfirmBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });

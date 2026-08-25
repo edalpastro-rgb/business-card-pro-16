@@ -1,4 +1,37 @@
-# Dal Pastro CRM — PRD v1.4
+# Dal Pastro CRM — PRD v1.5
+
+## v2.ad Elimina account + OAuth bridge defensivo (Giugno 2026)
+### 🎯 Richiesta utente
+1. **Elimina il mio account**: pulsante in Impostazioni → Sicurezza per superare la review Apple App Store senza intoppi.
+2. **Verifica route OAuth Google Drive** in produzione: il sito `advisoros.it` risulta irraggiungibile e `/auth/google/callback` non risponde.
+
+### ✅ Backend `/app/backend/server.py`
+- **Delete account** (`DELETE /api/auth/me`): elimina permanentemente utente + TUTTI i dati collegati. Guardrail: frase esatta `ELIMINA IL MIO ACCOUNT`, password richiesta (per account con `password_hash`), 400 se Master ha ancora sub-utenti attivi. Cancella tenant-scoped collections (contatti, appuntamenti, callback, bollette, corporate, contract, files, chat, eventi, SMTP) + user-scoped (settings, business_cards, google_drive, sessions, my_thing, ai_teach, totp, memory). Invalida la sessione corrente.
+- **OAuth callback bridge** (`GET /auth/google/callback`): safety net non-`/api` che se per misconfig di ingress il redirect di Google finisce sul backend, HTTP-redirige (302) alla pagina Expo Router `/auth/google/callback` sul frontend con query string preservata. Non impatta il flow normale (Google → advisoros.it → expo-router page → POST /api/google-drive/oauth/exchange).
+
+### ✅ Frontend `/app/frontend/app/security.tsx`
+- Aggiunta card **"Zona pericolo"** rossa in fondo alla schermata Sicurezza & 2FA.
+- Bottone **"Elimina il mio account"** con outline rosso apre un form inline con:
+  - Campo Password (secureTextEntry)
+  - Campo conferma frase (autoCapitalize characters) — deve essere `ELIMINA IL MIO ACCOUNT`
+  - CTA "Elimina definitivamente" (rosso pieno) + Annulla
+- Al successo: alert conferma → logout + navigate to root.
+
+### 🧪 Test manuali eseguiti
+- ✅ Backend: `DELETE /api/auth/me` con frase errata → 400; password errata → 401; Master con sub-user → 400 con messaggio esplicativo.
+- ✅ Bridge OAuth: `GET /auth/google/callback?code=X&state=Y` → 302 redirect a `https://advisoros.it/auth/google/callback` con query preservata.
+- ✅ UI Screenshot: sezione "Zona pericolo" e form di conferma renderizzati correttamente.
+
+### 📌 Note per il deploy produzione (OAuth Google Drive)
+- La route `/auth/google/callback` è una **pagina Expo Router del frontend**, non un endpoint backend. In produzione la richiesta a `https://advisoros.it/auth/google/callback` deve essere servita dal bundle frontend (fallback single-page che carica il bundle React Native Web).
+- Il bridge backend è un safety net: se qualcuno hitta il backend diretto, viene rimbalzato alla pagina frontend.
+- Se `advisoros.it` è irraggiungibile, verifica:
+  1. **DNS**: `nslookup advisoros.it` deve puntare all'IP del deploy.
+  2. **Deploy attivo**: dopo modifiche di codice serve ripubblicare cliccando "Publish" in alto a destra.
+  3. **Google Console → Credenziali OAuth**: il redirect URI autorizzato deve corrispondere esattamente a `https://advisoros.it/auth/google/callback`.
+  4. **Env produzione**: `GOOGLE_DRIVE_REDIRECT_URI` in `backend/.env` deve essere `https://advisoros.it/auth/google/callback`.
+
+---
 
 ## v2.ac Scadenze contratti + Promuovi cliente → agente (Giugno 2026)
 ### 🎯 Richiesta utente
