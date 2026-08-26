@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
+import { MasterPromoteModal } from "@/src/MasterPromoteModal";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
 import { ModuleErrorBoundary } from "@/src/shared";
 
@@ -28,6 +29,7 @@ export default function MasterRoute() {
 function MasterScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const [promoteOpen, setPromoteOpen] = useState(false);
   const [banner, setBanner] = useState<Banner>(null); // kept only for optional title/body from random-banner
   const [myThingImages, setMyThingImages] = useState<string[]>([]);
   const [myThingIdx, setMyThingIdx] = useState(0);
@@ -218,6 +220,22 @@ function MasterScreen() {
           ))}
         </View>
 
+        {/* V29.o — Promuovi ad agente (solo Master) */}
+        <Pressable
+          testID="master-promote-btn"
+          onPress={() => setPromoteOpen(true)}
+          style={masterExtraStyles.promoteBtn}
+        >
+          <View style={masterExtraStyles.promoteIcon}>
+            <Ionicons name="rocket" size={20} color="#FFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={masterExtraStyles.promoteTitle}>Promuovi ad agente</Text>
+            <Text style={masterExtraStyles.promoteSub}>Trova un contatto e assegnagli le autorizzazioni operative</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#EA580C" />
+        </Pressable>
+
         {/* V26.o — Statistiche giornaliere (spostate da Home) */}
         <View style={styles.statsSection}>
           <Text style={styles.statsHeader}>Statistiche di oggi</Text>
@@ -303,6 +321,7 @@ function MasterScreen() {
         color={drill?.color || theme.color.brandPrimary}
         title={drill?.title || "Dettaglio"}
       />
+      <MasterPromoteModal visible={promoteOpen} onClose={() => setPromoteOpen(false)} />
     </SafeAreaView>
   );
 }
@@ -471,6 +490,29 @@ function Calculator() {
     </View>
   );
 }
+
+const masterExtraStyles = StyleSheet.create({
+  promoteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    backgroundColor: "#FFF7ED",
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  promoteIcon: {
+    width: 40, height: 40, borderRadius: 12, backgroundColor: "#EA580C",
+    alignItems: "center", justifyContent: "center",
+  },
+  promoteTitle: { fontSize: 14, fontWeight: "800", color: "#9A3412" },
+  promoteSub: { fontSize: 12, color: "#9A3412", opacity: 0.75, marginTop: 2, lineHeight: 16 },
+});
+
+
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.background },

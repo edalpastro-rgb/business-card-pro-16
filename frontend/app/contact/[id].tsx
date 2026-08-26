@@ -598,35 +598,37 @@ function ContactDetail() {
               if (contactAreas.length === 0 && contactGroupObjs.length === 0) return null;
               return (
                 <View style={styles.compactCard}>
-                  {contactAreas.length > 0 && (
-                    <View style={styles.compactRow}>
-                      <Text style={styles.compactRowLabel}>Aree</Text>
-                      <View style={styles.compactBadgesRow}>
-                        {contactAreas.map((aid, i) => {
-                          const info = areaMap[aid] || { name: aid, color: theme.color.muted };
-                          return (
-                            <View key={`a-${aid}`} style={[styles.areaBadgeMini, { backgroundColor: info.color }]}>
-                              {i === 0 && <Ionicons name="star" size={9} color="#FFF" />}
-                              <Text style={styles.areaBadgeMiniTxt}>{info.name}</Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  )}
-                  {contactGroupObjs.length > 0 && (
-                    <View style={[styles.compactRow, contactAreas.length > 0 && { marginTop: 6 }]}>
-                      <Text style={styles.compactRowLabel}>Gruppi</Text>
-                      <View style={styles.compactBadgesRow}>
-                        {contactGroupObjs.map((g) => (
-                          <Pressable key={g.group_id} onPress={() => router.push(`/groups/${g.group_id}`)} style={[styles.groupBadgeMini, { borderColor: g.color }]}>
-                            <View style={[styles.groupBadgeMiniDot, { backgroundColor: g.color }]} />
-                            <Text style={[styles.groupBadgeMiniTxt, { color: g.color }]}>{g.name}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
-                  )}
+                  <View style={styles.compactRow}>
+                    {contactAreas.length > 0 && (
+                      <>
+                        <Text style={styles.compactRowLabel}>Aree</Text>
+                        <View style={[styles.compactBadgesRow, { flex: 0, marginRight: 8 }]}>
+                          {contactAreas.map((aid, i) => {
+                            const info = areaMap[aid] || { name: aid, color: theme.color.muted };
+                            return (
+                              <View key={`a-${aid}`} style={[styles.areaBadgeMini, { backgroundColor: info.color }]}>
+                                {i === 0 && <Ionicons name="star" size={9} color="#FFF" />}
+                                <Text style={styles.areaBadgeMiniTxt}>{info.name}</Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      </>
+                    )}
+                    {contactGroupObjs.length > 0 && (
+                      <>
+                        <Text style={styles.compactRowLabel}>Gruppi</Text>
+                        <View style={styles.compactBadgesRow}>
+                          {contactGroupObjs.map((g) => (
+                            <Pressable key={g.group_id} onPress={() => router.push(`/groups/${g.group_id}`)} style={[styles.groupBadgeMini, { borderColor: g.color }]}>
+                              <View style={[styles.groupBadgeMiniDot, { backgroundColor: g.color }]} />
+                              <Text style={[styles.groupBadgeMiniTxt, { color: g.color }]}>{g.name}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </>
+                    )}
+                  </View>
                 </View>
               );
             })()}
@@ -675,39 +677,7 @@ function ContactDetail() {
               contactName={`${c.first_name} ${c.last_name}`.trim()}
             />
 
-            {/* V29.i — Profilo Axon (Fase 2 · sintesi comportamentale aggregata) */}
-            <AxonProfileCard contactId={id} />
-
-            {/* V29.g — Analisi Axon (timeline riassunti automatici) */}
-            <AxonAnalysesSection contactId={id} />
-
-            {/* V29 — Promuovi ad agente (solo Master, contatto NON già collaborator) */}
-            {isMaster && c.status !== "collaborator" && !c.linked_user_id ? (
-              <Pressable
-                testID="promote-agent-btn"
-                onPress={() => setPromoteOpen(true)}
-                style={styles.promoteBtn}
-              >
-                <View style={styles.promoteIconWrap}>
-                  <Ionicons name="rocket" size={18} color="#FFF" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.promoteTitle}>Promuovi ad agente</Text>
-                  <Text style={styles.promoteSub}>
-                    Crea account collaboratore, biglietto con QR e invia le credenziali
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#EA580C" />
-              </Pressable>
-            ) : null}
-            {isMaster && c.status === "collaborator" ? (
-              <View style={styles.collabInfoBox}>
-                <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
-                <Text style={styles.collabInfoTxt}>
-                  Questo contatto è già un collaboratore del team.
-                </Text>
-              </View>
-            ) : null}
+            {/* V29.i — Profilo Axon e V29.g — Analisi Axon sono spostati in fondo (v2.ao) */}
 
             <View style={styles.card}>
               <Text style={styles.commSectionTitle}>Comunica con {c.first_name}</Text>
@@ -1138,6 +1108,15 @@ function ContactDetail() {
             )) : <Text style={styles.emptyTxt}>Nessun file</Text>}
           </>
         )}
+
+        {/* V29.o — Profilo Axon + Analisi Axon spostati in fondo (tab Info + Note + File) */}
+        {(tab === "info" || tab === "notes" || tab === "files") && (
+          <>
+            <AxonProfileCard contactId={id} />
+            <AxonAnalysesSection contactId={id} />
+          </>
+        )}
+
         <View style={{ height: 40 }} />
       </ScrollView>
       )}
@@ -1324,7 +1303,8 @@ const styles = StyleSheet.create({
   compactRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
+    flexWrap: "wrap",
   },
   compactRowLabel: {
     fontSize: 10.5,
@@ -1332,10 +1312,9 @@ const styles = StyleSheet.create({
     color: theme.color.muted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-    minWidth: 46,
+    marginRight: 2,
   },
   compactBadgesRow: {
-    flex: 1,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 4,

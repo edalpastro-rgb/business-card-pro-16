@@ -172,7 +172,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
       {loading ? (
         <ActivityIndicator size="small" color="#7C3AED" style={{ marginTop: 6 }} />
       ) : items.length === 0 ? (
-        <Text style={styles.emptyTxt}>Nessuna referenza collegata. {canEdit ? "Tocca &quot;Aggiungi&quot; per collegare un contatto." : ""}</Text>
+        <Text style={styles.emptyTxt}>Nessuna referenza collegata. {canEdit ? "Tocca “Aggiungi” per collegare un contatto." : ""}</Text>
       ) : (
         <View style={styles.chipsRow}>
           {items.map((it) => {

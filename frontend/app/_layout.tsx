@@ -10,7 +10,7 @@ import { AuthProvider, useAuth, isAppLockEnabled, isTrustStillValid } from "@/sr
 import { AppLockOverlay } from "@/src/AppLock";
 import { AssistantFAB } from "@/src/AssistantChat";
 import { FabStackProvider } from "@/src/FabStack";
-import { ActiveCallProvider, CallTimerBar, useActiveCall } from "@/src/CallTimerBar";
+import { ActiveCallProvider } from "@/src/CallTimerBar";
 import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
 
@@ -95,15 +95,13 @@ function LockGate() {
   );
 }
 
-// V28.r — Wrapper che spinge tutto il contenuto giù di ~48px quando c'è una
-// chiamata attiva, così la barra timer in cima non copre il contenuto sottostante.
+// V29.o — Rimosso il banner "chiamata in corso". La durata viene registrata in
+// background silenziosamente: nessun elemento UI mostrato all'utente.
 function StackWithCallBar() {
-  const { active } = useActiveCall();
   return (
-    <View style={{ flex: 1, paddingTop: active ? 44 : 0 }}>
+    <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
       <AssistantFAB />
-      <CallTimerBar />
     </View>
   );
 }
