@@ -3,14 +3,15 @@ import { Animated, Easing, StyleSheet, Text, View, Image } from "react-native";
 import { ADVISOROS_LOGO_URI } from "@/src/BrandLogos";
 
 /**
- * V29.o — AnimatedSplash.
+ * V29.w — AnimatedSplash.
  * Overlay full-screen mostrato UNA SOLA VOLTA per sessione app subito dopo
  * l'hide dello splash nativo di Expo. Micro-animazione di brand:
  *  1) Fondo navy brand (stesso colore dello splash nativo → nessun flash)
  *  2) Anello orbitale che ruota attorno al logo (idea "orbit" del brand)
  *  3) Logo AdvisorOS entra con scale-spring
  *  4) Wordmark "AdvisorOS" + tagline "CRM per consulenti energetici" con fade-up
- *  5) Fade-out totale dell'overlay dopo ~2.2s
+ *  5) Logo AxonOS (160px) + "powered by AxonOS" grigio chiaro con fade-up
+ *  6) Fade-out totale dell'overlay → viene rivelata la schermata di login
  *
  * Zero blocco funzionale: pointerEvents="none" durante il fade-out finale.
  */
@@ -21,6 +22,8 @@ const _splashPlayedRef = { current: false };
 const NAVY = "#0F2438";
 const ORANGE = "#FF6B35";
 const CREAM = "#FFF7F1";
+
+const AXONOS_LOGO_URI = "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/eaad7f8d5fbe44b196a4fb03d5a181c9_AxonOS_logo-cropped-removebg-preview.png";
 
 export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
   const [alreadyPlayed] = useState(_splashPlayedRef.current);
@@ -34,6 +37,9 @@ export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
   const taglineOpacity = useRef(new Animated.Value(0)).current;
   const ringRotate = useRef(new Animated.Value(0)).current;
   const ringOpacity = useRef(new Animated.Value(0)).current;
+  // V29.w — Sezione powered-by AxonOS: logo + testo grigio chiaro con fade.
+  const poweredOpacity = useRef(new Animated.Value(0)).current;
+  const poweredTranslate = useRef(new Animated.Value(10)).current;
 
   useEffect(() => {
     if (alreadyPlayed) return;
@@ -94,8 +100,23 @@ export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
+      // V29.w — Powered by AxonOS fade-up (logo + testo)
+      Animated.parallel([
+        Animated.timing(poweredOpacity, {
+          toValue: 1,
+          duration: 520,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(poweredTranslate, {
+          toValue: 0,
+          duration: 560,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
       // Piccola pausa per far respirare il brand
-      Animated.delay(500),
+      Animated.delay(700),
       // Fade-out overlay
       Animated.timing(overlayOpacity, {
         toValue: 0,
@@ -113,7 +134,7 @@ export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
     return () => {
       ringLoop.stop();
     };
-  }, [alreadyPlayed, onDone, overlayOpacity, logoScale, logoOpacity, wordOpacity, wordTranslate, taglineOpacity, ringOpacity, ringRotate]);
+  }, [alreadyPlayed, onDone, overlayOpacity, logoScale, logoOpacity, wordOpacity, wordTranslate, taglineOpacity, ringOpacity, ringRotate, poweredOpacity, poweredTranslate]);
 
   if (!visible) return null;
 
@@ -177,6 +198,25 @@ export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
           CRM per consulenti energetici
         </Animated.Text>
       </View>
+
+      {/* V29.w — Powered by AxonOS: logo trasparente + testo grigio chiaro */}
+      <Animated.View
+        style={[
+          styles.poweredWrap,
+          {
+            opacity: poweredOpacity,
+            transform: [{ translateY: poweredTranslate }],
+          },
+        ]}
+      >
+        <Image
+          source={{ uri: AXONOS_LOGO_URI }}
+          style={styles.axonosLogo}
+          resizeMode="contain"
+          testID="splash-axonos-logo"
+        />
+        <Text style={styles.poweredTxt}>powered by AxonOS</Text>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -264,6 +304,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     letterSpacing: 0.3,
+  },
+  poweredWrap: {
+    marginTop: 32,
+    alignItems: "center",
+    gap: 6,
+  },
+  axonosLogo: {
+    width: 160,
+    height: 42,
+    backgroundColor: "transparent",
+  },
+  poweredTxt: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.4,
   },
 });
 
