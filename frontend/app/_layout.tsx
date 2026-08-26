@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { LogBox, Platform, View, AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -112,14 +112,23 @@ function StackWithCallBar() {
 
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
+  // V29.aj — Fallback timer: se il caricamento dei font (fontfaceobserver
+  // interno di expo-font su web) va in timeout dopo 6s l'app resterebbe bianca.
+  // Dopo 1500ms procediamo comunque a rendere l'app; i font si caricheranno in
+  // background e le icone appariranno appena disponibili.
+  const [proceed, setProceed] = React.useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setProceed(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
-    if (loaded || error) {
+    if (loaded || error || proceed) {
       SplashScreen.hideAsync();
     }
-  }, [loaded, error]);
+  }, [loaded, error, proceed]);
 
-  if (!loaded && !error) return null;
+  if (!loaded && !error && !proceed) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
