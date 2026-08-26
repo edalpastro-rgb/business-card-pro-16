@@ -964,50 +964,59 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             {/* Header — V29.n: barra minimale. Rimossi logo e testo "AxonOS".
                 Selettore modalità a sinistra come pill dropdown; a destra le 4
                 azioni con etichetta: Annunci · Audio · Nuova chat · Chiudi. */}
+            {/* Header — V29.p: barra viola a due righe.
+                Riga 1: 4 azioni (Annunci · Audio · Nuova chat · Chiudi) distribuite su tutta la larghezza.
+                Riga 2: selettore modalità centrato con dropdown chevron. */}
             <View style={styles.header}>
-              <Pressable
-                onPress={() => setShowModeMenu((v) => !v)}
-                style={styles.modeDropdown}
-                hitSlop={6}
-                accessibilityLabel="Cambia modalità di risposta"
-                testID="assistant-mode-dropdown"
-              >
-                <Ionicons name={MODE_ICON[responseMode]} size={12} color="#FFF" />
-                <Text style={styles.modeDropdownTxt} numberOfLines={1}>
-                  Modalità: {MODE_LABEL[responseMode]}
-                </Text>
-                <Ionicons name="chevron-down" size={12} color="#FFF" />
-              </Pressable>
-              <View style={{ flex: 1 }} />
-              <Pressable
-                onPress={cycleMode}
-                onLongPress={() => setShowModeMenu(true)}
-                style={styles.headerAction}
-                accessibilityLabel="Modalità annunci"
-                testID="assistant-mode-toggle"
-              >
-                <Ionicons name={MODE_ICON[responseMode]} size={18} color="#FFF" />
-                <Text style={styles.headerActionTxt}>Annunci</Text>
-              </Pressable>
-              {voiceSupported && (
+              <View style={styles.headerActionsRow}>
                 <Pressable
-                  onPress={convMode ? endConversation : startConversation}
-                  style={[styles.headerAction, convMode && { backgroundColor: "#EF4444" }]}
+                  onPress={cycleMode}
+                  onLongPress={() => setShowModeMenu(true)}
+                  style={styles.headerAction}
+                  accessibilityLabel="Modalità annunci"
+                  testID="assistant-mode-toggle"
+                >
+                  <Ionicons name={MODE_ICON[responseMode]} size={20} color="#FFF" />
+                  <Text style={styles.headerActionTxt}>Annunci</Text>
+                </Pressable>
+                <Pressable
+                  onPress={voiceSupported ? (convMode ? endConversation : startConversation) : undefined}
+                  disabled={!voiceSupported}
+                  style={[
+                    styles.headerAction,
+                    convMode && { backgroundColor: "#EF4444" },
+                    !voiceSupported && { opacity: 0.4 },
+                  ]}
                   accessibilityLabel={convMode ? "Termina conversazione audio" : "Inizia conversazione audio"}
                   testID="assistant-conv-toggle"
                 >
-                  <Ionicons name={convMode ? "call" : "headset"} size={18} color="#FFF" />
+                  <Ionicons name={convMode ? "call" : "headset"} size={20} color="#FFF" />
                   <Text style={styles.headerActionTxt}>Audio</Text>
                 </Pressable>
-              )}
-              <Pressable onPress={resetSession} style={styles.headerAction} accessibilityLabel="Nuova chat" testID="assistant-new-chat">
-                <Ionicons name="create-outline" size={18} color="#FFF" />
-                <Text style={styles.headerActionTxt}>Nuova chat</Text>
-              </Pressable>
-              <Pressable onPress={onClose} style={styles.headerAction} accessibilityLabel="Chiudi">
-                <Ionicons name="close" size={20} color="#FFF" />
-                <Text style={styles.headerActionTxt}>Chiudi</Text>
-              </Pressable>
+                <Pressable onPress={resetSession} style={styles.headerAction} accessibilityLabel="Nuova chat" testID="assistant-new-chat">
+                  <Ionicons name="create-outline" size={20} color="#FFF" />
+                  <Text style={styles.headerActionTxt}>Nuova chat</Text>
+                </Pressable>
+                <Pressable onPress={onClose} style={styles.headerAction} accessibilityLabel="Chiudi">
+                  <Ionicons name="close" size={22} color="#FFF" />
+                  <Text style={styles.headerActionTxt}>Chiudi</Text>
+                </Pressable>
+              </View>
+              <View style={styles.headerModeRow}>
+                <Pressable
+                  onPress={() => setShowModeMenu((v) => !v)}
+                  style={styles.modeDropdown}
+                  hitSlop={6}
+                  accessibilityLabel="Cambia modalità di risposta"
+                  testID="assistant-mode-dropdown"
+                >
+                  <Ionicons name={MODE_ICON[responseMode]} size={13} color="#FFF" />
+                  <Text style={styles.modeDropdownTxt} numberOfLines={1}>
+                    Modalità: {MODE_LABEL[responseMode]}
+                  </Text>
+                  <Ionicons name="chevron-down" size={13} color="#FFF" />
+                </Pressable>
+              </View>
             </View>
 
             {/* Mode menu (long-press header toggle) */}
@@ -1606,10 +1615,21 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: ASSISTANT_COLOR,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 8,
+    flexDirection: "column",
+    gap: 6,
+  },
+  headerActionsRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 6,
+  },
+  headerModeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarWrap: {
     width: 40,
@@ -1643,16 +1663,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerAction: {
-    minWidth: 44,
+    flex: 1,
+    minHeight: 44,
     paddingHorizontal: 4,
     paddingVertical: 4,
     borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.14)",
     alignItems: "center",
     justifyContent: "center",
-    gap: 1,
+    gap: 2,
   },
-  headerActionTxt: { color: "#FFF", fontSize: 8.5, fontWeight: "700", letterSpacing: 0.1, marginTop: 1 },
+  headerActionTxt: { color: "#FFF", fontSize: 9.5, fontWeight: "700", letterSpacing: 0.1, marginTop: 1 },
 
   modeMenu: {
     position: "absolute",
