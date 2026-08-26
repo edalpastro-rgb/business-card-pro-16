@@ -45,6 +45,9 @@ type ChatMsg = {
   // V38T — Track which assistant messages were augmented with web search
   used_web_search?: boolean;
   web_sources?: { title: string; url: string }[];
+  // V29.n — Etichetta breve per messaggi generati da azioni rapide (es. "PUN MEDIO PER FASCE").
+  // Se presente, la bubble utente mostra questa label compatta invece del prompt completo.
+  quick_label?: string;
 };
 
 type AssistantChatProps = {
@@ -129,6 +132,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [pendingAttachments, setPendingAttachments] = useState<{ name: string; mime: string; data_base64: string }[]>([]);
   const [attaching, setAttaching] = useState(false);
   const [sending, setSending] = useState(false);
+  // V29.n — Riferimento all'AbortController della chiamata in corso, per il pulsante "Stop".
+  const abortRef = useRef<AbortController | null>(null);
   const [loadingHist, setLoadingHist] = useState(false);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -380,7 +385,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   }, [visible, handleDroppedFile]);
 
 
-  const send = async (text?: string, opts?: { forceSpeak?: boolean; onSpoken?: () => void }) => {
+  const send = async (text?: string, opts?: { forceSpeak?: boolean; onSpoken?: () => void; quickLabel?: string }) => {
     const msg = (text ?? input).trim();
     // V28.l — Consenti l'invio se c'è ALMENO un allegato, anche senza testo
     if ((!msg && pendingAttachments.length === 0) || sending) return;
@@ -391,10 +396,18 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       ? `\n\n📎 ${pendingAttachments.map((a) => a.name).join(", ")}`
       : "";
     const displayMsg = (msg || "(analizza gli allegati)") + attSummary;
-    const optimistic: ChatMsg = { role: "user", content: displayMsg, created_at: new Date().toISOString() };
+    const optimistic: ChatMsg = {
+      role: "user",
+      content: displayMsg,
+      created_at: new Date().toISOString(),
+      quick_label: opts?.quickLabel,
+    };
     setMessages((prev) => [...prev, optimistic]);
     const attachmentsPayload = pendingAttachments;
     setPendingAttachments([]);
+    // V29.n — Nuovo AbortController per questa chiamata (Stop button lo aborta).
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const r = await api<{ session_id: string; reply: string; assistant_name: string; used_web_search?: boolean; web_sources?: { title: string; url: string }[] }>(
         "/assistant/chat",
@@ -405,6 +418,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             session_id: sessionId || undefined,
             attachments: attachmentsPayload,
           },
+          signal: controller.signal,
         }
       );
       setSessionId(r.session_id);
@@ -427,14 +441,28 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         opts.onSpoken();
       }
     } catch (e: any) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `⚠️ Errore: ${e?.message || "Impossibile contattare l'assistente"}`, created_at: new Date().toISOString() },
-      ]);
+      // V29.n — Silenzia l'errore quando l'utente ha premuto "Stop" (AbortError)
+      if (e?.name === "AbortError" || /abort/i.test(String(e?.message || ""))) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "⏹️ Risposta interrotta dall'utente.", created_at: new Date().toISOString() },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `⚠️ Errore: ${e?.message || "Impossibile contattare l'assistente"}`, created_at: new Date().toISOString() },
+        ]);
+      }
       if (opts?.onSpoken) opts.onSpoken();
     } finally {
+      abortRef.current = null;
       setSending(false);
     }
+  };
+
+  // V29.n — Interrompe immediatamente la risposta in corso.
+  const stopGeneration = () => {
+    try { abortRef.current?.abort(); } catch { /* ignore */ }
   };
 
   const speakReply = async (text: string, forceIdx?: number, onEnded?: () => void) => {
@@ -1013,7 +1041,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                         key={s.id}
                         testID={`qa-chip-${s.id}`}
                         style={styles.suggestChip}
-                        onPress={() => send(s.prompt)}
+                        onPress={() => send(s.prompt, { quickLabel: s.label })}
                         disabled={sending}
                       >
                         <Ionicons name="sparkles" size={14} color={ASSISTANT_COLOR_DARK} />
@@ -1037,10 +1065,22 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 />
               ))}
               {sending && (
-                <View style={styles.typingBubble}>
-                  <TypingDots />
-                  <Text style={styles.typingTxt}>{assistantName} sta scrivendo…</Text>
-                </View>
+                <>
+                  <View style={styles.typingBubble}>
+                    <TypingDots />
+                    <Text style={styles.typingTxt}>{assistantName} sta scrivendo…</Text>
+                  </View>
+                  <Pressable
+                    testID="assistant-stop-btn"
+                    onPress={stopGeneration}
+                    style={styles.stopBanner}
+                    accessibilityLabel="Interrompi risposta"
+                    hitSlop={8}
+                  >
+                    <Ionicons name="stop-circle" size={18} color="#FFF" />
+                    <Text style={styles.stopBannerTxt}>Stop</Text>
+                  </Pressable>
+                </>
               )}
             </ScrollView>
 
@@ -1334,7 +1374,19 @@ function MessageBubble({
         {/* V28.p — Rende il contenuto in segmenti: testo normale + tabelle markdown con Export */}
         {(() => {
           if (isUser) {
-            // Utente: sempre testo semplice
+            // V29.n — Se il messaggio viene da un'azione rapida, mostra solo l'etichetta compatta
+            // (es. "PUN MEDIO PER FASCE") invece del prompt completo della regola.
+            if (msg.quick_label) {
+              return (
+                <View style={styles.quickActionPill}>
+                  <Ionicons name="sparkles" size={12} color="#FFF" />
+                  <Text style={styles.quickActionPillTxt} numberOfLines={2}>
+                    {msg.quick_label}
+                  </Text>
+                </View>
+              );
+            }
+            // Utente normale: testo semplice
             return <Text style={[styles.bubbleText, { color: "#FFF" }]}>{msg.content}</Text>;
           }
           const segments = parseMessageSegments(msg.content || "");
@@ -1646,6 +1698,42 @@ const styles = StyleSheet.create({
   },
   bubbleWho: { fontSize: 10, fontWeight: "700", color: ASSISTANT_COLOR_DARK, marginBottom: 2 },
   bubbleText: { fontSize: 14, color: theme.color.onSurface, lineHeight: 20 },
+  // V29.n — Etichetta compatta per messaggi utente generati da azioni rapide
+  quickActionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  quickActionPillTxt: {
+    color: "#FFF",
+    fontSize: 12.5,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    flexShrink: 1,
+  },
+  // V29.n — Pulsante "Stop" mostrato durante la generazione
+  stopBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    alignSelf: "center",
+    marginTop: 6,
+    marginBottom: 2,
+    backgroundColor: "#DC2626",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    shadowColor: "#DC2626",
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  stopBannerTxt: { color: "#FFF", fontWeight: "800", fontSize: 13, letterSpacing: 0.3 },
   // V38T — Web-search badge + Save-to-Master button + sources
   webBadge: {
     flexDirection: "row",

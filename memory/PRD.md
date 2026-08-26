@@ -1,4 +1,26 @@
-# Dal Pastro CRM — PRD v1.14
+# Dal Pastro CRM — PRD v1.15
+
+## v2.an Chat Axon — pill compatta azioni rapide + pulsante Stop (Giugno 2026)
+### 🎯 Richiesta utente
+1. Le azioni rapide inviano il prompt completo che appare come lungo messaggio viola nella chat. Mostrare invece un'etichetta compatta (es. "PUN MEDIO PER FASCE 2026").
+2. Aggiungere un pulsante "Stop" ben visibile durante l'elaborazione per interrompere Axon con un tap.
+
+### ✅ Frontend
+- `/app/frontend/src/api.ts`: aggiunto supporto `signal?: AbortSignal` a `ApiOptions` e propagato al `fetch`. Errori `AbortError` propagati senza mapping "Connessione al server interrotta".
+- `/app/frontend/src/AssistantChat.tsx`:
+  - `ChatMsg` ora ha campo opzionale `quick_label?: string` — se presente, la bubble utente mostra una pill compatta con icona `sparkles` e testo uppercase (max 2 righe) invece del prompt intero.
+  - `send()` accetta `opts.quickLabel` e crea un `AbortController` (memorizzato in `abortRef`) passandolo alla `api()`. Gli errori `AbortError` mostrano "⏹️ Risposta interrotta dall'utente." invece di errore generico.
+  - Nuovo helper `stopGeneration()` che chiama `abortRef.current?.abort()`.
+  - Chip `qa-chip-*` (azioni rapide) chiama `send(s.prompt, { quickLabel: s.label })` così l'etichetta appare al posto del prompt intero.
+  - Durante `sending`: sotto la "typing" bubble compare un pulsante rosso `<Pressable testID="assistant-stop-btn">` con icona `stop-circle` e testo "Stop", che chiama `stopGeneration()`.
+  - Nuovi stili `quickActionPill` (compatta, uppercase, sparkle icon) e `stopBanner` (pill rossa con shadow).
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot 1 (durante elaborazione): pill arancione "PROSSIMO APPUNTAMENTO" compatta + pulsante Stop rosso visibile sotto la typing dots.
+- ✅ Screenshot 2 (dopo risposta): pill compatta resta sopra la risposta di Neo (nessun prompt lungo visibile).
+- ✅ Screenshot 3 (dopo stop): abort funziona, appare "⏹️ Risposta interrotta dall'utente." e la UI torna al bottone di invio.
+
+---
 
 ## v2.am FAB Axon pulito + empty state chat minimale (Giugno 2026)
 ### 🎯 Richiesta utente

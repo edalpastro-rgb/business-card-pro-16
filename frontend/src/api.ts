@@ -14,9 +14,11 @@ export async function clearToken() {
 }
 
 export type ApiOptions = {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   body?: any;
   query?: Record<string, string | number | boolean | undefined>;
+  // V29.n — Consente al chiamante di passare un AbortSignal per interrompere la richiesta in corso.
+  signal?: AbortSignal;
 };
 
 export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise<T> {
@@ -37,8 +39,13 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
+      signal: opts.signal,
     });
   } catch (netErr: any) {
+    // V29.n — AbortError from user "Stop" button — silent.
+    if (netErr?.name === "AbortError" || /aborted|abort/i.test(String(netErr?.message || ""))) {
+      throw netErr;
+    }
     // V38S — Convert the raw "TypeError: Failed to fetch" (browser) or
     // "Network request failed" (RN) into a user-friendly Italian message.
     const raw = String(netErr?.message || netErr || "");
