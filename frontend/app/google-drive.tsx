@@ -54,7 +54,7 @@ export default function GoogleDriveScreen() {
     }
     // Native
     return AuthSession.makeRedirectUri({
-      scheme: "advisoros",
+      scheme: "frontend",
       path: "oauth2redirect",
     });
   }, []);
