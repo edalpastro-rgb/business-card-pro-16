@@ -4497,7 +4497,7 @@ async def promote_contact_to_agent(contact_id: str, body: PromoteContactIn, back
     if body.send_welcome_email:
         cfg = await db.smtp_configs.find_one({"user_id": tenant_id(user)}, {"_id": 0})
         if cfg and cfg.get("host") and cfg.get("password"):
-            base_url = os.environ.get("APP_PUBLIC_URL") or os.environ.get("EXPO_PUBLIC_APP_URL") or "https://app.dalpastro.it"
+            base_url = os.environ.get("APP_PUBLIC_URL") or os.environ.get("EXPO_PUBLIC_APP_URL") or "https://advisoros.it"
             login_url = f"{base_url.rstrip('/')}/login"
             text, html = _welcome_email_html(full_name, user.get("name") or "", email, password, login_url)
 
