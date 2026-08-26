@@ -10630,6 +10630,80 @@ class GoogleDriveExchangeIn(BaseModel):
     state: str
 
 
+class GoogleDriveMobileExchangeIn(BaseModel):
+    """V29.ah — Payload per lo scambio del code OAuth ottenuto tramite
+    expo-auth-session (mobile app). Non usa uno `state` server-side ma il
+    verifier PKCE generato dal client e il `redirect_uri` deep-link o
+    exp:// URI restituito da `AuthSession.makeRedirectUri()`."""
+    code: str
+    code_verifier: str
+    redirect_uri: str
+
+
+@api_router.post("/google-drive/oauth/mobile-exchange")
+async def google_drive_oauth_mobile_exchange(body: GoogleDriveMobileExchangeIn, user=Depends(get_current_user)):
+    """Scambia il code OAuth per un refresh_token — flow PKCE per mobile.
+    L'utente autenticato è passato via Bearer token (nessun bisogno di state
+    server-side perché PKCE + user JWT garantiscono l'identità)."""
+    if not _gd_configured():
+        raise HTTPException(status_code=503, detail="Google Drive non configurato")
+    import httpx  # type: ignore
+    try:
+        cfg = _gd_client_config()["web"]
+        form = {
+            "client_id": cfg["client_id"],
+            "client_secret": cfg["client_secret"],
+            "code": body.code,
+            "code_verifier": body.code_verifier,
+            "grant_type": "authorization_code",
+            "redirect_uri": body.redirect_uri,
+        }
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post("https://oauth2.googleapis.com/token", data=form)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Google token exchange failed: {resp.text[:200]}")
+        tokens = resp.json()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Scambio code fallito: {e}")
+
+    refresh = tokens.get("refresh_token")
+    if not refresh:
+        old = await db.google_drive_connections.find_one({"user_id": user["user_id"]})
+        if old:
+            refresh = _gd_fernet.decrypt(old["refresh_token_enc"].encode()).decode()
+        else:
+            raise HTTPException(status_code=400, detail="Nessun refresh_token ricevuto; revoca l'accesso in Google e riprova")
+
+    # Best-effort: recupera email account Google
+    google_email = None
+    try:
+        access = tokens.get("access_token")
+        if access:
+            async with httpx.AsyncClient(timeout=10) as client:
+                info_resp = await client.get(
+                    "https://www.googleapis.com/oauth2/v2/userinfo",
+                    headers={"Authorization": f"Bearer {access}"},
+                )
+                if info_resp.status_code == 200:
+                    google_email = info_resp.json().get("email")
+    except Exception:
+        pass
+
+    doc = {
+        "user_id": user["user_id"],
+        "refresh_token_enc": _gd_fernet.encrypt(refresh.encode()).decode(),
+        "scopes": (tokens.get("scope") or "").split() or list(_GD_SCOPES),
+        "google_email": google_email,
+        "updated_at": utcnow(),
+    }
+    await db.google_drive_connections.update_one(
+        {"user_id": user["user_id"]}, {"$set": doc, "$setOnInsert": {"created_at": utcnow()}}, upsert=True
+    )
+    return {"ok": True, "google_email": google_email}
+
+
 @api_router.post("/google-drive/oauth/exchange")
 async def google_drive_oauth_exchange(body: GoogleDriveExchangeIn):
     """Scambia il code OAuth per un refresh_token. Chiamato dalla pagina di callback FE."""
