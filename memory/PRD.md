@@ -1,5 +1,33 @@
 # Dal Pastro CRM — PRD v1.15
 
+## v2.aq Splash animato di brand (Giugno 2026)
+### 🎯 Richiesta utente
+Aggiungere una micro-animazione allo splash iniziale così l'app comunica personalità già prima del login.
+
+### ✅ Frontend
+- `/app/frontend/src/AnimatedSplash.tsx` (NEW):
+  - Overlay full-screen `position:absolute zIndex:9999` mostrato UNA sola volta per sessione app (module-level ref `_splashPlayedRef`).
+  - Sfondo `#0F2438` (identico allo splash nativo Expo → zero flash di transizione).
+  - Elementi animati (`Animated` con `useNativeDriver: true`):
+    - Anello orbitale `borderRadius: 88` di colore arancione trasparente che ruota di 360° con `Animated.loop` (2200ms per giro, `Easing.linear`).
+    - Due "pianeti" (dot arancione + dot bianco) posizionati agli antipodi del ring, ruotano insieme al ring generando l'effetto orbit.
+    - Logo AdvisorOS (bianco su card arrotondata con shadow) entra con `Animated.spring` (friction 5.5, tension 90) da scale 0.6 → 1 e opacity 0→1.
+    - Wordmark "Advisor**OS**" (OS in arancione `#FF6B35`) fade-up con `translateY 12→0`.
+    - Tagline "CRM per consulenti energetici" fade-in.
+    - Pausa 500ms, poi fade-out overlay 480ms.
+- `/app/frontend/app/_layout.tsx`: import di `AnimatedSplash` + render dentro `<AuthProvider>` accanto a `<LockGate />` (fuori dal LockGate così viene mostrato prima della LOAD di auth).
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot sequenziali durante il primo mount: 
+  - t=0-1500ms: anello orbita attorno al logo, wordmark ancora nascosto
+  - t=1500-2200ms: wordmark "AdvisorOS" + tagline appaiono
+  - t=2700ms: overlay in fade-out, sfumatura verso la schermata di login
+  - t=3000ms+: login visibile, nessun residuo di overlay
+- ✅ Nessuna interruzione della UX: `pointerEvents` gestito, non blocca input dopo l'animazione.
+
+---
+
+
 ## v2.ap Header Home animato · Barra AxonOS minimale · Bottom nav persistente · Nuova chat vuota (Giugno 2026)
 ### 🎯 Richiesta utente
 1. Barra chat AxonOS: rimuovere logo e testo "AxonOS", spostare selettore modalità all'estrema sinistra, lasciare solo icone+etichetta a destra (Annunci · Audio · Nuova chat · Chiudi).

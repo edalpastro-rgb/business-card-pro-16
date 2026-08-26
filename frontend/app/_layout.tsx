@@ -10,6 +10,7 @@ import { AuthProvider, useAuth, isAppLockEnabled, isTrustStillValid } from "@/sr
 import { AppLockOverlay } from "@/src/AppLock";
 import { AssistantFAB } from "@/src/AssistantChat";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
+import { AnimatedSplash } from "@/src/AnimatedSplash";
 import { FabStackProvider } from "@/src/FabStack";
 import { ActiveCallProvider } from "@/src/CallTimerBar";
 import { storage } from "@/src/utils/storage";
@@ -125,6 +126,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <LockGate />
+          <AnimatedSplash />
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
