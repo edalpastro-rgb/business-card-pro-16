@@ -96,6 +96,10 @@ function _hFontSize(key: string | null | undefined): number {
   }
 }
 
+// V29.n — Ref module-level per far scattare l'animazione hero SOLO al primo mount
+// della sessione app (rimane "true" quando l'utente naviga via/return dalla home).
+const _hasPlayedHeroIntroRef = { current: false };
+
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -114,6 +118,26 @@ export default function HomeScreen() {
   const [apptStats, setApptStats] = useState<ApptStats | null>(null);
   const [contactsCount, setContactsCount] = useState<number>(0);
   const [nowTick, setNowTick] = useState<number>(Date.now());
+  // V29.n — Animazione header a due fasi: "Ciao, NOME" (4s) → logo AdvisorOS.
+  // Solo al primo caricamento della sessione (persistito in memory via ref globale).
+  const [heroPhase, setHeroPhase] = useState<"greet" | "logo">(
+    _hasPlayedHeroIntroRef.current ? "logo" : "greet"
+  );
+  const greetOpacity = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 0 : 1)).current;
+  const logoOpacity = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 1 : 0)).current;
+  useEffect(() => {
+    if (_hasPlayedHeroIntroRef.current) return;
+    const t = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(greetOpacity, { toValue: 0, duration: 550, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      ]).start(() => {
+        setHeroPhase("logo");
+        _hasPlayedHeroIntroRef.current = true;
+      });
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [greetOpacity, logoOpacity]);
   // V29 — Scadenze imminenti (widget Home)
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [deadlinesDays, setDeadlinesDays] = useState<number>(60);
@@ -262,17 +286,13 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.primary} />}
       >
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <AdvisorOSLogo size={40} testID="home-brand-logo" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.eyebrow}>
-              {new Date(nowTick).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
-              {" · "}
-              {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-            </Text>
-            <Text style={styles.hi} testID="home-greeting">Ciao, <Text style={{ color: C.primary }}>{user?.name?.split(" ")[0] || ""}</Text></Text>
-          </View>
+        {/* ── Header V29.n: eyebrow + avatar top row, animazione hero al centro ── */}
+        <View style={styles.headerTopRow}>
+          <Text style={styles.eyebrow}>
+            {new Date(nowTick).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+            {" · "}
+            {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+          </Text>
           <Pressable onPress={() => router.push("/impostazioni" as any)} hitSlop={8}>
             {user?.avatar_base64 ? (
               <Image source={{ uri: user.avatar_base64 }} style={styles.avatar} />
@@ -280,6 +300,16 @@ export default function HomeScreen() {
               <View style={styles.avatarFallback}><Text style={styles.avatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text></View>
             )}
           </Pressable>
+        </View>
+        <View style={styles.heroWrap} testID="home-hero">
+          <Animated.View style={[styles.heroLayer, { opacity: greetOpacity }]} pointerEvents="none">
+            <Text style={styles.heroGreet} testID="home-greeting">
+              Ciao, <Text style={{ color: C.primary }}>{(user?.name?.split(" ")[0] || "").toUpperCase()}</Text>
+            </Text>
+          </Animated.View>
+          <Animated.View style={[styles.heroLayer, { opacity: logoOpacity }]} pointerEvents="none">
+            <AdvisorOSLogo size={64} testID="home-brand-logo" />
+          </Animated.View>
         </View>
 
         {/* ── Trial banners ── */}
@@ -889,6 +919,26 @@ const styles = StyleSheet.create({
 
   /* Header */
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
+  headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 8, paddingBottom: 4 },
+  heroWrap: {
+    height: 88,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  heroLayer: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroGreet: {
+    color: C.navy,
+    fontSize: 32,
+    fontWeight: "900",
+    letterSpacing: -0.8,
+    textAlign: "center",
+  },
   eyebrow: { color: C.muted, fontSize: 12, textTransform: "capitalize", fontWeight: "600" },
   hi: { color: C.navy, fontSize: 26, fontWeight: "800", marginTop: 2, letterSpacing: -0.5 },
   avatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: C.primarySoft },

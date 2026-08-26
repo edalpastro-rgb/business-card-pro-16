@@ -584,7 +584,7 @@ function ContactDetail() {
           contactPhone={c.phone}
         />
       ) : (
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
         {tab === "info" && (
           <>
             {(() => {

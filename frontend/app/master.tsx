@@ -213,7 +213,7 @@ function MasterScreen() {
         </Pressable>
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <View style={styles.grid}>
           {buttons.map((b) => (
             <MasterButton key={b.label} {...b} pulseAnim={pulseAnim} />

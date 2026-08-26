@@ -1,5 +1,42 @@
 # Dal Pastro CRM — PRD v1.15
 
+## v2.ap Header Home animato · Barra AxonOS minimale · Bottom nav persistente · Nuova chat vuota (Giugno 2026)
+### 🎯 Richiesta utente
+1. Barra chat AxonOS: rimuovere logo e testo "AxonOS", spostare selettore modalità all'estrema sinistra, lasciare solo icone+etichetta a destra (Annunci · Audio · Nuova chat · Chiudi).
+2. Header Home: rimuovere il logo AdvisorOS piccolo in alto a sinistra. Al centro animazione a due fasi — "Ciao, NOME" (4s, nome in arancione) → dissolvenza verso il logo AdvisorOS centrato di dimensione media. Solo al primo caricamento. Avatar rimane in alto a destra.
+3. Menu di navigazione in basso sempre visibile su tutte le schermate (scheda anagrafica cliente, Interfaccia Master, ecc.).
+4. Chat Axon: nuova apertura deve sempre partire vuota (nessun messaggio precedente).
+
+### ✅ Frontend
+- `/app/frontend/src/AssistantChat.tsx`:
+  - Header ridisegnato: rimossi `<AxonOSLogo>` e `<Text>AxonOS</Text>`. Ora il pill dropdown `modeDropdown` è la prima cosa a sinistra; segue uno `<View flex:1>` che spinge le 4 azioni a destra (Annunci/Audio/Nuova chat/Chiudi).
+  - `loadHistory()` semplificata: NON chiama più `/assistant/history` (che ripristinava la sessione). Fetch delle sole impostazioni `/user-settings`, poi `setSessionId(null)` + `setMessages([])`. La nuova session_id viene creata dal backend al primo `/assistant/chat`.
+
+- `/app/frontend/app/(tabs)/home.tsx`:
+  - Rimossa la riga `<View style={header}>` che conteneva il piccolo `<AdvisorOSLogo size={40}>` + eyebrow + hi + avatar.
+  - Nuovo layout: `headerTopRow` con eyebrow (data/ora) a sinistra e avatar a destra; sotto `<View style={heroWrap}>` con due `<Animated.View>` sovrapposte assolute — `heroGreet` (`Ciao, NOME.toUpperCase()`) e `<AdvisorOSLogo size={64}>`. Animazione: 4000ms delay → `Animated.parallel` fade-out greet (550ms) + fade-in logo (700ms), `useNativeDriver: true`.
+  - `_hasPlayedHeroIntroRef` ref module-level: al termine dell'animazione viene messo `true`, così le successive visite alla Home (senza reload dell'app) non ri-eseguono l'animazione e mostrano subito il logo.
+
+- `/app/frontend/src/PersistentBottomNav.tsx` (NEW):
+  - Componente `<PersistentBottomNav />`: barra fissa `position:absolute bottom:0` con 6 tab (Home/Contatti/Chat/Calendario/Report/Profilo) styled identici alla `Tabs` nativa (colori `#FF6B35`/`#94A3B8`, safe-area inset, ombra card).
+  - Auto-hide: se `usePathname()` rientra nel gruppo `(tabs)` non renderizza nulla (la Tabs nativa gestisce la barra). Auto-hide anche su `/login`, `/auth/*`, `/`.
+  - Su rotte fuori dal gruppo (`/contact/[id]`, `/master`, `/appointment/*`, ecc.) la barra appare sempre e naviga con `router.push('/(tabs)/<name>')`.
+
+- `/app/frontend/app/_layout.tsx`: import di `PersistentBottomNav` + render dentro `StackWithCallBar` (solo se `user` autenticato) accanto ad `<AssistantFAB />`.
+
+- `/app/frontend/app/contact/[id].tsx`: `ScrollView` paddingBottom da default a `120` per evitare che l'ultimo contenuto (Analisi Axon) rimanga coperto dalla barra persistente.
+- `/app/frontend/app/master.tsx`: `ScrollView` paddingBottom da `60` a `140` per la stessa ragione.
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot 1 (0.5s dopo login): "Ciao, TEST" ben centrato con nome in arancione, avatar in alto a destra, nessun logo in alto a sinistra.
+- ✅ Screenshot 2 (5.5s dopo login): logo AdvisorOS centrato (dopo dissolvenza), stessa posizione.
+- ✅ Chat AxonOS aperta: barra viola con solo pill "Modalità: Voce e testo ▾" a sinistra e Annunci/Audio/Nuova chat/Chiudi a destra. Empty state con quick actions, nessun messaggio precedente.
+- ✅ Scheda anagrafica cliente: barra fissa in basso con Home · Contatti · Chat · Calendario · Report · Profilo, tap su Home riporta a `/(tabs)/home`.
+- ✅ Interfaccia Master: barra visibile, `paddingBottom` maggiorato: griglia menu non tagliata dalla barra.
+
+---
+
+
 ## v2.ao Header AxonOS chat — logo trasparente, dropdown modalità, icone con etichetta (Giugno 2026)
 ### 🎯 Richiesta utente
 1. Nella barra viola della chat il logo AxonOS aveva fondo nero illegibile: rimuovere lo sfondo, mostrare solo l'icona.

@@ -183,25 +183,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const loadHistory = useCallback(async () => {
     setLoadingHist(true);
     try {
-      // V29.m — Ogni apertura della chat AxonOS deve partire vuota.
-      // Carichiamo solo le impostazioni (nome assistente, modalità, quick actions, voce)
-      // ma NON ripristiniamo la conversazione precedente né la session_id, così
-      // l'utente vede sempre un empty state pulito e crea una nuova sessione al
-      // primo messaggio.
-      const [hist, us] = await Promise.all([
-        api<{ session_id: string | null; messages: ChatMsg[]; assistant_name: string }>("/assistant/history"),
-        api<{ assistant_name?: string; assistant_response_mode?: string; assistant_voice?: string; assistant_quick_actions?: { id: string; label: string; prompt: string }[] }>("/user-settings").catch(() => ({} as any)),
-      ]);
-      setAssistantName(hist?.assistant_name || us?.assistant_name || "Neo");
-      // Sessione azzerata: la nuova sessione verrà creata dal backend al primo /assistant/chat
+      // V29.n — Ogni apertura della chat AxonOS deve partire vuota.
+      // NON chiamiamo più /assistant/history (che ripristinava la sessione precedente).
+      // Fetch delle sole impostazioni utente (nome assistente, modalità, quick actions, voce).
+      // La nuova sessione viene creata dal backend al primo /assistant/chat.
+      const us = await api<{ assistant_name?: string; assistant_response_mode?: string; assistant_voice?: string; assistant_quick_actions?: { id: string; label: string; prompt: string }[] }>("/user-settings").catch(() => ({} as any));
+      setAssistantName(us?.assistant_name || "Neo");
       setSessionId(null);
       setMessages([]);
       const m = (us?.assistant_response_mode || "text") as ResponseMode;
       setResponseMode(MODE_ORDER.includes(m) ? m : "text");
       if (us?.assistant_voice) setAssistantVoice(us.assistant_voice);
-      // V28.o — Se l'utente ha personalizzato le quick actions, usale; altrimenti il backend
-      // ritorna comunque i default. In caso di array vuoto (utente ha rimosso tutto), non
-      // mostriamo nulla — è una scelta valida.
       if (Array.isArray(us?.assistant_quick_actions)) {
         setQuickActions(us.assistant_quick_actions);
       }
@@ -969,26 +961,24 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
             style={{ flex: 1 }}
           >
-            {/* Header — V29.m: titolo fisso "AxonOS", selettore modalità come pill dropdown,
-                icone azione con etichetta testuale sotto per chiarezza. */}
+            {/* Header — V29.n: barra minimale. Rimossi logo e testo "AxonOS".
+                Selettore modalità a sinistra come pill dropdown; a destra le 4
+                azioni con etichetta: Annunci · Audio · Nuova chat · Chiudi. */}
             <View style={styles.header}>
-              <AxonOSLogo size={40} onDark testID="assistant-header-logo" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.headerTitle}>AxonOS</Text>
-                <Pressable
-                  onPress={() => setShowModeMenu((v) => !v)}
-                  style={styles.modeDropdown}
-                  hitSlop={6}
-                  accessibilityLabel="Cambia modalità di risposta"
-                  testID="assistant-mode-dropdown"
-                >
-                  <Ionicons name={MODE_ICON[responseMode]} size={11} color="#FFF" />
-                  <Text style={styles.modeDropdownTxt} numberOfLines={1}>
-                    Modalità: {MODE_LABEL[responseMode]}
-                  </Text>
-                  <Ionicons name="chevron-down" size={11} color="#FFF" />
-                </Pressable>
-              </View>
+              <Pressable
+                onPress={() => setShowModeMenu((v) => !v)}
+                style={styles.modeDropdown}
+                hitSlop={6}
+                accessibilityLabel="Cambia modalità di risposta"
+                testID="assistant-mode-dropdown"
+              >
+                <Ionicons name={MODE_ICON[responseMode]} size={12} color="#FFF" />
+                <Text style={styles.modeDropdownTxt} numberOfLines={1}>
+                  Modalità: {MODE_LABEL[responseMode]}
+                </Text>
+                <Ionicons name="chevron-down" size={12} color="#FFF" />
+              </Pressable>
+              <View style={{ flex: 1 }} />
               <Pressable
                 onPress={cycleMode}
                 onLongPress={() => setShowModeMenu(true)}

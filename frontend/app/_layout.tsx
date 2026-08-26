@@ -9,6 +9,7 @@ import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth, isAppLockEnabled, isTrustStillValid } from "@/src/auth";
 import { AppLockOverlay } from "@/src/AppLock";
 import { AssistantFAB } from "@/src/AssistantChat";
+import { PersistentBottomNav } from "@/src/PersistentBottomNav";
 import { FabStackProvider } from "@/src/FabStack";
 import { ActiveCallProvider } from "@/src/CallTimerBar";
 import { storage } from "@/src/utils/storage";
@@ -98,10 +99,12 @@ function LockGate() {
 // V29.o — Rimosso il banner "chiamata in corso". La durata viene registrata in
 // background silenziosamente: nessun elemento UI mostrato all'utente.
 function StackWithCallBar() {
+  const { user } = useAuth();
   return (
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
       <AssistantFAB />
+      {user ? <PersistentBottomNav /> : null}
     </View>
   );
 }
