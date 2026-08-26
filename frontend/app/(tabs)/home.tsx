@@ -321,22 +321,23 @@ export default function HomeScreen() {
               />
             </View>
           )}
-          <View style={styles.brandHeaderRow}>
-            <Text style={styles.brandHeaderDate}>
-              {new Date(nowTick).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+          {/* V29.ae — Layout header 80px: date/avatar come overlay corner, logo full-width centrato */}
+          <View style={styles.brandHeaderCornerTL} pointerEvents="none">
+            <Text style={styles.brandHeaderDate} numberOfLines={1}>
+              {new Date(nowTick).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
               {" · "}
               {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
             </Text>
-            <Pressable onPress={() => router.push("/impostazioni" as any)} hitSlop={8}>
-              {user?.avatar_base64 ? (
-                <Image source={{ uri: user.avatar_base64 }} style={styles.brandHeaderAvatar} />
-              ) : (
-                <View style={styles.brandHeaderAvatarFallback}>
-                  <Text style={styles.brandHeaderAvatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text>
-                </View>
-              )}
-            </Pressable>
           </View>
+          <Pressable onPress={() => router.push("/impostazioni" as any)} hitSlop={8} style={styles.brandHeaderCornerTR}>
+            {user?.avatar_base64 ? (
+              <Image source={{ uri: user.avatar_base64 }} style={styles.brandHeaderAvatar} />
+            ) : (
+              <View style={styles.brandHeaderAvatarFallback}>
+                <Text style={styles.brandHeaderAvatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text>
+              </View>
+            )}
+          </Pressable>
           <View style={styles.brandHeaderHero} testID="home-hero">
             <Animated.View style={[styles.brandHeaderHeroLayer, { opacity: greetOpacity }]} pointerEvents="none">
               <Text style={styles.brandHeaderGreet} testID="home-greeting">
@@ -393,33 +394,24 @@ export default function HomeScreen() {
                   />
                 ) : (
                   <View style={[StyleSheet.absoluteFill, { backgroundColor: myThingSlide.color }]}>
-                    <ScrollView
-                      contentContainerStyle={styles.myThingMsg}
-                      showsVerticalScrollIndicator={false}
-                    >
-                      {myThingSlide.title ? (
-                        <Text
-                          style={[
-                            styles.myThingMsgTitle,
-                            { color: myThingSlide.textColor, fontFamily: myThingSlide.fontFamily },
-                          ]}
-                        >
-                          {myThingSlide.title}
-                        </Text>
-                      ) : null}
+                    <View style={styles.myThingMsg}>
+                      {/* V29.ad — Titolo nascosto, testo su una riga con overflow */}
                       <Text
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
                         style={{
                           color: myThingSlide.textColor,
                           fontWeight: "700",
                           textAlign: "center",
                           fontFamily: myThingSlide.fontFamily,
-                          fontSize: myThingSlide.fontSize,
-                          lineHeight: myThingSlide.fontSize * 1.35,
+                          fontSize: 13,
+                          lineHeight: 18,
+                          width: "100%",
                         }}
                       >
                         {myThingSlide.body}
                       </Text>
-                    </ScrollView>
+                    </View>
                   </View>
                 )}
               </Animated.View>
@@ -979,11 +971,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1E3A5F",
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingHorizontal: 8,
+    paddingTop: 4,
+    paddingBottom: 4,
     position: "relative",
     overflow: "hidden",
+    height: 80,
+    justifyContent: "center",
+  },
+  brandHeaderCornerTL: {
+    position: "absolute",
+    top: 4,
+    left: 10,
+    zIndex: 2,
+  },
+  brandHeaderCornerTR: {
+    position: "absolute",
+    top: 4,
+    right: 8,
+    zIndex: 2,
   },
   brandHeaderBgLayer: {
     position: "absolute",
@@ -998,34 +1004,32 @@ const styles = StyleSheet.create({
   },
   brandHeaderDate: {
     color: C.muted,
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 10,
+    fontWeight: "700",
     letterSpacing: 0.2,
     textTransform: "capitalize",
-    flex: 1,
-    marginRight: 12,
   },
   brandHeaderAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
     borderColor: C.primarySoft,
   },
   brandHeaderAvatarFallback: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: C.primary,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: C.primarySoft,
   },
-  brandHeaderAvatarTxt: { color: "#FFF", fontSize: 14, fontWeight: "800" },
+  brandHeaderAvatarTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
   brandHeaderGreet: {
     color: C.navy,
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "800",
     letterSpacing: -0.5,
   },
@@ -1034,7 +1038,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   brandHeaderHero: {
-    height: 100,
+    height: "100%",
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "transparent",
@@ -1048,8 +1052,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brandHeaderHeroLogo: {
-    width: "90%",
-    height: 60,
+    width: "70%",
+    height: 50,
     alignSelf: "center",
     backgroundColor: "transparent",
   },
@@ -1138,11 +1142,11 @@ const styles = StyleSheet.create({
   barFill: { height: 8, borderRadius: 4 },
 
   /* My Thing */
-  myThingBtn: { backgroundColor: C.primarySoft, borderRadius: 16, marginTop: 12, marginBottom: 4, overflow: "hidden", position: "relative", height: 160, borderWidth: 1, borderColor: C.border },
+  myThingBtn: { backgroundColor: C.primarySoft, borderRadius: 12, marginTop: 6, marginBottom: 6, overflow: "hidden", position: "relative", height: 80, borderWidth: 1, borderColor: C.border },
   myThingEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
   myThingEmptyTxt: { color: C.primary, fontWeight: "700", fontSize: 13 },
-  // V28.b/d/e — Message-style slide inside the My Thing banner (centered, scrollable, customizable)
-  myThingMsg: { paddingVertical: 16, paddingHorizontal: 20, alignItems: "center", justifyContent: "center", gap: 6, minHeight: 158 },
+  // V29.ad — Card compatta (max 80px): niente titolo, testo su una riga con overflow nascosto
+  myThingMsg: { paddingVertical: 6, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", gap: 0, minHeight: 78 },
   myThingMsgTitle: { fontWeight: "800", fontSize: 12, letterSpacing: 0.3, textTransform: "uppercase", opacity: 0.85, textAlign: "center" },
   myThingMsgBody: { fontWeight: "700", fontSize: 15, lineHeight: 21, textAlign: "center" },
   // V28.e — pause pill + edit shortcut

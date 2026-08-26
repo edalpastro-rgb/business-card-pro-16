@@ -36,11 +36,11 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
   const { user } = useAuth();
   const [scripts, setScripts] = useState<NamedScript[]>([]);
   const [activeId, setActiveId] = useState<string>("");
-  const [fontSize, setFontSize] = useState(16);
+  const [fontSize, setFontSize] = useState(14);
   const [minimized, setMinimized] = useState(false);
 
   const screenH = Dimensions.get("window").height;
-  const expandedH = Math.round(screenH * 0.72);
+  const expandedH = Math.round(screenH * 0.45);
   const minH = HEADER_HEIGHT;
 
   const heightAnim = useRef(new Animated.Value(expandedH)).current;
@@ -120,6 +120,20 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
     else Linking.openURL(url).catch(() => {});
   };
 
+  // V29.af — Azione "Telefonata App": tenta di aprire l'URL scheme telefonata
+  // via `tel:` (stessa logica di dial). Su web/desktop apre il gestore telefonate
+  // di sistema, su mobile lancia direttamente il dialer.
+  const openPhoneApp = () => dial();
+
+  // V29.af — Azione "Mess.WhatsApp": apre il link `wa.me/<numero>` (mobile e web).
+  const openWhatsApp = () => {
+    const raw = (contactPhone || "").replace(/[^\d+]/g, "").replace(/^\+/, "");
+    if (!raw) return;
+    const url = `https://wa.me/${raw}`;
+    if (Platform.OS === "web") { try { window.open(url, "_blank"); } catch { /* ignore */ } }
+    else Linking.openURL(url).catch(() => {});
+  };
+
   if (!visible) return null;
 
   return (
@@ -179,6 +193,21 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
                   );
                 })}
               </ScrollView>
+            ) : null}
+
+            {/* V29.af — Riga azioni compatta: Telefonata App + Mess.WhatsApp
+                (altezza 40px, larghezza flex-1 max 50% ciascuno). */}
+            {contactPhone ? (
+              <View style={styles.actionsRow}>
+                <Pressable onPress={openPhoneApp} style={styles.smallBtn} testID="call-script-open-phone-app">
+                  <Ionicons name="call-outline" size={16} color={C.navy} />
+                  <Text style={styles.smallBtnTxt} numberOfLines={1}>Telefonata App</Text>
+                </Pressable>
+                <Pressable onPress={openWhatsApp} style={[styles.smallBtn, styles.smallBtnWa]} testID="call-script-open-whatsapp">
+                  <Ionicons name="logo-whatsapp" size={16} color="#16A34A" />
+                  <Text style={styles.smallBtnTxt} numberOfLines={1}>Mess.WhatsApp</Text>
+                </Pressable>
+              </View>
             ) : null}
 
             {contactPhone ? (
@@ -248,7 +277,37 @@ const styles = StyleSheet.create({
   chipsRow: { gap: 8, paddingRight: 20 },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5, borderColor: C.primary },
   chipTxt: { fontSize: 12, fontWeight: "800", color: C.primary },
-  phoneCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#DCFCE7", padding: 14, marginHorizontal: 14, marginTop: 14, borderRadius: 14 },
+  actionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+  },
+  smallBtn: {
+    flex: 1,
+    maxWidth: "50%",
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: C.primarySoft,
+    borderWidth: 1,
+    borderColor: C.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  smallBtnWa: {
+    backgroundColor: "#DCFCE7",
+    borderColor: "#16A34A",
+  },
+  smallBtnTxt: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: C.navy,
+    letterSpacing: 0.1,
+  },
+  phoneCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#DCFCE7", padding: 12, marginHorizontal: 14, marginTop: 8, borderRadius: 12 },
   phoneIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.success, alignItems: "center", justifyContent: "center" },
   phoneLbl: { fontSize: 11, fontWeight: "700", color: "#166534", textTransform: "uppercase", letterSpacing: 0.5 },
   phoneNum: { fontSize: 22, fontWeight: "900", color: C.navy, letterSpacing: -0.5, marginTop: 2 },
