@@ -26,7 +26,6 @@ import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { AxonOSLogo } from "@/src/BrandLogos";
-import { storage } from "@/src/utils/storage";
 
 // V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
 const AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-transparent.png");
@@ -49,6 +48,9 @@ type ChatMsg = {
   // V29.n — Etichetta breve per messaggi generati da azioni rapide (es. "PUN MEDIO PER FASCE").
   // Se presente, la bubble utente mostra questa label compatta invece del prompt completo.
   quick_label?: string;
+  // V29.ag — Metadata cache azione rapida: data ultimo aggiornamento + flag from_cache.
+  qa_updated_at?: string;
+  qa_from_cache?: boolean;
 };
 
 type AssistantChatProps = {
@@ -405,33 +407,39 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     const attachmentsPayload = pendingAttachments;
     setPendingAttachments([]);
 
-    // V29.u — CACHE azioni rapide: se questa è un'azione rapida (`opts.quickLabel`)
-    // e c'è già una risposta cached in memoria/AsyncStorage per lo stesso prompt,
-    // la mostriamo immediatamente senza chiamare il backend. I file collegati alle
-    // regole non cambiano frequentemente, quindi la cache resta valida a lungo.
+    // V29.ag — Azioni rapide: usa endpoint server-side con cache + auto-refresh.
+    // La cache client-side (V29.u) è sostituita da quella server-side, così anche
+    // altri device dello stesso utente beneficiano del refresh automatico.
     if (opts?.quickLabel && !attachmentsPayload.length) {
       try {
-        const cacheKey = `axon_qa_cache_v1_${opts.quickLabel}`;
-        const cached = await storage.getItem<{ reply: string; at: number } | null>(cacheKey, null);
-        if (cached && cached.reply) {
+        const qa = await api<{ reply: string; updated_at: string; from_cache: boolean; cache_age_days?: number }>(
+          "/axon/quick-action",
+          {
+            method: "POST",
+            body: { label: opts.quickLabel, prompt: msg },
+          }
+        );
+        if (qa && qa.reply) {
           setMessages((prev) => [
             ...prev,
             {
               role: "assistant" as const,
-              content: cached.reply,
+              content: qa.reply,
               created_at: new Date().toISOString(),
+              qa_updated_at: qa.updated_at,
+              qa_from_cache: !!qa.from_cache,
             },
           ]);
           const shouldSpeak = opts?.forceSpeak || responseMode === "voice" || responseMode === "both";
           if (shouldSpeak) {
-            void speakReply(cached.reply, undefined, opts?.onSpoken);
+            void speakReply(qa.reply, undefined, opts?.onSpoken);
           } else if (opts?.onSpoken) {
             opts.onSpoken();
           }
           setSending(false);
           return;
         }
-      } catch { /* ignore cache errors, fall through to API */ }
+      } catch { /* fall through al chat normale */ }
     }
 
     // V29.n — Nuovo AbortController per questa chiamata (Stop button lo aborta).
@@ -462,13 +470,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           web_sources: r.web_sources || [],
         },
       ]);
-      // V29.u — Persisti la risposta in cache SE questa era un'azione rapida.
-      if (opts?.quickLabel && !attachmentsPayload.length) {
-        try {
-          const cacheKey = `axon_qa_cache_v1_${opts.quickLabel}`;
-          await storage.setItem(cacheKey, { reply: r.reply, at: Date.now() });
-        } catch { /* ignore */ }
-      }
+      // V29.ag — Cache azioni rapide gestita server-side (/axon/quick-action).
+      // Non serve più persistere lato client.
       // Auto-play voice if mode requires (or forced by conversation mode)
       const shouldSpeak = opts?.forceSpeak || responseMode === "voice" || responseMode === "both";
       if (shouldSpeak) {
@@ -1487,6 +1490,24 @@ function MessageBubble({
             ))}
           </View>
         )}
+        {/* V29.ag — Footer "Dati aggiornati al: ..." per messaggi da azioni rapide con cache server-side */}
+        {!isUser && msg.qa_updated_at && (
+          <View style={styles.qaUpdatedRow}>
+            <Ionicons name={msg.qa_from_cache ? "flash" : "cloud-download"} size={11} color="#16A34A" />
+            <Text style={styles.qaUpdatedTxt}>
+              {msg.qa_from_cache ? "Dati aggiornati al: " : "Nuovo aggiornamento: "}
+              {(() => {
+                try {
+                  const d = new Date(msg.qa_updated_at);
+                  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) +
+                    " · " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+                } catch {
+                  return msg.qa_updated_at || "";
+                }
+              })()}
+            </Text>
+          </View>
+        )}
         {/* V28.y — Prompt discreto "Salva come regola" / "Aggiungi fonte" — solo Master */}
         {!isUser && (
           <SaveToAxonPrompt content={msg.content} assistantColor={ASSISTANT_COLOR_DARK} isMaster={!!isMaster} />
@@ -1871,6 +1892,21 @@ const styles = StyleSheet.create({
   saveMasterTxt: { fontSize: 12, color: "#166534", fontWeight: "700" },
   sourcesLbl: { fontSize: 10, color: theme.color.muted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
   sourceTxt: { fontSize: 11, color: theme.color.muted },
+  qaUpdatedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  qaUpdatedTxt: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#16A34A",
+    letterSpacing: 0.2,
+  },
 
   typingBubble: {
     flexDirection: "row",

@@ -8889,6 +8889,116 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     }
 
 
+# =========================================================================
+# V29.ag — Axon Quick Actions con cache server-side + auto-refresh.
+#
+# Flow:
+#  1) Il client (chat AxonOS) invoca POST /api/axon/quick-action con {label, prompt}
+#  2) Server cerca in db.axon_qa_cache un doc (user_id, label). Se `updated_at`
+#     è entro `QA_CACHE_TTL_DAYS` giorni → risposta istantanea dalla cache.
+#  3) Se cache mancante o stale → chiama internamente `assistant_chat` con un
+#     prompt arricchito che istruisce l'LLM a recuperare autonomamente i dati
+#     dalle fonti già configurate nelle regole (URL, file allegati). L'LLM
+#     esistente già ha accesso a web search + file delle regole → nessuna
+#     richiesta esplicita di upload lato utente.
+#  4) La risposta viene persistita in cache con timestamp, poi restituita
+#     al client con `from_cache=false` e `updated_at`.
+# =========================================================================
+
+QA_CACHE_TTL_DAYS = 7
+
+
+class AxonQuickActionIn(BaseModel):
+    label: str
+    prompt: str
+    force_refresh: bool = False
+
+
+@api_router.post("/axon/quick-action")
+async def axon_quick_action(body: AxonQuickActionIn, user=Depends(get_current_user)):
+    label = (body.label or "").strip()
+    prompt = (body.prompt or "").strip()
+    if not label or not prompt:
+        raise HTTPException(status_code=400, detail="label e prompt richiesti")
+
+    now = utcnow()
+    key = {"user_id": user["user_id"], "label": label}
+
+    # 1) Cache lookup
+    if not body.force_refresh:
+        cached = await db.axon_qa_cache.find_one(key, {"_id": 0})
+        if cached:
+            updated = cached.get("updated_at")
+            try:
+                if isinstance(updated, str):
+                    updated_dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+                elif isinstance(updated, datetime):
+                    updated_dt = updated
+                else:
+                    updated_dt = None
+            except Exception:
+                updated_dt = None
+            if updated_dt:
+                # normalizza tz-aware
+                if updated_dt.tzinfo is None:
+                    updated_dt = updated_dt.replace(tzinfo=timezone.utc)
+                age_days = (now - updated_dt).total_seconds() / 86400.0
+                if age_days < QA_CACHE_TTL_DAYS and cached.get("reply"):
+                    return {
+                        "reply": cached["reply"],
+                        "updated_at": updated_dt.isoformat(),
+                        "from_cache": True,
+                        "cache_age_days": round(age_days, 2),
+                    }
+
+    # 2) Cache stale/missing → richiesta all'LLM con istruzioni di auto-refresh.
+    enriched_prompt = (
+        f"{prompt}\n\n"
+        "ISTRUZIONI OPERATIVE:\n"
+        "- Usa i file e link presenti nelle 'regole' come fonte primaria.\n"
+        "- Se il dato richiesto non è aggiornato nelle regole, cerca autonomamente "
+        "online (web_search) SOLO nelle fonti/link già indicati nelle regole "
+        "o in fonti ufficiali equivalenti (es. GME per PUN, ARERA per bollette).\n"
+        "- Non chiedere mai all'utente di caricare file: recupera tutto da solo.\n"
+        "- Formatta la risposta in modo chiaro (tabelle Markdown se utile) e "
+        "specifica sempre la fonte/data del dato."
+    )
+
+    chat_body = AssistantChatIn(message=enriched_prompt, session_id=None, attachments=[])
+    try:
+        result = await assistant_chat(chat_body, user)  # type: ignore[arg-type]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Auto-refresh Axon fallito: {e}")
+
+    reply = (result or {}).get("reply", "") if isinstance(result, dict) else ""
+    if not reply:
+        raise HTTPException(status_code=500, detail="Risposta vuota dall'assistente")
+
+    # 3) Persist in cache
+    await db.axon_qa_cache.update_one(
+        key,
+        {
+            "$set": {
+                **key,
+                "reply": reply,
+                "updated_at": now,
+                "web_sources": (result.get("web_sources") if isinstance(result, dict) else []) or [],
+                "used_web_search": bool(result.get("used_web_search")) if isinstance(result, dict) else False,
+            }
+        },
+        upsert=True,
+    )
+
+    return {
+        "reply": reply,
+        "updated_at": now.isoformat(),
+        "from_cache": False,
+        "cache_age_days": 0.0,
+    }
+
+
 @api_router.get("/assistant/history")
 async def assistant_history(session_id: Optional[str] = None, user=Depends(get_current_user)):
     """Load conversation history. If session_id not given, returns latest session."""
@@ -10708,6 +10818,8 @@ async def _startup():
     await db.audio_records.create_index([("user_id", 1), ("target_type", 1), ("target_id", 1)])
     await db.audio_records.create_index("audio_id", unique=True)
     await db.assistant_messages.create_index([("user_id", 1), ("session_id", 1), ("created_at", 1)])
+    # V29.ag — Cache azioni rapide Axon (una entry per (user, label))
+    await db.axon_qa_cache.create_index([("user_id", 1), ("label", 1)], unique=True)
     # V24 migration: back-fill assigned_to_user_id from created_by for legacy contacts
     try:
         result = await db.contacts.update_many(
