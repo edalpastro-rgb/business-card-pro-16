@@ -75,20 +75,41 @@ export default function GoogleDriveScreen() {
 
       // 2) Mobile: apri l'auth session nativa in-app.
       //    - `returnUrl` = URL callback https già registrato in Google → il browser
-      //      si chiude appena Google reindirizza a questa pagina (il backend nel
-      //      frattempo completa lo scambio del code e persiste il refresh_token).
+      //      si chiude appena Google reindirizza a questa pagina.
+      //    - `result.url` contiene i parametri `code` e `state` da scambiare.
       const result = await WebBrowser.openAuthSessionAsync(url, GD_CALLBACK_URL, {
         showInRecents: false,
         preferEphemeralSession: true,
       });
-      if (result.type === "cancel" || result.type === "dismiss") {
-        // Utente ha chiuso il browser senza completare — ricarichiamo comunque
-        // lo stato perché il backend potrebbe aver comunque persistito i token.
+      if (result.type === "success" && result.url) {
+        // Estrai code + state dalla URL di ritorno e completa lo scambio lato client.
+        let code: string | null = null;
+        let stateParam: string | null = null;
+        try {
+          const q = result.url.split("?")[1] || "";
+          const usp = new URLSearchParams(q);
+          code = usp.get("code");
+          stateParam = usp.get("state");
+        } catch { /* ignore */ }
+        if (code && stateParam) {
+          try {
+            await api("/google-drive/oauth/exchange", {
+              method: "POST",
+              body: { code, state: stateParam },
+            });
+            await load();
+            notify("Collegato", "Google Drive è ora collegato a Axon");
+            return;
+          } catch (e: any) {
+            notify("Errore connessione", e?.message || String(e));
+          }
+        } else {
+          notify("Errore", "Callback OAuth senza code/state");
+        }
+      } else if (result.type === "cancel" || result.type === "dismiss") {
+        // Utente ha chiuso il browser — nessuna notifica
       }
       await load();
-      if (status.connected) {
-        notify("Collegato", "Google Drive è ora collegato a Axon");
-      }
     } catch (e: any) {
       notify("Errore connessione", e?.message || String(e));
     } finally {
