@@ -26,6 +26,7 @@ import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { AxonOSLogo } from "@/src/BrandLogos";
+import { storage } from "@/src/utils/storage";
 
 // V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
 const AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-transparent.png");
@@ -403,6 +404,36 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     setMessages((prev) => [...prev, optimistic]);
     const attachmentsPayload = pendingAttachments;
     setPendingAttachments([]);
+
+    // V29.u — CACHE azioni rapide: se questa è un'azione rapida (`opts.quickLabel`)
+    // e c'è già una risposta cached in memoria/AsyncStorage per lo stesso prompt,
+    // la mostriamo immediatamente senza chiamare il backend. I file collegati alle
+    // regole non cambiano frequentemente, quindi la cache resta valida a lungo.
+    if (opts?.quickLabel && !attachmentsPayload.length) {
+      try {
+        const cacheKey = `axon_qa_cache_v1_${opts.quickLabel}`;
+        const cached = await storage.getItem<{ reply: string; at: number } | null>(cacheKey, null);
+        if (cached && cached.reply) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant" as const,
+              content: cached.reply,
+              created_at: new Date().toISOString(),
+            },
+          ]);
+          const shouldSpeak = opts?.forceSpeak || responseMode === "voice" || responseMode === "both";
+          if (shouldSpeak) {
+            void speakReply(cached.reply, undefined, opts?.onSpoken);
+          } else if (opts?.onSpoken) {
+            opts.onSpoken();
+          }
+          setSending(false);
+          return;
+        }
+      } catch { /* ignore cache errors, fall through to API */ }
+    }
+
     // V29.n — Nuovo AbortController per questa chiamata (Stop button lo aborta).
     const controller = new AbortController();
     abortRef.current = controller;
@@ -431,6 +462,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           web_sources: r.web_sources || [],
         },
       ]);
+      // V29.u — Persisti la risposta in cache SE questa era un'azione rapida.
+      if (opts?.quickLabel && !attachmentsPayload.length) {
+        try {
+          const cacheKey = `axon_qa_cache_v1_${opts.quickLabel}`;
+          await storage.setItem(cacheKey, { reply: r.reply, at: Date.now() });
+        } catch { /* ignore */ }
+      }
       // Auto-play voice if mode requires (or forced by conversation mode)
       const shouldSpeak = opts?.forceSpeak || responseMode === "voice" || responseMode === "both";
       if (shouldSpeak) {
@@ -1037,6 +1075,18 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               </View>
             )}
 
+            {/* Brand bar V29.u: logo AxonOS sempre visibile in alto (fisso).
+                Non è più solo nell'empty state — resta come elemento persistente
+                dell'interfaccia anche durante l'elaborazione e dopo i messaggi. */}
+            <View style={styles.brandBar}>
+              <Image
+                source={AXONOS_LOGO_HORIZONTAL}
+                style={{ width: 148, height: Math.round(148 / AXONOS_LOGO_HORIZONTAL_ASPECT) }}
+                resizeMode="contain"
+                testID="assistant-brand-bar-logo"
+              />
+            </View>
+
             {/* Messages */}
             <ScrollView
               ref={scrollRef}
@@ -1051,12 +1101,6 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               )}
               {!loadingHist && messages.length === 0 && (
                 <View style={styles.emptyWrap}>
-                  <Image
-                    source={AXONOS_LOGO_HORIZONTAL}
-                    style={{ width: 180, height: Math.round(180 / AXONOS_LOGO_HORIZONTAL_ASPECT) }}
-                    resizeMode="contain"
-                    testID="assistant-empty-logo"
-                  />
                   <View style={styles.suggestWrap}>
                     {suggestions.map((s) => (
                       <Pressable
@@ -1702,6 +1746,14 @@ const styles = StyleSheet.create({
   modeItemTxt: { flex: 1, fontSize: 13, color: theme.color.onSurface, fontWeight: "600" },
 
   chatArea: { flex: 1, backgroundColor: "#FAF9FF" },
+  brandBar: {
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EDE9FE",
+  },
 
   emptyWrap: { alignItems: "center", paddingHorizontal: 20, paddingTop: 10, gap: 6 },
   emptyIcon: {

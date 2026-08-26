@@ -311,14 +311,12 @@ export default function HomeScreen() {
             </Text>
           </Animated.View>
           <Animated.View style={[styles.brandHeaderHeroLayer, { opacity: heroLogoOpacity }]} pointerEvents="none">
-            <View style={styles.brandHeaderLogoCard}>
-              <Image
-                source={{ uri: HERO_LOGO_URI }}
-                style={styles.brandHeaderHeroLogo}
-                resizeMode="contain"
-                testID="home-brand-logo"
-              />
-            </View>
+            <Image
+              source={{ uri: HERO_LOGO_URI }}
+              style={styles.brandHeaderHeroLogo}
+              resizeMode="contain"
+              testID="home-brand-logo"
+            />
           </Animated.View>
         </View>
       </View>
@@ -1005,16 +1003,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  brandHeaderLogoCard: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.94)",
-  },
   brandHeaderHeroLogo: {
-    width: 260,
+    width: 280,
     maxWidth: "100%",
-    height: 48,
+    height: 56,
     backgroundColor: "transparent",
   },
 
