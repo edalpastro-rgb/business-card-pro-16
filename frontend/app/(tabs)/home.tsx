@@ -135,18 +135,22 @@ export default function HomeScreen() {
   // (PNG con canale alfa). Solo al primo mount della sessione app (ref globale).
   const greetOpacity = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 0 : 1)).current;
   const heroLogoOpacity = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 1 : 0)).current;
+  // V29.ab — Scale animato del logo AdvisorOS: parte grande (340/260 = 1.308)
+  // e si riduce a 1.0 in 1500ms con easeOut. Solo al primo caricamento.
+  const heroLogoScale = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 1 : 340 / 260)).current;
   useEffect(() => {
     if (_hasPlayedHeroIntroRef.current) return;
     const t = setTimeout(() => {
       Animated.parallel([
         Animated.timing(greetOpacity, { toValue: 0, duration: 550, easing: Easing.out(Easing.quad), useNativeDriver: true }),
         Animated.timing(heroLogoOpacity, { toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(heroLogoScale, { toValue: 1, duration: 1500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]).start(() => {
         _hasPlayedHeroIntroRef.current = true;
       });
     }, 4000);
     return () => clearTimeout(t);
-  }, [greetOpacity, heroLogoOpacity]);
+  }, [greetOpacity, heroLogoOpacity, heroLogoScale]);
   // V29 — Scadenze imminenti (widget Home)
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [deadlinesDays, setDeadlinesDays] = useState<number>(60);
@@ -340,9 +344,9 @@ export default function HomeScreen() {
               </Text>
             </Animated.View>
             <Animated.View style={[styles.brandHeaderHeroLayer, { opacity: heroLogoOpacity }]} pointerEvents="none">
-              <Image
+              <Animated.Image
                 source={{ uri: HERO_LOGO_URI }}
-                style={styles.brandHeaderHeroLogo}
+                style={[styles.brandHeaderHeroLogo, { transform: [{ scale: heroLogoScale }] }]}
                 resizeMode="contain"
                 testID="home-brand-logo"
               />
@@ -1042,9 +1046,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brandHeaderHeroLogo: {
-    width: 300,
+    width: 260,
     maxWidth: "100%",
-    height: 60,
+    height: 52,
     backgroundColor: "transparent",
   },
 
