@@ -311,12 +311,14 @@ export default function HomeScreen() {
             </Text>
           </Animated.View>
           <Animated.View style={[styles.brandHeaderHeroLayer, { opacity: heroLogoOpacity }]} pointerEvents="none">
-            <Image
-              source={{ uri: HERO_LOGO_URI }}
-              style={styles.brandHeaderHeroLogo}
-              resizeMode="contain"
-              testID="home-brand-logo"
-            />
+            <View style={styles.brandHeaderLogoCard}>
+              <Image
+                source={{ uri: HERO_LOGO_URI }}
+                style={styles.brandHeaderHeroLogo}
+                resizeMode="contain"
+                testID="home-brand-logo"
+              />
+            </View>
           </Animated.View>
         </View>
       </View>
@@ -933,12 +935,12 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 180 },
 
-  /* Header professionale (V29.q) — banner blu scuro full-width */
+  /* Header professionale (V29.t) — banner blu scuro compatto */
   brandHeader: {
     backgroundColor: "#0D1B2A",
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 18,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
     borderBottomLeftRadius: 22,
     borderBottomRightRadius: 22,
     ...Platform.select({
@@ -951,7 +953,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 4,
+    paddingHorizontal: 6,
   },
   brandHeaderDate: {
     color: "rgba(255,255,255,0.72)",
@@ -991,8 +994,10 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   brandHeaderHero: {
-    height: 68,
+    height: 60,
     justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 8,
   },
   brandHeaderHeroLayer: {
     position: "absolute",
@@ -1000,9 +1005,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  brandHeaderLogoCard: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.94)",
+  },
   brandHeaderHeroLogo: {
     width: 260,
-    height: 64,
+    maxWidth: "100%",
+    height: 48,
     backgroundColor: "transparent",
   },
 
