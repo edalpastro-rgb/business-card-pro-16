@@ -8578,6 +8578,115 @@ async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
     return f"[File {att.name} — tipo {mime or 'sconosciuto'} non supportato per estrazione testo]"
 
 
+# V29.k — Costruisce il blocco "Insegna ad Axon" per la chat Axon.
+# REGRESSIONE FIX: i file allegati alle regole (PDF GME, Optima, ecc.) ora vengono
+# effettivamente letti e iniettati nel system prompt della chat, così Axon può citarli
+# invece di dire "non trovo il file, ricaricalo".
+class _RuleAttachmentShim:
+    """Duck-typed shim compatibile con `_extract_attachment_text` (che accetta
+    un oggetto con .name / .mime / .data_base64)."""
+    __slots__ = ("name", "mime", "data_base64")
+
+    def __init__(self, name: str, mime: Optional[str], data_base64: str):
+        self.name = name or ""
+        self.mime = mime or ""
+        self.data_base64 = data_base64 or ""
+
+
+def _rule_relevance_score(rule: dict, msg_lc: str) -> int:
+    """Scoring semplice per prioritizzare regole rilevanti al messaggio utente.
+    Match su title, text, categories e nomi file (senza estensione)."""
+    if not msg_lc:
+        return 0
+    score = 0
+    tokens = [t for t in msg_lc.replace(",", " ").replace(".", " ").split() if len(t) >= 3]
+    haystacks = [
+        (rule.get("title") or "").lower(),
+        (rule.get("text") or "")[:2000].lower(),
+        " ".join(rule.get("categories") or [rule.get("category") or ""]).lower(),
+    ]
+    for f in (rule.get("files") or []):
+        haystacks.append((f.get("name") or "").lower())
+    for h in haystacks:
+        for t in tokens:
+            if t in h:
+                score += 2 if h == haystacks[0] else 1
+    return score
+
+
+async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
+    """Prepara il contesto "Insegna ad Axon" da iniettare nella chat.
+    Include: titolo/testo delle regole + testo estratto dai file allegati (PDF/xlsx/csv/txt/immagini).
+    Le regole vengono ordinate per rilevanza rispetto al messaggio dell'utente,
+    con budget di token conservativo (max ~18000 caratteri totali)."""
+    try:
+        rules = await db.ai_teach_rules.find({"user_id": tenant}, {"_id": 0}).to_list(200)
+    except Exception as exc:
+        logger.warning("[axon-teach] cannot read ai_teach_rules: %s", exc)
+        return ""
+    if not rules:
+        return ""
+
+    msg_lc = (user_msg or "").lower()
+    rules.sort(key=lambda r: _rule_relevance_score(r, msg_lc), reverse=True)
+
+    MAX_TOTAL_CHARS = 18000
+    MAX_RULES = 8
+    PER_FILE_CHARS = 2500
+    PER_RULE_TEXT_CHARS = 1500
+
+    out_parts: List[str] = []
+    total = 0
+    for r in rules[:MAX_RULES]:
+        title = (r.get("title") or "").strip()
+        text = (r.get("text") or "").strip()
+        cats = r.get("categories") or ([r.get("category")] if r.get("category") else [])
+        cats_txt = ", ".join([c for c in cats if c]) or "Generale"
+        header = f"### Regola: {title or '(senza titolo)'} — Categorie: {cats_txt}"
+        block = header
+        if text:
+            block += "\n" + text[:PER_RULE_TEXT_CHARS]
+
+        files = r.get("files") or []
+        file_blocks: List[str] = []
+        for f in files[:5]:
+            b64 = f.get("data_base64")
+            if not b64:
+                continue  # metadata-only entry (shouldn't happen server-side)
+            name = f.get("name") or "file"
+            mime = f.get("mime") or ""
+            try:
+                extracted = await _extract_attachment_text(_RuleAttachmentShim(name, mime, b64))
+            except Exception as exc:
+                extracted = f"[Errore lettura {name}: {exc}]"
+            snippet = (extracted or "").strip()
+            if snippet:
+                file_blocks.append(f"--- File: {name} ({mime or 'unknown'}) ---\n{snippet[:PER_FILE_CHARS]}")
+        if file_blocks:
+            block += "\n\n" + "\n\n".join(file_blocks)
+
+        # Rispetta il budget complessivo
+        if total + len(block) > MAX_TOTAL_CHARS:
+            remaining = MAX_TOTAL_CHARS - total
+            if remaining > 400:
+                out_parts.append(block[:remaining] + "\n... (troncato)")
+            break
+        out_parts.append(block)
+        total += len(block)
+
+    if not out_parts:
+        return ""
+    return (
+        "\n\nBASE DI CONOSCENZA (Insegna ad Axon — regole e file caricati dal Master, "
+        "USA questi contenuti come contesto prioritario quando l'utente menziona documenti, "
+        "PDF, GME, Optima o argomenti descritti qui sotto):\n"
+        + "\n\n".join(out_parts)
+        + "\n\nQuando rispondi, cita esplicitamente il nome del file/regola e il contenuto rilevante."
+    )
+
+
+
+
 @api_router.post("/assistant/chat")
 async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     """Personal AI assistant. Uses Claude Sonnet 5 via Emergent LLM Key.
@@ -8644,6 +8753,15 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
                 + "\n\n".join(parts)
                 + "\n\nQuando rispondi, cita esplicitamente il contenuto rilevante degli allegati e nomi dei file.\n"
             )
+
+    # V29.k — FIX REGRESSIONE: base di conoscenza "Insegna ad Axon" (regole + file estratti).
+    # Prima gli allegati alle regole (PDF GME, Optima, ecc.) non venivano letti nella chat.
+    axon_teach_section = ""
+    try:
+        axon_teach_section = await _build_axon_teach_section(tenant_id(user), msg)
+    except Exception as exc:
+        logger.warning("[axon-teach] section build failed: %s", exc)
+        axon_teach_section = ""
 
     import json as _json
     ctx_json = _json.dumps(context, ensure_ascii=False, default=str)
@@ -8714,6 +8832,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         f"{weather_section}"
         f"{web_section}"
         f"{memory_section}"
+        f"{axon_teach_section}"
         f"{attachments_section}"
     )
 

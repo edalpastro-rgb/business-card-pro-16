@@ -1,4 +1,30 @@
-# Dal Pastro CRM — PRD v1.11
+# Dal Pastro CRM — PRD v1.12
+
+## v2.ak Fix regressione — Axon legge i file delle regole in chat (Giugno 2026)
+### 🎯 Richiesta utente
+Regressione: Axon non trovava più i file allegati alle regole di "Insegna ad Axon" (PDF GME, Optima) quando l'utente li menzionava in chat. Rispondeva "non trovo il file, ricaricalo".
+
+### 🔎 Diagnosi
+La persistenza in `db.ai_teach_rules.files[].data_base64` funzionava correttamente. Il problema era nel builder del system prompt della chat (`POST /api/assistant/chat`): non iniettava mai la Base di Conoscenza (regole + testo estratto dai file). L'unico posto in cui `build_ai_teach_context` veniva chiamato era la bill analysis (endpoint bollette), NON la chat Axon.
+
+### ✅ Backend `/app/backend/server.py`
+- Nuovo helper `_build_axon_teach_section(tenant, user_msg)`:
+  - Legge tutte le regole `ai_teach_rules` per il tenant.
+  - Ordina le regole per rilevanza rispetto al messaggio dell'utente (matching su title, text, categorie, nomi file).
+  - Estrae il testo dai file allegati usando `_extract_attachment_text` (PDF via PyMuPDF, xlsx via openpyxl, csv/txt UTF-8, immagini via Gemini vision).
+  - Duck-typed shim `_RuleAttachmentShim` per riusare `_extract_attachment_text` (accetta oggetti con `.name`/`.mime`/`.data_base64`).
+  - Budget conservativo: max 8 regole, max 2500 char per file, max 1500 char per testo regola, cap totale 18000 char.
+- `assistant_chat`: chiama `_build_axon_teach_section` e inietta il blocco nel system_message, dopo `memory_section` e prima di `attachments_section` (l'utente in-chat attaccato mantiene la priorità più alta).
+
+### 🧪 Test end-to-end
+- ✅ Creato test rule con PDF GME/Optima → chiesta domanda "Cosa dice il PDF GME sulla PUN di novembre? E l offerta Optima?" → Axon ha risposto citando esplicitamente il nome del file `gme-pun-nov2026.pdf`, il titolo della regola, i valori estratti (PUN 87,42 €/MWh, Optima 6,50 €/mese, F1 0,089 €/kWh) e ha distinto tra dati del PDF vs risultati Tavily web.
+- ✅ La regola di test è stata rimossa dopo la validazione.
+
+### 📌 Note
+- La chat Axon carica ora la Base di Conoscenza a ogni richiesta (max 18000 char, ~4000 token). Se la KB cresce oltre questo limite serviranno filtri più stringenti su categoria o retrieval RAG.
+- Il retrieval è **key-based** (match su token del messaggio) — funziona bene per il caso "GME/Optima" ma potrebbe non pescare regole rilevanti se il messaggio non contiene keyword. In quel caso vengono comunque incluse le prime N regole per ordine di aggiornamento.
+
+---
 
 ## v2.aj Fase 2 — Profilo comportamentale Axon (Giugno 2026)
 ### 🎯 Richiesta utente
