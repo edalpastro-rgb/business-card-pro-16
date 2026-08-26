@@ -95,7 +95,7 @@ export default function LandingScreen() {
               <Pressable onPress={() => openUrl(APP_STORE_URL)} style={styles.storeBtn}>
                 <Ionicons name="logo-apple" size={22} color="#FFF" />
                 <View>
-                  <Text style={styles.storeSmall}>Scaricala dall'</Text>
+                  <Text style={styles.storeSmall}>Scaricala dall&apos;</Text>
                   <Text style={styles.storeBig}>App Store</Text>
                 </View>
               </Pressable>
@@ -177,7 +177,7 @@ export default function LandingScreen() {
         <View style={[styles.container, { alignItems: "center", gap: 14 }]}>
           <Image source={{ uri: AXONOS_LOGO_URI }} style={{ width: 180, height: 40 }} resizeMode="contain" />
           <Text style={styles.poweredTxt}>
-            AxonOS è il motore AI conversazionale che alimenta l'assistente Axon dentro AdvisorOS.
+            AxonOS è il motore AI conversazionale che alimenta l&apos;assistente Axon dentro AdvisorOS.
             Analizza, consiglia, agisce — senza mai chiederti di caricare nulla.
           </Text>
         </View>
