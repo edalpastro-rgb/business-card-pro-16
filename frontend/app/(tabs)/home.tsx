@@ -980,8 +980,8 @@ const styles = StyleSheet.create({
     borderColor: "#1E3A5F",
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
     position: "relative",
     overflow: "hidden",
   },
@@ -1034,10 +1034,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   brandHeaderHero: {
-    height: 70,
+    height: 100,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "transparent",
+    marginTop: 0,
+    paddingTop: 0,
   },
   brandHeaderHeroLayer: {
     position: "absolute",
@@ -1046,9 +1048,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brandHeaderHeroLogo: {
-    width: 260,
-    maxWidth: "100%",
-    height: 52,
+    width: "90%",
+    height: 60,
+    alignSelf: "center",
     backgroundColor: "transparent",
   },
 

@@ -10849,6 +10849,114 @@ async def _start_scheduler():
         logger.warning(f"birthday scheduler start failed: {e}")
 
 
+@app.on_event("startup")
+async def _seed_demo_user():
+    """
+    V29.ac — Seed idempotente dell'utente demo `demo@advisoros.it` con 3 clienti
+    di esempio. Se l'utente esiste già lo lascia intatto. Se esiste ma non ha
+    contatti, li reinserisce così l'app è sempre popolata al primo login demo.
+    """
+    try:
+        DEMO_EMAIL = "demo@advisoros.it"
+        DEMO_PASSWORD = "Demo1234!"
+        existing = await db.users.find_one({"email": DEMO_EMAIL})
+        if existing:
+            user_id = existing["user_id"]
+        else:
+            user_id = f"user_demo_{uuid.uuid4().hex[:8]}"
+            await db.users.insert_one({
+                "user_id": user_id,
+                "email": DEMO_EMAIL,
+                "name": "Emanuele Demo",
+                "password_hash": hash_password(DEMO_PASSWORD),
+                "role": "owner",
+                "areas": ["energy", "network"],
+                "picture": None,
+                "created_at": utcnow(),
+            })
+            await db.settings.insert_one({
+                "user_id": user_id,
+                **SettingsModel().model_dump(),
+            })
+            logger.info(f"[seed] demo user {DEMO_EMAIL} creato (user_id={user_id})")
+
+        # Popola i contatti demo solo se il tenant è vuoto
+        existing_count = await db.contacts.count_documents({"user_id": user_id})
+        if existing_count > 0:
+            return
+
+        demo_contacts = [
+            {
+                "first_name": "Marco", "last_name": "Bianchi", "contact_code": "E-0001",
+                "phone": "+39 340 1234567", "email": "marco.bianchi@example.it",
+                "address_street": "Via Roma", "address_number": "12",
+                "address_zip": "20121", "address_city": "Milano", "address_province": "MI",
+                "fiscal_code": "BNCMRC80A01F205X", "birth_date": "1980-01-01",
+                "area": "energy", "additional_areas": ["network"],
+                "source": "personal", "status": "client",
+                "customer_types": {"energy": "business"},
+                "general_note": "Cliente storico, gestisce 2 P.IVA (studio dentistico + immobiliare). Preferisce comunicazioni via WhatsApp.",
+                "tags": ["VIP", "Milano"],
+            },
+            {
+                "first_name": "Laura", "last_name": "Rossi", "contact_code": "E-0002",
+                "phone": "+39 333 9876543", "email": "laura.rossi@example.it",
+                "address_street": "Corso Vittorio Emanuele", "address_number": "45",
+                "address_zip": "10121", "address_city": "Torino", "address_province": "TO",
+                "fiscal_code": "RSSLRA85B41L219A", "birth_date": "1985-02-01",
+                "area": "network", "additional_areas": [],
+                "source": "personal", "status": "prospect",
+                "customer_types": {"network": "private"},
+                "general_note": "Consulente marketing freelance interessata al piano commissioni. Da richiamare la prossima settimana per approfondimento.",
+                "tags": ["Torino", "Marketing"],
+            },
+            {
+                "first_name": "Giuseppe", "last_name": "Verdi", "contact_code": "E-0003",
+                "phone": "+39 349 5551234", "email": "g.verdi@example.it",
+                "address_street": "Piazza del Duomo", "address_number": "8",
+                "address_zip": "50122", "address_city": "Firenze", "address_province": "FI",
+                "fiscal_code": "VRDGPP75E15D612Y", "birth_date": "1975-05-15",
+                "area": "energy", "additional_areas": [],
+                "source": "personal", "status": "collaborator",
+                "customer_types": {"energy": "private"},
+                "general_note": "Ex cliente diventato collaboratore. Porta in media 3 referenze/mese. Vive a Firenze centro.",
+                "tags": ["Firenze", "Top Referrer"],
+            },
+        ]
+
+        for c in demo_contacts:
+            cid = f"c_demo_{uuid.uuid4().hex[:10]}"
+            doc = {
+                "contact_id": cid,
+                "user_id": user_id,
+                "created_by": user_id,
+                "assigned_to_user_id": user_id,
+                **c,
+                "phone_alt": "", "whatsapp": "", "email_alt": "",
+                "address": "", "work_address": "", "residence_address": "",
+                "birthday_alert_days_before": 1, "birthday_auto_send": False,
+                "birthday_message": "", "birthday_message_photo": None, "birthday_message_link": None,
+                "birthday_sender_email": None, "birthday_recipient_email": None,
+                "is_active_client": c.get("status") == "client",
+                "anniversaries": [], "vat_number": "", "website": "",
+                "linkedin": "", "instagram": "", "facebook": "", "telegram": "",
+                "referred_by_contact_id": None, "referral_type": None,
+                "referral_note": "", "email_note": "",
+                "group_ids": [], "reference_contact_ids": [],
+                "notes": [
+                    {"note_id": f"n_{uuid.uuid4().hex[:8]}", "content": "Prima chiamata conoscitiva — ha mostrato interesse.", "created_at": utcnow().isoformat()},
+                ],
+                "files": [],
+                "created_at": utcnow(),
+                "updated_at": utcnow(),
+            }
+            await db.contacts.insert_one(doc)
+
+        logger.info(f"[seed] {len(demo_contacts)} contatti demo creati per {DEMO_EMAIL}")
+    except Exception as e:
+        logger.warning(f"[seed] demo user seeding failed: {e}")
+
+
 # Manual trigger endpoint (Owner only) — useful for testing
 @api_router.post("/admin/birthday/run-now")
 async def run_birthday_now(user=Depends(get_current_user)):
