@@ -308,7 +308,12 @@ export default function HomeScreen() {
             </Text>
           </Animated.View>
           <Animated.View style={[styles.heroLayer, { opacity: logoOpacity }]} pointerEvents="none">
-            <AdvisorOSLogo size={64} testID="home-brand-logo" />
+            <Image
+              source={{ uri: "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/2cfac78e42c84bcaa01114c027c0a601_c9912471-b59b-4ac4-b5cf-4a4d91c3ce16.jpg" }}
+              style={styles.heroBrandImg}
+              resizeMode="contain"
+              testID="home-brand-logo"
+            />
           </Animated.View>
         </View>
 
@@ -921,7 +926,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
   headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 8, paddingBottom: 4 },
   heroWrap: {
-    height: 88,
+    height: 120,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 6,
@@ -931,6 +936,11 @@ const styles = StyleSheet.create({
     top: 0, left: 0, right: 0, bottom: 0,
     alignItems: "center",
     justifyContent: "center",
+  },
+  heroBrandImg: {
+    width: 280,
+    height: 110,
+    backgroundColor: "transparent",
   },
   heroGreet: {
     color: C.navy,
