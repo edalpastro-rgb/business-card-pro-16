@@ -600,33 +600,29 @@ function ContactDetail() {
                 <View style={styles.compactCard}>
                   <View style={styles.compactRow}>
                     {contactAreas.length > 0 && (
-                      <>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, marginRight: 10, flexShrink: 1 }}>
                         <Text style={styles.compactRowLabel}>Aree</Text>
-                        <View style={[styles.compactBadgesRow, { flex: 0, marginRight: 8 }]}>
-                          {contactAreas.map((aid, i) => {
-                            const info = areaMap[aid] || { name: aid, color: theme.color.muted };
-                            return (
-                              <View key={`a-${aid}`} style={[styles.areaBadgeMini, { backgroundColor: info.color }]}>
-                                {i === 0 && <Ionicons name="star" size={9} color="#FFF" />}
-                                <Text style={styles.areaBadgeMiniTxt}>{info.name}</Text>
-                              </View>
-                            );
-                          })}
-                        </View>
-                      </>
+                        {contactAreas.map((aid, i) => {
+                          const info = areaMap[aid] || { name: aid, color: theme.color.muted };
+                          return (
+                            <View key={`a-${aid}`} style={[styles.areaBadgeMini, { backgroundColor: info.color, maxWidth: "100%" }]}>
+                              {i === 0 && <Ionicons name="star" size={9} color="#FFF" />}
+                              <Text style={styles.areaBadgeMiniTxt} numberOfLines={1}>{info.name}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
                     )}
                     {contactGroupObjs.length > 0 && (
-                      <>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, flexShrink: 1 }}>
                         <Text style={styles.compactRowLabel}>Gruppi</Text>
-                        <View style={styles.compactBadgesRow}>
-                          {contactGroupObjs.map((g) => (
-                            <Pressable key={g.group_id} onPress={() => router.push(`/groups/${g.group_id}`)} style={[styles.groupBadgeMini, { borderColor: g.color }]}>
-                              <View style={[styles.groupBadgeMiniDot, { backgroundColor: g.color }]} />
-                              <Text style={[styles.groupBadgeMiniTxt, { color: g.color }]}>{g.name}</Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                      </>
+                        {contactGroupObjs.map((g) => (
+                          <Pressable key={g.group_id} onPress={() => router.push(`/groups/${g.group_id}`)} style={[styles.groupBadgeMini, { borderColor: g.color, maxWidth: "100%" }]}>
+                            <View style={[styles.groupBadgeMiniDot, { backgroundColor: g.color }]} />
+                            <Text style={[styles.groupBadgeMiniTxt, { color: g.color }]} numberOfLines={1}>{g.name}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
                     )}
                   </View>
                 </View>

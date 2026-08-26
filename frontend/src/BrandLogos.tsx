@@ -44,7 +44,10 @@ export function AdvisorOSLogo({ size = 44, style, testID }: LogoProps) {
   );
 }
 
-export function AxonOSLogo({ size = 44, style, testID }: LogoProps) {
+export function AxonOSLogo({ size = 44, style, onDark, testID }: LogoProps) {
+  // V29.m — Quando posato su una barra scura/viola (`onDark`), rimuoviamo il
+  // riquadro nero: sfondo trasparente e logo ingrandito così l'icona bianca
+  // brand si legge chiaramente sul fondo colorato.
   return (
     <View
       testID={testID || "axon-os-logo"}
@@ -54,14 +57,14 @@ export function AxonOSLogo({ size = 44, style, testID }: LogoProps) {
           width: size,
           height: size,
           borderRadius: Math.round(size * 0.22),
-          backgroundColor: "#0B1220", // sfondo scuro brand
+          backgroundColor: onDark ? "transparent" : "#0B1220",
         },
         style as any,
       ]}
     >
       <Image
         source={{ uri: AXONOS_LOGO_URI }}
-        style={{ width: size * 0.86, height: size * 0.86 }}
+        style={{ width: size * (onDark ? 1 : 0.86), height: size * (onDark ? 1 : 0.86) }}
         resizeMode="contain"
       />
     </View>

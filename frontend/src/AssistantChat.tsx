@@ -183,13 +183,19 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const loadHistory = useCallback(async () => {
     setLoadingHist(true);
     try {
+      // V29.m — Ogni apertura della chat AxonOS deve partire vuota.
+      // Carichiamo solo le impostazioni (nome assistente, modalità, quick actions, voce)
+      // ma NON ripristiniamo la conversazione precedente né la session_id, così
+      // l'utente vede sempre un empty state pulito e crea una nuova sessione al
+      // primo messaggio.
       const [hist, us] = await Promise.all([
         api<{ session_id: string | null; messages: ChatMsg[]; assistant_name: string }>("/assistant/history"),
         api<{ assistant_name?: string; assistant_response_mode?: string; assistant_voice?: string; assistant_quick_actions?: { id: string; label: string; prompt: string }[] }>("/user-settings").catch(() => ({} as any)),
       ]);
       setAssistantName(hist?.assistant_name || us?.assistant_name || "Neo");
-      setSessionId(hist?.session_id || null);
-      setMessages(Array.isArray(hist?.messages) ? hist.messages : []);
+      // Sessione azzerata: la nuova sessione verrà creata dal backend al primo /assistant/chat
+      setSessionId(null);
+      setMessages([]);
       const m = (us?.assistant_response_mode || "text") as ResponseMode;
       setResponseMode(MODE_ORDER.includes(m) ? m : "text");
       if (us?.assistant_voice) setAssistantVoice(us.assistant_voice);
@@ -963,37 +969,54 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
             style={{ flex: 1 }}
           >
-            {/* Header */}
+            {/* Header — V29.m: titolo fisso "AxonOS", selettore modalità come pill dropdown,
+                icone azione con etichetta testuale sotto per chiarezza. */}
             <View style={styles.header}>
-              <AxonOSLogo size={38} testID="assistant-header-logo" />
+              <AxonOSLogo size={40} onDark testID="assistant-header-logo" />
               <View style={{ flex: 1 }}>
-                <Text style={styles.headerTitle}>{assistantName}</Text>
-                <Text style={styles.headerSub}>{MODE_LABEL[responseMode]}</Text>
+                <Text style={styles.headerTitle}>AxonOS</Text>
+                <Pressable
+                  onPress={() => setShowModeMenu((v) => !v)}
+                  style={styles.modeDropdown}
+                  hitSlop={6}
+                  accessibilityLabel="Cambia modalità di risposta"
+                  testID="assistant-mode-dropdown"
+                >
+                  <Ionicons name={MODE_ICON[responseMode]} size={11} color="#FFF" />
+                  <Text style={styles.modeDropdownTxt} numberOfLines={1}>
+                    Modalità: {MODE_LABEL[responseMode]}
+                  </Text>
+                  <Ionicons name="chevron-down" size={11} color="#FFF" />
+                </Pressable>
               </View>
               <Pressable
                 onPress={cycleMode}
                 onLongPress={() => setShowModeMenu(true)}
-                style={styles.iconBtn}
-                accessibilityLabel="Cambia modalità di risposta"
+                style={styles.headerAction}
+                accessibilityLabel="Modalità annunci"
                 testID="assistant-mode-toggle"
               >
-                <Ionicons name={MODE_ICON[responseMode]} size={20} color="#FFF" />
+                <Ionicons name={MODE_ICON[responseMode]} size={18} color="#FFF" />
+                <Text style={styles.headerActionTxt}>Annunci</Text>
               </Pressable>
               {voiceSupported && (
                 <Pressable
                   onPress={convMode ? endConversation : startConversation}
-                  style={[styles.iconBtn, convMode && { backgroundColor: "#EF4444" }]}
-                  accessibilityLabel={convMode ? "Termina conversazione" : "Inizia conversazione continua"}
+                  style={[styles.headerAction, convMode && { backgroundColor: "#EF4444" }]}
+                  accessibilityLabel={convMode ? "Termina conversazione audio" : "Inizia conversazione audio"}
                   testID="assistant-conv-toggle"
                 >
-                  <Ionicons name={convMode ? "call" : "headset"} size={20} color="#FFF" />
+                  <Ionicons name={convMode ? "call" : "headset"} size={18} color="#FFF" />
+                  <Text style={styles.headerActionTxt}>Audio</Text>
                 </Pressable>
               )}
-              <Pressable onPress={resetSession} style={styles.iconBtn} accessibilityLabel="Nuova conversazione">
-                <Ionicons name="refresh" size={20} color="#FFF" />
+              <Pressable onPress={resetSession} style={styles.headerAction} accessibilityLabel="Nuova chat" testID="assistant-new-chat">
+                <Ionicons name="create-outline" size={18} color="#FFF" />
+                <Text style={styles.headerActionTxt}>Nuova chat</Text>
               </Pressable>
-              <Pressable onPress={onClose} style={styles.iconBtn} accessibilityLabel="Chiudi">
-                <Ionicons name="close" size={22} color="#FFF" />
+              <Pressable onPress={onClose} style={styles.headerAction} accessibilityLabel="Chiudi">
+                <Ionicons name="close" size={20} color="#FFF" />
+                <Text style={styles.headerActionTxt}>Chiudi</Text>
               </Pressable>
             </View>
 
@@ -1592,11 +1615,11 @@ const styles = StyleSheet.create({
   dropSub: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "600" },
   header: {
     backgroundColor: ASSISTANT_COLOR,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 6,
   },
   avatarWrap: {
     width: 40,
@@ -1608,6 +1631,19 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: "#FFF", fontSize: 17, fontWeight: "700" },
   headerSub: { color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 1 },
+  modeDropdown: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    marginTop: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderRadius: 999,
+    maxWidth: "100%",
+  },
+  modeDropdownTxt: { color: "#FFF", fontSize: 11, fontWeight: "700", letterSpacing: 0.1 },
   iconBtn: {
     width: 34,
     height: 34,
@@ -1616,6 +1652,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  headerAction: {
+    minWidth: 44,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 1,
+  },
+  headerActionTxt: { color: "#FFF", fontSize: 8.5, fontWeight: "700", letterSpacing: 0.1, marginTop: 1 },
 
   modeMenu: {
     position: "absolute",

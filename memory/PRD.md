@@ -1,5 +1,31 @@
 # Dal Pastro CRM — PRD v1.15
 
+## v2.ao Header AxonOS chat — logo trasparente, dropdown modalità, icone con etichetta (Giugno 2026)
+### 🎯 Richiesta utente
+1. Nella barra viola della chat il logo AxonOS aveva fondo nero illegibile: rimuovere lo sfondo, mostrare solo l'icona.
+2. Cambiare il titolo "Axon" → "AxonOS".
+3. Il sotto-titolo "Voce e testo" deve diventare un pulsante-pill cliccabile con testo "Modalità: Voce e testo" e piccola freccia dropdown per chiarire che è un selettore.
+4. Le 4 icone a destra della barra viola devono avere un'etichetta piccola sotto: `Annunci`, `Audio`, `Nuova chat`, `Chiudi`.
+5. L'icona "Nuova chat" deve rappresentare un foglio di carta nuovo (`create-outline`).
+6. Ogni apertura della chat AxonOS deve partire da uno stato vuoto (empty state), non riprendere l'ultima conversazione.
+
+### ✅ Frontend
+- `/app/frontend/src/BrandLogos.tsx`: `AxonOSLogo` ora accetta prop `onDark`. Se `onDark=true` il container passa a `backgroundColor: "transparent"` e l'`Image` viene mostrato al 100% (invece dell'86%) per essere ben leggibile su una barra scura/viola senza il riquadro nero.
+- `/app/frontend/src/AssistantChat.tsx`:
+  - Header ricostruito: titolo fisso `"AxonOS"` (era `assistantName`), logo con `onDark` (fondo trasparente), padding e gap ridotti per stare in 4 azioni + dropdown.
+  - Sostituito il `<Text>` sub-titolo con un `<Pressable style={styles.modeDropdown}>` che mostra icona modalità + "Modalità: {label}" + `chevron-down`, con `onPress` che apre `showModeMenu`.
+  - Sostituiti gli `iconBtn` circolari con `headerAction` a due righe (icona 18px + `<Text style={headerActionTxt}>` 8.5px): `Annunci` (mode cycle), `Audio` (conv toggle, se voice supported), `Nuova chat` (`create-outline`, chiama `resetSession`), `Chiudi` (`close`).
+  - `loadHistory()`: mantenuto solo il caricamento delle impostazioni utente (nome, modalità, quick actions, voce) — la conversazione precedente non viene più ripristinata: `setSessionId(null)` + `setMessages([])`. La nuova `session_id` viene creata dal backend al primo `/assistant/chat`.
+  - Nuovi stili: `modeDropdown`, `modeDropdownTxt`, `headerAction`, `headerActionTxt`.
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot header: logo AxonOS senza sfondo nero visibile sulla barra viola, titolo "AxonOS", pill "Modalità: …" con chevron sotto il titolo, 4 azioni con etichette Annunci/Audio/Nuova chat/Chiudi.
+- ✅ Empty state pulito: nessuna conversazione precedente ricaricata all'apertura.
+- ✅ Fix precedente AREE: `flexWrap: "wrap"` verificato su scheda contatto (nessuna sovrapposizione).
+
+---
+
+
 ## v2.an Chat Axon — pill compatta azioni rapide + pulsante Stop (Giugno 2026)
 ### 🎯 Richiesta utente
 1. Le azioni rapide inviano il prompt completo che appare come lungo messaggio viola nella chat. Mostrare invece un'etichetta compatta (es. "PUN MEDIO PER FASCE 2026").
