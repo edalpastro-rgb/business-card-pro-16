@@ -1,4 +1,25 @@
-# Dal Pastro CRM — PRD v1.12
+# Dal Pastro CRM — PRD v1.13
+
+## v2.al Empty state chat Axon — logo orizzontale (Giugno 2026)
+### 🎯 Richiesta utente
+Il logo AxonOS quadrato nell'empty state della chat con Axon aveva troppo sfondo nero e occupava troppo spazio verticale, spingendo fuori dallo schermo le azioni rapide (Prossimo appuntamento, Clienti senza appuntamento, ecc.).
+
+### ✅ Frontend
+- Nuovo asset `assets/images/axonos-logo-transparent.png` (1375×294, ~7 KB) generato da script Python:
+  - Sfondo scuro navy convertito a trasparente (soglia R+G+B < 90).
+  - Pixel opachi ricolorati in navy brand `#0B1220` per garantire contrasto sul chat area chiaro `#FAF9FF`.
+  - Ritagliato al bounding box → aspect ratio 4.68:1.
+- `/app/frontend/src/AssistantChat.tsx`:
+  - Nuova costante `AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-transparent.png")` + aspect.
+  - Empty state ora usa `<Image>` orizzontale 180×~38 al posto di `<AxonOSLogo size={78} />`.
+  - `emptyWrap` ridotto: `paddingTop: 24 → 10`, `gap: 10 → 6`.
+  - Titolo "Ciao, sono Neo!" ora con `marginTop: 6` invece di 12.
+- Componente `AxonOSLogo` (BrandLogos.tsx) invariato — resta in uso nel FAB, header chat e Insegna ad Axon.
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot: logo orizzontale visibile senza card scura, azioni rapide (Prossimo appuntamento, Telefonate di oggi, Clienti senza appuntamento, Ritelefonate urgenti) tutte visibili senza scroll.
+
+---
 
 ## v2.ak Fix regressione — Axon legge i file delle regole in chat (Giugno 2026)
 ### 🎯 Richiesta utente

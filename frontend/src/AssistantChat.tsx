@@ -12,6 +12,7 @@ import {
   Platform,
   Animated,
   Easing,
+  Image,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
@@ -25,6 +26,10 @@ import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { AxonOSLogo } from "@/src/BrandLogos";
+
+// V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
+const AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-transparent.png");
+const AXONOS_LOGO_HORIZONTAL_ASPECT = 1375 / 294;
 
 const ASSISTANT_COLOR = "#8B5CF6"; // violet — distinct from red mic and blue brand
 const ASSISTANT_COLOR_DARK = "#6D28D9";
@@ -994,8 +999,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               )}
               {!loadingHist && messages.length === 0 && (
                 <View style={styles.emptyWrap}>
-                  <AxonOSLogo size={78} testID="assistant-empty-logo" />
-                  <Text style={[styles.emptyTitle, { marginTop: 12 }]}>Ciao, sono {assistantName}!</Text>
+                  <Image
+                    source={AXONOS_LOGO_HORIZONTAL}
+                    style={{ width: 180, height: Math.round(180 / AXONOS_LOGO_HORIZONTAL_ASPECT) }}
+                    resizeMode="contain"
+                    testID="assistant-empty-logo"
+                  />
+                  <Text style={[styles.emptyTitle, { marginTop: 6 }]}>Ciao, sono {assistantName}!</Text>
                   <Text style={styles.emptySub}>
                     Posso aiutarti con appuntamenti, telefonate, clienti e contratti. Prova a chiedermi:
                   </Text>
@@ -1580,7 +1590,7 @@ const styles = StyleSheet.create({
 
   chatArea: { flex: 1, backgroundColor: "#FAF9FF" },
 
-  emptyWrap: { alignItems: "center", paddingHorizontal: 20, paddingTop: 24, gap: 10 },
+  emptyWrap: { alignItems: "center", paddingHorizontal: 20, paddingTop: 10, gap: 6 },
   emptyIcon: {
     width: 68,
     height: 68,
