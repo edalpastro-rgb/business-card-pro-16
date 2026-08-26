@@ -286,38 +286,42 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      {/* ── Header professionale V29.q: banner blu scuro full-width con data/avatar + saluto ── */}
-      <View style={styles.brandHeader} testID="home-brand-header">
-        <View style={styles.brandHeaderRow}>
-          <Text style={styles.brandHeaderDate}>
-            {new Date(nowTick).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
-            {" · "}
-            {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-          </Text>
-          <Pressable onPress={() => router.push("/impostazioni" as any)} hitSlop={8}>
-            {user?.avatar_base64 ? (
-              <Image source={{ uri: user.avatar_base64 }} style={styles.brandHeaderAvatar} />
-            ) : (
-              <View style={styles.brandHeaderAvatarFallback}>
-                <Text style={styles.brandHeaderAvatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text>
-              </View>
-            )}
-          </Pressable>
-        </View>
-        <View style={styles.brandHeaderHero} testID="home-hero">
-          <Animated.View style={[styles.brandHeaderHeroLayer, { opacity: greetOpacity }]} pointerEvents="none">
-            <Text style={styles.brandHeaderGreet} testID="home-greeting">
-              Ciao, <Text style={styles.brandHeaderGreetName}>{(user?.name?.split(" ")[0] || "").toUpperCase()}</Text>
+      {/* ── Header V29.y: container unico con bordo blu sottile e sfondo trasparente ──
+          Riga 1: data/ora a sinistra, avatar a destra.
+          Riga 2: logo AdvisorOS centrato (300px). */}
+      <View style={styles.brandHeader}>
+        <View style={styles.brandHeaderBox} testID="home-brand-header">
+          <View style={styles.brandHeaderRow}>
+            <Text style={styles.brandHeaderDate}>
+              {new Date(nowTick).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+              {" · "}
+              {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
             </Text>
-          </Animated.View>
-          <Animated.View style={[styles.brandHeaderHeroLayer, { opacity: heroLogoOpacity }]} pointerEvents="none">
-            <Image
-              source={{ uri: HERO_LOGO_URI }}
-              style={styles.brandHeaderHeroLogo}
-              resizeMode="contain"
-              testID="home-brand-logo"
-            />
-          </Animated.View>
+            <Pressable onPress={() => router.push("/impostazioni" as any)} hitSlop={8}>
+              {user?.avatar_base64 ? (
+                <Image source={{ uri: user.avatar_base64 }} style={styles.brandHeaderAvatar} />
+              ) : (
+                <View style={styles.brandHeaderAvatarFallback}>
+                  <Text style={styles.brandHeaderAvatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+          <View style={styles.brandHeaderHero} testID="home-hero">
+            <Animated.View style={[styles.brandHeaderHeroLayer, { opacity: greetOpacity }]} pointerEvents="none">
+              <Text style={styles.brandHeaderGreet} testID="home-greeting">
+                Ciao, <Text style={styles.brandHeaderGreetName}>{(user?.name?.split(" ")[0] || "").toUpperCase()}</Text>
+              </Text>
+            </Animated.View>
+            <Animated.View style={[styles.brandHeaderHeroLayer, { opacity: heroLogoOpacity }]} pointerEvents="none">
+              <Image
+                source={{ uri: HERO_LOGO_URI }}
+                style={styles.brandHeaderHeroLogo}
+                resizeMode="contain"
+                testID="home-brand-logo"
+              />
+            </Animated.View>
+          </View>
         </View>
       </View>
       <ScrollView
@@ -933,19 +937,27 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 180 },
 
-  /* Header trasparente (V29.v) — nessun banner blu, solo box con bordo blu attorno al logo */
+  /* Header V29.y — container unico bordato, sfondo trasparente */
   brandHeader: {
     backgroundColor: "transparent",
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingTop: 8,
     paddingBottom: 8,
+  },
+  brandHeaderBox: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#1E3A5F",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
   },
   brandHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 8,
-    paddingHorizontal: 2,
   },
   brandHeaderDate: {
     color: C.muted,
@@ -957,23 +969,23 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   brandHeaderAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     borderWidth: 2,
     borderColor: C.primarySoft,
   },
   brandHeaderAvatarFallback: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: C.primary,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
     borderColor: C.primarySoft,
   },
-  brandHeaderAvatarTxt: { color: "#FFF", fontSize: 15, fontWeight: "800" },
+  brandHeaderAvatarTxt: { color: "#FFF", fontSize: 14, fontWeight: "800" },
   brandHeaderGreet: {
     color: C.navy,
     fontSize: 26,
@@ -985,13 +997,10 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   brandHeaderHero: {
-    height: 68,
+    height: 70,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#1E3A5F",
-    borderRadius: 12,
   },
   brandHeaderHeroLayer: {
     position: "absolute",
@@ -1000,9 +1009,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brandHeaderHeroLogo: {
-    width: 260,
+    width: 300,
     maxWidth: "100%",
-    height: 52,
+    height: 60,
     backgroundColor: "transparent",
   },
 
