@@ -9,7 +9,7 @@ import { ADVISOROS_LOGO_URI } from "@/src/BrandLogos";
  *  1) Fondo navy brand (stesso colore dello splash nativo → nessun flash)
  *  2) Anello orbitale che ruota attorno al logo (idea "orbit" del brand)
  *  3) Logo AdvisorOS entra con scale-spring
- *  4) Wordmark "AdvisorOS" + tagline "CRM per consulenti energetici" con fade-up
+ *  4) Wordmark "AdvisorOS" + tagline "CRM per consulenti e network" con fade-up
  *  5) Logo AxonOS (160px) + "powered by AxonOS" grigio chiaro con fade-up
  *  6) Fade-out totale dell'overlay → viene rivelata la schermata di login
  *
@@ -195,7 +195,7 @@ export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
           Advisor<Text style={styles.wordAccent}>OS</Text>
         </Animated.Text>
         <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
-          CRM per consulenti energetici
+          CRM per consulenti e network
         </Animated.Text>
       </View>
 
