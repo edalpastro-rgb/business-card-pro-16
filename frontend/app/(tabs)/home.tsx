@@ -96,10 +96,6 @@ function _hFontSize(key: string | null | undefined): number {
   }
 }
 
-// V29.n — Ref module-level per far scattare l'animazione hero SOLO al primo mount
-// della sessione app (rimane "true" quando l'utente naviga via/return dalla home).
-const _hasPlayedHeroIntroRef = { current: false };
-
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -118,26 +114,6 @@ export default function HomeScreen() {
   const [apptStats, setApptStats] = useState<ApptStats | null>(null);
   const [contactsCount, setContactsCount] = useState<number>(0);
   const [nowTick, setNowTick] = useState<number>(Date.now());
-  // V29.n — Animazione header a due fasi: "Ciao, NOME" (4s) → logo AdvisorOS.
-  // Solo al primo caricamento della sessione (persistito in memory via ref globale).
-  const [heroPhase, setHeroPhase] = useState<"greet" | "logo">(
-    _hasPlayedHeroIntroRef.current ? "logo" : "greet"
-  );
-  const greetOpacity = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 0 : 1)).current;
-  const logoOpacity = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 1 : 0)).current;
-  useEffect(() => {
-    if (_hasPlayedHeroIntroRef.current) return;
-    const t = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(greetOpacity, { toValue: 0, duration: 550, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(logoOpacity, { toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      ]).start(() => {
-        setHeroPhase("logo");
-        _hasPlayedHeroIntroRef.current = true;
-      });
-    }, 4000);
-    return () => clearTimeout(t);
-  }, [greetOpacity, logoOpacity]);
   // V29 — Scadenze imminenti (widget Home)
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [deadlinesDays, setDeadlinesDays] = useState<number>(60);
@@ -280,43 +256,35 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.root} edges={["top"]}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.primary} />}
-      >
-        {/* ── Header V29.n: eyebrow + avatar top row, animazione hero al centro ── */}
-        <View style={styles.headerTopRow}>
-          <Text style={styles.eyebrow}>
+    <SafeAreaView style={styles.rootDark} edges={["top"]}>
+      {/* ── Header professionale V29.q: banner blu scuro full-width con data/avatar + saluto ── */}
+      <View style={styles.brandHeader} testID="home-brand-header">
+        <View style={styles.brandHeaderRow}>
+          <Text style={styles.brandHeaderDate}>
             {new Date(nowTick).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
             {" · "}
             {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
           </Text>
           <Pressable onPress={() => router.push("/impostazioni" as any)} hitSlop={8}>
             {user?.avatar_base64 ? (
-              <Image source={{ uri: user.avatar_base64 }} style={styles.avatar} />
+              <Image source={{ uri: user.avatar_base64 }} style={styles.brandHeaderAvatar} />
             ) : (
-              <View style={styles.avatarFallback}><Text style={styles.avatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text></View>
+              <View style={styles.brandHeaderAvatarFallback}>
+                <Text style={styles.brandHeaderAvatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text>
+              </View>
             )}
           </Pressable>
         </View>
-        <View style={styles.heroWrap} testID="home-hero">
-          <Animated.View style={[styles.heroLayer, { opacity: greetOpacity }]} pointerEvents="none">
-            <Text style={styles.heroGreet} testID="home-greeting">
-              Ciao, <Text style={{ color: C.primary }}>{(user?.name?.split(" ")[0] || "").toUpperCase()}</Text>
-            </Text>
-          </Animated.View>
-          <Animated.View style={[styles.heroLayer, { opacity: logoOpacity }]} pointerEvents="none">
-            <Image
-              source={{ uri: "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/2cfac78e42c84bcaa01114c027c0a601_c9912471-b59b-4ac4-b5cf-4a4d91c3ce16.jpg" }}
-              style={styles.heroBrandImg}
-              resizeMode="contain"
-              testID="home-brand-logo"
-            />
-          </Animated.View>
-        </View>
-
+        <Text style={styles.brandHeaderGreet} testID="home-greeting">
+          Ciao, <Text style={styles.brandHeaderGreetName}>{(user?.name?.split(" ")[0] || "").toUpperCase()}</Text>
+        </Text>
+      </View>
+      <ScrollView
+        style={styles.scrollBg}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.primary} />}
+      >
         {/* ── Trial banners ── */}
         {subscription?.status === "trial" && (subscription.days_left ?? 999) <= 7 && (
           <View style={[styles.banner, { backgroundColor: (subscription.days_left ?? 0) <= 3 ? C.dangerSoft : C.warningSoft, borderColor: (subscription.days_left ?? 0) <= 3 ? C.danger : C.warning }]}>
@@ -919,10 +887,70 @@ const cardShadow = Platform.select({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
+  rootDark: { flex: 1, backgroundColor: "#0D1B2A" },
+  scrollBg: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scroll: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 180 },
+  scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 180 },
 
-  /* Header */
+  /* Header professionale (V29.q) — banner blu scuro full-width */
+  brandHeader: {
+    backgroundColor: "#0D1B2A",
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+      android: { elevation: 6 },
+      default: {},
+    }),
+  },
+  brandHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  brandHeaderDate: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+    textTransform: "capitalize",
+    flex: 1,
+    marginRight: 12,
+  },
+  brandHeaderAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+  brandHeaderAvatarFallback: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: C.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+  brandHeaderAvatarTxt: { color: "#FFF", fontSize: 15, fontWeight: "800" },
+  brandHeaderGreet: {
+    color: "#FFFFFF",
+    fontSize: 26,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  brandHeaderGreetName: {
+    color: C.primary,
+    fontWeight: "900",
+  },
+
+  /* Header (legacy — mantenuto per compatibilità) */
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
   headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 8, paddingBottom: 4 },
   heroWrap: {
