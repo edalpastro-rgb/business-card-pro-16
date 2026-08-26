@@ -10,6 +10,7 @@ import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { CallScriptOverlay } from "@/src/CallScriptOverlay";
 import { HomeEventBanner } from "@/src/HomeEventBanner";
 import { AdvisorOSLogo } from "@/src/BrandLogos";
+import { NeuralPatternBg } from "@/src/NeuralPatternBg";
 
 /* ────────────────────────────────────────────────────────────────
    V27 — Modern Dashboard Redesign
@@ -127,6 +128,9 @@ export default function HomeScreen() {
   const [apptStats, setApptStats] = useState<ApptStats | null>(null);
   const [contactsCount, setContactsCount] = useState<number>(0);
   const [nowTick, setNowTick] = useState<number>(Date.now());
+  // V29.z — Dimensioni del container header per posizionare correttamente la
+  // filigrana rete-neurale (nodi + impulso animato) sullo sfondo.
+  const [brandBoxSize, setBrandBoxSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   // V29.s — Animazione hero header a due fasi: "Ciao, NOME" (4s) → logo AdvisorOS
   // (PNG con canale alfa). Solo al primo mount della sessione app (ref globale).
   const greetOpacity = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 0 : 1)).current;
@@ -290,7 +294,29 @@ export default function HomeScreen() {
           Riga 1: data/ora a sinistra, avatar a destra.
           Riga 2: logo AdvisorOS centrato (300px). */}
       <View style={styles.brandHeader}>
-        <View style={styles.brandHeaderBox} testID="home-brand-header">
+        <View
+          style={styles.brandHeaderBox}
+          testID="home-brand-header"
+          onLayout={(e) => {
+            const { width, height } = e.nativeEvent.layout;
+            if (width !== brandBoxSize.w || height !== brandBoxSize.h) {
+              setBrandBoxSize({ w: Math.round(width), h: Math.round(height) });
+            }
+          }}
+        >
+          {/* Filigrana rete neurale animata — puramente decorativa,
+              posizione absolute + pointerEvents:none, dietro al contenuto. */}
+          {brandBoxSize.w > 0 && brandBoxSize.h > 0 && (
+            <View style={styles.brandHeaderBgLayer} pointerEvents="none">
+              <NeuralPatternBg
+                width={brandBoxSize.w}
+                height={brandBoxSize.h}
+                color="#93C5FD"
+                opacity={0.10}
+                pulseColor="#7DD3FC"
+              />
+            </View>
+          )}
           <View style={styles.brandHeaderRow}>
             <Text style={styles.brandHeaderDate}>
               {new Date(nowTick).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
@@ -952,6 +978,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 10,
     paddingBottom: 12,
+    position: "relative",
+    overflow: "hidden",
+  },
+  brandHeaderBgLayer: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    zIndex: 0,
   },
   brandHeaderRow: {
     flexDirection: "row",
