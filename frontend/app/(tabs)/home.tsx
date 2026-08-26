@@ -96,6 +96,13 @@ function _hFontSize(key: string | null | undefined): number {
   }
 }
 
+// V29.r — Ref module-level per far scattare l'animazione hero SOLO al primo mount
+// della sessione app (rimane "true" quando l'utente naviga via/return dalla home).
+const _hasPlayedHeroIntroRef = { current: false };
+
+// URL del logo AdvisorOS trasparente da mostrare al termine dell'animazione hero.
+const HERO_LOGO_URI = "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/2cfac78e42c84bcaa01114c027c0a601_c9912471-b59b-4ac4-b5cf-4a4d91c3ce16.jpg";
+
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -114,6 +121,25 @@ export default function HomeScreen() {
   const [apptStats, setApptStats] = useState<ApptStats | null>(null);
   const [contactsCount, setContactsCount] = useState<number>(0);
   const [nowTick, setNowTick] = useState<number>(Date.now());
+  // V29.r — Animazione hero header a due fasi: "Ciao, NOME" (4s) → logo AdvisorOS.
+  // Solo al primo mount della sessione app (persistito via ref globale).
+  // Il logo usa mix-blend-mode:multiply su web per far scomparire il bianco
+  // del JPG sorgente: per farlo funzionare NON avvolgiamo il logo in un
+  // <Animated.View> (l'opacity crea uno stacking context che intrappola il
+  // blend). Usiamo invece uno state booleano + CSS transition su web.
+  const greetOpacity = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 0 : 1)).current;
+  const [showHeroLogo, setShowHeroLogo] = useState<boolean>(_hasPlayedHeroIntroRef.current);
+  useEffect(() => {
+    if (_hasPlayedHeroIntroRef.current) return;
+    const t = setTimeout(() => {
+      Animated.timing(greetOpacity, { toValue: 0, duration: 550, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(() => {
+        _hasPlayedHeroIntroRef.current = true;
+      });
+      // Fade-in del logo controllato via CSS transition (sotto)
+      setShowHeroLogo(true);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [greetOpacity]);
   // V29 — Scadenze imminenti (widget Home)
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [deadlinesDays, setDeadlinesDays] = useState<number>(60);
@@ -275,9 +301,43 @@ export default function HomeScreen() {
             )}
           </Pressable>
         </View>
-        <Text style={styles.brandHeaderGreet} testID="home-greeting">
-          Ciao, <Text style={styles.brandHeaderGreetName}>{(user?.name?.split(" ")[0] || "").toUpperCase()}</Text>
-        </Text>
+        <View style={styles.brandHeaderHero} testID="home-hero">
+          <Animated.View style={[styles.brandHeaderHeroLayer, { opacity: greetOpacity }]} pointerEvents="none">
+            <Text style={styles.brandHeaderGreet} testID="home-greeting">
+              Ciao, <Text style={styles.brandHeaderGreetName}>{(user?.name?.split(" ")[0] || "").toUpperCase()}</Text>
+            </Text>
+          </Animated.View>
+          {/* Logo layer: NON avvolto in Animated.View, così mix-blend-mode:multiply
+              su web fonde il bianco del JPG col navy dell'header. Fade-in via
+              CSS transition su web / opacity 0→1 istantanea su native. */}
+          <View style={styles.brandHeaderHeroLayer} pointerEvents="none">
+            {Platform.OS === "web" ? (
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore — img è un elemento DOM standard usato solo su web.
+              React.createElement("img", {
+                src: HERO_LOGO_URI,
+                alt: "AdvisorOS",
+                "data-testid": "home-brand-logo",
+                style: {
+                  width: 260,
+                  height: 56,
+                  objectFit: "contain",
+                  mixBlendMode: "multiply",
+                  opacity: showHeroLogo ? 1 : 0,
+                  transition: "opacity 700ms ease-out",
+                  background: "transparent",
+                },
+              })
+            ) : showHeroLogo ? (
+              <Image
+                source={{ uri: HERO_LOGO_URI }}
+                style={styles.brandHeaderHeroLogo}
+                resizeMode="contain"
+                testID="home-brand-logo"
+              />
+            ) : null}
+          </View>
+        </View>
       </View>
       <ScrollView
         style={styles.scrollBg}
@@ -900,6 +960,9 @@ const styles = StyleSheet.create({
     paddingBottom: 18,
     borderBottomLeftRadius: 22,
     borderBottomRightRadius: 22,
+    // V29.r — Isolation crea un nuovo stacking context così i mix-blend-mode
+    // interni si fondono con lo sfondo navy dell'header e non "sfuggono" sotto.
+    ...(Platform.OS === "web" ? ({ isolation: "isolate" } as any) : {}),
     ...Platform.select({
       ios: { shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
       android: { elevation: 6 },
@@ -948,6 +1011,28 @@ const styles = StyleSheet.create({
   brandHeaderGreetName: {
     color: C.primary,
     fontWeight: "900",
+  },
+  brandHeaderHero: {
+    height: 60,
+    justifyContent: "center",
+  },
+  brandHeaderHeroLayer: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  brandHeaderHeroLogo: {
+    width: 260,
+    height: 56,
+    backgroundColor: "transparent",
+    // V29.r — Il logo sorgente è un JPG (sfondo bianco intrinseco).
+    // Su web usiamo `mixBlendMode: "multiply"` per fondere il bianco della JPG
+    // con lo sfondo navy dell'header (il bianco diventa quasi trasparente,
+    // le zone colorate del logo restano visibili). Su native il blend non è
+    // supportato: il logo appare come un piccolo pannello chiaro, comunque
+    // pulito sul banner scuro.
+    ...(Platform.OS === "web" ? ({ mixBlendMode: "multiply" } as any) : {}),
   },
 
   /* Header (legacy — mantenuto per compatibilità) */
