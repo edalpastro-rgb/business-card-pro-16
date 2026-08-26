@@ -1,5 +1,31 @@
 # Dal Pastro CRM — PRD v1.15
 
+## v29.ak Landing page pubblica su advisoros.it (Giugno 2026)
+### 🎯 Richiesta utente
+Creare una landing page web separata per advisoros.it che presenta AdvisorOS con descrizione, mockup app e bottoni di download per Play Store e App Store. La landing deve essere la homepage web di default per utenti non loggati.
+
+### ✅ Frontend
+- `/app/frontend/app/landing.tsx` (implementato completo):
+  - Nav top: logo AdvisorOS + bottone "Accedi" → `/login`
+  - Hero: badge "Nuova versione 2026", titolo "Il CRM smart per consulenti e network" (dual-color), sottotitolo marketing, CTA Play Store e App Store (URL placeholder), link "Prova da browser"
+  - Mockup phone-frame (visibile su desktop ≥900px) con anteprima layout AdvisorOS
+  - Feature grid 4 punti: CRM, Axon AI, Google Drive, Multi-tenant
+  - Sezione screenshot mock (Home/Contatti/Axon AI) su sfondo dark `#0F2438`
+  - Sezione "powered by AxonOS" con logo AxonOS
+  - Footer con brand, mail `info@advisoros.it`, link "Accedi"
+  - Layout responsive: `useWindowDimensions` con breakpoint 900px per switch mobile/desktop
+- `/app/frontend/app/index.tsx`: aggiunto redirect condizionale — su web utenti non autenticati vanno a `/landing` invece di `/login`; su mobile resta `/login`.
+- URL placeholder store: `https://play.google.com/store/apps/details?id=com.advisoros` e `https://apps.apple.com/app/advisoros` da sostituire una volta pubblicate le build.
+
+### 🧪 Test manuali eseguiti
+- ✅ `GET /landing` → 200 OK, layout desktop 1280×900 mostra hero + phone mockup a destra
+- ✅ Full-page scroll: feature grid, screenshot mock su banda dark, powered by AxonOS, footer
+- ✅ Viewport mobile 390×844: layout single-column, CTA affiancate su una riga
+- ✅ Redirect `/` → `/landing` per utente non autenticato su web (Platform.OS === 'web')
+
+---
+
+
 ## v2.aq Splash animato di brand (Giugno 2026)
 ### 🎯 Richiesta utente
 Aggiungere una micro-animazione allo splash iniziale così l'app comunica personalità già prima del login.
