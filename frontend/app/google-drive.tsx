@@ -1,38 +1,32 @@
 /**
- * V28.w — Google Drive: schermata di collegamento/scollegamento OAuth.
- * Il vero flow OAuth funziona solo in PRODUZIONE (redirect_uri = advisoros.it).
- * In preview mostriamo comunque lo stato + bottone, ma l'apertura del popup
- * porterà a un errore Google (redirect_uri non registrato per il preview).
+ * V29.ai — Google Drive: schermata di collegamento/scollegamento OAuth.
+ *
+ * Flusso mobile SEMPLIFICATO (Expo Go safe):
+ *  - Su mobile e web utilizziamo il flusso legacy con state server-side.
+ *  - Il redirect URI di Google punta a `https://advisoros.it/auth/google/callback`
+ *    (già configurato nella Google Cloud Console + in backend .env).
+ *  - Su mobile apriamo l'URL di autorizzazione con `WebBrowser.openAuthSessionAsync`,
+ *    passando come `returnUrl` lo stesso redirect https. Quando Google reindirizza
+ *    a quel URL il backend completa lo scambio del code lato server; nel frattempo
+ *    il WebBrowser si chiude e noi ricarichiamo lo stato via `/google-drive/status`.
+ *  - Nessun uso di `expo-auth-session` → funziona in Expo Go senza rebuild nativo.
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import * as AuthSession from "expo-auth-session";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
-// V29.ah — Chiude eventuale popup di auth (web) e serve anche su Expo Go.
+// Su web questa call chiude la popup di auth restituendo il controllo alla pagina.
 try { WebBrowser.maybeCompleteAuthSession(); } catch { /* noop */ }
 
-// V29.ah — Discovery Google OAuth2 (endpoints ufficiali).
-const GOOGLE_DISCOVERY = {
-  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-  tokenEndpoint: "https://oauth2.googleapis.com/token",
-  revocationEndpoint: "https://oauth2.googleapis.com/revoke",
-};
-
-const GD_SCOPES = [
-  "openid",
-  "email",
-  "profile",
-  "https://www.googleapis.com/auth/drive.readonly",
-];
-
 const GD_GREEN = "#0F9D58";
+// Redirect URI backend (deve combaciare con quello configurato in Google Cloud Console).
+const GD_CALLBACK_URL = "https://advisoros.it/auth/google/callback";
 
 export default function GoogleDriveScreen() {
   const router = useRouter();
@@ -40,40 +34,6 @@ export default function GoogleDriveScreen() {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [status, setStatus] = useState<{ connected: boolean; configured: boolean; google_email?: string; updated_at?: string; scopes?: string[] }>({ connected: false, configured: false });
-
-  const GD_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || "";
-
-  // V29.ah — Redirect URI mobile via expo-auth-session:
-  //  - Expo Go → exp://...anonymous/rules/--/oauth2redirect (auth.expo.io proxy)
-  //  - Dev/prod build → advisoros://oauth2redirect (deep link app)
-  //  - Web preview → https://<preview>/auth/google/callback (redirect classico)
-  const redirectUri = useMemo(() => {
-    if (Platform.OS === "web") {
-      // Su web usiamo il flusso attuale (redirect https://.../auth/google/callback)
-      return "";
-    }
-    // Native
-    return AuthSession.makeRedirectUri({
-      scheme: "frontend",
-      path: "oauth2redirect",
-    });
-  }, []);
-
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: GD_CLIENT_ID,
-      responseType: AuthSession.ResponseType.Code,
-      redirectUri: redirectUri || "https://placeholder",
-      scopes: GD_SCOPES,
-      usePKCE: true,
-      extraParams: {
-        access_type: "offline",
-        prompt: "consent",
-        include_granted_scopes: "true",
-      },
-    },
-    GOOGLE_DISCOVERY,
-  );
 
   const load = useCallback(async () => {
     try {
@@ -87,49 +47,13 @@ export default function GoogleDriveScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Reload status when app comes back to foreground (utente torna dal browser esterno)
+  // Reload status when web tab comes back to foreground
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const onFocus = () => load();
     (globalThis as any).window?.addEventListener?.("focus", onFocus);
     return () => (globalThis as any).window?.removeEventListener?.("focus", onFocus);
   }, [load]);
-
-  // V29.ah — Scambia il code ottenuto da expo-auth-session con il backend.
-  useEffect(() => {
-    if (!response) return;
-    if (response.type !== "success") {
-      if (response.type === "error") {
-        notify("Errore OAuth Google", (response.error as any)?.message || "Autenticazione fallita");
-        setConnecting(false);
-      } else if (response.type === "cancel" || response.type === "dismiss") {
-        setConnecting(false);
-      }
-      return;
-    }
-    const code = (response.params as any)?.code as string | undefined;
-    const verifier = request?.codeVerifier;
-    if (!code || !verifier) {
-      notify("Errore", "Autorizzazione incompleta (code_verifier mancante)");
-      setConnecting(false);
-      return;
-    }
-    (async () => {
-      try {
-        await api("/google-drive/oauth/mobile-exchange", {
-          method: "POST",
-          body: { code, code_verifier: verifier, redirect_uri: redirectUri },
-        });
-        await load();
-        notify("Collegato", "Google Drive è ora collegato a Axon");
-      } catch (e: any) {
-        notify("Errore connessione", e?.message || String(e));
-      } finally {
-        setConnecting(false);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [response]);
 
   const connect = async () => {
     if (!status.configured) {
@@ -138,25 +62,36 @@ export default function GoogleDriveScreen() {
     }
     try {
       setConnecting(true);
+      // 1) Ottieni l'URL di autorizzazione dal backend (con state).
+      const r = await api<{ authorization_url: string }>("/google-drive/oauth/start", { method: "POST", body: {} });
+      const url = r?.authorization_url;
+      if (!url) throw new Error("URL di autorizzazione non ricevuto");
+
       if (Platform.OS === "web") {
-        // Web: usa il flusso legacy con state server-side + redirect https
-        const r = await api<{ authorization_url: string }>("/google-drive/oauth/start", { method: "POST", body: {} });
-        const url = r?.authorization_url;
-        if (!url) throw new Error("URL di autorizzazione non ricevuto");
+        // Web: redirect nella stessa tab, torneremo a /google-drive dopo il callback.
         (globalThis as any).window.location.assign(url);
         return;
       }
-      // Native: apri il prompt OAuth via expo-auth-session (PKCE)
-      if (!GD_CLIENT_ID) {
-        throw new Error("EXPO_PUBLIC_GOOGLE_CLIENT_ID mancante nel frontend/.env");
+
+      // 2) Mobile: apri l'auth session nativa in-app.
+      //    - `returnUrl` = URL callback https già registrato in Google → il browser
+      //      si chiude appena Google reindirizza a questa pagina (il backend nel
+      //      frattempo completa lo scambio del code e persiste il refresh_token).
+      const result = await WebBrowser.openAuthSessionAsync(url, GD_CALLBACK_URL, {
+        showInRecents: false,
+        preferEphemeralSession: true,
+      });
+      if (result.type === "cancel" || result.type === "dismiss") {
+        // Utente ha chiuso il browser senza completare — ricarichiamo comunque
+        // lo stato perché il backend potrebbe aver comunque persistito i token.
       }
-      if (!request) {
-        throw new Error("Richiesta OAuth non pronta, riprova tra un secondo");
+      await load();
+      if (status.connected) {
+        notify("Collegato", "Google Drive è ora collegato a Axon");
       }
-      await promptAsync();
-      // L'`useEffect` sopra gestisce la risposta.
     } catch (e: any) {
       notify("Errore connessione", e?.message || String(e));
+    } finally {
       setConnecting(false);
     }
   };
