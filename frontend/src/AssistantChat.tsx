@@ -30,6 +30,8 @@ import { AxonOSLogo } from "@/src/BrandLogos";
 // V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
 const AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-transparent.png");
 const AXONOS_LOGO_HORIZONTAL_ASPECT = 1375 / 294;
+// V29.m — Variante bianca (silhouette) per il FAB viola: massima leggibilità senza padding scuro.
+const AXONOS_LOGO_WHITE = require("@/assets/images/axonos-logo-white.png");
 
 const ASSISTANT_COLOR = "#8B5CF6"; // violet — distinct from red mic and blue brand
 const ASSISTANT_COLOR_DARK = "#6D28D9";
@@ -1005,10 +1007,6 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     resizeMode="contain"
                     testID="assistant-empty-logo"
                   />
-                  <Text style={[styles.emptyTitle, { marginTop: 6 }]}>Ciao, sono {assistantName}!</Text>
-                  <Text style={styles.emptySub}>
-                    Posso aiutarti con appuntamenti, telefonate, clienti e contratti. Prova a chiedermi:
-                  </Text>
                   <View style={styles.suggestWrap}>
                     {suggestions.map((s) => (
                       <Pressable
@@ -1464,7 +1462,12 @@ export function AssistantFAB() {
           accessibilityLabel="Apri assistente AI"
           testID="assistant-fab"
         >
-          <AxonOSLogo size={36} testID="assistant-fab-logo" />
+          <Image
+            source={AXONOS_LOGO_WHITE}
+            style={{ width: 46, height: Math.round(46 / AXONOS_LOGO_HORIZONTAL_ASPECT) }}
+            resizeMode="contain"
+            testID="assistant-fab-logo"
+          />
           <View style={styles.fabDot} />
         </Pressable>
       </Animated.View>

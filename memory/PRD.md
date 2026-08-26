@@ -1,4 +1,22 @@
-# Dal Pastro CRM — PRD v1.13
+# Dal Pastro CRM — PRD v1.14
+
+## v2.am FAB Axon pulito + empty state chat minimale (Giugno 2026)
+### 🎯 Richiesta utente
+1. FAB AxonOS in Home: troppo sfondo scuro attorno alla scritta. Ritagliare per far occupare al logo la maggior parte dello spazio.
+2. Chat Axon: rimuovere il testo "Ciao, sono Axon!" e il sottotitolo "Posso aiutarti con...". Solo logo + azioni rapide.
+
+### ✅ Frontend
+- Nuovo asset `assets/images/axonos-logo-white.png` (1375×294, silhouette bianca su transparent) generato ritagliando lo sfondo scuro dal PNG originale e ricolorando i pixel opachi in bianco puro.
+- `/app/frontend/src/AssistantChat.tsx`:
+  - **FAB**: sostituito `<AxonOSLogo size={36}/>` con `<Image source={AXONOS_LOGO_WHITE} width={46} resizeMode="contain">`. Il logo bianco senza card scura occupa 82% del FAB viola (56px) invece del ~64% precedente, con la scritta AxonOS ora ben leggibile.
+  - **Empty state**: rimossi `<Text style={styles.emptyTitle}>Ciao, sono {name}!</Text>` e `<Text style={styles.emptySub}>Posso aiutarti con...</Text>`. Resta solo `<Image AXONOS_LOGO_HORIZONTAL />` seguito direttamente da `<View style={styles.suggestWrap}>` con le azioni rapide.
+- Componente `AxonOSLogo` (BrandLogos.tsx) invariato — resta in uso nell'header chat.
+
+### 🧪 Test manuali eseguiti
+- ✅ Screenshot Home: FAB con logo AxonOS bianco leggibile e pieno, senza padding scuro.
+- ✅ Screenshot chat empty state: solo logo AxonOS + 4 azioni rapide (Prossimo appuntamento, Telefonate di oggi, Clienti senza appuntamento, Ritelefonate urgenti).
+
+---
 
 ## v2.al Empty state chat Axon — logo orizzontale (Giugno 2026)
 ### 🎯 Richiesta utente
