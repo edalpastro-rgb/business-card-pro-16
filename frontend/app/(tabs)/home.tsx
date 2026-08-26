@@ -285,7 +285,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.rootDark} edges={["top"]}>
+    <SafeAreaView style={styles.root} edges={["top"]}>
       {/* ── Header professionale V29.q: banner blu scuro full-width con data/avatar + saluto ── */}
       <View style={styles.brandHeader} testID="home-brand-header">
         <View style={styles.brandHeaderRow}>
@@ -933,29 +933,22 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 180 },
 
-  /* Header professionale (V29.t) — banner blu scuro compatto */
+  /* Header trasparente (V29.v) — nessun banner blu, solo box con bordo blu attorno al logo */
   brandHeader: {
-    backgroundColor: "#0D1B2A",
-    paddingHorizontal: 12,
+    backgroundColor: "transparent",
+    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 8,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-      android: { elevation: 6 },
-      default: {},
-    }),
   },
   brandHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 4,
-    paddingHorizontal: 6,
+    marginBottom: 8,
+    paddingHorizontal: 2,
   },
   brandHeaderDate: {
-    color: "rgba(255,255,255,0.72)",
+    color: C.muted,
     fontSize: 12,
     fontWeight: "600",
     letterSpacing: 0.2,
@@ -968,7 +961,7 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderColor: C.primarySoft,
   },
   brandHeaderAvatarFallback: {
     width: 42,
@@ -978,11 +971,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderColor: C.primarySoft,
   },
   brandHeaderAvatarTxt: { color: "#FFF", fontSize: 15, fontWeight: "800" },
   brandHeaderGreet: {
-    color: "#FFFFFF",
+    color: C.navy,
     fontSize: 26,
     fontWeight: "800",
     letterSpacing: -0.5,
@@ -992,10 +985,13 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   brandHeaderHero: {
-    height: 60,
+    height: 68,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 8,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#1E3A5F",
+    borderRadius: 12,
   },
   brandHeaderHeroLayer: {
     position: "absolute",
@@ -1004,9 +1000,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brandHeaderHeroLogo: {
-    width: 280,
+    width: 260,
     maxWidth: "100%",
-    height: 56,
+    height: 52,
     backgroundColor: "transparent",
   },
 
