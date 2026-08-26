@@ -73,7 +73,7 @@ function EventScreen() {
 
   const sharePublicLink = async () => {
     if (!ev?.public_token) return;
-    const url = `${process.env.EXPO_BACKEND_URL || ""}/api/public/event-banners/${ev.public_token}`.replace(/\/+$/g, (m) => m).replace(/(https?:\/\/[^/]+)\/api/, "$1/api");
+    const url = `${process.env.EXPO_PUBLIC_BACKEND_URL || ""}/api/public/event-banners/${ev.public_token}`.replace(/\/+$/g, (m) => m).replace(/(https?:\/\/[^/]+)\/api/, "$1/api");
     try {
       if (Platform.OS === "web") {
         const nav: any = (globalThis as any).navigator;
