@@ -1,4 +1,4 @@
-import "@/src/polyfills"; // MUST be first — installs TextEncoder/TextDecoder polyfill for Hermes (jspdf/xlsx need latin1)
+import "@/src/polyfills"; // MUST be first — TextEncoder/TextDecoder polyfill for Hermes (xlsx e altre libs legacy)
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";

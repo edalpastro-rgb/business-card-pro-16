@@ -1,16 +1,23 @@
 /**
- * V28.p / V28.t — ChatTableExport
+ * V29.an — ChatTableExport (jspdf rimosso, ora usa expo-print)
  * Rende una tabella markdown parsata (headers + rows) e offre 2 opzioni di export:
- *  1. "Scarica PDF"  → PDF vero via jsPDF + jspdf-autotable
+ *  1. "Scarica PDF"           → PDF vero via expo-print (HTML → PDF nativo, funziona su Hermes)
  *  2. "Condividi come immagine" → PNG generato da canvas (web) o view-shot (native)
- * Se l'utente è Master il file esportato viene anche salvato in "Insegna ad Axon"
- * (categoria "Dati esportati") per l'auto-apprendimento.
+ *
+ * Rispetto alla versione precedente: `jspdf` è stato COMPLETAMENTE RIMOSSO per
+ * evitare il crash Hermes `RangeError: Unknown encoding: latin1` a livello di
+ * modulo. `expo-print.printToFileAsync` genera un PDF con l'engine nativo iOS
+ * (UIKit) / Android (WebView -> print) partendo da HTML, senza dipendenze JS
+ * problematiche.
+ *
+ * Se l'utente è Master, il file esportato viene anche salvato in "Insegna ad
+ * Axon" (categoria "Dati esportati") per l'auto-apprendimento.
  */
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import * as Print from "expo-print";
+import * as FileSystem from "expo-file-system/legacy";
 import { captureRef } from "react-native-view-shot";
 import { shareDataUri } from "@/src/share";
 import { api } from "@/src/api";
@@ -75,30 +82,100 @@ function nowStamp(): string {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
 }
 
-/** V28.t — Genera un PDF reale via jsPDF + autoTable. Ritorna base64 (senza prefisso data:). */
-function tableToPdfBase64(table: ParsedTable, title: string): string {
+/**
+ * V29.an — HTML sicuro con escape delle celle. Usato come input di expo-print.
+ * Riproduce lo stile del vecchio PDF jspdf: header viola brand, zebra striping,
+ * meta-riga di export in alto.
+ */
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function tableToHtml(table: ParsedTable, title: string): string {
+  const headerCells = table.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
+  const bodyRows = table.rows
+    .map(
+      (r, ri) =>
+        `<tr class="${ri % 2 === 1 ? "zebra" : ""}">${r.map((c) => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`,
+    )
+    .join("");
   const orientation = table.headers.length > 5 ? "landscape" : "portrait";
-  const doc = new jsPDF({ orientation, unit: "pt", format: "a4" });
-  // Header
-  doc.setFontSize(14);
-  doc.setTextColor(76, 29, 149); // #4C1D95 viola brand
-  doc.text(title, 40, 40);
-  doc.setFontSize(9);
-  doc.setTextColor(148, 163, 184); // muted
-  doc.text(`Esportato da Dal Pastro CRM · ${new Date().toLocaleString("it-IT")}`, 40, 56);
-  // Table
-  autoTable(doc, {
-    startY: 72,
-    head: [table.headers],
-    body: table.rows,
-    styles: { fontSize: 9, cellPadding: 5, overflow: "linebreak" },
-    headStyles: { fillColor: [124, 58, 237], textColor: 255, fontStyle: "bold" }, // #7C3AED
-    alternateRowStyles: { fillColor: [248, 250, 252] }, // #F8FAFC zebra
-    margin: { left: 40, right: 40 },
+  const exportedAt = new Date().toLocaleString("it-IT");
+  return `<!DOCTYPE html><html lang="it"><head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4 ${orientation}; margin: 24px; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; color: #1B2B4B; margin: 0; padding: 24px; }
+    h1 { color: #4C1D95; font-size: 18px; margin: 0 0 4px 0; font-weight: 800; letter-spacing: -0.2px; }
+    .meta { color: #94A3B8; font-size: 10px; margin: 0 0 16px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: auto; page-break-inside: auto; }
+    thead th { background: #7C3AED; color: #FFFFFF; text-align: left; font-weight: 700; padding: 8px 6px; border: 1px solid #7C3AED; }
+    tbody td { padding: 6px; border: 1px solid #E5E7EB; vertical-align: top; word-break: break-word; }
+    tbody tr.zebra td { background: #F8FAFC; }
+    tbody tr { page-break-inside: avoid; page-break-after: auto; }
+    .footer { color: #94A3B8; font-size: 9px; margin-top: 12px; font-style: italic; }
+  </style>
+  </head><body>
+    <h1>${escapeHtml(title)}</h1>
+    <p class="meta">Esportato da AdvisorOS · ${escapeHtml(exportedAt)}</p>
+    <table>
+      <thead><tr>${headerCells}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table>
+    <p class="footer">${table.rows.length} righe totali · ${table.headers.length} colonne</p>
+  </body></html>`;
+}
+
+/**
+ * V29.an — Genera un PDF reale via expo-print (native) o print dialog (web).
+ *
+ * - Native (iOS/Android): `Print.printToFileAsync({ html })` scrive un PDF nel
+ *   cache dir del sandbox app; poi lo leggiamo in base64 con expo-file-system.
+ * - Web: `Print.printToFileAsync` non è supportato → apriamo l'HTML in una
+ *   nuova finestra e triggeriamo `window.print()` (l'utente lo salva come PDF
+ *   dal dialog del browser). In questo caso NON restituiamo base64 e il flusso
+ *   di auto-save su Axon knowledge viene saltato (segnalato al chiamante con
+ *   `null`).
+ */
+async function tableToPdfBase64(table: ParsedTable, title: string): Promise<string | null> {
+  const html = tableToHtml(table, title);
+  if (Platform.OS === "web") {
+    // Web: open a print window and let the browser handle PDF export.
+    try {
+      const w = window.open("", "_blank", "width=900,height=1000");
+      if (!w) throw new Error("Popup bloccato dal browser");
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      // Wait a tick to let the browser render, then print.
+      setTimeout(() => {
+        try {
+          w.focus();
+          w.print();
+        } catch {}
+      }, 300);
+      return null; // No base64 available on web print flow
+    } catch (e: any) {
+      throw new Error(`Errore stampa PDF: ${e?.message || String(e)}`);
+    }
+  }
+  // Native (iOS/Android)
+  const { uri } = await Print.printToFileAsync({
+    html,
+    // width/height in points (72dpi). A4 portrait = 595 x 842.
+    width: table.headers.length > 5 ? 842 : 595,
+    height: table.headers.length > 5 ? 595 : 842,
+    base64: false,
   });
-  // jsPDF `output('datauristring')` returns "data:application/pdf;filename=...;base64,<data>"
-  const dataUri = doc.output("datauristring");
-  const b64 = dataUri.split(",").pop() || "";
+  // Leggi il file come base64 (expo-file-system è stabile su Hermes)
+  const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
   return b64;
 }
 
@@ -137,19 +214,24 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
       setBusyFormat(format);
       const stamp = nowStamp();
       const baseName = `Tabella-Axon-${stamp}`;
-      let filename = `${baseName}.${format}`;
+      const filename = `${baseName}.${format}`;
       const mime = format === "pdf" ? "application/pdf" : "image/png";
-      let data_base64 = "";
+      let data_base64: string | null = "";
 
       if (format === "pdf") {
-        data_base64 = tableToPdfBase64(table, `Tabella esportata (${table.rows.length} righe)`);
+        data_base64 = await tableToPdfBase64(table, `Tabella esportata (${table.rows.length} righe)`);
+        // Su web `tableToPdfBase64` apre il print dialog del browser e ritorna null.
+        // In quel caso non condividiamo né salviamo — il PDF è già stato prodotto dal browser.
+        if (data_base64 === null) {
+          notify("PDF pronto", "Il PDF è stato generato nel dialog di stampa del browser. Usa \"Salva come PDF\" dal menù di stampa.");
+          setOpen(false);
+          return;
+        }
       } else {
         // PNG: cross-platform capture
         if (Platform.OS === "web") {
-          // Web: draw the table on a hidden canvas
           data_base64 = await drawTableToPngWeb(table);
         } else {
-          // Native: snapshot the visible preview view via view-shot
           if (!captureRefEl.current) throw new Error("Anteprima non disponibile per lo snapshot");
           const uri = await captureRef(captureRefEl.current, { format: "png", quality: 1, result: "base64" });
           data_base64 = uri;
@@ -158,7 +240,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
 
       await shareDataUri(`data:${mime};base64,${data_base64}`, filename, mime);
 
-      if (isMaster) {
+      if (isMaster && data_base64) {
         const saved = await saveToAxonKnowledge(table, filename, mime, data_base64);
         if (saved) {
           notify("Salvato tra i file Axon", `"${filename}" è stato aggiunto alla knowledge base di Axon per l'auto-apprendimento.`);
@@ -326,7 +408,7 @@ async function drawTableToPngWeb(table: ParsedTable): Promise<string> {
   // Footer meta
   ctx.fillStyle = "#94A3B8";
   ctx.font = `10px -apple-system, Segoe UI, Roboto, sans-serif`;
-  ctx.fillText(`Dal Pastro CRM · ${new Date().toLocaleString("it-IT")}`, cellPadding, headerH + table.rows.length * rowH + 20);
+  ctx.fillText(`AdvisorOS · ${new Date().toLocaleString("it-IT")}`, cellPadding, headerH + table.rows.length * rowH + 20);
   const dataUri = canvas.toDataURL("image/png");
   return dataUri.split(",").pop() || "";
 }
