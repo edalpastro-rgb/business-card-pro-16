@@ -1,23 +1,24 @@
-import React, { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, View } from "react-native";
-import Svg, { Circle, Line } from "react-native-svg";
-
 /**
- * V29.x — Filigrana "rete neurale" per il container header della Home.
- * Renderizza nodi circolari collegati da linee sottili, opacità 0.10 (appena
- * percettibile) + un piccolo punto luminoso che scorre lentamente lungo alcune
- * connessioni, simulando un impulso elettrico.
+ * V29.x + V29.ap — Filigrana "rete neurale" per il container header della Home.
  *
- * L'effetto è puramente decorativo: il componente occupa l'intero container
- * padre con `position: absolute` e `pointerEvents: "none"` così non intercetta
- * mai i tocchi.
+ * V29.ap: reimplementato usando VIEW + Animated.View invece di react-native-svg
+ * `AnimatedCircle`. Su APK Android con new architecture (Fabric) alcuni build
+ * ignoravano l'animazione SVG (o non mostravano nulla) → l'utente vedeva il
+ * fondo dark ma senza pattern. Con questo approccio a `View` puri l'animazione
+ * gira SEMPRE (Hermes-safe, senza reflow SVG).
+ *
+ * Cosa cambia:
+ *  - Punti = piccole `View` con `borderRadius: r` e `backgroundColor` con alpha
+ *  - Impulso = `Animated.View` posizionato assoluto, spostato via `translateX`
+ *    / `translateY` (native driver = true → fluido a 60 fps anche in APK)
+ *  - Le "linee" di connessione fra nodi sono state rimosse (SVG-only) → il
+ *    pattern ora sono pure "stelle" pulsanti, che comunque danno l'idea
+ *    tecnologica cercata dall'utente.
  */
-
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+import React, { useEffect, useMemo, useRef } from "react";
+import { Animated, Easing, StyleSheet, View } from "react-native";
 
 // Nodi normalizzati in coordinate 0..1 (poi scalati a width×height).
-// Distribuiti su una griglia irregolare, evitando la banda centrale
-// dove viene renderizzato il logo AdvisorOS.
 type NodeXY = { x: number; y: number };
 const NODES: NodeXY[] = [
   { x: 0.05, y: 0.25 },
@@ -30,23 +31,7 @@ const NODES: NodeXY[] = [
   { x: 0.95, y: 0.70 },
 ];
 
-// Connessioni (indici in NODES). Solo le linee "belle" — non tutte
-// le combinazioni — per un layout più elegante e leggibile.
-const EDGES: Array<[number, number]> = [
-  [0, 1],
-  [0, 2],
-  [1, 3],
-  [2, 3],
-  [2, 4],
-  [3, 5],
-  [4, 5],
-  [4, 6],
-  [5, 7],
-  [6, 7],
-];
-
-// Percorso dell'impulso: sequenza di indici di nodi da attraversare.
-// L'animazione interpola linearmente da un nodo al successivo, in loop.
+// Percorso dell'impulso (indici in NODES) — loop
 const PULSE_PATH = [0, 2, 4, 6, 7, 5, 3, 1, 0];
 
 type Props = {
@@ -60,46 +45,48 @@ type Props = {
 export function NeuralPatternBg({
   width,
   height,
-  color = "#93C5FD",     // azzurro chiaro
+  color = "#93C5FD",
   opacity = 0.10,
-  pulseColor = "#7DD3FC", // pulse leggermente più chiaro/vivace
+  pulseColor = "#7DD3FC",
 }: Props) {
-  // Progress 0..PULSE_PATH.length-1 → si azzera in loop
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const totalMs = 8000; // giro completo dell'impulso su tutto il percorso
+    if (width <= 0 || height <= 0) return;
+    const totalMs = 8000;
     const loop = Animated.loop(
       Animated.timing(progress, {
         toValue: PULSE_PATH.length - 1,
         duration: totalMs,
         easing: Easing.inOut(Easing.linear),
-        useNativeDriver: false, // interpola cx/cy (non supportati native driver)
+        useNativeDriver: true, // V29.ap — native driver: garanzia 60fps su APK
       })
     );
     loop.start();
-    return () => {
-      loop.stop();
-    };
-  }, [progress]);
+    return () => loop.stop();
+  }, [progress, width, height]);
 
-  // Precalcola coordinate pixel dei nodi
-  const nodes = NODES.map((n) => ({ x: n.x * width, y: n.y * height }));
+  // Coordinate pixel dei nodi (assolute)
+  const nodes = useMemo(
+    () => NODES.map((n) => ({ x: n.x * width - 3, y: n.y * height - 3 })),
+    [width, height],
+  );
 
-  // Interpolazione della posizione dell'impulso (cx, cy) lungo i segmenti
-  // definiti da PULSE_PATH.
-  const cxRanges = PULSE_PATH.map((idx) => nodes[idx].x);
-  const cyRanges = PULSE_PATH.map((idx) => nodes[idx].y);
+  // Interpolazione della posizione dell'impulso (translateX/Y) lungo PULSE_PATH
   const inputRange = PULSE_PATH.map((_, i) => i);
+  const outputX = PULSE_PATH.map((idx) => NODES[idx].x * width - 4);
+  const outputY = PULSE_PATH.map((idx) => NODES[idx].y * height - 4);
+  const tX = progress.interpolate({ inputRange, outputRange: outputX });
+  const tY = progress.interpolate({ inputRange, outputRange: outputY });
 
-  const pulseCx = progress.interpolate({
-    inputRange,
-    outputRange: cxRanges,
-  });
-  const pulseCy = progress.interpolate({
-    inputRange,
-    outputRange: cyRanges,
-  });
+  // Costruiamo il color con alpha manuale (React Native Android non sempre
+  // legge fillOpacity separato — meglio applicare alpha direttamente al colore).
+  const nodeAlpha = Math.max(0.05, opacity + 0.15);
+  const nodeColorWithAlpha = applyAlpha(color, nodeAlpha);
+  const pulseCoreColor = applyAlpha(pulseColor, 0.85);
+  const pulseHaloColor = applyAlpha(pulseColor, 0.28);
+
+  if (width <= 0 || height <= 0) return null;
 
   return (
     <View
@@ -107,50 +94,60 @@ export function NeuralPatternBg({
       style={[styles.wrap, { width, height }]}
       testID="neural-pattern-bg"
     >
-      <Svg width={width} height={height}>
-        {/* Linee tra i nodi */}
-        {EDGES.map(([a, b], i) => (
-          <Line
-            key={`edge-${i}`}
-            x1={nodes[a].x}
-            y1={nodes[a].y}
-            x2={nodes[b].x}
-            y2={nodes[b].y}
-            stroke={color}
-            strokeOpacity={opacity}
-            strokeWidth={0.8}
-          />
-        ))}
-        {/* Nodi */}
-        {nodes.map((n, i) => (
-          <Circle
-            key={`node-${i}`}
-            cx={n.x}
-            cy={n.y}
-            r={2.2}
-            fill={color}
-            fillOpacity={opacity + 0.05}
-          />
-        ))}
-        {/* Impulso luminoso animato */}
-        <AnimatedCircle
-          cx={pulseCx as any}
-          cy={pulseCy as any}
-          r={2.8}
-          fill={pulseColor}
-          fillOpacity={0.75}
+      {/* Nodi statici */}
+      {nodes.map((n, i) => (
+        <View
+          key={`node-${i}`}
+          style={[
+            styles.node,
+            {
+              left: n.x,
+              top: n.y,
+              backgroundColor: nodeColorWithAlpha,
+            },
+          ]}
         />
-        {/* Alone soft dell'impulso (più grande, meno opaco) */}
-        <AnimatedCircle
-          cx={pulseCx as any}
-          cy={pulseCy as any}
-          r={5.5}
-          fill={pulseColor}
-          fillOpacity={0.22}
-        />
-      </Svg>
+      ))}
+      {/* Alone impulso (grande, sfumato) */}
+      <Animated.View
+        style={[
+          styles.pulseHalo,
+          {
+            backgroundColor: pulseHaloColor,
+            transform: [{ translateX: tX }, { translateY: tY }],
+          },
+        ]}
+      />
+      {/* Core impulso (piccolo, vivace) */}
+      <Animated.View
+        style={[
+          styles.pulseCore,
+          {
+            backgroundColor: pulseCoreColor,
+            transform: [{ translateX: tX }, { translateY: tY }],
+          },
+        ]}
+      />
     </View>
   );
+}
+
+/**
+ * Converte un colore #RRGGBB (o qualsiasi valido) in `rgba(r,g,b,alpha)`.
+ * Se il colore non è nel formato hex noto, fallback a #FFFFFF con alpha.
+ */
+function applyAlpha(color: string, alpha: number): string {
+  const a = Math.max(0, Math.min(1, alpha));
+  if (color?.startsWith("#") && (color.length === 7 || color.length === 4)) {
+    const hex = color.length === 4
+      ? `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`
+      : color;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+  return `rgba(255,255,255,${a})`;
 }
 
 const styles = StyleSheet.create({
@@ -158,6 +155,29 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     left: 0,
+    overflow: "hidden",
+  },
+  node: {
+    position: "absolute",
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  pulseCore: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  pulseHalo: {
+    position: "absolute",
+    top: -4,
+    left: -4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
   },
 });
 

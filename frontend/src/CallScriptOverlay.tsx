@@ -199,31 +199,10 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
               </ScrollView>
             ) : null}
 
-            {/* V29.ao — RIMOSSO il doppio pannello: la vecchia riga con "Telefonata
-                App" duplicava il banner verde "Tocca per chiamare" sottostante.
-                Ora un solo blocco: banner verde grande (call) + icona WhatsApp
-                verticale sul lato destro. UX più pulita. */}
-            {contactPhone ? (
-              <View style={styles.callRow}>
-                <Pressable onPress={dial} style={styles.phoneCard} testID="call-script-dial">
-                  <View style={styles.phoneIcon}><Ionicons name="call" size={22} color="#FFF" /></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.phoneLbl}>Tocca per chiamare</Text>
-                    <Text style={styles.phoneNum}>{contactPhone}</Text>
-                  </View>
-                  <Ionicons name="arrow-forward-circle" size={26} color={C.success} />
-                </Pressable>
-                <Pressable onPress={openWhatsApp} style={styles.whatsBtn} testID="call-script-open-whatsapp" accessibilityLabel="Apri WhatsApp">
-                  <Ionicons name="logo-whatsapp" size={22} color="#FFF" />
-                </Pressable>
-              </View>
-            ) : (
-              <View style={[styles.phoneCard, { backgroundColor: "#FEE2E2" }]}>
-                <Ionicons name="warning" size={20} color="#DC2626" />
-                <Text style={{ color: "#DC2626", fontWeight: "700", fontSize: 13 }}>Nessun numero di telefono</Text>
-              </View>
-            )}
-
+            {/* V29.ap — RIMOSSA la barra "Chiamata + pulsante chiama" (richiesta
+                utente): quando lo script è aperto restano SOLO i controlli in
+                cima (Aa, +/-, X) e il testo scrollabile sotto. Il numero e i
+                pulsanti chiamata vivono già nel profilo contatto. */}
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 + (insets.bottom || 0) }}>
               {rendered ? (
                 <Text style={[styles.scriptTxt, { fontSize, lineHeight: fontSize * 1.55 }]} testID="call-script-overlay-text">{rendered}</Text>

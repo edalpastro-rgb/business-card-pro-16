@@ -25,8 +25,16 @@ import { notify } from "@/src/utils/notify";
 try { WebBrowser.maybeCompleteAuthSession(); } catch { /* noop */ }
 
 const GD_GREEN = "#0F9D58";
-// Redirect URI backend (deve combaciare con quello configurato in Google Cloud Console).
-const GD_CALLBACK_URL = "https://advisoros.it/auth/google/callback";
+// V29.ap — Redirect URI derivato dall'ENV EXPO_PUBLIC_BACKEND_URL così l'APK
+// punta DIRETTAMENTE al deploy production (business-card-pro-16.emergent.host)
+// senza passare dal 301 di advisoros.it che su APK Android confonde il chrome
+// custom tab e reindirizza a app.emergent.sh/share (404 catcher Emergent).
+// IMPORTANTE: il redirect_uri deve essere REGISTRATO in Google Cloud Console.
+// Aggiungi in "Authorized redirect URIs" del tuo client OAuth:
+//   https://business-card-pro-16.emergent.host/auth/google/callback
+//   https://advisoros.it/auth/google/callback   (già presente)
+const BACKEND_ORIGIN = (process.env.EXPO_PUBLIC_BACKEND_URL || "https://advisoros.it").replace(/\/+$/, "");
+const GD_CALLBACK_URL = `${BACKEND_ORIGIN}/auth/google/callback`;
 
 export default function GoogleDriveScreen() {
   const router = useRouter();
@@ -107,7 +115,22 @@ export default function GoogleDriveScreen() {
           notify("Errore", "Callback OAuth senza code/state");
         }
       } else if (result.type === "cancel" || result.type === "dismiss") {
-        // Utente ha chiuso il browser — nessuna notifica
+        // V29.ap — Utente ha chiuso il browser (o su APK il custom tab ha fatto un
+        // redirect che WebBrowser non ha riconosciuto). Facciamo un polling di
+        // fallback di /google-drive/status: se il backend ha ricevuto e completato
+        // lo scambio del code lato server (route /auth/google/callback), lo stato
+        // apparirà "connected" entro pochi secondi anche senza deep-link back.
+        for (let i = 0; i < 10; i++) {
+          try {
+            const s = await api<any>("/google-drive/status");
+            if (s?.connected) {
+              setStatus(s);
+              notify("Collegato", "Google Drive è ora collegato a Axon");
+              return;
+            }
+          } catch { /* ignore */ }
+          await new Promise((r) => setTimeout(r, 1500));
+        }
       }
       await load();
     } catch (e: any) {

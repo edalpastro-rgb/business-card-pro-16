@@ -14,9 +14,13 @@ const TAB_BORDER = "#EEF0F4";
 export default function TabsLayout() {
   const { user, loading } = useAuth();
   const insets = useSafeAreaInsets();
-  // Ensure at least 16px bottom padding even on browsers that report insets.bottom = 0
-  // (fixes Android web where system nav bar overlaps tab labels)
-  const bottomInset = Math.max(insets.bottom || 0, 16);
+  // V29.ap — Garantiamo un padding-bottom minimo di 20px sempre (era 16px):
+  //  - Su iOS con notch: insets.bottom ~34px → prende quello
+  //  - Su Android con gesture-bar: insets.bottom ~24-48px → prende quello
+  //  - Su Android con nav-bar 3-button: insets.bottom = 0 su alcune build APK
+  //    "edge-to-edge", quindi forziamo 20px minimo per non tagliare le label.
+  //  - Su web: insets.bottom = 0 su alcuni browser → 20px minimo.
+  const bottomInset = Math.max(insets.bottom || 0, 20);
   const tabBarHeight = 60 + bottomInset;
 
   if (loading) {

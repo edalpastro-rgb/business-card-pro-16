@@ -79,15 +79,100 @@ async def _api_health():
 # V29.b — Defensive safety net: se per qualche misconfig di ingress il redirect
 # OAuth di Google finisce sul backend anziché sul frontend, ripiega redirigendo
 # alla pagina Expo Router che sa gestire code/state. Non impatta il flow normale.
+# V29.ap — La route GET /auth/google/callback ora completa lo scambio del code
+# LATO SERVER (invece di limitarsi a redirigere al frontend). Motivazione: su
+# APK Android il chrome custom tab spesso "perde" il redirect a un URL scheme
+# custom dopo il primo hop → il vecchio bridge redirect al frontend non
+# raggiungeva mai l'app. Ora invece:
+#  1. Google reindirizza qui con code+state
+#  2. Chiamiamo internamente la logica di scambio (equivalente a POST
+#     /google-drive/oauth/exchange) — best effort, se fallisce non è drammatico
+#  3. Rispondiamo con una pagina HTML "Autorizzato ✓ Torna all'app"
+#  4. L'app in foreground rileva via polling /google-drive/status che il token
+#     è ora presente → aggancia la UI.
 @app.get("/auth/google/callback")
 async def _oauth_callback_bridge(request: Request):
-    from fastapi.responses import RedirectResponse
-    qs = str(request.url.query or "")
-    target = os.getenv("GOOGLE_DRIVE_FRONTEND_URL") or "https://advisoros.it"
-    # Preferiamo la pagina Expo Router dedicata al callback
-    base = target.split("/profile")[0].rstrip("/")
-    dest = f"{base}/auth/google/callback" + (f"?{qs}" if qs else "")
-    return RedirectResponse(url=dest, status_code=302)
+    from fastapi.responses import HTMLResponse, RedirectResponse
+    qp = request.query_params
+    code = qp.get("code")
+    state = qp.get("state")
+    err = qp.get("error")
+
+    async def _try_exchange_and_page(ok: bool, message: str, detail: str = "") -> HTMLResponse:
+        # HTML minimalista, brand navy + arancione, self-close-friendly
+        color = "#16A34A" if ok else "#DC2626"
+        icon = "✓" if ok else "✗"
+        html = f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdvisorOS · Google Drive</title>
+<style>
+body {{ font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 32px;
+       background: #0F2438; color: #FFF; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; text-align: center; }}
+.circle {{ width: 88px; height: 88px; border-radius: 44px; background: {color};
+           display: flex; align-items: center; justify-content: center; font-size: 48px;
+           color: #FFF; font-weight: 800; margin-bottom: 20px; }}
+h1 {{ font-size: 22px; margin: 0 0 8px 0; font-weight: 800; letter-spacing: -0.4px; }}
+p {{ color: rgba(255,255,255,0.75); font-size: 14px; margin: 4px 0; max-width: 380px; }}
+.hint {{ margin-top: 20px; color: #38BDF8; font-size: 12px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 1px; }}
+</style></head><body>
+<div class="circle">{icon}</div>
+<h1>{message}</h1>
+<p>{detail}</p>
+<p class="hint">Torna all'app AdvisorOS per continuare</p>
+<script>setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 2500);</script>
+</body></html>"""
+        return HTMLResponse(content=html, status_code=200)
+
+    if err:
+        return await _try_exchange_and_page(False, "Autorizzazione annullata", err)
+    if not code or not state:
+        return await _try_exchange_and_page(False, "Callback OAuth incompleto", "Manca code o state")
+
+    # Scambio server-side (stesso codice del POST /google-drive/oauth/exchange)
+    try:
+        if not _gd_configured():
+            return await _try_exchange_and_page(False, "Google Drive non configurato",
+                                                "Contatta l'amministratore del server")
+        s = await db.google_oauth_states.find_one_and_delete({"_id": state})
+        if not s:
+            return await _try_exchange_and_page(False, "Sessione scaduta",
+                                                "Riprova dalla schermata Google Drive")
+        from google_auth_oauthlib.flow import Flow  # type: ignore
+        from googleapiclient.discovery import build  # type: ignore
+        flow = Flow.from_client_config(_gd_client_config(), scopes=_GD_SCOPES, state=state, redirect_uri=_GD_REDIRECT_URI)
+        flow.fetch_token(code=code)
+        creds = flow.credentials
+        refresh = creds.refresh_token
+        if not refresh:
+            old = await db.google_drive_connections.find_one({"user_id": s["user_id"]})
+            if old:
+                refresh = _gd_fernet.decrypt(old["refresh_token_enc"].encode()).decode()
+            else:
+                return await _try_exchange_and_page(False, "Refresh token mancante",
+                                                    "Revoca l'accesso in Google e riprova")
+        google_email = None
+        try:
+            oauth2_service = build("oauth2", "v2", credentials=creds, cache_discovery=False)
+            info = oauth2_service.userinfo().get().execute()
+            google_email = info.get("email")
+        except Exception:
+            pass
+        doc = {
+            "user_id": s["user_id"],
+            "refresh_token_enc": _gd_fernet.encrypt(refresh.encode()).decode(),
+            "scopes": list(creds.scopes or _GD_SCOPES),
+            "google_email": google_email,
+            "updated_at": utcnow(),
+        }
+        await db.google_drive_connections.update_one(
+            {"user_id": s["user_id"]}, {"$set": doc, "$setOnInsert": {"created_at": utcnow()}}, upsert=True
+        )
+        return await _try_exchange_and_page(True, "Google Drive collegato",
+                                            f"Account: {google_email}" if google_email else "")
+    except Exception as e:
+        return await _try_exchange_and_page(False, "Errore durante il collegamento", str(e))
 
 
 # =========================

@@ -58,7 +58,7 @@ export function PersistentBottomNav() {
   if (hideCompletely) return null;
   if (inTabs) return null; // la Tabs nativa è già visibile
 
-  const bottomInset = Math.max(insets.bottom || 0, 16);
+  const bottomInset = Math.max(insets.bottom || 0, 20);
 
   const current = TABS.find((t) => pathname.includes(`/${t.name}`))?.name;
 
