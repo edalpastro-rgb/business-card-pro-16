@@ -15,6 +15,7 @@ import { FabStackProvider } from "@/src/FabStack";
 import { ActiveCallProvider } from "@/src/CallTimerBar";
 import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
+import { GlobalErrorBoundary } from "@/src/GlobalErrorBoundary";
 
 configureNotifHandler();
 
@@ -131,13 +132,15 @@ export default function RootLayout() {
   if (!loaded && !error && !proceed) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <LockGate />
-          <AnimatedSplash />
-        </AuthProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <GlobalErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <AuthProvider>
+            <LockGate />
+            <AnimatedSplash />
+          </AuthProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </GlobalErrorBoundary>
   );
 }
