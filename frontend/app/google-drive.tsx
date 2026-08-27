@@ -25,13 +25,11 @@ import { notify } from "@/src/utils/notify";
 try { WebBrowser.maybeCompleteAuthSession(); } catch { /* noop */ }
 
 const GD_GREEN = "#0F9D58";
-// V29.ap — Redirect URI FISSO a advisoros.it (dominio verificato in Google
-// Cloud Console). ATTENZIONE: perché funzioni davvero, il DNS/proxy di
-// advisoros.it (Aruba) deve fare proxy_pass a business-card-pro-16.emergent.host
-// preservando path + query, NON un redirect 301 al root.
-// Attuale bug proxy: `301 → business-card-pro-16.emergent.host/` (path perso).
-// Se non risolvi la config Aruba, l'OAuth Google non completerà mai il round-trip.
-const GD_CALLBACK_URL = "https://advisoros.it/auth/google/callback";
+// V29.ap — Redirect URI fisso al deploy Emergent (bypass del proxy Aruba di
+// advisoros.it che fa 301 al root perdendo path+query). Deve essere REGISTRATO
+// in Google Cloud Console → OAuth 2.0 Client → Authorized redirect URIs:
+//   https://business-card-pro-16.emergent.host/auth/google/callback
+const GD_CALLBACK_URL = "https://business-card-pro-16.emergent.host/auth/google/callback";
 
 export default function GoogleDriveScreen() {
   const router = useRouter();
