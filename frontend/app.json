@@ -2,7 +2,7 @@
   "expo": {
     "name": "AdvisorOS",
     "slug": "AdvisorOS",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "frontend",
@@ -26,7 +26,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.consulenteapp.zkleir",
-      "versionCode": 4,
+      "versionCode": 5,
       "permissions": [
         "CAMERA",
         "POST_NOTIFICATIONS",
