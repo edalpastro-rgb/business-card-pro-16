@@ -14,6 +14,7 @@ import {
   Easing,
   Image,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
@@ -125,6 +126,7 @@ async function playAudioBase64(
 
 export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets(); // V29.ao — safe area insets per non finire sotto la gesture bar
   // V28.y — Only the Master can save rules/URLs to Insegna ad Axon
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -221,9 +223,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       }
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       setRecording(false);
-      // Also end continuous conversation
+      // V29.ao — Ferma SEMPRE l'audio TTS in corso alla chiusura della chat,
+      // indipendentemente dalla modalità conversation. In precedenza il cleanup
+      // era eseguito solo se `convModeRef.current` era true → audio residuo.
+      if (cleanupAudioRef.current) { try { cleanupAudioRef.current(); } catch {} cleanupAudioRef.current = null; }
+      setPlayingIdx(null);
+      // Also end continuous conversation (se attiva)
       if (convModeRef.current) {
-        if (cleanupAudioRef.current) { try { cleanupAudioRef.current(); } catch {} cleanupAudioRef.current = null; }
         cleanupConversation();
         setConvMode(false);
         setConvMuted(false);
@@ -655,6 +661,10 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const cycleMode = async () => {
     const idx = MODE_ORDER.indexOf(responseMode);
     const next = MODE_ORDER[(idx + 1) % MODE_ORDER.length];
+    // V29.ao — Al cambio modalità fermiamo IMMEDIATAMENTE la voce in corso
+    // (evita che l'audio continui in background dopo aver switchato a "text").
+    if (cleanupAudioRef.current) { try { cleanupAudioRef.current(); } catch {} cleanupAudioRef.current = null; }
+    setPlayingIdx(null);
     setResponseMode(next);
     try {
       await api("/user-settings", { method: "PUT", body: { assistant_response_mode: next } });
@@ -662,6 +672,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   };
 
   const setMode = async (m: ResponseMode) => {
+    // V29.ao — Anche dal menù modalità: stop immediato dell'audio in playing.
+    if (cleanupAudioRef.current) { try { cleanupAudioRef.current(); } catch {} cleanupAudioRef.current = null; }
+    setPlayingIdx(null);
     setShowModeMenu(false);
     setResponseMode(m);
     try {
@@ -987,7 +1000,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <Pressable style={styles.backdropTouch} onPress={onClose} />
-        <View ref={sheetContainerRef} style={styles.sheet}>
+        <View ref={sheetContainerRef} style={[styles.sheet, { paddingBottom: insets.bottom }]}>
           {/* V28.v — Drop zone overlay (solo web durante drag di file) */}
           {isDragging && Platform.OS === "web" && (
             <View pointerEvents="none" style={styles.dropOverlay} testID="assistant-drop-overlay">

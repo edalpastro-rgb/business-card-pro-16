@@ -15,6 +15,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Linking, Platform, Animated, PanResponder, Dimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -34,6 +35,7 @@ const HEADER_HEIGHT = 64; // altezza barra minima (solo titolo)
 
 export function CallScriptOverlay({ visible, onClose, contactName, contactPhone }: Props) {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets(); // V29.ao — non finire sotto la gesture bar Android
   const [scripts, setScripts] = useState<NamedScript[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const [fontSize, setFontSize] = useState(14);
@@ -94,16 +96,20 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
   const load = useCallback(async () => {
     try {
       const s = await api<{ call_script?: string; call_scripts?: NamedScript[] }>("/settings");
-      const list = Array.isArray(s.call_scripts) ? s.call_scripts.filter((x) => x && x.content) : [];
+      // V29.ao — Filtro rilassato: accetta script anche con content vuoto (l'utente
+      // può averlo appena creato); mostreremo poi l'anteprima con placeholder.
+      // Il vecchio filtro `x.content` scartava troppi script validi.
+      const raw = Array.isArray(s.call_scripts) ? s.call_scripts.filter((x) => x && x.id) : [];
+      const list = raw.map((x) => ({ id: x.id, name: x.name || "Script", content: x.content || "" }));
+      // Fallback: legacy `call_script` singolo se non c'è nessuno script strutturato
       if (list.length === 0 && s.call_script) {
         list.push({ id: "_default", name: "Standard", content: s.call_script });
       }
       setScripts(list);
-      if (list.length > 0 && !list.some((x) => x.id === activeId)) {
-        setActiveId(list[0].id);
-      }
+      // Assicura che activeId punti ad uno script esistente
+      setActiveId((prev) => (list.some((x) => x.id === prev) ? prev : (list[0]?.id || "")));
     } catch { setScripts([]); }
-  }, [activeId]);
+  }, []); // V29.ao — NON dipende più da activeId (evitiamo loop di ricarica)
 
   useEffect(() => { if (visible) load(); }, [visible, load]);
 
@@ -120,10 +126,8 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
     else Linking.openURL(url).catch(() => {});
   };
 
-  // V29.af — Azione "Telefonata App": tenta di aprire l'URL scheme telefonata
-  // via `tel:` (stessa logica di dial). Su web/desktop apre il gestore telefonate
-  // di sistema, su mobile lancia direttamente il dialer.
-  const openPhoneApp = () => dial();
+  // V29.ao — RIMOSSA `openPhoneApp` (era duplicato del banner grande "Tocca per
+  // chiamare"). Ora l'unico entry-point per chiamare è il banner verde `dial`.
 
   // V29.af — Azione "Mess.WhatsApp": apre il link `wa.me/<numero>` (mobile e web).
   const openWhatsApp = () => {
@@ -195,30 +199,24 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
               </ScrollView>
             ) : null}
 
-            {/* V29.af — Riga azioni compatta: Telefonata App + Mess.WhatsApp
-                (altezza 40px, larghezza flex-1 max 50% ciascuno). */}
+            {/* V29.ao — RIMOSSO il doppio pannello: la vecchia riga con "Telefonata
+                App" duplicava il banner verde "Tocca per chiamare" sottostante.
+                Ora un solo blocco: banner verde grande (call) + icona WhatsApp
+                verticale sul lato destro. UX più pulita. */}
             {contactPhone ? (
-              <View style={styles.actionsRow}>
-                <Pressable onPress={openPhoneApp} style={styles.smallBtn} testID="call-script-open-phone-app">
-                  <Ionicons name="call-outline" size={16} color={C.navy} />
-                  <Text style={styles.smallBtnTxt} numberOfLines={1}>Telefonata App</Text>
+              <View style={styles.callRow}>
+                <Pressable onPress={dial} style={styles.phoneCard} testID="call-script-dial">
+                  <View style={styles.phoneIcon}><Ionicons name="call" size={22} color="#FFF" /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.phoneLbl}>Tocca per chiamare</Text>
+                    <Text style={styles.phoneNum}>{contactPhone}</Text>
+                  </View>
+                  <Ionicons name="arrow-forward-circle" size={26} color={C.success} />
                 </Pressable>
-                <Pressable onPress={openWhatsApp} style={[styles.smallBtn, styles.smallBtnWa]} testID="call-script-open-whatsapp">
-                  <Ionicons name="logo-whatsapp" size={16} color="#16A34A" />
-                  <Text style={styles.smallBtnTxt} numberOfLines={1}>Mess.WhatsApp</Text>
+                <Pressable onPress={openWhatsApp} style={styles.whatsBtn} testID="call-script-open-whatsapp" accessibilityLabel="Apri WhatsApp">
+                  <Ionicons name="logo-whatsapp" size={22} color="#FFF" />
                 </Pressable>
               </View>
-            ) : null}
-
-            {contactPhone ? (
-              <Pressable onPress={dial} style={styles.phoneCard} testID="call-script-dial">
-                <View style={styles.phoneIcon}><Ionicons name="call" size={22} color="#FFF" /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.phoneLbl}>Tocca per chiamare</Text>
-                  <Text style={styles.phoneNum}>{contactPhone}</Text>
-                </View>
-                <Ionicons name="arrow-forward-circle" size={26} color={C.success} />
-              </Pressable>
             ) : (
               <View style={[styles.phoneCard, { backgroundColor: "#FEE2E2" }]}>
                 <Ionicons name="warning" size={20} color="#DC2626" />
@@ -226,7 +224,7 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
               </View>
             )}
 
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 + (insets.bottom || 0) }}>
               {rendered ? (
                 <Text style={[styles.scriptTxt, { fontSize, lineHeight: fontSize * 1.55 }]} testID="call-script-overlay-text">{rendered}</Text>
               ) : (
@@ -277,37 +275,16 @@ const styles = StyleSheet.create({
   chipsRow: { gap: 8, paddingRight: 20 },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5, borderColor: C.primary },
   chipTxt: { fontSize: 12, fontWeight: "800", color: C.primary },
-  actionsRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingTop: 10,
-  },
-  smallBtn: {
-    flex: 1,
-    maxWidth: "50%",
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: C.primarySoft,
-    borderWidth: 1,
-    borderColor: C.primary,
-    flexDirection: "row",
+  // V29.ao — Riga chiamata compatta: banner verde grande + bottone WhatsApp
+  callRow: { flexDirection: "row", alignItems: "stretch", gap: 8, paddingHorizontal: 14, marginTop: 8 },
+  whatsBtn: {
+    width: 54,
+    borderRadius: 12,
+    backgroundColor: "#25D366",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingHorizontal: 8,
   },
-  smallBtnWa: {
-    backgroundColor: "#DCFCE7",
-    borderColor: "#16A34A",
-  },
-  smallBtnTxt: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: C.navy,
-    letterSpacing: 0.1,
-  },
-  phoneCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#DCFCE7", padding: 12, marginHorizontal: 14, marginTop: 8, borderRadius: 12 },
+  phoneCard: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#DCFCE7", padding: 12, borderRadius: 12 },
   phoneIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.success, alignItems: "center", justifyContent: "center" },
   phoneLbl: { fontSize: 11, fontWeight: "700", color: "#166534", textTransform: "uppercase", letterSpacing: 0.5 },
   phoneNum: { fontSize: 22, fontWeight: "900", color: C.navy, letterSpacing: -0.5, marginTop: 2 },

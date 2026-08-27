@@ -1878,8 +1878,8 @@ function NewContactScreen() {
               <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#DCFCE7", justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
                 <Ionicons name="checkmark-circle" size={40} color="#16A34A" />
               </View>
-              <Text style={[styles.modalTitle, { textAlign: "center" }]}>{chainMode ? "Referenza aggiunta ✅" : "Contatto salvato ✅"}</Text>
-              <Text style={{ fontSize: 13, color: theme.color.muted, textAlign: "center", marginTop: 4 }}>
+              <Text style={[styles.modalTitle, { textAlign: "center", color: "#0F172A" }]}>{chainMode ? "Referenza aggiunta ✅" : "Contatto salvato ✅"}</Text>
+              <Text style={{ fontSize: 13, color: "#475569", textAlign: "center", marginTop: 4 }}>
                 {chainMode
                   ? `Vuoi fissare subito un appuntamento con ${postCreateModal?.name}?`
                   : `Vuoi programmare subito un appuntamento con ${postCreateModal?.name}?`}
@@ -1900,10 +1900,10 @@ function NewContactScreen() {
                     router.replace(`/appointment/new?contact_id=${encodeURIComponent(id)}&contact_name=${encodeURIComponent(name)}${chainQuery}` as any);
                   }
                 }}
-                style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary, flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                style={[styles.modalBtn, { backgroundColor: "#1C4869", flexDirection: "row", justifyContent: "center", gap: 8 }]}
               >
-                <Ionicons name="calendar" size={18} color="#FFF" />
-                <Text style={{ color: "#FFF", fontWeight: "700" }}>Fissa appuntamento</Text>
+                <Ionicons name="calendar" size={18} color="#FFFFFF" />
+                <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 15 }}>Fissa appuntamento</Text>
               </Pressable>
 
               {chainMode && chainBackTo ? (
@@ -1918,7 +1918,7 @@ function NewContactScreen() {
                     style={[styles.modalBtn, { backgroundColor: "#FFF1E9", borderWidth: 2, borderColor: "#FF6B35", flexDirection: "row", justifyContent: "center", gap: 8 }]}
                   >
                     <Ionicons name="person-add" size={18} color="#FF6B35" />
-                    <Text style={{ color: "#FF6B35", fontWeight: "800" }}>Aggiungi altra referenza</Text>
+                    <Text style={{ color: "#FF6B35", fontWeight: "800", fontSize: 15 }}>Aggiungi altra referenza</Text>
                   </Pressable>
                   <Pressable
                     testID="chain-finish-btn"
@@ -1926,10 +1926,10 @@ function NewContactScreen() {
                       setPostCreateModal(null);
                       router.replace("/(tabs)/home" as any);
                     }}
-                    style={[styles.modalBtn, { backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: theme.color.border, flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                    style={[styles.modalBtn, { backgroundColor: "#E2E8F0", borderWidth: 1, borderColor: "#94A3B8", flexDirection: "row", justifyContent: "center", gap: 8 }]}
                   >
-                    <Ionicons name="checkmark-done" size={18} color={theme.color.onSurface} />
-                    <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Finito · Torna alla Home</Text>
+                    <Ionicons name="checkmark-done" size={18} color="#0F172A" />
+                    <Text style={{ color: "#0F172A", fontWeight: "800", fontSize: 15 }}>Finito · Torna alla Home</Text>
                   </Pressable>
                 </>
               ) : (
@@ -1940,10 +1940,10 @@ function NewContactScreen() {
                     setPostCreateModal(null);
                     if (id) router.replace(`/contact/${id}`);
                   }}
-                  style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                  style={[styles.modalBtn, { backgroundColor: "#E2E8F0", borderWidth: 1, borderColor: "#94A3B8", flexDirection: "row", justifyContent: "center", gap: 8 }]}
                 >
-                  <Ionicons name="arrow-forward" size={18} color={theme.color.onSurface} />
-                  <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Salta, vai alla scheda</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#0F172A" />
+                  <Text style={{ color: "#0F172A", fontWeight: "800", fontSize: 15 }}>Salta, vai alla scheda</Text>
                 </Pressable>
               )}
             </View>
@@ -2130,19 +2130,22 @@ function NewContactScreen() {
 }
 
 function NoteMediaBar({ target, recording, onPhotoCam, onPhotoGal, onFile, onRecStart, onRecStop }: any) {
+  // V29.ao — Riordinati per priorità (richiesta utente):
+  //  1) Allega file  2) Importa foto  3) Scatta foto  4) Registra audio
+  // Testo del bottone audio: "Registra audio" (removed obsolete "Non supportato").
   return (
     <View style={mediaBarStyles.row}>
-      <Pressable testID={`att-${target}-camera`} onPress={onPhotoCam} style={[mediaBarStyles.btn, { backgroundColor: theme.color.brandSecondary }]}>
-        <Ionicons name="camera" size={14} color="#FFF" />
-        <Text style={mediaBarStyles.txt}>Scatta foto</Text>
+      <Pressable testID={`att-${target}-file`} onPress={onFile} style={[mediaBarStyles.btn, { backgroundColor: "#0891B2" }]}>
+        <Ionicons name="attach" size={14} color="#FFF" />
+        <Text style={mediaBarStyles.txt}>Allega file</Text>
       </Pressable>
       <Pressable testID={`att-${target}-gallery`} onPress={onPhotoGal} style={[mediaBarStyles.btn, { backgroundColor: "#8B5CF6" }]}>
         <Ionicons name="image" size={14} color="#FFF" />
         <Text style={mediaBarStyles.txt}>Importa foto</Text>
       </Pressable>
-      <Pressable testID={`att-${target}-file`} onPress={onFile} style={[mediaBarStyles.btn, { backgroundColor: "#0891B2" }]}>
-        <Ionicons name="attach" size={14} color="#FFF" />
-        <Text style={mediaBarStyles.txt}>Allega file</Text>
+      <Pressable testID={`att-${target}-camera`} onPress={onPhotoCam} style={[mediaBarStyles.btn, { backgroundColor: theme.color.brandSecondary }]}>
+        <Ionicons name="camera" size={14} color="#FFF" />
+        <Text style={mediaBarStyles.txt}>Scatta foto</Text>
       </Pressable>
       <Pressable
         testID={`att-${target}-audio`}

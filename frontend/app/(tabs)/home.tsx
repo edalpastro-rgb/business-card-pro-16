@@ -315,9 +315,9 @@ export default function HomeScreen() {
               <NeuralPatternBg
                 width={brandBoxSize.w}
                 height={brandBoxSize.h}
-                color="#93C5FD"
-                opacity={0.10}
-                pulseColor="#7DD3FC"
+                color="#38BDF8"
+                opacity={0.28}
+                pulseColor="#22D3EE"
               />
             </View>
           )}
@@ -967,9 +967,12 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   brandHeaderBox: {
-    backgroundColor: "transparent",
+    // V29.ao — Sfondo dark tech: gradient scuro navy + border sottile cyan.
+    // Il pattern NeuralPatternBg (ora cyan) sopra il fondo crea l'effetto
+    // "circuiti digitali" richiesto.
+    backgroundColor: "#0B1E38",
     borderWidth: 1,
-    borderColor: "#1E3A5F",
+    borderColor: "rgba(56,189,248,0.35)", // cyan-400 alpha
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingTop: 4,
@@ -1003,7 +1006,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   brandHeaderDate: {
-    color: C.muted,
+    // V29.ao — Header dark: testo cyan chiaro leggibile sul fondo navy
+    color: "rgba(186,230,253,0.85)", // sky-200 alpha
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 0.2,
@@ -1028,13 +1032,14 @@ const styles = StyleSheet.create({
   },
   brandHeaderAvatarTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
   brandHeaderGreet: {
-    color: C.navy,
+    // V29.ao — Testo bianco su fondo dark per leggibilità
+    color: "#F1F5F9",
     fontSize: 22,
     fontWeight: "800",
     letterSpacing: -0.5,
   },
   brandHeaderGreetName: {
-    color: C.primary,
+    color: "#FF6B35",
     fontWeight: "900",
   },
   brandHeaderHero: {

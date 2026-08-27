@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -127,16 +127,16 @@ export default function NewCallbackScreen() {
         </View>
 
         <Text style={styles.lbl}>Contatto (opzionale)</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-          <Pressable testID="cb-c-none" onPress={() => setForm({ ...form, contact_id: "" })} style={[styles.pill, !form.contact_id && styles.pillActive]}>
-            <Text style={[styles.pillTxt, !form.contact_id && styles.pillTxtActive]}>Nessuno</Text>
-          </Pressable>
-          {contacts.map((c) => (
-            <Pressable key={c.contact_id} testID={`cb-c-${c.contact_id}`} onPress={() => setForm({ ...form, contact_id: c.contact_id })} style={[styles.pill, form.contact_id === c.contact_id && styles.pillActive]}>
-              <Text style={[styles.pillTxt, form.contact_id === c.contact_id && styles.pillTxtActive]}>{c.first_name} {c.last_name}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        {/* V29.ao — Sostituiti i chip fissi (che scrollavano orizzontalmente per
+            centinaia di contatti) con un campo di ricerca testuale.
+            L'utente cerca per nome/cognome e vede fino a 8 risultati match.
+            Cliccando un risultato viene selezionato; nel campo appare il nome. */}
+        <ContactPicker
+          contacts={contacts}
+          selectedId={form.contact_id}
+          onSelect={(cid) => setForm({ ...form, contact_id: cid })}
+        />
+
 
         {Platform.OS === "web" ? (
           <View style={{ marginTop: 14 }}>
@@ -223,4 +223,164 @@ const styles = StyleSheet.create({
   dateBtnTxt: { color: theme.color.onSurface, fontWeight: "600" },
   saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 24 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
+  // V29.ao — ContactPicker (search + result list)
+  cpWrap: { position: "relative", zIndex: 5 },
+  cpInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFF",
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  cpInput: { flex: 1, color: theme.color.onSurface, fontSize: 15, paddingVertical: 0 },
+  cpClearBtn: { padding: 4 },
+  cpSelectedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: theme.color.brandTertiary,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.color.brandPrimary,
+  },
+  cpSelectedTxt: { flex: 1, color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
+  cpResults: {
+    marginTop: 6,
+    backgroundColor: "#FFF",
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    overflow: "hidden",
+  },
+  cpResultItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.divider,
+  },
+  cpResultTxt: { flex: 1, color: theme.color.onSurface, fontWeight: "600", fontSize: 14 },
+  cpEmpty: {
+    marginTop: 6,
+    padding: 12,
+    backgroundColor: "#F1F5F9",
+    borderRadius: theme.radius.md,
+    alignItems: "center",
+  },
+  cpEmptyTxt: { color: theme.color.muted, fontSize: 12, fontStyle: "italic" },
 });
+
+/**
+ * V29.ao — ContactPicker: campo di ricerca testuale che filtra i contatti
+ * dell'anagrafica per nome / cognome / telefono, mostrando fino a 8 risultati.
+ * Toccando un risultato lo si seleziona (compare in un box "selezionato" con la
+ * X per rimuovere). Sostituisce la vecchia lista fissa di chip che era
+ * inutilizzabile con >30 contatti.
+ */
+function ContactPicker({
+  contacts,
+  selectedId,
+  onSelect,
+}: {
+  contacts: Contact[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [focused, setFocused] = useState(false);
+  const selected = useMemo(() => contacts.find((c) => c.contact_id === selectedId) || null, [contacts, selectedId]);
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return [] as Contact[];
+    return contacts
+      .filter((c) => `${c.first_name} ${c.last_name}`.toLowerCase().includes(s))
+      .slice(0, 8);
+  }, [contacts, q]);
+
+  const showResults = focused && q.length > 0;
+
+  if (selected) {
+    return (
+      <View style={styles.cpWrap} testID="cb-contact-picker">
+        <View style={styles.cpSelectedRow}>
+          <Ionicons name="person-circle" size={22} color={theme.color.brandPrimary} />
+          <Text style={styles.cpSelectedTxt} numberOfLines={1}>
+            {selected.first_name} {selected.last_name}
+          </Text>
+          <Pressable
+            testID="cb-contact-clear"
+            onPress={() => {
+              onSelect("");
+              setQ("");
+            }}
+            hitSlop={8}
+            style={styles.cpClearBtn}
+          >
+            <Ionicons name="close-circle" size={20} color={theme.color.error} />
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.cpWrap} testID="cb-contact-picker">
+      <View style={styles.cpInputRow}>
+        <Ionicons name="search" size={18} color={theme.color.muted} />
+        <TextInput
+          testID="cb-contact-search"
+          value={q}
+          onChangeText={setQ}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          placeholder="Cerca un contatto per nome…"
+          placeholderTextColor={theme.color.muted}
+          style={styles.cpInput}
+          autoCorrect={false}
+          autoCapitalize="words"
+        />
+        {q.length > 0 && (
+          <Pressable onPress={() => setQ("")} hitSlop={8} style={styles.cpClearBtn}>
+            <Ionicons name="close-circle" size={18} color={theme.color.muted} />
+          </Pressable>
+        )}
+      </View>
+      {showResults &&
+        (filtered.length > 0 ? (
+          <View style={styles.cpResults}>
+            {filtered.map((c, idx) => (
+              <Pressable
+                key={c.contact_id}
+                testID={`cb-contact-pick-${c.contact_id}`}
+                onPress={() => {
+                  onSelect(c.contact_id);
+                  setQ("");
+                  setFocused(false);
+                }}
+                style={[styles.cpResultItem, idx === filtered.length - 1 && { borderBottomWidth: 0 }]}
+              >
+                <Ionicons name="person" size={16} color={theme.color.brandPrimary} />
+                <Text style={styles.cpResultTxt} numberOfLines={1}>
+                  {c.first_name} {c.last_name}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.cpEmpty}>
+            <Text style={styles.cpEmptyTxt}>Nessun contatto trovato</Text>
+          </View>
+        ))}
+    </View>
+  );
+}

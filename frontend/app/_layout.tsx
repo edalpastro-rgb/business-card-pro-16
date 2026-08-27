@@ -56,25 +56,45 @@ function LockGate() {
     const sub = AppState.addEventListener("change", async (next) => {
       if (next !== "active") {
         // record when we went inactive
-        await storage.secureSet("app_bg_at_v1", Date.now());
+        try { await storage.secureSet("app_bg_at_v1", Date.now()); } catch {}
         return;
       }
       if (!user) return;
 
-      // If trust expired -> force full logout (triggers login flow with 2FA)
-      const trustOk = await isTrustStillValid();
-      if (!trustOk) {
-        await logout();
-        return;
-      }
+      // V29.ao — Defensive timeout: se isTrustStillValid o le operazioni SecureStore
+      // si bloccano (osservato al ritorno dopo una telefonata in APK), non lasciamo
+      // l'app in stato "loading" per sempre. Timeout 2500ms.
+      const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+        new Promise((resolve) => {
+          let done = false;
+          const t = setTimeout(() => { if (!done) { done = true; resolve(fallback); } }, ms);
+          p.then((v) => { if (!done) { done = true; clearTimeout(t); resolve(v); } })
+            .catch(() => { if (!done) { done = true; clearTimeout(t); resolve(fallback); } });
+        });
 
-      const lockOn = await isAppLockEnabled();
-      if (!lockOn) return;
+      try {
+        // If trust expired -> force full logout (triggers login flow with 2FA)
+        const trustOk = await withTimeout(isTrustStillValid(), 2500, true);
+        if (!trustOk) {
+          await withTimeout(logout(), 2500, undefined as any);
+          return;
+        }
 
-      const bgAt = (await storage.secureGet<number | null>("app_bg_at_v1", null)) as number | null;
-      const idleMs = 5 * 60 * 1000;
-      if (bgAt && Date.now() - Number(bgAt) > idleMs) {
-        setLocked(true);
+        const lockOn = await withTimeout(isAppLockEnabled(), 1500, false);
+        if (!lockOn) return;
+
+        const bgAt = (await withTimeout(
+          storage.secureGet<number | null>("app_bg_at_v1", null) as Promise<number | null>,
+          1500,
+          null,
+        )) as number | null;
+        const idleMs = 5 * 60 * 1000;
+        if (bgAt && Date.now() - Number(bgAt) > idleMs) {
+          setLocked(true);
+        }
+      } catch {
+        // Su qualsiasi errore: non lock, non logout. Meglio lasciare l'app aperta
+        // che intrappolare l'utente in una rotellina.
       }
     });
     return () => sub.remove();

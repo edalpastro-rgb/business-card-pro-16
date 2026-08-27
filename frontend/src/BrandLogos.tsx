@@ -20,7 +20,7 @@ type LogoProps = {
   testID?: string;
 };
 
-export function AdvisorOSLogo({ size = 44, style, testID }: LogoProps) {
+export function AdvisorOSLogo({ size = 44, style, onDark, testID }: LogoProps) {
   return (
     <View
       testID={testID || "advisor-os-logo"}
@@ -30,7 +30,11 @@ export function AdvisorOSLogo({ size = 44, style, testID }: LogoProps) {
           width: size,
           height: size,
           borderRadius: Math.round(size * 0.2),
-          backgroundColor: "#FFFFFF",
+          // V29.ao — Su fondi scuri usiamo un box trasparente col ring sottile,
+          // così il logo (con centro chiaro) resta leggibile senza cornice bianca.
+          backgroundColor: onDark ? "rgba(255,255,255,0.06)" : "#FFFFFF",
+          borderWidth: onDark ? 1 : 0,
+          borderColor: onDark ? "rgba(147,197,253,0.35)" : "transparent",
         },
         style as any,
       ]}
