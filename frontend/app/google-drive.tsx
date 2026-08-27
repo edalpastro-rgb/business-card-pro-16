@@ -25,16 +25,13 @@ import { notify } from "@/src/utils/notify";
 try { WebBrowser.maybeCompleteAuthSession(); } catch { /* noop */ }
 
 const GD_GREEN = "#0F9D58";
-// V29.ap — Redirect URI derivato dall'ENV EXPO_PUBLIC_BACKEND_URL così l'APK
-// punta DIRETTAMENTE al deploy production (business-card-pro-16.emergent.host)
-// senza passare dal 301 di advisoros.it che su APK Android confonde il chrome
-// custom tab e reindirizza a app.emergent.sh/share (404 catcher Emergent).
-// IMPORTANTE: il redirect_uri deve essere REGISTRATO in Google Cloud Console.
-// Aggiungi in "Authorized redirect URIs" del tuo client OAuth:
-//   https://business-card-pro-16.emergent.host/auth/google/callback
-//   https://advisoros.it/auth/google/callback   (già presente)
-const BACKEND_ORIGIN = (process.env.EXPO_PUBLIC_BACKEND_URL || "https://advisoros.it").replace(/\/+$/, "");
-const GD_CALLBACK_URL = `${BACKEND_ORIGIN}/auth/google/callback`;
+// V29.ap — Redirect URI FISSO a advisoros.it (dominio verificato in Google
+// Cloud Console). ATTENZIONE: perché funzioni davvero, il DNS/proxy di
+// advisoros.it (Aruba) deve fare proxy_pass a business-card-pro-16.emergent.host
+// preservando path + query, NON un redirect 301 al root.
+// Attuale bug proxy: `301 → business-card-pro-16.emergent.host/` (path perso).
+// Se non risolvi la config Aruba, l'OAuth Google non completerà mai il round-trip.
+const GD_CALLBACK_URL = "https://advisoros.it/auth/google/callback";
 
 export default function GoogleDriveScreen() {
   const router = useRouter();
