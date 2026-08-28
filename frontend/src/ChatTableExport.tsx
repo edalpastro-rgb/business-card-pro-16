@@ -18,6 +18,7 @@ import { View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator
 import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { captureRef } from "react-native-view-shot";
 import { shareDataUri } from "@/src/share";
 import { api } from "@/src/api";
@@ -203,6 +204,7 @@ async function saveToAxonKnowledge(table: ParsedTable, filename: string, mime: s
 export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: ParsedTable; assistantColor?: string }) {
   const { user } = useAuth();
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
+  const safeBottom = useSafeBottom(); // V29.aq
   const [open, setOpen] = useState(false);
   const [busyFormat, setBusyFormat] = useState<"pdf" | "png" | null>(null);
   const captureRefEl = useRef<View>(null);
@@ -292,7 +294,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
 
       <Modal transparent visible={open} animationType="fade" onRequestClose={() => !busyFormat && setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => !busyFormat && setOpen(false)}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.sheetHdr}>
               <Text style={styles.sheetTitle}>Esporta tabella</Text>
               <Pressable onPress={() => !busyFormat && setOpen(false)} hitSlop={10}>

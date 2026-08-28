@@ -4,6 +4,7 @@ import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 /**
  * V29.o — Master-only flow "Promuovi contatto ad agente".
@@ -62,6 +63,7 @@ export function MasterPromoteModal({ visible, onClose }: { visible: boolean; onC
   const [areas, setAreas] = useState<Array<"energy" | "network">>(["energy", "network"]);
   const [sendEmail, setSendEmail] = useState(true);
   const [confirming, setConfirming] = useState(false);
+  const safeBottom = useSafeBottom(); // V29.aq
   const [result, setResult] = useState<Result | null>(null);
   const [copied, setCopied] = useState<null | "email" | "password" | "both">(null);
   const [err, setErr] = useState<string | null>(null);
@@ -127,7 +129,7 @@ export function MasterPromoteModal({ visible, onClose }: { visible: boolean; onC
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose} testID="master-promote-modal">
       <Pressable style={styles.backdrop} onPress={handleClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grip} />
           <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {/* STEP: Search */}

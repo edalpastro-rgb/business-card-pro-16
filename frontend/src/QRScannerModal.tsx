@@ -8,6 +8,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import * as FileSystem from "expo-file-system/legacy";
 import jsQR from "jsqr";
 import jpeg from "jpeg-js";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 type Props = {
   visible: boolean;
@@ -42,6 +43,7 @@ const JPEG_QUALITY_LIVE = 0.85;            // more headroom for jsQR pattern loc
  *     rotated 90/180/270° copies. Result auto-fills the new-contact form.
  */
 export function QRScannerModal({ visible, onClose, onScanned }: Props) {
+  const safeBottom = useSafeBottom(); // V29.aq
   const [permission, requestPermission] = useCameraPermissions();
   const scanned = useRef(false);
   const [webError, setWebError] = useState<string | null>(null);
@@ -459,7 +461,7 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
         </View>
 
         {/* Gallery fallback — works on all platforms */}
-        <View style={styles.galleryBar}>
+        <View style={[styles.galleryBar, { bottom: 24 + safeBottom }]}>
           <Pressable
             onPress={scanFromLibrary}
             disabled={busy}

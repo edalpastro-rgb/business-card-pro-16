@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
@@ -42,6 +43,7 @@ export function MetricDrillModal({
   startIso: string; endIso: string; color: string; title: string;
 }) {
   const router = useRouter();
+  const safeBottom = useSafeBottom();
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [note, setNote] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export function MetricDrillModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.head}>
             <View style={{ flex: 1 }}>
               <Text style={styles.headTitle}>{title}</Text>

@@ -11,6 +11,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 type Referral = {
   contact_id: string;
@@ -34,6 +35,7 @@ const C = { primary: "#FF6B35", primarySoft: "#FFF1E9", navy: "#1B2B4B", muted: 
 
 export function ContactReferralsTab({ contactId, contactName, contactPhone }: Props) {
   const router = useRouter();
+  const safeBottom = useSafeBottom(); // V29.aq
   const [items, setItems] = useState<Referral[]>([]);
   const [loading, setLoading] = useState(true);
   const [waTemplate, setWaTemplate] = useState<string>("");
@@ -145,7 +147,7 @@ export function ContactReferralsTab({ contactId, contactName, contactPhone }: Pr
       {/* WhatsApp preview modal */}
       <Modal visible={showWaModal} transparent animationType="slide" onRequestClose={() => setShowWaModal(false)}>
         <View style={styles.back}>
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: safeBottom + 12 }]}>
             <View style={styles.sheetHdr}>
               <Text style={styles.sheetTitle}>Messaggio da inviare</Text>
               <Pressable onPress={() => setShowWaModal(false)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>

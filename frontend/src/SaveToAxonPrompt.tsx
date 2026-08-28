@@ -11,6 +11,7 @@ import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator,
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 /** Estrae URL (http/https) da un testo. Deduplica preservando l'ordine. */
 export function extractUrls(text: string): string[] {
@@ -46,6 +47,7 @@ export function SaveToAxonPrompt({
   const [savedRule, setSavedRule] = useState(false);
   const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
   const [ruleModalOpen, setRuleModalOpen] = useState(false);
+  const safeBottom = useSafeBottom(); // V29.aq
   const [urlModalOpen, setUrlModalOpen] = useState(false);
   const [ruleTitle, setRuleTitle] = useState("");
   const [ruleText, setRuleText] = useState("");
@@ -138,7 +140,7 @@ export function SaveToAxonPrompt({
       {/* Rule creation modal */}
       <Modal transparent visible={ruleModalOpen} animationType="fade" onRequestClose={() => !busy && setRuleModalOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => !busy && setRuleModalOpen(false)}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.sheetHdr}>
               <Ionicons name="bookmark" size={20} color={assistantColor} />
               <Text style={styles.sheetTitle}>Salva come regola</Text>
@@ -181,7 +183,7 @@ export function SaveToAxonPrompt({
       {/* URL sources modal */}
       <Modal transparent visible={urlModalOpen} animationType="fade" onRequestClose={() => !urlBusy && setUrlModalOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => !urlBusy && setUrlModalOpen(false)}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.sheetHdr}>
               <Ionicons name="link" size={20} color={assistantColor} />
               <Text style={styles.sheetTitle}>Aggiungi fonti ad Axon</Text>

@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { useRegisterFab } from "@/src/FabStack";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 const C = { primary: "#FF6B35", primarySoft: "#FFF1E9", navy: "#1B2B4B", muted: "#94A3B8" };
 
@@ -20,6 +21,7 @@ export function CallScriptFAB() {
   const [open, setOpen] = useState(false);
   const [script, setScript] = useState("");
   const [fontSize, setFontSize] = useState(16);
+  const safeBottom = useSafeBottom(); // V29.aq
   const { user } = useAuth();
 
   // Register presence so other floating FABs can stack correctly
@@ -90,7 +92,7 @@ export function CallScriptFAB() {
                 </View>
               )}
             </ScrollView>
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: 10 + safeBottom }]}>
               <Text style={styles.footerTxt}>Placeholder disponibili: {`{name}`} · {`{agent}`}</Text>
             </View>
           </View>

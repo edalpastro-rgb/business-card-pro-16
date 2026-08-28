@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Modal, Pressable, Platform, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 const C = { navy: "#1B2B4B", primary: "#FF6B35", success: "#16A34A", muted: "#94A3B8" };
 
@@ -26,6 +27,7 @@ function fmtMS(sec: number): string {
 }
 
 export function CallTimerOverlay({ visible, logId, contactName, contactPhone, onClose }: Props) {
+  const safeBottom = useSafeBottom(); // V29.aq
   const [seconds, setSeconds] = useState(0);
   const pulse = useRef(new Animated.Value(1)).current;
   const startedAtRef = useRef<number | null>(null);
@@ -63,7 +65,7 @@ export function CallTimerOverlay({ visible, logId, contactName, contactPhone, on
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={finish}>
       <View style={styles.backdrop}>
-        <View style={styles.card} testID="call-timer-card">
+        <View style={[styles.card, { paddingBottom: 16 + safeBottom }]} testID="call-timer-card">
           <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulse }] }]} pointerEvents="none" />
           <View style={styles.iconWrap}>
             <Ionicons name="call" size={26} color="#FFF" />

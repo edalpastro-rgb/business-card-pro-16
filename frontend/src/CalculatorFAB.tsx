@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { theme } from "@/src/theme";
 import { useRegisterFab } from "@/src/FabStack";
 
@@ -9,6 +10,7 @@ type Op = "+" | "-" | "×" | "÷" | null;
 
 export function CalculatorFAB() {
   const [open, setOpen] = useState(false);
+  const safeBottom = useSafeBottom(); // V29.aq
   // Register presence so the AI Assistant FAB can shift to avoid overlap
   useRegisterFab("calculator", true);
   return (
@@ -112,7 +114,7 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.dragHandle} />
           <View style={styles.head}>
             <View style={{ flex: 1 }}>

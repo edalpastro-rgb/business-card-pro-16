@@ -12,6 +12,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 type ContactRef = {
   contact_id: string;
@@ -37,6 +38,7 @@ function initials(first?: string, last?: string): string {
 export function ContactReferencesSection({ contactId, contactName }: { contactId: string; contactName?: string }) {
   const router = useRouter();
   const { user } = useAuth();
+  const safeBottom = useSafeBottom(); // V29.aq
   // Il Master (owner) può sempre modificare; gli altri hanno accesso in sola lettura.
   const canEdit = !user?.parent_user_id && (user?.role || "member") === "owner";
 
@@ -217,7 +219,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
       {/* Picker modal */}
       <Modal transparent visible={pickerOpen} animationType="slide" onRequestClose={closePicker}>
         <View style={styles.backdrop}>
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: safeBottom + 12 }]}>
             <View style={styles.sheetHdr}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.sheetTitle}>{justAdded ? "Referenza aggiunta" : "Aggiungi referenza"}</Text>

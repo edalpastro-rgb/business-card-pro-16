@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, TextInput, ScrollView, ActivityIndicator, Image, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
@@ -44,6 +45,7 @@ export function GoogleDrivePickerModal({
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [q, setQ] = useState("");
   const [searchTick, setSearchTick] = useState(0);
+  const safeBottom = useSafeBottom(); // V29.aq
   const [downloading, setDownloading] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
@@ -95,7 +97,7 @@ export function GoogleDrivePickerModal({
   return (
     <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: safeBottom + 12 }]}>
           <View style={styles.hdr}>
             <View style={styles.badge}><Ionicons name="logo-google" size={16} color="#FFF" /></View>
             <View style={{ flex: 1 }}>

@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 /**
  * V29 — Modal "Promuovi ad agente" (solo Master).
@@ -68,6 +69,7 @@ export function PromoteToAgentModal({
   onPromoted,
 }: Props) {
   const router = useRouter();
+  const safeBottom = useSafeBottom(); // V29.aq
   const [areas, setAreas] = useState<Array<"energy" | "network">>([
     "energy",
     "network",
@@ -142,7 +144,7 @@ export function PromoteToAgentModal({
       testID="promote-agent-modal"
     >
       <Pressable style={styles.backdrop} onPress={handleClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grip} />
           <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
             {!result ? (
