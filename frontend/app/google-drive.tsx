@@ -84,37 +84,18 @@ export default function GoogleDriveScreen() {
         showInRecents: false,
         preferEphemeralSession: true,
       });
-      if (result.type === "success" && result.url) {
-        // Estrai code + state dalla URL di ritorno e completa lo scambio lato client.
-        let code: string | null = null;
-        let stateParam: string | null = null;
-        try {
-          const q = result.url.split("?")[1] || "";
-          const usp = new URLSearchParams(q);
-          code = usp.get("code");
-          stateParam = usp.get("state");
-        } catch { /* ignore */ }
-        if (code && stateParam) {
-          try {
-            await api("/google-drive/oauth/exchange", {
-              method: "POST",
-              body: { code, state: stateParam },
-            });
-            await load();
-            notify("Collegato", "Google Drive è ora collegato a Axon");
-            return;
-          } catch (e: any) {
-            notify("Errore connessione", e?.message || String(e));
-          }
-        } else {
-          notify("Errore", "Callback OAuth senza code/state");
-        }
-      } else if (result.type === "cancel" || result.type === "dismiss") {
-        // V29.ap — Utente ha chiuso il browser (o su APK il custom tab ha fatto un
-        // redirect che WebBrowser non ha riconosciuto). Facciamo un polling di
-        // fallback di /google-drive/status: se il backend ha ricevuto e completato
-        // lo scambio del code lato server (route /auth/google/callback), lo stato
-        // apparirà "connected" entro pochi secondi anche senza deep-link back.
+      // V29.aq — Il code/state viene scambiato UNA SOLA VOLTA, lato server, dalla
+      // route GET /auth/google/callback nell'istante stesso in cui Google
+      // reindirizza lì (vedi backend). Questo vale sia quando WebBrowser rileva
+      // il redirect come "success" sia quando l'utente chiude il custom tab
+      // prima che WebBrowser se ne accorga ("cancel"/"dismiss"): in entrambi i
+      // casi il browser ha già raggiunto il callback e il backend ha già
+      // consumato code+state. Un secondo scambio client-side con lo stesso
+      // code/state fallirebbe sempre (state già cancellato, code già usato con
+      // Google → invalid_grant), mostrando un falso errore anche quando il
+      // collegamento è riuscito. Facciamo quindi polling di /google-drive/status
+      // per accorgerci del collegamento non appena il backend lo ha salvato.
+      if (result.type === "success" || result.type === "cancel" || result.type === "dismiss") {
         for (let i = 0; i < 10; i++) {
           try {
             const s = await api<any>("/google-drive/status");

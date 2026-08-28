@@ -1579,6 +1579,7 @@ export function AssistantFAB() {
   const { present } = useFabStack();
   const [open, setOpen] = useState(false);
   const pulse = useRef(new Animated.Value(1)).current;
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -1594,9 +1595,13 @@ export function AssistantFAB() {
   // Hide when not logged in
   if (!user) return null;
 
-  // Base bottom (above tab bar). If Calculator FAB is on the same screen,
-  // stack the Assistant FAB above it (calc FAB height 56 + 20px gap = 76).
-  const baseBottom = Platform.select({ ios: 96, android: 88, default: 88 }) as number;
+  // Base bottom (above tab bar). Mirrors the tab bar height formula in
+  // (tabs)/_layout.tsx (60 + max(insets.bottom, 20)) plus a 12px gap, so the
+  // FAB clears the tab bar on devices with a tall gesture-bar inset instead
+  // of sinking into the "Profilo" tab column. If Calculator FAB is on the
+  // same screen, stack the Assistant FAB above it (calc FAB height 56 + 20px gap = 76).
+  const tabBarHeight = 60 + Math.max(insets.bottom || 0, 20);
+  const baseBottom = tabBarHeight + 12;
   const bottom = present.calculator ? baseBottom + 76 : baseBottom;
 
   return (
@@ -1629,12 +1634,11 @@ export function AssistantFAB() {
 }
 
 const styles = StyleSheet.create({
-  // FAB — bottom-right, above tab bar
+  // FAB — bottom-right, above tab bar. `bottom` is computed per-render in
+  // AssistantFAB from safe-area insets and passed via inline style.
   fabWrap: {
     position: "absolute",
     right: 16,
-    // Sits above bottom tab bar (~56-70px); adjust for insets
-    bottom: Platform.select({ ios: 96, android: 88, default: 88 }),
     zIndex: 999,
   },
   fab: {
