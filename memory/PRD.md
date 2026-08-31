@@ -2322,3 +2322,34 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 
 **Verifica**: Playwright conferma il modal si apre, campi Titolo/Testo scrivibili senza sovrapposizione.
 
+
+## V29.av — Fix logo biglietto da visita: preservazione canale alpha (PNG)
+
+**Richiesta utente:** "Quando l'utente carica un logo aziendale, assicurati che il file venga salvato come PNG con canale alpha preservato, non convertito in JPG. Lo sfondo trasparente del logo deve rimanere trasparente dopo il ritaglio."
+
+**Root cause** (`/app/frontend/modules/business-card/lib/pickLogo.ts`):
+- `allowsEditing: true` in `expo-image-picker` apre il **native cropper** che su iOS/Android **converte sempre l'output in JPEG** (perde alpha)
+- Il MIME fallback era `'image/jpeg'` hard-coded
+
+**Fix**:
+- `allowsEditing: false` (obbligatorio per preservare alpha — il cropper nativo appiattisce sempre lo sfondo)
+- `quality: 0.7 → 1.0` (zero ri-encoding)
+- Nuova funzione `sniffMimeFromBase64()` che ispeziona i primi byte del base64 per rilevare il vero MIME:
+  - PNG → prefix `iVBORw0KGgo`
+  - JPEG → prefix `/9j/`
+  - WebP → prefix `UklGR`
+  - GIF → prefix `R0lGOD`
+- MIME fallback chain: `sniffed → picker.mimeType → estensione URI → 'image/png'` (default sicuro)
+
+**Backend inalterato**: `PUT /master/business-card` salva `logo_base64` come stringa senza toccare i byte immagine. Nessun `.convert('RGB')` sul logo.
+
+**Flusso finale con logo PNG trasparente**:
+1. Utente sceglie PNG dalla galleria
+2. `allowsEditing:false` → nessun cropper flattener
+3. `readAsStringAsync(base64)` → lettura raw
+4. `sniffMimeFromBase64` rileva PNG → header `data:image/png;base64,...`
+5. Backend salva as-is
+6. Frontend renderizza via `<img src="data:image/png;base64,...">` con alpha preservato
+
+**Nota UX**: rimosso il cropper automatico dell'ImagePicker. Se l'utente vuole ritagliare il logo, deve farlo dalla galleria del telefono prima di caricarlo (Google Photos / iOS Photos hanno un crop tool nativo che preserva l'alpha su PNG).
+
