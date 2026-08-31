@@ -2258,3 +2258,29 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 
 **Verifica**: backend curl con nitida vs. sfocata mostra dinamica ~3000×; frontend renderizza viewfinder con nuova logica senza regressioni.
 
+
+## V29.as — Google Drive OAuth redirect_uri hardening
+
+**Richiesta utente:** "Aggiungi un controllo esplicito: il valore di GOOGLE_DRIVE_REDIRECT_URI deve essere pulito da qualsiasi parametro aggiuntivo prima di essere passato alla libreria Google."
+
+**server.py**:
+- Nuova funzione `_sanitize_redirect_uri(raw)` — applica in ordine: `strip()` → `split('?')[0]` → `split('#')[0]` → `strip()` → `rstrip('/')`.
+- Applicata a **module-init** (letta dall'env var una sola volta all'avvio).
+- Applicata **una seconda volta** dentro `POST /google-drive/oauth/start` come triple-defense.
+- Nuovo `logger.info("OAuth start: redirect_uri sent to Google = %r", clean_redirect)` per audit trail runtime.
+
+**Test unitario (7/7 passa)**:
+- `'callback?flowName=General'` → `'callback'` ✅
+- `'callback/'` → `'callback'` ✅
+- `'  callback  '` → `'callback'` ✅
+- `'callback#foo'` → `'callback'` ✅
+- `'callback?a=1&b=2'` → `'callback'` ✅
+- `''` → `''` ✅
+- `'callback'` → `'callback'` ✅ (idempotente)
+
+**Test live**: `/oauth/start` ritorna `redirect_uri = 'https://business-card-pro-16.emergent.host/auth/google/callback'` (63 byte, no `flowName`). Log backend conferma il valore esatto.
+
+**Google Cloud Console setup richiesto**:
+- **Authorized JavaScript origins**: `https://business-card-pro-16.emergent.host`, `https://advisoros.it`
+- **Authorized redirect URIs**: `https://business-card-pro-16.emergent.host/auth/google/callback`, `https://advisoros.it/auth/google/callback`
+

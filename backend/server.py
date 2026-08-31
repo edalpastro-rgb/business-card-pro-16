@@ -10869,7 +10869,22 @@ from cryptography.fernet import Fernet as _Fernet
 
 _GD_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 _GD_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-_GD_REDIRECT_URI = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "")
+# V29.as — Hardening: some deployments have accidentally included query-string
+# fragments (e.g. `?flowName=GeneralOAuthFlow` from a copy-paste) inside the
+# GOOGLE_DRIVE_REDIRECT_URI secret. Google rejects any redirect_uri that does
+# not EXACTLY match one entry of the Authorized redirect URIs list, so we
+# strip any trailing `?...`, `#...` or whitespace before using the value.
+def _sanitize_redirect_uri(raw: str) -> str:
+    if not raw:
+        return ""
+    v = raw.strip()
+    # Cut on the first '?' or '#' that appears (a valid OAuth redirect must
+    # not contain query/fragment).
+    v = v.split("?", 1)[0]
+    v = v.split("#", 1)[0]
+    return v.strip().rstrip("/")
+
+_GD_REDIRECT_URI = _sanitize_redirect_uri(os.getenv("GOOGLE_DRIVE_REDIRECT_URI", ""))
 _GD_TOKEN_KEY = os.getenv("GOOGLE_DRIVE_TOKEN_KEY", "")
 _GD_FRONTEND_URL = os.getenv("GOOGLE_DRIVE_FRONTEND_URL", "https://advisoros.it/profile")
 _GD_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
@@ -10950,12 +10965,17 @@ async def google_drive_oauth_start(user=Depends(get_current_user)):
         await db.google_oauth_states.create_index("created_at", expireAfterSeconds=600)
     except Exception:
         pass
-    flow = Flow.from_client_config(_gd_client_config(), scopes=_GD_SCOPES, state=nonce, redirect_uri=_GD_REDIRECT_URI)
+    # V29.as — Double-check: sanitize again right before passing to Google's
+    # library so any stray `?flowName=...`, `#...` or trailing whitespace that
+    # might have slipped through env-var re-reads is stripped for certain.
+    clean_redirect = _sanitize_redirect_uri(_GD_REDIRECT_URI)
+    flow = Flow.from_client_config(_gd_client_config(), scopes=_GD_SCOPES, state=nonce, redirect_uri=clean_redirect)
     authorization_url, _ = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
         prompt="consent",
     )
+    logger.info("OAuth start: redirect_uri sent to Google = %r", clean_redirect)
     return {"authorization_url": authorization_url}
 
 
