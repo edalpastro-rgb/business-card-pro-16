@@ -1220,6 +1220,8 @@ async def delete_my_account(body: DeleteAccountIn, authorization: Optional[str] 
         "events", "event_registrations", "smtp_configs",
         "axon_analyses",
         "axon_profiles",
+        # V42 — RAG Master documents (tenant-scoped)
+        "master_documents", "master_doc_chunks",
     ]
     user_collections = [
         "user_settings", "business_cards", "google_drive_connections",
@@ -9090,6 +9092,34 @@ async def _prepare_assistant_prompt(
         logger.warning("[axon-teach] section build failed: %s", exc)
         axon_teach_section = ""
 
+    # V42 — RAG on Master documents (per-tenant knowledge base)
+    rag_section = ""
+    try:
+        rag_chunks = await _retrieve_master_doc_chunks(tenant_id(user), msg)
+        if rag_chunks:
+            rag_section = (
+                "\n\nDOCUMENTI MASTER (base di conoscenza personale del Master — usa questi estratti "
+                "come fonte primaria quando la domanda riguarda contratti, listini, procedure o offerte "
+                "commerciali della sua rete):\n"
+            )
+            for i, c in enumerate(rag_chunks, 1):
+                dname = c.get("doc_name") or "?"
+                pg = c.get("page_number") or 0
+                score = c.get("_score", 0.0)
+                content = (c.get("content") or "")[:2000]
+                rag_section += (
+                    f"\n--- Estratto {i} da \"{dname}\" (pagina {pg}, rilevanza {score:.2f}) ---\n"
+                    f"{content}\n"
+                )
+            rag_section += (
+                "\nQuando usi questi estratti nella risposta, cita SEMPRE il nome del documento "
+                "(es. 'Come indicato nel documento «Listino Optima 2026»').\n"
+            )
+    except Exception as exc:
+        logger.warning("[axon-rag] retrieval failed: %s", exc)
+        rag_section = ""
+
+
     import json as _json
     ctx_json = _json.dumps(context, ensure_ascii=False, default=str)
     if len(ctx_json) > 25000:
@@ -9156,6 +9186,7 @@ async def _prepare_assistant_prompt(
         f"{weather_section}"
         f"{web_section}"
         f"{memory_section}"
+        f"{rag_section}"
         f"{axon_teach_section}"
         f"{attachments_section}"
     )
@@ -9225,12 +9256,18 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         if cached:
             # Persist both user & assistant messages for continuity
             now = utcnow()
+            assistant_message_id = uuid.uuid4().hex[:16]
             await db.assistant_messages.insert_many([
                 {"user_id": user["user_id"], "session_id": session_id, "role": "user", "content": msg, "created_at": now},
-                {"user_id": user["user_id"], "session_id": session_id, "role": "assistant", "content": cached["reply"], "created_at": utcnow()},
+                {
+                    "message_id": assistant_message_id,
+                    "user_id": user["user_id"], "session_id": session_id,
+                    "role": "assistant", "content": cached["reply"], "created_at": utcnow(),
+                },
             ])
             return {
                 "session_id": session_id,
+                "message_id": assistant_message_id,
                 "reply": cached["reply"],
                 "assistant_name": assistant_name,
                 "used_web_search": bool(cached.get("used_web_search")),
@@ -9288,6 +9325,34 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception as exc:
         logger.warning("[axon-teach] section build failed: %s", exc)
         axon_teach_section = ""
+
+    # V42 — RAG on Master documents (per-tenant knowledge base)
+    rag_section = ""
+    try:
+        rag_chunks = await _retrieve_master_doc_chunks(tenant_id(user), msg)
+        if rag_chunks:
+            rag_section = (
+                "\n\nDOCUMENTI MASTER (base di conoscenza personale del Master — usa questi estratti "
+                "come fonte primaria quando la domanda riguarda contratti, listini, procedure o offerte "
+                "commerciali della sua rete):\n"
+            )
+            for i, c in enumerate(rag_chunks, 1):
+                dname = c.get("doc_name") or "?"
+                pg = c.get("page_number") or 0
+                score = c.get("_score", 0.0)
+                content = (c.get("content") or "")[:2000]
+                rag_section += (
+                    f"\n--- Estratto {i} da \"{dname}\" (pagina {pg}, rilevanza {score:.2f}) ---\n"
+                    f"{content}\n"
+                )
+            rag_section += (
+                "\nQuando usi questi estratti nella risposta, cita SEMPRE il nome del documento "
+                "(es. 'Come indicato nel documento «Listino Optima 2026»').\n"
+            )
+    except Exception as exc:
+        logger.warning("[axon-rag] retrieval failed: %s", exc)
+        rag_section = ""
+
 
     import json as _json
     ctx_json = _json.dumps(context, ensure_ascii=False, default=str)
@@ -9358,6 +9423,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         f"{weather_section}"
         f"{web_section}"
         f"{memory_section}"
+        f"{rag_section}"
         f"{axon_teach_section}"
         f"{attachments_section}"
     )
@@ -9391,10 +9457,16 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     reply_text = (reply or "").strip() or "Non ho ricevuto una risposta. Riprova."
 
     now = utcnow()
+    # V41 — Assign an ID to the assistant message so the client can attach feedback later.
+    assistant_message_id = uuid.uuid4().hex[:16]
     # Persist both messages
     await db.assistant_messages.insert_many([
         {"user_id": user["user_id"], "session_id": session_id, "role": "user", "content": msg, "created_at": now},
-        {"user_id": user["user_id"], "session_id": session_id, "role": "assistant", "content": reply_text, "created_at": utcnow()},
+        {
+            "message_id": assistant_message_id,
+            "user_id": user["user_id"], "session_id": session_id,
+            "role": "assistant", "content": reply_text, "created_at": utcnow(),
+        },
     ])
 
     # V38T — Fire-and-forget memory distillation (does not block the response)
@@ -9422,6 +9494,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
 
     return {
         "session_id": session_id,
+        "message_id": assistant_message_id,
         "reply": reply_text,
         "assistant_name": assistant_name,
         "used_web_search": used_web_search,
@@ -9483,13 +9556,19 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             if cached:
                 # Persist both messages
                 now = utcnow()
+                cached_message_id = uuid.uuid4().hex[:16]
                 await db.assistant_messages.insert_many([
                     {"user_id": user["user_id"], "session_id": session_id, "role": "user", "content": msg, "created_at": now},
-                    {"user_id": user["user_id"], "session_id": session_id, "role": "assistant", "content": cached["reply"], "created_at": utcnow()},
+                    {
+                        "message_id": cached_message_id,
+                        "user_id": user["user_id"], "session_id": session_id,
+                        "role": "assistant", "content": cached["reply"], "created_at": utcnow(),
+                    },
                 ])
                 # Emit meta + one big delta + done (client can render instantly)
                 yield sse("meta", {
                     "session_id": session_id,
+                    "message_id": cached_message_id,
                     "assistant_name": assistant_name,
                     "from_cache": True,
                     "cache_similarity": cached.get("_similarity", 1.0),
@@ -9502,6 +9581,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                     # tiny yield to let the loop breathe
                     await asyncio.sleep(0)
                 yield sse("done", {
+                    "message_id": cached_message_id,
                     "used_web_search": bool(cached.get("used_web_search")),
                     "web_sources": cached.get("web_sources") or [],
                     "from_cache": True,
@@ -9510,8 +9590,30 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                 return
 
         # --- LLM streaming path ---
+        assistant_message_id = uuid.uuid4().hex[:16]
+        # V41 — Insert placeholder rows NOW (before streaming) so feedback POSTs
+        # from the client can find the message even if it disconnects mid-stream.
+        # We'll $set the final `content` at done. On disconnect the row stays with
+        # whatever partial content was streamed (persist step below still fires
+        # unless the coroutine is force-killed).
+        _stream_now = utcnow()
+        try:
+            await db.assistant_messages.insert_many([
+                {"user_id": user["user_id"], "session_id": session_id, "role": "user", "content": msg, "created_at": _stream_now},
+                {
+                    "message_id": assistant_message_id,
+                    "user_id": user["user_id"], "session_id": session_id,
+                    "role": "assistant", "content": "", "created_at": _stream_now,
+                },
+            ])
+            _stream_persisted = True
+        except Exception as exc:
+            logger.warning("[assistant-stream] placeholder persist failed: %s", exc)
+            _stream_persisted = False
+
         yield sse("meta", {
             "session_id": session_id,
+            "message_id": assistant_message_id,
             "assistant_name": assistant_name,
             "from_cache": False,
         })
@@ -9544,15 +9646,26 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
 
         reply_text = ("".join(collected)).strip() or "Non ho ricevuto una risposta. Riprova."
 
-        # Persist both messages
-        now = utcnow()
+        # Update the assistant placeholder with the full reply.
+        # (User message was already persisted at meta time.)
         try:
-            await db.assistant_messages.insert_many([
-                {"user_id": user["user_id"], "session_id": session_id, "role": "user", "content": msg, "created_at": now},
-                {"user_id": user["user_id"], "session_id": session_id, "role": "assistant", "content": reply_text, "created_at": utcnow()},
-            ])
+            if _stream_persisted:
+                await db.assistant_messages.update_one(
+                    {"message_id": assistant_message_id, "user_id": user["user_id"]},
+                    {"$set": {"content": reply_text, "created_at": utcnow()}},
+                )
+            else:
+                # Placeholder failed earlier — insert both now as fallback.
+                await db.assistant_messages.insert_many([
+                    {"user_id": user["user_id"], "session_id": session_id, "role": "user", "content": msg, "created_at": _stream_now},
+                    {
+                        "message_id": assistant_message_id,
+                        "user_id": user["user_id"], "session_id": session_id,
+                        "role": "assistant", "content": reply_text, "created_at": utcnow(),
+                    },
+                ])
         except Exception as exc:
-            logger.warning("[assistant-stream] persist failed: %s", exc)
+            logger.warning("[assistant-stream] finalize persist failed: %s", exc)
 
         # Fire-and-forget memory distillation
         try:
@@ -9574,6 +9687,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                 pass
 
         yield sse("done", {
+            "message_id": assistant_message_id,
             "used_web_search": used_web_search,
             "web_sources": web_sources,
             "from_cache": False,
@@ -9589,6 +9703,406 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             "Connection": "keep-alive",
         },
     )
+
+
+# =========================================================================
+# V41 — Feedback 👍/👎 su risposte Axon (self-learning loop)
+#
+# Flow:
+#  1) Ogni risposta assistant ha un `message_id` (stringa 16-char hex). Il client
+#     lo riceve nell'endpoint meta/done (streaming) o nel body JSON (non-stream).
+#  2) L'utente tocca 👍 o 👎 sulla bubble. Se 👎, un modal permette di scegliere
+#     una motivazione (impreciso / troppo lungo / non pertinente / altro) e un
+#     commento libero opzionale.
+#  3) Il client fa POST /api/assistant/feedback con {message_id, rating, reason?, comment?}.
+#  4) Il feedback viene salvato in db.assistant_feedback + effetti collaterali:
+#     - Se 👎 e la risposta era nella semantic cache → invalida quella cache entry
+#       (evita di riproporre risposte non gradite).
+#     - Se 👍 e la risposta NON era in cache → marca la voce come "gold" per
+#       future statistiche/few-shot.
+#  5) L'endpoint è idempotente su (user_id, message_id): un secondo POST aggiorna
+#     il rating esistente (per permettere all'utente di cambiare idea).
+# =========================================================================
+
+class AssistantFeedbackIn(BaseModel):
+    message_id: str
+    rating: Literal["up", "down"]
+    reason: Optional[str] = None  # short tag (e.g. "impreciso", "troppo_lungo", "non_pertinente", "altro")
+    comment: Optional[str] = None  # free-text feedback
+
+
+@api_router.post("/assistant/feedback")
+async def assistant_feedback(body: AssistantFeedbackIn, user=Depends(get_current_user)):
+    """Persist a thumbs-up/down feedback for an assistant message.
+    Idempotent on (user_id, message_id): re-posting updates the existing record."""
+    mid = (body.message_id or "").strip()
+    if not mid:
+        raise HTTPException(status_code=400, detail="message_id richiesto")
+    if body.rating not in ("up", "down"):
+        raise HTTPException(status_code=400, detail="rating deve essere 'up' o 'down'")
+
+    # Look up the assistant message (must belong to the requesting user)
+    msg_doc = await db.assistant_messages.find_one(
+        {"message_id": mid, "user_id": user["user_id"], "role": "assistant"},
+        {"_id": 0, "message_id": 1, "session_id": 1, "content": 1, "created_at": 1},
+    )
+    if not msg_doc:
+        raise HTTPException(status_code=404, detail="Messaggio non trovato o non tuo")
+
+    session_id = msg_doc.get("session_id")
+    reply_text = msg_doc.get("content") or ""
+
+    # Retrieve the immediately-preceding user message (same session, just before this one)
+    # so we know which question this feedback refers to.
+    prior = await db.assistant_messages.find_one(
+        {
+            "user_id": user["user_id"],
+            "session_id": session_id,
+            "role": "user",
+            "created_at": {"$lte": msg_doc.get("created_at")},
+        },
+        {"_id": 0, "content": 1, "created_at": 1},
+        sort=[("created_at", -1)],
+    )
+    question_text = (prior or {}).get("content") or ""
+
+    now = utcnow()
+    reason = (body.reason or "").strip()[:60] or None
+    comment = (body.comment or "").strip()[:2000] or None
+
+    # Upsert on (user_id, message_id) so users can flip 👍↔👎
+    await db.assistant_feedback.update_one(
+        {"user_id": user["user_id"], "message_id": mid},
+        {
+            "$set": {
+                "user_id": user["user_id"],
+                "tenant_id": tenant_id(user),
+                "message_id": mid,
+                "session_id": session_id,
+                "question": question_text[:2000],
+                "reply": reply_text[:5000],
+                "rating": body.rating,
+                "reason": reason,
+                "comment": comment,
+                "updated_at": now,
+            },
+            "$setOnInsert": {
+                "feedback_id": uuid.uuid4().hex,
+                "created_at": now,
+            },
+        },
+        upsert=True,
+    )
+
+    # Side-effect: on 👎, invalidate any matching semantic-cache entry so this
+    # answer isn't served again to anyone. Only invalidate if it looks like a
+    # semantic-cache candidate (short-cut by matching question tokens).
+    if body.rating == "down" and question_text:
+        try:
+            _, q_tokens = _normalize_and_tokenize(question_text)
+            if q_tokens:
+                # Fetch a few candidates + delete those with high similarity
+                cursor = db.axon_semantic_cache.find(
+                    {"expires_at": {"$gt": now}},
+                    {"_id": 0, "cache_id": 1, "tokens": 1, "reply": 1},
+                ).sort("created_at", -1).limit(SEM_CACHE_CANDIDATE_LIMIT)
+                to_delete: List[str] = []
+                async for c in cursor:
+                    score = _jaccard(q_tokens, c.get("tokens") or [])
+                    # Match by token similarity + reply must equal cached reply
+                    if score >= SEM_CACHE_JACCARD_THRESHOLD and (c.get("reply") or "") == reply_text:
+                        to_delete.append(c.get("cache_id"))
+                if to_delete:
+                    await db.axon_semantic_cache.delete_many({"cache_id": {"$in": to_delete}})
+                    logger.info("[axon-feedback] invalidated %d cache entries after 👎", len(to_delete))
+        except Exception as exc:
+            logger.warning("[axon-feedback] cache invalidation failed: %s", exc)
+
+    return {"ok": True, "message_id": mid, "rating": body.rating}
+
+
+@api_router.get("/assistant/feedback/{message_id}")
+async def assistant_feedback_get(message_id: str, user=Depends(get_current_user)):
+    """Return the current feedback for a specific assistant message (or 404)."""
+    doc = await db.assistant_feedback.find_one(
+        {"user_id": user["user_id"], "message_id": message_id},
+        {"_id": 0, "message_id": 1, "rating": 1, "reason": 1, "comment": 1, "created_at": 1, "updated_at": 1},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Nessun feedback per questo messaggio")
+    return doc
+
+
+@api_router.get("/assistant/feedback/stats/summary")
+async def assistant_feedback_stats(user=Depends(get_current_user)):
+    """Return per-user feedback aggregates (last 30 days by default)."""
+    since = utcnow() - timedelta(days=30)
+    ups = await db.assistant_feedback.count_documents(
+        {"user_id": user["user_id"], "rating": "up", "updated_at": {"$gte": since}}
+    )
+    downs = await db.assistant_feedback.count_documents(
+        {"user_id": user["user_id"], "rating": "down", "updated_at": {"$gte": since}}
+    )
+    total = ups + downs
+    return {
+        "ups": ups,
+        "downs": downs,
+        "total": total,
+        "satisfaction_rate": round((ups / total) * 100.0, 1) if total else None,
+        "window_days": 30,
+    }
+
+
+
+# =========================================================================
+# V42 — RAG Documenti Master (Axon leggi i PDF caricati dal Master)
+#
+# Il Master può caricare PDF (contratti, listini, brochure, formazioni) da
+# una sezione "Documenti Axon" in Impostazioni. Ogni PDF viene:
+#  1) Estratto (pypdf, primi 50 pagine)
+#  2) Chunkizzato in blocchi ~500 parole con overlap ~50
+#  3) Ogni chunk viene tokenizzato (via `_normalize_and_tokenize`) e salvato
+#     in `db.master_doc_chunks` con `user_id`+`tenant_id`+`doc_id`.
+#
+# Al momento di rispondere a una query, `_retrieve_master_doc_chunks`:
+#  - Tokenizza la query
+#  - Cerca i chunks del tenant con Jaccard ≥ RAG_MIN_SIMILARITY (0.05)
+#  - Ritorna top-K (default 3) chunks con relativo doc_name e page_number
+# I chunks vengono iniettati nel system prompt in una sezione dedicata.
+#
+# Modello dati:
+#  - db.master_documents: {doc_id, user_id, tenant_id, name, mime, size,
+#    total_pages, total_chunks, created_at}
+#  - db.master_doc_chunks: {chunk_id, doc_id, user_id, tenant_id, chunk_index,
+#    page_range, content, tokens, created_at}
+# =========================================================================
+
+RAG_CHUNK_WORDS = 500        # ~ 350-400 tokens for Italian text
+RAG_CHUNK_OVERLAP = 50       # word overlap between consecutive chunks
+RAG_MAX_PAGES = 50           # cap pages per PDF (safety)
+RAG_MIN_SIMILARITY = 0.05    # Jaccard threshold on query↔chunk tokens
+RAG_TOP_K = 3                # chunks injected per query
+RAG_MAX_PDF_BYTES = 20 * 1024 * 1024  # 20MB
+
+
+def _chunk_text_by_words(text: str, size: int = RAG_CHUNK_WORDS, overlap: int = RAG_CHUNK_OVERLAP) -> List[str]:
+    """Split a long text into overlapping word-chunks. Preserves original
+    whitespace/newlines within each chunk when possible (splits on whitespace
+    but re-joins with single space)."""
+    if not text:
+        return []
+    words = text.split()
+    if not words:
+        return []
+    chunks: List[str] = []
+    step = max(1, size - overlap)
+    i = 0
+    while i < len(words):
+        chunk_words = words[i:i + size]
+        if not chunk_words:
+            break
+        chunks.append(" ".join(chunk_words))
+        i += step
+    return chunks
+
+
+def _extract_pdf_pages(pdf_base64: str, max_pages: int = RAG_MAX_PAGES) -> List[Tuple[int, str]]:
+    """Extract per-page text as `[(page_number, text), ...]`.
+    page_number is 1-indexed. Skips pages that fail extraction."""
+    b64 = pdf_base64
+    if b64.startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    try:
+        raw = base64.b64decode(b64)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"PDF base64 non valido: {e}")
+    if len(raw) > RAG_MAX_PDF_BYTES:
+        raise HTTPException(status_code=413, detail=f"PDF troppo grande (max {RAG_MAX_PDF_BYTES // (1024*1024)}MB)")
+    pages: List[Tuple[int, str]] = []
+    try:
+        from pypdf import PdfReader
+        from io import BytesIO
+        reader = PdfReader(BytesIO(raw))
+        for i, page in enumerate(reader.pages[:max_pages], start=1):
+            try:
+                t = (page.extract_text() or "").strip()
+            except Exception:
+                t = ""
+            if t:
+                pages.append((i, t))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Impossibile leggere PDF: {e}")
+    return pages
+
+
+class MasterDocIn(BaseModel):
+    name: str
+    mime: Optional[str] = "application/pdf"
+    data_base64: str
+
+
+@api_router.post("/master-docs")
+async def create_master_doc(body: MasterDocIn, user=Depends(get_current_user)):
+    """Upload a PDF to Axon's knowledge base. MASTER-only.
+    Extracts text, chunks it and indexes tokens for retrieval."""
+    if user.get("parent_user_id") or (user.get("role") or "member") != "owner":
+        raise HTTPException(status_code=403, detail="Solo il Master può caricare documenti Axon")
+    name = (body.name or "").strip()[:200]
+    if not name:
+        raise HTTPException(status_code=400, detail="Nome documento richiesto")
+    if not body.data_base64:
+        raise HTTPException(status_code=400, detail="File richiesto")
+    mime = (body.mime or "application/pdf").lower()
+    if "pdf" not in mime and not name.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Solo PDF sono supportati (al momento)")
+
+    pages = _extract_pdf_pages(body.data_base64)
+    if not pages:
+        raise HTTPException(status_code=400, detail="Il PDF non contiene testo estraibile (potrebbe essere scannerizzato)")
+
+    tid = tenant_id(user)
+    uid = user["user_id"]
+    doc_id = uuid.uuid4().hex
+    now = utcnow()
+
+    # Approximate size from base64
+    b64 = body.data_base64
+    if b64.startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    approx_size = int(len(b64) * 3 / 4)
+
+    # Chunk each page; keep page reference in each chunk
+    chunk_docs: List[dict] = []
+    chunk_idx = 0
+    for page_no, page_text in pages:
+        page_chunks = _chunk_text_by_words(page_text)
+        # Fallback: if a page produced no chunks (whitespace-only), skip it
+        if not page_chunks:
+            continue
+        for c_text in page_chunks:
+            _, tokens = _normalize_and_tokenize(c_text)
+            if not tokens:
+                continue
+            chunk_docs.append({
+                "chunk_id": uuid.uuid4().hex,
+                "doc_id": doc_id,
+                "user_id": uid,
+                "tenant_id": tid,
+                "chunk_index": chunk_idx,
+                "page_number": page_no,
+                "content": c_text[:4000],  # cap chunk length
+                "tokens": tokens,
+                "created_at": now,
+            })
+            chunk_idx += 1
+
+    if not chunk_docs:
+        raise HTTPException(status_code=400, detail="Nessun testo utile trovato nel PDF")
+
+    # Persist document metadata
+    await db.master_documents.insert_one({
+        "doc_id": doc_id,
+        "user_id": uid,
+        "tenant_id": tid,
+        "name": name,
+        "mime": mime,
+        "size": approx_size,
+        "total_pages": len(pages),
+        "total_chunks": len(chunk_docs),
+        "created_at": now,
+    })
+    # Bulk insert chunks
+    try:
+        await db.master_doc_chunks.insert_many(chunk_docs, ordered=False)
+    except Exception as exc:
+        logger.warning("[master-docs] chunk insert failed: %s", exc)
+        # Roll back the doc record on massive failure
+        await db.master_documents.delete_one({"doc_id": doc_id})
+        raise HTTPException(status_code=500, detail="Salvataggio chunks fallito")
+
+    return {
+        "doc_id": doc_id,
+        "name": name,
+        "total_pages": len(pages),
+        "total_chunks": len(chunk_docs),
+        "size": approx_size,
+        "created_at": now.isoformat(),
+    }
+
+
+@api_router.get("/master-docs")
+async def list_master_docs(user=Depends(get_current_user)):
+    """List all Axon docs for the Master's tenant. Both Master and members can list;
+    only Master can upload/delete (uses `assistant` intelligence for everyone)."""
+    tid = tenant_id(user)
+    cursor = db.master_documents.find(
+        {"tenant_id": tid},
+        {"_id": 0},
+    ).sort("created_at", -1)
+    items = [d async for d in cursor]
+    # Serialize dates
+    for it in items:
+        for k in ("created_at",):
+            v = it.get(k)
+            if hasattr(v, "isoformat"):
+                it[k] = v.isoformat()
+    return {"items": items, "total": len(items)}
+
+
+@api_router.delete("/master-docs/{doc_id}")
+async def delete_master_doc(doc_id: str, user=Depends(get_current_user)):
+    """Delete a doc + its chunks. MASTER-only."""
+    if user.get("parent_user_id") or (user.get("role") or "member") != "owner":
+        raise HTTPException(status_code=403, detail="Solo il Master può eliminare documenti Axon")
+    tid = tenant_id(user)
+    doc = await db.master_documents.find_one({"doc_id": doc_id, "tenant_id": tid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    await db.master_documents.delete_one({"doc_id": doc_id})
+    r = await db.master_doc_chunks.delete_many({"doc_id": doc_id})
+    return {"ok": True, "deleted_chunks": r.deleted_count}
+
+
+async def _retrieve_master_doc_chunks(
+    tenant: str,
+    query: str,
+    top_k: int = RAG_TOP_K,
+    min_sim: float = RAG_MIN_SIMILARITY,
+) -> List[dict]:
+    """Retrieve top-K most relevant chunks for a query, scoped to a tenant.
+    Uses Jaccard on tokenised chunks. Returns list of chunks (with `_score`)."""
+    _, q_tokens = _normalize_and_tokenize(query)
+    if not q_tokens:
+        return []
+    # Pre-filter: chunks whose tokens intersect the query tokens (multikey index on `tokens`
+    # accelerates this significantly compared to a full scan).
+    cursor = db.master_doc_chunks.find(
+        {"tenant_id": tenant, "tokens": {"$in": q_tokens}},
+        {"_id": 0, "chunk_id": 1, "doc_id": 1, "content": 1, "tokens": 1, "page_number": 1},
+    ).limit(500)  # safety cap on candidates
+    scored: List[dict] = []
+    async for c in cursor:
+        sim = _jaccard(q_tokens, c.get("tokens") or [])
+        if sim >= min_sim:
+            c["_score"] = sim
+            scored.append(c)
+    scored.sort(key=lambda x: x.get("_score", 0.0), reverse=True)
+    top = scored[:top_k]
+    if not top:
+        return top
+    # Enrich with doc name (batch fetch)
+    doc_ids = list({c["doc_id"] for c in top})
+    doc_map: Dict[str, str] = {}
+    docs_cursor = db.master_documents.find(
+        {"doc_id": {"$in": doc_ids}, "tenant_id": tenant},
+        {"_id": 0, "doc_id": 1, "name": 1},
+    )
+    async for d in docs_cursor:
+        doc_map[d["doc_id"]] = d.get("name") or ""
+    for c in top:
+        c["doc_name"] = doc_map.get(c["doc_id"], "?")
+    return top
+
 
 
 # =========================================================================
@@ -11804,6 +12318,18 @@ async def _startup():
     await db.axon_semantic_cache.create_index("expires_at", expireAfterSeconds=0)
     await db.axon_semantic_cache.create_index([("created_at", -1)])
     await db.axon_semantic_cache.create_index("tokens")  # multikey index for token pre-filter
+    # V41 — Feedback 👍/👎 sulle risposte dell'assistente
+    await db.assistant_feedback.create_index([("user_id", 1), ("message_id", 1)], unique=True)
+    await db.assistant_feedback.create_index([("user_id", 1), ("updated_at", -1)])
+    await db.assistant_feedback.create_index([("rating", 1), ("updated_at", -1)])
+    # Non-unique index on message_id in assistant_messages (per V41 message-level lookup)
+    await db.assistant_messages.create_index("message_id")
+    # V42 — RAG Documenti Master
+    await db.master_documents.create_index([("tenant_id", 1), ("created_at", -1)])
+    await db.master_documents.create_index("doc_id", unique=True)
+    await db.master_doc_chunks.create_index([("tenant_id", 1), ("tokens", 1)])
+    await db.master_doc_chunks.create_index("doc_id")
+    await db.master_doc_chunks.create_index("chunk_id", unique=True)
     # V24 migration: back-fill assigned_to_user_id from created_by for legacy contacts
     try:
         result = await db.contacts.update_many(

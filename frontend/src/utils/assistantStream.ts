@@ -11,12 +11,14 @@ const BASE = process.env.EXPO_PUBLIC_BACKEND_URL as string;
 
 export type StreamMeta = {
   session_id?: string;
+  message_id?: string;
   assistant_name?: string;
   from_cache?: boolean;
   cache_similarity?: number;
 };
 
 export type StreamDone = {
+  message_id?: string;
   used_web_search?: boolean;
   web_sources?: { title: string; url: string }[];
   from_cache?: boolean;

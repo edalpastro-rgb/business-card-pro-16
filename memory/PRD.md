@@ -1,5 +1,112 @@
 # Dal Pastro CRM — PRD v1.15
 
+## v42 RAG Documenti Master — Axon legge i tuoi PDF (Giugno 2026)
+### 🎯 Richiesta utente
+Fase 2/4 del progetto "Axon che impara": far leggere ad Axon i PDF caricati dal Master (contratti, listini, brochure) così può rispondere in modo preciso citando i tuoi documenti. Sezione dedicata "Documenti Axon" in Impostazioni.
+
+### ✅ Backend (`/app/backend/server.py`)
+- **Helper**: `_chunk_text_by_words(text, size=500, overlap=50)` → chunks di 500 parole con overlap di 50 per continuità tematica.
+- **Helper**: `_extract_pdf_pages(base64, max_pages=50)` → estrae testo pagina-per-pagina via pypdf, ritorna `[(page_number, text), …]`, cap 50 pagine e 20MB per sicurezza.
+- **Endpoint `POST /api/master-docs`** (Master-only): upload PDF base64. Estrae testo, chunkizza, tokenizza (via `_normalize_and_tokenize`), salva in `db.master_documents` (metadati) + `db.master_doc_chunks` (chunks). Rollback automatico se insert chunks fallisce.
+- **Endpoint `GET /api/master-docs`**: lista documenti del tenant (visibile anche ai collaboratori — Axon userà comunque i doc del Master per rispondere a tutti).
+- **Endpoint `DELETE /api/master-docs/{doc_id}`** (Master-only): rimuove doc + tutti i chunks associati.
+- **Retrieval `_retrieve_master_doc_chunks(tenant, query, top_k=3, min_sim=0.05)`**:
+  - Tokenizza la query
+  - Pre-filtro MongoDB `{tokens: {$in: q_tokens}}` (multikey index accelera drasticamente vs full-scan)
+  - Score Jaccard per chunk, ordine desc, top-3
+  - Enrich con `doc_name` batch fetch
+- **Integrazione in `_prepare_assistant_prompt` (streaming) + `assistant_chat` (non-streaming)**: chiama retrieval, se ci sono chunks con score ≥ 0.05 inietta sezione **"DOCUMENTI MASTER"** nel system prompt con estratti (max 2000 char/chunk) e istruzioni "cita SEMPRE il nome del documento".
+- **Data model**:
+  - `db.master_documents`: `{doc_id, user_id, tenant_id, name, mime, size, total_pages, total_chunks, created_at}`
+  - `db.master_doc_chunks`: `{chunk_id, doc_id, user_id, tenant_id, chunk_index, page_number, content, tokens, created_at}`
+- **Nuovi indici**:
+  - `master_documents.(tenant_id, created_at desc)`, `.doc_id` unique
+  - `master_doc_chunks.(tenant_id, tokens)` (multikey per pre-filter), `.doc_id`, `.chunk_id` unique
+- **Cleanup account**: `master_documents` + `master_doc_chunks` aggiunti a `tenant_collections` per delete-account.
+- **Params**: `RAG_CHUNK_WORDS=500`, `RAG_CHUNK_OVERLAP=50`, `RAG_TOP_K=3`, `RAG_MIN_SIMILARITY=0.05`, `RAG_MAX_PDF_BYTES=20MB`, `RAG_MAX_PAGES=50`.
+
+### ✅ Frontend
+- **Nuova pagina `/app/frontend/app/documenti-axon.tsx`**:
+  - Header viola con back button, titolo "Documenti Axon", sottotitolo "La base di conoscenza personale"
+  - Info box giallo con spiegazione "Carica qui i tuoi PDF..."
+  - Info box grigio (solo collaboratori): "Solo il Master può caricare/eliminare — ma Axon userà comunque i documenti del tuo Master"
+  - Empty state elegante con icona documenti + testo contestuale (Master vs Collaboratore)
+  - Lista card documento: icona viola PDF, nome, meta (`N pag · N chunk · dimensione · data`), delete button rosso (Master-only)
+  - FAB "Carica PDF" viola in basso a destra (Master-only, bottom=96 per non essere coperto da tab bar + Axon FAB)
+  - Upload: `pickCommonFile` → filtra solo PDF → legge base64 (data URI / web fetch / native FS) → POST `/master-docs`
+  - Delete: `confirmAsync` prima di DELETE
+- **Impostazioni**: aggiunta card link "Documenti Axon" con icona `library` viola, sub-text contestuale Master/Collaboratore. Sempre visibile (anche ai collaboratori in read-only).
+
+### 🧪 Test manuali eseguiti
+- ✅ Upload PDF (2 pag "Listino Optima 2026" con offerte + provvigioni) → 200 OK, 2 chunks salvati
+- ✅ GET `/master-docs` → items array con nome + meta
+- ✅ Query streaming "Qual è la provvigione per un contratto business luce nel listino Optima?" → risposta cita "«Listino Optima 2026», la provvigione per un contratto **business luce** è di **120 EUR**" + elenca tutte le provvigioni presenti nel PDF
+- ✅ UI: page load empty state ok, upload FAB visible, doc card ok, chat citation ok
+- ✅ DELETE doc → chunks rimossi (deleted_chunks: 2)
+- ✅ Isolation tenant-scoped: retrieval usa `tenant_id`, altri tenant non vedono i doc
+
+### 📊 Impatto
+- Axon risponde in modo **fattuale** su listini, provvigioni, procedure interne senza doverli ripetere nella chat
+- La citazione esplicita del nome documento aumenta trust e permette verifica manuale
+- Retrieval Jaccard è molto leggero (nessuna inferenza LLM/embedding necessaria) → latenza aggiuntiva < 50ms
+
+---
+
+
+## v41 Feedback 👍/👎 su risposte Axon — Self-learning loop (Giugno 2026)
+### 🎯 Richiesta utente
+Aggiungere i pollici 👍/👎 sulle risposte di Axon così l'assistente impara dai riscontri e migliora nel tempo. Prima delle 4 fasi previste per il progetto "Axon che impara".
+
+### ✅ Backend (`/app/backend/server.py`)
+- **Message ID**: ogni risposta assistant ora riceve un `message_id` (UUID 16-char) al momento della persistenza. Emesso nell'evento SSE `meta` (streaming) e nel body JSON (non-streaming).
+- **Race-condition fix streaming**: nel path streaming, il placeholder del messaggio assistant (con `message_id` + `content=""`) viene inserito in DB *prima* di emettere l'evento `meta`, così il client può fare POST feedback anche se il stream si interrompe. Il `content` viene aggiornato (`$set`) alla fine dello stream.
+- **`POST /api/assistant/feedback`** (nuovo):
+  - Body: `{message_id, rating: "up"|"down", reason?, comment?}`
+  - Cerca il messaggio in `db.assistant_messages` (403 se non appartiene all'utente)
+  - Recupera automaticamente la domanda utente precedente (stessa session, ultimo msg role="user" prima del `created_at` del messaggio)
+  - **Upsert idempotente** su `(user_id, message_id)`: l'utente può cambiare idea da 👍 a 👎 e viceversa
+  - **Side effect su 👎**: invalida le voci di `axon_semantic_cache` con Jaccard ≥ 0.75 sulla domanda **E** contenuto reply identico → così una risposta rigettata non viene più servita cached ad altri utenti
+- **`GET /api/assistant/feedback/{message_id}`** (nuovo): recupera il feedback corrente su un messaggio (404 se assente)
+- **`GET /api/assistant/feedback/stats/summary`** (nuovo): aggregati per utente ultimi 30 giorni — `{ups, downs, total, satisfaction_rate, window_days}`
+- Nuovi indici MongoDB:
+  - `assistant_feedback.(user_id, message_id)` unico
+  - `assistant_feedback.(user_id, updated_at desc)`
+  - `assistant_feedback.(rating, updated_at desc)`
+  - `assistant_messages.message_id`
+
+### ✅ Frontend
+- `AssistantChat.tsx`:
+  - Tipo `ChatMsg` esteso con `message_id?: string`, `feedback_rating?: "up" | "down" | null`
+  - Callback `onMeta` e `onDone` catturano `message_id` dall'SSE
+  - Nuovo `handleFeedback(idx, rating)`:
+    - Su 👍 → optimistic update + POST /feedback (idempotente); toggle-off ripristina neutro
+    - Su 👎 → apre modal "Cosa non ha funzionato?" con 6 chip motivazione + TextInput commento libero
+  - Row feedback aggiunta in fondo a ogni bubble assistant completata (non durante streaming):
+    - Label "Utile?" grigia
+    - Bottone 👍 (thumbs-up-outline / thumbs-up filled verde `#16A34A`)
+    - Bottone 👎 (thumbs-down-outline / thumbs-down filled rosso `#DC2626`)
+  - Modal 👎 reason:
+    - Chip motivazione: Impreciso, Fuori tema, Troppo lungo, Troppo corto, Linguaggio, Altro
+    - TextInput commento libero (max 500 char)
+    - Pulsanti "Annulla" (grigio) + "Invia feedback" (rosso con icona paper-plane)
+    - Bordi arrotondati, shadow, icona 👎 tonda rossa nel header
+  - `streamAssistantChat` types: `StreamMeta.message_id` e `StreamDone.message_id`
+
+### 🧪 Test manuali eseguiti
+- ✅ POST /assistant/feedback rating=up con message_id valido → salvato, GET ritorna il record
+- ✅ Re-post con rating=down → upsert aggiorna record, stats mostrano `downs: 1`
+- ✅ POST con message_id inesistente → 404 "Messaggio non trovato o non tuo"
+- ✅ Cache PUN: dopo 👎 sulla risposta PUN, il record `axon_semantic_cache` viene rimosso (verificato via query DB)
+- ✅ UI: click 👍 → thumb verde filled, click 👎 → modal si apre con reasons/comment, submit → thumb rosso filled
+
+### 📊 Effetti self-learning
+- **Cache pulita**: le risposte con 👎 vengono rimosse dalla cache globale → nuovi utenti ricevono LLM fresh answer invece di stale
+- **Statistiche**: `/feedback/stats/summary` fornirà base per dashboard "Come sta imparando Axon" (uso futuro)
+- **Base dati**: `assistant_feedback` fornirà few-shot examples in fasi successive (Fase 3: regole auto-estratte)
+
+---
+
+
 ## v40 Axon AI: Streaming (SSE) + Semantic Cache (Giugno 2026)
 ### 🎯 Richiesta utente
 Ottimizzare Axon in due modi: (1) risposte streaming token-per-token per esperienza istantanea, (2) cache semantica globale per domande ricorrenti frequenti dei collaboratori.

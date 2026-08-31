@@ -559,6 +559,20 @@ function ImpostazioniScreen() {
           </Pressable>
         )}
 
+        {/* V42 — Documenti Axon: base di conoscenza personale (PDF) */}
+        <Pressable testID="documenti-axon-link" onPress={() => router.push("/documenti-axon" as any)} style={styles.linkCard}>
+          <Ionicons name="library" size={26} color="#7C3AED" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Documenti Axon</Text>
+            <Text style={styles.linkSub}>
+              {!user?.parent_user_id
+                ? "Carica PDF (contratti, listini, brochure): Axon li leggerà e li userà per rispondere"
+                : "Consulta i documenti Axon caricati dal tuo Master"}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
         {!user?.parent_user_id && (
           <Pressable testID="invitati-link" onPress={() => router.push("/invita" as any)} style={styles.linkCard}>
             <Ionicons name="person-add" size={26} color={theme.color.brandPrimary} />

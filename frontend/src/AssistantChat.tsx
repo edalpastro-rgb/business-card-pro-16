@@ -60,6 +60,9 @@ type ChatMsg = {
   // V40 — Streaming state + semantic cache flag
   streaming?: boolean;
   from_cache?: boolean;
+  // V41 — Feedback per assistant message
+  message_id?: string;
+  feedback_rating?: "up" | "down" | null;
 };
 
 type AssistantChatProps = {
@@ -399,6 +402,74 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     };
   }, [visible, handleDroppedFile]);
 
+  // V41 — Feedback thumbs 👍/👎 state + handler.
+  // On 👎 opens a modal with a quick reason chooser + optional free-text comment.
+  const [feedbackDown, setFeedbackDown] = useState<{ msgIndex: number; message_id: string } | null>(null);
+  const [feedbackReason, setFeedbackReason] = useState<string>("");
+  const [feedbackComment, setFeedbackComment] = useState<string>("");
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
+
+  const applyFeedbackLocally = useCallback(
+    (idx: number, rating: "up" | "down" | null) => {
+      setMessages((prev) => {
+        if (idx < 0 || idx >= prev.length) return prev;
+        const next = [...prev];
+        next[idx] = { ...next[idx], feedback_rating: rating };
+        return next;
+      });
+    },
+    []
+  );
+
+  const handleFeedback = useCallback(
+    async (idx: number, rating: "up" | "down") => {
+      const m = messages[idx];
+      if (!m || !m.message_id) return;
+      // Toggle off if same rating already set (silent local update; server-side we still POST — idempotent)
+      const wasSameRating = m.feedback_rating === rating;
+      if (rating === "up") {
+        // Optimistic UI
+        applyFeedbackLocally(idx, wasSameRating ? null : "up");
+        if (wasSameRating) return; // don't spam server on toggle-off
+        try {
+          await api("/assistant/feedback", {
+            method: "POST",
+            body: { message_id: m.message_id, rating: "up" },
+          });
+        } catch {
+          applyFeedbackLocally(idx, null); // revert
+        }
+        return;
+      }
+      // rating === "down" → open modal to collect reason + comment
+      setFeedbackReason("");
+      setFeedbackComment("");
+      setFeedbackDown({ msgIndex: idx, message_id: m.message_id });
+    },
+    [messages, applyFeedbackLocally]
+  );
+
+  const submitDownFeedback = useCallback(async () => {
+    if (!feedbackDown) return;
+    setFeedbackSaving(true);
+    try {
+      await api("/assistant/feedback", {
+        method: "POST",
+        body: {
+          message_id: feedbackDown.message_id,
+          rating: "down",
+          reason: feedbackReason || undefined,
+          comment: feedbackComment || undefined,
+        },
+      });
+      applyFeedbackLocally(feedbackDown.msgIndex, "down");
+      setFeedbackDown(null);
+    } catch { /* keep modal open on error */ }
+    finally {
+      setFeedbackSaving(false);
+    }
+  }, [feedbackDown, feedbackReason, feedbackComment, applyFeedbackLocally]);
+
 
   const send = async (text?: string, opts?: { forceSpeak?: boolean; onSpoken?: () => void; quickLabel?: string }) => {
     const msg = (text ?? input).trim();
@@ -479,6 +550,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               created_at: new Date().toISOString(),
               streaming: true,
               from_cache: !!meta.from_cache,
+              message_id: meta.message_id,
             },
           ]);
         },
@@ -504,6 +576,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               used_web_search: !!done.used_web_search,
               web_sources: done.web_sources || [],
               from_cache: !!done.from_cache,
+              message_id: done.message_id || last.message_id,
             });
             return next;
           });
@@ -1249,6 +1322,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   onTogglePause={togglePause}
                   onSaveToMaster={m.role === "assistant" && m.used_web_search ? () => openSaveToMaster(m.content) : undefined}
                   isMaster={isMaster}
+                  onFeedback={m.role === "assistant" ? (rating) => handleFeedback(i, rating) : undefined}
                 />
               ))}
               {sending && (
@@ -1395,6 +1469,92 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         onClose={() => setDrivePickerOpen(false)}
         onFilePicked={(f) => addPendingAttachment({ name: f.name, mime: f.mime, base64: f.data_base64 })}
       />
+      {/* V41 — Feedback 👎 reason modal */}
+      <Modal
+        visible={!!feedbackDown}
+        transparent
+        animationType="fade"
+        onRequestClose={() => (feedbackSaving ? undefined : setFeedbackDown(null))}
+        statusBarTranslucent
+      >
+        <View style={styles.fbBackdrop}>
+          <View style={styles.fbCard} testID="feedback-down-modal">
+            <View style={styles.fbHeader}>
+              <View style={styles.fbHeaderIcon}>
+                <Ionicons name="thumbs-down" size={20} color="#DC2626" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fbTitle}>Cosa non ha funzionato?</Text>
+                <Text style={styles.fbSub}>
+                  {assistantName} imparerà dai tuoi feedback per migliorare le prossime risposte.
+                </Text>
+              </View>
+            </View>
+            <View style={styles.fbReasonWrap}>
+              {[
+                { id: "impreciso", label: "Impreciso" },
+                { id: "non_pertinente", label: "Fuori tema" },
+                { id: "troppo_lungo", label: "Troppo lungo" },
+                { id: "troppo_corto", label: "Troppo corto" },
+                { id: "linguaggio", label: "Linguaggio" },
+                { id: "altro", label: "Altro" },
+              ].map((r) => (
+                <Pressable
+                  key={r.id}
+                  onPress={() => setFeedbackReason(r.id === feedbackReason ? "" : r.id)}
+                  style={[
+                    styles.fbReason,
+                    feedbackReason === r.id && styles.fbReasonSel,
+                  ]}
+                  testID={`feedback-reason-${r.id}`}
+                >
+                  <Text style={[
+                    styles.fbReasonTxt,
+                    feedbackReason === r.id && { color: "#FFF", fontWeight: "700" },
+                  ]}>
+                    {r.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              value={feedbackComment}
+              onChangeText={setFeedbackComment}
+              placeholder="Aggiungi un commento (facoltativo)…"
+              placeholderTextColor="#94A3B8"
+              style={styles.fbInput}
+              multiline
+              maxLength={500}
+              testID="feedback-comment-input"
+            />
+            <View style={styles.fbBtnRow}>
+              <Pressable
+                onPress={() => setFeedbackDown(null)}
+                disabled={feedbackSaving}
+                style={[styles.fbBtnGhost, feedbackSaving && { opacity: 0.5 }]}
+                testID="feedback-cancel"
+              >
+                <Text style={styles.fbBtnGhostTxt}>Annulla</Text>
+              </Pressable>
+              <Pressable
+                onPress={submitDownFeedback}
+                disabled={feedbackSaving}
+                style={[styles.fbBtnSubmit, feedbackSaving && { opacity: 0.5 }]}
+                testID="feedback-submit"
+              >
+                {feedbackSaving ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="paper-plane" size={14} color="#FFF" />
+                    <Text style={styles.fbBtnSubmitTxt}>Invia feedback</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -1497,6 +1657,7 @@ function MessageBubble({
   onTogglePause,
   onSaveToMaster,
   isMaster,
+  onFeedback,
 }: {
   msg: ChatMsg;
   assistantName: string;
@@ -1506,6 +1667,7 @@ function MessageBubble({
   onTogglePause?: () => void;
   onSaveToMaster?: () => void;
   isMaster?: boolean;
+  onFeedback?: (rating: "up" | "down") => void;
 }) {
   const isUser = msg.role === "user";
   return (
@@ -1640,6 +1802,44 @@ function MessageBubble({
         {/* V28.y — Prompt discreto "Salva come regola" / "Aggiungi fonte" — solo Master */}
         {!isUser && (
           <SaveToAxonPrompt content={msg.content} assistantColor={ASSISTANT_COLOR_DARK} isMaster={!!isMaster} />
+        )}
+        {/* V41 — Feedback 👍/👎 (solo su risposte assistant completate, con message_id) */}
+        {!isUser && !msg.streaming && msg.message_id && onFeedback && (
+          <View style={styles.feedbackRow}>
+            <Text style={styles.feedbackLbl}>Utile?</Text>
+            <Pressable
+              onPress={() => onFeedback("up")}
+              hitSlop={8}
+              accessibilityLabel="Utile"
+              testID="msg-feedback-up"
+              style={[
+                styles.feedbackBtn,
+                msg.feedback_rating === "up" && styles.feedbackBtnUp,
+              ]}
+            >
+              <Ionicons
+                name={msg.feedback_rating === "up" ? "thumbs-up" : "thumbs-up-outline"}
+                size={14}
+                color={msg.feedback_rating === "up" ? "#16A34A" : "#64748B"}
+              />
+            </Pressable>
+            <Pressable
+              onPress={() => onFeedback("down")}
+              hitSlop={8}
+              accessibilityLabel="Non utile"
+              testID="msg-feedback-down"
+              style={[
+                styles.feedbackBtn,
+                msg.feedback_rating === "down" && styles.feedbackBtnDown,
+              ]}
+            >
+              <Ionicons
+                name={msg.feedback_rating === "down" ? "thumbs-down" : "thumbs-down-outline"}
+                size={14}
+                color={msg.feedback_rating === "down" ? "#DC2626" : "#64748B"}
+              />
+            </Pressable>
+          </View>
         )}
       </View>
     </View>
@@ -2029,6 +2229,114 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 1,
   },
+  // V41 — Feedback thumbs + modal styles
+  feedbackRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  feedbackLbl: {
+    fontSize: 11,
+    color: "#94A3B8",
+    fontWeight: "600",
+    marginRight: 2,
+  },
+  feedbackBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  feedbackBtnUp: {
+    backgroundColor: "#DCFCE7",
+    borderColor: "#16A34A",
+  },
+  feedbackBtnDown: {
+    backgroundColor: "#FEE2E2",
+    borderColor: "#DC2626",
+  },
+  fbBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  fbCard: {
+    width: "100%",
+    maxWidth: 440,
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 20,
+    gap: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  fbHeader: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  fbHeaderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fbTitle: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  fbSub: { fontSize: 12, color: "#64748B", marginTop: 2, lineHeight: 16 },
+  fbReasonWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  fbReason: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "#F8FAFC",
+  },
+  fbReasonSel: {
+    borderColor: "#DC2626",
+    backgroundColor: "#DC2626",
+  },
+  fbReasonTxt: { fontSize: 12, color: "#334155", fontWeight: "600" },
+  fbInput: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 10,
+    fontSize: 13,
+    color: "#0F172A",
+    minHeight: 60,
+    maxHeight: 100,
+    textAlignVertical: "top",
+  },
+  fbBtnRow: { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
+  fbBtnGhost: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+  },
+  fbBtnGhostTxt: { fontSize: 13, fontWeight: "700", color: "#64748B" },
+  fbBtnSubmit: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#DC2626",
+  },
+  fbBtnSubmitTxt: { fontSize: 13, fontWeight: "700", color: "#FFF" },
   saveMasterBtn: {
     flexDirection: "row",
     alignItems: "center",
