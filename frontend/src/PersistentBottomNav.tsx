@@ -37,8 +37,9 @@ const TABS: TabDef[] = [
   { name: "impostazioni", label: "Profilo",    route: "/(tabs)/impostazioni", iconOn: "person-circle",    iconOff: "person-circle-outline" },
 ];
 
-// Rotte dove la barra NON deve mai apparire (login, splash, app-lock, ecc.)
-const HIDE_ON_PATHS = ["/login", "/index", "/", "/auth"];
+// Rotte dove la barra NON deve mai apparire (login, splash, app-lock,
+// schermate di creazione con sticky footer proprio).
+const HIDE_ON_PATHS = ["/login", "/index", "/", "/auth", "/appointment/new", "/callback/new"];
 
 export function PersistentBottomNav() {
   const pathname = usePathname() || "";

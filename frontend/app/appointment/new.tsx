@@ -17,6 +17,7 @@ import { WheelPickerModal, WheelItem } from "@/src/WheelPicker";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { AppointmentShareActions } from "@/src/AppointmentShareActions";
 import { pickCommonFile } from "@/src/utils/filePicker";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 type Attachment = {
   id: string;
@@ -114,6 +115,7 @@ export default function NewAppointmentRoute() {
 function NewAppointmentScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const safeBottom = useSafeBottom(); // V29.ar — sticky footer safe-area
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
   const { contactId, reschedule_from, title: prefTitle, area: prefArea, location: prefLoc, notes: prefNotes, contact_id: prefContact, is_phone: prefPhone, chain, back_to } = useLocalSearchParams<{
     contactId?: string; reschedule_from?: string; title?: string; area?: string; location?: string; notes?: string; contact_id?: string; is_phone?: string;
@@ -1000,11 +1002,32 @@ function NewAppointmentScreen() {
           </View>
         )}
 
-        <Pressable testID="ap-save" onPress={submit} style={styles.saveBtn} disabled={busy || !form.title.trim()}>
-          {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>Crea appuntamento</Text>}
-        </Pressable>
-        <View style={{ height: 40 }} />
+        {/* V29.ar — Il pulsante Salva è stato SPOSTATO fuori dalla ScrollView in
+            una sticky footer bar sempre visibile in fondo allo schermo (vedi sotto).
+            Manteniamo qui uno spacer per non far attaccare l'ultimo campo al footer. */}
+        <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* V29.ar — Sticky footer "Salva appuntamento": sempre visibile, con
+          safe-area bottom Android/iOS, background bianco con ombra top per
+          separarlo dal contenuto scrollabile sotto. */}
+      <View style={[styles.stickyFooter, { paddingBottom: 12 + safeBottom }]}>
+        <Pressable
+          testID="ap-save"
+          onPress={submit}
+          style={[styles.saveBtn, (busy || !form.title.trim()) && { opacity: 0.55 }]}
+          disabled={busy || !form.title.trim()}
+        >
+          {busy ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={18} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={styles.saveBtnTxt}>Salva appuntamento</Text>
+            </>
+          )}
+        </Pressable>
+      </View>
 
       <Modal visible={!!typeEditModal} transparent animationType="fade" onRequestClose={() => setTypeEditModal(null)}>
         <View style={mstyles.back}>
@@ -1137,8 +1160,22 @@ const styles = StyleSheet.create({
   dateBtnTxt: { color: theme.color.onSurface, fontWeight: "600" },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   switchLbl: { fontSize: 14, color: theme.color.onSurface, fontWeight: "600" },
-  saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 20 },
-  saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
+  saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", justifyContent: "center", flexDirection: "row" },
+  saveBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 16, letterSpacing: 0.2 },
+  // V29.ar — Sticky footer bar per il pulsante Salva sempre visibile
+  stickyFooter: {
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: theme.color.border,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    // ombra top
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: -3 } },
+      android: { elevation: 8 },
+      default: {},
+    }),
+  },
   subCat: { fontSize: 12, fontWeight: "700", color: theme.color.onSurfaceTertiary, marginBottom: 6 },
   hint: { fontSize: 11, color: theme.color.muted, marginTop: 8, fontStyle: "italic" },
   mediaRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 },
