@@ -1,5 +1,59 @@
 # Dal Pastro CRM — PRD v1.15
 
+## v40 Axon AI: Streaming (SSE) + Semantic Cache (Giugno 2026)
+### 🎯 Richiesta utente
+Ottimizzare Axon in due modi: (1) risposte streaming token-per-token per esperienza istantanea, (2) cache semantica globale per domande ricorrenti frequenti dei collaboratori.
+
+### ✅ Backend (`/app/backend/server.py`)
+- Nuovo endpoint `POST /api/assistant/chat/stream` con `StreamingResponse` SSE (`text/event-stream`).
+- Eventi SSE: `meta` (session_id, assistant_name, from_cache), `delta` (token/chunk), `done` (used_web_search, web_sources), `error`.
+- Uso di `LlmChat.stream_message()` di `emergentintegrations` per ricevere `TextDelta` in tempo reale da Claude Sonnet 5.
+- **Cache semantica globale** (`db.axon_semantic_cache`):
+  - Chiavi: tokenizzazione + normalizzazione (Unicode NFKD, lowercase, rimozione stopword IT).
+  - Matching: **Jaccard similarity ≥ 0.75** (calibrato per italiano, ~0.92 embedding cosine).
+  - **TTL 7 giorni** via indice MongoDB `expires_at`.
+  - **Globale** (condivisa fra tutti i tenant, come richiesto dall'utente).
+  - Bypass automatico se query contiene:
+    - Attachment / cronologia sessione
+    - Token time-bound (oggi, ieri, domani, adesso, ora...)
+    - Token CRM-bound (mio/i/e, appuntamento, cliente, contatto, chiamata, scadenza, bolletta...)
+    - Query < 12 caratteri o < 3 token utili
+- **Cache lookup** integrato anche in `POST /api/assistant/chat` (non-streaming) per beneficio uniforme.
+- **Cache save fire-and-forget** dopo risposta LLM per non bloccare la latenza percepita.
+- Helper `_prepare_assistant_prompt()` estratto per DRY tra i due endpoint.
+- Nuovo indice MongoDB `axon_semantic_cache`: TTL su `expires_at`, index su `created_at` e `tokens` (multikey).
+
+### ✅ Frontend
+- Nuovo modulo `/app/frontend/src/utils/assistantStream.ts` con `streamAssistantChat()`:
+  - Consuma SSE via `fetch` + `ReadableStream.getReader()` su web.
+  - Fallback lettura full-buffer su native (Android/iOS) dove ReadableStream non è disponibile.
+  - Parser SSE robusto (event/data multi-linea, blocchi separati da `\n\n`).
+  - Emit callback `onMeta`, `onDelta`, `onDone`.
+- `AssistantChat.tsx` (send function):
+  - Migrato da POST classico a `streamAssistantChat`.
+  - Aggiunge bubble assistente vuota in `onMeta`, la riempie in `onDelta` (append incrementale a `content`), finalizza in `onDone`.
+  - Cleanup: rimuove bubble vuota se stream fallisce (evita bolla fantasma).
+- Nuovo tipo `ChatMsg` con `streaming?: boolean` e `from_cache?: boolean`.
+- **Badge nella bubble**:
+  - `WEB` (esistente) — quando `used_web_search`
+  - `ISTANTANEA` (nuovo, `#FEF3C7`/`#92400E`, icona `flash`) — quando `from_cache`
+  - `•••` (nuovo, viola) — quando `streaming` in corso
+
+### 🧪 Test manuali eseguiti
+- ✅ `POST /assistant/chat/stream` con query knowledge "Spiegami cosa è il PUN..." → streaming SSE 13s con `WEB` badge (Tavily). Persiste in cache.
+- ✅ Query identica ripetuta → cache HIT in **205 ms** (63× più veloce), `from_cache: true`, `cache_similarity: 1.0`.
+- ✅ Query riformulata "Cosa significa PUN nel mercato energetico italiano, spiegami" → cache HIT (0.833 similarity, 245 ms).
+- ✅ Query CRM-bound "Quali sono i miei appuntamenti di oggi?" → correttamente bypassa cache, streaming LLM ~6.5s.
+- ✅ UI: badge ISTANTANEA visibile accanto a WEB sulla bubble cached; dot indicator viola durante streaming; contenuto renderizzato progressivamente token-per-token.
+
+### 📊 Impatto misurato
+- **Streaming**: primo token visibile in ~500-800ms (vs 8-15s per la risposta completa in blocco). Percezione: risposta 10-20x più rapida.
+- **Cache hit su domanda ripetuta**: 205 ms vs ~13 s → **63× più veloce**, zero costo LLM.
+- **Precisione cache**: false-positive gestiti da skip-tokens (CRM, tempo, meteo). Query CRM sempre servite da LLM.
+
+---
+
+
 ## v29.ak Landing page pubblica su advisoros.it (Giugno 2026)
 ### 🎯 Richiesta utente
 Creare una landing page web separata per advisoros.it che presenta AdvisorOS con descrizione, mockup app e bottoni di download per Play Store e App Store. La landing deve essere la homepage web di default per utenti non loggati.

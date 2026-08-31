@@ -31,6 +31,7 @@ import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { AxonOSLogo } from "@/src/BrandLogos";
+import { streamAssistantChat } from "@/src/utils/assistantStream";
 
 // V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
 const AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-transparent.png");
@@ -56,6 +57,9 @@ type ChatMsg = {
   // V29.ag — Metadata cache azione rapida: data ultimo aggiornamento + flag from_cache.
   qa_updated_at?: string;
   qa_from_cache?: boolean;
+  // V40 — Streaming state + semantic cache flag
+  streaming?: boolean;
+  from_cache?: boolean;
 };
 
 type AssistantChatProps = {
@@ -456,40 +460,74 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const r = await api<{ session_id: string; reply: string; assistant_name: string; used_web_search?: boolean; web_sources?: { title: string; url: string }[] }>(
-        "/assistant/chat",
-        {
-          method: "POST",
-          body: {
-            message: msg || "Analizza gli allegati.",
-            session_id: sessionId || undefined,
-            attachments: attachmentsPayload,
-          },
-          signal: controller.signal,
-        }
-      );
-      setSessionId(r.session_id);
-      setAssistantName(r.assistant_name || assistantName);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant" as const,
-          content: r.reply,
-          created_at: new Date().toISOString(),
-          used_web_search: !!r.used_web_search,
-          web_sources: r.web_sources || [],
+      // V40 — Streaming path via SSE. Append delta chunks to the last message
+      // in real time. Falls back to a regular POST if streaming fails.
+      const streamResult = await streamAssistantChat({
+        message: msg || "Analizza gli allegati.",
+        session_id: sessionId || undefined,
+        attachments: attachmentsPayload,
+        signal: controller.signal,
+        onMeta: (meta) => {
+          if (meta.session_id) setSessionId(meta.session_id);
+          if (meta.assistant_name) setAssistantName(meta.assistant_name);
+          // Insert an empty assistant bubble that will be filled by deltas
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant" as const,
+              content: "",
+              created_at: new Date().toISOString(),
+              streaming: true,
+              from_cache: !!meta.from_cache,
+            },
+          ]);
         },
-      ]);
-      // V29.ag — Cache azioni rapide gestita server-side (/axon/quick-action).
-      // Non serve più persistere lato client.
+        onDelta: (chunk) => {
+          setMessages((prev) => {
+            if (!prev.length) return prev;
+            const last = prev[prev.length - 1];
+            if (last.role !== "assistant" || !last.streaming) return prev;
+            const next = prev.slice(0, -1);
+            next.push({ ...last, content: (last.content || "") + chunk });
+            return next;
+          });
+        },
+        onDone: (done) => {
+          setMessages((prev) => {
+            if (!prev.length) return prev;
+            const last = prev[prev.length - 1];
+            if (last.role !== "assistant") return prev;
+            const next = prev.slice(0, -1);
+            next.push({
+              ...last,
+              streaming: false,
+              used_web_search: !!done.used_web_search,
+              web_sources: done.web_sources || [],
+              from_cache: !!done.from_cache,
+            });
+            return next;
+          });
+        },
+      });
+
       // Auto-play voice if mode requires (or forced by conversation mode)
+      const finalReply = streamResult.reply;
       const shouldSpeak = opts?.forceSpeak || responseMode === "voice" || responseMode === "both";
-      if (shouldSpeak) {
-        void speakReply(r.reply, undefined, opts?.onSpoken);
+      if (shouldSpeak && finalReply) {
+        void speakReply(finalReply, undefined, opts?.onSpoken);
       } else if (opts?.onSpoken) {
         opts.onSpoken();
       }
     } catch (e: any) {
+      // V40 — Remove any partially-streamed empty bubble
+      setMessages((prev) => {
+        if (!prev.length) return prev;
+        const last = prev[prev.length - 1];
+        if (last.role === "assistant" && last.streaming && !last.content) {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
       // V29.n — Silenzia l'errore quando l'utente ha premuto "Stop" (AbortError)
       if (e?.name === "AbortError" || /abort/i.test(String(e?.message || ""))) {
         setMessages((prev) => [
@@ -1488,6 +1526,17 @@ function MessageBubble({
                   <Text style={styles.webBadgeTxt}>web</Text>
                 </View>
               )}
+              {msg.from_cache && (
+                <View style={styles.cacheBadge} testID="msg-cache-badge">
+                  <Ionicons name="flash" size={10} color="#B45309" />
+                  <Text style={styles.cacheBadgeTxt}>istantanea</Text>
+                </View>
+              )}
+              {msg.streaming && (
+                <View style={styles.streamBadge}>
+                  <Ionicons name="ellipsis-horizontal" size={10} color="#6D28D9" />
+                </View>
+              )}
             </View>
             {onPlay && (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -1960,6 +2009,26 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   webBadgeTxt: { fontSize: 9, color: "#0369A1", fontWeight: "800", textTransform: "uppercase" },
+  // V40 — Semantic cache & streaming badges
+  cacheBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#FEF3C7",
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  cacheBadgeTxt: { fontSize: 9, color: "#92400E", fontWeight: "800", textTransform: "uppercase" },
+  streamBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#EDE9FE",
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
   saveMasterBtn: {
     flexDirection: "row",
     alignItems: "center",

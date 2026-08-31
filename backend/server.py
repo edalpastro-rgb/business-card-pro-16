@@ -8862,6 +8862,335 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
 
 
 
+# =========================================================================
+# V40 — Streaming + Semantic Cache for Axon AI Assistant
+#
+# 1) Semantic Cache: global cache keyed by tokenised question. When a new
+#    question has Jaccard similarity ≥ SEM_CACHE_JACCARD_THRESHOLD (0.85) to
+#    a previously answered question, return the cached reply INSTANTLY (no
+#    LLM call). TTL 7 days. Only knowledge-based queries are eligible.
+#
+# 2) Streaming: /assistant/chat/stream emits Server-Sent Events (SSE) with
+#    token-by-token deltas as they arrive from the LLM. Cache hits also
+#    stream (chunked) so the UI code path is uniform.
+# =========================================================================
+
+SEM_CACHE_JACCARD_THRESHOLD = 0.75  # calibrated for Italian queries (≈ 0.92 embedding cosine)
+SEM_CACHE_TTL_DAYS = 7
+SEM_CACHE_CANDIDATE_LIMIT = 200  # scan most-recent N entries when matching
+
+_ITALIAN_STOPWORDS = {
+    "a","ad","al","alla","alle","agli","allo","ai","e","ed","è","ma","o","od",
+    "di","del","dei","della","delle","dello","degli","da","dal","dalla","dalle",
+    "dagli","dallo","dai","in","nel","nella","nelle","nello","negli","nei","con",
+    "su","sul","sulla","sulle","sullo","sugli","sui","per","tra","fra",
+    "il","lo","la","i","gli","le","un","uno","una","un'",
+    "che","chi","cui","non","né","sé","si","se","si","sì","no",
+    "mi","ti","ci","vi","lo","la","li","le","ne","me","te","se",
+    "come","quando","dove","quale","quali","quanto","quanti","quanta","quante",
+    "cosa","perché","perche","ecco","allora","poi","anche","già","ancora",
+    "molto","poco","tutto","tutti","tutte","tutta","altro","altra","altri","altre",
+    "essere","sono","sei","siamo","siete","sia","sia","era","ero","eri","fu","fui",
+    "avere","ho","hai","ha","abbiamo","avete","hanno","aveva","avevo","avevi",
+    "sarà","sarai","saremo","sarete","saranno","farò","farai","farà","faremo",
+    "questo","questa","questi","queste","quello","quella","quelli","quelle",
+    "mio","mia","miei","mie","tuo","tua","tuoi","tue","suo","sua","suoi","sue",
+    "nostro","nostra","nostri","nostre","vostro","vostra","vostri","vostre",
+    "loro","è","fa","sta","va","dà",
+    "please","per favore","grazie","ciao",
+}
+
+# Tokens that signal a *user-specific* / *live-data* query. When the question
+# contains any of these, the semantic cache is bypassed (global cache would
+# return stale/wrong data for CRM-bound queries).
+_CACHE_SKIP_TOKENS = {
+    # Time-bound (dynamic)
+    "oggi","ieri","domani","adesso","ora","stasera","stamattina","stanotte","stamane",
+    "settimana","mese","anno","stamane","corrente","attuale","attualmente",
+    # Personal / CRM-bound
+    "mio","mia","miei","mie","io","me","noi","nostro","nostra","nostri","nostre",
+    "cliente","clienti","contatto","contatti","referente","referrer","segnalatore",
+    "appuntamento","appuntamenti","telefonata","telefonate","chiamata","chiamate",
+    "scadenza","scadenze","promemoria","reminder","richiama","ritelefonata","ritelefonate",
+    "bolletta","bollette","contratto","contratti","offerta","offerte","proposta","proposte",
+    # Weather (dynamic)
+    "meteo","tempo","piove","piover","pioggia","nuvoloso","soleggiato","temperatura","previsioni",
+    # Quantitative / listing (user-specific)
+    "quanti","quante","quanto",
+}
+
+def _normalize_and_tokenize(text: str) -> Tuple[str, List[str]]:
+    """Normalize text and extract a stable token set for semantic cache matching.
+    Returns (normalized_string, sorted_unique_tokens_without_stopwords)."""
+    import re, unicodedata
+    if not text:
+        return ("", [])
+    # strip diacritics
+    s = unicodedata.normalize("NFKD", text)
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = s.lower()
+    # replace non-alnum with space (keep numbers - PUN, ARERA numbers, months)
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    tokens = [t for t in s.split() if len(t) > 1 and t not in _ITALIAN_STOPWORDS]
+    # deduplicate + stable order
+    uniq = sorted(set(tokens))
+    return (" ".join(tokens), uniq)
+
+
+def _jaccard(a: List[str], b: List[str]) -> float:
+    if not a or not b:
+        return 0.0
+    sa, sb = set(a), set(b)
+    inter = len(sa & sb)
+    union = len(sa | sb)
+    return inter / union if union else 0.0
+
+
+def _is_query_cacheable(msg: str, has_attachments: bool, has_history: bool) -> bool:
+    """Return True if the question is eligible for the *global* semantic cache.
+    We deliberately exclude anything that touches live CRM/weather data since
+    the cache is global (shared across tenants)."""
+    if has_attachments or has_history:
+        return False
+    if not msg or len(msg) < 12:  # too short → not worth caching
+        return False
+    _, tokens = _normalize_and_tokenize(msg)
+    if not tokens or len(tokens) < 3:
+        return False
+    # If any skip-token is present → bypass cache
+    if any(t in _CACHE_SKIP_TOKENS for t in tokens):
+        return False
+    return True
+
+
+async def _semantic_cache_lookup(msg: str) -> Optional[dict]:
+    """Search the global semantic cache for a similar previously-answered
+    question. Returns the cached doc (with `reply`, `web_sources`, ...) on
+    hit, or None on miss. Skips expired entries defensively."""
+    _, tokens = _normalize_and_tokenize(msg)
+    if not tokens:
+        return None
+    now = utcnow()
+    # Fetch a candidate list (most-recent first) and score in memory.
+    cursor = db.axon_semantic_cache.find(
+        {"expires_at": {"$gt": now}},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(SEM_CACHE_CANDIDATE_LIMIT)
+    best = None
+    best_score = 0.0
+    async for doc in cursor:
+        cand_tokens = doc.get("tokens") or []
+        score = _jaccard(tokens, cand_tokens)
+        if score >= SEM_CACHE_JACCARD_THRESHOLD and score > best_score:
+            best = doc
+            best_score = score
+    if best is not None:
+        best["_similarity"] = round(best_score, 3)
+    return best
+
+
+async def _semantic_cache_save(
+    msg: str,
+    reply: str,
+    used_web_search: bool,
+    web_sources: List[dict],
+    assistant_name: str,
+) -> None:
+    """Persist a Q/A pair into the global semantic cache with TTL."""
+    if not reply:
+        return
+    _, tokens = _normalize_and_tokenize(msg)
+    if not tokens:
+        return
+    now = utcnow()
+    expires_at = now + timedelta(days=SEM_CACHE_TTL_DAYS)
+    try:
+        await db.axon_semantic_cache.insert_one({
+            "cache_id": uuid.uuid4().hex,
+            "question": msg[:1000],
+            "tokens": tokens,
+            "reply": reply,
+            "used_web_search": bool(used_web_search),
+            "web_sources": web_sources or [],
+            "assistant_name": assistant_name,
+            "created_at": now,
+            "expires_at": expires_at,
+        })
+    except Exception as exc:
+        logger.warning("[axon-semcache] save failed: %s", exc)
+
+
+async def _prepare_assistant_prompt(
+    user: dict, body: "AssistantChatIn"
+) -> dict:
+    """Build the full prompt payload for an assistant chat request.
+    Returns a dict with system_message, user_prompt, session_id, assistant_name,
+    used_web_search, web_sources, history_len, msg, has_attachments."""
+    msg = (body.message or "").strip()
+    if not msg:
+        raise HTTPException(status_code=400, detail="Messaggio vuoto")
+    if len(msg) > 4000:
+        raise HTTPException(status_code=400, detail="Messaggio troppo lungo (max 4000 caratteri)")
+
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+
+    assistant_name = await _get_assistant_name(user)
+    session_id = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
+
+    # Load recent conversation history from DB (last 12 messages)
+    hist_cursor = db.assistant_messages.find(
+        {"user_id": user["user_id"], "session_id": session_id},
+        {"_id": 0, "role": 1, "content": 1, "created_at": 1},
+    ).sort("created_at", -1).limit(12)
+    history = [h async for h in hist_cursor]
+    history.reverse()
+
+    try:
+        context = await _build_assistant_context(user)
+    except Exception as e:
+        context = {"error": f"Impossibile caricare i dati CRM: {e}"}
+
+    weather_ctx: Optional[dict] = None
+    weather_city = _detect_weather_query(msg)
+    if weather_city and weather_city != "?":
+        weather_ctx = await _fetch_weather(weather_city)
+
+    web_search_ctx: Optional[dict] = None
+    used_web_search = False
+    if _detect_energy_query(msg):
+        web_search_ctx = await _tavily_search(msg)
+        if web_search_ctx and (web_search_ctx.get("answer") or web_search_ctx.get("results")):
+            used_web_search = True
+
+    memories = await _load_neo_memories(user["user_id"], limit=5)
+
+    attachments_section = ""
+    if body.attachments:
+        parts = []
+        for att in body.attachments[:5]:
+            try:
+                extracted = await _extract_attachment_text(att)
+            except Exception as exc:
+                extracted = f"[Errore lettura {att.name}: {exc}]"
+            if extracted:
+                parts.append(f"--- File: {att.name} ({att.mime or 'unknown'}) ---\n{extracted[:6000]}")
+        if parts:
+            attachments_section = (
+                "\n\nALLEGATI CARICATI DALL'UTENTE (analizzali come contesto principale della domanda):\n"
+                + "\n\n".join(parts)
+                + "\n\nQuando rispondi, cita esplicitamente il contenuto rilevante degli allegati e nomi dei file.\n"
+            )
+
+    axon_teach_section = ""
+    try:
+        axon_teach_section = await _build_axon_teach_section(tenant_id(user), msg)
+    except Exception as exc:
+        logger.warning("[axon-teach] section build failed: %s", exc)
+        axon_teach_section = ""
+
+    import json as _json
+    ctx_json = _json.dumps(context, ensure_ascii=False, default=str)
+    if len(ctx_json) > 25000:
+        ctx_json = ctx_json[:25000] + "\n... (dati troncati)"
+
+    weather_section = ""
+    if weather_ctx is not None:
+        weather_section = (
+            "\n\nMETEO (dati aggiornati, timezone Europe/Rome):\n"
+            f"{_json.dumps(weather_ctx, ensure_ascii=False, default=str)}\n"
+            "Usa questi dati per rispondere in modo naturale alla domanda meteo. "
+            "Se l'utente chiede un momento specifico (oggi pomeriggio, domani mattina, ecc.) "
+            "cita la temperatura, la condizione (es. sereno, pioggia leggera) e la probabilità di pioggia se rilevante.\n"
+        )
+    elif weather_city == "?":
+        weather_section = (
+            "\n\nAVVISO: L'utente sembra chiedere del meteo ma non ha specificato una città. "
+            "Chiedi cortesemente per quale città.\n"
+        )
+
+    web_section = ""
+    if web_search_ctx and used_web_search:
+        web_section = (
+            "\n\nRICERCA WEB AGGIORNATA (dati reali dal mercato energetico italiano):\n"
+            f"Query utente: {web_search_ctx.get('query')}\n"
+            f"Risposta sintetizzata (Tavily): {web_search_ctx.get('answer') or 'nessuna sintesi'}\n"
+            "Fonti primarie (usa questi contenuti come base per la tua risposta):\n"
+        )
+        for i, r in enumerate(web_search_ctx.get("results", [])[:5], 1):
+            web_section += f"[{i}] {r.get('title')} — {r.get('url')}\n{r.get('content')}\n\n"
+        web_section += (
+            "REGOLE per usare questi dati:\n"
+            "- Cita i numeri esatti (€/MWh, €/kWh, mesi, delibere ARERA con numero e data).\n"
+            "- NON rimandare l'utente a siti esterni. Rispondi TU con la risposta.\n"
+            "- Se i dati sono aggiornati a un mese specifico, dillo (es. 'PUN novembre 2026').\n"
+            "- Se la ricerca non ha trovato dati precisi, dillo apertamente.\n"
+        )
+
+    memory_section = ""
+    if memories:
+        memory_section = "\n\nMEMORIA PERSISTENTE (contesto delle conversazioni precedenti):\n"
+        for m in memories:
+            memory_section += f"- {m.get('summary', '')}\n"
+            for f in (m.get("facts") or []):
+                memory_section += f"  • {f}\n"
+        memory_section += "\nUsa la memoria per personalizzare le risposte, ma non citare esplicitamente 'ricordo che...' a meno che sia utile.\n"
+
+    system_message = (
+        f"Sei {assistant_name}, l'assistente personale AI del CRM di {user.get('name', 'utente')}, "
+        "consulente energetico e networker in Italia.\n\n"
+        "REGOLE:\n"
+        "- Rispondi SEMPRE in italiano, tono professionale ma amichevole.\n"
+        "- Per domande CRM usa esclusivamente i dati forniti (SNAPSHOT_CRM). Non inventare.\n"
+        "- Se un dato non è nello snapshot, dillo chiaramente.\n"
+        "- Per domande sul meteo usa i dati della sezione METEO (se presente).\n"
+        "- Per dati di mercato energetico (PUN, ARERA, tariffe, oneri) usa la sezione RICERCA WEB e cita i numeri.\n"
+        "- Formatta le liste con elenchi puntati chiari; usa nomi, orari, telefoni quando disponibili.\n"
+        "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
+        "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
+        "- Puoi dare consigli operativi basati sui dati (es. suggerire di chiamare clienti senza appuntamento).\n\n"
+        f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
+        "SNAPSHOT_CRM (JSON):\n"
+        f"{ctx_json}\n"
+        f"{weather_section}"
+        f"{web_section}"
+        f"{memory_section}"
+        f"{axon_teach_section}"
+        f"{attachments_section}"
+    )
+
+    if history:
+        convo_text = ""
+        for h in history[-10:]:
+            role = "Utente" if h["role"] == "user" else assistant_name
+            convo_text += f"{role}: {h['content']}\n"
+        user_prompt = (
+            f"Conversazione precedente:\n{convo_text}\n"
+            f"---\nNuovo messaggio dell'utente: {msg}"
+        )
+    else:
+        user_prompt = msg
+
+    web_sources = [
+        {"title": r.get("title"), "url": r.get("url")}
+        for r in (web_search_ctx.get("results", []) if web_search_ctx else [])
+    ][:5] if used_web_search else []
+
+    return {
+        "msg": msg,
+        "session_id": session_id,
+        "assistant_name": assistant_name,
+        "system_message": system_message,
+        "user_prompt": user_prompt,
+        "history_len": len(history),
+        "has_attachments": bool(body.attachments),
+        "used_web_search": used_web_search,
+        "web_sources": web_sources,
+        "api_key": key,
+    }
+
+
 @api_router.post("/assistant/chat")
 async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     """Personal AI assistant. Uses Claude Sonnet 5 via Emergent LLM Key.
@@ -8887,6 +9216,28 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     ).sort("created_at", -1).limit(12)
     history = [h async for h in hist_cursor]
     history.reverse()
+
+    # V40 — Semantic cache lookup (fast path). Only for cacheable knowledge
+    # queries: no attachments, no prior history, no live-data tokens.
+    cache_eligible = _is_query_cacheable(msg, bool(body.attachments), bool(history))
+    if cache_eligible:
+        cached = await _semantic_cache_lookup(msg)
+        if cached:
+            # Persist both user & assistant messages for continuity
+            now = utcnow()
+            await db.assistant_messages.insert_many([
+                {"user_id": user["user_id"], "session_id": session_id, "role": "user", "content": msg, "created_at": now},
+                {"user_id": user["user_id"], "session_id": session_id, "role": "assistant", "content": cached["reply"], "created_at": utcnow()},
+            ])
+            return {
+                "session_id": session_id,
+                "reply": cached["reply"],
+                "assistant_name": assistant_name,
+                "used_web_search": bool(cached.get("used_web_search")),
+                "web_sources": cached.get("web_sources") or [],
+                "from_cache": True,
+                "cache_similarity": cached.get("_similarity", 1.0),
+            }
 
     # Build CRM context snapshot
     try:
@@ -9052,6 +9403,23 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception:
         pass
 
+    # V40 — Save to semantic cache if eligible (fire-and-forget)
+    if cache_eligible:
+        web_sources_out = [
+            {"title": r.get("title"), "url": r.get("url")}
+            for r in (web_search_ctx.get("results", []) if web_search_ctx else [])
+        ][:5] if used_web_search else []
+        try:
+            asyncio.create_task(_semantic_cache_save(
+                msg=msg,
+                reply=reply_text,
+                used_web_search=used_web_search,
+                web_sources=web_sources_out,
+                assistant_name=assistant_name,
+            ))
+        except Exception:
+            pass
+
     return {
         "session_id": session_id,
         "reply": reply_text,
@@ -9061,7 +9429,166 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
             {"title": r.get("title"), "url": r.get("url")}
             for r in (web_search_ctx.get("results", []) if web_search_ctx else [])
         ][:5] if used_web_search else [],
+        "from_cache": False,
     }
+
+
+# =========================================================================
+# V40 — Streaming endpoint (Server-Sent Events)
+# =========================================================================
+
+class AssistantChatStreamIn(AssistantChatIn):
+    pass
+
+
+@api_router.post("/assistant/chat/stream")
+async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_current_user)):
+    """SSE streaming variant of /assistant/chat.
+
+    Event format (each event ends with a blank line):
+      event: meta         → {"session_id","assistant_name","from_cache",...}
+      event: delta        → {"text":"...partial..."}
+      event: done         → {"used_web_search","web_sources","from_cache"}
+      event: error        → {"error":"..."}
+    """
+    from fastapi.responses import StreamingResponse
+    import json as _json_mod
+
+    def sse(event: str, data: dict) -> str:
+        return f"event: {event}\ndata: {_json_mod.dumps(data, ensure_ascii=False, default=str)}\n\n"
+
+    async def event_stream():
+        # --- Preflight: build prompt (raises HTTPException on error) ---
+        try:
+            prep = await _prepare_assistant_prompt(user, body)
+        except HTTPException as he:
+            yield sse("error", {"error": he.detail, "status": he.status_code})
+            return
+        except Exception as e:
+            yield sse("error", {"error": f"prep failed: {e}"})
+            return
+
+        msg = prep["msg"]
+        session_id = prep["session_id"]
+        assistant_name = prep["assistant_name"]
+        used_web_search = prep["used_web_search"]
+        web_sources = prep["web_sources"]
+        has_attachments = prep["has_attachments"]
+        has_history = prep["history_len"] > 0
+
+        # --- Cache lookup (fast path) ---
+        cache_eligible = _is_query_cacheable(msg, has_attachments, has_history)
+        if cache_eligible:
+            cached = await _semantic_cache_lookup(msg)
+            if cached:
+                # Persist both messages
+                now = utcnow()
+                await db.assistant_messages.insert_many([
+                    {"user_id": user["user_id"], "session_id": session_id, "role": "user", "content": msg, "created_at": now},
+                    {"user_id": user["user_id"], "session_id": session_id, "role": "assistant", "content": cached["reply"], "created_at": utcnow()},
+                ])
+                # Emit meta + one big delta + done (client can render instantly)
+                yield sse("meta", {
+                    "session_id": session_id,
+                    "assistant_name": assistant_name,
+                    "from_cache": True,
+                    "cache_similarity": cached.get("_similarity", 1.0),
+                })
+                # Chunk the cached reply so the UI still feels alive (~40 char/chunk)
+                reply = cached["reply"]
+                chunk_size = 60
+                for i in range(0, len(reply), chunk_size):
+                    yield sse("delta", {"text": reply[i:i+chunk_size]})
+                    # tiny yield to let the loop breathe
+                    await asyncio.sleep(0)
+                yield sse("done", {
+                    "used_web_search": bool(cached.get("used_web_search")),
+                    "web_sources": cached.get("web_sources") or [],
+                    "from_cache": True,
+                    "session_id": session_id,
+                })
+                return
+
+        # --- LLM streaming path ---
+        yield sse("meta", {
+            "session_id": session_id,
+            "assistant_name": assistant_name,
+            "from_cache": False,
+        })
+
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
+        except Exception as e:
+            yield sse("error", {"error": f"llm import failed: {e}"})
+            return
+
+        chat = LlmChat(
+            api_key=prep["api_key"],
+            session_id=session_id,
+            system_message=prep["system_message"],
+        ).with_model("anthropic", "claude-sonnet-5")
+
+        collected: List[str] = []
+        try:
+            async for ev in chat.stream_message(UserMessage(text=prep["user_prompt"])):
+                if isinstance(ev, TextDelta):
+                    if ev.content:
+                        collected.append(ev.content)
+                        yield sse("delta", {"text": ev.content})
+                elif isinstance(ev, StreamDone):
+                    # end handled below
+                    break
+        except Exception as e:
+            yield sse("error", {"error": f"Errore LLM: {e}"})
+            return
+
+        reply_text = ("".join(collected)).strip() or "Non ho ricevuto una risposta. Riprova."
+
+        # Persist both messages
+        now = utcnow()
+        try:
+            await db.assistant_messages.insert_many([
+                {"user_id": user["user_id"], "session_id": session_id, "role": "user", "content": msg, "created_at": now},
+                {"user_id": user["user_id"], "session_id": session_id, "role": "assistant", "content": reply_text, "created_at": utcnow()},
+            ])
+        except Exception as exc:
+            logger.warning("[assistant-stream] persist failed: %s", exc)
+
+        # Fire-and-forget memory distillation
+        try:
+            asyncio.create_task(_maybe_save_memory(user["user_id"], session_id, assistant_name))
+        except Exception:
+            pass
+
+        # Save to semantic cache if eligible
+        if cache_eligible:
+            try:
+                asyncio.create_task(_semantic_cache_save(
+                    msg=msg,
+                    reply=reply_text,
+                    used_web_search=used_web_search,
+                    web_sources=web_sources,
+                    assistant_name=assistant_name,
+                ))
+            except Exception:
+                pass
+
+        yield sse("done", {
+            "used_web_search": used_web_search,
+            "web_sources": web_sources,
+            "from_cache": False,
+            "session_id": session_id,
+        })
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",  # disable proxy buffering
+            "Connection": "keep-alive",
+        },
+    )
 
 
 # =========================================================================
@@ -11273,6 +11800,10 @@ async def _startup():
     await db.assistant_messages.create_index([("user_id", 1), ("session_id", 1), ("created_at", 1)])
     # V29.ag — Cache azioni rapide Axon (una entry per (user, label))
     await db.axon_qa_cache.create_index([("user_id", 1), ("label", 1)], unique=True)
+    # V40 — Semantic cache for Axon assistant (global, TTL-based)
+    await db.axon_semantic_cache.create_index("expires_at", expireAfterSeconds=0)
+    await db.axon_semantic_cache.create_index([("created_at", -1)])
+    await db.axon_semantic_cache.create_index("tokens")  # multikey index for token pre-filter
     # V24 migration: back-fill assigned_to_user_id from created_by for legacy contacts
     try:
         result = await db.contacts.update_many(

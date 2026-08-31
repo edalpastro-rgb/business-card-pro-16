@@ -1,0 +1,36 @@
+{
+  "summary": "V40 — Backend testing for Axon AI assistant SSE streaming + global semantic cache (Jaccard 0.75, TTL 7d). All 11 tests passed (100%). Verified: 1) POST /api/assistant/chat/stream returns Content-Type: text/event-stream with proper SSE format (event: <name>\\ndata: <json>\\n\\n), emitting exactly one meta, ≥2 delta chunks and exactly one done event; concatenated deltas produce a coherent Italian reply. 2) Cache HIT: identical query returns from_cache=true with cache_similarity=1.0 in ~0.3s (well under 2s target). 3) Semantic HIT: rephrased PUN query returns similarity=0.833 (>=0.75). 4) Cache BYPASS: CRM-bound query (miei/appuntamenti/oggi tokens) and short query (PUN, 3 chars) both correctly return from_cache=false. 5) Non-streaming POST /api/assistant/chat also honours cache (returned from_cache=true, similarity=1.0 for PUN rephrase). 6) Error handling: empty message and >4000 chars both return HTTPException 400 raised before StreamingResponse (direct HTTP 400 response); missing auth returns 401. 7) Persistence verified via GET /api/assistant/history — both user and assistant messages saved to db.assistant_messages after streaming call.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v40_assistant_streaming_cache.py",
+    "/app/test_reports/pytest/v40_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Cache bypass rules are sensible and defensive: attachments/history/short(<12)/<3-tokens/CRM-token presence all skip cache — correct for a GLOBAL (multi-tenant) cache.",
+    "Cache HIT still persists BOTH user and assistant messages in assistant_messages — good for continuity + history UX.",
+    "SSE cache-HIT path re-chunks the cached reply in 60-char deltas so the UI code path stays uniform between miss and hit — nice touch.",
+    "TTL enforced defensively at query time via {expires_at: {$gt: now}} in _semantic_cache_lookup — no reliance on a Mongo TTL index (safer if index missing).",
+    "Consider adding an index on db.axon_semantic_cache (expires_at, created_at desc) to keep the candidate scan fast as the collection grows past a few thousand entries — currently CANDIDATE_LIMIT=200 is a soft ceiling.",
+    "server.py has ballooned to 12063 lines — heavy split candidate. Not blocking for this feature.",
+    "The `_ITALIAN_STOPWORDS` set contains a duplicate 'si' entry and 'lo'/'la' appear twice (once as pronoun, once as article) — harmless in a set but worth cleaning up."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v40_assistant_streaming_cache.py (created)"
+  ],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "N/A — not tested per request"},
+  "seed_data_creation": "None — used pre-existing demo@advisoros.it account and cache entries seeded automatically by the test itself (nonce-suffixed novel query for LLM path; PUN cache entry was already present from manual verification).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Test file test_v40_assistant_streaming_cache.py is idempotent — the novel-query test injects 5 UUID nonce tokens so Jaccard vs previous runs stays well below 0.75 and always exercises the LLM path. Uses requests with stream=True + line-by-line SSE parser (_parse_sse helper). Cache is GLOBAL — repeated runs will accumulate entries; that is by design (7d TTL cleans up automatically). Identical-hit response times consistently <0.5s.",
+  "rca_of_issue": "N/A — no bugs found."
+}
