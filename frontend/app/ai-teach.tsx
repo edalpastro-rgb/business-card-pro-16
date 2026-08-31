@@ -76,31 +76,49 @@ export default function AiTeachScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
-  const [tab, setTab] = useState<"rules" | "urls" | "history">("rules");
+  const [tab, setTab] = useState<"rules" | "urls" | "history" | "suggestions">("rules");
   const [filter, setFilter] = useState<string>("all");
   const [rules, setRules] = useState<Rule[]>([]);
   const [urls, setUrls] = useState<UrlItem[]>([]);
   const [history, setHistory] = useState<HistoryRun[]>([]);
+  // V43 — Rule proposals (auto-extracted from chat overnight)
+  const [proposals, setProposals] = useState<Array<{
+    proposal_id: string;
+    title: string;
+    category: string;
+    text: string;
+    evidence?: string;
+    source_message_count?: number;
+    created_at?: string;
+  }>>([]);
+  const [proposalCounts, setProposalCounts] = useState<{ pending: number; accepted: number; rejected: number }>({ pending: 0, accepted: 0, rejected: 0 });
+  const [proposalsBusy, setProposalsBusy] = useState<string | null>(null); // proposal_id in-flight
+  const [proposalsRunNow, setProposalsRunNow] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editRule, setEditRule] = useState<Partial<Rule> | null>(null);
   const [editUrl, setEditUrl] = useState<Partial<UrlItem> | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshingAll, setRefreshingAll] = useState(false);
   // V28.j — Info modal per tab (Regole / Fonti URL / Storico)
-  const [infoTab, setInfoTab] = useState<null | "rules" | "urls" | "history">(null);
+  const [infoTab, setInfoTab] = useState<null | "rules" | "urls" | "history" | "suggestions">(null);
 
   const load = useCallback(async () => {
     if (!isMaster) return;
     try {
       setLoading(true);
-      const [r, u, h] = await Promise.all([
+      const [r, u, h, p] = await Promise.all([
         api<{ items: Rule[] }>("/ai-teach/rules"),
         api<{ items: UrlItem[] }>("/ai-teach/urls"),
         api<{ items: HistoryRun[] }>("/ai-teach/refresh-history").catch(() => ({ items: [] })),
+        api<{ items: any[]; counts: { pending: number; accepted: number; rejected: number } }>(
+          "/axon/rule-proposals?status=pending"
+        ).catch(() => ({ items: [], counts: { pending: 0, accepted: 0, rejected: 0 } })),
       ]);
       setRules(r.items || []);
       setUrls(u.items || []);
       setHistory(h.items || []);
+      setProposals(p.items || []);
+      setProposalCounts(p.counts || { pending: 0, accepted: 0, rejected: 0 });
     } catch (e: any) {
       notify("Errore", e?.message || "Impossibile caricare i dati");
     } finally { setLoading(false); }
@@ -191,6 +209,64 @@ export default function AiTeachScreen() {
   const removeRule = async (id: string) => {
     try { await api(`/ai-teach/rules/${id}`, { method: "DELETE" }); load(); } catch (e: any) { notify("Errore", e?.message || ""); }
   };
+
+  // V43 — Rule proposals: accept/reject/run-now.
+  const acceptProposal = useCallback(async (proposal_id: string) => {
+    setProposalsBusy(proposal_id);
+    try {
+      await api(`/axon/rule-proposals/${proposal_id}/accept`, { method: "POST" });
+      setProposals((arr) => arr.filter((p) => p.proposal_id !== proposal_id));
+      setProposalCounts((c) => ({ ...c, pending: Math.max(0, c.pending - 1), accepted: c.accepted + 1 }));
+      // Reload rules list so the new one appears in the "Regole" tab immediately
+      try {
+        const r = await api<{ items: Rule[] }>("/ai-teach/rules");
+        setRules(r.items || []);
+      } catch { /* ignore */ }
+      notify("Regola aggiunta", "La proposta è ora una regola attiva.");
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally {
+      setProposalsBusy(null);
+    }
+  }, []);
+
+  const rejectProposal = useCallback(async (proposal_id: string) => {
+    setProposalsBusy(proposal_id);
+    try {
+      await api(`/axon/rule-proposals/${proposal_id}/reject`, { method: "POST" });
+      setProposals((arr) => arr.filter((p) => p.proposal_id !== proposal_id));
+      setProposalCounts((c) => ({ ...c, pending: Math.max(0, c.pending - 1), rejected: c.rejected + 1 }));
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally {
+      setProposalsBusy(null);
+    }
+  }, []);
+
+  const runProposalsNow = useCallback(async () => {
+    setProposalsRunNow(true);
+    try {
+      const r = await api<{ ok: boolean; proposals_created?: number; analyzed_messages?: number; reason?: string }>(
+        "/axon/rule-proposals/run-now",
+        { method: "POST" }
+      );
+      if (!r.ok) {
+        notify("Analisi non eseguita", r.reason || "Nessun dato sufficiente");
+      } else {
+        notify("Analisi completata", `Nuove proposte: ${r.proposals_created || 0} · Msg analizzati: ${r.analyzed_messages || 0}`);
+        // Reload proposals
+        const p = await api<{ items: any[]; counts: { pending: number; accepted: number; rejected: number } }>(
+          "/axon/rule-proposals?status=pending"
+        );
+        setProposals(p.items || []);
+        setProposalCounts(p.counts || { pending: 0, accepted: 0, rejected: 0 });
+      }
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally {
+      setProposalsRunNow(false);
+    }
+  }, []);
 
   // V28.l — Ora accetta QUALSIASI file (PDF, Excel, immagini, txt, csv…). Il file
   // viene letto in base64 tramite FileSystem/fetch e allegato alla regola.
@@ -292,6 +368,10 @@ export default function AiTeachScreen() {
       title: "Storico aggiornamenti",
       body: "Elenco cronologico di tutte le esecuzioni di aggiornamento URL — manuali (con Aggiorna ora) e automatiche (in base alla frequenza). Per ogni esecuzione vedi data/ora, quali URL sono stati aggiornati con successo e quali hanno fallito (con motivo dell'errore).",
     },
+    suggestions: {
+      title: "Suggerimenti Axon",
+      body: "Ogni notte alle 03:00 (ora italiana) Axon analizza le ultime 48h di chat e propone nuove regole basate sui pattern ricorrenti: domande frequenti, obiezioni tipiche, procedure interne che emergono dalle conversazioni. Tu decidi se accettare (diventa regola attiva) o rifiutare. Puoi anche forzare l'analisi con «Analizza ora».",
+    },
   };
 
   // V29.at — Distinguere tra "utente non ancora caricato" e "utente non-master".
@@ -360,6 +440,24 @@ export default function AiTeachScreen() {
           <Text style={[styles.tabTxt, tab === "history" && { color: "#FFF" }]}>Storico ({history.length})</Text>
           <Pressable testID="info-tab-history" onPress={() => setInfoTab("history")} hitSlop={10} style={styles.infoBtn}>
             <Ionicons name="information-circle" size={16} color={tab === "history" ? "#FFF" : C.primary} />
+          </Pressable>
+        </Pressable>
+        <Pressable
+          testID="tab-suggestions"
+          onPress={() => setTab("suggestions")}
+          style={[styles.tabBtn, tab === "suggestions" && styles.tabBtnOn]}
+        >
+          <Ionicons name="flame" size={16} color={tab === "suggestions" ? "#FFF" : "#EA580C"} />
+          <Text style={[styles.tabTxt, tab === "suggestions" && { color: "#FFF" }]}>
+            Suggerimenti ({proposalCounts.pending})
+          </Text>
+          <Pressable
+            testID="info-tab-suggestions"
+            onPress={() => setInfoTab("suggestions")}
+            hitSlop={10}
+            style={styles.infoBtn}
+          >
+            <Ionicons name="information-circle" size={16} color={tab === "suggestions" ? "#FFF" : C.primary} />
           </Pressable>
         </Pressable>
       </View>
@@ -507,6 +605,117 @@ export default function AiTeachScreen() {
                 </View>
               );
             })}
+          </>
+        )}
+
+        {/* V43 — Suggerimenti Axon (proposte auto-estratte dalle chat) */}
+        {tab === "suggestions" && (
+          <>
+            {/* Header with "Analyze now" CTA */}
+            <View style={styles.sugHeader}>
+              <View style={styles.sugHeaderTxt}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Ionicons name="flame" size={16} color="#EA580C" />
+                  <Text style={styles.sugHeaderTitle}>Suggerimenti automatici</Text>
+                </View>
+                <Text style={styles.sugHeaderSub}>
+                  Axon analizza ogni notte le tue chat e propone nuove regole. Rifiuta o accetta per farle diventare regole attive.
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+                  <View style={styles.sugStat}>
+                    <Text style={styles.sugStatN}>{proposalCounts.pending}</Text>
+                    <Text style={styles.sugStatLbl}>In attesa</Text>
+                  </View>
+                  <View style={styles.sugStat}>
+                    <Text style={[styles.sugStatN, { color: "#16A34A" }]}>{proposalCounts.accepted}</Text>
+                    <Text style={styles.sugStatLbl}>Accettate</Text>
+                  </View>
+                  <View style={styles.sugStat}>
+                    <Text style={[styles.sugStatN, { color: "#94A3B8" }]}>{proposalCounts.rejected}</Text>
+                    <Text style={styles.sugStatLbl}>Rifiutate</Text>
+                  </View>
+                </View>
+              </View>
+              <Pressable
+                onPress={runProposalsNow}
+                disabled={proposalsRunNow}
+                style={[styles.sugRunBtn, proposalsRunNow && { opacity: 0.6 }]}
+                testID="run-proposals-now"
+              >
+                {proposalsRunNow ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="sparkles" size={14} color="#FFF" />
+                    <Text style={styles.sugRunTxt}>Analizza ora</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+
+            {proposals.length === 0 ? (
+              <View style={styles.empty}>
+                <Ionicons name="bulb-outline" size={38} color="#94A3B8" style={{ marginBottom: 8 }} />
+                <Text style={styles.emptyTitle}>Nessun suggerimento in attesa</Text>
+                <Text style={styles.emptyTxt}>
+                  Continua a usare Axon: dai pattern che emergono dalle conversazioni verranno estratte nuove regole ogni notte.
+                </Text>
+              </View>
+            ) : (
+              proposals.map((p) => {
+                const catBg = colorFor(p.category);
+                const isBusy = proposalsBusy === p.proposal_id;
+                return (
+                  <View key={p.proposal_id} style={styles.sugCard} testID={`proposal-${p.proposal_id}`}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <View style={[styles.sugCatPill, { backgroundColor: catBg }]}>
+                        <Text style={styles.sugCatPillTxt}>{p.category}</Text>
+                      </View>
+                      <View style={styles.autoBadge}>
+                        <Ionicons name="sparkles" size={10} color="#7C3AED" />
+                        <Text style={styles.autoBadgeTxt}>AUTO</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.sugCardTitle}>{p.title}</Text>
+                    <Text style={styles.sugCardTxt}>{p.text}</Text>
+                    {!!p.evidence && (
+                      <View style={styles.sugEvidence}>
+                        <Ionicons name="chatbubble-ellipses-outline" size={12} color="#64748B" />
+                        <Text style={styles.sugEvidenceTxt} numberOfLines={2}>
+                          &ldquo;{p.evidence}&rdquo;
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                      <Pressable
+                        onPress={() => rejectProposal(p.proposal_id)}
+                        disabled={isBusy}
+                        style={[styles.sugRejectBtn, isBusy && { opacity: 0.5 }]}
+                        testID={`proposal-reject-${p.proposal_id}`}
+                      >
+                        <Ionicons name="close-circle" size={16} color="#DC2626" />
+                        <Text style={styles.sugRejectTxt}>Rifiuta</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => acceptProposal(p.proposal_id)}
+                        disabled={isBusy}
+                        style={[styles.sugAcceptBtn, isBusy && { opacity: 0.5 }]}
+                        testID={`proposal-accept-${p.proposal_id}`}
+                      >
+                        {isBusy ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <>
+                            <Ionicons name="checkmark-circle" size={16} color="#FFF" />
+                            <Text style={styles.sugAcceptTxt}>Accetta</Text>
+                          </>
+                        )}
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })
+            )}
           </>
         )}
       </ScrollView>
@@ -745,4 +954,105 @@ const styles = StyleSheet.create({
   pdfBtnTxt: { color: C.navy, fontWeight: "800", fontSize: 13 },
   saveBtn: { padding: 14, borderRadius: 14, marginTop: 14, alignItems: "center" },
   saveBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
+  // V43 — Suggerimenti Axon (proposte auto-estratte)
+  sugHeader: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FED7AA",
+    borderWidth: 1,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+  sugHeaderTxt: { flex: 1, gap: 4 },
+  sugHeaderTitle: { fontSize: 14, fontWeight: "800", color: "#9A3412" },
+  sugHeaderSub: { fontSize: 11, color: "#7C2D12", lineHeight: 15 },
+  sugStat: {
+    backgroundColor: "#FFF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    alignItems: "center",
+    minWidth: 60,
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+  },
+  sugStatN: { fontSize: 15, fontWeight: "800", color: "#EA580C" },
+  sugStatLbl: { fontSize: 9, color: "#78350F", fontWeight: "700", textTransform: "uppercase" },
+  sugRunBtn: {
+    flexDirection: "row",
+    gap: 4,
+    alignItems: "center",
+    backgroundColor: "#EA580C",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  sugRunTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
+  sugCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  sugCatPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  sugCatPillTxt: { color: "#FFF", fontWeight: "800", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5 },
+  autoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: "#F3E8FF",
+  },
+  autoBadgeTxt: { fontSize: 9, color: "#7C3AED", fontWeight: "800", letterSpacing: 0.5 },
+  sugCardTitle: { fontSize: 15, fontWeight: "800", color: C.navy, marginBottom: 4 },
+  sugCardTxt: { fontSize: 13, color: "#334155", lineHeight: 18 },
+  sugEvidence: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    alignItems: "flex-start",
+  },
+  sugEvidenceTxt: { flex: 1, fontSize: 11, color: "#64748B", fontStyle: "italic", lineHeight: 15 },
+  sugRejectBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#FEE2E2",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+  },
+  sugRejectTxt: { color: "#DC2626", fontWeight: "800", fontSize: 13 },
+  sugAcceptBtn: {
+    flex: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#16A34A",
+  },
+  sugAcceptTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
+  emptyTitle: { fontSize: 14, fontWeight: "800", color: "#334155", marginBottom: 4 },
 });

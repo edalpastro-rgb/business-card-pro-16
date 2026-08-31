@@ -1,5 +1,68 @@
 # Dal Pastro CRM — PRD v1.15
 
+## v43 Regole Auto-Estratte da Chat Notturne (Giugno 2026)
+### 🎯 Richiesta utente
+Fase 3/4 del progetto "Axon che impara": job notturno che analizza le chat degli ultimi 2 giorni e propone nuove regole da salvare in "Insegna ad Axon". Il Master approva/rifiuta manualmente.
+
+### ✅ Backend (`/app/backend/server.py`)
+- **Nuovo scheduler job**: `_run_rule_proposals_job` alle **03:00 Europe/Rome** (aggiunto a `_birthday_scheduler`).
+- **`_analyze_chats_for_rules(assistant_name, messages, already_pending_titles, existing_rule_titles)`**:
+  - Costruisce un dump conversazionale compatto (ultimi 60 msg, 400 char ciascuno)
+  - System prompt italiano dettagliato: cerca PATTERN RICORRENTI, non dati CRM specifici, non duplicare regole esistenti, output JSON pure
+  - Categorie whitelist: Clienti, Contratti, Comunicazioni, Luce, Gas, Telco, Obiezioni, Procedure, Generale
+  - LLM: Claude Sonnet 5 (via `emergentintegrations`)
+  - Parsing robusto: strip ```json fences, fallback regex per estrarre blocco JSON
+  - Validazione: titolo/text non vuoti, text ≥ 30 char, categoria in whitelist
+- **`_run_rule_proposals_job()`**:
+  - Trova utenti attivi (`assistant_messages` last 48h)
+  - Per ogni tenant: skip se ≥ 15 proposte pending, skip se < 6 msg
+  - Deduplica su titoli già pending/accepted/esistenti (case-insensitive)
+  - Salva in `db.axon_rule_proposals` con status "pending"
+- **Endpoint `GET /api/axon/rule-proposals?status=pending|accepted|rejected|all`** (Master): lista + counts
+- **Endpoint `POST /api/axon/rule-proposals/{id}/accept`** (Master): converte in `ai_teach_rules` con `auto_generated: true` e `source_proposal_id`; marca proposal accepted
+- **Endpoint `POST /api/axon/rule-proposals/{id}/reject`** (Master): status → rejected
+- **Endpoint `POST /api/axon/rule-proposals/run-now`** (Master): trigger manuale per test/debug
+- **Params**: `RULE_PROPOSAL_TENANT_MIN_MSGS=6`, `RULE_PROPOSAL_LOOKBACK_HOURS=48`, `RULE_PROPOSAL_MAX_PENDING=15`, `RULE_PROPOSAL_MAX_PER_RUN=5`
+- **Indici MongoDB**: `axon_rule_proposals.(tenant_id, status, created_at desc)`, `.proposal_id` unique
+- **Cleanup account**: `axon_rule_proposals` aggiunto a `tenant_collections`
+
+### ✅ Frontend (`/app/frontend/app/ai-teach.tsx`)
+- **Nuovo tab "Suggerimenti (N)"** con icona 🔥 arancione, badge counter pending
+- **Header pannello arancione** (Optima style):
+  - Titolo "Suggerimenti automatici" + spiegazione
+  - 3 statistiche card: In attesa / Accettate / Rifiutate (colori distintivi)
+  - Bottone **"Analizza ora"** (arancione, sparkles icon) → chiama `/run-now`
+- **Card proposta**:
+  - Pill categoria colorata (colore deterministico dal nome), badge AUTO viola con sparkles
+  - Titolo bold, testo regola
+  - Blocco "evidenza" in italico grigio con quote
+  - Bottoni **Rifiuta** (rosso chiaro, flex 1) + **Accetta** (verde, flex 2)
+- **Empty state** elegante: icona bulb, "Nessun suggerimento in attesa" + spiegazione contestuale
+- Info modal per il tab: spiega quando/come funziona il cron notturno
+- Su accept: aggiorna counts + ricarica lista Rules (nuova regola appare subito nel tab Regole)
+
+### 🧪 Test manuali eseguiti
+- ✅ `POST /run-now` → l'LLM ha estratto **4 proposte di qualità eccellente**:
+  1. "Suggerire clienti da contattare se agenda vuota" (Clienti)
+  2. "Provvigioni da listino ufficiale per prodotto/operatore" (Contratti)
+  3. "Spiegazione sintetica Capacity Market" (Luce)
+  4. "Risposta standard per domande sul PUN" (Gas)
+- ✅ Ogni proposta ha titolo istruttivo, categoria corretta, text 2-6 righe, evidenza citata
+- ✅ POST `/accept` → nuova rule in `ai_teach_rules` con `auto_generated: true` + `source_proposal_id`
+- ✅ POST `/reject` → status aggiornato, counts riflettono
+- ✅ UI: tab con badge counter, stat cards con contatori, card con pill/AUTO badge, bottoni rifiuta/accetta funzionanti
+- ✅ Scheduler startup verificato nei log: `Rule-proposals scheduler started (daily 03:00 Europe/Rome)`
+- ✅ Dedup: proposte con titolo simile a regole esistenti scartate
+
+### 📊 Impatto self-learning
+- **Continuous learning**: ogni notte nuove regole emergono automaticamente senza intervento del Master
+- **Master control**: nessuna regola viene aggiunta senza approvazione esplicita (accept)
+- **Feedback loop chiuso**: 👎 su una risposta → rimozione da cache (v41) + emerge come pattern nella regola auto-estratta (v43)
+- **RAG + Auto-rules**: la Fase 2 (RAG) + Fase 3 insieme rendono Axon veramente contestuale e in miglioramento continuo
+
+---
+
+
 ## v42 RAG Documenti Master — Axon legge i tuoi PDF (Giugno 2026)
 ### 🎯 Richiesta utente
 Fase 2/4 del progetto "Axon che impara": far leggere ad Axon i PDF caricati dal Master (contratti, listini, brochure) così può rispondere in modo preciso citando i tuoi documenti. Sezione dedicata "Documenti Axon" in Impostazioni.

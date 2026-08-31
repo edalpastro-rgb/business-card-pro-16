@@ -1222,6 +1222,8 @@ async def delete_my_account(body: DeleteAccountIn, authorization: Optional[str] 
         "axon_profiles",
         # V42 — RAG Master documents (tenant-scoped)
         "master_documents", "master_doc_chunks",
+        # V43 — Auto-extracted rule proposals (tenant-scoped)
+        "axon_rule_proposals",
     ]
     user_collections = [
         "user_settings", "business_cards", "google_drive_connections",
@@ -10063,6 +10065,386 @@ async def delete_master_doc(doc_id: str, user=Depends(get_current_user)):
     return {"ok": True, "deleted_chunks": r.deleted_count}
 
 
+# =========================================================================
+# V43 — Auto-Extract Rule Proposals for "Insegna ad Axon"
+#
+# A nightly job scans the previous 48h of Axon chats per tenant, identifies
+# recurring patterns / procedural questions / customer objections, and asks
+# Claude Sonnet 5 to draft 3-5 rule proposals. Each proposal is saved as
+# "pending" in db.axon_rule_proposals; the Master reviews and accepts/rejects
+# them from the /ai-teach page. Accepted proposals convert into real
+# `ai_teach_rules` entries so the assistant follows them from the next
+# conversation onwards.
+# =========================================================================
+
+RULE_PROPOSAL_TENANT_MIN_MSGS = 6  # skip tenants with too little data
+RULE_PROPOSAL_LOOKBACK_HOURS = 48
+RULE_PROPOSAL_MAX_PENDING = 15     # cap pending proposals per tenant
+RULE_PROPOSAL_MAX_PER_RUN = 5      # cap new proposals per run per tenant
+
+_RULE_PROPOSAL_CATEGORIES = [
+    "Clienti", "Contratti", "Comunicazioni", "Luce", "Gas", "Telco",
+    "Obiezioni", "Procedure", "Generale",
+]
+
+
+async def _analyze_chats_for_rules(
+    assistant_name: str,
+    messages: List[dict],
+    already_pending_titles: List[str],
+    existing_rule_titles: List[str],
+) -> List[dict]:
+    """Ask the LLM to distil rule proposals from a conversation dump.
+    Each proposal has: {title, category, text, evidence (short quote)}."""
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key or not messages:
+        return []
+
+    # Build a compact dialog dump
+    lines: List[str] = []
+    for m in messages[-60:]:  # last 60 messages max
+        role = "USER" if m.get("role") == "user" else assistant_name.upper()
+        content = (m.get("content") or "").replace("\n", " ").strip()
+        if not content:
+            continue
+        lines.append(f"[{role}] {content[:400]}")
+    dialog = "\n".join(lines)
+    if len(dialog) < 200:
+        return []
+
+    avoid_titles = list(set([t for t in (already_pending_titles + existing_rule_titles) if t]))
+    cats_csv = ", ".join(_RULE_PROPOSAL_CATEGORIES)
+
+    system_prompt = (
+        "Sei un analista specializzato nel migliorare le risposte di un assistente AI (Axon) "
+        "per consulenti energetici in Italia. Il tuo compito è ANALIZZARE una serie di chat "
+        f"reali degli ultimi 2 giorni e proporre da 1 a {RULE_PROPOSAL_MAX_PER_RUN} REGOLE nuove, "
+        "concrete e utili da aggiungere alla base di conoscenza \"Insegna ad Axon\".\n\n"
+        "CRITERI PER PROPORRE UNA REGOLA:\n"
+        "- Deve emergere un pattern RICORRENTE (domanda simile ripetuta, obiezione tipica, "
+        "  procedura interna, definizione tecnica poco conosciuta).\n"
+        "- NON proporre nulla su dati CRM specifici (nomi clienti, appuntamenti singoli).\n"
+        "- NON duplicare regole già esistenti (te ne fornirò l'elenco titoli).\n"
+        "- La regola deve essere ISTRUTTIVA per l'assistente: 'quando ti chiedono X, rispondi con Y'.\n"
+        "- Titoli brevi (max 60 char), text 2-6 righe.\n"
+        "- Categoria SEMPRE una tra: " + cats_csv + ".\n\n"
+        "OUTPUT: JSON puro (nessun markdown, no ```). Formato ESATTO:\n"
+        "{\n"
+        "  \"proposals\": [\n"
+        "    {\"title\": \"...\", \"category\": \"...\", \"text\": \"...\", \"evidence\": \"citazione breve\"},\n"
+        "  ]\n"
+        "}\n"
+        "Se nessun pattern chiaro emerge, restituisci {\"proposals\": []}."
+    )
+
+    user_prompt = (
+        "Regole già esistenti (NON duplicare): " + (", ".join(avoid_titles[:30]) or "nessuna") + "\n\n"
+        "=== CHAT DEGLI ULTIMI 2 GIORNI ===\n"
+        f"{dialog[:15000]}"
+    )
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        session = f"rule_proposals_{uuid.uuid4().hex[:8]}"
+        chat = LlmChat(api_key=key, session_id=session, system_message=system_prompt).with_model(
+            "anthropic", "claude-sonnet-5"
+        )
+        reply = await chat.send_message(UserMessage(text=user_prompt))
+    except Exception as exc:
+        logger.warning("[rule-proposals] LLM call failed: %s", exc)
+        return []
+
+    # Robust JSON parsing (strip possible code fences even though we asked not to)
+    txt = (reply or "").strip()
+    if txt.startswith("```"):
+        txt = txt.strip("`")
+        if txt.lower().startswith("json"):
+            txt = txt[4:].strip()
+    import json as _json
+    try:
+        data = _json.loads(txt)
+    except Exception:
+        # try to find a JSON block
+        import re as _re
+        m = _re.search(r"\{[\s\S]*\}", txt)
+        if not m:
+            logger.warning("[rule-proposals] LLM did not return JSON")
+            return []
+        try:
+            data = _json.loads(m.group(0))
+        except Exception as exc:
+            logger.warning("[rule-proposals] JSON parse failed: %s", exc)
+            return []
+    props = data.get("proposals") if isinstance(data, dict) else None
+    if not isinstance(props, list):
+        return []
+    out: List[dict] = []
+    for p in props[:RULE_PROPOSAL_MAX_PER_RUN]:
+        if not isinstance(p, dict):
+            continue
+        title = str(p.get("title") or "").strip()[:200]
+        text = str(p.get("text") or "").strip()
+        category = str(p.get("category") or "Generale").strip()
+        evidence = str(p.get("evidence") or "").strip()[:400]
+        if not title or not text or len(text) < 30:
+            continue
+        if category not in _RULE_PROPOSAL_CATEGORIES:
+            category = "Generale"
+        out.append({
+            "title": title,
+            "category": category,
+            "text": text,
+            "evidence": evidence,
+        })
+    return out
+
+
+async def _run_rule_proposals_job() -> Dict[str, Any]:
+    """Cron entrypoint. Iterates every tenant with recent chat activity and
+    persists new rule proposals. Idempotent-friendly (skips titles already
+    pending / accepted). Safe to call manually via /axon/rule-proposals/run-now.
+    """
+    started = utcnow()
+    since = started - timedelta(hours=RULE_PROPOSAL_LOOKBACK_HOURS)
+    stats = {"started_at": started.isoformat(), "tenants_scanned": 0, "proposals_created": 0}
+
+    # Find tenants with recent chat activity (unique user_ids)
+    active_users = await db.assistant_messages.distinct(
+        "user_id", {"created_at": {"$gte": since}}
+    )
+    for uid in active_users:
+        # Determine tenant_id from the user record
+        user_doc = await db.users.find_one({"user_id": uid}, {"_id": 0, "parent_user_id": 1, "user_id": 1})
+        if not user_doc:
+            continue
+        tid = user_doc.get("parent_user_id") or user_doc.get("user_id")
+        if not tid:
+            continue
+
+        # Cap pending backlog per tenant
+        pending_count = await db.axon_rule_proposals.count_documents(
+            {"tenant_id": tid, "status": "pending"}
+        )
+        if pending_count >= RULE_PROPOSAL_MAX_PENDING:
+            continue
+
+        # Pull all messages in the window for that tenant
+        tenant_users = await db.users.distinct(
+            "user_id", {"$or": [{"user_id": tid}, {"parent_user_id": tid}]}
+        )
+        cursor = db.assistant_messages.find(
+            {"user_id": {"$in": tenant_users}, "created_at": {"$gte": since}},
+            {"_id": 0, "role": 1, "content": 1, "created_at": 1},
+        ).sort("created_at", 1)
+        msgs = [m async for m in cursor]
+        if len(msgs) < RULE_PROPOSAL_TENANT_MIN_MSGS:
+            continue
+
+        stats["tenants_scanned"] += 1
+
+        # Compute avoid-titles = pending + accepted + existing ai_teach_rules
+        pending_docs = await db.axon_rule_proposals.find(
+            {"tenant_id": tid, "status": {"$in": ["pending", "accepted"]}},
+            {"_id": 0, "title": 1},
+        ).to_list(200)
+        pending_titles = [p.get("title") for p in pending_docs if p.get("title")]
+        rules_docs = await db.ai_teach_rules.find(
+            {"user_id": tid},
+            {"_id": 0, "title": 1},
+        ).to_list(200)
+        existing_titles = [r.get("title") for r in rules_docs if r.get("title")]
+
+        # Resolve Master assistant name for prompt
+        try:
+            master = await db.users.find_one({"user_id": tid}, {"_id": 0})
+            asst_name = await _get_assistant_name(master or {"user_id": tid})
+        except Exception:
+            asst_name = "Axon"
+
+        try:
+            proposals = await _analyze_chats_for_rules(
+                assistant_name=asst_name,
+                messages=msgs,
+                already_pending_titles=pending_titles,
+                existing_rule_titles=existing_titles,
+            )
+        except Exception as exc:
+            logger.warning("[rule-proposals] analysis failed for tenant %s: %s", tid, exc)
+            proposals = []
+
+        # Persist (with dedupe on case-insensitive title within tenant)
+        existing_ci = set(t.lower() for t in pending_titles + existing_titles if t)
+        for p in proposals:
+            if p["title"].lower() in existing_ci:
+                continue
+            existing_ci.add(p["title"].lower())
+            await db.axon_rule_proposals.insert_one({
+                "proposal_id": uuid.uuid4().hex,
+                "tenant_id": tid,
+                "title": p["title"],
+                "category": p["category"],
+                "text": p["text"],
+                "evidence": p["evidence"],
+                "source_message_count": len(msgs),
+                "status": "pending",
+                "created_at": utcnow(),
+                "updated_at": utcnow(),
+            })
+            stats["proposals_created"] += 1
+
+    stats["finished_at"] = utcnow().isoformat()
+    logger.info("[rule-proposals] job done: %s", stats)
+    return stats
+
+
+# ---- Endpoints ---------------------------------------------------------
+
+@api_router.get("/axon/rule-proposals")
+async def list_rule_proposals(status: str = "pending", user=Depends(get_current_user)):
+    """List rule proposals (default: pending) for the current tenant. Master-only."""
+    _require_master(user)
+    tid = tenant_id(user)
+    if status not in ("pending", "accepted", "rejected", "all"):
+        raise HTTPException(status_code=400, detail="status non valido")
+    q: Dict[str, Any] = {"tenant_id": tid}
+    if status != "all":
+        q["status"] = status
+    cursor = db.axon_rule_proposals.find(q, {"_id": 0}).sort("created_at", -1).limit(100)
+    items = [d async for d in cursor]
+    # Serialize dates
+    for it in items:
+        for k in ("created_at", "updated_at"):
+            v = it.get(k)
+            if hasattr(v, "isoformat"):
+                it[k] = v.isoformat()
+    # Stats footer
+    counts = {
+        "pending": await db.axon_rule_proposals.count_documents({"tenant_id": tid, "status": "pending"}),
+        "accepted": await db.axon_rule_proposals.count_documents({"tenant_id": tid, "status": "accepted"}),
+        "rejected": await db.axon_rule_proposals.count_documents({"tenant_id": tid, "status": "rejected"}),
+    }
+    return {"items": items, "total": len(items), "counts": counts}
+
+
+@api_router.post("/axon/rule-proposals/{proposal_id}/accept")
+async def accept_rule_proposal(proposal_id: str, user=Depends(get_current_user)):
+    """Convert a pending proposal into a real ai_teach_rules entry. Master-only.
+    The proposal is marked `accepted` (not deleted) so we can display history."""
+    _require_master(user)
+    tid = tenant_id(user)
+    prop = await db.axon_rule_proposals.find_one(
+        {"proposal_id": proposal_id, "tenant_id": tid},
+        {"_id": 0},
+    )
+    if not prop:
+        raise HTTPException(status_code=404, detail="Proposta non trovata")
+    if prop.get("status") == "accepted":
+        raise HTTPException(status_code=400, detail="Proposta già accettata")
+
+    # Create real rule
+    rid = f"aitr_{uuid.uuid4().hex[:12]}"
+    now = utcnow()
+    cat = prop.get("category") or "Generale"
+    rule_doc = {
+        "rule_id": rid,
+        "user_id": tid,  # tenant scope
+        "created_by": user["user_id"],
+        "categories": [cat],
+        "category": cat,
+        "title": prop.get("title") or "Regola",
+        "text": prop.get("text") or "",
+        "files": [],
+        "auto_generated": True,
+        "source_proposal_id": proposal_id,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.ai_teach_rules.insert_one(rule_doc)
+
+    await db.axon_rule_proposals.update_one(
+        {"proposal_id": proposal_id, "tenant_id": tid},
+        {"$set": {"status": "accepted", "accepted_rule_id": rid, "updated_at": now}},
+    )
+    return {"ok": True, "rule_id": rid}
+
+
+@api_router.post("/axon/rule-proposals/{proposal_id}/reject")
+async def reject_rule_proposal(proposal_id: str, user=Depends(get_current_user)):
+    """Mark a proposal as rejected. Master-only."""
+    _require_master(user)
+    tid = tenant_id(user)
+    r = await db.axon_rule_proposals.update_one(
+        {"proposal_id": proposal_id, "tenant_id": tid, "status": "pending"},
+        {"$set": {"status": "rejected", "updated_at": utcnow()}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Proposta non trovata o già gestita")
+    return {"ok": True}
+
+
+@api_router.post("/axon/rule-proposals/run-now")
+async def run_rule_proposals_now(user=Depends(get_current_user)):
+    """Manually trigger the rule-proposal analysis for the current user's tenant.
+    Useful for testing without waiting for the nightly cron. Master-only."""
+    _require_master(user)
+    tid = tenant_id(user)
+    since = utcnow() - timedelta(hours=RULE_PROPOSAL_LOOKBACK_HOURS)
+    pending_count = await db.axon_rule_proposals.count_documents({"tenant_id": tid, "status": "pending"})
+    if pending_count >= RULE_PROPOSAL_MAX_PENDING:
+        return {"ok": False, "reason": f"Massimo {RULE_PROPOSAL_MAX_PENDING} proposte in coda già raggiunto"}
+
+    tenant_users = await db.users.distinct(
+        "user_id", {"$or": [{"user_id": tid}, {"parent_user_id": tid}]}
+    )
+    cursor = db.assistant_messages.find(
+        {"user_id": {"$in": tenant_users}, "created_at": {"$gte": since}},
+        {"_id": 0, "role": 1, "content": 1, "created_at": 1},
+    ).sort("created_at", 1)
+    msgs = [m async for m in cursor]
+    if len(msgs) < RULE_PROPOSAL_TENANT_MIN_MSGS:
+        return {"ok": False, "reason": f"Non abbastanza chat negli ultimi {RULE_PROPOSAL_LOOKBACK_HOURS}h (minimo {RULE_PROPOSAL_TENANT_MIN_MSGS} messaggi)"}
+
+    pending_docs = await db.axon_rule_proposals.find(
+        {"tenant_id": tid, "status": {"$in": ["pending", "accepted"]}},
+        {"_id": 0, "title": 1},
+    ).to_list(200)
+    pending_titles = [p.get("title") for p in pending_docs if p.get("title")]
+    rules_docs = await db.ai_teach_rules.find({"user_id": tid}, {"_id": 0, "title": 1}).to_list(200)
+    existing_titles = [r.get("title") for r in rules_docs if r.get("title")]
+
+    try:
+        asst_name = await _get_assistant_name(user)
+    except Exception:
+        asst_name = "Axon"
+
+    proposals = await _analyze_chats_for_rules(
+        assistant_name=asst_name,
+        messages=msgs,
+        already_pending_titles=pending_titles,
+        existing_rule_titles=existing_titles,
+    )
+    created = 0
+    existing_ci = set(t.lower() for t in pending_titles + existing_titles if t)
+    for p in proposals:
+        if p["title"].lower() in existing_ci:
+            continue
+        existing_ci.add(p["title"].lower())
+        await db.axon_rule_proposals.insert_one({
+            "proposal_id": uuid.uuid4().hex,
+            "tenant_id": tid,
+            "title": p["title"],
+            "category": p["category"],
+            "text": p["text"],
+            "evidence": p["evidence"],
+            "source_message_count": len(msgs),
+            "status": "pending",
+            "created_at": utcnow(),
+            "updated_at": utcnow(),
+        })
+        created += 1
+    return {"ok": True, "proposals_created": created, "analyzed_messages": len(msgs)}
+
+
 async def _retrieve_master_doc_chunks(
     tenant: str,
     query: str,
@@ -12330,6 +12712,9 @@ async def _startup():
     await db.master_doc_chunks.create_index([("tenant_id", 1), ("tokens", 1)])
     await db.master_doc_chunks.create_index("doc_id")
     await db.master_doc_chunks.create_index("chunk_id", unique=True)
+    # V43 — Rule proposals (auto-extracted from chat)
+    await db.axon_rule_proposals.create_index([("tenant_id", 1), ("status", 1), ("created_at", -1)])
+    await db.axon_rule_proposals.create_index("proposal_id", unique=True)
     # V24 migration: back-fill assigned_to_user_id from created_by for legacy contacts
     try:
         result = await db.contacts.update_many(
@@ -12465,8 +12850,14 @@ async def _start_scheduler():
     # Run daily at 09:00 Europe/Rome
     try:
         _birthday_scheduler.add_job(_run_birthday_job, "cron", hour=9, minute=0, id="birthday-job", replace_existing=True)
+        # V43 — Nightly rule proposal extractor (03:00 Europe/Rome)
+        _birthday_scheduler.add_job(
+            _run_rule_proposals_job, "cron", hour=3, minute=0,
+            id="rule-proposals-job", replace_existing=True,
+        )
         _birthday_scheduler.start()
         logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
+        logger.info("Rule-proposals scheduler started (daily 03:00 Europe/Rome)")
     except Exception as e:
         logger.warning(f"birthday scheduler start failed: {e}")
 
