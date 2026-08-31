@@ -2435,3 +2435,28 @@ Le props di `KeyboardAvoidingView` restano invariate come richiesto (`behavior="
 
 **Files toccati**: `/app/frontend/app/master.tsx`, `/app/frontend/app/(tabs)/home.tsx`. Nessun autotest come richiesto.
 
+
+## V29.bb — Stile Optima esteso alle pagine secondarie
+
+**Richiesta utente**: "Applica lo stesso stile bottoni tondi + shadow anche a contatti, appuntamenti e altre schermate secondarie, senza toccare altre e senza autotest."
+
+**Pattern applicato** (icon container "Optima"):
+```js
+borderWidth: 2, borderColor: "rgba(255,255,255,0.9)",
+shadowColor: "#000", shadowOpacity: 0.15-0.20,
+shadowRadius: 6-8, shadowOffset: {0, 3-4}, elevation: 4-5,
+borderRadius: full-round (= size/2)
+```
+
+**Files aggiornati** (solo icon-container esistenti, no nuovi elementi):
+- `/app/frontend/app/(tabs)/contatti.tsx` — `headerBtn` (40×40) + `avatar` (44×44) → full-round + shadow rialzato
+- `/app/frontend/app/(tabs)/calendario.tsx` — `headerBtn` (40×40) + `callBtn` (28×28) + `navBtn` (32×32) → full-round + shadow
+- `/app/frontend/app/contact/new.tsx` — `iconBox` (36×36, era borderRadius 6 → 18 full-round) + shadow
+- `/app/frontend/app/invita-pick.tsx` — `createIcon` (42×42, era 12 → 21 full-round) + shadow
+- `/app/frontend/app/google-drive.tsx` — `badgeIcon` (32×32, era 10 → 16 full-round) + shadow
+
+**Note**:
+- Nessun testo/motto aggiunto
+- Nessun autotest eseguito (come richiesto)
+- Warning pre-esistenti (DocumentPicker unused in `contact/new.tsx`) NON toccati per rispettare "non toccare altro"
+

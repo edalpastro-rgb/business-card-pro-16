@@ -2225,7 +2225,22 @@ const attStyles = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, padding: 6, backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, maxWidth: 200 },
   thumb: { width: 36, height: 36, borderRadius: 6 },
-  iconBox: { width: 36, height: 36, borderRadius: 6, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
+  // V29.bb — Stile Optima: icona full-round con bordo bianco e ombra rialzata.
+  iconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.color.brandTertiary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.9)",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
   name: { fontSize: 12, color: theme.color.onSurface, flex: 1 },
   rmBtn: { padding: 2 },
 });
