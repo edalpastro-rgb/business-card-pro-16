@@ -29,6 +29,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Polygon, Circle } from "react-native-svg";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 
@@ -55,6 +56,14 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   const [torch, setTorch] = useState<"on" | "off">("off");
   const [facing, setFacing] = useState<"back" | "front">("back");
   const [processingCount, setProcessingCount] = useState(0);
+  // Bug 11.b — Live edge detection state.
+  // Corners are stored NORMALIZED (0..1) so we can map them to the current
+  // overlay size (which we measure via onLayout).
+  const [liveCorners, setLiveCorners] = useState<[number, number][] | null>(null);
+  const [overlaySize, setOverlaySize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const [edgeDetectOn, setEdgeDetectOn] = useState(true);
+  const detectBusyRef = useRef(false); // prevents overlapping requests
+  const lastCornersRef = useRef<[number, number][] | null>(null); // for EMA smoothing
 
   // Reset state when modal is closed
   useEffect(() => {
@@ -63,6 +72,9 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
       setBusy(false);
       setTorch("off");
       setProcessingCount(0);
+      setLiveCorners(null);
+      lastCornersRef.current = null;
+      detectBusyRef.current = false;
     }
   }, [visible]);
 
@@ -72,6 +84,75 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
       requestPermission();
     }
   }, [visible, permission, requestPermission]);
+
+  // Bug 11.b — Live edge detection loop.
+  // Every SAMPLE_INTERVAL ms, we grab a low-quality frame with takePictureAsync
+  // and POST it to /scanner/detect-corners. If corners are detected we apply
+  // exponential moving average smoothing (alpha=0.5) to avoid jitter, then
+  // update `liveCorners` for the overlay to redraw.
+  useEffect(() => {
+    if (!visible || !edgeDetectOn) return;
+    if (!permission?.granted) return;
+    let cancelled = false;
+    const SAMPLE_INTERVAL = 1200;
+    const ALPHA = 0.55; // 0 = no smoothing, 1 = only new value
+
+    const smooth = (
+      next: [number, number][],
+      prev: [number, number][] | null,
+    ): [number, number][] => {
+      if (!prev) return next;
+      return next.map(([x, y], i) => {
+        const [px, py] = prev[i] || [x, y];
+        return [px + (x - px) * ALPHA, py + (y - py) * ALPHA] as [number, number];
+      });
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
+      if (detectBusyRef.current) return;
+      if (busy) return; // don't sample while user is capturing
+      if (!cameraRef.current) return;
+      detectBusyRef.current = true;
+      try {
+        const snap = await cameraRef.current.takePictureAsync({
+          base64: true,
+          quality: 0.1,
+          skipProcessing: true,
+          exif: false,
+          // shutterSound: false, // not supported on older SDKs
+        } as any);
+        if (cancelled) return;
+        if (!snap?.base64) return;
+        const r = await api<{ detected: boolean; corners: [number, number][] | null }>(
+          "/scanner/detect-corners",
+          { method: "POST", body: { data_base64: snap.base64, mime: "image/jpeg" } },
+        );
+        if (cancelled) return;
+        if (r?.detected && r.corners && r.corners.length === 4) {
+          const smoothed = smooth(r.corners, lastCornersRef.current);
+          lastCornersRef.current = smoothed;
+          setLiveCorners(smoothed);
+        } else {
+          lastCornersRef.current = null;
+          setLiveCorners(null);
+        }
+      } catch {
+        // ignore transient errors — the loop will retry next tick
+      } finally {
+        detectBusyRef.current = false;
+      }
+    };
+
+    // First sample fires after a short delay so camera has time to warm up
+    const initial = setTimeout(tick, 800);
+    const iv = setInterval(tick, SAMPLE_INTERVAL);
+    return () => {
+      cancelled = true;
+      clearTimeout(initial);
+      clearInterval(iv);
+    };
+  }, [visible, edgeDetectOn, permission?.granted, busy]);
 
   const applyAutocropAsync = useCallback(
     async (index: number, data_base64: string) => {
@@ -228,8 +309,45 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
           facing={facing}
           enableTorch={torch === "on"}
           autofocus="on"
-          animateShutter={true}
+          animateShutter={false}
         />
+
+        {/* Bug 11.b — Live edge detection overlay (SVG polygon + corner dots) */}
+        <View
+          pointerEvents="none"
+          style={StyleSheet.absoluteFillObject}
+          onLayout={(e) => {
+            const { width, height } = e.nativeEvent.layout;
+            if (Math.abs(width - overlaySize.w) > 1 || Math.abs(height - overlaySize.h) > 1) {
+              setOverlaySize({ w: Math.round(width), h: Math.round(height) });
+            }
+          }}
+        >
+          {edgeDetectOn && liveCorners && overlaySize.w > 0 && overlaySize.h > 0 && (
+            <Svg width={overlaySize.w} height={overlaySize.h} pointerEvents="none">
+              <Polygon
+                points={liveCorners
+                  .map(([nx, ny]) => `${(nx * overlaySize.w).toFixed(1)},${(ny * overlaySize.h).toFixed(1)}`)
+                  .join(" ")}
+                fill="rgba(34,197,94,0.18)"
+                stroke="#22C55E"
+                strokeWidth={3}
+                strokeLinejoin="round"
+              />
+              {liveCorners.map(([nx, ny], i) => (
+                <Circle
+                  key={`c-${i}`}
+                  cx={nx * overlaySize.w}
+                  cy={ny * overlaySize.h}
+                  r={7}
+                  fill="#22C55E"
+                  stroke="#FFF"
+                  strokeWidth={2}
+                />
+              ))}
+            </Svg>
+          )}
+        </View>
 
         {/* Overlay corner-guides to help user frame the document */}
         <View pointerEvents="none" style={styles.guides}>
@@ -245,13 +363,26 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
             <Pressable onPress={onClose} hitSlop={12} style={styles.circleBtn} testID="live-scan-close">
               <Ionicons name="close" size={22} color="#FFF" />
             </Pressable>
-            <View style={styles.topBadge}>
-              <Ionicons name="scan-outline" size={13} color="#FFF" />
+            <Pressable
+              onPress={() => setEdgeDetectOn((v) => !v)}
+              hitSlop={12}
+              style={styles.topBadge}
+              testID="live-scan-edge-toggle"
+            >
+              <Ionicons
+                name={edgeDetectOn ? (liveCorners ? "checkmark-circle" : "scan-outline") : "scan-outline"}
+                size={13}
+                color={edgeDetectOn && liveCorners ? "#22C55E" : "#FFF"}
+              />
               <Text style={styles.topBadgeTxt}>
-                Modalità continua · Autofocus attivo
-                {processingCount > 0 ? ` · elaboro ${processingCount}…` : ""}
+                {edgeDetectOn
+                  ? liveCorners
+                    ? "Documento rilevato · tocca per scattare"
+                    : "Cerco i bordi… inquadra il foglio"
+                  : "Autofocus attivo · rilevamento OFF"}
+                {processingCount > 0 ? ` · ${processingCount}` : ""}
               </Text>
-            </View>
+            </Pressable>
             <Pressable
               onPress={() => setTorch((t) => (t === "on" ? "off" : "on"))}
               hitSlop={12}

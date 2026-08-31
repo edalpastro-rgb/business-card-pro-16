@@ -2148,3 +2148,32 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 
 **Verifica:** endpoint testato via curl (detected=true su rettangolo, detected=false su sfondo bianco, 401 senza auth). Screenshot conferma il viewfinder full-screen con tutti i controlli visibili.
 
+
+## Bug 11.b — Rilevamento bordi live sul viewfinder (V29D)
+
+**Richiesta utente:** "Disegna un rettangolo verde in tempo reale sul viewfinder che segue i bordi del documento inquadrato."
+
+**Backend** (`/app/backend/server.py`):
+- Nuovo endpoint `POST /api/scanner/detect-corners` (schema `ScannerCornersIn`) — versione ottimizzata di `_cv2_scan_document` che rileva solo il quadrilatero (senza warp/enhance).
+- Downscale interno a 400px + Canny + `approxPolyDP` con soglia area 15% + ordinamento corner tl/tr/br/bl.
+- Ritorna `{ detected: bool, corners: [[x,y]×4 normalized 0..1] }` — coordinate normalizzate 0..1 per essere mappate all'overlay lato client.
+- Test curl: precisione <0.5% (input 50/400=0.125 → output 0.1198).
+
+**Frontend** (`/app/frontend/src/LiveCameraScanner.tsx`):
+- Loop di sampling: `setInterval` 1200ms → `takePictureAsync({quality:0.1, skipProcessing:true})` → POST `/scanner/detect-corners`.
+- **EMA smoothing** (alpha=0.55) per evitare jitter — `lastCornersRef` conserva l'ultimo valore.
+- **Overlay SVG** (react-native-svg): `<Polygon>` verde (#22C55E stroke, fill α18%) + 4 `<Circle>` come marker angolari. Coordinate mappate su `overlaySize` misurato via `onLayout`.
+- **Badge dinamico** (`testID="live-scan-edge-toggle"`) che riflette 3 stati:
+  - "Cerco i bordi… inquadra il foglio" (attivo, nessun rilevamento)
+  - "Documento rilevato · tocca per scattare" ✅ (con checkmark verde)
+  - "Autofocus attivo · rilevamento OFF" (toggle spento)
+- **Guards**: skip sampling se scatto utente in corso (`busy`) o se una detection è già in flight (`detectBusyRef`).
+- `animateShutter={false}` sulla CameraView per evitare flash durante il sampling continuo.
+
+**Verifica**: 4+ chiamate `/detect-corners` 200 OK durante 3s di viewfinder aperto. Toggle ON→OFF cambia il badge correttamente. Overlay non blocca i tap (`pointerEvents="none"`).
+
+## Fix Login inert (P0) — VERIFICATO
+
+- Investigato via Playwright: `pointerEvents` = `auto` su tutti i parent, `elementFromPoint` alla coordinata del bottone restituisce un figlio del `Pressable` (nessun overlay bloccante), click completa e naviga a `/home` (Home renderizzata con "Ciao, EMANUELE").
+- La regressione riportata dal testing agent precedente era **transiente** (probabile timing/cold-start). **Nessuna correzione al codice necessaria**.
+

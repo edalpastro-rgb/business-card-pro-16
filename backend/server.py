@@ -10093,6 +10093,76 @@ class ScannerPreviewIn(BaseModel):
     grayscale: bool = False
 
 
+class ScannerCornersIn(BaseModel):
+    data_base64: str
+    mime: str = "image/jpeg"
+
+
+@api_router.post("/scanner/detect-corners")
+async def scanner_detect_corners(body: ScannerCornersIn, user=Depends(get_current_user)):
+    """
+    Bug 11.b — Live edge detection for the in-app viewfinder.
+    Accetta una frame di preview (bassa qualità) e ritorna le 4 coordinate
+    (normalized 0..1) del quadrilatero documento se rilevato, altrimenti
+    detected=false. Molto veloce: downscale interno a 400px + Canny + approxPolyDP.
+    """
+    try:
+        raw = base64.b64decode(
+            body.data_base64.split(",")[-1] if body.data_base64.startswith("data:") else body.data_base64
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="base64 non valido")
+    # Cap on input size for latency
+    if len(raw) > 6 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Frame troppo grande")
+
+    try:
+        import cv2  # type: ignore
+        import numpy as np
+        from PIL import Image, ImageOps
+
+        pil = Image.open(io.BytesIO(raw))
+        pil = ImageOps.exif_transpose(pil).convert("RGB")
+        arr = np.array(pil)
+        h0, w0 = arr.shape[:2]
+        # Downscale to max 400px for speed
+        target = 400.0
+        ratio = target / max(h0, w0) if max(h0, w0) > target else 1.0
+        small = cv2.resize(arr, None, fx=ratio, fy=ratio) if ratio < 1 else arr.copy()
+        gray = cv2.cvtColor(small, cv2.COLOR_RGB2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        edges = cv2.Canny(gray, 60, 180)
+        edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+
+        detected_corners = None
+        for c in contours:
+            peri = cv2.arcLength(c, True)
+            approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+            if len(approx) == 4 and cv2.contourArea(approx) > (small.shape[0] * small.shape[1] * 0.15):
+                pts = approx.reshape(4, 2).astype("float32")
+                s = pts.sum(axis=1); diff = np.diff(pts, axis=1)
+                tl = pts[np.argmin(s)]; br = pts[np.argmax(s)]
+                tr = pts[np.argmin(diff)]; bl = pts[np.argmax(diff)]
+                # Normalize to 0..1 (based on the SMALL frame size, same aspect as original)
+                sh, sw = small.shape[:2]
+                detected_corners = [
+                    [float(tl[0]) / sw, float(tl[1]) / sh],
+                    [float(tr[0]) / sw, float(tr[1]) / sh],
+                    [float(br[0]) / sw, float(br[1]) / sh],
+                    [float(bl[0]) / sw, float(bl[1]) / sh],
+                ]
+                break
+
+        if detected_corners:
+            return {"detected": True, "corners": detected_corners}
+        return {"detected": False, "corners": None}
+    except Exception as e:
+        logger.warning("detect-corners failed: %s", e)
+        return {"detected": False, "corners": None}
+
+
 @api_router.post("/scanner/autocrop-preview")
 async def scanner_autocrop_preview(body: ScannerPreviewIn, user=Depends(get_current_user)):
     """
