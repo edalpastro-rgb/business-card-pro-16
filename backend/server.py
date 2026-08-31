@@ -10086,6 +10086,81 @@ def _cv2_scan_document(img_bytes: bytes, enhance: bool, autocrop: bool, grayscal
     return buf.tobytes()
 
 
+class ScannerPreviewIn(BaseModel):
+    data_base64: str
+    mime: str = "image/jpeg"
+    enhance: bool = True
+    grayscale: bool = False
+
+
+@api_router.post("/scanner/autocrop-preview")
+async def scanner_autocrop_preview(body: ScannerPreviewIn, user=Depends(get_current_user)):
+    """
+    Bug 11 — Live scanner preview.
+    Riceve UNA immagine (base64), applica autocrop (+ enhance opzionale, + grayscale
+    opzionale) usando la stessa pipeline OpenCV di `_cv2_scan_document`, e
+    restituisce la versione ritagliata come base64 JPEG.
+
+    Se il rilevamento del rettangolo documento fallisce, la funzione ritorna
+    l'immagine originale (o solo enhanced) con `detected=false`, così il client
+    può decidere se mostrare o meno la thumbnail ritagliata.
+    """
+    try:
+        raw = base64.b64decode(
+            body.data_base64.split(",")[-1] if body.data_base64.startswith("data:") else body.data_base64
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="base64 non valido")
+    if len(raw) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Immagine troppo grande (max 20MB)")
+
+    # First pass: try with autocrop=True to see if a quadrilateral was detected.
+    # We reuse `_cv2_scan_document` and detect success by comparing shape sizes.
+    detected = False
+    try:
+        import cv2  # type: ignore
+        import numpy as np
+        from PIL import Image, ImageOps
+
+        pil = Image.open(io.BytesIO(raw))
+        pil = ImageOps.exif_transpose(pil).convert("RGB")
+        src = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
+        h0, w0 = src.shape[:2]
+
+        # Detect document corners (replicated from _cv2_scan_document to know if detected)
+        ratio = 900.0 / max(h0, w0)
+        small = cv2.resize(src, None, fx=ratio, fy=ratio) if ratio < 1 else src.copy()
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        edges = cv2.Canny(gray, 60, 180)
+        edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+        for c in contours:
+            peri = cv2.arcLength(c, True)
+            approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+            if len(approx) == 4 and cv2.contourArea(approx) > (small.shape[0] * small.shape[1] * 0.20):
+                detected = True
+                break
+    except Exception as _e:
+        logger.warning("autocrop-preview detection failed: %s", _e)
+        detected = False
+
+    # Now produce the processed JPEG bytes (autocrop only when actually detected).
+    try:
+        out = _cv2_scan_document(raw, enhance=body.enhance, autocrop=detected, grayscale=body.grayscale)
+    except Exception as e:
+        logger.warning("autocrop-preview processing failed: %s", e)
+        out = raw
+
+    b64 = base64.b64encode(out).decode("ascii")
+    return {
+        "detected": detected,
+        "data_base64": b64,
+        "mime": "image/jpeg",
+    }
+
+
 @api_router.post("/scanner/merge-pdf")
 async def scanner_merge_pdf(body: ScannerMergeIn, user=Depends(get_current_user)):
     """Enhance + merge multiple pages (images or PDFs) into a single PDF.

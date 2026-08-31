@@ -6,6 +6,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { LiveCameraScanner, type LiveScannedPage } from "@/src/LiveCameraScanner";
 
 /**
  * V27 — Document Scanner (multi-page + auto-crop + PDF merge).
@@ -44,6 +45,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
   const [name, setName] = useState(defaultName || "");
   const [busy, setBusy] = useState(false);
   const [savingLbl, setSavingLbl] = useState<string>("");
+  const [liveScanOpen, setLiveScanOpen] = useState(false); // Bug 11 — modalità continua
   const nameSyncedFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -171,6 +173,23 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
   });
   const removePage = (idx: number) => setPages((p) => p.filter((_, i) => i !== idx));
 
+  // Bug 11 — Import pages from continuous LiveCameraScanner into the modal.
+  // Each live-scan page is already an image (already cropped by the backend
+  // preview when possible), so we can drop it into `pages` directly.
+  const onLiveScanDone = useCallback((livePages: LiveScannedPage[]) => {
+    if (!livePages?.length) {
+      setLiveScanOpen(false);
+      return;
+    }
+    const additions: ScannedPage[] = livePages.map((p) => ({
+      data_base64: p.data_base64,
+      mime: p.mime || "image/jpeg",
+      preview_uri: p.preview_uri || `data:${p.mime || "image/jpeg"};base64,${p.data_base64}`,
+    }));
+    setPages((prev) => [...prev, ...additions]);
+    setLiveScanOpen(false);
+  }, []);
+
   const doSave = async () => {
     if (!pages.length) { notify("Nessuna pagina", "Aggiungi almeno una pagina."); return; }
     const finalName = (name || defaultName || "Scansione").trim() || "Scansione";
@@ -213,9 +232,15 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
 
           {/* Sources */}
           <View style={styles.sourceRow}>
+            <Pressable onPress={() => setLiveScanOpen(true)} style={styles.sourceBtn} testID="scanner-live">
+              <View style={[styles.sourceIcon, { backgroundColor: "#DC2626" }]}>
+                <Ionicons name="scan" size={20} color="#FFF" />
+              </View>
+              <Text style={styles.sourceTxt}>Scan continuo</Text>
+            </Pressable>
             <Pressable onPress={addFromCamera} style={styles.sourceBtn} testID="scanner-camera">
               <View style={[styles.sourceIcon, { backgroundColor: "#FF6B35" }]}><Ionicons name="camera" size={20} color="#FFF" /></View>
-              <Text style={styles.sourceTxt}>Fotocamera</Text>
+              <Text style={styles.sourceTxt}>Foto singola</Text>
             </Pressable>
             <Pressable onPress={addFromGallery} style={styles.sourceBtn} testID="scanner-gallery">
               <View style={[styles.sourceIcon, { backgroundColor: "#0891B2" }]}><Ionicons name="images" size={20} color="#FFF" /></View>
@@ -304,6 +329,15 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
           </View>
         </View>
       </View>
+
+      {/* Bug 11 — Live camera in-app (modalità continua + autofocus + auto-crop) */}
+      <LiveCameraScanner
+        visible={liveScanOpen}
+        onClose={() => setLiveScanOpen(false)}
+        onDone={onLiveScanDone}
+        enhance={enhance}
+        grayscale={grayscale}
+      />
     </Modal>
   );
 }

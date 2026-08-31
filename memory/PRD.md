@@ -2120,3 +2120,31 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 
 **Verifica:** endpoint testato via curl (HTTP 200), screenshot conferma rendering corretto della card con badge Master, email aziendale, bottoni azione.
 
+
+## Bug 11 — Scanner: Autofocus continuo + Modalità continua + Auto-crop (V29C)
+
+**Richiesta utente:** "Aggiungi autofocus continuo, modalità fotocamera continua senza dover rientrare nel menu tra uno scatto e l'altro, e auto-crop automatico del documento rilevato."
+
+**Backend** (`/app/backend/server.py`):
+- Nuovo endpoint `POST /api/scanner/autocrop-preview` (schema `ScannerPreviewIn`) che riceve UN'immagine e ritorna la versione ritagliata + enhanced. Riusa la pipeline OpenCV di `_cv2_scan_document` (Canny + `approxPolyDP` 4-punti + warp perspective + CLAHE + unsharp).
+- Ritorna `{ detected: bool, data_base64, mime }`. Se non trova un quadrilatero ritorna comunque l'immagine enhanced con `detected: false`.
+
+**Frontend** (`/app/frontend/src/LiveCameraScanner.tsx` — nuovo, ~400 LOC):
+- Usa `CameraView` di `expo-camera` v17 con `autofocus="on"` (autofocus continuo nativo, senza tap).
+- **Modalità continua**: la camera resta attiva tra uno scatto e l'altro; l'utente scatta N foto senza mai uscire dal viewfinder.
+- Ogni scatto viene subito mostrato come thumbnail nella strip in basso; in parallelo (fire-and-forget) invia la foto a `/scanner/autocrop-preview` → sostituisce la thumbnail con la versione ritagliata (badge ✂️ verde).
+- UI: viewfinder full-screen, cornice guida arancione a 4 angoli, top bar (close / badge "Modalità continua · Autofocus attivo" / torch), bottom bar con thumbnails strip scrollabile + shutter row (flip camera / shutter grande / Fine N).
+- Permission gate contestuale con `canAskAgain` aware e fallback "Apri impostazioni".
+
+**Integrazione** (`/app/frontend/src/DocumentScannerModal.tsx`):
+- Nuovo bottone rosso "Scan continuo" (`testID="scanner-live"`) come prima opzione nella source row.
+- Il vecchio "Fotocamera" (ImagePicker OS) rinominato in "Foto singola" e resta come fallback.
+- La callback `onLiveScanDone` importa le pagine live nel modal per il salvataggio unico come PDF.
+
+**Fix collaterale critico** (`/app/frontend/src/CalculatorFAB.tsx`):
+- Bug pre-esistente: `safeBottom` era definito in `CalculatorFAB()` ma usato dentro `CalculatorModal()` (funzione diversa, no chiusura lessicale) → `ReferenceError: safeBottom is not defined` crashava il `ModuleErrorBoundary` di bill-quick. Spostato `useSafeBottom()` dentro `CalculatorModal()`.
+
+**TestIDs:** `scanner-live`, `live-scan-close`, `live-scan-torch`, `live-scan-shutter`, `live-scan-flip`, `live-scan-done`, `live-scan-thumb-{i}`, `live-scan-thumb-del-{i}`.
+
+**Verifica:** endpoint testato via curl (detected=true su rettangolo, detected=false su sfondo bianco, 401 senza auth). Screenshot conferma il viewfinder full-screen con tutti i controlli visibili.
+

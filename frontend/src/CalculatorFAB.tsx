@@ -10,7 +10,6 @@ type Op = "+" | "-" | "×" | "÷" | null;
 
 export function CalculatorFAB() {
   const [open, setOpen] = useState(false);
-  const safeBottom = useSafeBottom(); // V29.aq
   // Register presence so the AI Assistant FAB can shift to avoid overlap
   useRegisterFab("calculator", true);
   return (
@@ -29,6 +28,7 @@ export function CalculatorFAB() {
 }
 
 function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const safeBottom = useSafeBottom(); // V29.aq — inside modal so paddingBottom respects gesture bar
   const [display, setDisplay] = useState("0");
   const [prev, setPrev] = useState<number | null>(null);
   const [op, setOp] = useState<Op>(null);
