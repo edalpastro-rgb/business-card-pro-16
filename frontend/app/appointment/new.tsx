@@ -40,6 +40,7 @@ type Contact = {
 type Settings = {
   energy_title: string; network_title: string;
   custom_appointment_types?: string[];
+  hidden_appointment_types?: string[]; // V29.as
   custom_product_categories?: { name: string; subs?: string[] }[];
 };
 
@@ -439,7 +440,21 @@ function NewAppointmentScreen() {
     const val = typeEditModal.value.trim();
     if (!val) return;
     if (typeEditModal.mode === "create") {
-      if ([...DEFAULT_APPT_TYPES, ...(settings.custom_appointment_types || [])].includes(val)) {
+      // V29.as — Se il nome esiste in DEFAULT ma è "hidden" → lo ripristiniamo
+      // togliendo da hidden invece di considerarlo duplicato.
+      const existsInDefault = DEFAULT_APPT_TYPES.includes(val);
+      const existsInCustom = (settings.custom_appointment_types || []).includes(val);
+      const isHidden = (settings.hidden_appointment_types || []).includes(val);
+      if (existsInDefault && isHidden) {
+        // Ripristina: rimuovi da hidden
+        const nextHidden = (settings.hidden_appointment_types || []).filter((x) => x !== val);
+        const saved = await api<Settings>("/settings", { method: "PUT", body: { ...settings, hidden_appointment_types: nextHidden } });
+        setSettings(saved);
+        setForm((f) => ({ ...f, appointment_type_tags: [...f.appointment_type_tags, val] }));
+        setTypeEditModal(null);
+        return;
+      }
+      if (existsInDefault || existsInCustom) {
         notify("Nome già esistente");
         return;
       }
@@ -465,8 +480,22 @@ function NewAppointmentScreen() {
       { text: "Annulla", style: "cancel" },
       {
         text: "Elimina", style: "destructive", onPress: async () => {
-          const list = (settings.custom_appointment_types || []).filter((x) => x !== name);
-          const saved = await api<Settings>("/settings", { method: "PUT", body: { ...settings, custom_appointment_types: list } });
+          // V29.as — Ora eliminiamo QUALSIASI tipo, non solo i custom:
+          //  - Se il tipo è nei DEFAULT → lo aggiungiamo a hidden_appointment_types
+          //  - Se il tipo è custom → lo rimuoviamo da custom_appointment_types
+          const isDefault = DEFAULT_APPT_TYPES.includes(name);
+          const nextCustom = (settings.custom_appointment_types || []).filter((x) => x !== name);
+          const nextHidden = isDefault
+            ? Array.from(new Set([...(settings.hidden_appointment_types || []), name]))
+            : (settings.hidden_appointment_types || []);
+          const saved = await api<Settings>("/settings", {
+            method: "PUT",
+            body: {
+              ...settings,
+              custom_appointment_types: nextCustom,
+              hidden_appointment_types: nextHidden,
+            },
+          });
           setSettings(saved);
           setForm((f) => ({ ...f, appointment_type_tags: f.appointment_type_tags.filter((x) => x !== name) }));
         }
@@ -482,7 +511,14 @@ function NewAppointmentScreen() {
     });
   };
 
-  const allApptTypes = [...DEFAULT_APPT_TYPES, ...(settings?.custom_appointment_types || [])];
+  // V29.as — Dedup + hide: rimuove duplicati (era il bug "Personale" x2) e
+  // filtra quelli che l'utente ha nascosto tramite `hidden_appointment_types`.
+  const allApptTypes = (() => {
+    const hidden = new Set(settings?.hidden_appointment_types || []);
+    const merged = [...DEFAULT_APPT_TYPES, ...(settings?.custom_appointment_types || [])];
+    const dedup = Array.from(new Set(merged));
+    return dedup.filter((t) => !hidden.has(t));
+  })();
   const showDemo = form.appointment_type_tags.includes("Demo prodotti");
   const productCats = [...DEFAULT_PRODUCT_CATS, ...(settings?.custom_product_categories || [])];
 
@@ -511,7 +547,7 @@ function NewAppointmentScreen() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Tipo appuntamento (spuntabili più di uno)</Text>
-          <Text style={styles.hint}>Tocca per selezionare · Tocca a lungo un tipo personalizzato per rinominare o eliminare</Text>
+          <Text style={styles.hint}>Tocca per selezionare · Tocca a lungo per eliminare (o rinominare i tipi personalizzati)</Text>
           <View style={styles.pillsRow}>
             {allApptTypes.map((t) => {
               const active = form.appointment_type_tags.includes(t);
@@ -522,13 +558,17 @@ function NewAppointmentScreen() {
                   key={t}
                   testID={`ap-type-${t}`}
                   onPress={() => toggleType(t)}
-                  onLongPress={isCustom ? () => {
-                    notify(t, "Cosa vuoi fare?", [
-                      { text: "Annulla", style: "cancel" },
-                      { text: "Rinomina", onPress: () => setTypeEditModal({ mode: "rename", oldName: t, value: t }) },
-                      { text: "Elimina", style: "destructive", onPress: () => deleteType(t) },
-                    ]);
-                  } : undefined}
+                  onLongPress={() => {
+                    // V29.as — Long-press disponibile su TUTTI i tipi (default + custom):
+                    //  - Rinomina: solo per i custom (i default hanno nomi fissi)
+                    //  - Elimina: per tutti (i default vengono nascosti via hidden_appointment_types)
+                    const actions: any[] = [{ text: "Annulla", style: "cancel" }];
+                    if (isCustom) {
+                      actions.push({ text: "Rinomina", onPress: () => setTypeEditModal({ mode: "rename", oldName: t, value: t }) });
+                    }
+                    actions.push({ text: "Elimina", style: "destructive", onPress: () => deleteType(t) });
+                    notify(t, "Cosa vuoi fare?", actions);
+                  }}
                   style={[
                     styles.pill,
                     { flexDirection: "row", alignItems: "center", borderColor: active ? c : "#E5E7EB" },

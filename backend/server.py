@@ -488,6 +488,10 @@ class SettingsModel(BaseModel):
     network_color: str = "#2563EB"
     app_name: str = "Dal Pastro CRM"
     custom_appointment_types: List[str] = Field(default_factory=list)
+    # V29.as — Tipi appuntamento "default" nascosti dall'utente (permette di
+    # rimuovere anche i default come "Personale" o "Altro" senza toccare il
+    # codice frontend). Deduplicati e ordinati.
+    hidden_appointment_types: List[str] = Field(default_factory=list)
     custom_product_categories: List[Dict[str, Any]] = Field(default_factory=list)
     custom_areas: List[Dict[str, Any]] = Field(default_factory=list)
     appointment_outcomes: List[Dict[str, Any]] = Field(default_factory=list)
