@@ -2353,3 +2353,29 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 
 **Nota UX**: rimosso il cropper automatico dell'ImagePicker. Se l'utente vuole ritagliare il logo, deve farlo dalla galleria del telefono prima di caricarlo (Google Photos / iOS Photos hanno un crop tool nativo che preserva l'alpha su PNG).
 
+
+## V29.aw — Fix Google Drive OAuth "invalid_grant: Missing code verifier"
+
+**Richiesta utente:** "Durante il collegamento a Google Drive compare l'errore (invalid_grant) Missing code verifier. Il backend deve inviare il parametro code_verifier nella richiesta di scambio del codice."
+
+**Root cause**: `google_auth_oauthlib.flow` >= 1.0 usa PKCE automaticamente. Durante `Flow.authorization_url()` genera un `code_verifier` interno e inietta `code_challenge` (S256) nell'URL di autorizzazione. Al momento del callback il vecchio codice creava una **nuova istanza Flow senza il code_verifier**, quindi al `fetch_token` Google rifiutava con `invalid_grant`.
+
+**Fix** (`server.py`):
+
+1. **`POST /google-drive/oauth/start`**:
+   - Sanitize `redirect_uri` **prima** della creazione del flow
+   - Dopo `authorization_url()` estrae `flow.code_verifier` e lo salva nel doc di `google_oauth_states` insieme al `redirect_uri` (per garantire matching esatto al callback)
+
+2. **`GET /auth/google/callback`** (server-side bridge usato dall'APK):
+   - Legge `code_verifier` e `redirect_uri` dal doc dello state salvato
+   - Crea il nuovo `Flow` con lo **stesso redirect_uri**
+   - Setta `flow.code_verifier = stored_verifier` **prima** di `fetch_token`
+
+3. **`POST /google-drive/oauth/exchange`** (endpoint legacy per web callback):
+   - Stesso pattern di ripristino code_verifier + redirect_uri
+
+**Verifica**:
+- URL auth generato contiene `code_challenge=...` e `code_challenge_method=S256` ✅
+- Doc MongoDB stato contiene `code_verifier` (43 char base64) + `redirect_uri` corretto ✅
+- Al callback il flow ricostruito ha il verifier → PKCE proof valida → token scambiato ✅
+
