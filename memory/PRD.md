@@ -2394,3 +2394,22 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 
 Le props di `KeyboardAvoidingView` restano invariate come richiesto (`behavior="padding"`).
 
+
+## V29.ay — Uniforma header "Interfaccia Master" con header Home
+
+**Richiesta utente:** "Lo sfondo della header area master deve essere uguale a quello della header home." (con screenshot).
+
+**master.tsx**:
+- Rimosso il `<LinearGradient colors={["#0F172A", "#1E3A8A", "#4C1D95"]}>` dark-navy→purple
+- Sostituito con `<View style={styles.hero}>` che contiene:
+  - `<Image source={HOME_HEADER_IMG}>` full-bleed (stessa `assets/images/advisoros-home-header.jpg` bundlata usata dalla Home → continuità brand + offline-safe)
+  - `<View style={styles.heroScrim}>` con `rgba(11, 30, 56, 0.55)` per leggibilità testi
+  - Header row + banner My Thing con `zIndex: 1` per stare sopra all'immagine
+- `styles.hero`: aggiunto `backgroundColor: "#0B1E38"` (fallback), `overflow: "hidden"`, `position: "relative"`
+- Nuovo `styles.heroScrim` = absoluteFillObject + navy alpha 0.55
+- Import `Image` aggiunto a react-native, costante `HOME_HEADER_IMG` module-level
+
+**Verifica**: screenshot mostra sfondo circuiti neurali AdvisorOS/AxonOS con "Ciao Emanuele" + "Interfaccia Master" ben leggibili, clock a destra, back/menu ai lati, banner My Thing immutato.
+
+**Nota**: il `LinearGradient` viola/pink resta come **fallback** del banner "My Thing" quando l'utente non ha ancora caricato immagini motivazionali — comportamento pre-esistente immutato.
+

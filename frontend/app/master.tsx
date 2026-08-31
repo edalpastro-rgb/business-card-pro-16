@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ImageBackground, Modal, Linking, Animated, Easing, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ImageBackground, Image, Modal, Linking, Animated, Easing, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,6 +11,10 @@ import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 import { MasterPromoteModal } from "@/src/MasterPromoteModal";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
 import { ModuleErrorBoundary } from "@/src/shared";
+
+// V29.ay — Riusa la stessa immagine dashboard bundlata dell'header Home per
+// creare continuità visiva del brand (offline-safe: nessun URL remoto).
+const HOME_HEADER_IMG = require("@/assets/images/advisoros-home-header.jpg");
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
 type MyThingImage = { item_id: string; image_base64?: string | null };
@@ -172,7 +176,17 @@ function MasterScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      <LinearGradient colors={["#0F172A", "#1E3A8A", "#4C1D95"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+      {/* V29.ay — Header hero: sostituito il LinearGradient dark navy→purple con
+          la stessa immagine locale dashboard usata dalla Home per continuità
+          visiva del brand AdvisorOS/AxonOS. Scrim scuro semi-trasparente
+          garantisce leggibilità di testi e clock sopra l'immagine. */}
+      <View style={styles.hero}>
+        <Image
+          source={HOME_HEADER_IMG}
+          resizeMode="cover"
+          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
+        />
+        <View pointerEvents="none" style={styles.heroScrim} />
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backBtn} testID="master-back">
             <Ionicons name="chevron-back" size={22} color="#FFF" />
@@ -211,7 +225,7 @@ function MasterScreen() {
             </LinearGradient>
           )}
         </Pressable>
-      </LinearGradient>
+      </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <View style={styles.grid}>
@@ -516,8 +530,21 @@ const masterExtraStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.background },
-  hero: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
-  header: { flexDirection: "row", alignItems: "center", gap: 10 },
+  hero: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+    // V29.ay — Sfondo scuro di base sotto l'immagine (cover mask); l'immagine full-bleed
+    // è renderizzata come <Image absoluteFill>. Overflow hidden per rispettare i bordi.
+    backgroundColor: "#0B1E38",
+    overflow: "hidden",
+    position: "relative",
+  },
+  heroScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(11, 30, 56, 0.55)", // navy-scrim per leggibilità testi
+  },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, zIndex: 1 },
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
   menuBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
   hi: { color: "rgba(255,255,255,0.8)", fontSize: 12 },
@@ -526,7 +553,7 @@ const styles = StyleSheet.create({
   clockTime: { color: "#FFF", fontSize: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },
   clockDate: { color: "rgba(255,255,255,0.75)", fontSize: 10, textTransform: "capitalize" },
 
-  bannerWrap: { marginTop: 8, height: 100, borderRadius: 12, overflow: "hidden", position: "relative", backgroundColor: "#F1F5F9" },
+  bannerWrap: { marginTop: 8, height: 100, borderRadius: 12, overflow: "hidden", position: "relative", backgroundColor: "#F1F5F9", zIndex: 1 },
   bannerImg: { flex: 1 },
   bannerOverlay: { flex: 1, paddingHorizontal: 12, paddingVertical: 8, justifyContent: "center" },
   bannerFallback: { flex: 1, borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center" },
