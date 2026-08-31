@@ -1,5 +1,70 @@
 # Dal Pastro CRM — PRD v1.15
 
+## v44 Profilo Comportamentale Collaboratori — Team Insights (Giugno 2026)
+### 🎯 Richiesta utente
+Fase 4/4 finale del progetto "Axon che impara": mostra al Master un profilo comportamentale di ogni collaboratore basato sulle sue interazioni con l'AI, i contatti gestiti, gli appuntamenti presi e le chiamate effettuate.
+
+### ✅ Backend (`/app/backend/server.py`)
+- **`_compute_team_member_metrics(uid)`**: aggrega metriche quantitative per un collaboratore:
+  - Contatti (totali + 30gg)
+  - Appuntamenti (totali + 30gg + prossimi)
+  - Callbacks (30gg + pendenti)
+  - Chat Axon (30gg + 7gg)
+  - Feedback dati (👍/👎)
+  - Ultima attività (max fra ultimo login e ultimo msg chat)
+- **`_score_topic_from_messages(msgs)`**: estrae top-5 argomenti dai messaggi dell'utente (token frequency ≥4 char post-stopword removal). Alternativa cheap all'LLM classification.
+- **`_generate_behavioral_profile(member, metrics, topics, sample_msgs)`**: chiama Claude Sonnet 5 con prompt strutturato → JSON `{communication_style, strengths[], improvement_areas[], overall_summary}`. Sanitizzazione lunghezza + parsing robusto.
+- **Endpoint `GET /api/team-insights`** (Master-only): lista collaboratori (`parent_user_id = master_uid`) con metriche aggregate. Ordinati per attività (chat_msgs_30d desc).
+- **Endpoint `GET /api/team-insights/{member_uid}`** (Master-only): profilo dettagliato + AI. Cache 24h in `db.team_member_profiles` per non consumare LLM ad ogni apertura.
+- **Endpoint `POST /api/team-insights/{member_uid}/refresh-profile`** (Master-only): forza rigenerazione bypassando cache.
+- **Params**: `TEAM_PROFILE_CACHE_HOURS=24`, `TEAM_PROFILE_TREND_DAYS=30`
+- **Indice MongoDB**: `team_member_profiles.(tenant_id, user_id)` unique
+- **Cleanup account**: `team_member_profiles` aggiunto a `tenant_collections`
+
+### ✅ Frontend
+- **Nuova pagina `/app/frontend/app/team-insights.tsx`** (Master-only, ~500 righe):
+  - Doppia view unica: **List ↔ Detail** con state locale (support anche `?member=<uid>` per deep-link)
+  - **Header ciano `#0EA5E9`** con back button contestuale (torna alla lista se in detail, altrimenti a Master)
+  - **List view**:
+    - Card collaboratore con avatar circolare (iniziali), nome + area pill, email
+    - Mini-KPI row inline: 💬 chat / 📅 appt / 👥 contatti / ⏱ "3m fa"
+    - Empty state se nessun collaboratore
+    - Loading spinner iniziale
+  - **Detail view**:
+    - Header profilo grande (avatar 64x64 ciano, nome, email, pill area, "ultima attività X fa")
+    - Grid 4 KPI cards: Contatti / Appuntamenti / Chat Axon / Chiamate — ciascuna con `border-top-color` distintivo, valore grande, label + sub
+    - Feedback bar 👍/👎 con conteggi
+    - **Top argomenti**: chip topic + `×count` (mostrati solo se >0)
+    - **Profilo AI card** (viola, `border-left #7C3AED`, icona sparkles):
+      - Stile comunicativo (label + testo)
+      - Punti di forza (verdi, bullet list)
+      - Aree di miglioramento (arancioni, bullet list)
+      - Sintesi (paragrafo in box grigio)
+      - Bottone "Rigenera" (viola chiaro) per refresh manuale
+      - Footer "Da cache · X min fa" / "Generato ora"
+- **Master page**: aggiunto menu item **"Team Insights"** (icona `analytics` ciano) nel modal 3-punti, subito dopo "Setting App"
+
+### 🧪 Test manuali eseguiti
+- ✅ Creato collaboratore Mario Bianchi + 3 chat Axon (obiezioni, bollette, contratti gas)
+- ✅ `GET /team-insights` → lista con 1 item, metriche calcolate correttamente (3 chat_msgs_30d, 3 chat_msgs_7d)
+- ✅ `GET /team-insights/{uid}` → profilo AI generato: "Domande dirette e operative", 2 strengths, 3 improvement_areas, summary contestuale
+- ✅ Cache 24h verificata: seconda chiamata ritorna `profile_from_cache: true`
+- ✅ `POST /refresh-profile` → rigenera bypassando cache
+- ✅ UI: list card con mini-KPI, tap → detail con avatar/KPI grid/feedback bar/AI profile, back button torna alla lista
+- ✅ Non-Master: mostra "Sezione riservata al Master" (lock icon)
+
+### 📊 Compimento del progetto self-learning Axon
+Con la Fase 4 completa, il progetto "Axon che impara" è terminato con successo:
+1. **v41 Feedback 👍/👎**: raccoglie riscontri utente + invalida cache stale
+2. **v42 RAG Documenti Master**: Axon legge i PDF caricati e risponde citandoli
+3. **v43 Regole Auto-Estratte**: job notturno propone nuove regole dai pattern chat
+4. **v44 Team Insights**: profilo comportamentale AI dei collaboratori con metriche + coaching
+
+Il Master ha ora un CRM veramente **AI-native**: Axon impara continuamente dai dati, e il Master ha visibilità completa su come la sua rete lavora.
+
+---
+
+
 ## v43 Regole Auto-Estratte da Chat Notturne (Giugno 2026)
 ### 🎯 Richiesta utente
 Fase 3/4 del progetto "Axon che impara": job notturno che analizza le chat degli ultimi 2 giorni e propone nuove regole da salvare in "Insegna ad Axon". Il Master approva/rifiuta manualmente.
