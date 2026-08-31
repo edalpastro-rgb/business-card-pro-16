@@ -15,6 +15,10 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+// V29.au — Import expo-audio per il pulsante microfono su native (APK Android/iOS).
+// Prima era solo web (MediaRecorder), quindi su APK i pulsanti mic + ascolto
+// continuo sparivano. Ora usiamo useAudioRecorder di expo-audio in modo nativo.
+import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
@@ -729,6 +733,16 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
   const startConversation = async () => {
     if (!voiceSupported || convMode) return;
+    // V29.au — L'ascolto continuo usa MediaRecorder + AudioContext (VAD) che
+    // sono API browser-only. Su native (APK Android/iOS) informiamo l'utente e
+    // suggeriamo il pulsante mic singolo (che invece funziona nativamente).
+    if (Platform.OS !== "web") {
+      notify(
+        "Ascolto continuo",
+        "L'ascolto continuo è disponibile solo su Web/Preview. Su mobile usa il pulsante microfono per registrare una domanda alla volta."
+      );
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       convStreamRef.current = stream;
@@ -907,14 +921,42 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   };
 
   // ---- Voice input (web MediaRecorder → /api/ai/transcribe) ----
+  // V29.au — Su APK Android/iOS `Platform.OS !== "web"` → il vecchio check
+  // era sempre `false` e i bottoni sparivano. Ora `voiceSupported = true`
+  // ovunque; su native usiamo `expo-audio` (useAudioRecorder), su web
+  // manteniamo MediaRecorder.
+  const nativeRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const nativeUriRef = useRef<string | null>(null);
   const voiceSupported =
-    Platform.OS === "web" &&
-    typeof navigator !== "undefined" &&
-    !!navigator.mediaDevices &&
-    typeof (globalThis as any).MediaRecorder !== "undefined";
+    Platform.OS === "web"
+      ? (typeof navigator !== "undefined" &&
+         !!navigator.mediaDevices &&
+         typeof (globalThis as any).MediaRecorder !== "undefined")
+      : true; // native = sempre supportato via expo-audio
 
   const startRec = async () => {
     if (!voiceSupported) return;
+    // V29.au — Branch native: usa expo-audio. Il resto del branch è web con MediaRecorder.
+    if (Platform.OS !== "web") {
+      try {
+        const perm = await AudioModule.requestRecordingPermissionsAsync();
+        if (!perm.granted) { notify("Permesso negato", "Consenti l'accesso al microfono nelle impostazioni."); return; }
+        await AudioModule.setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+        await nativeRecorder.prepareToRecordAsync();
+        nativeRecorder.record();
+        setRecording(true);
+        durRef.current = 0;
+        setRecDuration(0);
+        timerRef.current = setInterval(() => {
+          durRef.current += 1;
+          setRecDuration(durRef.current);
+          if (durRef.current >= 60) stopRec();
+        }, 1000) as any;
+      } catch (e: any) {
+        notify("Errore microfono", e?.message || String(e));
+      }
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -949,6 +991,31 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const stopRec = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     setRecording(false);
+    // V29.au — Branch native: stop expo-audio + handle base64 upload
+    if (Platform.OS !== "web") {
+      (async () => {
+        try {
+          await nativeRecorder.stop();
+          const uri = nativeRecorder.uri;
+          if (!uri) return;
+          nativeUriRef.current = uri;
+          setTranscribing(true);
+          const b64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+          if (!b64 || b64.length < 500) { setTranscribing(false); return; }
+          const r = await api<{ transcript: string }>("/ai/transcribe", {
+            method: "POST",
+            body: { audio_base64: b64, mime: "audio/m4a" },
+          });
+          const t = (r?.transcript || "").trim();
+          if (t) await send(t);
+        } catch (e: any) {
+          notify("Errore trascrizione", e?.message || String(e));
+        } finally {
+          setTranscribing(false);
+        }
+      })();
+      return;
+    }
     try {
       if (mrRef.current && mrRef.current.state !== "inactive") mrRef.current.stop();
     } catch {}
