@@ -38,6 +38,7 @@ export type LiveScannedPage = {
   mime: string;
   preview_uri: string; // data:image/jpeg;base64,...
   cropped?: boolean; // true = version returned by /scanner/autocrop-preview
+  blurry?: boolean; // Bug 11.d — true if backend flagged low sharpness
 };
 
 type Props = {
@@ -71,6 +72,11 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   const [autoCountdown, setAutoCountdown] = useState<number | null>(null); // 0..1 progress
   const stableSinceRef = useRef<number | null>(null); // ms timestamp when doc became stable
   const cooldownUntilRef = useRef<number>(0); // ms timestamp until which no auto-shot allowed
+  // Bug 11.d — Anti motion-blur: sharpness score (variance of Laplacian)
+  // returned by /scanner/detect-corners. If below threshold we block the
+  // auto-shutter and warn the user.
+  const [sharpness, setSharpness] = useState<number | null>(null);
+  const SHARPNESS_THRESHOLD = 90; // empirical (backend returns Laplacian var on 400px gray)
 
   // Reset state when modal is closed
   useEffect(() => {
@@ -85,6 +91,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
       stableSinceRef.current = null;
       cooldownUntilRef.current = 0;
       setAutoCountdown(null);
+      setSharpness(null);
     }
   }, [visible]);
 
@@ -150,12 +157,15 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
         } as any);
         if (cancelled) return;
         if (!snap?.base64) return;
-        const r = await api<{ detected: boolean; corners: [number, number][] | null }>(
+        const r = await api<{ detected: boolean; corners: [number, number][] | null; sharpness?: number }>(
           "/scanner/detect-corners",
           { method: "POST", body: { data_base64: snap.base64, mime: "image/jpeg" } },
         );
         if (cancelled) return;
         const now = Date.now();
+        const sh = typeof r?.sharpness === "number" ? r.sharpness : null;
+        setSharpness(sh);
+        const isSharp = sh == null ? true : sh >= SHARPNESS_THRESHOLD;
         if (r?.detected && r.corners && r.corners.length === 4) {
           const smoothed = smooth(r.corners, lastCornersRef.current);
           // Stability = delta between raw new corners and previous smoothed
@@ -165,9 +175,9 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
           lastCornersRef.current = smoothed;
           setLiveCorners(smoothed);
 
-          // Auto-shutter state machine
+          // Auto-shutter state machine (blocked if image is blurry)
           if (autoShutter && now >= cooldownUntilRef.current) {
-            if (stable) {
+            if (stable && isSharp) {
               if (stableSinceRef.current == null) {
                 stableSinceRef.current = now;
                 setAutoCountdown(0);
@@ -187,7 +197,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                 }
               }
             } else {
-              // moved → reset countdown
+              // moved OR blurry → reset countdown
               stableSinceRef.current = null;
               setAutoCountdown(null);
             }
@@ -223,13 +233,18 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
     async (index: number, data_base64: string) => {
       setProcessingCount((c) => c + 1);
       try {
-        const r = await api<{ detected: boolean; data_base64: string; mime: string }>(
+        const r = await api<{ detected: boolean; data_base64: string; mime: string; sharpness?: number }>(
           "/scanner/autocrop-preview",
           {
             method: "POST",
             body: { data_base64, mime: "image/jpeg", enhance, grayscale },
           },
         );
+        // Bug 11.d — Motion-blur detection on the actual captured frame.
+        // On the FULL-res image the Laplacian variance is much higher than
+        // the sampling frame (400px). Threshold ~250 empirically differentiates
+        // sharp vs. hand-shake blurry on typical phone cameras.
+        const isBlurry = typeof r?.sharpness === "number" && r.sharpness < 250;
         if (r?.detected && r.data_base64) {
           setPages((prev) => {
             const next = [...prev];
@@ -240,6 +255,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
               mime: r.mime || "image/jpeg",
               preview_uri: `data:${r.mime || "image/jpeg"};base64,${r.data_base64}`,
               cropped: true,
+              blurry: isBlurry,
             };
             return next;
           });
@@ -254,6 +270,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
               mime: r.mime || "image/jpeg",
               preview_uri: `data:${r.mime || "image/jpeg"};base64,${r.data_base64}`,
               cropped: false,
+              blurry: isBlurry,
             };
             return next;
           });
@@ -438,19 +455,35 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
               testID="live-scan-edge-toggle"
             >
               <Ionicons
-                name={edgeDetectOn ? (liveCorners ? "checkmark-circle" : "scan-outline") : "scan-outline"}
+                name={
+                  edgeDetectOn
+                    ? sharpness !== null && sharpness < SHARPNESS_THRESHOLD && liveCorners
+                      ? "warning"
+                      : liveCorners
+                        ? "checkmark-circle"
+                        : "scan-outline"
+                    : "scan-outline"
+                }
                 size={13}
-                color={edgeDetectOn && liveCorners ? "#22C55E" : "#FFF"}
+                color={
+                  edgeDetectOn && liveCorners
+                    ? sharpness !== null && sharpness < SHARPNESS_THRESHOLD
+                      ? "#F59E0B"
+                      : "#22C55E"
+                    : "#FFF"
+                }
               />
               <Text style={styles.topBadgeTxt}>
                 {edgeDetectOn
-                  ? autoCountdown !== null
-                    ? `Scatto tra ${Math.max(0, Math.ceil((1 - autoCountdown) * 1))}s…`
-                    : liveCorners
-                      ? autoShutter
-                        ? "Rilevato · tieni fermo per lo scatto"
-                        : "Documento rilevato · tocca per scattare"
-                      : "Cerco i bordi… inquadra il foglio"
+                  ? liveCorners && sharpness !== null && sharpness < SHARPNESS_THRESHOLD
+                    ? "Immagine mossa · tieni fermo per fuoco"
+                    : autoCountdown !== null
+                      ? `Scatto tra ${Math.max(0, Math.ceil((1 - autoCountdown) * 1))}s…`
+                      : liveCorners
+                        ? autoShutter
+                          ? "Rilevato · tieni fermo per lo scatto"
+                          : "Documento rilevato · tocca per scattare"
+                        : "Cerco i bordi… inquadra il foglio"
                   : "Autofocus attivo · rilevamento OFF"}
                 {processingCount > 0 ? ` · ${processingCount}` : ""}
               </Text>
@@ -495,6 +528,11 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                   {p.cropped && (
                     <View style={styles.thumbBadge}>
                       <Ionicons name="cut" size={10} color="#FFF" />
+                    </View>
+                  )}
+                  {p.blurry && (
+                    <View style={styles.thumbBlurBadge} testID={`live-scan-thumb-blurry-${i}`}>
+                      <Ionicons name="warning" size={10} color="#FFF" />
                     </View>
                   )}
                   <Pressable
@@ -658,6 +696,19 @@ const styles = StyleSheet.create({
     top: -4,
     left: -4,
     backgroundColor: "#10B981",
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFF",
+  },
+  thumbBlurBadge: {
+    position: "absolute",
+    top: 22,
+    left: -4,
+    backgroundColor: "#F59E0B",
     width: 18,
     height: 18,
     borderRadius: 9,

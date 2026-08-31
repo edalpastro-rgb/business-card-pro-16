@@ -2231,3 +2231,30 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 
 **Verifica**: screenshot mostra loghi AdvisorOS + AxonOS ben visibili sullo sfondo dark tech, data e avatar cliccabile sopra l'immagine.
 
+
+## V29.ar — Home header collapsable in scroll + Bug 11.d — Anti-motion blur scanner
+
+### Header Home collapsable
+**Richiesta utente:** "Fai rimpicciolire l'immagine header a ~60px quando si scrolla la Home."
+
+**home.tsx**:
+- Nuovo `scrollY = new Animated.Value(0)` + interpolazione `height: 140 → 60px` (clamp)
+- `<ScrollView>` sostituito con `<Animated.ScrollView>` + `onScroll={Animated.event([{nativeEvent:{contentOffset:{y: scrollY}}}], {useNativeDriver: false})}`
+- Container header ora è `<Animated.View>` con height dinamica (rimossa height statica da styles)
+
+### Anti-motion blur nello scanner
+**Richiesta utente:** "Rileva la sfocatura sull'ultima frame prima dello scatto e ripeti se non è nitida."
+
+**Backend** (`server.py`):
+- `/scanner/detect-corners` ritorna `sharpness` (varianza del Laplaciano sulla gray 400px). Range tipico: 0.72 (mosso) → 11072 (nitido).
+- `/scanner/autocrop-preview` ritorna `sharpness` (calcolata sulla full-res grayscale). Range tipico: 0.72 → 19065.
+
+**Frontend** (`LiveCameraScanner.tsx`):
+- Stato `sharpness` + costante `SHARPNESS_THRESHOLD = 90` durante il sampling.
+- Auto-shutter state machine ora richiede `stable && isSharp` — se sfocata il countdown si azzera.
+- Badge dinamico esteso: se `liveCorners && sharpness < 90` mostra ⚠️ **"Immagine mossa · tieni fermo per fuoco"** con icona arancione.
+- Tipo `LiveScannedPage` esteso con `blurry?: boolean`; se una foto scattata ha `sharpness < 250` viene marcata come `blurry`.
+- Nuovo badge `thumbBlurBadge` (⚠️ arancione, `testID="live-scan-thumb-blurry-{i}"`) mostrato sulla thumbnail delle foto sfocate.
+
+**Verifica**: backend curl con nitida vs. sfocata mostra dinamica ~3000×; frontend renderizza viewfinder con nuova logica senza regressioni.
+

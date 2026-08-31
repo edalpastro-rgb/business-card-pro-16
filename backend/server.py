@@ -10130,8 +10130,18 @@ async def scanner_detect_corners(body: ScannerCornersIn, user=Depends(get_curren
         ratio = target / max(h0, w0) if max(h0, w0) > target else 1.0
         small = cv2.resize(arr, None, fx=ratio, fy=ratio) if ratio < 1 else arr.copy()
         gray = cv2.cvtColor(small, cv2.COLOR_RGB2GRAY)
-        gray = cv2.GaussianBlur(gray, (5, 5), 0)
-        edges = cv2.Canny(gray, 60, 180)
+
+        # Bug 11.d — Sharpness score = variance of Laplacian (rilevamento
+        # motion blur / defocus). Valori tipici: <60 = molto sfocato,
+        # 60-120 = borderline, >120 = nitido. Calcolato SULLA GRAYSCALE PRIMA
+        # del blur/Canny per non dipendere dal filtro.
+        try:
+            sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        except Exception:
+            sharpness = 0.0
+
+        gray_b = cv2.GaussianBlur(gray, (5, 5), 0)
+        edges = cv2.Canny(gray_b, 60, 180)
         edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
         contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
@@ -10156,11 +10166,11 @@ async def scanner_detect_corners(body: ScannerCornersIn, user=Depends(get_curren
                 break
 
         if detected_corners:
-            return {"detected": True, "corners": detected_corners}
-        return {"detected": False, "corners": None}
+            return {"detected": True, "corners": detected_corners, "sharpness": round(sharpness, 2)}
+        return {"detected": False, "corners": None, "sharpness": round(sharpness, 2)}
     except Exception as e:
         logger.warning("detect-corners failed: %s", e)
-        return {"detected": False, "corners": None}
+        return {"detected": False, "corners": None, "sharpness": 0.0}
 
 
 @api_router.post("/scanner/autocrop-preview")
@@ -10187,6 +10197,7 @@ async def scanner_autocrop_preview(body: ScannerPreviewIn, user=Depends(get_curr
     # First pass: try with autocrop=True to see if a quadrilateral was detected.
     # We reuse `_cv2_scan_document` and detect success by comparing shape sizes.
     detected = False
+    sharpness = 0.0
     try:
         import cv2  # type: ignore
         import numpy as np
@@ -10196,6 +10207,14 @@ async def scanner_autocrop_preview(body: ScannerPreviewIn, user=Depends(get_curr
         pil = ImageOps.exif_transpose(pil).convert("RGB")
         src = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
         h0, w0 = src.shape[:2]
+
+        # Bug 11.d — Sharpness score on the FULL-res grayscale for a robust
+        # motion-blur detection right after the user shot.
+        try:
+            gray_full = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
+            sharpness = float(cv2.Laplacian(gray_full, cv2.CV_64F).var())
+        except Exception:
+            sharpness = 0.0
 
         # Detect document corners (replicated from _cv2_scan_document to know if detected)
         ratio = 900.0 / max(h0, w0)
@@ -10228,6 +10247,7 @@ async def scanner_autocrop_preview(body: ScannerPreviewIn, user=Depends(get_curr
         "detected": detected,
         "data_base64": b64,
         "mime": "image/jpeg",
+        "sharpness": round(sharpness, 2),
     }
 
 

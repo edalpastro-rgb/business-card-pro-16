@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Image, ImageBackground, Platform, Animated, Easing, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, Image, ImageBackground, Platform, Animated, Easing, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -125,6 +125,16 @@ export default function HomeScreen() {
   // V29 — Scadenze imminenti (widget Home)
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [deadlinesDays, setDeadlinesDays] = useState<number>(60);
+  // V29.ar — Collapsable header on scroll: da 140px (full) a 60px (compact).
+  // useNativeDriver: false perché animiamo `height` (layout prop non nativa).
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const HEADER_MAX = 140;
+  const HEADER_MIN = 60;
+  const headerHeight = scrollY.interpolate({
+    inputRange: [0, HEADER_MAX - HEADER_MIN],
+    outputRange: [HEADER_MAX, HEADER_MIN],
+    extrapolate: "clamp",
+  });
   const [deadlinesLoading, setDeadlinesLoading] = useState<boolean>(true);
 
   // Update header clock every minute (aligned to the next :00 second)
@@ -270,8 +280,8 @@ export default function HomeScreen() {
           L'immagine include già il logo AdvisorOS + AxonOS quindi non serve
           il fade animato con testo "Ciao, NOME". */}
       <View style={styles.brandHeader}>
-        <View
-          style={styles.brandHeaderBox}
+        <Animated.View
+          style={[styles.brandHeaderBox, { height: headerHeight }]}
           testID="home-brand-header"
         >
           <Image
@@ -306,12 +316,17 @@ export default function HomeScreen() {
               </View>
             )}
           </Pressable>
-        </View>
+        </Animated.View>
       </View>
-      <ScrollView
+      <Animated.ScrollView
         style={styles.scrollBg}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false },
+        )}
+        scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.primary} />}
       >
         {/* ── Trial banners ── */}
@@ -613,7 +628,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </Animated.ScrollView>
 
       <CallActionSheet
         visible={!!callTarget}
@@ -921,13 +936,13 @@ const styles = StyleSheet.create({
   },
   brandHeaderBox: {
     // V29.aq — Header con immagine full-bleed locale (offline-safe).
+    // V29.ar — height animata via scrollY (140 → 60 su scroll).
     backgroundColor: "#000",
     borderWidth: 1,
     borderColor: "rgba(56,189,248,0.35)",
     borderRadius: 12,
     position: "relative",
     overflow: "hidden",
-    height: 140,
     justifyContent: "center",
   },
   brandHeaderScrim: {
