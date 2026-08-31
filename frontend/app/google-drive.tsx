@@ -25,11 +25,18 @@ import { notify } from "@/src/utils/notify";
 try { WebBrowser.maybeCompleteAuthSession(); } catch { /* noop */ }
 
 const GD_GREEN = "#0F9D58";
-// V29.ap — Redirect URI fisso al deploy Emergent (bypass del proxy Aruba di
-// advisoros.it che fa 301 al root perdendo path+query). Deve essere REGISTRATO
-// in Google Cloud Console → OAuth 2.0 Client → Authorized redirect URIs:
-//   https://business-card-pro-16.emergent.host/auth/google/callback
-const GD_CALLBACK_URL = "https://business-card-pro-16.emergent.host/auth/google/callback";
+// V45b — Redirect URI derivato dinamicamente dall'origine del backend deployato.
+// Deve essere REGISTRATO in Google Cloud Console → OAuth 2.0 Client → Authorized
+// redirect URIs per OGNI dominio backend usato (dev + prod). Non hardcodare qui
+// il dominio: in questo modo il flow OAuth continua a funzionare se il backend
+// viene ri-deployato su un dominio diverso.
+const GD_CALLBACK_URL = (() => {
+  const backend = (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/+$/, "");
+  if (backend) return `${backend}/auth/google/callback`;
+  // Fallback: shouldn't happen in a deployed build (EXPO_PUBLIC_BACKEND_URL is
+  // baked at build time), but keep a sane default for local `expo start` cases.
+  return "/auth/google/callback";
+})();
 
 export default function GoogleDriveScreen() {
   const router = useRouter();

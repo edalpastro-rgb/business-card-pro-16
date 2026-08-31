@@ -1094,9 +1094,17 @@ async def twofa_status(user=Depends(get_current_user)):
 @api_router.post("/auth/google-session")
 async def google_session(body: GoogleSessionInput):
     """Exchange Emergent session_id -> session_token, upsert user, store session."""
+    # V45c — Base URL from env only; fail fast if not configured to avoid
+    # silent environment drift.
+    emergent_auth_base = os.environ.get("EMERGENT_AUTH_BASE_URL", "").strip().rstrip("/")
+    if not emergent_auth_base:
+        raise HTTPException(
+            status_code=500,
+            detail="EMERGENT_AUTH_BASE_URL non configurato lato server",
+        )
     async with httpx.AsyncClient(timeout=15) as hx:
         r = await hx.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            f"{emergent_auth_base}/auth/v1/env/oauth/session-data",
             headers={"X-Session-ID": body.session_id},
         )
     if r.status_code != 200:
@@ -13185,8 +13193,23 @@ async def _startup():
     await db.assistant_messages.create_index([("user_id", 1), ("session_id", 1), ("created_at", 1)])
     # V29.ag — Cache azioni rapide Axon (una entry per (user, label))
     await db.axon_qa_cache.create_index([("user_id", 1), ("label", 1)], unique=True)
-    # V40 — Semantic cache for Axon assistant (global, TTL-based)
-    await db.axon_semantic_cache.create_index("expires_at", expireAfterSeconds=0)
+    # V40 — Semantic cache for Axon assistant (global). Note: we intentionally
+    # do NOT use a MongoDB TTL index to hard-delete records at startup — the
+    # `_semantic_cache_lookup` function already filters `expires_at > now` at
+    # query time, so expired entries are simply ignored. A separate manual
+    # cleanup can be triggered if the collection ever grows too large.
+    # If a legacy TTL index exists (from v40 pre-45c), drop it silently before
+    # recreating the plain index.
+    try:
+        _existing = await db.axon_semantic_cache.index_information()
+        for _name, _info in _existing.items():
+            _keys = _info.get("key") or []
+            if _keys and _keys[0][0] == "expires_at" and "expireAfterSeconds" in _info:
+                await db.axon_semantic_cache.drop_index(_name)
+                logger.info("[startup] dropped legacy TTL index %s on axon_semantic_cache", _name)
+    except Exception as _exc:
+        logger.warning("[startup] TTL-index cleanup failed: %s", _exc)
+    await db.axon_semantic_cache.create_index("expires_at")
     await db.axon_semantic_cache.create_index([("created_at", -1)])
     await db.axon_semantic_cache.create_index("tokens")  # multikey index for token pre-filter
     # V41 — Feedback 👍/👎 sulle risposte dell'assistente
@@ -13365,8 +13388,17 @@ async def _seed_demo_user():
     contatti, li reinserisce così l'app è sempre popolata al primo login demo.
     """
     try:
-        DEMO_EMAIL = "demo@advisoros.it"
-        DEMO_PASSWORD = "Demo1234!"
+        # V45c — Demo/reviewer account seed. Credentials must come from env
+        # variables — no source fallbacks. Set `DEMO_SEED_DISABLED=1` in .env
+        # to skip this seed entirely in production. If env vars are missing
+        # the seed is a no-op (safer default than shipping known creds).
+        if os.environ.get("DEMO_SEED_DISABLED", "").strip() in ("1", "true", "yes"):
+            return
+        DEMO_EMAIL = (os.environ.get("DEMO_SEED_EMAIL") or "").strip().lower()
+        DEMO_PASSWORD = os.environ.get("DEMO_SEED_PASSWORD") or ""
+        if not DEMO_EMAIL or not DEMO_PASSWORD:
+            logger.info("[demo-seed] skipped (DEMO_SEED_EMAIL/DEMO_SEED_PASSWORD not set)")
+            return
         existing = await db.users.find_one({"email": DEMO_EMAIL})
         if existing:
             user_id = existing["user_id"]

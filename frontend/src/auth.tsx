@@ -245,7 +245,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       Platform.OS === "web"
         ? (typeof window !== "undefined" ? window.location.origin + "/" : "")
         : Linking.createURL("");
-    const authUrl = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+    const emergentAuthBase = (process.env.EXPO_PUBLIC_EMERGENT_AUTH_URL as string) || "";
+    if (!emergentAuthBase) {
+      console.warn("[auth] EXPO_PUBLIC_EMERGENT_AUTH_URL non configurato — Google login disabilitato");
+      return;
+    }
+    const authUrl = `${emergentAuthBase.replace(/\/+$/, "")}/?redirect=${encodeURIComponent(redirectUrl)}`;
     if (Platform.OS === "web") {
       window.location.href = authUrl;
       return;

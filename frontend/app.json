@@ -30,7 +30,6 @@
       "permissions": [
         "CAMERA",
         "POST_NOTIFICATIONS",
-        "SCHEDULE_EXACT_ALARM",
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
         "VIBRATE",
