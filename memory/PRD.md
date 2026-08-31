@@ -2305,3 +2305,20 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 
 **Verifica**: utente demo (0 rules) vede correttamente Regole(0)/Fonti URL(0)/Storico(0). Utente reale con 6 rules vedrà le 6 righe. Nessun dato modificato/eliminato.
 
+
+## V29.au — Fix tastiera Android che copre i campi in Insegna ad Axon
+
+**Richiesta utente:** "Nel modal 'Nuova regola' di Insegna ad Axon, quando l'utente tocca i campi Titolo o Descrizione, la tastiera Android copre il campo attivo. Aggiungi KeyboardAvoidingView con behavior='padding' e ScrollView al modal."
+
+**ai-teach.tsx**:
+- Import `KeyboardAvoidingView` aggiunto
+- Modal "Nuova regola" (`!!editRule`) avvolto in `<KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0} style={{flex:1}}>`
+- ScrollView interno esteso con:
+  - `keyboardShouldPersistTaps="handled"` — tap fuori chiude tastiera; tap sui bottoni funziona anche con tastiera aperta
+  - `keyboardDismissMode="interactive"` — drag verso il basso chiude la tastiera
+  - `showsVerticalScrollIndicator={false}`
+- **Stesso pattern applicato al modal "Nuovo URL"** per consistenza (campi Nome/URL/Username/Password)
+- Modal "Info" NON modificato perché non contiene TextInput
+
+**Verifica**: Playwright conferma il modal si apre, campi Titolo/Testo scrivibili senza sovrapposizione.
+

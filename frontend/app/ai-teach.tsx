@@ -6,7 +6,7 @@
  * Il contenuto viene usato da Axon come contesto prioritario durante l'analisi.
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Platform, KeyboardAvoidingView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -514,13 +514,23 @@ export default function AiTeachScreen() {
 
       {/* Rule editor modal */}
       <Modal transparent visible={!!editRule} animationType="slide" onRequestClose={() => setEditRule(null)}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHdr}>
-              <Text style={styles.sheetTitle}>{editRule?.rule_id ? "Modifica regola" : "Nuova regola"}</Text>
-              <Pressable onPress={() => setEditRule(null)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>
-            </View>
-            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+          keyboardVerticalOffset={0}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.backdrop}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHdr}>
+                <Text style={styles.sheetTitle}>{editRule?.rule_id ? "Modifica regola" : "Nuova regola"}</Text>
+                <Pressable onPress={() => setEditRule(null)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>
+              </View>
+              <ScrollView
+                contentContainerStyle={{ paddingBottom: 20 }}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+                showsVerticalScrollIndicator={false}
+              >
               <Text style={styles.lbl}>Categorie (seleziona una o più)</Text>
               {/* V28.n — Chip presenti (selezionate) mostrate in alto, con X per rimuoverle. */}
               {(() => {
@@ -586,20 +596,31 @@ export default function AiTeachScreen() {
               <Pressable onPress={saveRule} disabled={busy} style={[styles.saveBtn, { backgroundColor: busy ? C.muted : C.primary }]} testID="save-rule">
                 {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>Salva regola</Text>}
               </Pressable>
-            </ScrollView>
+              </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* URL editor modal */}
       <Modal transparent visible={!!editUrl} animationType="slide" onRequestClose={() => setEditUrl(null)}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHdr}>
-              <Text style={styles.sheetTitle}>{editUrl?.url_id ? "Modifica URL" : "Nuovo URL da monitorare"}</Text>
-              <Pressable onPress={() => setEditUrl(null)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>
-            </View>
-            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+          keyboardVerticalOffset={0}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.backdrop}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHdr}>
+                <Text style={styles.sheetTitle}>{editUrl?.url_id ? "Modifica URL" : "Nuovo URL da monitorare"}</Text>
+                <Pressable onPress={() => setEditUrl(null)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>
+              </View>
+              <ScrollView
+                contentContainerStyle={{ paddingBottom: 20 }}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+                showsVerticalScrollIndicator={false}
+              >
               <Text style={styles.lbl}>Nome / descrizione</Text>
               <TextInput testID="url-name-input" value={editUrl?.name || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), name: t }))} placeholder="Es. ARERA - Bollette luce" placeholderTextColor="#94A3B8" style={styles.input} />
               <Text style={styles.lbl}>Indirizzo web</Text>
@@ -625,9 +646,10 @@ export default function AiTeachScreen() {
               <Pressable onPress={saveUrl} disabled={busy} style={[styles.saveBtn, { backgroundColor: busy ? C.muted : C.primary }]} testID="save-url">
                 {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>Salva URL</Text>}
               </Pressable>
-            </ScrollView>
+              </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
       {/* V28.j — Info modal per Regole / Fonti URL / Storico */}
       <Modal transparent visible={!!infoTab} animationType="fade" onRequestClose={() => setInfoTab(null)}>
