@@ -1,0 +1,44 @@
+{
+  "summary": "V29.av verification — BUGS 6/7/8. Backend Contact + ContactUpdate models correctly extend with energy_ref_name/phone/email (BUG 7): 3/3 pytest passed (create+persist, update+persist, empty defaults). Frontend /contact/new page renders correctly and all required testIDs are present in DOM: c-birth-date-web (BUG 6 web HTML5 date picker), c-energy-ref-name, c-energy-ref-phone, c-energy-ref-email (BUG 7). 'REFERENTE ENERGIA' section title visible in screenshot with the 3 fields fillable. BUG 8: /contact/[id].tsx source confirms the old big 'Codice cliente' card is removed from top (line 637 comment) and replaced by a compact inline row (codeCompactRow, line 1090) at the bottom of the info tab only, with testIDs contact-code-input and contact-code-save. However, end-to-end UI form submission could NOT be exercised because the login button on the web preview does not fire the login handler (no /api/auth/login request seen after auth-submit-button click), so POST /contacts always returns 401 in the browser session. This is likely a pre-existing web-preview auth issue and NOT introduced by V29.av (it does not affect native/APK). Backend tests use the demo user login endpoint successfully, so backend/auth are fine.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Web login (localhost:3000 preview)",
+        "issue": "Clicking [data-testid=\"auth-submit-button\"] on /login does not fire onPress: no POST /api/auth/login is issued, URL stays on /login. Reproduced 3 different ways (mouse.click on bounding box, Playwright click force=True, Enter key on password field). AsyncStorage token injection into localStorage / IndexedDB (RCTAsyncLocalStorage) is not picked up either — app reload keeps user unauthenticated. This blocks end-to-end web submit tests of /contact/new (POST /api/contacts returns 401 in the browser). NOTE: c-save-btn on /contact/new DOES fire onPress correctly and DOES issue POST /api/contacts — confirming other Pressables work. Only auth-submit-button is inert. Not verified whether this is pre-existing regression or environment-specific.",
+        "affected_testIDs": ["auth-submit-button", "auth-email-input", "auth-password-input"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v29av_energy_ref.py",
+    "/app/test_reports/pytest/v29av_energy_ref.xml"
+  ],
+  "action_items": [
+    "BUG 6/7/8 code fixes are verified in source + DOM + backend. No changes needed for the 3 bugs.",
+    "Investigate the web-preview login regression: [data-testid=\"auth-submit-button\"] onPress is not firing on the preview URL. Check if `doAuth` throws synchronously, if `busy` state is stuck, or if a global overlay is intercepting pointer events (Toast/FAB/Assistant). Confirmed backend login endpoint works via curl, and c-save-btn Pressable clicks work — so it's specific to this Pressable/page.",
+    "Once web login is fixed, rerun full E2E on /contact/new to submit a real contact via UI and confirm the 3 energy_ref fields round-trip through the browser."
+  ],
+  "critical_code_review_comments": [
+    "/app/frontend/app/contact/[id].tsx is 1395 lines — over the 700-line threshold. Consider splitting into focused sub-components (tabs into own files).",
+    "/app/frontend/app/contact/new.tsx is very large as well (2000+ lines). Same recommendation applies."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v29av_energy_ref.py"
+  ],
+  "success_rate": {
+    "backend": "100% (3/3 energy_ref tests passed)",
+    "frontend": "UI rendering + testIDs verified 100%; E2E submit blocked by unrelated web-preview login issue"
+  },
+  "seed_data_creation": "None; test contacts are created and deleted within each test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "BUGS 6/7/8 in V29.av (advisoros build 1.0.16) all verified: backend Contact/ContactUpdate models accept energy_ref_name/phone/email (test_v29av_energy_ref.py 3/3 passing); /contact/new renders Referente Energia section with testIDs c-energy-ref-{name,phone,email} + c-birth-date-web; /contact/[id].tsx moved the 'Codice cliente' from a top card to a compact bottom row (codeCompactRow) with testIDs contact-code-input & contact-code-save. Web-preview login is not functional through Playwright — auth-submit-button Pressable seems to not fire onPress; may be pre-existing. Save button on new-contact page works (c-save-btn triggers POST /api/contacts, but 401 because unauthenticated).",
+  "rca_of_issue": "N/A for the 3 target bugs — all confirmed fixed. The unrelated login-preview issue could be an overlay intercepting events on /login only; recommend inspecting z-index of Toast/AssistantFAB stack on the login screen."
+}

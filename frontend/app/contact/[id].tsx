@@ -634,38 +634,9 @@ function ContactDetail() {
               contactName={`${c.first_name} ${c.last_name}`.trim()}
             />
 
-            {/* V28.z — Codice cliente: visibile a tutti, editabile solo dal Master */}
-            <View style={styles.card}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <Ionicons name="pricetag" size={16} color={theme.color.brandPrimary} />
-                <Text style={styles.commSectionTitle}>Codice cliente</Text>
-              </View>
-              {isMaster ? (
-                <View style={{ flexDirection: "row", gap: 6 }}>
-                  <TextInput
-                    testID="contact-code-input"
-                    value={contactCodeEdit}
-                    onChangeText={setContactCodeEdit}
-                    onBlur={saveContactCode}
-                    onSubmitEditing={saveContactCode}
-                    placeholder="Es. CL-2026-042"
-                    placeholderTextColor="#94A3B8"
-                    style={{ flex: 1, backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: theme.color.onSurface }}
-                  />
-                  <Pressable
-                    testID="contact-code-save"
-                    onPress={saveContactCode}
-                    disabled={contactCodeSaving}
-                    hitSlop={6}
-                    style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: theme.color.brandPrimary, borderRadius: 8, alignItems: "center", justifyContent: "center" }}
-                  >
-                    {contactCodeSaving ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="save" size={16} color="#FFF" />}
-                  </Pressable>
-                </View>
-              ) : (
-                <Text style={{ fontSize: 15, fontWeight: "700", color: theme.color.onSurface }}>{c.contact_code || "—"}</Text>
-              )}
-            </View>
+            {/* V29.av — Codice Cliente card RIMOSSA da qui: spostata in fondo
+                alla pagina come riga compatta (elemento secondario). Vedi
+                blocco `codeCompactRow` sotto la sezione "Comunica con". */}
 
             {/* V28.q — Bidirectional peer references */}
             <ContactReferencesSection
@@ -1113,6 +1084,38 @@ function ContactDetail() {
           </>
         )}
 
+        {/* V29.av — Codice Cliente: riga compatta inline (etichetta + valore),
+            spostata in fondo alla pagina. Solo Master può editare tap-and-inline. */}
+        {tab === "info" && (
+          <View style={styles.codeCompactRow}>
+            <Ionicons name="pricetag-outline" size={14} color={theme.color.muted} />
+            <Text style={styles.codeCompactLabel}>Codice cliente:</Text>
+            {isMaster ? (
+              <>
+                <TextInput
+                  testID="contact-code-input"
+                  value={contactCodeEdit}
+                  onChangeText={setContactCodeEdit}
+                  onBlur={saveContactCode}
+                  onSubmitEditing={saveContactCode}
+                  placeholder="—"
+                  placeholderTextColor="#94A3B8"
+                  style={styles.codeCompactInput}
+                />
+                {contactCodeSaving ? (
+                  <ActivityIndicator size="small" color={theme.color.brandPrimary} />
+                ) : (
+                  <Pressable testID="contact-code-save" onPress={saveContactCode} hitSlop={8}>
+                    <Ionicons name="save-outline" size={16} color={theme.color.brandPrimary} />
+                  </Pressable>
+                )}
+              </>
+            ) : (
+              <Text style={styles.codeCompactValue} numberOfLines={1}>{c.contact_code || "—"}</Text>
+            )}
+          </View>
+        )}
+
         <View style={{ height: 40 }} />
       </ScrollView>
       )}
@@ -1270,6 +1273,24 @@ const styles = StyleSheet.create({
   wazeInlineTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
   navBtnRow: { flexDirection: "row", gap: 8, marginLeft: 30, marginTop: 6, flexWrap: "wrap" },
   commSectionTitle: { fontSize: 13, fontWeight: "700", color: theme.color.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  // V29.av — Codice cliente compatto (elemento secondario in fondo pagina)
+  codeCompactRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginHorizontal: 16, marginTop: 12,
+    paddingVertical: 8, paddingHorizontal: 10,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8, borderWidth: 1, borderColor: theme.color.divider,
+  },
+  codeCompactLabel: {
+    fontSize: 12, color: theme.color.muted, fontWeight: "600",
+  },
+  codeCompactValue: {
+    flex: 1, fontSize: 13, fontWeight: "700", color: theme.color.onSurface,
+  },
+  codeCompactInput: {
+    flex: 1, fontSize: 13, fontWeight: "700",
+    color: theme.color.onSurface, paddingVertical: 2, paddingHorizontal: 0,
+  },
   badgesRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   areaBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill },
   areaBadgeTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },

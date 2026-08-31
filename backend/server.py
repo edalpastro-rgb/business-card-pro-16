@@ -588,6 +588,10 @@ class ContactIn(BaseModel):
     work_address: str = ""       # V26.h: indirizzo di lavoro (free text)
     residence_address: str = ""  # V26.h: indirizzo di residenza (free text)
     birth_date: Optional[str] = None
+    # V29.av — Referente Energia (persona di riferimento per pratiche energia)
+    energy_ref_name: str = ""
+    energy_ref_phone: str = ""
+    energy_ref_email: str = ""
     birthday_alert_days_before: int = 1
     birthday_auto_send: bool = False
     birthday_message: str = ""
@@ -644,6 +648,10 @@ class ContactUpdate(BaseModel):
     work_address: Optional[str] = None       # V26.h
     residence_address: Optional[str] = None  # V26.h
     birth_date: Optional[str] = None
+    # V29.av — Referente Energia (update-only fields)
+    energy_ref_name: Optional[str] = None
+    energy_ref_phone: Optional[str] = None
+    energy_ref_email: Optional[str] = None
     birthday_alert_days_before: Optional[int] = None
     birthday_auto_send: Optional[bool] = None
     birthday_message: Optional[str] = None

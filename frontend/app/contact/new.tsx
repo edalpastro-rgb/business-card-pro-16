@@ -16,6 +16,8 @@ import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/med
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { QRScannerModal } from "@/src/QRScannerModal";
 import { ModuleErrorBoundary } from "@/src/shared";
+// V29.av — Date picker nativo Android/iOS per la data di nascita
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 type PendingAttachment = {
   local_id: string;
@@ -81,6 +83,9 @@ function NewContactScreen() {
     address_street: "", address_number: "", address_zip: "", address_city: "", address_province: "",
     work_address: "", residence_address: "",
     birth_date: "", fiscal_code: "", vat_number: "",
+    // V29.av — Referente Energia (persona di riferimento per pratiche energia,
+    // separata dal titolare del contratto). Salvata come 3 campi separati.
+    energy_ref_name: "", energy_ref_phone: "", energy_ref_email: "",
     website: "", linkedin: "", instagram: "", facebook: "",
     birthday_alert_days_before: 1,
     birthday_auto_send: false,
@@ -1248,7 +1253,13 @@ function NewContactScreen() {
                 />
               </View>
             ) : (
-              <Field label="" testID="c-birth-date" value={form.birth_date} onChangeText={(t: string) => setForm({ ...form, birth_date: t })} placeholder="gg/mm/aaaa" />
+              // V29.av — Su native (Android/iOS) mostriamo un pulsante che apre
+              // il DateTimePicker nativo. Il valore letto/scritto rimane in
+              // formato dd/mm/yyyy per compatibilità col resto del codice.
+              <BirthdayPickerNative
+                value={form.birth_date}
+                onChange={(txt) => setForm({ ...form, birth_date: txt })}
+              />
             )}
 
             {form.birth_date.length >= 5 && (
@@ -1465,6 +1476,19 @@ function NewContactScreen() {
             <Field label="Email 2°" testID="c-email-alt" value={form.email_alt} onChangeText={(t: string) => setForm({ ...form, email_alt: t })} keyboardType="email-address" autoCapitalize="none" />
             <Field label="Telegram (username, es. @mario)" testID="c-telegram" value={form.telegram} onChangeText={(t: string) => setForm({ ...form, telegram: t })} autoCapitalize="none" />
           </Section>
+
+          {/* V29.av — Referente Energia: persona di riferimento per pratiche
+              energia, distinta dal titolare del contatto. Utile quando chi si
+              gestisce le utenze non è il diretto interessato (es. figli per
+              i genitori, dipendente per l'azienda). */}
+          <Section title="Referente Energia">
+            <Field label="Nome referente" testID="c-energy-ref-name" value={form.energy_ref_name} onChangeText={(t: string) => setForm({ ...form, energy_ref_name: t })} placeholder="Es. Mario Bianchi" />
+            <Row>
+              <Field flex={1} label="Telefono referente" testID="c-energy-ref-phone" value={form.energy_ref_phone} onChangeText={(t: string) => setForm({ ...form, energy_ref_phone: t })} keyboardType="phone-pad" />
+              <Field flex={1} label="Email referente" testID="c-energy-ref-email" value={form.energy_ref_email} onChangeText={(t: string) => setForm({ ...form, energy_ref_email: t })} keyboardType="email-address" autoCapitalize="none" />
+            </Row>
+          </Section>
+
 
           <Section title="Indirizzo">
             <Row>
@@ -2231,6 +2255,74 @@ function Field({ label, multiline, flex, ...rest }: any) {
     </View>
   );
 }
+
+/**
+ * V29.av — BirthdayPickerNative: pulsante che apre un DateTimePicker nativo
+ * (calendario Android / spinner iOS). Espone il valore in formato dd/mm/yyyy
+ * per matching col resto della logica compleanno. Range: 1900–oggi.
+ */
+function BirthdayPickerNative({ value, onChange }: { value: string; onChange: (txt: string) => void }) {
+  const [show, setShow] = useState(false);
+  const parsed = (() => {
+    const p = (value || "").split("/");
+    if (p.length === 3 && p[2].length === 4) {
+      const d = parseInt(p[0], 10), m = parseInt(p[1], 10) - 1, y = parseInt(p[2], 10);
+      const dt = new Date(y, m, d);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+    return null;
+  })();
+  const display = parsed ? value : "Tocca per selezionare";
+  return (
+    <>
+      <Pressable
+        testID="c-birth-date"
+        onPress={() => setShow(true)}
+        style={{
+          backgroundColor: "#FFF",
+          borderRadius: theme.radius.md,
+          borderWidth: 1,
+          borderColor: theme.color.border,
+          paddingHorizontal: 12,
+          paddingVertical: 12,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
+        <Ionicons name="calendar" size={18} color={theme.color.brandPrimary} />
+        <Text style={{ color: parsed ? theme.color.onSurface : theme.color.muted, fontSize: 15, flex: 1 }}>
+          {display}
+        </Text>
+        {parsed && (
+          <Pressable testID="c-birth-date-clear" hitSlop={8} onPress={() => onChange("")}>
+            <Ionicons name="close-circle" size={18} color={theme.color.muted} />
+          </Pressable>
+        )}
+      </Pressable>
+      {show && (
+        <DateTimePicker
+          testID="c-birth-date-picker"
+          value={parsed || new Date(1990, 0, 1)}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "calendar"}
+          minimumDate={new Date(1900, 0, 1)}
+          maximumDate={new Date()}
+          onChange={(_ev, selected) => {
+            setShow(false);
+            if (selected) {
+              const dd = String(selected.getDate()).padStart(2, "0");
+              const mm = String(selected.getMonth() + 1).padStart(2, "0");
+              const yy = String(selected.getFullYear());
+              onChange(`${dd}/${mm}/${yy}`);
+            }
+          }}
+        />
+      )}
+    </>
+  );
+}
+
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.surface },
