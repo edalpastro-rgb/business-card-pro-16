@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ImageBackground, Image, Modal, Linking, Animated, Easing, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ImageBackground, Modal, Linking, Animated, Easing, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,10 +11,7 @@ import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 import { MasterPromoteModal } from "@/src/MasterPromoteModal";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
 import { ModuleErrorBoundary } from "@/src/shared";
-
-// V29.ay — Riusa la stessa immagine dashboard bundlata dell'header Home per
-// creare continuità visiva del brand (offline-safe: nessun URL remoto).
-const HOME_HEADER_IMG = require("@/assets/images/advisoros-home-header.jpg");
+import { NeuralPatternBg } from "@/src/NeuralPatternBg";
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
 type MyThingImage = { item_id: string; image_base64?: string | null };
@@ -176,17 +173,24 @@ function MasterScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      {/* V29.ay — Header hero: sostituito il LinearGradient dark navy→purple con
-          la stessa immagine locale dashboard usata dalla Home per continuità
-          visiva del brand AdvisorOS/AxonOS. Scrim scuro semi-trasparente
-          garantisce leggibilità di testi e clock sopra l'immagine. */}
+      {/* V29.ba — Header hero: stesso tema tecnico della Home (sfondo navy scuro +
+          circuiti neurali cyan) MA senza i loghi AdvisorOS/AxonOS. */}
       <View style={styles.hero}>
-        <Image
-          source={HOME_HEADER_IMG}
-          resizeMode="cover"
-          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
+        <LinearGradient
+          colors={["#0B1E38", "#0F172A", "#1E293B"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
         />
-        <View pointerEvents="none" style={styles.heroScrim} />
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+          <NeuralPatternBg
+            width={390}
+            height={140}
+            color="#38BDF8"
+            opacity={0.28}
+            pulseColor="#22D3EE"
+          />
+        </View>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backBtn} testID="master-back">
             <Ionicons name="chevron-back" size={22} color="#FFF" />
@@ -203,29 +207,34 @@ function MasterScreen() {
             <Ionicons name="ellipsis-vertical" size={22} color="#FFF" />
           </Pressable>
         </View>
-
-        {/* My Thing banner — slideshow with crossfade (same as Home) */}
-        <Pressable onPress={() => router.push("/my-thing")} style={styles.bannerWrap} testID="master-banner">
-          {currentBannerImg ? (
-            <Animated.View style={[StyleSheet.absoluteFill, { opacity: bannerFade }]} pointerEvents="none">
-              <ImageBackground
-                source={{ uri: currentBannerImg }}
-                resizeMode="cover"
-                style={StyleSheet.absoluteFill}
-                imageStyle={Platform.OS === "web" ? ({ objectFit: "cover", width: "100%", height: "100%" } as any) : { borderRadius: 12 }}
-              />
-            </Animated.View>
-          ) : (
-            <LinearGradient colors={["#7C3AED", "#DB2777"]} style={styles.bannerFallback} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-              <Ionicons name="images" size={28} color="#FFF" />
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={styles.bannerLabel}>My Thing</Text>
-                <Text style={styles.bannerBody}>Aggiungi immagini motivazionali da &quot;My Thing&quot;</Text>
-              </View>
-            </LinearGradient>
-          )}
-        </Pressable>
       </View>
+
+      {/* My Thing banner spostato FUORI dall'hero (V29.az) così l'immagine
+          dashboard resta fully-visible come in Home. */}
+      <Pressable
+        onPress={() => router.push("/my-thing")}
+        style={[styles.bannerWrap, { marginHorizontal: 16, marginTop: 12 }]}
+        testID="master-banner"
+      >
+        {currentBannerImg ? (
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: bannerFade }]} pointerEvents="none">
+            <ImageBackground
+              source={{ uri: currentBannerImg }}
+              resizeMode="cover"
+              style={StyleSheet.absoluteFill}
+              imageStyle={Platform.OS === "web" ? ({ objectFit: "cover", width: "100%", height: "100%" } as any) : { borderRadius: 12 }}
+            />
+          </Animated.View>
+        ) : (
+          <LinearGradient colors={["#7C3AED", "#DB2777"]} style={styles.bannerFallback} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+            <Ionicons name="images" size={28} color="#FFF" />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text style={styles.bannerLabel}>My Thing</Text>
+              <Text style={styles.bannerBody}>Aggiungi immagini motivazionali da &quot;My Thing&quot;</Text>
+            </View>
+          </LinearGradient>
+        )}
+      </Pressable>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <View style={styles.grid}>
@@ -533,25 +542,59 @@ const styles = StyleSheet.create({
   hero: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 16,
-    // V29.ay — Sfondo scuro di base sotto l'immagine (cover mask); l'immagine full-bleed
-    // è renderizzata come <Image absoluteFill>. Overflow hidden per rispettare i bordi.
+    paddingBottom: 8,
+    // V29.az — Height fissa uguale all'header Home (140px full-screen) così
+    // l'immagine dashboard AdvisorOS/AxonOS è visibile alla stessa dimensione.
+    height: 140,
     backgroundColor: "#0B1E38",
     overflow: "hidden",
     position: "relative",
+    justifyContent: "flex-start",
   },
   heroScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(11, 30, 56, 0.55)", // navy-scrim per leggibilità testi
+    // V29.az — Scrim trasparente per allineamento visivo esatto con l'header
+    // Home (che non ha scrim). La leggibilità dei testi è garantita dal
+    // textShadow applicato su .hi, .title, .clockTime, .clockDate.
+    backgroundColor: "transparent",
   },
   header: { flexDirection: "row", alignItems: "center", gap: 10, zIndex: 1 },
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
   menuBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-  hi: { color: "rgba(255,255,255,0.8)", fontSize: 12 },
-  title: { color: "#FFF", fontSize: 18, fontWeight: "800" },
+  hi: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 12,
+    // V29.az — Text shadow leggero per garantire leggibilità sopra l'immagine
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  title: {
+    color: "#FFF",
+    fontSize: 18,
+    fontWeight: "800",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
   clockWrap: { alignItems: "flex-end", marginRight: 6 },
-  clockTime: { color: "#FFF", fontSize: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  clockDate: { color: "rgba(255,255,255,0.75)", fontSize: 10, textTransform: "capitalize" },
+  clockTime: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  clockDate: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 10,
+    textTransform: "capitalize",
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
 
   bannerWrap: { marginTop: 8, height: 100, borderRadius: 12, overflow: "hidden", position: "relative", backgroundColor: "#F1F5F9", zIndex: 1 },
   bannerImg: { flex: 1 },
@@ -562,9 +605,24 @@ const styles = StyleSheet.create({
   bannerBody: { color: "rgba(255,255,255,0.9)", fontSize: 11, marginTop: 1 },
 
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  btnCell: { width: "31%", alignItems: "center", marginBottom: 18 },
-  btnCircle: { width: 72, height: 72, borderRadius: 20, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
-  btnLabel: { marginTop: 8, fontSize: 12, fontWeight: "700", color: theme.color.onSurface, textAlign: "center" },
+  btnCell: { width: "31%", alignItems: "center", marginBottom: 22 },
+  // V29.ba — Stile "Optima": icona full-round su cerchio colorato con shadow
+  // marcato (effetto rialzato/3D) e leggero highlight in alto.
+  btnCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.35)",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  btnLabel: { marginTop: 10, fontSize: 12, fontWeight: "700", color: theme.color.onSurface, textAlign: "center" },
   badgeDot: { position: "absolute", top: -4, right: -4, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: "#16A34A", justifyContent: "center", alignItems: "center", paddingHorizontal: 5, borderWidth: 2, borderColor: "#FFF" },
   badgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "800" },
   myAudiosLink: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", paddingVertical: 10, paddingHorizontal: 16, backgroundColor: "#F5F3FF", borderRadius: 20, borderWidth: 1, borderColor: "#DDD6FE" },

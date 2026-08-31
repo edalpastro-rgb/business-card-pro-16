@@ -499,14 +499,14 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Azioni rapide</Text>
           <View style={styles.quickRow}>
             <Pressable testID="qa-new-appt" style={styles.quick} onPress={() => router.push("/appointment/new")}>
-              <View style={[styles.quickIcon, { backgroundColor: C.primarySoft }]}>
-                <Ionicons name="calendar-outline" size={20} color={C.primary} />
+              <View style={[styles.quickIcon, { backgroundColor: C.primary }]}>
+                <Ionicons name="calendar-outline" size={22} color="#FFF" />
               </View>
               <Text style={styles.quickTxt}>Nuovo appuntamento</Text>
             </Pressable>
             <Pressable testID="qa-new-contact" style={styles.quick} onPress={() => router.push("/contact/new")}>
-              <View style={[styles.quickIcon, { backgroundColor: C.navySoft }]}>
-                <Ionicons name="person-add-outline" size={20} color={C.navy} />
+              <View style={[styles.quickIcon, { backgroundColor: C.navy }]}>
+                <Ionicons name="person-add-outline" size={22} color="#FFF" />
               </View>
               <Text style={styles.quickTxt}>Nuovo contatto</Text>
             </Pressable>
@@ -1172,14 +1172,27 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5 },
   areaTitle: { fontSize: 12, fontWeight: "800", color: C.navy, textTransform: "uppercase", letterSpacing: 0.5 },
 
-  /* Quick */
+  /* Quick — V29.ba stile "Optima": icona full-round colorata con shadow rialzato */
   quickRow: { flexDirection: "row", gap: 12 },
   quick: {
     flex: 1, backgroundColor: C.white, padding: 14, borderRadius: 16, alignItems: "flex-start", gap: 10,
     borderWidth: 1, borderColor: C.border,
     ...(cardShadow as any),
   },
-  quickIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  quickIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.9)",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
   quickTxt: { fontWeight: "800", color: C.navy, fontSize: 13 },
 
   /* V29 · Scadenze */

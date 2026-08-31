@@ -2413,3 +2413,25 @@ Le props di `KeyboardAvoidingView` restano invariate come richiesto (`behavior="
 
 **Nota**: il `LinearGradient` viola/pink resta come **fallback** del banner "My Thing" quando l'utente non ha ancora caricato immagini motivazionali — comportamento pre-esistente immutato.
 
+
+## V29.ba — Header Master tema tecnico (no loghi) + Bottoni stile Optima
+
+**Richieste utente**:
+1. Header area Master: stesso tema tecnico della Home ma SENZA i loghi AdvisorOS/AxonOS (solo lo sfondo)
+2. Stile bottoni globale: ombra, effetto rialzato, icone colorate con sfondo tondo (riferimento: slide Optima)
+3. Il motto "Continuare ad evolvere" NON deve apparire nelle pagine dell'app (solo per la presentazione)
+
+**Modifiche**:
+
+`master.tsx`:
+- Rimosso `<Image HOME_HEADER_IMG>` full-bleed (che conteneva i loghi)
+- Sostituito con `<LinearGradient>` (navy `#0B1E38 → #0F172A → #1E293B`) + `<NeuralPatternBg color="#38BDF8" pulseColor="#22D3EE" opacity={0.28} />` overlay → sfondo tecnico con circuiti neurali cyan
+- **Motto rimosso** (era stato aggiunto per errore) — nessun testo aggiunto ai pageheader
+- `btnCircle` aggiornato a stile Optima: `borderRadius: 36` (full-round), `borderWidth: 2 borderColor: rgba(255,255,255,0.35)` (highlight superiore), `shadowOpacity: 0.25`, `shadowRadius: 10`, `shadowOffset: {0,6}`, `elevation: 8` (effetto rialzato marcato)
+
+`home.tsx` (griglia "Azioni rapide"):
+- Icone quick da 40×40 con borderRadius 12 → **44×44 full-round** con bordo bianco e shadow rialzato
+- Colori background da soft-pastel (`C.primarySoft`, `C.navySoft`) a **colori pieni** (`C.primary`, `C.navy`) con icona bianca — stile Optima
+
+**Files toccati**: `/app/frontend/app/master.tsx`, `/app/frontend/app/(tabs)/home.tsx`. Nessun autotest come richiesto.
+
