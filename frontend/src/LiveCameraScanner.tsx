@@ -64,6 +64,13 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   const [edgeDetectOn, setEdgeDetectOn] = useState(true);
   const detectBusyRef = useRef(false); // prevents overlapping requests
   const lastCornersRef = useRef<[number, number][] | null>(null); // for EMA smoothing
+  // Bug 11.c — Auto-shutter: fire capture when the document is stable for
+  // AUTO_STABLE_MS. State machine per-detection: unstable → stable → captured
+  // (cool-down for AUTO_COOLDOWN_MS so we don't take two shots in a row).
+  const [autoShutter, setAutoShutter] = useState(true);
+  const [autoCountdown, setAutoCountdown] = useState<number | null>(null); // 0..1 progress
+  const stableSinceRef = useRef<number | null>(null); // ms timestamp when doc became stable
+  const cooldownUntilRef = useRef<number>(0); // ms timestamp until which no auto-shot allowed
 
   // Reset state when modal is closed
   useEffect(() => {
@@ -75,6 +82,9 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
       setLiveCorners(null);
       lastCornersRef.current = null;
       detectBusyRef.current = false;
+      stableSinceRef.current = null;
+      cooldownUntilRef.current = 0;
+      setAutoCountdown(null);
     }
   }, [visible]);
 
@@ -90,12 +100,19 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   // and POST it to /scanner/detect-corners. If corners are detected we apply
   // exponential moving average smoothing (alpha=0.5) to avoid jitter, then
   // update `liveCorners` for the overlay to redraw.
+  //
+  // Bug 11.c — Auto-shutter: when the document is detected AND corners are
+  // stable (max normalized delta < STABILITY_THRESHOLD) for AUTO_STABLE_MS,
+  // we automatically trigger takeShot(). Cool-down prevents duplicates.
   useEffect(() => {
     if (!visible || !edgeDetectOn) return;
     if (!permission?.granted) return;
     let cancelled = false;
-    const SAMPLE_INTERVAL = 1200;
+    const SAMPLE_INTERVAL = 900; // faster sampling so auto-shutter feels responsive
     const ALPHA = 0.55; // 0 = no smoothing, 1 = only new value
+    const STABILITY_THRESHOLD = 0.03; // max normalized delta across 4 corners
+    const AUTO_STABLE_MS = 1000; // hold time before firing auto-shutter
+    const AUTO_COOLDOWN_MS = 2000; // grace period after auto/manual shot
 
     const smooth = (
       next: [number, number][],
@@ -106,6 +123,16 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
         const [px, py] = prev[i] || [x, y];
         return [px + (x - px) * ALPHA, py + (y - py) * ALPHA] as [number, number];
       });
+    };
+
+    const maxDelta = (a: [number, number][], b: [number, number][]): number => {
+      let m = 0;
+      for (let i = 0; i < 4; i++) {
+        const dx = Math.abs(a[i][0] - b[i][0]);
+        const dy = Math.abs(a[i][1] - b[i][1]);
+        m = Math.max(m, dx, dy);
+      }
+      return m;
     };
 
     const tick = async () => {
@@ -120,7 +147,6 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
           quality: 0.1,
           skipProcessing: true,
           exif: false,
-          // shutterSound: false, // not supported on older SDKs
         } as any);
         if (cancelled) return;
         if (!snap?.base64) return;
@@ -129,13 +155,50 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
           { method: "POST", body: { data_base64: snap.base64, mime: "image/jpeg" } },
         );
         if (cancelled) return;
+        const now = Date.now();
         if (r?.detected && r.corners && r.corners.length === 4) {
           const smoothed = smooth(r.corners, lastCornersRef.current);
+          // Stability = delta between raw new corners and previous smoothed
+          const stable = lastCornersRef.current
+            ? maxDelta(r.corners, lastCornersRef.current) < STABILITY_THRESHOLD
+            : false;
           lastCornersRef.current = smoothed;
           setLiveCorners(smoothed);
+
+          // Auto-shutter state machine
+          if (autoShutter && now >= cooldownUntilRef.current) {
+            if (stable) {
+              if (stableSinceRef.current == null) {
+                stableSinceRef.current = now;
+                setAutoCountdown(0);
+              } else {
+                const held = now - stableSinceRef.current;
+                if (held >= AUTO_STABLE_MS) {
+                  // Fire!
+                  stableSinceRef.current = null;
+                  cooldownUntilRef.current = now + AUTO_COOLDOWN_MS;
+                  setAutoCountdown(null);
+                  // release the guard before calling takeShot which sets busy=true
+                  detectBusyRef.current = false;
+                  takeShot();
+                  return;
+                } else {
+                  setAutoCountdown(Math.min(1, held / AUTO_STABLE_MS));
+                }
+              }
+            } else {
+              // moved → reset countdown
+              stableSinceRef.current = null;
+              setAutoCountdown(null);
+            }
+          } else {
+            setAutoCountdown(null);
+          }
         } else {
           lastCornersRef.current = null;
           setLiveCorners(null);
+          stableSinceRef.current = null;
+          setAutoCountdown(null);
         }
       } catch {
         // ignore transient errors — the loop will retry next tick
@@ -152,7 +215,9 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
       clearTimeout(initial);
       clearInterval(iv);
     };
-  }, [visible, edgeDetectOn, permission?.granted, busy]);
+    // Note: takeShot is stable via useCallback below; adding it here would cause a re-subscribe cycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, edgeDetectOn, permission?.granted, busy, autoShutter]);
 
   const applyAutocropAsync = useCallback(
     async (index: number, data_base64: string) => {
@@ -204,6 +269,9 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
 
   const takeShot = useCallback(async () => {
     if (busy || !cameraRef.current) return;
+    // Reset auto-shutter timers (whether manual or auto call)
+    stableSinceRef.current = null;
+    setAutoCountdown(null);
     setBusy(true);
     try {
       const photo = await cameraRef.current.takePictureAsync({
@@ -376,12 +444,29 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
               />
               <Text style={styles.topBadgeTxt}>
                 {edgeDetectOn
-                  ? liveCorners
-                    ? "Documento rilevato · tocca per scattare"
-                    : "Cerco i bordi… inquadra il foglio"
+                  ? autoCountdown !== null
+                    ? `Scatto tra ${Math.max(0, Math.ceil((1 - autoCountdown) * 1))}s…`
+                    : liveCorners
+                      ? autoShutter
+                        ? "Rilevato · tieni fermo per lo scatto"
+                        : "Documento rilevato · tocca per scattare"
+                      : "Cerco i bordi… inquadra il foglio"
                   : "Autofocus attivo · rilevamento OFF"}
                 {processingCount > 0 ? ` · ${processingCount}` : ""}
               </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setAutoShutter((v) => !v);
+                stableSinceRef.current = null;
+                setAutoCountdown(null);
+              }}
+              hitSlop={12}
+              style={[styles.circleBtn, autoShutter && { backgroundColor: "#22C55E" }]}
+              testID="live-scan-auto-toggle"
+              accessibilityLabel={autoShutter ? "Passa a scatto manuale" : "Passa a scatto automatico"}
+            >
+              <Ionicons name={autoShutter ? "flash-outline" : "hand-left-outline"} size={18} color="#FFF" />
             </Pressable>
             <Pressable
               onPress={() => setTorch((t) => (t === "on" ? "off" : "on"))}
@@ -442,13 +527,29 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
             <Pressable
               onPress={takeShot}
               disabled={busy}
-              style={[styles.shutter, busy && { opacity: 0.6 }]}
+              style={[styles.shutter, busy && { opacity: 0.6 }, autoCountdown !== null && { borderColor: "#22C55E" }]}
               testID="live-scan-shutter"
               accessibilityLabel="Scatta"
             >
+              {/* Auto-shutter progress ring: a green quadrant that grows around the shutter */}
+              {autoCountdown !== null && autoCountdown > 0 && (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.shutterRing,
+                    {
+                      // Simulate progress with a rotating border sweep: grow diameter as fill
+                      opacity: 0.75,
+                      transform: [{ scale: 0.55 + 0.45 * autoCountdown }],
+                    },
+                  ]}
+                />
+              )}
               <View style={styles.shutterInner}>
                 {busy ? (
                   <ActivityIndicator color="#FF6B35" />
+                ) : autoCountdown !== null ? (
+                  <Ionicons name="hourglass" size={26} color="#22C55E" />
                 ) : (
                   <Ionicons name="camera" size={26} color="#FF6B35" />
                 )}
@@ -617,6 +718,16 @@ const styles = StyleSheet.create({
     borderColor: "#FFF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  shutterRing: {
+    position: "absolute",
+    top: -6,
+    left: -6,
+    right: -6,
+    bottom: -6,
+    borderRadius: 44,
+    borderWidth: 4,
+    borderColor: "#22C55E",
   },
   shutterInner: {
     width: 60,

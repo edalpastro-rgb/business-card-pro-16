@@ -2177,3 +2177,38 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 - Investigato via Playwright: `pointerEvents` = `auto` su tutti i parent, `elementFromPoint` alla coordinata del bottone restituisce un figlio del `Pressable` (nessun overlay bloccante), click completa e naviga a `/home` (Home renderizzata con "Ciao, EMANUELE").
 - La regressione riportata dal testing agent precedente era **transiente** (probabile timing/cold-start). **Nessuna correzione al codice necessaria**.
 
+
+## Bug 11.c — Scatto automatico con toggle Auto/Manuale (V29E)
+
+**Richiesta utente:** "Fai partire lo shutter dopo 1s che il documento è nel frame in modo stabile senza premere il pulsante, l'utente deve poter scegliere se scatto automatico o manuale."
+
+**LiveCameraScanner.tsx**:
+- Nuovo state `autoShutter` (default: `true`) + `autoCountdown` (0..1 progress).
+- **State machine** dentro il loop di sampling:
+  - `stableSinceRef` = timestamp ms quando il documento è diventato stabile
+  - Stabilità = `max delta normalizzato < 0.03` tra 4 corner rilevati tra due sample consecutivi
+  - Se stabile per **1000ms** → `takeShot()` automatico
+  - `cooldownUntilRef` = grace period **2000ms** dopo ogni scatto (impedisce doppi)
+  - Qualsiasi movimento (o perdita rilevamento) resetta il timer
+- **SAMPLE_INTERVAL** ridotto da 1200ms → **900ms** per responsività.
+
+**UI**:
+- Nuovo pulsante tondo `live-scan-auto-toggle` nel top bar tra badge e torcia:
+  - Auto = icona ⚡ `flash-outline` + sfondo verde `#22C55E`
+  - Manuale = icona ✋ `hand-left-outline` + sfondo grigio
+- **Shutter grande** durante il countdown mostra icona ⏳ `hourglass` verde + `shutterRing` (bordo verde che cresce con `transform: scale(0.55 + 0.45 × progress)`).
+- **Badge dinamico** con 5 stati:
+  - "Cerco i bordi… inquadra il foglio"
+  - "Documento rilevato · tocca per scattare" (manuale)
+  - "Rilevato · tieni fermo per lo scatto" (auto in attesa)
+  - "Scatto tra Xs…" (countdown attivo)
+  - "Autofocus attivo · rilevamento OFF"
+
+**Costanti**:
+- `STABILITY_THRESHOLD` = 0.03 (max delta corner normalizzato)
+- `AUTO_STABLE_MS` = 1000 (hold time prima dello scatto)
+- `AUTO_COOLDOWN_MS` = 2000 (grace period dopo scatto)
+- `SAMPLE_INTERVAL` = 900
+
+**Verifica**: entrambi i toggle (auto + edge + torch) visibili nel viewfinder, tap toggle Auto cambia icona/colore correttamente. Su dispositivo reale: inquadra un documento fermo per 1s → scatto automatico + thumbnail nella strip con badge ✂️.
+
