@@ -48,6 +48,8 @@ function ImpostazioniScreen() {
   const [assistantName, setAssistantName] = useState<string>("Neo");
   const [assistantNameSaved, setAssistantNameSaved] = useState(false);
   const [assistantMode, setAssistantMode] = useState<"text" | "voice" | "both">("text");
+  // V45 — Badge counter for pending rule proposals (Master only).
+  const [pendingProposals, setPendingProposals] = useState<number>(0);
   const [assistantVoice, setAssistantVoice] = useState<string>("nova");
   const assistantSaveTimer = React.useRef<any>(null);
 
@@ -231,6 +233,22 @@ function ImpostazioniScreen() {
     } catch {}
   }, []);
   useEffect(() => { loadMaster(); }, [loadMaster]);
+
+  // V45 — Poll pending rule proposals count so the "Insegna ad Axon" link
+  // shows a red badge when new suggestions are ready to review.
+  useEffect(() => {
+    if (user?.parent_user_id || user?.role !== "owner") return;
+    let alive = true;
+    const fetchCount = async () => {
+      try {
+        const r = await api<{ pending: number }>("/axon/rule-proposals/count-pending");
+        if (alive) setPendingProposals(r.pending || 0);
+      } catch { /* silent */ }
+    };
+    fetchCount();
+    const t = setInterval(fetchCount, 30000); // refresh every 30s
+    return () => { alive = false; clearInterval(t); };
+  }, [user?.parent_user_id, user?.role]);
 
   const publicCardUrl = useCallback(() => {
     if (!master?.business_card?.card_id) return "";
@@ -550,10 +568,21 @@ function ImpostazioniScreen() {
 
         {!user?.parent_user_id && (
           <Pressable testID="ai-teach-link" onPress={() => router.push("/ai-teach" as any)} style={styles.linkCard}>
-            <Ionicons name="sparkles" size={26} color="#FF6B35" />
+            <View style={{ position: "relative" }}>
+              <Ionicons name="sparkles" size={26} color="#FF6B35" />
+              {pendingProposals > 0 && (
+                <View style={imp45Styles.badge} testID="ai-teach-badge">
+                  <Text style={imp45Styles.badgeTxt}>{pendingProposals > 9 ? "9+" : pendingProposals}</Text>
+                </View>
+              )}
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.linkTitle}>Insegna ad Axon</Text>
-              <Text style={styles.linkSub}>Regole per categoria + fonti URL con aggiornamento manuale/automatico via Tavily</Text>
+              <Text style={styles.linkSub}>
+                {pendingProposals > 0
+                  ? `${pendingProposals} nuova/e proposta/e da rivedere · regole per categoria + fonti URL`
+                  : "Regole per categoria + fonti URL con aggiornamento manuale/automatico via Tavily"}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
           </Pressable>
@@ -1078,6 +1107,26 @@ function ImpostazioniScreen() {
     </SafeAreaView>
   );
 }
+
+
+// V45 — Red badge for the "Insegna ad Axon" link when there are pending suggestions.
+const imp45Styles = StyleSheet.create({
+  badge: {
+    position: "absolute",
+    top: -5,
+    right: -8,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    backgroundColor: "#DC2626",
+    borderWidth: 2,
+    borderColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "800", letterSpacing: -0.3 },
+});
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.surface },

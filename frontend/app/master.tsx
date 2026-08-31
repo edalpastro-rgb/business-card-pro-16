@@ -35,6 +35,8 @@ function MasterScreen() {
   const [myThingImages, setMyThingImages] = useState<string[]>([]);
   const [myThingIdx, setMyThingIdx] = useState(0);
   const [alerts, setAlerts] = useState<Alerts>({ unread: 0, latest: [] });
+  // V45 — Badge counter for pending rule proposals (Master)
+  const [pendingProposals, setPendingProposals] = useState<number>(0);
   const [now, setNow] = useState(new Date());
   const [menuOpen, setMenuOpen] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
@@ -52,6 +54,21 @@ function MasterScreen() {
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  // V45 — Poll pending rule proposals count (30s) so the "Insegna ad Axon"
+  // tile shows a red badge when new suggestions are ready to review.
+  useEffect(() => {
+    let alive = true;
+    const fetchCount = async () => {
+      try {
+        const r = await api<{ pending: number }>("/axon/rule-proposals/count-pending");
+        if (alive) setPendingProposals(r.pending || 0);
+      } catch { /* silent */ }
+    };
+    fetchCount();
+    const t = setInterval(fetchCount, 30000);
+    return () => { alive = false; clearInterval(t); };
   }, []);
 
   const load = useCallback(async () => {
@@ -167,7 +184,8 @@ function MasterScreen() {
     { label: "Biglietto da visita", icon: "id-card", color: "#7C3AED", onPress: () => goto("/business-card") },
     { label: "Banner Evento", icon: "megaphone", color: "#F59E0B", onPress: () => goto("/event-banners") },
     { label: "Script Telefonata", icon: "document-text", color: "#0F766E", onPress: () => goto("/call-script-config") },
-    { label: "Insegna ad Axon", icon: "sparkles", color: "#FF6B35", onPress: () => goto("/ai-teach") },
+    { label: "Insegna ad Axon", icon: "sparkles", color: "#FF6B35", onPress: () => goto("/ai-teach"), badge: pendingProposals },
+    { label: "Cruscotto", icon: "grid", color: "#0EA5E9", onPress: () => goto("/cruscotto") },
     { label: "Azioni rapide", icon: "flash", color: "#8B5CF6", onPress: () => goto("/quick-actions") },
   ];
 

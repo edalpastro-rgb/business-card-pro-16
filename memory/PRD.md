@@ -1,5 +1,60 @@
 # Dal Pastro CRM — PRD v1.15
 
+## v45 Notifica proposte + Cruscotto Master unificato (Giugno 2026)
+### 🎯 Richiesta utente
+Due feature parallele:
+1. **Notifica proposte pronte**: pallino rosso sull'icona "Insegna ad Axon" quando ci sono nuove proposte da approvare
+2. **Cruscotto Master**: schermata unificata con feedback stats, proposte pending, top collaboratori attivi
+
+### ✅ Backend (`/app/backend/server.py`)
+- **Nuovo `GET /api/axon/rule-proposals/count-pending`**: endpoint lightweight per il badge (ritorna `{pending: N}`, 0 per non-Master). Non richiede Master perché la UI dei collaboratori non chiama comunque questo endpoint.
+- **Nuovo `GET /api/master/dashboard`** (Master-only): aggregatore unificato che ritorna:
+  - `feedback`: `{ups, downs, total, satisfaction_rate, window_days}` tenant-wide 30gg
+  - `proposals`: `{pending, accepted_total}`
+  - `activity`: `{contacts_30d, contacts_total, appts_30d, appts_upcoming, callbacks_pending, chat_msgs_30d}` tenant-wide 30gg
+  - `knowledge`: `{docs_count, rules_count, urls_count, semantic_cache_size}`
+  - `team`: `{collaborators_total, top_active[5]}` (top 5 by chat_msgs_30d desc)
+  - `generated_at`
+- Uso di `tenant_user_ids` come base per tutte le query (Master + tutti i collabs)
+- Semantic cache size è globale (v40 design decision)
+
+### ✅ Frontend
+- **`impostazioni.tsx`** (badge sul link):
+  - Nuovo state `pendingProposals` con polling ogni 30s a `/axon/rule-proposals/count-pending`
+  - Badge rosso posizionato sull'icona sparkles (top:-5, right:-8), con testo "N" o "9+" e bordo bianco
+  - Sub-text del link dinamico: "N nuova/e proposta/e da rivedere · …" quando >0
+- **`master.tsx`** (badge sulla tile):
+  - Aggiunto polling identico per il tile "Insegna ad Axon" (usa il prop `badge` già supportato)
+  - Nuova tile **"Cruscotto"** (icona `grid`, colore ciano `#0EA5E9`) dopo "Insegna ad Axon"
+- **Nuova pagina `/app/frontend/app/cruscotto.tsx`** (Master-only, ~450 righe):
+  - Header nero `#0F172A` con refresh button
+  - **Alert card arancione** in cima (visibile solo se `proposals.pending > 0`) → tap: `/ai-teach`
+  - **Panel "Come sta imparando Axon"** (border-left viola): 3 celle KPI (👍 utili, 👎 da migliorare, % soddisfazione) + barra progressiva verde/rossa
+  - **Panel "Attività della rete"** (border-left ciano): 4 mini-KPI (contatti nuovi/appuntamenti/chat/chiamate)
+  - **Panel "Base di conoscenza Axon"** (border-left arancione): 4 mini-KPI tappabili (documenti→`/documenti-axon`, regole→`/ai-teach`, URL→`/ai-teach`, cache) + banner verde "N regole auto-generate accettate"
+  - **Panel "Top collaboratori"** (border-left verde) con "Vedi tutti →" a `/team-insights`: lista con avatar iniziali verde, nome, mini-KPI riga (chat/appt/contatti + timeAgo). Tap → deep-link a `/team-insights?member={uid}`
+  - Pull-to-refresh nativo + refresh button in header
+  - Empty state contestualizzato se nessun collaboratore invitato
+  - Sezione riservata al Master con lock icon per non-Master
+
+### 🧪 Test manuali eseguiti
+- ✅ `GET /axon/rule-proposals/count-pending` → `{pending: 1}` (Master), `{pending: 0}` (non-Master)
+- ✅ `GET /master/dashboard` → payload completo con tutti gli aggregati
+- ✅ Impostazioni: badge rosso "1" visibile sull'icona sparkles + sub-text aggiornato "1 nuova/e proposta/e da rivedere"
+- ✅ Master page: menu ⋯ → click "Cruscotto" (icona grid ciano) → apre `/cruscotto`
+- ✅ Cruscotto UI: alert arancione, 4 panel colorati con border-left, top-collab card Mario visibile con KPI
+- ✅ Pull-to-refresh funziona; refresh button in header aggiorna i dati
+- ✅ Deep-link `/team-insights?member=<uid>` funziona (via `useLocalSearchParams` in v44)
+- ✅ Non-Master: pagina blocca con "Sezione riservata al Master" + lock icon
+
+### 📊 Impatto UX
+- **Discoverability +**: il Master vede a colpo d'occhio quando Axon ha proposte pending senza dover navigare
+- **Panoramica olistica**: il Cruscotto è il "single source of truth" per capire lo stato della rete in <3 sec
+- **Deep-linking**: ogni KPI tappabile porta esattamente dove serve (regole, doc, team-insights), riducendo attrito
+
+---
+
+
 ## v44 Profilo Comportamentale Collaboratori — Team Insights (Giugno 2026)
 ### 🎯 Richiesta utente
 Fase 4/4 finale del progetto "Axon che impara": mostra al Master un profilo comportamentale di ogni collaboratore basato sulle sue interazioni con l'AI, i contatti gestiti, gli appuntamenti presi e le chiamate effettuate.
