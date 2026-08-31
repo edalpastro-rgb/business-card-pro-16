@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Modal, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -684,38 +684,35 @@ function NewAppointmentScreen() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Contatto principale</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            <Pressable
-              testID="ap-contact-none"
-              onPress={() => setForm({ ...form, contact_id: "", phone_mobile: "", phone_work: "", full_address: "", phone_target: "" })}
-              style={[styles.pill, !form.contact_id && styles.pillActive]}
-            >
-              <Text style={[styles.pillTxt, !form.contact_id && styles.pillTxtActive]}>Nessuno</Text>
-            </Pressable>
-            {contacts.map((c) => (
-              <Pressable
-                key={c.contact_id}
-                testID={`ap-contact-${c.contact_id}`}
-                onPress={() => {
-                  const structured = [c.address_street, c.address_number, [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province].filter(Boolean).join(", ");
-                  const fullAddr = structured || c.work_address || c.residence_address || c.address || "";
-                  setForm({
-                    ...form,
-                    contact_id: c.contact_id,
-                    area: (c.area === "energy" || c.area === "network") ? c.area : form.area,
-                    location: c.address || form.location,
-                    phone_mobile: c.phone || "",
-                    phone_work: c.phone_alt || "",
-                    full_address: fullAddr,
-                    phone_target: c.phone ? "mobile" : (c.phone_alt ? "work" : ""),
-                  });
-                }}
-                style={[styles.pill, form.contact_id === c.contact_id && styles.pillActive]}
-              >
-                <Text style={[styles.pillTxt, form.contact_id === c.contact_id && styles.pillTxtActive]}>{c.first_name} {c.last_name}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          {/* V29.at — Sostituita la lista orizzontale di chip con un campo di
+              ricerca: l'utente digita nome/cognome e vede fino a 8 risultati.
+              Se nessun contatto è selezionato, l'appuntamento si salva senza
+              contatto collegato (contact_id = ""). Comportamento identico al
+              picker di /callback/new. */}
+          <ApContactPicker
+            contacts={contacts}
+            selectedId={form.contact_id}
+            onSelect={(cid) => {
+              if (!cid) {
+                setForm({ ...form, contact_id: "", phone_mobile: "", phone_work: "", full_address: "", phone_target: "" });
+                return;
+              }
+              const c = contacts.find((x) => x.contact_id === cid);
+              if (!c) { setForm({ ...form, contact_id: cid }); return; }
+              const structured = [c.address_street, c.address_number, [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province].filter(Boolean).join(", ");
+              const fullAddr = structured || c.work_address || c.residence_address || c.address || "";
+              setForm({
+                ...form,
+                contact_id: c.contact_id,
+                area: (c.area === "energy" || c.area === "network") ? c.area : form.area,
+                location: c.address || form.location,
+                phone_mobile: c.phone || "",
+                phone_work: c.phone_alt || "",
+                full_address: fullAddr,
+                phone_target: c.phone ? "mobile" : (c.phone_alt ? "work" : ""),
+              });
+            }}
+          />
 
           {contacts.length > 0 && (
             <>
@@ -1161,6 +1158,139 @@ const mstyles = StyleSheet.create({
   checkCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#16A34A", alignItems: "center", justifyContent: "center" },
   postSaveClose: { paddingVertical: 12, alignItems: "center", marginTop: 10 },
   postSaveCloseTxt: { fontSize: 13, fontWeight: "700", color: theme.color.muted },
+});
+
+/**
+ * V29.at — ApContactPicker: campo di ricerca che filtra i contatti per nome
+ * o cognome mostrando fino a 8 risultati. Se nessuno è selezionato,
+ * `onSelect("")` viene chiamato al clear e l'appuntamento si salva senza
+ * contatto collegato. Riusa lo stesso pattern di /callback/new.
+ */
+function ApContactPicker({
+  contacts,
+  selectedId,
+  onSelect,
+}: {
+  contacts: Contact[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [focused, setFocused] = useState(false);
+  const selected = useMemo(() => contacts.find((c) => c.contact_id === selectedId) || null, [contacts, selectedId]);
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return [] as Contact[];
+    return contacts
+      .filter((c) => `${c.first_name} ${c.last_name}`.toLowerCase().includes(s))
+      .slice(0, 8);
+  }, [contacts, q]);
+
+  const showResults = focused && q.length > 0;
+
+  if (selected) {
+    return (
+      <View style={cpStyles.wrap} testID="ap-contact-picker">
+        <View style={cpStyles.selectedRow}>
+          <Ionicons name="person-circle" size={22} color={theme.color.brandPrimary} />
+          <Text style={cpStyles.selectedTxt} numberOfLines={1}>
+            {selected.first_name} {selected.last_name}
+          </Text>
+          <Pressable
+            testID="ap-contact-clear"
+            onPress={() => { onSelect(""); setQ(""); }}
+            hitSlop={8}
+            style={cpStyles.clearBtn}
+          >
+            <Ionicons name="close-circle" size={20} color={theme.color.error} />
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={cpStyles.wrap} testID="ap-contact-picker">
+      <View style={cpStyles.inputRow}>
+        <Ionicons name="search" size={18} color={theme.color.muted} />
+        <TextInput
+          testID="ap-contact-search"
+          value={q}
+          onChangeText={setQ}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          placeholder="Cerca un contatto per nome…"
+          placeholderTextColor={theme.color.muted}
+          style={cpStyles.input}
+          autoCorrect={false}
+          autoCapitalize="words"
+        />
+        {q.length > 0 && (
+          <Pressable onPress={() => setQ("")} hitSlop={8} style={cpStyles.clearBtn}>
+            <Ionicons name="close-circle" size={18} color={theme.color.muted} />
+          </Pressable>
+        )}
+      </View>
+      {showResults &&
+        (filtered.length > 0 ? (
+          <View style={cpStyles.results}>
+            {filtered.map((c, idx) => (
+              <Pressable
+                key={c.contact_id}
+                testID={`ap-contact-pick-${c.contact_id}`}
+                onPress={() => { onSelect(c.contact_id); setQ(""); setFocused(false); }}
+                style={[cpStyles.resultItem, idx === filtered.length - 1 && { borderBottomWidth: 0 }]}
+              >
+                <Ionicons name="person" size={16} color={theme.color.brandPrimary} />
+                <Text style={cpStyles.resultTxt} numberOfLines={1}>
+                  {c.first_name} {c.last_name}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={cpStyles.empty}>
+            <Text style={cpStyles.emptyTxt}>Nessun contatto trovato</Text>
+          </View>
+        ))}
+    </View>
+  );
+}
+
+const cpStyles = StyleSheet.create({
+  wrap: { position: "relative", zIndex: 5, marginTop: 4 },
+  inputRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "#FFF", borderRadius: theme.radius.md,
+    borderWidth: 1, borderColor: theme.color.border,
+    paddingHorizontal: 12, height: 44,
+  },
+  input: { flex: 1, color: theme.color.onSurface, fontSize: 15, paddingVertical: 0 },
+  clearBtn: { padding: 4 },
+  selectedRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    padding: 10, backgroundColor: theme.color.brandTertiary,
+    borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.brandPrimary,
+  },
+  selectedTxt: { flex: 1, color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
+  results: {
+    marginTop: 6, backgroundColor: "#FFF",
+    borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border,
+    overflow: "hidden",
+  },
+  resultItem: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: theme.color.divider,
+  },
+  resultTxt: { flex: 1, color: theme.color.onSurface, fontWeight: "600", fontSize: 14 },
+  empty: {
+    marginTop: 6, padding: 12,
+    backgroundColor: "#F1F5F9", borderRadius: theme.radius.md, alignItems: "center",
+  },
+  emptyTxt: { color: theme.color.muted, fontSize: 12, fontStyle: "italic" },
 });
 
 const styles = StyleSheet.create({
