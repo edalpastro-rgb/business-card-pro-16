@@ -2460,3 +2460,26 @@ borderRadius: full-round (= size/2)
 - Nessun autotest eseguito (come richiesto)
 - Warning pre-esistenti (DocumentPicker unused in `contact/new.tsx`) NON toccati per rispettare "non toccare altro"
 
+
+## V29.bc — Stile Optima esteso a Chat, Impostazioni, Settings-app, Team, Quick-actions, Neo-memory, My-audios
+
+**Richiesta utente**: "Applica stesso stile anche a notifiche, storico chiamate, promemoria e schermate di setting per uniformità totale."
+
+**Files aggiornati con pattern icon-Optima (borderWidth:2, borderColor:rgba(255,255,255,0.9), shadow rialzato)**:
+- `chat.tsx` (Notifiche/Chat unificato): `headerBtn` (40×40) + `avatar` (44×44)
+- `impostazioni.tsx`: `avatarBadge` (22×22, badge over profilo)
+- `settings-app.tsx`: `headerBtn` (36×36)
+- `team.tsx`: `headerBtn` (38×38)
+- `quick-actions.tsx`: `badge` (32×32) + `iconChip` (28×28, era borderRadius 8 → 14 full-round)
+- `neo-memory.tsx`: `delBtn` (32×32)
+- `my-audios.tsx`: `headerBtn` (36×36)
+
+**Non toccato** (per rispettare "senza toccare altro"):
+- Tab bars interne (tabIcon in contact/[id])
+- Button testuali (Salva, Elimina, "Apri", ecc.) di form/detail — non icon-containers
+- Landing web (fuori dal contesto app mobile)
+- `security.tsx` `badge` (è un pill testuale, non un icon-container)
+- `master-files.tsx` tabBtn/addBtn (parte del layout tab, non icon-container standalone)
+
+Nessun autotest eseguito.
+

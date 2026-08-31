@@ -88,7 +88,22 @@ export default function SettingsAppScreen() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
-  headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
+  // V29.bc — Stile Optima
+  headerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.9)",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
   headerTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
   section: { fontSize: 13, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", marginTop: 16, marginBottom: 8, letterSpacing: 1 },
   row: { flexDirection: "row", gap: 10 },
