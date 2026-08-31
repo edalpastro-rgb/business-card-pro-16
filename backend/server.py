@@ -6538,6 +6538,78 @@ class BusinessCardIn(BaseModel):
     slug: Optional[str] = None
 
 
+@api_router.get("/master/info")
+async def get_master_info(user=Depends(get_current_user)):
+    """
+    Bug 9 — Return the tenant's Master personal data + business-card slug so
+    that the "Profilo & Impostazioni" screen (both for Master and Collaborators)
+    can render a compact card with: name, role, phone, company email, avatar.
+
+    Uses tenant_id(user) → for a Collaborator this returns their Master's user_id,
+    for the Master it returns their own user_id. Business-card fields (phone,
+    title, company) are merged in as fallbacks.
+    """
+    tid = tenant_id(user)
+    m = await db.users.find_one(
+        {"user_id": tid},
+        {
+            "_id": 0,
+            "user_id": 1,
+            "name": 1,
+            "email": 1,
+            "role": 1,
+            "avatar_base64": 1,
+            "picture": 1,
+            "company_name": 1,
+            "company_logo_base64": 1,
+            "additional_emails": 1,
+        },
+    )
+    if not m:
+        raise HTTPException(status_code=404, detail="Master non trovato")
+    bc = await db.business_cards.find_one(
+        {"user_id": tid},
+        {
+            "_id": 0,
+            "card_id": 1,
+            "display_name": 1,
+            "title": 1,
+            "company_name": 1,
+            "phone": 1,
+            "email": 1,
+            "website": 1,
+            "address": 1,
+            "tagline": 1,
+            "logo_base64": 1,
+            "photo_base64": 1,
+            "accent_color": 1,
+            "slug": 1,
+        },
+    ) or {}
+    return {
+        "user_id": m.get("user_id"),
+        "name": m.get("name") or bc.get("display_name") or "",
+        "email": m.get("email") or bc.get("email") or "",
+        "role": m.get("role") or "owner",
+        "role_label": "Master" if (m.get("role") == "owner") else (m.get("role") or "Team"),
+        "title": bc.get("title") or "",
+        "phone": bc.get("phone") or "",
+        "company_name": bc.get("company_name") or m.get("company_name") or "",
+        "website": bc.get("website") or "",
+        "address": bc.get("address") or "",
+        "tagline": bc.get("tagline") or "",
+        "avatar_base64": m.get("avatar_base64") or m.get("picture") or "",
+        "logo_base64": bc.get("logo_base64") or m.get("company_logo_base64") or "",
+        "photo_base64": bc.get("photo_base64") or "",
+        "accent_color": bc.get("accent_color") or "#6366F1",
+        "additional_emails": m.get("additional_emails") or [],
+        "business_card": {
+            "card_id": bc.get("card_id") or None,
+            "slug": bc.get("slug") or None,
+        },
+    }
+
+
 @api_router.get("/master/business-card")
 async def get_business_card(user=Depends(get_current_user)):
     d = await db.business_cards.find_one({"user_id": tenant_id(user)}, {"_id": 0})

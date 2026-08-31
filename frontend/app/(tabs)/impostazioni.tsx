@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Image } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Image, Share, Platform, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -50,6 +50,28 @@ function ImpostazioniScreen() {
   const [assistantMode, setAssistantMode] = useState<"text" | "voice" | "both">("text");
   const [assistantVoice, setAssistantVoice] = useState<string>("nova");
   const assistantSaveTimer = React.useRef<any>(null);
+
+  // Bug 9 — Dati Master & Biglietto da Visita
+  type MasterInfo = {
+    user_id: string;
+    name: string;
+    email: string;
+    role: string;
+    role_label: string;
+    title: string;
+    phone: string;
+    company_name: string;
+    website: string;
+    address: string;
+    tagline: string;
+    avatar_base64: string;
+    logo_base64: string;
+    photo_base64: string;
+    accent_color: string;
+    additional_emails: string[];
+    business_card: { card_id: string | null; slug: string | null };
+  };
+  const [master, setMaster] = useState<MasterInfo | null>(null);
 
   const persistAndReload = async (next: Settings) => {
     setS(next);
@@ -201,6 +223,54 @@ function ImpostazioniScreen() {
     })();
   }, []);
 
+  // Bug 9 — carica dati Master (nome, ruolo, telefono, email, biglietto da visita)
+  const loadMaster = useCallback(async () => {
+    try {
+      const m = await api<MasterInfo>("/master/info");
+      setMaster(m);
+    } catch {}
+  }, []);
+  useEffect(() => { loadMaster(); }, [loadMaster]);
+
+  const publicCardUrl = useCallback(() => {
+    if (!master?.business_card?.card_id) return "";
+    const backend = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+    const slug = master.business_card.slug;
+    if (slug) return `${backend}/api/bc/${slug}`;
+    return `${backend}/api/master/business-card/public/${master.business_card.card_id}`;
+  }, [master]);
+
+  const shareMasterCard = async () => {
+    const url = publicCardUrl();
+    if (!url) {
+      notify("Biglietto non pronto", "Configura prima il biglietto da visita del Master.");
+      return;
+    }
+    const name = master?.name || master?.company_name || "il Master";
+    const message = `Biglietto da visita di ${name}\n${url}`;
+    try {
+      if (Platform.OS === "web" && typeof (globalThis as any).navigator !== "undefined" && !(navigator as any).share) {
+        try { await (navigator as any).clipboard?.writeText?.(url); notify("Link copiato", url); } catch {}
+        return;
+      }
+      await Share.share({ message, url });
+    } catch {}
+  };
+
+  const openPhone = (phone: string) => {
+    if (!phone) return;
+    Linking.openURL(`tel:${phone.replace(/\s+/g, "")}`).catch(() => {});
+  };
+  const openEmail = (email: string) => {
+    if (!email) return;
+    Linking.openURL(`mailto:${email}`).catch(() => {});
+  };
+  const openWebsite = (url: string) => {
+    if (!url) return;
+    const u = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    Linking.openURL(u).catch(() => {});
+  };
+
   const saveAssistantMode = async (m: "text" | "voice" | "both") => {
     setAssistantMode(m);
     try {
@@ -265,6 +335,122 @@ function ImpostazioniScreen() {
             </View>
           </View>
         </View>
+
+        {/* Bug 9 — Dati Master & Biglietto da Visita */}
+        {master && (
+          <View style={styles.masterCard}>
+            <View style={styles.masterHead}>
+              <View style={styles.masterAvatarWrap}>
+                {master.avatar_base64 || master.photo_base64 || master.logo_base64 ? (
+                  <Image
+                    source={{ uri: master.avatar_base64 || master.photo_base64 || master.logo_base64 }}
+                    style={styles.masterAvatar}
+                  />
+                ) : (
+                  <View style={[styles.masterAvatar, { backgroundColor: master.accent_color || theme.color.brandTertiary, alignItems: "center", justifyContent: "center" }]}>
+                    <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 22 }}>
+                      {(master.name || "M").trim().charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <Text style={styles.masterName} numberOfLines={1}>{master.name || "—"}</Text>
+                  <View style={styles.masterBadge}>
+                    <Ionicons name="star" size={10} color="#FFF" />
+                    <Text style={styles.masterBadgeTxt}>{master.role_label || "Master"}</Text>
+                  </View>
+                </View>
+                {!!master.title && <Text style={styles.masterTitle} numberOfLines={1}>{master.title}</Text>}
+                {!!master.company_name && <Text style={styles.masterCompany} numberOfLines={1}>{master.company_name}</Text>}
+                {!!master.tagline && <Text style={styles.masterTagline} numberOfLines={2}>{master.tagline}</Text>}
+              </View>
+            </View>
+
+            <View style={styles.masterDivider} />
+
+            {/* Contatti */}
+            <View style={{ gap: 8 }}>
+              {!!master.phone && (
+                <Pressable testID="master-phone" onPress={() => openPhone(master.phone)} style={styles.masterRow}>
+                  <View style={[styles.masterIcon, { backgroundColor: "#DCFCE7" }]}>
+                    <Ionicons name="call" size={16} color="#15803D" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.masterRowLabel}>Telefono</Text>
+                    <Text style={styles.masterRowValue}>{master.phone}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                </Pressable>
+              )}
+              {!!master.email && (
+                <Pressable testID="master-email" onPress={() => openEmail(master.email)} style={styles.masterRow}>
+                  <View style={[styles.masterIcon, { backgroundColor: "#DBEAFE" }]}>
+                    <Ionicons name="mail" size={16} color="#1D4ED8" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.masterRowLabel}>Email aziendale</Text>
+                    <Text style={styles.masterRowValue}>{master.email}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                </Pressable>
+              )}
+              {!!master.website && (
+                <Pressable testID="master-website" onPress={() => openWebsite(master.website)} style={styles.masterRow}>
+                  <View style={[styles.masterIcon, { backgroundColor: "#EDE9FE" }]}>
+                    <Ionicons name="globe" size={16} color="#6D28D9" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.masterRowLabel}>Sito web</Text>
+                    <Text style={styles.masterRowValue}>{master.website}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                </Pressable>
+              )}
+              {!!master.address && (
+                <View style={styles.masterRow}>
+                  <View style={[styles.masterIcon, { backgroundColor: "#FEF3C7" }]}>
+                    <Ionicons name="location" size={16} color="#B45309" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.masterRowLabel}>Indirizzo</Text>
+                    <Text style={styles.masterRowValue}>{master.address}</Text>
+                  </View>
+                </View>
+              )}
+              {!master.phone && !master.email && !master.website && (
+                <Text style={styles.masterEmpty}>
+                  {user?.parent_user_id
+                    ? "Il tuo Master non ha ancora compilato i contatti nel biglietto da visita."
+                    : "Non hai ancora compilato i tuoi contatti. Apri il biglietto da visita per aggiungerli."}
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.masterActions}>
+              <Pressable
+                testID="master-open-card"
+                onPress={() => router.push("/business-card" as any)}
+                style={[styles.masterBtn, styles.masterBtnPrimary]}
+              >
+                <Ionicons name="id-card" size={16} color="#FFF" />
+                <Text style={styles.masterBtnPrimaryTxt}>
+                  {user?.parent_user_id ? "Vedi biglietto" : "Apri biglietto"}
+                </Text>
+              </Pressable>
+              <Pressable
+                testID="master-share-card"
+                onPress={shareMasterCard}
+                disabled={!master.business_card?.card_id}
+                style={[styles.masterBtn, styles.masterBtnGhost, !master.business_card?.card_id && { opacity: 0.5 }]}
+              >
+                <Ionicons name="share-social" size={16} color={theme.color.brandPrimary} />
+                <Text style={styles.masterBtnGhostTxt}>Condividi</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         {/* V38H — Additional emails management (used as sender for birthday/comms) */}
         <View style={styles.linkCard}>
@@ -917,4 +1103,38 @@ const styles = StyleSheet.create({
   catCard: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 10, borderWidth: 1, borderColor: theme.color.border, marginTop: 10 },
   catHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   catName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
+  // Bug 9 — Dati Master & Biglietto da Visita
+  masterCard: {
+    backgroundColor: "#FFF",
+    borderRadius: theme.radius.md,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  masterHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  masterAvatarWrap: { width: 56, height: 56, borderRadius: 28, overflow: "hidden", borderWidth: 2, borderColor: "#FFF", backgroundColor: theme.color.brandTertiary },
+  masterAvatar: { width: 56, height: 56, borderRadius: 28 },
+  masterName: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface, flexShrink: 1 },
+  masterBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F59E0B", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  masterBadgeTxt: { color: "#FFF", fontWeight: "800", fontSize: 10, letterSpacing: 0.3 },
+  masterTitle: { fontSize: 13, color: theme.color.brandPrimary, fontWeight: "700", marginTop: 2 },
+  masterCompany: { fontSize: 12, color: theme.color.onSurfaceTertiary, marginTop: 1 },
+  masterTagline: { fontSize: 12, color: theme.color.muted, fontStyle: "italic", marginTop: 4 },
+  masterDivider: { height: 1, backgroundColor: theme.color.border, marginVertical: 12 },
+  masterRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6 },
+  masterIcon: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  masterRowLabel: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
+  masterRowValue: { fontSize: 14, color: theme.color.onSurface, fontWeight: "600", marginTop: 1 },
+  masterEmpty: { fontSize: 12, color: theme.color.muted, fontStyle: "italic", paddingVertical: 4 },
+  masterActions: { flexDirection: "row", gap: 8, marginTop: 14 },
+  masterBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: theme.radius.md },
+  masterBtnPrimary: { backgroundColor: theme.color.brandPrimary },
+  masterBtnPrimaryTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
+  masterBtnGhost: { backgroundColor: theme.color.brandTertiary, borderWidth: 1, borderColor: theme.color.border },
+  masterBtnGhostTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
 });

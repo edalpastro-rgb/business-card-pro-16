@@ -2102,3 +2102,21 @@ Testing V38V: 22/22 pytest backend (dopo fix max_length) + frontend Playwright O
 5. **Intestazione professionale** — `_build_analysis_html` accetta `user_doc` con logo/name/company/slogan/contacts. Header colorato prima di H1 con `<img src=logo>` + nome agenzia + ruolo consulente + slogan italic + contatti small grey. `_auto_save_draft_to_master_files` fetcha il profilo user prima di generare l'HTML.
 
 Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrotto, nessun `__verifica_` chip, nessuna "Note AI" residua). File modificati: server.py (`_build_analysis_html`, `_auto_save_draft_to_master_files`, nuovi helper `_consultant_display` + `_format_fiscal_check_html`), BillsSection.tsx (`paramsBadges` filter, `buildBillAnalysisHtml` fiscal + note author + emoji removal, SECTION_META header).
+
+## Bug 9 — Profilo: dati Master & Biglietto da visita (V29B)
+
+**Richiesta utente:** "Nella schermata Profilo & Impostazioni, aggiungi una sezione con i dati personali del master (nome, ruolo, telefono, email aziendale) e il suo biglietto da visita digitale."
+
+**Backend** (`/app/backend/server.py`):
+- Nuovo endpoint `GET /api/master/info` che usa `tenant_id(user)` per essere agnostico ruolo (Master vede sé stesso, Collaboratore vede il suo Master).
+- Restituisce: `user_id`, `name`, `email`, `role`, `role_label` ("Master"|"Team"), `title`, `phone`, `company_name`, `website`, `address`, `tagline`, `avatar_base64`, `logo_base64`, `photo_base64`, `accent_color`, `additional_emails`, `business_card {card_id, slug}`.
+- Fonte: `db.users` + merge con `db.business_cards` (fallback intelligente sui campi contatto).
+
+**Frontend** (`/app/frontend/app/(tabs)/impostazioni.tsx`):
+- Nuova sezione **"Dati Master & Biglietto da Visita"** subito dopo la profile head card.
+- UI: card con shadow soft, header avatar+nome+badge arancione ⭐ Master + title/company/tagline, divider, righe contatto tappabili con icone colorate (call→tel:, email→mailto:, web→https, indirizzo readonly), 2 bottoni footer "Apri biglietto" (primary → `/business-card`) e "Condividi" (secondary → `Share.share` con URL pubblico o slug).
+- Empty-state contestuale (messaggio diverso per Master vs Collaboratore).
+- TestIDs: `master-phone`, `master-email`, `master-website`, `master-open-card`, `master-share-card`.
+
+**Verifica:** endpoint testato via curl (HTTP 200), screenshot conferma rendering corretto della card con badge Master, email aziendale, bottoni azione.
+
