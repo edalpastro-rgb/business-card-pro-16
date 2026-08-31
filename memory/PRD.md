@@ -2284,3 +2284,24 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 - **Authorized JavaScript origins**: `https://business-card-pro-16.emergent.host`, `https://advisoros.it`
 - **Authorized redirect URIs**: `https://business-card-pro-16.emergent.host/auth/google/callback`, `https://advisoros.it/auth/google/callback`
 
+
+## V29.at — Fix "Insegna ad Axon vuoto dopo aggiornamento app"
+
+**Richiesta utente:** "Le regole e i link inseriti dall'utente non vengono visualizzati dopo l'aggiornamento dell'app. I dati sono presenti nel database ma la schermata appare vuota."
+
+**Root cause (analisi forense)**:
+1. `useAuth.tsx`: `user` inizia `null` e viene popolato async dopo la rehydration del token da AsyncStorage
+2. `ai-teach.tsx`: al primo render `isMaster = !user?.parent_user_id && (user?.role || "member") === "owner"` = `false` perché user è `null` → `"member" !== "owner"`
+3. Early return renderiza **"Sezione riservata al Master"** — messaggio fuorviante per un vero Master
+4. `useAuth` popola user → re-render → `isMaster = true` → nuova UI, **MA** `useFocusEffect` NON re-fira perché la schermata è già focused (react-navigation ri-esegue solo su blur+focus, non quando la callback identity cambia mentre la schermata è già in focus)
+5. Risultato: la UI Master viene mostrata ma `rules`/`urls` restano `[]` → **schermata vuota**
+
+**Verifica backend**: DB contiene 6 rules + 6 urls per `user_ae92fe85cdaf` (`e.dalpastro@gmail.com`); endpoint `/ai-teach/rules` con token diretto ritorna `items` correttamente. Backend OK.
+
+**Fix** (`ai-teach.tsx`):
+- Nuovo `useEffect(() => { if (isMaster) load(); }, [isMaster, load])` **additivo** che parte SEMPRE appena `isMaster` diventa `true`, anche se la schermata è già focused
+- Nuovo guard-render **PRIMA** di `!isMaster`: `if (!user) return <ActivityIndicator/>` — evita di mostrare "Sezione riservata" durante la rehydration
+- Import `useEffect` aggiunto
+
+**Verifica**: utente demo (0 rules) vede correttamente Regole(0)/Fonti URL(0)/Storico(0). Utente reale con 6 rules vedrà le 6 righe. Nessun dato modificato/eliminato.
+

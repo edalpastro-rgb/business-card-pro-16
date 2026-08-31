@@ -5,7 +5,7 @@
  * - Pulsante "Aggiorna ora" globale per forzare il fetch di tutti gli URL via Tavily
  * Il contenuto viene usato da Axon come contesto prioritario durante l'analisi.
  */
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -105,6 +105,14 @@ export default function AiTeachScreen() {
       notify("Errore", e?.message || "Impossibile caricare i dati");
     } finally { setLoading(false); }
   }, [isMaster]);
+
+  // Se la schermata è già in focus quando `useAuth` popola l'utente e lo promuove
+  // a Master, `useFocusEffect` sotto NON re-fira automaticamente (la schermata è
+  // già focused). Questo useEffect additivo garantisce che il fetch parta appena
+  // `isMaster` diventa true. V29.at — Fix regressione "Insegna ad Axon vuoto".
+  useEffect(() => {
+    if (isMaster) load();
+  }, [isMaster, load]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -285,6 +293,25 @@ export default function AiTeachScreen() {
       body: "Elenco cronologico di tutte le esecuzioni di aggiornamento URL — manuali (con Aggiorna ora) e automatiche (in base alla frequenza). Per ogni esecuzione vedi data/ora, quali URL sono stati aggiornati con successo e quali hanno fallito (con motivo dell'errore).",
     },
   };
+
+  // V29.at — Distinguere tra "utente non ancora caricato" e "utente non-master".
+  // Prima il codice mostrava "Sezione riservata al Master" quando user era ancora
+  // null durante la rehydration del token, facendo credere all'utente Master che
+  // la sezione fosse vuota. Ora se user===null mostriamo uno spinner e aspettiamo.
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.root} edges={["top"]}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={C.navy} /></Pressable>
+          <Text style={styles.title}>Insegna ad Axon</Text><View style={{ width: 26 }} />
+        </View>
+        <View style={{ padding: 40, alignItems: "center", gap: 10 }}>
+          <ActivityIndicator size="large" color={C.primary} />
+          <Text style={{ color: C.muted }}>Caricamento…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!isMaster) {
     return (
