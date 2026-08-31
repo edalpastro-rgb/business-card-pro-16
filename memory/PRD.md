@@ -2212,3 +2212,22 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 
 **Verifica**: entrambi i toggle (auto + edge + torch) visibili nel viewfinder, tap toggle Auto cambia icona/colore correttamente. Su dispositivo reale: inquadra un documento fermo per 1s → scatto automatico + thumbnail nella strip con badge ✂️.
 
+
+## V29.aq — Nuovo header Home con immagine locale (offline-safe)
+
+**Richiesta utente:** "Utilizza questa immagine come nuova header della home page, caricala in locale in modo che sia visibile anche in modalità offline."
+
+**Modifiche**:
+- **Asset bundling**: scaricata l'immagine fornita (2000×1000 webp), convertita in JPG q=88 (176 KB) e salvata come `/app/frontend/assets/images/advisoros-home-header.jpg`.
+- `home.tsx`:
+  - Rimosso `HERO_LOGO_URI` remoto e `AXONOS_LOGO_TRANSPARENT_URI` remoto (dipendenza da CDN esterno)
+  - Rimossa animazione hero "Ciao NOME → logo" (`greetOpacity`, `heroLogoOpacity`, `heroLogoScale`, `_hasPlayedHeroIntroRef`, `brandBoxSize`)
+  - Rimosso `NeuralPatternBg` + import (sostituito dallo sfondo neural già embedded nell'immagine)
+  - Rimosso import `AdvisorOSLogo` non più usato
+  - Nuova costante `HOME_HEADER_IMG = require('@/assets/images/advisoros-home-header.jpg')` per bundling locale
+  - Container `brandHeaderBox`: height 80 → 140px, `<Image resizeMode="cover" width/height 100%>` full-bleed
+  - Corner data/ora TL + avatar TR mantenuti come overlay `zIndex: 2`
+- **Offline-safe**: nessun URL remoto → funziona anche senza connessione su APK/IPA.
+
+**Verifica**: screenshot mostra loghi AdvisorOS + AxonOS ben visibili sullo sfondo dark tech, data e avatar cliccabile sopra l'immagine.
+

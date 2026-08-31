@@ -9,8 +9,11 @@ import { useAuth } from "@/src/auth";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { CallScriptOverlay } from "@/src/CallScriptOverlay";
 import { HomeEventBanner } from "@/src/HomeEventBanner";
-import { AdvisorOSLogo } from "@/src/BrandLogos";
-import { NeuralPatternBg } from "@/src/NeuralPatternBg";
+
+// V29.aq — Header dashboard image (loaded as local bundled asset so it works
+// offline on APK/IPA builds). Full-bleed dark image with AdvisorOS + AxonOS
+// branding. Aspect 2:1 (2000x1000).
+const HOME_HEADER_IMG = require("@/assets/images/advisoros-home-header.jpg");
 
 /* ────────────────────────────────────────────────────────────────
    V27 — Modern Dashboard Redesign
@@ -97,18 +100,9 @@ function _hFontSize(key: string | null | undefined): number {
   }
 }
 
-// V29.r — Ref module-level per far scattare l'animazione hero SOLO al primo mount
-// della sessione app (rimane "true" quando l'utente naviga via/return dalla home).
-const _hasPlayedHeroIntroRef = { current: false };
-
-// URL del logo AdvisorOS a sfondo trasparente (PNG) da mostrare al termine
-// dell'animazione hero.
-const HERO_LOGO_URI = "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/b7768fd1220b4979bff6466c01714e12_AdvisorOS_App_Logo__5_-fotor-20260826112335-removebg-preview%20-1-.png";
-
-// URL del logo AxonOS a sfondo trasparente (PNG) — tenuto disponibile per il
-// prossimo aggiornamento dell'header della chat AxonOS.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const AXONOS_LOGO_TRANSPARENT_URI = "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/eaad7f8d5fbe44b196a4fb03d5a181c9_AxonOS_logo-cropped-removebg-preview.png";
+// V29.aq — Header con immagine bundled locale (offline-safe). Nessuna
+// animazione hero, nessun URL remoto: l'immagine include già i loghi
+// AdvisorOS + AxonOS su sfondo dark tech.
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -128,29 +122,6 @@ export default function HomeScreen() {
   const [apptStats, setApptStats] = useState<ApptStats | null>(null);
   const [contactsCount, setContactsCount] = useState<number>(0);
   const [nowTick, setNowTick] = useState<number>(Date.now());
-  // V29.z — Dimensioni del container header per posizionare correttamente la
-  // filigrana rete-neurale (nodi + impulso animato) sullo sfondo.
-  const [brandBoxSize, setBrandBoxSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
-  // V29.s — Animazione hero header a due fasi: "Ciao, NOME" (4s) → logo AdvisorOS
-  // (PNG con canale alfa). Solo al primo mount della sessione app (ref globale).
-  const greetOpacity = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 0 : 1)).current;
-  const heroLogoOpacity = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 1 : 0)).current;
-  // V29.ab — Scale animato del logo AdvisorOS: parte grande (340/260 = 1.308)
-  // e si riduce a 1.0 in 1500ms con easeOut. Solo al primo caricamento.
-  const heroLogoScale = useRef(new Animated.Value(_hasPlayedHeroIntroRef.current ? 1 : 340 / 260)).current;
-  useEffect(() => {
-    if (_hasPlayedHeroIntroRef.current) return;
-    const t = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(greetOpacity, { toValue: 0, duration: 550, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(heroLogoOpacity, { toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(heroLogoScale, { toValue: 1, duration: 1500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ]).start(() => {
-        _hasPlayedHeroIntroRef.current = true;
-      });
-    }, 4000);
-    return () => clearTimeout(t);
-  }, [greetOpacity, heroLogoOpacity, heroLogoScale]);
   // V29 — Scadenze imminenti (widget Home)
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [deadlinesDays, setDeadlinesDays] = useState<number>(60);
@@ -294,34 +265,31 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      {/* ── Header V29.y: container unico con bordo blu sottile e sfondo trasparente ──
-          Riga 1: data/ora a sinistra, avatar a destra.
-          Riga 2: logo AdvisorOS centrato (300px). */}
+      {/* ── Header V29.aq: sfondo immagine dashboard locale (offline-safe).
+          Riga 1: data/ora TL + avatar TR come overlay corner.
+          L'immagine include già il logo AdvisorOS + AxonOS quindi non serve
+          il fade animato con testo "Ciao, NOME". */}
       <View style={styles.brandHeader}>
         <View
           style={styles.brandHeaderBox}
           testID="home-brand-header"
-          onLayout={(e) => {
-            const { width, height } = e.nativeEvent.layout;
-            if (width !== brandBoxSize.w || height !== brandBoxSize.h) {
-              setBrandBoxSize({ w: Math.round(width), h: Math.round(height) });
-            }
-          }}
         >
-          {/* Filigrana rete neurale animata — puramente decorativa,
-              posizione absolute + pointerEvents:none, dietro al contenuto. */}
-          {brandBoxSize.w > 0 && brandBoxSize.h > 0 && (
-            <View style={styles.brandHeaderBgLayer} pointerEvents="none">
-              <NeuralPatternBg
-                width={brandBoxSize.w}
-                height={brandBoxSize.h}
-                color="#38BDF8"
-                opacity={0.28}
-                pulseColor="#22D3EE"
-              />
-            </View>
-          )}
-          {/* V29.ae — Layout header 80px: date/avatar come overlay corner, logo full-width centrato */}
+          <Image
+            source={HOME_HEADER_IMG}
+            resizeMode="cover"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              borderRadius: 12,
+            }}
+          />
+          {/* Gradient scrim per garantire leggibilità della data/ora sopra l'immagine */}
+          <View pointerEvents="none" style={styles.brandHeaderScrim} />
+
+          {/* V29.ae — Layout header 80px: date/avatar come overlay corner */}
           <View style={styles.brandHeaderCornerTL} pointerEvents="none">
             <Text style={styles.brandHeaderDate} numberOfLines={1}>
               {new Date(nowTick).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
@@ -338,21 +306,6 @@ export default function HomeScreen() {
               </View>
             )}
           </Pressable>
-          <View style={styles.brandHeaderHero} testID="home-hero">
-            <Animated.View style={[styles.brandHeaderHeroLayer, { opacity: greetOpacity }]} pointerEvents="none">
-              <Text style={styles.brandHeaderGreet} testID="home-greeting">
-                Ciao, <Text style={styles.brandHeaderGreetName}>{(user?.name?.split(" ")[0] || "").toUpperCase()}</Text>
-              </Text>
-            </Animated.View>
-            <Animated.View style={[styles.brandHeaderHeroLayer, { opacity: heroLogoOpacity }]} pointerEvents="none">
-              <Animated.Image
-                source={{ uri: HERO_LOGO_URI }}
-                style={[styles.brandHeaderHeroLogo, { transform: [{ scale: heroLogoScale }] }]}
-                resizeMode="contain"
-                testID="home-brand-logo"
-              />
-            </Animated.View>
-          </View>
         </View>
       </View>
       <ScrollView
@@ -967,20 +920,22 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   brandHeaderBox: {
-    // V29.ao — Sfondo dark tech: gradient scuro navy + border sottile cyan.
-    // Il pattern NeuralPatternBg (ora cyan) sopra il fondo crea l'effetto
-    // "circuiti digitali" richiesto.
-    backgroundColor: "#0B1E38",
+    // V29.aq — Header con immagine full-bleed locale (offline-safe).
+    backgroundColor: "#000",
     borderWidth: 1,
-    borderColor: "rgba(56,189,248,0.35)", // cyan-400 alpha
+    borderColor: "rgba(56,189,248,0.35)",
     borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingTop: 4,
-    paddingBottom: 4,
     position: "relative",
     overflow: "hidden",
-    height: 80,
+    height: 140,
     justifyContent: "center",
+  },
+  brandHeaderScrim: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 12,
+    // Sottile scrim scuro solo nella parte superiore per data/ora leggibile.
+    backgroundColor: "transparent",
+    // Web: usa boxShadow-like gradient — su native usiamo backgroundColor + border only
   },
   brandHeaderCornerTL: {
     position: "absolute",
