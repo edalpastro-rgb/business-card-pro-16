@@ -2379,3 +2379,18 @@ Testing V38W: 25/25 pytest backend + frontend UI verificata (nessun emoji corrot
 - Doc MongoDB stato contiene `code_verifier` (43 char base64) + `redirect_uri` corretto ✅
 - Al callback il flow ricostruito ha il verifier → PKCE proof valida → token scambiato ✅
 
+
+## V29.ax — Fix strutturale tastiera Android nei Modal Insegna ad Axon
+
+**Richiesta utente (ripetuta)**: "Quando l'utente tocca i campi Titolo o Descrizione, la tastiera Android copre il campo attivo."
+
+**Root cause del persistere del bug**: nella iterazione precedente (V29.au) avevo già aggiunto `KeyboardAvoidingView(behavior="padding")` + `ScrollView(keyboardShouldPersistTaps="handled")` ai due modal. Ma **su Android APK il fix non era efficace** perché:
+- Su Android il `<Modal>` di React Native crea una **window Android separata** (Dialog) che NON eredita il `windowSoftInputMode="adjustResize"` dell'app principale
+- Senza `adjustResize` → il Dialog Android usa il default `adjustPan` → `KeyboardAvoidingView` NON riceve gli eventi di layout corretti → il contenuto non si alza
+
+**Fix strutturale** (`ai-teach.tsx`): aggiunti a **entrambi** i `<Modal>` (Nuova regola + Nuovo URL):
+- `statusBarTranslucent={true}` — questo prop forza React Native a passare `SOFT_INPUT_ADJUST_RESIZE` al Dialog Android → `KeyboardAvoidingView` ora riceve i corretti eventi di layout e alza il contenuto
+- `hardwareAccelerated={true}` — migliora la fluidità dell'animazione di apertura/chiusura tastiera
+
+Le props di `KeyboardAvoidingView` restano invariate come richiesto (`behavior="padding"`).
+

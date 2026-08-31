@@ -513,7 +513,14 @@ export default function AiTeachScreen() {
       )}
 
       {/* Rule editor modal */}
-      <Modal transparent visible={!!editRule} animationType="slide" onRequestClose={() => setEditRule(null)}>
+      <Modal
+        transparent
+        visible={!!editRule}
+        animationType="slide"
+        onRequestClose={() => setEditRule(null)}
+        statusBarTranslucent={true}
+        hardwareAccelerated={true}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "padding"}
           keyboardVerticalOffset={0}
@@ -603,7 +610,14 @@ export default function AiTeachScreen() {
       </Modal>
 
       {/* URL editor modal */}
-      <Modal transparent visible={!!editUrl} animationType="slide" onRequestClose={() => setEditUrl(null)}>
+      <Modal
+        transparent
+        visible={!!editUrl}
+        animationType="slide"
+        onRequestClose={() => setEditUrl(null)}
+        statusBarTranslucent={true}
+        hardwareAccelerated={true}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "padding"}
           keyboardVerticalOffset={0}
