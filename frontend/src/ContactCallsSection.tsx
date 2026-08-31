@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, TextInput } from "react-native";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
@@ -70,6 +71,7 @@ function fmtDateTime(iso: string): { date: string; time: string } {
 }
 
 export function ContactCallsSection({ contactId, contactName, contactPhone, refreshTick, onCallStarted }: Props) {
+  const safeBottom = useSafeBottom(); // V29.aq
   const [logs, setLogs] = useState<CallLog[]>([]);
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const [loading, setLoading] = useState(true);
@@ -233,7 +235,7 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
       {/* V28.f — Edit modal: outcome + duration + note */}
       <Modal visible={!!editing} transparent animationType="slide" onRequestClose={() => setEditing(null)}>
         <View style={styles.editBackdrop}>
-          <View style={styles.editCard} testID="call-log-edit-modal">
+          <View style={[styles.editCard, { paddingBottom: 16 + safeBottom }]} testID="call-log-edit-modal">
             <View style={styles.editHead}>
               <Text style={styles.editTitle}>Modifica chiamata</Text>
               <Pressable onPress={() => setEditing(null)} hitSlop={8}>

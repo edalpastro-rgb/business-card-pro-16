@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Modal, TextInput, Pressable, ActivityIndicator, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 type Props = {
   visible: boolean;
@@ -20,6 +21,7 @@ type Props = {
  * and the user can edit it. Returns the final name (WITH extension).
  */
 export function SaveConfirmModal({ visible, title, subtitle, defaultName, extension, onCancel, onConfirm, color }: Props) {
+  const safeBottom = useSafeBottom(); // V29.aq
   const [name, setName] = useState(defaultName);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -43,7 +45,7 @@ export function SaveConfirmModal({ visible, title, subtitle, defaultName, extens
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}>
       <Pressable style={styles.back} onPress={busy ? undefined : onCancel}>
-        <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.card, { paddingBottom: 18 + safeBottom }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.head}>
             <View style={[styles.icoBox, { backgroundColor: accent + "22" }]}>
               <Ionicons name="save" size={22} color={accent} />

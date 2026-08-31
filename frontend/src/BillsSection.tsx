@@ -13,6 +13,7 @@ import { uriToBase64 } from "@/src/utils/media";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { DocumentScannerModal, suggestBillScanName } from "@/src/DocumentScannerModal";
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { FileViewer } from "@/src/FileViewer";
@@ -112,6 +113,7 @@ type Offer = {
 };
 
 export function BillsSection({ contactId, contactName, onContactFilesChanged }: { contactId: string; contactName?: string; onContactFilesChanged?: () => void }) {
+  const safeBottom = useSafeBottom(); // V29.aq
   const [grouped, setGrouped] = useState<Grouped>({ luce: [], gas: [], telco: [] });
   const [offers, setOffers] = useState<Offer[]>([]);
   const [showOffers, setShowOffers] = useState(false);
@@ -1529,7 +1531,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                     </View>
                   </ScrollView>
 
-                  <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF", gap: 8 }}>
+                  <View style={{ padding: 12, paddingBottom: 12 + safeBottom, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF", gap: 8 }}>
                     <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center" }}>
                       Selezionati: <Text style={{ fontWeight: "800", color: meta.color }}>{selectedParams.size}</Text> parametri
                     </Text>

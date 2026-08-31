@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { theme } from "@/src/theme";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 type Contact = { contact_id: string; first_name: string; last_name: string; contact_code?: string; phone?: string };
 type Group = { group_id: string; name: string; color: string; member_count?: number };
@@ -27,6 +28,7 @@ export function MasterVoiceRecorder({
   stopSignal?: number;
   onPhaseChange?: (phase: Phase) => void;
 } = {}) {
+  const safeBottom = useSafeBottom(); // V29.aq
   const [phase, setPhase] = useState<Phase>("idle");
   const [duration, setDuration] = useState(0);
   const [audioB64, setAudioB64] = useState<string | null>(null);
@@ -399,7 +401,7 @@ export function MasterVoiceRecorder({
             </ScrollView>
 
             {/* Bottom actions */}
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: 12 + safeBottom }]}>
               <Pressable onPress={() => setConfirmClose(true)} disabled={saving} style={[styles.footerBtn, { backgroundColor: "#F1F5F9" }]} testID="voice-cancel-btn">
                 <Ionicons name="trash-outline" size={18} color="#DC2626" />
                 <Text style={[styles.footerTxt, { color: "#DC2626" }]}>Scarta</Text>

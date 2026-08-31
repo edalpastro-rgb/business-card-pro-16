@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
+import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { useAuth } from "@/src/auth";
 
@@ -74,6 +75,7 @@ const StableTextInput = React.forwardRef<StableInputHandle, {
 
 export function ReportHeaderConfigModal({ visible, onClose }: Props) {
   const { user, refresh } = useAuth();
+  const safeBottom = useSafeBottom(); // V29.aq
   const [name, setName] = useState("");
   const [slogan, setSlogan] = useState("");
   const [contacts, setContacts] = useState("");
@@ -242,7 +244,7 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
             <Text style={styles.hint}>Puoi inserire più righe: telefono, email, sito, indirizzo studio…</Text>
           </ScrollView>
 
-          <View style={styles.footer}>
+          <View style={[styles.footer, { paddingBottom: 14 + safeBottom }]}>
             <Pressable onPress={onClose} style={[styles.btn, { backgroundColor: "#F1F5F9" }]}>
               <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
             </Pressable>
