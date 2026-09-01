@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ImageBackground, Modal, Linking, Animated, Easing, Platform, TextInput, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ImageBackground, Modal, Linking, Animated, Easing, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -41,25 +41,16 @@ function MasterScreen() {
   const [pendingProposals, setPendingProposals] = useState<number>(0);
   // V46 — Safe bottom padding for slide-up sheets on Android gesture-nav / iOS home indicator.
   const bottomPad = useBottomSheetPadding();
-  // V48 — Assistance numbers (quick-call) + reorder mode + persisted button order.
-  const [supportConsulentiPhone, setSupportConsulentiPhone] = useState<string>("");
-  const [supportBusinessPhone, setSupportBusinessPhone] = useState<string>("");
-  const [supportEditOpen, setSupportEditOpen] = useState<null | "consulenti" | "business">(null);
-  const [supportDraft, setSupportDraft] = useState<string>("");
+  // V49 — Reorder mode + persisted button order. (Assistance quick-call buttons
+  //        rimossi in V49 — spostati nel pannello "Comunica con l'azienda" della Home.)
   const [reorderMode, setReorderMode] = useState<boolean>(false);
   const [buttonOrder, setButtonOrder] = useState<string[] | null>(null);
 
-  // Load saved assistance phone numbers + saved order on mount
+  // Load saved button order on mount
   useEffect(() => {
     (async () => {
       try {
-        const [p1, p2, ord] = await Promise.all([
-          AsyncStorage.getItem("master.support.consulenti"),
-          AsyncStorage.getItem("master.support.business"),
-          AsyncStorage.getItem("master.buttons.order.v1"),
-        ]);
-        if (p1) setSupportConsulentiPhone(p1);
-        if (p2) setSupportBusinessPhone(p2);
+        const ord = await AsyncStorage.getItem("master.buttons.order.v1");
         if (ord) {
           try {
             const parsed = JSON.parse(ord);
@@ -71,45 +62,6 @@ function MasterScreen() {
       } catch { /* ignore */ }
     })();
   }, []);
-
-  const callSupport = useCallback(
-    (kind: "consulenti" | "business") => {
-      const num = kind === "consulenti" ? supportConsulentiPhone : supportBusinessPhone;
-      if (!num || !num.trim()) {
-        setSupportDraft("");
-        setSupportEditOpen(kind);
-        return;
-      }
-      const url = `tel:${num.replace(/\s+/g, "")}`;
-      Linking.openURL(url).catch(() => {
-        Alert.alert("Chiamata non disponibile", "Impossibile avviare la chiamata su questo dispositivo.");
-      });
-    },
-    [supportConsulentiPhone, supportBusinessPhone],
-  );
-
-  const openSupportEdit = useCallback(
-    (kind: "consulenti" | "business") => {
-      setSupportDraft(kind === "consulenti" ? supportConsulentiPhone : supportBusinessPhone);
-      setSupportEditOpen(kind);
-    },
-    [supportConsulentiPhone, supportBusinessPhone],
-  );
-
-  const saveSupportNumber = useCallback(async () => {
-    if (!supportEditOpen) return;
-    const cleaned = (supportDraft || "").trim();
-    try {
-      if (supportEditOpen === "consulenti") {
-        await AsyncStorage.setItem("master.support.consulenti", cleaned);
-        setSupportConsulentiPhone(cleaned);
-      } else {
-        await AsyncStorage.setItem("master.support.business", cleaned);
-        setSupportBusinessPhone(cleaned);
-      }
-    } catch { /* ignore */ }
-    setSupportEditOpen(null);
-  }, [supportEditOpen, supportDraft]);
   const [now, setNow] = useState(new Date());
   const [menuOpen, setMenuOpen] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
@@ -260,9 +212,6 @@ function MasterScreen() {
     { label: "Insegna ad Axon", icon: "sparkles", color: "#FF6B35", onPress: () => goto("/ai-teach"), badge: pendingProposals },
     { label: "Cruscotto", icon: "grid", color: "#0EA5E9", onPress: () => goto("/cruscotto") },
     { label: "Azioni rapide", icon: "flash", color: "#8B5CF6", onPress: () => goto("/quick-actions") },
-    // V48 — Assistance quick-call buttons (configurable phone numbers)
-    { label: "Assistenza Consulenti", icon: "headset", color: "#0EA5E9", onPress: () => callSupport("consulenti") },
-    { label: "Assistenza Clienti Business", icon: "briefcase", color: "#059669", onPress: () => callSupport("business") },
   ];
 
   // V48 — Apply saved order (if any), placing unknown/new buttons at the end.
@@ -438,13 +387,6 @@ function MasterScreen() {
                   {...b}
                   pulseAnim={pulseAnim}
                   onPress={reorderMode ? () => {} : b.onPress}
-                  onLongPress={
-                    b.label === "Assistenza Consulenti"
-                      ? () => openSupportEdit("consulenti")
-                      : b.label === "Assistenza Clienti Business"
-                      ? () => openSupportEdit("business")
-                      : undefined
-                  }
                 />
               </Pressable>
               {reorderMode && (
@@ -579,50 +521,6 @@ function MasterScreen() {
         title={drill?.title || "Dettaglio"}
       />
       <MasterPromoteModal visible={promoteOpen} onClose={() => setPromoteOpen(false)} />
-
-      {/* V48 — Configure assistance phone number */}
-      <Modal
-        transparent
-        visible={!!supportEditOpen}
-        animationType="fade"
-        onRequestClose={() => setSupportEditOpen(null)}
-        statusBarTranslucent
-      >
-        <View style={masterExtraStyles.supportBackdrop}>
-          <View style={masterExtraStyles.supportCard} testID="master-support-modal">
-            <Text style={masterExtraStyles.supportTitle}>
-              {supportEditOpen === "consulenti"
-                ? "Numero Assistenza Consulenti"
-                : "Numero Assistenza Clienti Business"}
-            </Text>
-            <Text style={masterExtraStyles.supportSub}>
-              Inserisci il numero da chiamare toccando questo bottone. Puoi modificarlo in qualsiasi momento con un tocco prolungato sul bottone.
-            </Text>
-            <TextInput
-              value={supportDraft}
-              onChangeText={setSupportDraft}
-              placeholder="Es. +39 02 1234 5678"
-              placeholderTextColor="#94A3B8"
-              keyboardType="phone-pad"
-              style={masterExtraStyles.supportInput}
-              autoFocus
-              testID="master-support-input"
-            />
-            <View style={masterExtraStyles.supportBtnRow}>
-              <Pressable onPress={() => setSupportEditOpen(null)} style={masterExtraStyles.supportBtnGhost}>
-                <Text style={masterExtraStyles.supportBtnGhostTxt}>Annulla</Text>
-              </Pressable>
-              <Pressable
-                onPress={saveSupportNumber}
-                style={masterExtraStyles.supportBtnSave}
-                testID="master-support-save"
-              >
-                <Text style={masterExtraStyles.supportBtnSaveTxt}>Salva</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -862,50 +760,6 @@ const masterExtraStyles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 2,
     borderColor: "#FFF",
-  },
-  supportBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.55)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  supportCard: {
-    width: "100%",
-    maxWidth: 440,
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 20,
-    gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  supportTitle: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
-  supportSub: { fontSize: 12, color: "#64748B", lineHeight: 17 },
-  supportInput: {
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 15,
-    color: "#0F172A",
-  },
-  supportBtnRow: { flexDirection: "row", gap: 8, justifyContent: "flex-end", marginTop: 4 },
-  supportBtnGhost: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "#F1F5F9",
-  },
-  supportBtnGhostTxt: { fontSize: 13, fontWeight: "700", color: "#64748B" },
-  supportBtnSave: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "#0EA5E9",
   },
   supportBtnSaveTxt: { fontSize: 13, fontWeight: "700", color: "#FFF" },
 });

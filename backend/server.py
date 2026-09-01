@@ -512,6 +512,12 @@ class SettingsModel(BaseModel):
     # remains supported (rendered as the "Default" entry when no items exist).
     # Each entry: {"id": str, "name": str, "content": str}
     call_scripts: List[Dict[str, Any]] = Field(default_factory=list)
+    # V49 — "Comunica con l'azienda" panel (Home). Configurable by Master; visible
+    # to all tenant users. Phones and email are tappable to start call / open mail.
+    communica_azienda_name: str = ""
+    communica_azienda_email: str = ""
+    # Each entry: {"id": str, "label": str, "number": str}
+    communica_azienda_phones: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 DEFAULT_CALL_OUTCOMES = [

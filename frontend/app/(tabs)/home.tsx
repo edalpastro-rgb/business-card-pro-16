@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { CallScriptOverlay } from "@/src/CallScriptOverlay";
+import { CompanyContactSheet } from "@/src/CompanyContactSheet";
 import { HomeEventBanner } from "@/src/HomeEventBanner";
 
 // V29.aq — Header dashboard image (loaded as local bundled asset so it works
@@ -136,6 +137,8 @@ export default function HomeScreen() {
     extrapolate: "clamp",
   });
   const [deadlinesLoading, setDeadlinesLoading] = useState<boolean>(true);
+  // V49 — "Comunica con l'azienda" panel (nome, email, numeri di servizio)
+  const [companySheetOpen, setCompanySheetOpen] = useState<boolean>(false);
 
   // Update header clock every minute (aligned to the next :00 second)
   useEffect(() => {
@@ -639,6 +642,25 @@ export default function HomeScreen() {
           )}
         </View>
 
+        <View style={{ height: 16 }} />
+
+        {/* V49 — Bottone "Comunica con l'azienda": apre bottom sheet con nome
+            azienda, email e numeri di servizio configurabili dal Master. */}
+        <Pressable
+          testID="home-company-contact-btn"
+          onPress={() => setCompanySheetOpen(true)}
+          style={styles.companyContactBtn}
+        >
+          <View style={styles.companyContactIcon}>
+            <Ionicons name="business" size={22} color="#FFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.companyContactTitle}>COMUNICA CON L&apos;AZIENDA</Text>
+            <Text style={styles.companyContactSub}>Numeri di servizio e contatti</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color="#FFF" />
+        </Pressable>
+
         <View style={{ height: 40 }} />
       </Animated.ScrollView>
 
@@ -662,6 +684,12 @@ export default function HomeScreen() {
         onClose={() => setScriptTarget(null)}
         contactName={scriptTarget?.name}
         contactPhone={scriptTarget?.phone}
+      />
+
+      {/* V49 — Bottom sheet "Comunica con l'azienda" */}
+      <CompanyContactSheet
+        visible={companySheetOpen}
+        onClose={() => setCompanySheetOpen(false)}
       />
     </SafeAreaView>
   );
@@ -938,6 +966,42 @@ const styles = StyleSheet.create({
   scrollBg: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 180 },
+
+  /* V49 — Bottone "Comunica con l'azienda" (fondo Home) */
+  companyContactBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: C.navy,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  companyContactIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: C.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  companyContactTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#FFF",
+    letterSpacing: 0.3,
+  },
+  companyContactSub: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.75)",
+    marginTop: 2,
+  },
+
 
   /* Header V29.y — container unico bordato, sfondo trasparente */
   brandHeader: {
