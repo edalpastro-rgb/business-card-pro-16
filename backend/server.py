@@ -9478,17 +9478,36 @@ def _is_query_cacheable(msg: str, has_attachments: bool, has_history: bool) -> b
     return True
 
 
-async def _semantic_cache_lookup(msg: str) -> Optional[dict]:
-    """Search the global semantic cache for a similar previously-answered
-    question. Returns the cached doc (with `reply`, `web_sources`, ...) on
-    hit, or None on miss. Skips expired entries defensively."""
+async def _semantic_cache_lookup(msg: str, tenant: Optional[str] = None) -> Optional[dict]:
+    """Search the semantic cache for a similar previously-answered question.
+    V50.k — TENANT-SHARED cache: cerca prima nel cache del tenant (condiviso
+    tra tutti i collaboratori dello stesso Master), poi fallback al cache
+    globale legacy. Returns the cached doc (with `reply`, `web_sources`, ...)
+    on hit, or None on miss. Skips expired entries defensively."""
     _, tokens = _normalize_and_tokenize(msg)
     if not tokens:
         return None
     now = utcnow()
-    # Fetch a candidate list (most-recent first) and score in memory.
+    # First: try tenant-scoped cache (highest priority)
+    if tenant:
+        cursor = db.axon_semantic_cache.find(
+            {"expires_at": {"$gt": now}, "tenant_id": tenant},
+            {"_id": 0},
+        ).sort("created_at", -1).limit(SEM_CACHE_CANDIDATE_LIMIT)
+        best = None
+        best_score = 0.0
+        async for doc in cursor:
+            cand_tokens = doc.get("tokens") or []
+            score = _jaccard(tokens, cand_tokens)
+            if score >= SEM_CACHE_JACCARD_THRESHOLD and score > best_score:
+                best = doc
+                best_score = score
+        if best is not None:
+            best["_similarity"] = round(best_score, 3)
+            return best
+    # Fallback: legacy global cache (entries without tenant_id)
     cursor = db.axon_semantic_cache.find(
-        {"expires_at": {"$gt": now}},
+        {"expires_at": {"$gt": now}, "tenant_id": {"$in": [None, ""]}},
         {"_id": 0},
     ).sort("created_at", -1).limit(SEM_CACHE_CANDIDATE_LIMIT)
     best = None
@@ -9510,8 +9529,12 @@ async def _semantic_cache_save(
     used_web_search: bool,
     web_sources: List[dict],
     assistant_name: str,
+    tenant: Optional[str] = None,
 ) -> None:
-    """Persist a Q/A pair into the global semantic cache with TTL."""
+    """Persist a Q/A pair into the semantic cache with TTL.
+    V50.k — Salva con `tenant_id` per abilitare cache condiviso tra
+    collaboratori dello stesso Master (risposta istantanea alla seconda
+    chiamata di qualunque membro del team)."""
     if not reply:
         return
     _, tokens = _normalize_and_tokenize(msg)
@@ -9522,6 +9545,7 @@ async def _semantic_cache_save(
     try:
         await db.axon_semantic_cache.insert_one({
             "cache_id": uuid.uuid4().hex,
+            "tenant_id": tenant or None,
             "question": msg[:1000],
             "tokens": tokens,
             "reply": reply,
@@ -9533,6 +9557,37 @@ async def _semantic_cache_save(
         })
     except Exception as exc:
         logger.warning("[axon-semcache] save failed: %s", exc)
+
+
+# V50.k — Router modello: sceglie Haiku (veloce, 1-2s) vs Sonnet 4.5 (potente,
+# 6-8s) in base a lunghezza/keyword/allegati. Zero LLM call, solo euristica.
+_HEAVY_KEYWORDS = {
+    "tabella", "tabelle", "confronta", "confronto", "analizza", "analisi",
+    "calcola", "calcolo", "riepiloga", "riepilogo", "elenca", "elenco",
+    "listino", "listini", "pun", "f1", "f2", "f3", "monorario",
+    "bolletta", "bollette", "fattura", "fatture", "contratto", "contratti",
+    "scadenza", "scadenze", "delibera", "arera", "gme",
+    "cluster", "insights", "profilo", "profilazione",
+    "genera", "crea report", "esporta", "confronto",
+}
+
+
+def _pick_axon_model(msg: str, has_attachments: bool, has_rag_context: bool, has_web: bool) -> str:
+    """Ritorna 'haiku' o 'sonnet' basato su euristica veloce.
+    V50.k — Fix: has_rag_context da solo NON forza sonnet perché il RAG
+    prefetch scatta anche su saluti/domande generiche. Sonnet è forzato solo
+    quando ci sono allegati o web search attiva (situazioni analitiche vere)
+    o keyword esplicitamente pesanti.
+    """
+    if has_attachments or has_web:
+        return "sonnet"
+    txt = (msg or "").strip().lower()
+    if len(txt) > 220:
+        return "sonnet"
+    # ha markdown/tabelle richieste?
+    if any(k in txt for k in _HEAVY_KEYWORDS):
+        return "sonnet"
+    return "haiku"
 
 
 async def _prepare_assistant_prompt(
@@ -9845,6 +9900,7 @@ async def _prepare_assistant_prompt(
         "user_prompt": user_prompt,
         "history_len": len(history),
         "has_attachments": bool(body.attachments),
+        "has_rag_context": bool(_prefetch_rag_chunks) or bool(axon_teach_section.strip()),
         "used_web_search": used_web_search,
         "web_sources": web_sources,
         "api_key": key,
@@ -10229,6 +10285,10 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         return f"event: {event}\ndata: {_json_mod.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
     async def event_stream():
+        # V50.k — Progress event: preflight iniziato (l'utente vede subito
+        # "Sto raccogliendo il contesto…" invece di attendere silenziosamente).
+        yield sse("progress", {"stage": "preflight", "text": "Sto raccogliendo il contesto…"})
+
         # --- Preflight: build prompt (raises HTTPException on error) ---
         try:
             prep = await _prepare_assistant_prompt(user, body)
@@ -10246,11 +10306,13 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         web_sources = prep["web_sources"]
         has_attachments = prep["has_attachments"]
         has_history = prep["history_len"] > 0
+        _tenant_val = tenant_id(user)
 
         # --- Cache lookup (fast path) ---
         cache_eligible = _is_query_cacheable(msg, has_attachments, has_history)
         if cache_eligible:
-            cached = await _semantic_cache_lookup(msg)
+            yield sse("progress", {"stage": "cache", "text": "Controllo se ho già risposto a qualcosa di simile…"})
+            cached = await _semantic_cache_lookup(msg, tenant=_tenant_val)
             if cached:
                 # Persist both messages
                 now = utcnow()
@@ -10322,11 +10384,29 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             yield sse("error", {"error": f"llm import failed: {e}"})
             return
 
+        # V50.k — Router modello Haiku/Sonnet basato su euristica veloce.
+        # Query semplici (chit-chat, saluti, domande brevi senza analisi)
+        # → Haiku 4.5 (1-2s first token). Query analitiche/tabelle/allegati
+        # → Sonnet 4.5 (6-8s). Invisibile all'utente ma dimezza il tempo medio.
+        _model_choice = _pick_axon_model(
+            msg=msg,
+            has_attachments=has_attachments,
+            has_rag_context=bool(prep.get("has_rag_context")),
+            has_web=used_web_search,
+        )
+        _model_id = "claude-haiku-4-5" if _model_choice == "haiku" else "claude-sonnet-4-5"
+
+        yield sse("progress", {
+            "stage": "thinking",
+            "text": "Sto ragionando…" if _model_choice == "haiku" else "Sto analizzando in profondità…",
+            "model": _model_choice,
+        })
+
         chat = LlmChat(
             api_key=prep["api_key"],
             session_id=session_id,
             system_message=prep["system_message"],
-        ).with_model("anthropic", "claude-sonnet-4-5")
+        ).with_model("anthropic", _model_id)
 
         collected: List[str] = []
         try:
@@ -10371,7 +10451,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         except Exception:
             pass
 
-        # Save to semantic cache if eligible
+        # Save to semantic cache if eligible (V50.k: with tenant_id for team-shared cache)
         if cache_eligible:
             try:
                 asyncio.create_task(_semantic_cache_save(
@@ -10380,6 +10460,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                     used_web_search=used_web_search,
                     web_sources=web_sources,
                     assistant_name=assistant_name,
+                    tenant=_tenant_val,
                 ))
             except Exception:
                 pass
@@ -10390,6 +10471,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             "web_sources": web_sources,
             "from_cache": False,
             "session_id": session_id,
+            "model": _model_choice,
         })
 
     return StreamingResponse(

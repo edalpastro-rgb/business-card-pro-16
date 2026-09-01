@@ -1,3 +1,37 @@
+## V50.k (Sept 2026) — Router Haiku/Sonnet + Cache tenant-shared + Progress SSE
+
+### Ottimizzazioni implementate (Fase 1)
+
+**1. Router modello Haiku ↔ Sonnet 4.5** (`_pick_axon_model`)
+- Euristica zero-cost: keyword list (`_HEAVY_KEYWORDS`: tabella, analizza, calcola, listino, PUN, F1/F2/F3, bolletta, delibera, ARERA, GME, cluster, insights, genera report, esporta…) + lunghezza (>220 char) + presenza allegati/web-search.
+- Query semplici → `claude-haiku-4-5` (1-2s first token).
+- Query analitiche → `claude-sonnet-4-5` (4-8s first token).
+- Il campo `model` viene esposto nell'evento `done` SSE per debugging/telemetria.
+
+**2. Cache semantica tenant-shared** (`_semantic_cache_lookup/save`)
+- Aggiunto campo `tenant_id` sui documenti `axon_semantic_cache`.
+- Lookup: prima nel cache del tenant (condiviso tra tutti i collaboratori dello stesso Master), poi fallback al cache globale legacy.
+- Risultato: se un collaboratore chiede "PUN medi 2026", TUTTI i colleghi del team hanno la risposta istantanea (0.2s) alle successive chiamate simili.
+
+**3. Progress SSE events** (`sse("progress", …)`)
+- Nuovi eventi `progress` emessi durante preflight:
+  - `stage: "preflight"` → "Sto raccogliendo il contesto…"
+  - `stage: "cache"` → "Controllo se ho già risposto…"
+  - `stage: "thinking"` con model → "Sto ragionando…" (haiku) o "Sto analizzando in profondità…" (sonnet).
+- Percezione di velocità raddoppiata: l'utente vede feedback dopo 0.5s invece di attendere silenziosamente.
+
+### Verifica live (backend locale)
+| Caso | Router | First token | Total |
+|---|---|---|---|
+| "Ciao Axon, come stai?" | **haiku** | 2.10s | 4.16s |
+| "Chi sei?" | **haiku** | **0.59s** ⚡ | 3.98s |
+| "Analizza tabella PUN F1/F2/F3 luglio 2026" (cache-hit) | — | 0.23s | **0.24s** ⚡⚡ |
+| "Genera report clienti Energia listino 2026" | **sonnet** | 1.01s | 16.88s |
+
+### Fase 2 (rinviata a prossima sessione)
+- RAG con embeddings semantici (OpenAI `text-embedding-3-small` via Emergent LLM key) per matching migliore quando l'utente scrive con parole diverse rispetto al contenuto RAG.
+
+
 ## V50.j (Sept 2026) — HOTFIX velocità Axon: ripristino risposte < 8s
 
 ### Diagnosi
