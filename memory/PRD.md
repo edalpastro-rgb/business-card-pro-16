@@ -1,3 +1,25 @@
+## V50.i (Sept 2026) — "Insegna ad Axon": tab compatti con label leggibili
+
+### Segnalazione utente
+"Sistemare le scritte dei bottoni ridimensionarli, le scritte regole, fonti, storico, suggerimenti. Ridurre grandezza bottoni e le descrizioni metterle sotto. Non toccare altro."
+
+### Root cause
+Il layout precedente dei tab di `/app/frontend/app/ai-teach.tsx` era `flexDirection: row` con `[icon, text(flexShrink:1), infoIcon]`. Su Android l'etichetta "Suggerimenti (2)" (14 caratteri) non entrava in ~85px di larghezza → wrapping carattere per carattere → "Su/gg/eri/me/nti/(2)".
+
+### Fix (`/app/frontend/app/ai-teach.tsx`)
+Nuovo layout **compatto verticale** su ogni tab:
+- Riga 1: icona (18px) + bottone info (14px) sulla stessa riga.
+- Riga 2: label singola riga (fontSize 11, fontWeight 800, `numberOfLines: 1`, `textAlign: center`).
+- Riga 3: conteggio piccolo (fontSize 10, muted).
+
+Riorganizzati stili: nuovo `tabTopRow`, `tabLabel`, `tabCount` (kept legacy `tabTxt` for backwards-compat). Bottone `tabBtn` ora `alignItems: center` (era row) con `paddingVertical: 8` (era 10) e `paddingHorizontal: 4` (era 6).
+
+Label accorciata: "Suggerimenti" → "**Idee**" per rispettare la richiesta di scritte brevi su singola riga (informazione mostrata comunque nel numero e nell'info modal).
+
+### Verifica visiva
+Screenshot 390×844 conferma i 4 tab (Regole 5 · Fonti URL 6 · Storico 9 · Idee 2) allineati e leggibili senza wrap.
+
+
 ## V50.h (Sept 2026) — Google Drive scope allargato + Axon chat input riorganizzato
 
 ### Segnalazioni utente

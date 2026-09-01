@@ -423,46 +423,60 @@ export default function AiTeachScreen() {
         <AxonOSLogo size={36} testID="ai-teach-logo" />
       </View>
 
-      {/* Tabs */}
+      {/* Tabs — V50.i: layout compatto verticale (icona in cima + label
+          singola riga + conteggio sotto) su richiesta utente. Prima le
+          etichette "Regole/Fonti URL/Storico/Suggerimenti" andavano a capo
+          carattere per carattere perché il layout era row con flexShrink:1
+          → non c'era spazio orizzontale per il testo. */}
       <View style={styles.tabsRow}>
         <Pressable testID="tab-rules" onPress={() => setTab("rules")} style={[styles.tabBtn, tab === "rules" && styles.tabBtnOn]}>
-          <Ionicons name="book" size={16} color={tab === "rules" ? "#FFF" : C.navy} />
-          <Text style={[styles.tabTxt, tab === "rules" && { color: "#FFF" }]}>Regole ({rules.length})</Text>
-          <Pressable testID="info-tab-rules" onPress={() => setInfoTab("rules")} hitSlop={10} style={styles.infoBtn}>
-            <Ionicons name="information-circle" size={16} color={tab === "rules" ? "#FFF" : C.primary} />
-          </Pressable>
+          <View style={styles.tabTopRow}>
+            <Ionicons name="book" size={18} color={tab === "rules" ? "#FFF" : C.navy} />
+            <Pressable testID="info-tab-rules" onPress={() => setInfoTab("rules")} hitSlop={10} style={styles.infoBtn}>
+              <Ionicons name="information-circle" size={14} color={tab === "rules" ? "#FFF" : C.primary} />
+            </Pressable>
+          </View>
+          <Text style={[styles.tabLabel, tab === "rules" && { color: "#FFF" }]} numberOfLines={1}>Regole</Text>
+          <Text style={[styles.tabCount, tab === "rules" && { color: "rgba(255,255,255,0.85)" }]}>{rules.length}</Text>
         </Pressable>
         <Pressable testID="tab-urls" onPress={() => setTab("urls")} style={[styles.tabBtn, tab === "urls" && styles.tabBtnOn]}>
-          <Ionicons name="globe" size={16} color={tab === "urls" ? "#FFF" : C.navy} />
-          <Text style={[styles.tabTxt, tab === "urls" && { color: "#FFF" }]}>Fonti URL ({urls.length})</Text>
-          <Pressable testID="info-tab-urls" onPress={() => setInfoTab("urls")} hitSlop={10} style={styles.infoBtn}>
-            <Ionicons name="information-circle" size={16} color={tab === "urls" ? "#FFF" : C.primary} />
-          </Pressable>
+          <View style={styles.tabTopRow}>
+            <Ionicons name="globe" size={18} color={tab === "urls" ? "#FFF" : C.navy} />
+            <Pressable testID="info-tab-urls" onPress={() => setInfoTab("urls")} hitSlop={10} style={styles.infoBtn}>
+              <Ionicons name="information-circle" size={14} color={tab === "urls" ? "#FFF" : C.primary} />
+            </Pressable>
+          </View>
+          <Text style={[styles.tabLabel, tab === "urls" && { color: "#FFF" }]} numberOfLines={1}>Fonti URL</Text>
+          <Text style={[styles.tabCount, tab === "urls" && { color: "rgba(255,255,255,0.85)" }]}>{urls.length}</Text>
         </Pressable>
         <Pressable testID="tab-history" onPress={() => setTab("history")} style={[styles.tabBtn, tab === "history" && styles.tabBtnOn]}>
-          <Ionicons name="time" size={16} color={tab === "history" ? "#FFF" : C.navy} />
-          <Text style={[styles.tabTxt, tab === "history" && { color: "#FFF" }]}>Storico ({history.length})</Text>
-          <Pressable testID="info-tab-history" onPress={() => setInfoTab("history")} hitSlop={10} style={styles.infoBtn}>
-            <Ionicons name="information-circle" size={16} color={tab === "history" ? "#FFF" : C.primary} />
-          </Pressable>
+          <View style={styles.tabTopRow}>
+            <Ionicons name="time" size={18} color={tab === "history" ? "#FFF" : C.navy} />
+            <Pressable testID="info-tab-history" onPress={() => setInfoTab("history")} hitSlop={10} style={styles.infoBtn}>
+              <Ionicons name="information-circle" size={14} color={tab === "history" ? "#FFF" : C.primary} />
+            </Pressable>
+          </View>
+          <Text style={[styles.tabLabel, tab === "history" && { color: "#FFF" }]} numberOfLines={1}>Storico</Text>
+          <Text style={[styles.tabCount, tab === "history" && { color: "rgba(255,255,255,0.85)" }]}>{history.length}</Text>
         </Pressable>
         <Pressable
           testID="tab-suggestions"
           onPress={() => setTab("suggestions")}
           style={[styles.tabBtn, tab === "suggestions" && styles.tabBtnOn]}
         >
-          <Ionicons name="flame" size={16} color={tab === "suggestions" ? "#FFF" : "#EA580C"} />
-          <Text style={[styles.tabTxt, tab === "suggestions" && { color: "#FFF" }]}>
-            Suggerimenti ({proposalCounts.pending})
-          </Text>
-          <Pressable
-            testID="info-tab-suggestions"
-            onPress={() => setInfoTab("suggestions")}
-            hitSlop={10}
-            style={styles.infoBtn}
-          >
-            <Ionicons name="information-circle" size={16} color={tab === "suggestions" ? "#FFF" : C.primary} />
-          </Pressable>
+          <View style={styles.tabTopRow}>
+            <Ionicons name="flame" size={18} color={tab === "suggestions" ? "#FFF" : "#EA580C"} />
+            <Pressable
+              testID="info-tab-suggestions"
+              onPress={() => setInfoTab("suggestions")}
+              hitSlop={10}
+              style={styles.infoBtn}
+            >
+              <Ionicons name="information-circle" size={14} color={tab === "suggestions" ? "#FFF" : C.primary} />
+            </Pressable>
+          </View>
+          <Text style={[styles.tabLabel, tab === "suggestions" && { color: "#FFF" }]} numberOfLines={1}>Idee</Text>
+          <Text style={[styles.tabCount, tab === "suggestions" && { color: "rgba(255,255,255,0.85)" }]}>{proposalCounts.pending}</Text>
         </Pressable>
       </View>
 
@@ -921,9 +935,31 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: "800", color: C.navy, letterSpacing: -0.3 },
   sub: { fontSize: 11, color: C.muted, marginTop: 2, fontWeight: "600" },
   badge: { width: 32, height: 32, borderRadius: 10, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" },
-  tabsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginTop: 6 },
-  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: "#FFF", paddingVertical: 10, paddingHorizontal: 6, borderRadius: 12, borderWidth: 1.5, borderColor: theme.color.border },
+  tabsRow: { flexDirection: "row", gap: 6, paddingHorizontal: 16, marginTop: 6 },
+  // V50.i — Bottone compatto verticale: icona in cima + label 1 riga + conteggio piccolo sotto.
+  tabBtn: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF",
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: theme.color.border,
+    gap: 2,
+  },
   tabBtnOn: { backgroundColor: C.primary, borderColor: C.primary },
+  tabTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    width: "100%",
+  },
+  tabLabel: { fontSize: 11, fontWeight: "800", color: C.navy, textAlign: "center" },
+  tabCount: { fontSize: 10, fontWeight: "700", color: theme.color.muted, textAlign: "center" },
+  // Legacy (kept in case referenced elsewhere)
   tabTxt: { fontSize: 12, fontWeight: "800", color: C.navy, flexShrink: 1 },
   infoBtn: { padding: 2 },
   infoBody: { fontSize: 13, color: C.navy, lineHeight: 19, padding: 4, fontWeight: "600" },
