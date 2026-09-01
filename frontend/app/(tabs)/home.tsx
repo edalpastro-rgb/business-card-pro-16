@@ -178,12 +178,24 @@ export default function HomeScreen() {
       setDeadlines(Array.isArray(dl?.items) ? dl.items : []);
       setDeadlinesLoading(false);
       const imgs = (mtImgs.items || [])
-        .filter((it) => it.active !== false)
+        // V47 — Include only items where the `active` visibility flag is
+        // explicitly ON. Legacy items (missing/null) default to true so we
+        // don't hide historical images, but ANY falsy value (`false`, `"false"`,
+        // `0`, `null` after an explicit toggle-off) is correctly excluded.
+        .filter((it) => {
+          const a = (it as { active?: unknown }).active;
+          if (a === false || a === 0 || a === "false") return false;
+          return true;
+        })
         .map((it) => it.image_base64)
         .filter((v): v is string => !!v && v.length > 20);
       // Build combined banner slides (images + messages), shuffle for variety
       const messageSlides: MyThingBannerSlide[] = (mtMsgs.items || [])
-        .filter((it) => it.active !== false && ((it.body || "").trim() || (it.title || "").trim()))
+        .filter((it) => {
+          const a = (it as { active?: unknown }).active;
+          if (a === false || a === 0 || a === "false") return false;
+          return ((it.body || "").trim() || (it.title || "").trim());
+        })
         .map((it) => {
           const bg = it.color || "#FFFFFF";
           return {
