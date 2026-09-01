@@ -1,3 +1,24 @@
+## V50.g (Sept 2026) — Anagrafica: ripristinata "Analizza fatture"
+
+### Segnalazione utente
+"Sulle anagrafica è scomparsa l'icona delle fatture / analisi fatture ed al suo posto ci sono le scadenze contratti"
+
+### Root cause
+Il wrapping `<View>` attorno a `<DeadlinesSection>` + `<BillsSection>` nel tab "bills" di `contact/[id].tsx` NON aveva `flex: 1`. `BillsSection` internamente usa `<View style={{flex:1}}><ScrollView>...`, ma senza flex-context nel parent la sua altezza collassava a 0 → si vedeva SOLO `DeadlinesSection` (che ha altezza intrinseca), la sezione "Fatture Energia · AI" spariva sotto.
+
+### Fix (`/app/frontend/app/contact/[id].tsx`)
+`<View>` → `<View style={{ flex: 1 }}>` sul wrapper del tab bills. Nessuna altra modifica: la sezione BillsSection era già presente e funzionante, aveva solo altezza 0 per il context flex mancante.
+
+### Verifica
+Screenshot 390×844 tab Fatture del contatto:
+- ✅ Card "Scadenze contratti" in cima
+- ✅ Card "Fatture Energia · AI Claude Sonnet 5" (intro)
+- ✅ Accordion "Offerte aziendali (0)"
+- ✅ Sezioni "Luce", "Gas", "Telco" con pulsanti "Carica fattura PDF"
+
+Tutti i flussi già collegati funzionano: upload PDF → analisi AI → salvataggio nei file cliente → export/condivisione (identico all'area "Analizza bolletta" del Master).
+
+
 ## V50.f (Sept 2026) — Dropbox callback: route backend mancante
 
 ### Problema

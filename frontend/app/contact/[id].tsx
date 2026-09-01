@@ -550,7 +550,11 @@ function ContactDetail() {
       </View>
 
       {tab === "bills" ? (
-        <View>
+        // V50.g — `flex: 1` necessario altrimenti la BillsSection (che al
+        // suo interno usa `<View flex:1><ScrollView>...`) collassa ad altezza
+        // 0 e mostra solo la DeadlinesSection. Regressione segnalata
+        // dall'utente: "sull'anagrafica è scomparsa l'icona analisi fatture".
+        <View style={{ flex: 1 }}>
           <DeadlinesSection contactId={id} />
           <BillsSection
             contactId={id}
