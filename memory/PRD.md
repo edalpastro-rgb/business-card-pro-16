@@ -1,3 +1,26 @@
+## V50.e (Sept 2026) — Dropbox OAuth: chiavi rigenerate
+
+### Problema
+Utente segnala "Invalid client_id" cliccando l'icona Dropbox nella chat. Ho verificato che l'App Key originale (`x1neobonvqzo5j6`) è visibile in console Dropbox ma Dropbox stesso la rifiuta con `unknown_client_id` (testato via curl 3 volte con parametri diversi, tutti falliti). Anche il vecchio segreto risultava rifiutato con `invalid_client`. Situazione tipica di app rimasta in stato "orphan" lato Dropbox.
+
+### Fix
+- Utente ha ricreato l'app Dropbox da zero (Scoped access + Full Dropbox), aggiunto redirect URI corretto e abilitato scopes `account_info.read`, `files.metadata.read`, `files.content.read`.
+- Nuove credenziali applicate in `/app/backend/.env`:
+  - `DROPBOX_APP_KEY=o9puhxzr78t9rnw`
+  - `DROPBOX_APP_SECRET=adg7e4b5sm754mj` (era placeholder `REPLACE_ME_IN_DEPLOY_SECRETS`)
+  - `DROPBOX_REDIRECT_URI` invariato.
+
+### Verifica
+- `curl authorize` con nuove chiavi → HTTP 200 (prima 302 verso `/oauth2/authorize_error?error_name=unknown_client_id`).
+- `GET /api/dropbox/status` → `{"connected": false, "configured": true}` ✅
+- `POST /api/dropbox/oauth/start` → restituisce authorization_url con `client_id=o9puhxzr78t9rnw`.
+- Dropbox `authorize` endpoint HTTP 200 → pagina di consenso Dropbox pronta a raccogliere le autorizzazioni utente.
+
+### Deployment
+- Le nuove chiavi in `/app/backend/.env` funzionano subito nell'ambiente di **preview** (backend riavviato).
+- Al prossimo deploy in produzione, verificare che sul pannello **Emergent Deployment → Secrets** siano aggiornati anche lì `DROPBOX_APP_KEY` e `DROPBOX_APP_SECRET` (altrimenti la produzione userà quelli vecchi).
+
+
 ## V50.d (Sept 2026) — SupportFab: margine dall'avatar
 
 Utente ha segnalato: "il logo assistenza è posizionato proprio a ridosso della icona foto master".
