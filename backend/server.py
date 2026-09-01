@@ -9279,9 +9279,23 @@ async def _prepare_assistant_prompt(
     if weather_city and weather_city != "?":
         weather_ctx = await _fetch_weather(weather_city)
 
+    # V49.p — Prefetch RAG chunks del tenant PRIMA di decidere la web search:
+    # se i documenti Master già coprono la domanda (es. tabelle PUN salvate),
+    # NON serve interrogare Tavily. Evita risposte "dati mancanti" quando il
+    # tenant ha caricato PDF con listini/tabelle.
+    _prefetch_rag_chunks = []
+    try:
+        _prefetch_rag_chunks = await _retrieve_master_doc_chunks(tenant_id(user), msg)
+    except Exception:
+        _prefetch_rag_chunks = []
+
+    _msg_low = (msg or "").lower()
+    _is_table_query = any(k in _msg_low for k in ["tabella", "per fascia", "f1", "f2", "f3", "monorario", "media pun", "pun medi"])
+    _rag_covers_query = bool(_prefetch_rag_chunks) and (_is_table_query or ("pun" in _msg_low))
+
     web_search_ctx: Optional[dict] = None
     used_web_search = False
-    if _detect_energy_query(msg):
+    if _detect_energy_query(msg) and not _rag_covers_query:
         web_search_ctx = await _tavily_search(msg)
         if web_search_ctx and (web_search_ctx.get("answer") or web_search_ctx.get("results")):
             used_web_search = True
@@ -9319,12 +9333,15 @@ async def _prepare_assistant_prompt(
     # V42 — RAG on Master documents (per-tenant knowledge base)
     rag_section = ""
     try:
-        rag_chunks = await _retrieve_master_doc_chunks(tenant_id(user), msg)
+        # V49.p — Riusa i chunk già prefetched (evita doppia query Mongo).
+        _prefetched = locals().get("_prefetch_rag_chunks")
+        rag_chunks = _prefetched if _prefetched else await _retrieve_master_doc_chunks(tenant_id(user), msg)
         if rag_chunks:
             rag_section = (
                 "\n\nDOCUMENTI MASTER (base di conoscenza personale del Master — usa questi estratti "
-                "come fonte primaria quando la domanda riguarda contratti, listini, procedure o offerte "
-                "commerciali della sua rete):\n"
+                "come FONTE PRIMARIA. Se contengono i dati richiesti (es. tabelle PUN, listini, "
+                "valori per fascia F1/F2/F3), RISPONDI CON QUEI DATI senza cercare altrove e senza "
+                "dichiarare che i dati mancano):\n"
             )
             for i, c in enumerate(rag_chunks, 1):
                 dname = c.get("doc_name") or "?"
@@ -9336,8 +9353,8 @@ async def _prepare_assistant_prompt(
                     f"{content}\n"
                 )
             rag_section += (
-                "\nQuando usi questi estratti nella risposta, cita SEMPRE il nome del documento "
-                "(es. 'Come indicato nel documento «Listino Optima 2026»').\n"
+                "\nCita il nome del documento quando produci prosa (es. «Listino Optima 2026»). "
+                "Quando produci una TABELLA, NON aggiungere note sulle fonti — solo la tabella pura.\n"
             )
     except Exception as exc:
         logger.warning("[axon-rag] retrieval failed: %s", exc)
@@ -9447,7 +9464,19 @@ async def _prepare_assistant_prompt(
         "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
         "- Puoi dare consigli operativi basati sui dati (es. suggerire di chiamare clienti senza appuntamento).\n"
-        "- TABELLE DATI: quando l'utente chiede una tabella (es. PUN mensile, tariffe, storico), genera SOLO la tabella Markdown senza testo prima o dopo. Colonne uniformi, testo delle celle CENTRATO (allineamento `:---:`). Struttura PUN elettrico: `| Mese | PUN monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh |`. Nessuna nota esplicativa: l'app mostra anteprima scorrevole e bottone export.\n\n"
+        "- DATI DAL TENANT: se una domanda riguarda dati che POTREBBERO essere nei documenti Master (RAG), "
+        "nella memoria, negli allegati o nella base storica del tenant (es. PUN medi per fascia F1/F2/F3, "
+        "listini, procedure, valori di mercato), controlla PRIMA in queste sezioni prima di dire che il "
+        "dato manca. Se il dato è presente in una qualsiasi sezione fornita nel prompt, USALO senza chiedere "
+        "conferma e senza cercare sul web. NON RIPETERE MAI 'i dati non sono disponibili' se una delle "
+        "sezioni (DOCUMENTI MASTER, MEMORIA PERSISTENTE, ALLEGATI, RICERCA WEB) contiene i valori richiesti.\n"
+        "- TABELLE DATI: quando l'utente chiede una tabella (PUN mensile, tariffe, storico, listino, ecc.) "
+        "rispondi ESCLUSIVAMENTE con la tabella Markdown. **ZERO** testo prima, **ZERO** testo dopo, "
+        "**ZERO** spiegazioni, **ZERO** commenti, **ZERO** consigli operativi, **ZERO** disclaimer, "
+        "**ZERO** frasi come 'Ecco la tabella:'. Solo la tabella e nient'altro. Colonne uniformi, testo "
+        "delle celle CENTRATO (allineamento `:---:`). Struttura per PUN elettrico: "
+        "`| Mese | PUN monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh |`. Se ti mancano alcuni valori "
+        "per una cella, scrivi `n/d` in quella cella specifica — NON aggiungere note fuori dalla tabella.\n\n"
         f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
@@ -9598,12 +9627,15 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # V42 — RAG on Master documents (per-tenant knowledge base)
     rag_section = ""
     try:
-        rag_chunks = await _retrieve_master_doc_chunks(tenant_id(user), msg)
+        # V49.p — Riusa i chunk già prefetched (evita doppia query Mongo).
+        _prefetched = locals().get("_prefetch_rag_chunks")
+        rag_chunks = _prefetched if _prefetched else await _retrieve_master_doc_chunks(tenant_id(user), msg)
         if rag_chunks:
             rag_section = (
                 "\n\nDOCUMENTI MASTER (base di conoscenza personale del Master — usa questi estratti "
-                "come fonte primaria quando la domanda riguarda contratti, listini, procedure o offerte "
-                "commerciali della sua rete):\n"
+                "come FONTE PRIMARIA. Se contengono i dati richiesti (es. tabelle PUN, listini, "
+                "valori per fascia F1/F2/F3), RISPONDI CON QUEI DATI senza cercare altrove e senza "
+                "dichiarare che i dati mancano):\n"
             )
             for i, c in enumerate(rag_chunks, 1):
                 dname = c.get("doc_name") or "?"
@@ -9615,8 +9647,8 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
                     f"{content}\n"
                 )
             rag_section += (
-                "\nQuando usi questi estratti nella risposta, cita SEMPRE il nome del documento "
-                "(es. 'Come indicato nel documento «Listino Optima 2026»').\n"
+                "\nCita il nome del documento quando produci prosa (es. «Listino Optima 2026»). "
+                "Quando produci una TABELLA, NON aggiungere note sulle fonti — solo la tabella pura.\n"
             )
     except Exception as exc:
         logger.warning("[axon-rag] retrieval failed: %s", exc)
@@ -9729,7 +9761,19 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
         "- Puoi dare consigli operativi basati sui dati (es. suggerire di chiamare clienti senza appuntamento).\n"
-        "- TABELLE DATI: quando l'utente chiede una tabella (es. PUN mensile, tariffe, storico), genera SOLO la tabella Markdown senza testo prima o dopo. Colonne uniformi, testo delle celle CENTRATO (allineamento `:---:`). Struttura PUN elettrico: `| Mese | PUN monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh |`. Nessuna nota esplicativa: l'app mostra anteprima scorrevole e bottone export.\n\n"
+        "- DATI DAL TENANT: se una domanda riguarda dati che POTREBBERO essere nei documenti Master (RAG), "
+        "nella memoria, negli allegati o nella base storica del tenant (es. PUN medi per fascia F1/F2/F3, "
+        "listini, procedure, valori di mercato), controlla PRIMA in queste sezioni prima di dire che il "
+        "dato manca. Se il dato è presente in una qualsiasi sezione fornita nel prompt, USALO senza chiedere "
+        "conferma e senza cercare sul web. NON RIPETERE MAI 'i dati non sono disponibili' se una delle "
+        "sezioni (DOCUMENTI MASTER, MEMORIA PERSISTENTE, ALLEGATI, RICERCA WEB) contiene i valori richiesti.\n"
+        "- TABELLE DATI: quando l'utente chiede una tabella (PUN mensile, tariffe, storico, listino, ecc.) "
+        "rispondi ESCLUSIVAMENTE con la tabella Markdown. **ZERO** testo prima, **ZERO** testo dopo, "
+        "**ZERO** spiegazioni, **ZERO** commenti, **ZERO** consigli operativi, **ZERO** disclaimer, "
+        "**ZERO** frasi come 'Ecco la tabella:'. Solo la tabella e nient'altro. Colonne uniformi, testo "
+        "delle celle CENTRATO (allineamento `:---:`). Struttura per PUN elettrico: "
+        "`| Mese | PUN monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh |`. Se ti mancano alcuni valori "
+        "per una cella, scrivi `n/d` in quella cella specifica — NON aggiungere note fuori dalla tabella.\n\n"
         f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
