@@ -9015,13 +9015,21 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
     """Prepara il contesto "Insegna ad Axon" da iniettare nella chat.
     Include: titolo/testo delle regole + testo estratto dai file allegati (PDF/xlsx/csv/txt/immagini).
     Le regole vengono ordinate per rilevanza rispetto al messaggio dell'utente,
-    con budget di token conservativo (max ~18000 caratteri totali)."""
+    con budget di token conservativo (max ~18000 caratteri totali).
+
+    V49.q — Se il messaggio menziona un mese/anno specifico e negli URL
+    monitorati esistono PDF pertinenti (es. GME PrezzoMedioFasce), scarica
+    dinamicamente il/i PDF, estrae il testo e lo appende alla sezione."""
     try:
         rules = await db.ai_teach_rules.find({"user_id": tenant}, {"_id": 0}).to_list(200)
     except Exception as exc:
         logger.warning("[axon-teach] cannot read ai_teach_rules: %s", exc)
-        return ""
-    if not rules:
+        rules = []
+
+    # Fetch dinamico dei PDF dai URL monitorati
+    dyn_pdf_text = await _fetch_teach_url_pdfs_for_query(tenant, user_msg)
+
+    if not rules and not dyn_pdf_text:
         return ""
 
     msg_lc = (user_msg or "").lower()
@@ -9071,15 +9079,117 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
         out_parts.append(block)
         total += len(block)
 
-    if not out_parts:
+    if not out_parts and not dyn_pdf_text:
         return ""
-    return (
+    header = (
         "\n\nBASE DI CONOSCENZA (Insegna ad Axon — regole e file caricati dal Master, "
         "USA questi contenuti come contesto prioritario quando l'utente menziona documenti, "
         "PDF, GME, Optima o argomenti descritti qui sotto):\n"
-        + "\n\n".join(out_parts)
+    )
+    body = "\n\n".join(out_parts) if out_parts else ""
+    dyn_block = ""
+    if dyn_pdf_text:
+        dyn_block = (
+            "\n\n### 📥 PDF SCARICATO DINAMICAMENTE dai link monitorati (RICHIESTA DELL'UTENTE)\n"
+            + dyn_pdf_text
+            + "\n\nQuesto contenuto è FONTE PRIMARIA. Usa questi valori numerici per rispondere; "
+            "non cercare altrove e non dire 'dati non disponibili'."
+        )
+    return (
+        header + body + dyn_block
         + "\n\nQuando rispondi, cita esplicitamente il nome del file/regola e il contenuto rilevante."
     )
+
+
+# V49.q — Scarica dinamicamente PDF dai link ai_teach_urls quando il messaggio
+# utente menziona un mese/anno + tema PUN/fascia/GME. Utile per il pattern
+# "guarda su gme.mercatoelettrico.org e prendi luglio/agosto 2026".
+_MONTH_MAP_IT = {
+    "gennaio": 1, "febbraio": 2, "marzo": 3, "aprile": 4, "maggio": 5, "giugno": 6,
+    "luglio": 7, "agosto": 8, "settembre": 9, "ottobre": 10, "novembre": 11, "dicembre": 12,
+}
+
+
+async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: int = 3) -> str:
+    """Se il messaggio menziona mesi/anni + tema PUN, prova a scaricare i PDF
+    linkati dalle pagine ai_teach_urls e ritorna il loro testo estratto.
+    Best-effort: se qualcosa fallisce ritorna stringa vuota."""
+    msg_lc = (user_msg or "").lower()
+    if not msg_lc:
+        return ""
+    is_pun_like = any(k in msg_lc for k in ["pun", "fascia", "f1", "f2", "f3", "prezzo medio", "gme"])
+    if not is_pun_like:
+        return ""
+    # Estrai mesi e anni menzionati
+    months = [m for m in _MONTH_MAP_IT if m in msg_lc]
+    years = re.findall(r"20\d{2}", msg_lc)
+    if not months and not years:
+        return ""
+    try:
+        urls = await db.ai_teach_urls.find({"user_id": tenant}, {"_id": 0}).to_list(50)
+    except Exception:
+        return ""
+    if not urls:
+        return ""
+    from urllib.parse import urljoin, urlparse
+    out_blocks: List[str] = []
+    async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
+        for u in urls:
+            page_url = (u.get("url") or "").strip()
+            if not page_url:
+                continue
+            try:
+                r = await client.get(page_url)
+                if r.status_code != 200:
+                    continue
+                html = r.text or ""
+            except Exception:
+                continue
+            # Trova link .pdf nella pagina
+            hrefs = re.findall(r'href=["\']([^"\']+\.pdf[^"\']*)["\']', html, flags=re.IGNORECASE)
+            if not hrefs:
+                continue
+            # Match mesi/anni nel path del pdf o nel nome (case-insensitive)
+            picked: List[str] = []
+            for h in hrefs:
+                h_low = h.lower()
+                # Match qualunque mese menzionato (numero o nome IT) + anno se presente
+                month_ok = (not months) or any(
+                    m in h_low or f"-{_MONTH_MAP_IT[m]:02d}-" in h_low or f"_{_MONTH_MAP_IT[m]:02d}_" in h_low
+                    for m in months
+                )
+                year_ok = (not years) or any(y in h_low for y in years)
+                if month_ok and year_ok:
+                    picked.append(urljoin(page_url, h))
+                if len(picked) >= max_pdfs:
+                    break
+            if not picked:
+                continue
+            for pdf_url in picked[:max_pdfs]:
+                try:
+                    pr = await client.get(pdf_url)
+                    if pr.status_code != 200 or not pr.content:
+                        continue
+                    # Auth basic se le credenziali sono nell'URL entry (raro)
+                    pdf_bytes = pr.content
+                    if len(pdf_bytes) > 8 * 1024 * 1024:
+                        pdf_bytes = pdf_bytes[: 8 * 1024 * 1024]
+                    txt = _extract_pdf_text_bytes(pdf_bytes) or ""
+                    txt = txt.strip()
+                    if not txt:
+                        continue
+                    pdf_name = urlparse(pdf_url).path.rsplit("/", 1)[-1] or pdf_url
+                    out_blocks.append(
+                        f"--- PDF scaricato: {pdf_name} (fonte: {pdf_url}) ---\n{txt[:20000]}"
+                    )
+                except Exception as exc:
+                    logger.debug("[teach-pdf] download failed for %s: %s", pdf_url, exc)
+                if len(out_blocks) >= max_pdfs:
+                    break
+            if len(out_blocks) >= max_pdfs:
+                break
+    return "\n\n".join(out_blocks)
+
 
 
 

@@ -6,6 +6,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
 type ReportStats = { period: string; start: string; end: string; stats: { energy: any; network: any }; outcomes?: { outcome_id: string; count: number }[] };
@@ -21,6 +22,7 @@ export default function ReportScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [drill, setDrill] = useState<{ metric: MetricKey; area: "energy" | "network" | null; color: string; title: string } | null>(null);
+  const pagePad = usePageBottomPadding();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,7 +72,7 @@ export default function ReportScreen() {
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 180 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: pagePad }}>
           {renderArea("energy")}
           {renderArea("network")}
 

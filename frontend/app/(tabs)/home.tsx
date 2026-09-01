@@ -10,6 +10,7 @@ import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { CallScriptOverlay } from "@/src/CallScriptOverlay";
 import { CompanyContactSheet } from "@/src/CompanyContactSheet";
 import { HomeEventBanner } from "@/src/HomeEventBanner";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 // V29.aq — Header dashboard image (loaded as local bundled asset so it works
 // offline on APK/IPA builds). Full-bleed dark image with AdvisorOS + AxonOS
@@ -108,6 +109,7 @@ function _hFontSize(key: string | null | undefined): number {
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const pagePad = usePageBottomPadding();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [callbacks, setCallbacks] = useState<Callback[]>([]);
   const [loading, setLoading] = useState(true);
@@ -335,7 +337,7 @@ export default function HomeScreen() {
       </View>
       <Animated.ScrollView
         style={styles.scrollBg}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: pagePad }]}
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -441,10 +443,10 @@ export default function HomeScreen() {
             <View style={styles.masterIcon}>
               <Ionicons name="grid" size={20} color={C.white} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.masterTitle}>Interfaccia Master</Text>
-              <Text style={styles.masterSub}>Agenda · Contatti · Contratti · Team</Text>
-            </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.masterTitle} numberOfLines={1}>Interfaccia Master</Text>
+            <Text style={styles.masterSub} numberOfLines={1}>Agenda · Contatti · Contratti · Team</Text>
+          </View>
             <Ionicons name="chevron-forward" size={18} color={C.white} />
           </Pressable>
         )}
@@ -517,13 +519,13 @@ export default function HomeScreen() {
               <View style={[styles.quickIcon, { backgroundColor: C.primary }]}>
                 <Ionicons name="calendar-outline" size={22} color="#FFF" />
               </View>
-              <Text style={styles.quickTxt}>Nuovo appuntamento</Text>
+              <Text style={styles.quickTxt} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.75}>Nuovo appuntamento</Text>
             </Pressable>
             <Pressable testID="qa-new-contact" style={styles.quick} onPress={() => router.push("/contact/new")}>
               <View style={[styles.quickIcon, { backgroundColor: C.navy }]}>
                 <Ionicons name="person-add-outline" size={22} color="#FFF" />
               </View>
-              <Text style={styles.quickTxt}>Nuovo contatto</Text>
+              <Text style={styles.quickTxt} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.75}>Nuovo contatto</Text>
             </Pressable>
           </View>
         </View>
@@ -655,8 +657,8 @@ export default function HomeScreen() {
             <Ionicons name="business" size={22} color="#FFF" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.companyContactTitle}>COMUNICA CON L&apos;AZIENDA</Text>
-            <Text style={styles.companyContactSub}>Numeri di servizio e contatti</Text>
+            <Text style={styles.companyContactTitle} numberOfLines={1} ellipsizeMode="tail">COMUNICA CON L&apos;AZIENDA</Text>
+            <Text style={styles.companyContactSub} numberOfLines={1}>Numeri di servizio e contatti</Text>
           </View>
           <Ionicons name="chevron-forward" size={22} color="#FFF" />
         </Pressable>
@@ -965,7 +967,7 @@ const styles = StyleSheet.create({
   rootDark: { flex: 1, backgroundColor: "#0D1B2A" },
   scrollBg: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 180 },
+  scroll: { paddingHorizontal: 16, paddingTop: 12 },
 
   /* V49 — Bottone "Comunica con l'azienda" (fondo Home) */
   companyContactBtn: {

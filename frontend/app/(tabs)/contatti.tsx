@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string;
@@ -33,6 +34,7 @@ export default function ContattiRoute() {
 function ContattiScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const pagePad = usePageBottomPadding();
   const allowed = user?.areas || ["energy", "network"];
   const AREAS = AREAS_ALL.filter((a) => a.key === "all" || allowed.includes(a.key));
   const [items, setItems] = useState<Contact[]>([]);
@@ -137,7 +139,7 @@ function ContattiScreen() {
         <FlatList
           data={items}
           keyExtractor={(i) => i.contact_id}
-          contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 180 }}
+          contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: pagePad }}
           renderItem={({ item }) => (
             <Pressable
               testID={`contact-${item.contact_id}`}

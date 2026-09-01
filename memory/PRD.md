@@ -1,3 +1,32 @@
+## V50.a (Sept 2026) — Fix visivi urgenti: header pulito, label 1 riga, safe-area globale
+
+### Frontend
+- **`/app/frontend/src/SupportFab.tsx`**:
+  - Ridimensionato FAB da 36×36 → 30×30 (padding più leggero, coerente con l'avatar 26–30).
+  - `right: 52 → 44`, `top: insets.top+12 → insets.top+11` per allineamento verticale al centro dell'avatar.
+  - Icona gear ridotta 22→18, badge chiave 11→9, badge dot 16→13. Visibile su TUTTE le pagine (fuori login/landing/auth) e SEMPRE a sinistra dell'avatar/foto profilo senza coprirla.
+
+- **`/app/frontend/app/(tabs)/home.tsx`**:
+  - `numberOfLines={1}` + `ellipsizeMode="tail"` + `adjustsFontSizeToFit` + `minimumFontScale={0.75}` sui bottoni "Nuovo appuntamento" e "Nuovo contatto".
+  - `numberOfLines={1}` sui titoli/sottotitoli della card "Interfaccia Master" e "COMUNICA CON L'AZIENDA".
+  - `usePageBottomPadding()` sostituisce l'hard-coded `paddingBottom: 180` per un padding coerente col bottom nav.
+
+- **`/app/frontend/app/master.tsx`**:
+  - RIMOSSO completamente il "banner con la foto personale": eliminato l'header con l'immagine brandizzata AdvisorOS/AxonOS + overlay avatar. Sostituito con `headerBar` minimale (44px altezza) contenente solo la data a sinistra e il pulsante avatar/menu a destra.
+  - Nuovi stili: `headerBar`, `headerDate`, `headerAvatarBtn`, `headerAvatar`, `headerAvatarFallback`, `headerAvatarTxt`.
+  - `usePageBottomPadding()` sostituisce `paddingBottom: 140` del ScrollView.
+
+- **`/app/frontend/src/utils/bottomSheetInsets.ts`**:
+  - `usePageBottomPadding(extraGap=24)` ora restituisce `Math.max(140, NAV_HEIGHT + insets.bottom + extraGap)`. Il minimo di 140px è allineato al valore storico usato nella sezione Master Z, così TUTTE le pagine con PersistentBottomNav / Tabs visibile hanno lo stesso safe-area comportamento.
+
+- **Pagine tab aggiornate a `usePageBottomPadding()`** (rimosso `paddingBottom: 180` hard-coded):
+  - `/app/(tabs)/home.tsx`, `/app/(tabs)/chat.tsx`, `/app/(tabs)/contatti.tsx`, `/app/(tabs)/calendario.tsx`, `/app/(tabs)/report.tsx`, `/app/(tabs)/impostazioni.tsx`, `/app/ai-teach.tsx`, `/app/master.tsx`.
+
+### Testing
+- Verifica visiva via Playwright screenshot (login → home, login → master) su viewport 390×844: header Master pulito, badge FAB support a sinistra dell'avatar su entrambe le schermate, quick action buttons su una riga, safe-area bottom rispettata su tutte le tab e la Master.
+- Nessun test automatico eseguito su richiesta utente (`"Non eseguire test automatici"`).
+
+
 # Dal Pastro CRM — PRD v1.15
 
 ## v45 Notifica proposte + Cruscotto Master unificato (Giugno 2026)

@@ -20,15 +20,18 @@ export function useBottomSheetPadding(minPad: number = 28): number {
 }
 
 /**
- * Restituisce il paddingBottom sicuro per il contenuto scrollabile di una
- * pagina che ha la PersistentBottomNav visibile. Include:
+ * V50.a — Restituisce il paddingBottom sicuro per il contenuto scrollabile di
+ * una pagina che ha la PersistentBottomNav (o la Tabs nativa) visibile.
+ * Include:
  *  - altezza della nav (~60px)
  *  - safe-area bottom (home indicator iOS / gesture bar Android)
  *  - un extraGap opzionale (default 24) per non attaccare l'ultimo elemento
  *    alla barra.
+ *  - un minimo di 140px (allineato al setup della sezione Master Z) per
+ *    garantire coerenza visiva su tutte le schermate dell'app.
  */
 export function usePageBottomPadding(extraGap: number = 24): number {
   const insets = useSafeAreaInsets();
   const NAV_HEIGHT = 60;
-  return NAV_HEIGHT + (insets?.bottom || 0) + extraGap;
+  return Math.max(140, NAV_HEIGHT + (insets?.bottom || 0) + extraGap);
 }

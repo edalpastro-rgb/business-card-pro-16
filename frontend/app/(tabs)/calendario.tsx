@@ -9,6 +9,7 @@ import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { apptTypeColor } from "@/app/appointment/new";
 import { useAuth } from "@/src/auth";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Appointment = {
   appointment_id: string; title: string; area: "energy" | "network";
@@ -64,6 +65,7 @@ export default function CalendarioRoute() {
 function CalendarioScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const pagePad = usePageBottomPadding();
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [teamAppts, setTeamAppts] = useState<TeamAppointment[]>([]);
@@ -333,7 +335,7 @@ function CalendarioScreen() {
       {viewMode !== "year" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 180 }}
+          contentContainerStyle={{ paddingBottom: pagePad }}
           showsVerticalScrollIndicator={true}
           testID="cal-scroll"
         >

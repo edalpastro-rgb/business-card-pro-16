@@ -64,9 +64,12 @@ export function SupportFab() {
   if (!user || hide) return null;
 
   // V49.k — Sposta il bottone da bottom-right → top-right (accanto all'avatar).
-  // top = safe-area + 12; right = 52 così l'avatar (right:8-38) rimane
-  // interamente visibile. L'icona è un mix ingranaggio blu + chiave gialla.
-  const topPos = (insets?.top || 0) + 12;
+  // V50.a — Ridimensionato a 30×30 (era 36×36) e posizionato in modo che sia
+  // sempre alla SINISTRA dell'avatar (right:8, w:26) senza mai coprirlo,
+  // su TUTTE le schermate. Allineamento verticale al centro dell'avatar
+  // dell'header (top: insets.top + 11 → il centro cade su insets.top + 26,
+  // stesso centro dell'avatar 26px con top: insets.top + 12).
+  const topPos = (insets?.top || 0) + 11;
 
   return (
     <>
@@ -75,10 +78,11 @@ export function SupportFab() {
         onPress={() => setOpen(true)}
         style={[styles.fab, { top: topPos }]}
         accessibilityLabel="Assistenza"
+        hitSlop={6}
       >
-        <Ionicons name="settings" size={22} color="#2563EB" />
+        <Ionicons name="settings" size={18} color="#2563EB" />
         <View style={styles.fabBadge}>
-          <Ionicons name="key" size={11} color="#EAB308" />
+          <Ionicons name="key" size={9} color="#EAB308" />
         </View>
       </Pressable>
       <SupportSheet visible={open} onClose={() => setOpen(false)} />
@@ -346,9 +350,12 @@ function SupportSheet({ visible, onClose }: { visible: boolean; onClose: () => v
 const styles = StyleSheet.create({
   fab: {
     position: "absolute",
-    right: 52,
+    // V50.a — right:44 → left edge del FAB (30px) è a right:74; avatar (26px)
+    // occupa right:8..34. Restano 40px di gap: FAB visibilmente a sinistra
+    // dell'avatar senza mai sovrapporlo su nessuna schermata.
+    right: 44,
     // top calcolato dinamicamente via insets nel componente
-    width: 36, height: 36, borderRadius: 12,
+    width: 30, height: 30, borderRadius: 10,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#DBEAFE",
@@ -361,7 +368,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: -2,
     right: -2,
-    width: 16, height: 16, borderRadius: 8,
+    width: 13, height: 13, borderRadius: 7,
     backgroundColor: "#FFFBEB",
     borderWidth: 1,
     borderColor: "#FDE68A",

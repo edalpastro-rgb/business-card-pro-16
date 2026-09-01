@@ -11,7 +11,7 @@ import { theme } from "@/src/theme";
 import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 import { MasterPromoteModal } from "@/src/MasterPromoteModal";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
-import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { ModuleErrorBoundary } from "@/src/shared";
 
 // V49.g — Header Master allineato all'header Home: usa la stessa immagine.
@@ -43,6 +43,9 @@ function MasterScreen() {
   const [pendingProposals, setPendingProposals] = useState<number>(0);
   // V46 — Safe bottom padding for slide-up sheets on Android gesture-nav / iOS home indicator.
   const bottomPad = useBottomSheetPadding();
+  // V50.a — Padding standard globale per il contenuto scrollabile con
+  // PersistentBottomNav visibile. Allineato a Home/Master (min 140).
+  const pagePad = usePageBottomPadding();
   // V49 — Reorder mode + persisted button order. (Assistance quick-call buttons
   //        rimossi in V49 — spostati nel pannello "Comunica con l'azienda" della Home.)
   const [reorderMode, setReorderMode] = useState<boolean>(false);
@@ -270,57 +273,41 @@ function MasterScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      {/* V49.g — Header allineato alla Home: stessa immagine di sfondo con
-          loghi AdvisorOS/AxonOS integrati, data/ora TL e avatar TR come
-          overlay corner. Il tap sull'avatar apre il menu Master (Setting App,
-          Team Insights, New Corporate, Invita Collaboratore, Invita Cliente)
-          — lo stesso menu che era precedentemente aperto dall'icona ellipsis. */}
-      <View style={styles.brandHeader}>
-        <View style={styles.brandHeaderBox} testID="master-brand-header">
-          <Image
-            source={HOME_HEADER_IMG}
-            resizeMode="cover"
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              borderRadius: 12,
-            }}
-          />
-          <View pointerEvents="none" style={styles.brandHeaderScrim} />
-          <View style={styles.brandHeaderCornerTL} pointerEvents="none">
-            <Text style={styles.brandHeaderDate} numberOfLines={1} testID="master-clock-time">
-              {now.toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
-              {" · "}
-              {now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => setMenuOpen(true)}
-            hitSlop={8}
-            style={styles.brandHeaderCornerTR}
-            testID="master-menu-btn"
-          >
-            {user?.avatar_base64 ? (
-              <Image source={{ uri: user.avatar_base64 }} style={styles.brandHeaderAvatar} />
-            ) : (
-              <View style={styles.brandHeaderAvatarFallback}>
-                <Text style={styles.brandHeaderAvatarTxt}>
-                  {user?.name?.[0]?.toUpperCase() || "?"}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        </View>
+      {/* V50.a — "banner con la foto personale" RIMOSSO su richiesta utente:
+          l'immagine di brand AdvisorOS/AxonOS e l'overlay con l'avatar
+          personale sono stati sostituiti con un header minimale pulito che
+          contiene solo data/ora a sinistra e il pulsante avatar/menu a destra.
+          Il pulsante di assistenza (SupportFab) resta visibile globalmente
+          alla sinistra dell'avatar, come su tutte le altre schermate. */}
+      <View style={styles.headerBar}>
+        <Text style={styles.headerDate} numberOfLines={1} testID="master-clock-time">
+          {now.toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
+          {" · "}
+          {now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+        </Text>
+        <Pressable
+          onPress={() => setMenuOpen(true)}
+          hitSlop={8}
+          testID="master-menu-btn"
+          style={styles.headerAvatarBtn}
+        >
+          {user?.avatar_base64 ? (
+            <Image source={{ uri: user.avatar_base64 }} style={styles.headerAvatar} />
+          ) : (
+            <View style={styles.headerAvatarFallback}>
+              <Text style={styles.headerAvatarTxt}>
+                {user?.name?.[0]?.toUpperCase() || "?"}
+              </Text>
+            </View>
+          )}
+        </Pressable>
       </View>
 
       {/* V49.l — Banner "My Thing" rimosso dal Master su richiesta utente
           (resta disponibile in Home). Master ora va direttamente allo scroll
           contenente Riordino + griglia dei bottoni Master. */}
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
         {/* V48 — Reorder mode toggle bar */}
         <View style={masterExtraStyles.reorderBar}>
           {reorderMode ? (
@@ -755,7 +742,50 @@ const masterExtraStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.background },
-  // V49.g — Header allineato alla Home (stessa immagine + data TL + avatar TR).
+  // V50.a — Header minimale pulito (senza banner brandizzato): data a sinistra,
+  // avatar/menu a destra. Il SupportFab globale si posiziona alla sinistra
+  // dell'avatar automaticamente.
+  headerBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 6,
+    minHeight: 44,
+  },
+  headerDate: {
+    color: theme.color.muted,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    textTransform: "capitalize",
+    flex: 1,
+  },
+  headerAvatarBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1.5,
+    borderColor: "#FFF1E9",
+  },
+  headerAvatarFallback: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#FF6B35",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFF1E9",
+  },
+  headerAvatarTxt: { color: "#FFF", fontSize: 13, fontWeight: "800" },
+  // V49.g — Legacy header brand styles (mantenuti solo per compatibilità in
+  // caso di riferimento residuo, ma non renderizzati più).
   brandHeader: {
     backgroundColor: "transparent",
     paddingHorizontal: 14,
@@ -879,9 +909,6 @@ const styles = StyleSheet.create({
   bannerTitle: { color: "#FFF", fontSize: 13, fontWeight: "800", marginTop: 1 },
   bannerBody: { color: "rgba(255,255,255,0.9)", fontSize: 11, marginTop: 1 },
 
-  // V49.l — Grid centrata orizzontalmente in modo uniforme e simmetrico
-  // (space-evenly distribuisce spazio uguale sia ai bordi sia tra le celle,
-  // così anche l'ultima riga incompleta resta centrata).
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-evenly", rowGap: 4 },
   btnCell: { width: "31%", alignItems: "center", marginBottom: 22 },
   // V29.ba — Stile "Optima": icona full-round su cerchio colorato con shadow

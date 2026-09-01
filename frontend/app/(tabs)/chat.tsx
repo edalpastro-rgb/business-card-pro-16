@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Message = { message_id: string; sender_id: string; sender_name: string; kind: string; text?: string; created_at: string; file_name?: string };
 type Channel = {
@@ -27,6 +28,7 @@ export default function ChatListRoute() {
 function ChatListScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const pagePad = usePageBottomPadding();
   const [items, setItems] = useState<Channel[]>([]);
   const [members, setMembers] = useState<Record<string, Member>>({});
   const [loading, setLoading] = useState(true);
@@ -97,7 +99,7 @@ function ChatListScreen() {
         <FlatList
           data={items}
           keyExtractor={(i) => i.channel_id}
-          contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 180 }}
+          contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: pagePad }}
           renderItem={({ item }) => (
             <Pressable testID={`chat-${item.channel_id}`} onPress={() => router.push(`/chat/${item.channel_id}`)} style={styles.card}>
               <View style={styles.avatar}>

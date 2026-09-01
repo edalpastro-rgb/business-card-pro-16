@@ -18,7 +18,7 @@ import { notify } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import * as FileSystem from "expo-file-system/legacy";
 
-import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 type Rule = { rule_id: string; category?: string; categories?: string[]; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string };
 type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: string };
 // V28.j — Storico aggiornamenti (elenco esecuzioni di "Aggiorna ora" automatico o manuale)
@@ -79,6 +79,7 @@ export default function AiTeachScreen() {
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const [tab, setTab] = useState<"rules" | "urls" | "history" | "suggestions">("rules");
   const bottomPad = useBottomSheetPadding();
+  const pagePad = usePageBottomPadding();
   const [filter, setFilter] = useState<string>("all");
   const [rules, setRules] = useState<Rule[]>([]);
   const [urls, setUrls] = useState<UrlItem[]>([]);
@@ -466,7 +467,7 @@ export default function AiTeachScreen() {
       </View>
 
       {loading ? <ActivityIndicator style={{ marginTop: 24 }} color={C.primary} /> : (
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 180, gap: 10 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad, gap: 10 }}>
         {tab === "rules" && (
           <>
             {/* V28.g — Dynamic category filter */}

@@ -9,6 +9,7 @@ import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Settings = {
   energy_title: string; energy_color: string;
@@ -35,6 +36,7 @@ export default function ImpostazioniRoute() {
 function ImpostazioniScreen() {
   const { user, logout, refresh } = useAuth();
   const router = useRouter();
+  const pagePad = usePageBottomPadding();
   const [s, setS] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(false);
@@ -333,7 +335,7 @@ function ImpostazioniScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}><Text style={styles.title}>Profilo & Impostazioni</Text></View>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 180 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: pagePad }}>
         <View style={styles.card}>
           <View style={styles.profileHead}>
             <Pressable testID="profile-avatar-btn" onPress={changeAvatar} style={styles.avatarWrap} disabled={avatarBusy}>
