@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { shareDataUri } from "@/src/share";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 export type ShareTarget = {
   // The file to share
   id: string;
@@ -30,6 +31,7 @@ type Props = {
 /** Universal share sheet with 4 channels: System, WhatsApp, Email, Copy link. */
 export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props) {
   const [busyChannel, setBusyChannel] = useState<null | string>(null);
+  const bottomPad = useBottomSheetPadding();
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [loadingLink, setLoadingLink] = useState(false);
   // V38I — inline email composer
@@ -178,7 +180,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, { paddingBottom: bottomPad }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.head}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Condividi file</Text>

@@ -33,6 +33,7 @@ import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { AxonOSLogo } from "@/src/BrandLogos";
 import { streamAssistantChat } from "@/src/utils/assistantStream";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 // V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
 const AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-transparent.png");
 const AXONOS_LOGO_HORIZONTAL_ASPECT = 1375 / 294;
@@ -141,6 +142,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // V28.y — Only the Master can save rules/URLs to Insegna ad Axon
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const bottomPad = useBottomSheetPadding();
   const [assistantName, setAssistantName] = useState("Neo");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
@@ -1178,7 +1180,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <Pressable style={styles.backdropTouch} onPress={onClose} />
-        <View ref={sheetContainerRef} style={[styles.sheet, { paddingBottom: insets.bottom }]}>
+        <View ref={sheetContainerRef} style={[styles.sheet, { paddingBottom: insets.bottom }, { paddingBottom: bottomPad }]}>
           {/* V28.v — Drop zone overlay (solo web durante drag di file) */}
           {isDragging && Platform.OS === "web" && (
             <View pointerEvents="none" style={styles.dropOverlay} testID="assistant-drop-overlay">

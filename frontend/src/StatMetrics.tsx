@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 export type MetricKey = "appointments_done" | "appointments_total" | "phone_done" | "contracts" | "products";
 export const METRIC_LABELS: Record<MetricKey, string> = {
   appointments_done: "Appuntamenti fatti",
@@ -45,6 +46,7 @@ export function MetricDrillModal({
   const router = useRouter();
   const safeBottom = useSafeBottom();
   const [loading, setLoading] = useState(false);
+  const bottomPad = useBottomSheetPadding();
   const [items, setItems] = useState<Item[]>([]);
   const [note, setNote] = useState<string | null>(null);
 
@@ -82,7 +84,7 @@ export function MetricDrillModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }]} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }, { paddingBottom: bottomPad }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.head}>
             <View style={{ flex: 1 }}>
               <Text style={styles.headTitle}>{title}</Text>

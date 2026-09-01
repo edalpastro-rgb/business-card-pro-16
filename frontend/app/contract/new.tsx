@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 type Contact = { contact_id: string; first_name: string; last_name: string; contact_code?: string; phone?: string };
 
 const TYPES = [
@@ -20,6 +21,7 @@ export default function NewContractScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ contact_id?: string }>();
   const [contact, setContact] = useState<Contact | null>(null);
+  const bottomPad = useBottomSheetPadding();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState("");
@@ -136,7 +138,7 @@ export default function NewContractScreen() {
 
       <Modal transparent visible={pickerOpen} onRequestClose={() => setPickerOpen(false)} animationType="slide">
         <Pressable style={styles.backdrop} onPress={() => setPickerOpen(false)}>
-          <View style={styles.sheet} onStartShouldSetResponder={() => true}>
+          <View style={[styles.sheet, { paddingBottom: bottomPad }]} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>Seleziona cliente</Text>
             <TextInput value={search} onChangeText={setSearch} placeholder="Cerca…" style={[styles.input, { marginBottom: 10 }]} />

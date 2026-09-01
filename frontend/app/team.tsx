@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { confirmAsync, notify } from "@/src/utils/notify";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 type Member = { user_id: string; email: string; name: string; role: string; areas: string[]; agent_code?: string | null; created_at?: string };
 
 // V28.z — Sotto-componente per i campi Master-only: codice agente + password dati sensibili.
@@ -109,6 +110,7 @@ function MasterOnlyFields({ member, onUpdated }: { member: Member; onUpdated: ()
 }
 
 export default function TeamScreen() {
+  const bottomPad = useBottomSheetPadding();
   const router = useRouter();
   const [items, setItems] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -237,7 +239,7 @@ export default function TeamScreen() {
 
       <Modal visible={showInvite} animationType="slide" transparent onRequestClose={() => setShowInvite(false)}>
         <View style={styles.modalBg}>
-          <View style={styles.modal}>
+          <View style={[styles.modal, { paddingBottom: bottomPad }]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Invita membro</Text>
               <Pressable testID="invite-close" onPress={() => setShowInvite(false)}><Ionicons name="close" size={24} color={theme.color.onSurface} /></Pressable>

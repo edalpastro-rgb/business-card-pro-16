@@ -6,6 +6,7 @@ import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 /**
  * V29.o — Master-only flow "Promuovi contatto ad agente".
  * 1. Search field per trovare il contatto (nome/email/codice)
@@ -56,6 +57,7 @@ const AREA_OPTIONS: { id: "energy" | "network"; label: string; icon: any }[] = [
 
 export function MasterPromoteModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [step, setStep] = useState<"search" | "auth" | "result">("search");
+  const bottomPad = useBottomSheetPadding();
   const [q, setQ] = useState("");
   const [contacts, setContacts] = useState<ContactLite[]>([]);
   const [loading, setLoading] = useState(false);
@@ -129,7 +131,7 @@ export function MasterPromoteModal({ visible, onClose }: { visible: boolean; onC
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose} testID="master-promote-modal">
       <Pressable style={styles.backdrop} onPress={handleClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }]} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }, { paddingBottom: bottomPad }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grip} />
           <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {/* STEP: Search */}

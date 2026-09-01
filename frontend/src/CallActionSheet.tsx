@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { cancelByTag } from "@/src/notifs";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 export type CallOutcome = {
   id: string;
   name: string;
@@ -47,6 +48,7 @@ function tomorrow9AM(): Date {
 
 export function CallActionSheet({ visible, target, onClose, onCompleted }: Props) {
   const [step, setStep] = useState<"call" | "outcome" | "reschedule" | "done">("call");
+  const bottomPad = useBottomSheetPadding();
   const [outcomes, setOutcomes] = useState<CallOutcome[]>([]);
   const [chosen, setChosen] = useState<CallOutcome | null>(null);
   const [note, setNote] = useState("");
@@ -147,7 +149,7 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.wrap}>
-        <View style={styles.card}>
+        <View style={[styles.card, { paddingBottom: bottomPad }]}>
           <View style={styles.head}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>

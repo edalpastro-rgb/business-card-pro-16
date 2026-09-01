@@ -13,6 +13,7 @@ import { uriToBase64 } from "@/src/utils/media";
 import { launchLibraryUniversal } from "@/src/utils/imagePickerCompat";
 import { ModuleErrorBoundary } from "@/src/shared";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 // ---------- Types ----------
 type EventBanner = {
   event_id: string;
@@ -43,6 +44,7 @@ export default function EventBannersRoute() {
 function EventBannersScreen() {
   const router = useRouter();
   const [items, setItems] = useState<EventBanner[]>([]);
+  const bottomPad = useBottomSheetPadding();
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<null | Partial<EventBanner> & { cover_base64?: string; program_pdf_base64?: string; program_pdf_name?: string }>(null);
 
@@ -537,7 +539,7 @@ function EventBannersScreen() {
       {/* Create/Edit modal */}
       <Modal visible={!!editing} animationType="slide" transparent onRequestClose={() => setEditing(null)}>
         <View style={styles.modalBack}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { paddingBottom: bottomPad }]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>{editing?.event_id ? "Modifica evento" : "Nuovo evento"}</Text>
               <Pressable onPress={() => setEditing(null)} hitSlop={8}>

@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 /**
  * V28.c — Renamed: "Cronologia comunicazioni" (was: telefonate).
  * Renders a unified timeline of ALL communication events with the contact:
@@ -73,6 +74,7 @@ function fmtDateTime(iso: string): { date: string; time: string } {
 export function ContactCallsSection({ contactId, contactName, contactPhone, refreshTick, onCallStarted }: Props) {
   const safeBottom = useSafeBottom(); // V29.aq
   const [logs, setLogs] = useState<CallLog[]>([]);
+  const bottomPad = useBottomSheetPadding();
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const [loading, setLoading] = useState(true);
   // V28.f — Inline edit modal for outcome / duration / note
@@ -235,7 +237,7 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
       {/* V28.f — Edit modal: outcome + duration + note */}
       <Modal visible={!!editing} transparent animationType="slide" onRequestClose={() => setEditing(null)}>
         <View style={styles.editBackdrop}>
-          <View style={[styles.editCard, { paddingBottom: 16 + safeBottom }]} testID="call-log-edit-modal">
+          <View style={[styles.editCard, { paddingBottom: 16 + safeBottom }, { paddingBottom: bottomPad }]} testID="call-log-edit-modal">
             <View style={styles.editHead}>
               <Text style={styles.editTitle}>Modifica chiamata</Text>
               <Pressable onPress={() => setEditing(null)} hitSlop={8}>

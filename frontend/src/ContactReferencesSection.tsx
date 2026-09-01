@@ -14,6 +14,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 type ContactRef = {
   contact_id: string;
   first_name: string;
@@ -43,6 +44,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
   const canEdit = !user?.parent_user_id && (user?.role || "member") === "owner";
 
   const [items, setItems] = useState<ContactRef[]>([]);
+  const bottomPad = useBottomSheetPadding();
   const [loading, setLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [allContacts, setAllContacts] = useState<ContactRef[]>([]);
@@ -219,7 +221,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
       {/* Picker modal */}
       <Modal transparent visible={pickerOpen} animationType="slide" onRequestClose={closePicker}>
         <View style={styles.backdrop}>
-          <View style={[styles.sheet, { paddingBottom: safeBottom + 12 }]}>
+          <View style={[styles.sheet, { paddingBottom: safeBottom + 12 }, { paddingBottom: bottomPad }]}>
             <View style={styles.sheetHdr}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.sheetTitle}>{justAdded ? "Referenza aggiunta" : "Aggiungi referenza"}</Text>

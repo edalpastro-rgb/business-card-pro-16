@@ -11,6 +11,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 type DriveFile = {
   id: string;
   name: string;
@@ -41,6 +42,7 @@ export function GoogleDrivePickerModal({
   onFilePicked: (info: { name: string; mime: string; data_base64: string }) => void;
 }) {
   const [status, setStatus] = useState<{ connected: boolean; configured: boolean; google_email?: string }>({ connected: false, configured: false });
+  const bottomPad = useBottomSheetPadding();
   const [loading, setLoading] = useState(true);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [q, setQ] = useState("");
@@ -97,7 +99,7 @@ export function GoogleDrivePickerModal({
   return (
     <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={[styles.sheet, { paddingBottom: safeBottom + 12 }]}>
+        <View style={[styles.sheet, { paddingBottom: safeBottom + 12 }, { paddingBottom: bottomPad }]}>
           <View style={styles.hdr}>
             <View style={styles.badge}><Ionicons name="logo-google" size={16} color="#FFF" /></View>
             <View style={{ flex: 1 }}>

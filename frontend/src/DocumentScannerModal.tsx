@@ -8,6 +8,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { LiveCameraScanner, type LiveScannedPage } from "@/src/LiveCameraScanner";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 /**
  * V27 — Document Scanner (multi-page + auto-crop + PDF merge).
  *
@@ -39,6 +40,7 @@ type Props = {
 
 export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle, onSaved }: Props) {
   const [pages, setPages] = useState<ScannedPage[]>([]);
+  const bottomPad = useBottomSheetPadding();
   const [autocrop, setAutocrop] = useState(true);
   const [enhance, setEnhance] = useState(true);
   const [grayscale, setGrayscale] = useState(false);
@@ -217,7 +219,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent>
       <View style={styles.back}>
-        <View style={styles.card}>
+        <View style={[styles.card, { paddingBottom: bottomPad }]}>
           {/* Header */}
           <View style={styles.hdr}>
             <View style={{ flex: 1 }}>

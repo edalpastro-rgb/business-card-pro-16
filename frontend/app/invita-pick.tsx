@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 /**
  * V27 — Pick or quick-create a contact for an invite (prospect | collaborator).
  * Query params:
@@ -29,6 +30,7 @@ export default function InvitaPickContact() {
   const params = useLocalSearchParams<{ intent?: string }>();
   const intent = (params.intent === "collaborator" ? "collaborator" : "prospect") as "prospect" | "collaborator";
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const bottomPad = useBottomSheetPadding();
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -181,7 +183,7 @@ export default function InvitaPickContact() {
       {/* Quick-create modal */}
       <Modal transparent visible={showCreate} animationType="slide" onRequestClose={() => setShowCreate(false)}>
         <View style={styles.backdrop}>
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
             <View style={styles.sheetHdr}>
               <Text style={styles.sheetTitle}>Nuovo contatto</Text>
               <Pressable onPress={() => setShowCreate(false)} hitSlop={8}>

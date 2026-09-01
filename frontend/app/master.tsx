@@ -10,6 +10,7 @@ import { theme } from "@/src/theme";
 import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 import { MasterPromoteModal } from "@/src/MasterPromoteModal";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { NeuralPatternBg } from "@/src/NeuralPatternBg";
 
@@ -37,6 +38,8 @@ function MasterScreen() {
   const [alerts, setAlerts] = useState<Alerts>({ unread: 0, latest: [] });
   // V45 — Badge counter for pending rule proposals (Master)
   const [pendingProposals, setPendingProposals] = useState<number>(0);
+  // V46 — Safe bottom padding for slide-up sheets on Android gesture-nav / iOS home indicator.
+  const bottomPad = useBottomSheetPadding();
   const [now, setNow] = useState(new Date());
   const [menuOpen, setMenuOpen] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
@@ -317,7 +320,7 @@ function MasterScreen() {
       {/* 3-dot menu */}
       <Modal transparent visible={menuOpen} onRequestClose={() => setMenuOpen(false)} animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setMenuOpen(false)}>
-          <View style={styles.menuBox} onStartShouldSetResponder={() => true}>
+          <View style={[styles.menuBox, { paddingBottom: bottomPad }]} onStartShouldSetResponder={() => true}>
             <MenuItem icon="color-palette" color="#7C3AED" label="Setting App" hint="Cambia tema e colori" onPress={() => goto("/settings-app")} testID="menu-settings" />
             <MenuItem icon="analytics" color="#0EA5E9" label="Team Insights" hint="Metriche + profilo AI dei collaboratori" onPress={() => goto("/team-insights")} testID="menu-team-insights" />
             <MenuItem icon="business" color="#059669" label="New Corporate" hint="Crea nuova area business" onPress={() => goto("/corporate/new")} testID="menu-corporate" />
@@ -330,7 +333,7 @@ function MasterScreen() {
       {/* Chat Gruppo picker */}
       <Modal transparent visible={chatPickerOpen} onRequestClose={() => setChatPickerOpen(false)} animationType="slide">
         <Pressable style={styles.modalBackdrop} onPress={() => setChatPickerOpen(false)}>
-          <View style={styles.sheetBox} onStartShouldSetResponder={() => true}>
+          <View style={[styles.sheetBox, { paddingBottom: bottomPad }]} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>Chat Gruppo</Text>
             <PickerRow icon="chatbubbles" color="#0891B2" label="Chat interna" hint="Team collaborators" onPress={() => { setChatPickerOpen(false); router.push("/(tabs)/chat"); }} testID="chat-internal" />
@@ -344,7 +347,7 @@ function MasterScreen() {
       {/* Calculator modal */}
       <Modal transparent visible={calcOpen} onRequestClose={() => setCalcOpen(false)} animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setCalcOpen(false)}>
-          <View style={styles.calcBox} onStartShouldSetResponder={() => true}>
+          <View style={[styles.calcBox, { paddingBottom: bottomPad }]} onStartShouldSetResponder={() => true}>
             <View style={styles.calcHeader}>
               <Text style={styles.calcTitle}>Calcolatrice</Text>
               <Pressable onPress={() => setCalcOpen(false)}><Ionicons name="close" size={22} color={theme.color.onSurface} /></Pressable>

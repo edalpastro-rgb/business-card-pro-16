@@ -18,6 +18,7 @@ import { notify } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import * as FileSystem from "expo-file-system/legacy";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 type Rule = { rule_id: string; category?: string; categories?: string[]; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string };
 type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: string };
 // V28.j — Storico aggiornamenti (elenco esecuzioni di "Aggiorna ora" automatico o manuale)
@@ -77,6 +78,7 @@ export default function AiTeachScreen() {
   const { user } = useAuth();
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const [tab, setTab] = useState<"rules" | "urls" | "history" | "suggestions">("rules");
+  const bottomPad = useBottomSheetPadding();
   const [filter, setFilter] = useState<string>("all");
   const [rules, setRules] = useState<Rule[]>([]);
   const [urls, setUrls] = useState<UrlItem[]>([]);
@@ -736,7 +738,7 @@ export default function AiTeachScreen() {
           style={{ flex: 1 }}
         >
           <View style={styles.backdrop}>
-            <View style={styles.sheet}>
+            <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
               <View style={styles.sheetHdr}>
                 <Text style={styles.sheetTitle}>{editRule?.rule_id ? "Modifica regola" : "Nuova regola"}</Text>
                 <Pressable onPress={() => setEditRule(null)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>
@@ -833,7 +835,7 @@ export default function AiTeachScreen() {
           style={{ flex: 1 }}
         >
           <View style={styles.backdrop}>
-            <View style={styles.sheet}>
+            <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
               <View style={styles.sheetHdr}>
                 <Text style={styles.sheetTitle}>{editUrl?.url_id ? "Modifica URL" : "Nuovo URL da monitorare"}</Text>
                 <Pressable onPress={() => setEditUrl(null)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>
@@ -877,7 +879,7 @@ export default function AiTeachScreen() {
       {/* V28.j — Info modal per Regole / Fonti URL / Storico */}
       <Modal transparent visible={!!infoTab} animationType="fade" onRequestClose={() => setInfoTab(null)}>
         <View style={styles.backdrop}>
-          <View style={[styles.sheet, { maxHeight: "60%" }]}>
+          <View style={[styles.sheet, { maxHeight: "60%" }, { paddingBottom: bottomPad }]}>
             <View style={styles.sheetHdr}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
                 <Ionicons name="information-circle" size={22} color={C.primary} />

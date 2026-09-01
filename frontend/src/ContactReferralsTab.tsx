@@ -13,6 +13,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 type Referral = {
   contact_id: string;
   first_name?: string;
@@ -37,6 +38,7 @@ export function ContactReferralsTab({ contactId, contactName, contactPhone }: Pr
   const router = useRouter();
   const safeBottom = useSafeBottom(); // V29.aq
   const [items, setItems] = useState<Referral[]>([]);
+  const bottomPad = useBottomSheetPadding();
   const [loading, setLoading] = useState(true);
   const [waTemplate, setWaTemplate] = useState<string>("");
   const [showWaModal, setShowWaModal] = useState(false);
@@ -147,7 +149,7 @@ export function ContactReferralsTab({ contactId, contactName, contactPhone }: Pr
       {/* WhatsApp preview modal */}
       <Modal visible={showWaModal} transparent animationType="slide" onRequestClose={() => setShowWaModal(false)}>
         <View style={styles.back}>
-          <View style={[styles.sheet, { paddingBottom: safeBottom + 12 }]}>
+          <View style={[styles.sheet, { paddingBottom: safeBottom + 12 }, { paddingBottom: bottomPad }]}>
             <View style={styles.sheetHdr}>
               <Text style={styles.sheetTitle}>Messaggio da inviare</Text>
               <Pressable onPress={() => setShowWaModal(false)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>

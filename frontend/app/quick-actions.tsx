@@ -13,6 +13,7 @@ import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 type QuickAction = { id: string; label: string; prompt: string };
 
 const C = { primary: "#8B5CF6", primarySoft: "#F1EEFF", navy: "#1B2B4B", muted: "#94A3B8" };
@@ -34,6 +35,7 @@ export default function QuickActionsScreen() {
   const { user } = useAuth();
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const [items, setItems] = useState<QuickAction[]>([]);
+  const bottomPad = useBottomSheetPadding();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [edit, setEdit] = useState<Partial<QuickAction> | null>(null);
@@ -203,7 +205,7 @@ export default function QuickActionsScreen() {
       {/* Edit modal */}
       <Modal transparent visible={!!edit} animationType="slide" onRequestClose={() => setEdit(null)}>
         <View style={styles.backdrop}>
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
             <View style={styles.sheetHdr}>
               <Text style={styles.sheetTitle}>{edit?.id ? "Modifica azione" : "Nuova azione rapida"}</Text>
               <Pressable onPress={() => setEdit(null)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>

@@ -15,6 +15,7 @@ import { FileViewer } from "@/src/FileViewer";
 import { ShareSheet, type ShareTarget } from "@/src/ShareSheet";
 import { ModuleErrorBoundary } from "@/src/shared";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 type MasterCat = "notes" | "bills" | "audio" | "files" | "analisi";
 type MasterFile = {
   file_id: string;
@@ -47,6 +48,7 @@ export default function MasterFilesRoute() {
 function MasterFilesScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<MasterCat>("notes");
+  const bottomPad = useBottomSheetPadding();
   const [items, setItems] = useState<MasterFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -578,7 +580,7 @@ function MasterFilesScreen() {
       {/* Note editor modal */}
       <Modal visible={!!noteEditor} animationType="slide" transparent onRequestClose={() => setNoteEditor(null)}>
         <View style={styles.modalBack}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { paddingBottom: bottomPad }]}>
             <Text style={styles.modalTitle}>{noteEditor?.file_id ? "Modifica nota" : "Nuova nota"}</Text>
             <TextInput
               testID="master-note-title"
@@ -621,7 +623,7 @@ function MasterFilesScreen() {
       {/* Rename modal */}
       <Modal visible={!!renameTarget} animationType="fade" transparent onRequestClose={() => setRenameTarget(null)}>
         <View style={styles.modalBack}>
-          <View style={[styles.modalCard, { padding: 20 }]}>
+          <View style={[styles.modalCard, { padding: 20 }, { paddingBottom: bottomPad }]}>
             <Text style={styles.modalTitle}>Rinomina file</Text>
             <TextInput
               testID="master-rename-input"
@@ -678,7 +680,7 @@ function MasterFilesScreen() {
       {/* V38P — Photo picker bottom sheet (Foto button) */}
       <Modal visible={photoPickerOpen} animationType="slide" transparent onRequestClose={() => setPhotoPickerOpen(false)}>
         <Pressable style={styles.modalBack} onPress={() => setPhotoPickerOpen(false)}>
-          <Pressable style={styles.sheetCard} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.sheetCard, { paddingBottom: bottomPad }]} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Aggiungi foto o video</Text>
             <View style={{ gap: 8, marginTop: 8 }}>
               <Pressable testID="mf-photo-camera" onPress={() => runMediaPicker("camera-photo")} style={[styles.sheetBtn, { backgroundColor: "#7C3AED" }]}>

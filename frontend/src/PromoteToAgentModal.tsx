@@ -16,6 +16,7 @@ import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 /**
  * V29 — Modal "Promuovi ad agente" (solo Master).
  * Converte il contatto in account collaboratore + Biglietto da Visita con QR
@@ -70,6 +71,7 @@ export function PromoteToAgentModal({
 }: Props) {
   const router = useRouter();
   const safeBottom = useSafeBottom(); // V29.aq
+  const bottomPad = useBottomSheetPadding();
   const [areas, setAreas] = useState<Array<"energy" | "network">>([
     "energy",
     "network",
@@ -144,7 +146,7 @@ export function PromoteToAgentModal({
       testID="promote-agent-modal"
     >
       <Pressable style={styles.backdrop} onPress={handleClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }]} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }, { paddingBottom: bottomPad }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grip} />
           <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
             {!result ? (

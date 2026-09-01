@@ -8,6 +8,7 @@ import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { useAuth } from "@/src/auth";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 /**
  * v2.17 — Reusable "Configura intestazione" modal for Bill Analysis & CTE reports.
  * Wraps the 4 branding fields exposed by `PUT /api/auth/profile`:
@@ -77,6 +78,7 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
   const { user, refresh } = useAuth();
   const safeBottom = useSafeBottom(); // V29.aq
   const [name, setName] = useState("");
+  const bottomPad = useBottomSheetPadding();
   const [slogan, setSlogan] = useState("");
   const [contacts, setContacts] = useState("");
   const [logoB64, setLogoB64] = useState("");
@@ -155,7 +157,7 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.back}>
-        <View style={styles.card}>
+        <View style={[styles.card, { paddingBottom: bottomPad }]}>
           <View style={styles.hdr}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Configura intestazione</Text>

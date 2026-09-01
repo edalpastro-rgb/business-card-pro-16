@@ -6,6 +6,7 @@ import { notify } from "@/src/utils/notify";
 import { theme } from "@/src/theme";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 type Contact = { contact_id: string; first_name: string; last_name: string; contact_code?: string; phone?: string };
 type Group = { group_id: string; name: string; color: string; member_count?: number };
 
@@ -30,6 +31,7 @@ export function MasterVoiceRecorder({
 } = {}) {
   const safeBottom = useSafeBottom(); // V29.aq
   const [phase, setPhase] = useState<Phase>("idle");
+  const bottomPad = useBottomSheetPadding();
   const [duration, setDuration] = useState(0);
   const [audioB64, setAudioB64] = useState<string | null>(null);
   const [audioMime, setAudioMime] = useState<string>("audio/webm");
@@ -281,7 +283,7 @@ export function MasterVoiceRecorder({
       {/* Review + destinations modal (single modal, file always visible) */}
       <Modal transparent visible={phase === "review"} onRequestClose={() => setConfirmClose(true)} animationType="slide">
         <View style={styles.modalRoot}>
-          <View style={styles.reviewSheet}>
+          <View style={[styles.reviewSheet, { paddingBottom: bottomPad }]}>
             <View style={styles.reviewHeader}>
               <Text style={styles.reviewTitle}>Salva registrazione</Text>
               <Pressable onPress={() => setConfirmClose(true)} testID="voice-close-btn"><Ionicons name="close" size={22} color={theme.color.onSurface} /></Pressable>

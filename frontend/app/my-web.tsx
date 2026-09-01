@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 type Link = { link_id: string; title: string; url: string; icon: string; order: number };
 
 const ICONS = ["🔗","🔍","📊","📰","🏦","💼","⚡","🔥","📞","🌐","📈","🛒","💰","🎯","🔧"];
@@ -14,6 +15,7 @@ const ICONS = ["🔗","🔍","📊","📰","🏦","💼","⚡","🔥","📞","�
 export default function MyWebScreen() {
   const router = useRouter();
   const [items, setItems] = useState<Link[]>([]);
+  const bottomPad = useBottomSheetPadding();
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -83,7 +85,7 @@ export default function MyWebScreen() {
 
       <Modal transparent visible={addOpen} onRequestClose={() => setAddOpen(false)} animationType="slide">
         <Pressable style={styles.backdrop} onPress={() => setAddOpen(false)}>
-          <View style={styles.sheet} onStartShouldSetResponder={() => true}>
+          <View style={[styles.sheet, { paddingBottom: bottomPad }]} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>Nuovo link</Text>
             <Text style={styles.label}>Titolo</Text>

@@ -16,6 +16,7 @@ import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
 import { DocumentScannerModal, suggestBillScanName } from "@/src/DocumentScannerModal";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 // ---------- Types ----------
 
 type BillType = QuickBillType;
@@ -81,6 +82,7 @@ function BillQuickScreen() {
 
   // Data
   const [drafts, setDrafts] = useState<Draft[]>([]);
+  const bottomPad = useBottomSheetPadding();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -965,7 +967,7 @@ function BillQuickScreen() {
       {/* Source picker: Device vs Master files */}
       <Modal visible={!!sourcePickerFor} animationType="fade" transparent onRequestClose={() => setSourcePickerFor(null)}>
         <Pressable style={styles.modalBack} onPress={() => setSourcePickerFor(null)}>
-          <Pressable style={[styles.modalCard, { padding: 20 }]} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.modalCard, { padding: 20 }, { paddingBottom: bottomPad }]} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Da dove vuoi caricare?</Text>
             <Text style={styles.modalSub}>Puoi scegliere un PDF dal dispositivo, dai file Master oppure scattare foto delle pagine con la fotocamera.</Text>
             <View style={{ gap: 8, marginTop: 14 }}>
@@ -1005,7 +1007,7 @@ function BillQuickScreen() {
       {/* Master file picker */}
       <Modal visible={!!masterFilePicker} animationType="slide" transparent onRequestClose={() => setMasterFilePicker(null)}>
         <View style={styles.modalBack}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { paddingBottom: bottomPad }]}>
             <Text style={styles.modalTitle}>Scegli fattura dai file Master</Text>
             <Text style={styles.modalSub}>Sono elencati i PDF salvati nelle sezioni Fatture e File del Master.</Text>
             <ScrollView style={{ maxHeight: 380, marginTop: 12 }}>
@@ -1056,7 +1058,7 @@ function BillQuickScreen() {
       {/* Associate contact modal */}
       <Modal visible={!!associateTarget} animationType="slide" transparent onRequestClose={() => setAssociateTarget(null)}>
         <View style={styles.modalBack}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { paddingBottom: bottomPad }]}>
             <Text style={styles.modalTitle}>Associa a un cliente</Text>
             <Text style={styles.modalSub}>Seleziona il cliente a cui associare questa analisi. Il PDF e l&apos;analisi HTML verranno copiati nella sezione File del cliente.</Text>
             <TextInput

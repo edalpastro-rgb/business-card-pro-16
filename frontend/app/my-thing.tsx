@@ -12,6 +12,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { scheduleOneShot, scheduleDailyAt, scheduleYearlyAt, cancelByTag, ensureNotifPermission } from "@/src/notifs";
 
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 type Kind = "message" | "image" | "event" | "anniversary";
 
 // V28.d — Banner customization types
@@ -102,6 +103,7 @@ function fontFamilyFor(key: FontFamilyKey | undefined | null): string | undefine
 export default function MyThingScreen() {
   const router = useRouter();
   const [active, setActive] = useState<Kind>("message");
+  const bottomPad = useBottomSheetPadding();
   const [items, setItems] = useState<MyThingItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -401,7 +403,7 @@ export default function MyThingScreen() {
       {/* EDITOR MODAL */}
       <Modal visible={editorOpen} animationType="slide" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalWrap}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { paddingBottom: bottomPad }]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>
                 {editing ? "Modifica" : "Nuovo"} {active === "message" ? "messaggio" : active === "image" ? "immagine" : active === "event" ? "evento" : "ricorrenza"}
