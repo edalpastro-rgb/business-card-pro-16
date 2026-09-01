@@ -11824,12 +11824,40 @@ def _require_master(user: Dict[str, Any]) -> None:
 async def ai_teach_list_rules(user=Depends(get_current_user)):
     _require_master(user)
     tid = tenant_id(user)
+    uid = user["user_id"]
+    # V47.1 — Broaden the read filter to also match LEGACY documents from
+    # v1.0.10 that may have been stored under `user_id == uid` (the master's
+    # own user_id, which equals `tid` for a top-level owner but not for
+    # historical rows that pre-date the tenant_id refactor) or under alternate
+    # ownership fields (`owner_id`, `created_by`). Any legacy match is
+    # lazily rewritten to the canonical `user_id: tid` so subsequent reads
+    # are fast and the CREATE/DELETE contracts remain unchanged.
+    or_clauses: List[dict] = [{"user_id": tid}]
+    if uid and uid != tid:
+        or_clauses.append({"user_id": uid})
+    or_clauses.append({"owner_id": tid})
+    if uid and uid != tid:
+        or_clauses.append({"owner_id": uid})
+    or_clauses.append({"created_by": uid, "user_id": {"$exists": False}})
+    query = {"$or": or_clauses}
     # V28.n — Lazy migration: rules with only `category` (str) get `categories: [category]`.
     # We update in-place so subsequent reads/writes are consistent.
-    cur = db.ai_teach_rules.find({"user_id": tid}).sort("updated_at", -1)
+    cur = db.ai_teach_rules.find(query).sort("updated_at", -1)
     items = []
     async for r in cur:
         r.pop("_id", None)
+        # V47.1 — If this row was matched via a legacy ownership field, rewrite
+        # `user_id` to the canonical tenant id so future reads can drop the $or
+        # clauses if we ever tighten the filter. Non-blocking, best-effort.
+        if r.get("user_id") != tid and r.get("rule_id"):
+            try:
+                await db.ai_teach_rules.update_one(
+                    {"rule_id": r["rule_id"]},
+                    {"$set": {"user_id": tid}},
+                )
+                r["user_id"] = tid
+            except Exception:
+                pass
         # Normalize categories field: prefer `categories` array; fallback to legacy `category` string.
         cats = r.get("categories")
         if not isinstance(cats, list) or not cats:
@@ -11957,10 +11985,29 @@ async def ai_teach_delete_rule(rule_id: str, user=Depends(get_current_user)):
 async def ai_teach_list_urls(user=Depends(get_current_user)):
     _require_master(user)
     tid = tenant_id(user)
-    cur = db.ai_teach_urls.find({"user_id": tid}).sort("updated_at", -1)
+    uid = user["user_id"]
+    # V47.1 — Broaden legacy ownership match, same rationale as rules above.
+    or_clauses: List[dict] = [{"user_id": tid}]
+    if uid and uid != tid:
+        or_clauses.append({"user_id": uid})
+    or_clauses.append({"owner_id": tid})
+    if uid and uid != tid:
+        or_clauses.append({"owner_id": uid})
+    or_clauses.append({"created_by": uid, "user_id": {"$exists": False}})
+    cur = db.ai_teach_urls.find({"$or": or_clauses}).sort("updated_at", -1)
     items = []
     async for r in cur:
         r.pop("_id", None)
+        # V47.1 — Rewrite legacy user_id to tenant id (lazy migration).
+        if r.get("user_id") != tid and r.get("url_id"):
+            try:
+                await db.ai_teach_urls.update_one(
+                    {"url_id": r["url_id"]},
+                    {"$set": {"user_id": tid}},
+                )
+                r["user_id"] = tid
+            except Exception:
+                pass
         # Mask password on list
         if r.get("password"):
             r["password_masked"] = True
