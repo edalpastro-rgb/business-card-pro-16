@@ -489,6 +489,7 @@ function MasterScreen() {
             <MenuItem icon="business" color="#059669" label="New Corporate" hint="Crea nuova area business" onPress={() => goto("/corporate/new")} testID="menu-corporate" />
             <MenuItem icon="person-add" color="#DB2777" label="Invita Collaboratore" hint="Genera link / QR con ruolo" onPress={() => goto("/invite-collaborator")} testID="menu-invite" />
             <MenuItem icon="gift" color="#F59E0B" label="Invita Cliente" hint="Trial gratuito con link estensibile" onPress={() => goto("/invitati")} testID="menu-invite-client" />
+            <MenuItem icon="bug" color="#DC2626" label="Bug, Errori e Idee" hint="Segnalazioni degli utenti" onPress={() => goto("/bug-report")} testID="menu-bug-report" />
           </View>
         </Pressable>
       </Modal>

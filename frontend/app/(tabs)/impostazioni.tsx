@@ -640,6 +640,16 @@ function ImpostazioniScreen() {
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>
 
+        {/* V49.i — Dropbox integration (accanto a Google Drive) */}
+        <Pressable testID="dropbox-link" onPress={() => router.push("/dropbox" as any)} style={styles.linkCard}>
+          <Ionicons name="logo-dropbox" size={26} color="#0061FF" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Dropbox</Text>
+            <Text style={styles.linkSub}>Collega il tuo Dropbox per allegare file ad Axon dalla cloud</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
         {/* V38I — Branding aziendale for PDF reports (owner only) */}
         {!user?.parent_user_id && (
           <View style={styles.card} testID="branding-card">

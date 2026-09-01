@@ -12978,6 +12978,480 @@ async def google_drive_download_file(file_id: str, user=Depends(get_current_user
 
 
 # =========================================================================
+# V49.i — Dropbox OAuth 2.0 integration
+#
+# Pattern: authorization code + PKCE, server-side token exchange.
+# Frontend: apre `/api/dropbox/oauth/start` → riceve authorization_url →
+#   redirige a Dropbox → Dropbox redirige a `/auth/dropbox/callback?code=...`
+#   (rotta frontend) che POSTa il code a `/api/dropbox/oauth/exchange`.
+# Backend: salva refresh_token cifrato e usa il token per browsing/download.
+# =========================================================================
+import hashlib as _dbx_hashlib
+
+_DBX_APP_KEY = os.environ.get("DROPBOX_APP_KEY", "").strip()
+_DBX_APP_SECRET = os.environ.get("DROPBOX_APP_SECRET", "").strip()
+_DBX_REDIRECT_URI = os.environ.get("DROPBOX_REDIRECT_URI", "").strip()
+_DBX_SCOPES = "files.metadata.read files.content.read account_info.read"
+
+
+def _dbx_configured() -> bool:
+    return bool(_DBX_APP_KEY and _DBX_APP_SECRET and _DBX_REDIRECT_URI)
+
+
+def _dbx_b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def _dbx_pkce_pair() -> Tuple[str, str]:
+    verifier = _dbx_b64url(secrets.token_bytes(48))
+    challenge = _dbx_b64url(_dbx_hashlib.sha256(verifier.encode()).digest())
+    return verifier, challenge
+
+
+async def _dbx_access_token(user_id: str) -> str:
+    """Refresh & return a short-lived access token per l'utente."""
+    if not _dbx_configured():
+        raise HTTPException(status_code=503, detail="Dropbox non configurato sul server")
+    row = await db.dropbox_connections.find_one({"user_id": user_id})
+    if not row or not row.get("refresh_token"):
+        raise HTTPException(status_code=401, detail="Dropbox non collegato")
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            "https://api.dropboxapi.com/oauth2/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": row["refresh_token"],
+                "client_id": _DBX_APP_KEY,
+                "client_secret": _DBX_APP_SECRET,
+            },
+        )
+    if r.status_code != 200:
+        raise HTTPException(status_code=401, detail="Dropbox: sessione scaduta, ricollega")
+    return r.json().get("access_token", "")
+
+
+@api_router.get("/dropbox/status")
+async def dropbox_status(user=Depends(get_current_user)):
+    if not _dbx_configured():
+        return {"connected": False, "configured": False}
+    row = await db.dropbox_connections.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0, "dropbox_email": 1, "updated_at": 1, "account_id": 1},
+    )
+    return {"connected": bool(row), "configured": True, **(row or {})}
+
+
+@api_router.post("/dropbox/oauth/start")
+async def dropbox_oauth_start(user=Depends(get_current_user)):
+    if not _dbx_configured():
+        raise HTTPException(status_code=503, detail="Dropbox non configurato sul server")
+    state = secrets.token_urlsafe(32)
+    verifier, challenge = _dbx_pkce_pair()
+    await db.dropbox_oauth_states.insert_one({
+        "_id": state,
+        "user_id": user["user_id"],
+        "code_verifier": verifier,
+        "expires_at": utcnow() + timedelta(minutes=10),
+    })
+    from urllib.parse import urlencode
+    params = {
+        "client_id": _DBX_APP_KEY,
+        "response_type": "code",
+        "redirect_uri": _DBX_REDIRECT_URI,
+        "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+        "token_access_type": "offline",
+        "scope": _DBX_SCOPES,
+    }
+    return {"authorization_url": "https://www.dropbox.com/oauth2/authorize?" + urlencode(params)}
+
+
+class DropboxExchangeIn(BaseModel):
+    code: str
+    state: str
+
+
+@api_router.post("/dropbox/oauth/exchange")
+async def dropbox_oauth_exchange(body: DropboxExchangeIn, user=Depends(get_current_user)):
+    if not _dbx_configured():
+        raise HTTPException(status_code=503, detail="Dropbox non configurato sul server")
+    st = await db.dropbox_oauth_states.find_one_and_delete({"_id": body.state})
+    if not st or st.get("user_id") != user["user_id"]:
+        raise HTTPException(status_code=400, detail="Stato OAuth non valido o scaduto")
+    if st["expires_at"] < utcnow():
+        raise HTTPException(status_code=400, detail="Stato OAuth scaduto")
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(
+            "https://api.dropboxapi.com/oauth2/token",
+            data={
+                "code": body.code,
+                "grant_type": "authorization_code",
+                "client_id": _DBX_APP_KEY,
+                "client_secret": _DBX_APP_SECRET,
+                "redirect_uri": _DBX_REDIRECT_URI,
+                "code_verifier": st["code_verifier"],
+            },
+        )
+    if r.status_code != 200:
+        logger.warning("[dropbox] token exchange %s: %s", r.status_code, r.text[:200])
+        raise HTTPException(status_code=502, detail="Scambio token Dropbox fallito")
+    tok = r.json()
+    # Best-effort account info
+    dropbox_email = None
+    account_id = tok.get("account_id")
+    try:
+        if tok.get("access_token"):
+            async with httpx.AsyncClient(timeout=10) as c2:
+                ar = await c2.post(
+                    "https://api.dropboxapi.com/2/users/get_current_account",
+                    headers={"Authorization": f"Bearer {tok['access_token']}"},
+                )
+                if ar.status_code == 200:
+                    aj = ar.json()
+                    dropbox_email = (aj.get("email") or "").lower() or None
+                    account_id = aj.get("account_id") or account_id
+    except Exception:
+        pass
+    await db.dropbox_connections.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            "user_id": user["user_id"],
+            "account_id": account_id,
+            "dropbox_email": dropbox_email,
+            "refresh_token": tok.get("refresh_token", ""),
+            "scopes": tok.get("scope") or _DBX_SCOPES,
+            "updated_at": utcnow(),
+        }},
+        upsert=True,
+    )
+    return {"ok": True, "dropbox_email": dropbox_email}
+
+
+@api_router.delete("/dropbox")
+async def dropbox_disconnect(user=Depends(get_current_user)):
+    await db.dropbox_connections.delete_one({"user_id": user["user_id"]})
+    return {"ok": True}
+
+
+@api_router.get("/dropbox/files")
+async def dropbox_list_files(search: Optional[str] = None, cursor: Optional[str] = None, user=Depends(get_current_user)):
+    token = await _dbx_access_token(user["user_id"])
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    async with httpx.AsyncClient(timeout=20) as client:
+        if search and search.strip():
+            r = await client.post(
+                "https://api.dropboxapi.com/2/files/search_v2",
+                json={"query": search.strip(), "options": {"max_results": 50, "file_status": "active"}},
+                headers=headers,
+            )
+            if r.status_code != 200:
+                raise HTTPException(status_code=r.status_code, detail=f"Dropbox search: {r.text[:120]}")
+            data = r.json()
+            files = []
+            for m in data.get("matches", []):
+                md = (m.get("metadata") or {}).get("metadata") or m.get("metadata")
+                if md and md.get(".tag") == "file":
+                    files.append(md)
+            return {"files": files, "cursor": None, "has_more": False}
+        endpoint = "https://api.dropboxapi.com/2/files/list_folder/continue" if cursor else "https://api.dropboxapi.com/2/files/list_folder"
+        payload = {"cursor": cursor} if cursor else {"path": "", "recursive": False, "include_non_downloadable_files": False, "limit": 100}
+        r = await client.post(endpoint, json=payload, headers=headers)
+    if r.status_code != 200:
+        raise HTTPException(status_code=r.status_code, detail=f"Dropbox list: {r.text[:120]}")
+    data = r.json()
+    return {
+        "files": [e for e in data.get("entries", []) if e.get(".tag") == "file"],
+        "folders": [e for e in data.get("entries", []) if e.get(".tag") == "folder"],
+        "cursor": data.get("cursor"),
+        "has_more": data.get("has_more", False),
+    }
+
+
+@api_router.get("/dropbox/files/{file_id:path}/content")
+async def dropbox_download_file(file_id: str, user=Depends(get_current_user)):
+    token = await _dbx_access_token(user["user_id"])
+    # file_id può essere "id:xxx" oppure un path "/cartella/file.pdf"
+    async with httpx.AsyncClient(timeout=120) as client:
+        r = await client.post(
+            "https://content.dropboxapi.com/2/files/download",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Dropbox-API-Arg": _json_stdlib.dumps({"path": file_id}),
+            },
+        )
+    if r.status_code != 200:
+        raise HTTPException(status_code=r.status_code, detail=f"Dropbox download: {r.text[:200]}")
+    md = {}
+    try:
+        md = _json_stdlib.loads(r.headers.get("Dropbox-API-Result", "{}"))
+    except Exception:
+        pass
+    raw = r.content or b""
+    if len(raw) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File troppo grande (>10MB)")
+    return {
+        "name": md.get("name") or "file",
+        "mime": "application/octet-stream",
+        "data_base64": base64.b64encode(raw).decode(),
+        "size": len(raw),
+    }
+
+
+# =========================================================================
+# V49.j — In-app support ("Bug, Errori e Idee")
+#
+# Widget FAB accessibile da ogni pagina. L'utente descrive il problema
+# (checklist preconfigurata + testo libero + allegati opzionali) e Axon
+# (Claude Sonnet 5) prova a risolverlo. Se dopo 2 tentativi il problema
+# non è risolto la segnalazione viene escalata al Master del tenant.
+# Ogni risposta AI può essere votata con 👍/👎.
+# =========================================================================
+SUPPORT_ESCALATE_AFTER = 2
+
+SUPPORT_PRESETS = [
+    {"id": "app_slow", "label": "L'app è lenta / non risponde"},
+    {"id": "login_issue", "label": "Non riesco ad accedere / logout inatteso"},
+    {"id": "sync_issue", "label": "I dati non si sincronizzano tra dispositivi"},
+    {"id": "notification", "label": "Non ricevo notifiche"},
+    {"id": "axon_wrong", "label": "Axon dà risposte sbagliate o poco utili"},
+    {"id": "ui_glitch", "label": "Grafica rotta / bottoni nascosti / testo sovrapposto"},
+    {"id": "file_upload", "label": "Errore nel caricamento file / documenti"},
+    {"id": "call_issue", "label": "Problemi con chiamate / registrazione durata"},
+    {"id": "calendar_issue", "label": "Problemi con calendario / appuntamenti"},
+    {"id": "idea", "label": "Non è un bug: ho un'idea da proporre"},
+]
+
+
+class SupportMessageIn(BaseModel):
+    checks: List[str] = Field(default_factory=list)
+    text: str = ""
+    attachments: List[Dict[str, Any]] = Field(default_factory=list)  # [{name, mime, data_base64}]
+
+
+class SupportFeedbackIn(BaseModel):
+    reply_index: int
+    vote: Literal["up", "down"]
+
+
+async def _support_ai_reply(user: dict, ticket: dict, message: dict) -> str:
+    """Chiedi a Claude Sonnet 5 una risposta di supporto in italiano."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return "Grazie della segnalazione. Il tuo Master è stato avvisato."
+    presets_map = {p["id"]: p["label"] for p in SUPPORT_PRESETS}
+    checks_labels = [presets_map.get(cid, cid) for cid in (message.get("checks") or [])]
+    history: List[Dict[str, Any]] = ticket.get("messages", [])[:-1][-4:]
+    system = (
+        "Sei un tecnico di supporto in-app di AdvisorOS/AxonOS. Rispondi SEMPRE in italiano, "
+        "chiaro e conciso (max 4-6 frasi). Non inventare feature. Se il problema è chiaramente "
+        "un bug o richiede modifiche al software rispondi in modo empatico e informa che la "
+        "segnalazione verrà rivista dal team. Se il problema può essere risolto lato utente "
+        "fornisci 2-3 passi pratici numerati. Non chiedere info personali."
+    )
+    parts: List[str] = []
+    if history:
+        parts.append("Storico segnalazione (breve):")
+        for h in history:
+            role = "Utente" if h.get("from") == "user" else "Axon"
+            parts.append(f"- {role}: {(h.get('text') or '')[:200]}")
+    parts.append("Nuovo messaggio utente:")
+    if checks_labels:
+        parts.append("Problemi selezionati: " + " · ".join(checks_labels))
+    if message.get("text"):
+        parts.append(f"Note: {message['text'][:600]}")
+    if message.get("attachments"):
+        parts.append(f"Allegati: {len(message['attachments'])} file")
+    chat = LlmChat(
+        api_key=key,
+        session_id=f"support-{ticket['ticket_id'][:8]}",
+        system_message=system,
+    ).with_model("anthropic", "claude-sonnet-5")
+    try:
+        raw = await chat.send_message(UserMessage(text="\n".join(parts)))
+        return (raw or "").strip() or "Grazie, prendo in carico e ti richiamo appena analizzo il problema."
+    except Exception as exc:
+        logger.warning("[support] LLM error: %s", exc)
+        return "Grazie della segnalazione. Il team la sta esaminando."
+
+
+def _support_serialize(t: dict) -> dict:
+    """Rimuove i base64 pesanti per la lista."""
+    out = {k: v for k, v in t.items() if k not in ("_id",)}
+    msgs = []
+    for m in out.get("messages", []):
+        m2 = {k: v for k, v in m.items() if k != "attachments"}
+        m2["attachments"] = [
+            {"name": a.get("name"), "mime": a.get("mime"), "size": a.get("size")}
+            for a in (m.get("attachments") or [])
+        ]
+        msgs.append(m2)
+    out["messages"] = msgs
+    for k in ("created_at", "updated_at", "escalated_at"):
+        v = out.get(k)
+        if hasattr(v, "isoformat"):
+            out[k] = v.isoformat()
+    return out
+
+
+@api_router.get("/support/presets")
+async def support_presets(_user=Depends(get_current_user)):
+    return {"items": SUPPORT_PRESETS}
+
+
+@api_router.post("/support/tickets")
+async def support_create_ticket(body: SupportMessageIn, user=Depends(get_current_user)):
+    tid_ = f"stkt_{uuid.uuid4().hex[:12]}"
+    now = utcnow()
+    # sanitize attachments
+    atts = []
+    for a in (body.attachments or [])[:5]:
+        b64 = str(a.get("data_base64") or "")
+        if b64.startswith("data:"):
+            b64 = b64.split(",", 1)[1]
+        if not b64:
+            continue
+        approx = int(len(b64) * 0.75)
+        if approx > 6 * 1024 * 1024:
+            continue
+        atts.append({
+            "name": (a.get("name") or "allegato")[:120],
+            "mime": (a.get("mime") or "application/octet-stream")[:80],
+            "size": approx,
+            "data_base64": b64,
+        })
+    user_msg = {
+        "from": "user",
+        "text": (body.text or "")[:2000],
+        "checks": body.checks or [],
+        "attachments": atts,
+        "created_at": now,
+    }
+    ticket = {
+        "ticket_id": tid_,
+        "user_id": user["user_id"],
+        "user_name": user.get("name"),
+        "user_email": user.get("email"),
+        "tenant_id": tenant_id(user),
+        "status": "open",   # open | escalated | resolved
+        "attempts": 1,
+        "messages": [user_msg],
+        "created_at": now,
+        "updated_at": now,
+    }
+    ai_reply = await _support_ai_reply(user, ticket, user_msg)
+    ticket["messages"].append({
+        "from": "ai",
+        "text": ai_reply,
+        "created_at": utcnow(),
+        "attachments": [],
+    })
+    ticket["updated_at"] = utcnow()
+    await db.support_tickets.insert_one(ticket)
+    return _support_serialize(ticket)
+
+
+@api_router.post("/support/tickets/{ticket_id}/reply")
+async def support_reply_ticket(ticket_id: str, body: SupportMessageIn, user=Depends(get_current_user)):
+    t = await db.support_tickets.find_one({"ticket_id": ticket_id, "user_id": user["user_id"]})
+    if not t:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    if t.get("status") == "resolved":
+        raise HTTPException(status_code=400, detail="Ticket già risolto")
+    now = utcnow()
+    atts = []
+    for a in (body.attachments or [])[:5]:
+        b64 = str(a.get("data_base64") or "")
+        if b64.startswith("data:"):
+            b64 = b64.split(",", 1)[1]
+        if not b64:
+            continue
+        approx = int(len(b64) * 0.75)
+        if approx > 6 * 1024 * 1024:
+            continue
+        atts.append({
+            "name": (a.get("name") or "allegato")[:120],
+            "mime": (a.get("mime") or "application/octet-stream")[:80],
+            "size": approx,
+            "data_base64": b64,
+        })
+    user_msg = {"from": "user", "text": (body.text or "")[:2000], "checks": body.checks or [], "attachments": atts, "created_at": now}
+    t["messages"].append(user_msg)
+    t["attempts"] = int(t.get("attempts") or 0) + 1
+    ai_reply = await _support_ai_reply(user, t, user_msg)
+    t["messages"].append({"from": "ai", "text": ai_reply, "created_at": utcnow(), "attachments": []})
+    escalate = t["attempts"] >= SUPPORT_ESCALATE_AFTER and t.get("status") == "open"
+    if escalate:
+        t["status"] = "escalated"
+        t["escalated_at"] = utcnow()
+    t["updated_at"] = utcnow()
+    await db.support_tickets.update_one(
+        {"ticket_id": ticket_id},
+        {"$set": {k: v for k, v in t.items() if k != "_id"}},
+    )
+    return _support_serialize(t)
+
+
+@api_router.post("/support/tickets/{ticket_id}/feedback")
+async def support_feedback(ticket_id: str, body: SupportFeedbackIn, user=Depends(get_current_user)):
+    t = await db.support_tickets.find_one({"ticket_id": ticket_id, "user_id": user["user_id"]})
+    if not t:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    idx = int(body.reply_index)
+    msgs = t.get("messages", [])
+    if idx < 0 or idx >= len(msgs) or msgs[idx].get("from") != "ai":
+        raise HTTPException(status_code=400, detail="reply_index non valido")
+    msgs[idx]["feedback"] = body.vote
+    updates: Dict[str, Any] = {"messages": msgs, "updated_at": utcnow()}
+    if body.vote == "up" and t.get("status") != "resolved":
+        updates["status"] = "resolved"
+        updates["resolved_at"] = utcnow()
+    await db.support_tickets.update_one({"ticket_id": ticket_id}, {"$set": updates})
+    # Persist also as generic AI feedback for future learning
+    try:
+        await db.assistant_feedback.insert_one({
+            "source": "support",
+            "ticket_id": ticket_id,
+            "message_index": idx,
+            "text": msgs[idx].get("text", ""),
+            "vote": body.vote,
+            "user_id": user["user_id"],
+            "tenant_id": tenant_id(user),
+            "created_at": utcnow(),
+        })
+    except Exception:
+        pass
+    t.update(updates)
+    return _support_serialize(t)
+
+
+@api_router.get("/support/tickets/mine")
+async def support_my_tickets(user=Depends(get_current_user)):
+    cur = db.support_tickets.find({"user_id": user["user_id"]}).sort("updated_at", -1)
+    items = [_support_serialize(t) async for t in cur]
+    return {"items": items, "total": len(items)}
+
+
+@api_router.get("/support/tickets")
+async def support_master_tickets(status: Optional[str] = None, user=Depends(get_current_user)):
+    """Master-only: elenco di tutti i ticket del tenant."""
+    _require_master(user)
+    q: Dict[str, Any] = {"tenant_id": tenant_id(user)}
+    if status:
+        q["status"] = status
+    cur = db.support_tickets.find(q).sort("updated_at", -1)
+    items = [_support_serialize(t) async for t in cur]
+    counts = {
+        "total": len(items),
+        "open": sum(1 for it in items if it.get("status") == "open"),
+        "escalated": sum(1 for it in items if it.get("status") == "escalated"),
+        "resolved": sum(1 for it in items if it.get("status") == "resolved"),
+    }
+    return {"items": items, **counts}
+
+
+# =========================================================================
 # V44 — Team Insights (Profilo Comportamentale Collaboratori)
 #
 # Master-only. Fornisce al Master una visione aggregata + profilo AI di

@@ -29,6 +29,7 @@ import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
+import { DropboxPickerModal } from "@/src/DropboxPickerModal";
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { AxonOSLogo } from "@/src/BrandLogos";
 import { streamAssistantChat } from "@/src/utils/assistantStream";
@@ -197,6 +198,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [isDragging, setIsDragging] = useState(false);
   // V28.w — Google Drive picker modal
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const [dropboxPickerOpen, setDropboxPickerOpen] = useState(false);
 
   const loadHistory = useCallback(async () => {
     setLoadingHist(true);
@@ -1402,6 +1404,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 >
                   <Ionicons name="logo-google" size={16} color="#0F9D58" />
                 </Pressable>
+                {/* V49.i — Dropbox picker */}
+                <Pressable
+                  onPress={() => setDropboxPickerOpen(true)}
+                  disabled={sending}
+                  hitSlop={4}
+                  style={[styles.attachBtn, { backgroundColor: "#E0EFFF", marginLeft: -2 }]}
+                  accessibilityLabel="Allega da Dropbox"
+                  testID="assistant-dropbox-attach"
+                >
+                  <Ionicons name="logo-dropbox" size={16} color="#0061FF" />
+                </Pressable>
                 {voiceSupported && (
                 <Pressable
                   onPress={recording ? stopRec : startRec}
@@ -1469,6 +1482,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       <GoogleDrivePickerModal
         visible={drivePickerOpen}
         onClose={() => setDrivePickerOpen(false)}
+        onFilePicked={(f) => addPendingAttachment({ name: f.name, mime: f.mime, base64: f.data_base64 })}
+      />
+      {/* V49.i — Dropbox picker for attaching Dropbox files */}
+      <DropboxPickerModal
+        visible={dropboxPickerOpen}
+        onClose={() => setDropboxPickerOpen(false)}
         onFilePicked={(f) => addPendingAttachment({ name: f.name, mime: f.mime, base64: f.data_base64 })}
       />
       {/* V41 — Feedback 👎 reason modal */}
