@@ -15,6 +15,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 const C = { primary: "#FF6B35", navy: "#1B2B4B", muted: "#94A3B8", success: "#16A34A" };
 
@@ -23,6 +24,7 @@ type NamedScript = { id: string; name: string; content: string };
 function newId(): string { return "sc_" + Math.random().toString(36).slice(2, 10); }
 
 export default function CallScriptConfigScreen() {
+  const pagePad = usePageBottomPadding();
   const router = useRouter();
   const { user } = useAuth();
   const isMaster = !user?.parent_user_id;
@@ -107,7 +109,7 @@ export default function CallScriptConfigScreen() {
       </View>
 
       {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={C.primary} /> : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80, gap: 10 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad, gap: 10 }}>
           <View style={styles.tipCard}>
             <Ionicons name="information-circle" size={18} color={C.primary} />
             <Text style={styles.tipTxt}>

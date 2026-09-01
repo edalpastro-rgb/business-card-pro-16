@@ -6,11 +6,13 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 const COLORS = ["#7C3AED","#0891B2","#DB2777","#16A34A","#F59E0B","#DC2626","#6366F1","#0F172A"];
 
 export default function NewCorporateScreen() {
   const router = useRouter();
+  const pagePad = usePageBottomPadding();
   const [name, setName] = useState("");
   const [color, setColor] = useState("#7C3AED");
   const [description, setDescription] = useState("");
@@ -38,7 +40,7 @@ export default function NewCorporateScreen() {
         <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
         <Text style={styles.headerTitle}>New Corporate</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
         <View style={styles.intro}><Ionicons name="business" size={22} color="#059669" /><Text style={styles.introTxt}>Crea una nuova area business per organizzare i tuoi contatti (es. Aziende, Retail, Consulting).</Text></View>
 
         <Text style={styles.label}>Nome area</Text>

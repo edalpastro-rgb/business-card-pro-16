@@ -7,7 +7,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
-import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 type Link = { link_id: string; title: string; url: string; icon: string; order: number };
 
 const ICONS = ["🔗","🔍","📊","📰","🏦","💼","⚡","🔥","📞","🌐","📈","🛒","💰","🎯","🔧"];
@@ -16,6 +16,7 @@ export default function MyWebScreen() {
   const router = useRouter();
   const [items, setItems] = useState<Link[]>([]);
   const bottomPad = useBottomSheetPadding();
+  const pagePad = usePageBottomPadding();
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -67,7 +68,7 @@ export default function MyWebScreen() {
           <Pressable onPress={() => setAddOpen(true)} style={styles.emptyBtn}><Ionicons name="add" size={18} color="#FFF" /><Text style={styles.emptyBtnTxt}>Aggiungi link</Text></Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
           <View style={styles.grid}>
             {items.map((lk) => (
               <View key={lk.link_id} style={styles.card}>

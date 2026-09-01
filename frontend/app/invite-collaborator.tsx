@@ -8,6 +8,7 @@ import * as Clipboard from "expo-clipboard";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 type IconName = keyof typeof Ionicons.glyphMap;
 
 type Role = "basic" | "manager" | "master_figlio";
@@ -33,6 +34,7 @@ type TeamMember = { user_id: string; name?: string; email?: string; role?: strin
 
 export default function InviteCollaboratorScreen() {
   const router = useRouter();
+  const pagePad = usePageBottomPadding();
   const params = useLocalSearchParams<{ contact_id?: string; contact_name?: string; contact_email?: string; intent?: string }>();
   const linkedContactId = params.contact_id || null;
   const [role, setRole] = useState<Role>("basic");
@@ -166,7 +168,7 @@ export default function InviteCollaboratorScreen() {
         <Text style={styles.headerTitle}>Invita Collaboratore</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
         {!invite ? (
           <>
             <Text style={styles.label}>Nome collaboratore</Text>

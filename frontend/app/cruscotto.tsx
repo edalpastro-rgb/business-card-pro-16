@@ -20,6 +20,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type DashboardPayload = {
   feedback: {
@@ -83,6 +84,7 @@ function timeAgo(iso?: string | null): string {
 }
 
 export default function CruscottoScreen() {
+  const pagePad = usePageBottomPadding();
   const router = useRouter();
   const { user } = useAuth();
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
@@ -169,7 +171,7 @@ export default function CruscottoScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 14 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: pagePad, gap: 14 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           {/* Alerts row (proposals pending) */}

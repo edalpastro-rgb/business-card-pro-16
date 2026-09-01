@@ -11,6 +11,7 @@ import { api } from "@/src/api";
 import { useAuth, setPin, hasPin, clearPin, setBiometricEnabled, biometricEnabled, isAppLockEnabled, setAppLockEnabled } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Status = {
   enabled: boolean;
@@ -28,6 +29,7 @@ export default function SecurityRoute() {
 
 function SecurityScreen() {
   const router = useRouter();
+  const bottomPad = usePageBottomPadding();
   const { refresh, trustExpiresAt, logout } = useAuth();
 
   const [status, setStatus] = useState<Status | null>(null);
@@ -267,7 +269,7 @@ function SecurityScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: bottomPad }}>
         {/* 2FA CARD */}
         <View style={styles.card}>
           <View style={styles.rowHead}>

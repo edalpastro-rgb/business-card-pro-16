@@ -7,6 +7,7 @@ import * as Clipboard from "expo-clipboard";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import Constants from "expo-constants";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type InvitedUser = { user_id: string; name: string; email: string; subscription: { status: string; days_left?: number | null; expires_at?: string | null; is_active: boolean } };
 type Invite = { invite_token: string; trial_days: number; note: string; created_at: string; used_at?: string | null; invited_user?: InvitedUser };
@@ -21,6 +22,7 @@ function getPublicOrigin(): string {
 
 export default function InvitatiScreen() {
   const router = useRouter();
+  const pagePad = usePageBottomPadding();
   const params = useLocalSearchParams<{ contact_id?: string; contact_name?: string; contact_email?: string }>();
   const linkedContactId = params.contact_id || null;
   const [items, setItems] = useState<Invite[]>([]);
@@ -135,7 +137,7 @@ export default function InvitatiScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Nuovo invito</Text>
           <Text style={styles.hint}>Genera un link da condividere con il cliente. Al primo accesso avrà un trial di N giorni.</Text>

@@ -7,7 +7,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { confirmAsync, notify } from "@/src/utils/notify";
 
-import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 type Member = { user_id: string; email: string; name: string; role: string; areas: string[]; agent_code?: string | null; created_at?: string };
 
 // V28.z — Sotto-componente per i campi Master-only: codice agente + password dati sensibili.
@@ -111,6 +111,7 @@ function MasterOnlyFields({ member, onUpdated }: { member: Member; onUpdated: ()
 
 export default function TeamScreen() {
   const bottomPad = useBottomSheetPadding();
+  const pagePad = usePageBottomPadding();
   const router = useRouter();
   const [items, setItems] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -188,7 +189,7 @@ export default function TeamScreen() {
       </View>
 
       {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} /> : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
           {items.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={40} color={theme.color.muted} />

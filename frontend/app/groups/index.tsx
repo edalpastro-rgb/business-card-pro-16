@@ -5,12 +5,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Group = { group_id: string; name: string; color: string; description: string; member_count: number };
 
 const COLOR_SWATCHES = ["#1B6CB0", "#C83232", "#2D7A5A", "#B77C14", "#7A2E8E", "#0B7285", "#E67700", "#6B7280"];
 
 export default function GroupsScreen() {
+  const pagePad = usePageBottomPadding();
   const router = useRouter();
   const [items, setItems] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +95,7 @@ export default function GroupsScreen() {
         <FlatList
           data={items}
           keyExtractor={(i) => i.group_id}
-          contentContainerStyle={{ padding: 16, paddingTop: 4 }}
+          contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: pagePad }}
           renderItem={({ item }) => (
             <Pressable testID={`group-${item.group_id}`} onPress={() => router.push(`/groups/${item.group_id}`)} style={styles.card}>
               <View style={[styles.dot, { backgroundColor: item.color }]} />

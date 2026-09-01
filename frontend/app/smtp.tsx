@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type SmtpOut = { host: string; port: number; username: string; sender_name: string; sender_email: string; use_ssl: boolean; configured: boolean };
 
@@ -17,6 +18,7 @@ const PRESETS: { label: string; host: string; port: number; use_ssl: boolean }[]
 
 export default function SmtpConfigScreen() {
   const router = useRouter();
+  const bottomPad = usePageBottomPadding();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -90,7 +92,7 @@ export default function SmtpConfigScreen() {
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: bottomPad }}>
           <View style={styles.infoBox}>
             <Ionicons name="information-circle" size={20} color={theme.color.info} />
             <Text style={styles.infoTxt}>

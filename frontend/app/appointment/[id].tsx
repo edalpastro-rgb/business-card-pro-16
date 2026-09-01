@@ -10,6 +10,7 @@ import { scheduleAppointmentReminder, cancelAppointmentReminder, scheduleCallbac
 import { openGoogleCalendar, openOutlookCalendar, shareIcs } from "@/src/calendar-export";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { AppointmentShareActions } from "@/src/AppointmentShareActions";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
 type Settings = { appointment_outcomes?: Outcome[] };
@@ -65,6 +66,7 @@ export default function AppointmentDetailRoute() {
 function AppointmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const pagePad = usePageBottomPadding();
   const [a, setA] = useState<Appointment | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [contact, setContact] = useState<ContactLite | null>(null);
@@ -328,7 +330,7 @@ function AppointmentDetail() {
         <Pressable testID="delete-appt" onPress={del}><Ionicons name="trash-outline" size={22} color="#FFF" /></Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
         {a.read_only && (
           <View style={styles.roBanner}>
             <Ionicons name="lock-closed" size={16} color="#FFF" />

@@ -7,7 +7,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
-import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 /**
  * V27 — Pick or quick-create a contact for an invite (prospect | collaborator).
  * Query params:
@@ -31,6 +31,7 @@ export default function InvitaPickContact() {
   const intent = (params.intent === "collaborator" ? "collaborator" : "prospect") as "prospect" | "collaborator";
   const [contacts, setContacts] = useState<Contact[]>([]);
   const bottomPad = useBottomSheetPadding();
+  const pagePad = usePageBottomPadding();
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -141,7 +142,7 @@ export default function InvitaPickContact() {
         <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
       </Pressable>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, gap: 8 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: pagePad, gap: 8 }}>
         <Text style={styles.sectionLbl}>Contatti in rubrica ({filtered.length})</Text>
         {loading ? (
           <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />

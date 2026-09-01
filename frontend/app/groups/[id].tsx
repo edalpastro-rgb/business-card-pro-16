@@ -6,11 +6,13 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { sendTelegramMessage } from "@/src/utils/telegram";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Contact = { contact_id: string; first_name: string; last_name: string; phone?: string; email?: string; whatsapp?: string; telegram?: string; area: string };
 type BulkPreviewItem = { contact_id: string; name: string; target: string; skip: boolean };
 
 export default function GroupDetailScreen() {
+  const pagePad = usePageBottomPadding();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [members, setMembers] = useState<Contact[]>([]);
@@ -135,7 +137,7 @@ export default function GroupDetailScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: pagePad }}>
         <View style={styles.actionsCard}>
           <Text style={styles.actionsTitle}>Invia a tutti i {members.length} membri</Text>
           <View style={styles.actionsGrid}>
