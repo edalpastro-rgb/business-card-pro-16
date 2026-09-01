@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 
 export type WheelItem<T = any> = { value: T; label: string };
 
@@ -125,6 +126,7 @@ export function WheelPickerModal<T = any>({
   testID,
 }: WheelPickerModalProps<T>) {
   const [tempValue, setTempValue] = useState<T>(value);
+  const bottomPad = useBottomSheetPadding();
 
   useEffect(() => {
     if (visible) setTempValue(value);
@@ -143,7 +145,7 @@ export function WheelPickerModal<T = any>({
 
           <Wheel<T> items={items} value={tempValue} onChange={setTempValue} testID={testID ? `${testID}-wheel` : undefined} />
 
-          <View style={styles.footer}>
+          <View style={[styles.footer, { paddingBottom: bottomPad }]}>
             <Pressable onPress={onClose} style={[styles.btn, styles.btnGhost]}>
               <Text style={[styles.btnTxt, { color: theme.color.muted }]}>Annulla</Text>
             </Pressable>

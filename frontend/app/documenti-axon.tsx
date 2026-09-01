@@ -21,6 +21,7 @@ import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import * as FileSystem from "expo-file-system/legacy";
 
 type MasterDoc = {
@@ -36,6 +37,7 @@ type MasterDoc = {
 export default function DocumentiAxonScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const bottomPad = useBottomSheetPadding(24);
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
 
   const [items, setItems] = useState<MasterDoc[]>([]);
@@ -245,7 +247,7 @@ export default function DocumentiAxonScreen() {
         <Pressable
           onPress={upload}
           disabled={uploading}
-          style={[styles.fab, uploading && { opacity: 0.6 }]}
+          style={[styles.fab, { bottom: 96 + bottomPad - 24 }, uploading && { opacity: 0.6 }]}
           testID="doc-upload-fab"
         >
           {uploading ? (
