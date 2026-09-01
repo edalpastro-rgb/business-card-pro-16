@@ -1,3 +1,28 @@
+## V50.f (Sept 2026) — Dropbox callback: route backend mancante
+
+### Problema
+Dopo aver rigenerato le chiavi Dropbox (V50.e), Dropbox reindirizzava correttamente a `https://business-card-pro-16.emergent.host/auth/dropbox/callback?code=...&state=...` ma la pagina restituiva `{"detail":"Not Found"}` in JSON — errore FastAPI 404.
+
+### Root cause
+L'ingress Emergent instrada `/auth/*` al backend (port 8001), non al frontend Expo Router. Google Drive funziona perché ha un endpoint `@app.get("/auth/google/callback")` server-side. Dropbox invece aveva SOLO la pagina Expo Router (`/app/frontend/app/auth/dropbox/callback.tsx`) che non veniva mai raggiunta.
+
+### Fix (`/app/backend/server.py`)
+Aggiunto endpoint `@app.get("/auth/dropbox/callback")` server-side, specular a quello Google:
+- Legge `code` + `state` dai query params.
+- Recupera lo state salvato in `db.dropbox_oauth_states` (con `code_verifier` PKCE).
+- Scambia il code con Dropbox via `https://api.dropboxapi.com/oauth2/token`.
+- Recupera info account (email + account_id).
+- Salva `refresh_token` cifrato in `db.dropbox_connections`.
+- Restituisce una pagina HTML brand navy/arancione con esito ✓/✗ + auto-close finestra dopo 2.5s.
+
+L'app Android/iOS in foreground rileva lo stato aggiornato via polling `/api/dropbox/status` e aggancia la UI.
+
+### Verifica
+- `curl /auth/dropbox/callback?code=fake&state=fake` → HTML 200 con "Sessione scaduta" (comportamento atteso su stato inesistente).
+- Backend riavvia senza errori di import.
+- Flusso completo pronto per il test utente reale.
+
+
 ## V50.e (Sept 2026) — Dropbox OAuth: chiavi rigenerate
 
 ### Problema

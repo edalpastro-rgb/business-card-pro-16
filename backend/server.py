@@ -189,6 +189,115 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# V50.f — Callback server-side per Dropbox (specular a quello Google in
+# `/auth/google/callback`). Dropbox reindirizza qui con ?code=...&state=...
+# perché l'ingress Emergent instrada `/auth/*` al backend, NON al frontend.
+# Prima esisteva solo la pagina Expo Router a `/auth/dropbox/callback.tsx`
+# che però NON veniva mai raggiunta → 404 "Not Found" restituito da FastAPI.
+# Ora facciamo lo scambio del code lato server e mostriamo una pagina HTML
+# di successo; il polling `/api/dropbox/status` nell'app aggancia la UI.
+@app.get("/auth/dropbox/callback")
+async def _dropbox_oauth_callback_bridge(request: Request):
+    from fastapi.responses import HTMLResponse
+    qp = request.query_params
+    code = qp.get("code")
+    state = qp.get("state")
+    err = qp.get("error") or qp.get("error_description")
+
+    def _page(ok: bool, message: str, detail: str = "") -> HTMLResponse:
+        color = "#0061FF" if ok else "#DC2626"
+        icon = "✓" if ok else "✗"
+        html = f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdvisorOS · Dropbox</title>
+<style>
+body {{ font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 32px;
+       background: #0F2438; color: #FFF; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; text-align: center; }}
+.circle {{ width: 88px; height: 88px; border-radius: 44px; background: {color};
+           display: flex; align-items: center; justify-content: center; font-size: 48px;
+           color: #FFF; font-weight: 800; margin-bottom: 20px; }}
+h1 {{ font-size: 22px; margin: 0 0 8px 0; font-weight: 800; letter-spacing: -0.4px; }}
+p {{ color: rgba(255,255,255,0.75); font-size: 14px; margin: 4px 0; max-width: 380px; }}
+.hint {{ margin-top: 20px; color: #38BDF8; font-size: 12px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 1px; }}
+</style></head><body>
+<div class="circle">{icon}</div>
+<h1>{message}</h1>
+<p>{detail}</p>
+<p class="hint">Torna all'app AdvisorOS per continuare</p>
+<script>setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 2500);</script>
+</body></html>"""
+        return HTMLResponse(content=html, status_code=200)
+
+    if err:
+        return _page(False, "Autorizzazione annullata", err)
+    if not code or not state:
+        return _page(False, "Callback OAuth incompleto", "Manca code o state")
+
+    try:
+        if not _dbx_configured():
+            return _page(False, "Dropbox non configurato",
+                         "Contatta l'amministratore del server")
+        st = await db.dropbox_oauth_states.find_one_and_delete({"_id": state})
+        if not st:
+            return _page(False, "Sessione scaduta",
+                         "Riprova dalla schermata Dropbox")
+        if st.get("expires_at") and st["expires_at"] < utcnow():
+            return _page(False, "Stato OAuth scaduto",
+                         "Riprova dalla schermata Dropbox")
+        # Scambia il code con Dropbox usando lo stesso client_secret + code_verifier
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.post(
+                "https://api.dropboxapi.com/oauth2/token",
+                data={
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "client_id": _DBX_APP_KEY,
+                    "client_secret": _DBX_APP_SECRET,
+                    "redirect_uri": _DBX_REDIRECT_URI,
+                    "code_verifier": st.get("code_verifier", ""),
+                },
+            )
+        if r.status_code != 200:
+            logger.warning("[dropbox-callback] token exchange %s: %s", r.status_code, r.text[:200])
+            return _page(False, "Scambio token fallito", f"HTTP {r.status_code}")
+        tok = r.json()
+        # Best-effort account info
+        dropbox_email = None
+        account_id = tok.get("account_id")
+        try:
+            if tok.get("access_token"):
+                async with httpx.AsyncClient(timeout=10) as c2:
+                    ar = await c2.post(
+                        "https://api.dropboxapi.com/2/users/get_current_account",
+                        headers={"Authorization": f"Bearer {tok['access_token']}"},
+                    )
+                    if ar.status_code == 200:
+                        aj = ar.json()
+                        dropbox_email = (aj.get("email") or "").lower() or None
+                        account_id = aj.get("account_id") or account_id
+        except Exception:
+            pass
+        await db.dropbox_connections.update_one(
+            {"user_id": st["user_id"]},
+            {"$set": {
+                "user_id": st["user_id"],
+                "account_id": account_id,
+                "dropbox_email": dropbox_email,
+                "refresh_token": tok.get("refresh_token", ""),
+                "scopes": tok.get("scope") or _DBX_SCOPES,
+                "updated_at": utcnow(),
+            }},
+            upsert=True,
+        )
+        return _page(True, "Dropbox collegato",
+                     f"Account: {dropbox_email}" if dropbox_email else "")
+    except Exception as e:
+        logger.warning("[dropbox-callback] exception: %s", e)
+        return _page(False, "Errore durante il collegamento", str(e))
+
+
 def hash_password(pw: str) -> str:
     return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
 
