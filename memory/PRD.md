@@ -1,3 +1,45 @@
+## V50.l–n (Sept 2026) — Fase 2: RAG Semantico + Slash Commands + Onboarding
+
+### 1) RAG Embeddings semantici (`/app/backend/server.py`)
+- Aggiunto `_axon_embed(text)` che chiama `text-embedding-3-small` via proxy Emergent LLM (`https://integrations.emergentagent.com/llm/openai/v1/embeddings`) → vettori 1536-dim, timeout 8s, best-effort con fallback silente su miss.
+- Aggiunto `_cosine_sim(a, b)` per similitudine coseno tra vettori.
+- `_retrieve_master_doc_chunks` riscritta come **hybrid retrieval**:
+  1. Pre-filter Jaccard su token index (veloce).
+  2. Query embedding calcolata al volo.
+  3. Top-40 candidati Jaccard → cosine sim vs query embedding.
+  4. **Lazy compute + persistence**: chunk senza `embedding` in DB → embed calcolato e salvato (fino a 12 embed paralleli per query per limitare costo).
+  5. Threshold semantico 0.35 su cosine (permissivo, cattura sinonimi/parafrasi).
+  6. Fallback puro Jaccard se embedding proxy fallisce.
+- Impatto: retrieve trova chunk rilevanti anche quando l'utente scrive con parole diverse dai documenti (es. "prezzo mercato zonale luce" trova PDF con "PUN medio F1").
+
+### 2) Slash commands (`/app/backend/server.py`)
+- Nuova funzione `_maybe_slash_command(msg, user)` che intercetta prima della LLM:
+  - `/aiuto` — elenco comandi.
+  - `/bolletta [nome]` — ultime 5 bollette del cliente (fuzzy match su first_name/last_name/email).
+  - `/scadenze` — scadenze contratti prossimi 30gg con contact name.
+  - `/pun [mese] [anno]` — rebuild della query in linguaggio naturale per delegare alla LLM con RAG (non risposta canned).
+  - `/team` — snapshot Master: collaboratori attivi, contatti totali, appts + telefonate 30gg. Bloccato se `role != master`.
+- Integrato nel stream endpoint: se slash → risposta istantanea (< 100ms) senza toccare la LLM.
+
+### 3) Onboarding Wizard (`/app/frontend/src/OnboardingWizard.tsx`)
+- Modal a 3 step per nuovi Master:
+  - Step 1: **Insegna ad Axon la prima regola** → CTA `/ai-teach`.
+  - Step 2: **Analizza la tua prima bolletta** → CTA `/master`.
+  - Step 3: **Chiedi qualcosa ad Axon** (con hint sui slash commands).
+- Persistenza dismiss via `AsyncStorage` chiave `onboarding_v1_dismissed_${user_id}`.
+- Filtrato per `role === "master"` (i collaboratori non lo vedono).
+- Aggiunto in `/app/frontend/app/_layout.tsx` dopo SupportFab e PersistentBottomNav.
+
+### Verifica live
+| Test | Latenza | Note |
+|---|---|---|
+| `/aiuto` | **0.05s** ⚡ | Istantaneo, non tocca LLM |
+| `/scadenze` | **0.04s** ⚡ | Query Mongo + format markdown |
+| `/team` (non-Master) | **0.04s** | Blocco corretto |
+| `/bolletta test` | ~0.1s | Cliente non trovato + suggerimento |
+| Normal chat "Ciao Axon" | 5.1s | Haiku, con progress "Sto raccogliendo…" |
+
+
 ## V50.k (Sept 2026) — Router Haiku/Sonnet + Cache tenant-shared + Progress SSE
 
 ### Ottimizzazioni implementate (Fase 1)

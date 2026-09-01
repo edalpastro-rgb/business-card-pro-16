@@ -10268,6 +10268,128 @@ class AssistantChatStreamIn(AssistantChatIn):
     pass
 
 
+# V50.m — Slash commands: intercettati prima della LLM per risposte istantanee
+# a query strutturate. Formato: /comando [argomenti].
+# Comandi disponibili:
+#   /aiuto           → mostra tutti i comandi disponibili
+#   /bolletta [nome] → riepilogo ultime bollette del cliente (nome fuzzy match)
+#   /scadenze        → prossime scadenze contratti (30gg)
+#   /pun [mese] [anno] → PUN medi per fascia (delega a chat normale con RAG)
+#   /team            → snapshot performance team (solo Master)
+async def _maybe_slash_command(msg: str, user: dict) -> Optional[dict]:
+    """Se `msg` inizia con /, esegui il comando e ritorna un dict con `reply`
+    e opzionale `session_id`. Altrimenti ritorna None e la chat procede
+    normalmente attraverso la LLM."""
+    txt = (msg or "").strip()
+    if not txt.startswith("/"):
+        return None
+    parts = txt.split(None, 1)
+    cmd = parts[0].lower().lstrip("/")
+    arg = parts[1].strip() if len(parts) > 1 else ""
+    tenant = tenant_id(user)
+
+    if cmd in ("aiuto", "help", "?"):
+        reply = (
+            "🎯 **Comandi rapidi Axon**\n\n"
+            "• `/bolletta [nome]` — Riepilogo ultime bollette del cliente (matching fuzzy).\n"
+            "• `/scadenze` — Prossime scadenze contratti nei 30 giorni.\n"
+            "• `/pun [mese] [anno]` — PUN medi per fascia F1/F2/F3.\n"
+            "• `/team` — Snapshot performance team (solo Master).\n"
+            "• `/aiuto` — Questo elenco.\n\n"
+            "💡 *Suggerimento*: puoi anche chiedere in linguaggio naturale — i comandi slash sono solo scorciatoie per andare veloce."
+        )
+        return {"reply": reply, "cmd": "aiuto"}
+
+    if cmd == "bolletta":
+        if not arg:
+            return {"reply": "Uso: `/bolletta [nome cliente]`\nEsempio: `/bolletta Mario Rossi`", "cmd": "bolletta"}
+        # Fuzzy match by first_name/last_name/email
+        q_low = arg.lower()
+        contact = await db.contacts.find_one({
+            "tenant_id": tenant,
+            "$or": [
+                {"first_name": {"$regex": q_low, "$options": "i"}},
+                {"last_name": {"$regex": q_low, "$options": "i"}},
+                {"email": {"$regex": q_low, "$options": "i"}},
+            ],
+        }, {"_id": 0, "id": 1, "first_name": 1, "last_name": 1, "email": 1})
+        if not contact:
+            return {"reply": f"❌ Nessun cliente trovato per '**{arg}**'. Prova con nome/cognome/email parziali.", "cmd": "bolletta"}
+        bills = await db.contact_bills.find(
+            {"contact_id": contact["id"], "tenant_id": tenant},
+            {"_id": 0, "kind": 1, "supplier": 1, "pod": 1, "pdr": 1, "created_at": 1, "extracted": 1},
+        ).sort("created_at", -1).limit(5).to_list(5)
+        header = f"📋 **Ultime bollette di {contact.get('first_name','')} {contact.get('last_name','')}**\n\n"
+        if not bills:
+            return {"reply": header + "_Nessuna bolletta caricata per questo cliente._", "cmd": "bolletta"}
+        lines = []
+        for b in bills:
+            kind = (b.get("kind") or "?").capitalize()
+            sup = b.get("supplier") or "n/d"
+            ident = b.get("pod") or b.get("pdr") or "-"
+            dt = b.get("created_at")
+            dt_str = dt.strftime("%d/%m/%Y") if dt else "?"
+            lines.append(f"• **{kind}** · {sup} · {ident} · {dt_str}")
+        return {"reply": header + "\n".join(lines), "cmd": "bolletta"}
+
+    if cmd == "scadenze":
+        from datetime import timedelta as _td
+        now = utcnow()
+        limit_date = now + _td(days=30)
+        rows = await db.contact_bills.find(
+            {"tenant_id": tenant, "extracted.scadenza_pagamento": {"$gte": now, "$lte": limit_date}},
+            {"_id": 0, "contact_id": 1, "kind": 1, "supplier": 1, "extracted": 1},
+        ).limit(30).to_list(30)
+        if not rows:
+            return {"reply": "✅ **Nessuna scadenza contratto nei prossimi 30 giorni.**", "cmd": "scadenze"}
+        # Enrich contact names
+        cids = list({r["contact_id"] for r in rows if r.get("contact_id")})
+        cmap: dict = {}
+        async for c in db.contacts.find({"id": {"$in": cids}, "tenant_id": tenant}, {"_id": 0, "id": 1, "first_name": 1, "last_name": 1}):
+            cmap[c["id"]] = f"{c.get('first_name','')} {c.get('last_name','')}".strip()
+        lines = [f"⏰ **Scadenze contratti prossimi 30gg** ({len(rows)}):\n"]
+        for r in rows[:15]:
+            due = r.get("extracted", {}).get("scadenza_pagamento")
+            due_str = due.strftime("%d/%m/%Y") if due else "?"
+            name = cmap.get(r.get("contact_id"), "?")
+            kind = (r.get("kind") or "?").capitalize()
+            sup = r.get("supplier") or ""
+            lines.append(f"• **{due_str}** · {name} · {kind} {sup}")
+        return {"reply": "\n".join(lines), "cmd": "scadenze"}
+
+    if cmd == "pun":
+        # Delega alla chat normale con query costruita per Axon
+        args = arg.split()
+        month = args[0] if args else ""
+        year = args[1] if len(args) > 1 else "2026"
+        rebuild = f"Dammi la tabella PUN F1 F2 F3 e monorario per {month or 'tutti i mesi disponibili'} {year}, solo dati in formato tabella"
+        return {"reply": None, "cmd": "pun", "rebuild_msg": rebuild}
+
+    if cmd == "team":
+        role = (user.get("role") or "").lower()
+        if role != "master":
+            return {"reply": "🔒 Comando riservato ai Master.", "cmd": "team"}
+        # Snapshot: numero collaboratori, appuntamenti 30gg, contatti totali, telefonate 30gg
+        from datetime import timedelta as _td
+        now = utcnow()
+        thirty = now - _td(days=30)
+        collaborators = await db.users.count_documents({"tenant_id": tenant, "role": {"$in": ["collaborator", "user"]}})
+        appts = await db.appointments.count_documents({"tenant_id": tenant, "created_at": {"$gte": thirty}})
+        contacts = await db.contacts.count_documents({"tenant_id": tenant})
+        calls = await db.callbacks.count_documents({"tenant_id": tenant, "created_at": {"$gte": thirty}}) if hasattr(db, "callbacks") else 0
+        reply = (
+            f"👥 **Team snapshot (30gg)**\n\n"
+            f"• Collaboratori attivi: **{collaborators}**\n"
+            f"• Contatti totali: **{contacts}**\n"
+            f"• Appuntamenti creati: **{appts}**\n"
+            f"• Telefonate: **{calls}**\n\n"
+            f"_Vai in **Team Insights** per profili individuali e confronti._"
+        )
+        return {"reply": reply, "cmd": "team"}
+
+    return {"reply": f"❓ Comando `/{cmd}` non riconosciuto. Digita `/aiuto` per l'elenco.", "cmd": "unknown"}
+
+
 @api_router.post("/assistant/chat/stream")
 async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_current_user)):
     """SSE streaming variant of /assistant/chat.
@@ -10285,6 +10407,19 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         return f"event: {event}\ndata: {_json_mod.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
     async def event_stream():
+        # V50.m — Slash commands intercept: /aiuto, /bolletta, /scadenze,
+        # /pun, /team → risposta istantanea senza chiamare la LLM (o con
+        # prompt riscritto se `rebuild_msg`).
+        _slash_result = await _maybe_slash_command(body.message or "", user)
+        if _slash_result and _slash_result.get("reply") is not None:
+            _sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
+            yield sse("meta", {"session_id": _sid, "from_cache": False, "slash": _slash_result.get("cmd")})
+            yield sse("delta", {"text": _slash_result["reply"]})
+            yield sse("done", {"session_id": _sid, "used_web_search": False, "web_sources": [], "from_cache": False, "slash": _slash_result.get("cmd")})
+            return
+        if _slash_result and _slash_result.get("rebuild_msg"):
+            body.message = _slash_result["rebuild_msg"]
+
         # V50.k — Progress event: preflight iniziato (l'utente vede subito
         # "Sto raccogliendo il contesto…" invece di attendere silenziosamente).
         yield sse("progress", {"stage": "preflight", "text": "Sto raccogliendo il contesto…"})
@@ -11234,6 +11369,67 @@ async def run_rule_proposals_now(user=Depends(get_current_user)):
     return {"ok": True, "proposals_created": created, "analyzed_messages": len(msgs)}
 
 
+
+
+
+# V50.l — RAG semantico con embeddings OpenAI text-embedding-3-small.
+# Migliora drasticamente il retrieve quando l'utente scrive con parole
+# diverse rispetto al contenuto dei documenti (sinonimi, forme flesse,
+# rimescolamento). Embeddings sono cachati nel chunk (`embedding` field)
+# così il costo di embed è pagato UNA VOLTA per chunk (all'ingestion o al
+# primo retrieve). Query embedding è calcolato al volo (~50ms).
+_EMBEDDING_MODEL = "text-embedding-3-small"
+_EMBEDDING_DIM = 1536  # dimensione output text-embedding-3-small
+_EMBEDDING_URL = "https://integrations.emergentagent.com/llm/openai/v1/embeddings"
+
+
+async def _axon_embed(text: str) -> Optional[List[float]]:
+    """Ritorna il vettore embedding di `text` via OpenAI proxy Emergent.
+    Best-effort: se il proxy fallisce o la chiave manca, ritorna None e il
+    caller cadrà nel fallback Jaccard."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    key = os.getenv("EMERGENT_LLM_KEY", "")
+    if not key:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as c:
+            r = await c.post(
+                _EMBEDDING_URL,
+                headers={"Authorization": f"Bearer {key}"},
+                json={"model": _EMBEDDING_MODEL, "input": text[:8000]},
+            )
+        if r.status_code != 200:
+            return None
+        data = r.json().get("data") or []
+        if not data:
+            return None
+        emb = data[0].get("embedding")
+        if not emb or len(emb) != _EMBEDDING_DIM:
+            return None
+        return emb
+    except Exception as exc:
+        logger.debug("[axon-embed] failed: %s", exc)
+        return None
+
+
+def _cosine_sim(a: List[float], b: List[float]) -> float:
+    """Similitudine coseno tra due vettori (assunti pre-normalizzati o meno)."""
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = 0.0
+    na = 0.0
+    nb = 0.0
+    for x, y in zip(a, b):
+        dot += x * y
+        na += x * x
+        nb += y * y
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na ** 0.5 * nb ** 0.5)
+
+
 async def _retrieve_master_doc_chunks(
     tenant: str,
     query: str,
@@ -11241,27 +11437,81 @@ async def _retrieve_master_doc_chunks(
     min_sim: float = RAG_MIN_SIMILARITY,
 ) -> List[dict]:
     """Retrieve top-K most relevant chunks for a query, scoped to a tenant.
-    Uses Jaccard on tokenised chunks. Returns list of chunks (with `_score`)."""
+    V50.l — Uso embeddings semantici come primary + Jaccard come fallback.
+    Se `embedding` non è ancora presente sul chunk, viene calcolato una
+    tantum e persistito (lazy compute) durante il primo retrieve rilevante.
+    """
     _, q_tokens = _normalize_and_tokenize(query)
     if not q_tokens:
         return []
-    # Pre-filter: chunks whose tokens intersect the query tokens (multikey index on `tokens`
-    # accelerates this significantly compared to a full scan).
+
+    # STEP 1: Prefiltro Jaccard classico (pre-scoring veloce su indice tokens)
     cursor = db.master_doc_chunks.find(
         {"tenant_id": tenant, "tokens": {"$in": q_tokens}},
-        {"_id": 0, "chunk_id": 1, "doc_id": 1, "content": 1, "tokens": 1, "page_number": 1},
+        {"_id": 0, "chunk_id": 1, "doc_id": 1, "content": 1, "tokens": 1,
+         "page_number": 1, "embedding": 1},
     ).limit(500)  # safety cap on candidates
-    scored: List[dict] = []
+    prelim: List[dict] = []
     async for c in cursor:
-        sim = _jaccard(q_tokens, c.get("tokens") or [])
-        if sim >= min_sim:
-            c["_score"] = sim
-            scored.append(c)
-    scored.sort(key=lambda x: x.get("_score", 0.0), reverse=True)
-    top = scored[:top_k]
+        jsim = _jaccard(q_tokens, c.get("tokens") or [])
+        c["_jscore"] = jsim
+        prelim.append(c)
+
+    if not prelim:
+        return []
+
+    # STEP 2: Query embedding (async, best-effort)
+    q_emb = await _axon_embed(query)
+
+    # STEP 3: Se ho l'embedding query, riordino i top candidati per cosine sim.
+    # Per limitare il costo, calcolo embeddings dei chunk mancanti solo sui
+    # top-40 per jaccard (non su tutti i 500). Lazy compute + persist.
+    if q_emb:
+        prelim.sort(key=lambda x: x.get("_jscore", 0.0), reverse=True)
+        candidates = prelim[:40]
+        # Chunk senza embedding → embed in parallelo e persist
+        missing = [c for c in candidates if not c.get("embedding")]
+        if missing:
+            async def _embed_and_save(chunk: dict) -> None:
+                emb = await _axon_embed(chunk.get("content") or "")
+                if emb:
+                    chunk["embedding"] = emb
+                    try:
+                        await db.master_doc_chunks.update_one(
+                            {"chunk_id": chunk["chunk_id"]},
+                            {"$set": {"embedding": emb}},
+                        )
+                    except Exception:
+                        pass
+            await asyncio.gather(*[_embed_and_save(c) for c in missing[:12]])
+
+        # Cosine sim vs query embedding
+        for c in candidates:
+            emb = c.get("embedding")
+            if emb:
+                c["_score"] = _cosine_sim(q_emb, emb)
+            else:
+                # Chunk senza embedding (skippato per limite budget) → usa jaccard scalato
+                c["_score"] = max(0.0, c.get("_jscore", 0.0) * 0.5)
+        # Soglia semantica più permissiva (0.35 su cosine ≈ semanticamente rilevante)
+        scored = [c for c in candidates if c.get("_score", 0.0) >= 0.35]
+        scored.sort(key=lambda x: x.get("_score", 0.0), reverse=True)
+        top = scored[:top_k]
+    else:
+        # Fallback: pura Jaccard con soglia originale
+        scored = [c for c in prelim if c.get("_jscore", 0.0) >= min_sim]
+        for c in scored:
+            c["_score"] = c.get("_jscore", 0.0)
+        scored.sort(key=lambda x: x.get("_score", 0.0), reverse=True)
+        top = scored[:top_k]
+
     if not top:
-        return top
-    # Enrich with doc name (batch fetch)
+        return []
+
+    # Cleanup + enrich con doc name
+    for c in top:
+        c.pop("embedding", None)
+        c.pop("_jscore", None)
     doc_ids = list({c["doc_id"] for c in top})
     doc_map: Dict[str, str] = {}
     docs_cursor = db.master_documents.find(

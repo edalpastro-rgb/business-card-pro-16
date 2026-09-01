@@ -12,6 +12,7 @@ import { AppLockOverlay } from "@/src/AppLock";
 import { AssistantFAB } from "@/src/AssistantChat";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
 import { SupportFab } from "@/src/SupportFab";
+import { OnboardingWizard } from "@/src/OnboardingWizard";
 import { AnimatedSplash } from "@/src/AnimatedSplash";
 import { FabStackProvider } from "@/src/FabStack";
 import { ActiveCallProvider } from "@/src/CallTimerBar";
@@ -130,6 +131,7 @@ function StackWithCallBar() {
       <AssistantFAB />
       {user ? <SupportFab /> : null}
       {user ? <PersistentBottomNav /> : null}
+      {user ? <OnboardingWizard /> : null}
     </View>
   );
 }
