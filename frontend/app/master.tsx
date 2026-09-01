@@ -316,32 +316,9 @@ function MasterScreen() {
         </View>
       </View>
 
-      {/* My Thing banner spostato FUORI dall'hero (V29.az) così l'immagine
-          dashboard resta fully-visible come in Home. */}
-      <Pressable
-        onPress={() => router.push("/my-thing")}
-        style={[styles.bannerWrap, { marginHorizontal: 16, marginTop: 12 }]}
-        testID="master-banner"
-      >
-        {currentBannerImg ? (
-          <Animated.View style={[StyleSheet.absoluteFill, { opacity: bannerFade }]} pointerEvents="none">
-            <ImageBackground
-              source={{ uri: currentBannerImg }}
-              resizeMode="cover"
-              style={StyleSheet.absoluteFill}
-              imageStyle={Platform.OS === "web" ? ({ objectFit: "cover", width: "100%", height: "100%" } as any) : { borderRadius: 12 }}
-            />
-          </Animated.View>
-        ) : (
-          <LinearGradient colors={["#7C3AED", "#DB2777"]} style={styles.bannerFallback} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-            <Ionicons name="images" size={28} color="#FFF" />
-            <View style={{ marginLeft: 12, flex: 1 }}>
-              <Text style={styles.bannerLabel}>My Thing</Text>
-              <Text style={styles.bannerBody}>Aggiungi immagini motivazionali da &quot;My Thing&quot;</Text>
-            </View>
-          </LinearGradient>
-        )}
-      </Pressable>
+      {/* V49.l — Banner "My Thing" rimosso dal Master su richiesta utente
+          (resta disponibile in Home). Master ora va direttamente allo scroll
+          contenente Riordino + griglia dei bottoni Master. */}
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         {/* V48 — Reorder mode toggle bar */}
@@ -902,7 +879,10 @@ const styles = StyleSheet.create({
   bannerTitle: { color: "#FFF", fontSize: 13, fontWeight: "800", marginTop: 1 },
   bannerBody: { color: "rgba(255,255,255,0.9)", fontSize: 11, marginTop: 1 },
 
-  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  // V49.l — Grid centrata orizzontalmente in modo uniforme e simmetrico
+  // (space-evenly distribuisce spazio uguale sia ai bordi sia tra le celle,
+  // così anche l'ultima riga incompleta resta centrata).
+  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-evenly", rowGap: 4 },
   btnCell: { width: "31%", alignItems: "center", marginBottom: 22 },
   // V29.ba — Stile "Optima": icona full-round su cerchio colorato con shadow
   // marcato (effetto rialzato/3D) e leggero highlight in alto.
