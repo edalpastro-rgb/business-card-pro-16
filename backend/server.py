@@ -4224,6 +4224,260 @@ async def ai_contact_from_voice(body: AIVoiceIn, user=Depends(get_current_user))
     return {"contact": parsed, "transcript": transcript}
 
 
+# =========================================================================
+# V50.o — Copilot Vocale in Auto: intent parser + esecuzione hands-free.
+#
+# Flusso:
+#  1. Frontend registra audio → invia a /api/ai/transcribe (whisper).
+#  2. Frontend chiama /api/voice/copilot/execute con `transcript`.
+#  3. Backend classifica intent via Claude Haiku (JSON structured output):
+#     - create_contact: {first_name, last_name, phone?, email?, city?, area?}
+#     - add_note: {contact_query, note_text}
+#     - schedule_call: {contact_query, when_iso, notes?}
+#     - query: {question} → delega a chat Axon (opzionale)
+#  4. Backend esegue l'azione e ritorna confermatext leggibile.
+# =========================================================================
+
+
+class VoiceCopilotIn(BaseModel):
+    transcript: str
+    session_id: Optional[str] = None
+
+
+_VOICE_INTENT_PROMPT = """Sei un intent classifier per un CRM italiano.
+Data una trascrizione vocale dell'utente (consulente energetico in auto),
+identifica l'intent tra:
+- create_contact: creare un NUOVO cliente/contatto
+- add_note: aggiungere una nota a un cliente ESISTENTE
+- schedule_call: programmare una telefonata di richiamo
+- query: qualsiasi altra domanda o richiesta informativa
+
+Rispondi SOLO con un JSON valido in questo formato esatto:
+{
+  "intent": "create_contact" | "add_note" | "schedule_call" | "query",
+  "params": {
+    // per create_contact: first_name, last_name, phone, email, city, area (energy/network)
+    // per add_note: contact_query (nome/cognome cercabile), note_text
+    // per schedule_call: contact_query, when_iso (ISO8601 con timezone Europe/Rome), notes
+    // per query: question
+  },
+  "confirmation": "frase in italiano da leggere all'utente per confermare (max 15 parole)"
+}
+
+Regole:
+- Se una data è "domani alle 10", calcola l'ISO8601 rispetto a ORA (%s).
+- Se un campo manca, ometti la chiave (non mettere null o stringa vuota).
+- La confirmation deve essere naturale e concisa, es. "Ho creato Mario Rossi con numero 3331234567".
+
+Trascrizione utente:
+"""
+
+
+@api_router.post("/voice/copilot/execute")
+async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_user)):
+    """V50.o — Copilot vocale hands-free: intent parsing + execution."""
+    transcript = (body.transcript or "").strip()
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Trascrizione vuota")
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+    now_iso = utcnow().isoformat()
+    prompt = _VOICE_INTENT_PROMPT % now_iso + transcript
+    session_id = body.session_id or f"voice-copilot-{uuid.uuid4().hex[:8]}"
+
+    chat = LlmChat(
+        api_key=key,
+        session_id=session_id,
+        system_message="Sei un intent classifier che risponde SOLO con JSON valido. Nessun testo prima o dopo.",
+    ).with_model("anthropic", "claude-haiku-4-5")
+
+    try:
+        raw = await chat.send_message(UserMessage(text=prompt))
+    except Exception as exc:
+        logger.exception("[voice-copilot] LLM failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Errore intent classifier: {exc}")
+
+    raw_txt = raw if isinstance(raw, str) else getattr(raw, "text", str(raw))
+    # Strip code fences se presenti
+    txt = raw_txt.strip()
+    if txt.startswith("```"):
+        txt = txt.strip("`")
+        txt = txt.split("\n", 1)[1] if "\n" in txt else txt
+        if txt.endswith("```"):
+            txt = txt[:-3]
+    try:
+        import json as _json_std
+        parsed = _json_std.loads(txt)
+    except Exception:
+        # Retry con fallback: prova a estrarre il primo JSON con regex
+        m = re.search(r"\{[\s\S]*\}", txt)
+        if not m:
+            raise HTTPException(status_code=422, detail=f"Impossibile parsare intent: {txt[:200]}")
+        try:
+            import json as _json_std
+            parsed = _json_std.loads(m.group(0))
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"JSON intent malformato: {exc}")
+
+    intent = (parsed.get("intent") or "").strip()
+    params = parsed.get("params") or {}
+    confirmation = (parsed.get("confirmation") or "Fatto.").strip()
+
+    result_extra: dict = {}
+    tenant = tenant_id(user)
+
+    try:
+        if intent == "create_contact":
+            first_name = (params.get("first_name") or "").strip()
+            last_name = (params.get("last_name") or "").strip()
+            if not first_name and not last_name:
+                raise HTTPException(status_code=422, detail="Nome/cognome mancanti nella trascrizione")
+            contact_doc = {
+                "id": uuid.uuid4().hex,
+                "tenant_id": tenant,
+                "user_id": user["user_id"],
+                "first_name": first_name,
+                "last_name": last_name,
+                "phone": (params.get("phone") or "").strip(),
+                "email": (params.get("email") or "").strip(),
+                "city": (params.get("city") or "").strip(),
+                "area": params.get("area") if params.get("area") in ("energy", "network") else "energy",
+                "created_at": utcnow(),
+                "updated_at": utcnow(),
+                "source": "voice_copilot",
+            }
+            await db.contacts.insert_one(contact_doc)
+            result_extra = {"contact_id": contact_doc["id"], "name": f"{first_name} {last_name}".strip()}
+
+        elif intent == "add_note":
+            q = (params.get("contact_query") or "").strip()
+            note_text = (params.get("note_text") or "").strip()
+            if not q or not note_text:
+                raise HTTPException(status_code=422, detail="Nome cliente o testo nota mancanti")
+            # V50.o — Match fuzzy: split query per parole e cerca ognuna in first/last_name
+            q_tokens = [t for t in re.split(r"\s+", q) if t]
+            or_conds: List[dict] = []
+            for t in q_tokens:
+                or_conds.append({"first_name": {"$regex": t, "$options": "i"}})
+                or_conds.append({"last_name": {"$regex": t, "$options": "i"}})
+            contact = await db.contacts.find_one(
+                {"tenant_id": tenant, "$or": or_conds or [{"_": None}]},
+                {"_id": 0, "id": 1, "first_name": 1, "last_name": 1},
+            )
+            if not contact:
+                raise HTTPException(status_code=404, detail=f"Cliente '{q}' non trovato")
+            note_doc = {
+                "id": uuid.uuid4().hex,
+                "contact_id": contact["id"],
+                "tenant_id": tenant,
+                "user_id": user["user_id"],
+                "text": note_text,
+                "created_at": utcnow(),
+                "source": "voice_copilot",
+            }
+            await db.contact_notes.insert_one(note_doc)
+            result_extra = {"contact_id": contact["id"], "note_id": note_doc["id"]}
+
+        elif intent == "schedule_call":
+            q = (params.get("contact_query") or "").strip()
+            when_iso = (params.get("when_iso") or "").strip()
+            if not q or not when_iso:
+                raise HTTPException(status_code=422, detail="Nome cliente o data mancanti")
+            try:
+                when_dt = datetime.fromisoformat(when_iso.replace("Z", "+00:00"))
+            except Exception:
+                raise HTTPException(status_code=422, detail=f"Data non parsabile: {when_iso}")
+            # V50.o — Fuzzy match per parole
+            q_tokens = [t for t in re.split(r"\s+", q) if t]
+            or_conds: List[dict] = []
+            for t in q_tokens:
+                or_conds.append({"first_name": {"$regex": t, "$options": "i"}})
+                or_conds.append({"last_name": {"$regex": t, "$options": "i"}})
+            contact = await db.contacts.find_one(
+                {"tenant_id": tenant, "$or": or_conds or [{"_": None}]},
+                {"_id": 0, "id": 1, "first_name": 1, "last_name": 1, "phone": 1},
+            )
+            if not contact:
+                raise HTTPException(status_code=404, detail=f"Cliente '{q}' non trovato")
+            cb_doc = {
+                "id": uuid.uuid4().hex,
+                "contact_id": contact["id"],
+                "tenant_id": tenant,
+                "user_id": user["user_id"],
+                "phone": contact.get("phone", ""),
+                "scheduled_at": when_dt,
+                "notes": (params.get("notes") or "").strip(),
+                "created_at": utcnow(),
+                "status": "scheduled",
+                "source": "voice_copilot",
+            }
+            await db.callbacks.insert_one(cb_doc)
+            result_extra = {"callback_id": cb_doc["id"], "contact_id": contact["id"]}
+
+        elif intent == "query":
+            # Delega alla chat Axon normale
+            result_extra = {"delegate_to_axon": params.get("question") or transcript}
+
+        else:
+            raise HTTPException(status_code=422, detail=f"Intent sconosciuto: {intent}")
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("[voice-copilot] execution failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Errore esecuzione: {exc}")
+
+    return {
+        "intent": intent,
+        "params": params,
+        "confirmation": confirmation,
+        "extra": result_extra,
+        "transcript": transcript,
+    }
+
+
+# V50.o — TTS endpoint via OpenAI proxy Emergent (per copilot vocale).
+class TTSIn(BaseModel):
+    text: str
+    voice: Optional[str] = "nova"  # openai voices: alloy/echo/fable/onyx/nova/shimmer
+
+
+@api_router.post("/ai/tts")
+async def ai_tts(body: TTSIn, user=Depends(get_current_user)):
+    txt = (body.text or "").strip()
+    if not txt:
+        raise HTTPException(status_code=400, detail="Testo vuoto")
+    key = os.environ.get("EMERGENT_LLM_KEY", "")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+    try:
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.post(
+                "https://integrations.emergentagent.com/llm/openai/v1/audio/speech",
+                headers={"Authorization": f"Bearer {key}"},
+                json={
+                    "model": "tts-1",
+                    "voice": (body.voice or "nova"),
+                    "input": txt[:1000],
+                    "response_format": "mp3",
+                },
+            )
+        if r.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"OpenAI TTS {r.status_code}: {r.text[:200]}")
+        import base64 as _b64_tts
+        audio_b64 = _b64_tts.b64encode(r.content).decode("utf-8")
+        return {"audio_base64": audio_b64, "mime": "audio/mp3", "chars": len(txt)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("[tts] failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Errore TTS: {exc}")
+
+
 @api_router.post("/ai/contact-from-card")
 async def ai_contact_from_card(body: AIImageIn, user=Depends(get_current_user)):
     """V38I — OCR + extraction of a business card image via Gemini vision.

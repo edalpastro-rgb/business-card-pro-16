@@ -527,6 +527,12 @@ export default function HomeScreen() {
               </View>
               <Text style={styles.quickTxt} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.75}>Nuovo contatto</Text>
             </Pressable>
+            <Pressable testID="qa-voice-copilot" style={styles.quick} onPress={() => router.push("/voice-copilot")}>
+              <View style={[styles.quickIcon, { backgroundColor: "#38BDF8" }]}>
+                <Ionicons name="mic" size={22} color="#FFF" />
+              </View>
+              <Text style={styles.quickTxt} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.75}>Copilot Auto</Text>
+            </Pressable>
           </View>
         </View>
 

@@ -18,6 +18,7 @@ import { DocumentScannerModal, suggestBillScanName } from "@/src/DocumentScanner
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { FileViewer } from "@/src/FileViewer";
 import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
+import { MicroTutorial, TUTORIAL_ANALIZZA_BOLLETTA } from "@/src/MicroTutorial";
 
 type BillType = "luce" | "gas" | "telco";
 export type QuickBillType = BillType;
@@ -1032,6 +1033,9 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+        {/* V50.p — Micro-tutorial slideshow: mostra in 3 step come funziona
+            l'analisi bolletta prima del pulsante di upload. */}
+        <MicroTutorial steps={TUTORIAL_ANALIZZA_BOLLETTA} />
         <View style={styles.introCard}>
           <Ionicons name="sparkles" size={20} color={theme.color.brandPrimary} />
           <View style={{ flex: 1, marginLeft: 10 }}>

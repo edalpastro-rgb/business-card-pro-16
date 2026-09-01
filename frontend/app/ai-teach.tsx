@@ -19,6 +19,7 @@ import { pickCommonFile } from "@/src/utils/filePicker";
 import * as FileSystem from "expo-file-system/legacy";
 
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { MicroTutorial, TUTORIAL_INSEGNA_AXON } from "@/src/MicroTutorial";
 type Rule = { rule_id: string; category?: string; categories?: string[]; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string };
 type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: string };
 // V28.j — Storico aggiornamenti (elenco esecuzioni di "Aggiorna ora" automatico o manuale)
@@ -917,6 +918,8 @@ export default function AiTeachScreen() {
               <Pressable onPress={() => setInfoTab(null)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>
             </View>
             <ScrollView contentContainerStyle={{ paddingTop: 6, paddingBottom: 12 }}>
+              {/* V50.p — Micro-tutorial slideshow in cima all'info modal */}
+              {infoTab === "rules" && <MicroTutorial steps={TUTORIAL_INSEGNA_AXON} />}
               <Text style={styles.infoBody}>{infoTab ? TAB_INFO[infoTab].body : ""}</Text>
               <Pressable onPress={() => setInfoTab(null)} style={[styles.saveBtn, { backgroundColor: C.primary, marginTop: 10 }]}>
                 <Text style={styles.saveBtnTxt}>Ho capito</Text>

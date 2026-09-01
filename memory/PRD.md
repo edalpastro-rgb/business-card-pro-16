@@ -1,3 +1,40 @@
+## V50.o–p (Sept 2026) — Fase 3: Copilot Vocale Auto + Micro-Tutorial
+
+### 1) Copilot Vocale in Auto (backend + frontend)
+
+**Backend `/app/backend/server.py`**
+- Nuovo endpoint `POST /api/voice/copilot/execute` con `VoiceCopilotIn(transcript, session_id?)`.
+- Intent classifier via Claude Haiku 4.5 (2-3s): estrae `intent` + `params` + `confirmation` in JSON strutturato.
+- 3 azioni eseguite server-side su Mongo:
+  - `create_contact` → insert in `db.contacts` con source `voice_copilot`.
+  - `add_note` → insert in `db.contact_notes` con fuzzy match del cliente (regex OR su first/last name split per parole).
+  - `schedule_call` → insert in `db.callbacks` con `scheduled_at` parsato da ISO8601.
+  - `query` → deleghiamo alla chat Axon (payload `delegate_to_axon`).
+- Nuovo endpoint `POST /api/ai/tts` che chiama OpenAI TTS (`tts-1`, voice `nova`) via proxy Emergent e ritorna audio MP3 in base64.
+- Test live: create ≈ 3.0s · add_note ≈ 2.7s · schedule_call ≈ 1.2s.
+
+**Frontend `/app/frontend/app/voice-copilot.tsx`**
+- Nuova pagina full-screen navy tema auto: header + status box + big mic 140px + hints con esempi.
+- Flusso: `expo-audio` recording → `/api/ai/transcribe` (whisper) → `/api/voice/copilot/execute` → `/api/ai/tts` → player audio → torna idle.
+- Animazione pulse sul mic durante ascolto, colori differenti per ogni phase (idle/recording/transcribing/executing/speaking/error).
+- Entry point aggiunto in Home tra "Azioni rapide" con label "Copilot Auto" e icona mic ciano.
+
+### 2) Micro-Tutorial (`/app/frontend/src/MicroTutorial.tsx`)
+- Componente riusabile: slideshow animato di step con icona colorata + titolo + descrizione + progress dots.
+- Autoplay ogni 3.5s con fade+slide transition, tap sui dots per navigazione manuale.
+- Predisposto per accettare `videoUri` in futuro (quando registri video reali da 15s, basta passare l'URL: `<MicroTutorial videoUri="..." steps={...} />`).
+- 2 preset esportati:
+  - `TUTORIAL_ANALIZZA_BOLLETTA`: 3 step (Carica PDF → AI estrae → Report salvato).
+  - `TUTORIAL_INSEGNA_AXON`: 3 step (Regole linguaggio naturale → URL fonti → Suggerimenti auto).
+
+**Integrazioni**
+- `/app/frontend/app/ai-teach.tsx`: MicroTutorial mostrato nell'info modal della tab "Regole".
+- `/app/frontend/src/BillsSection.tsx`: MicroTutorial mostrato in cima alla sezione fatture nel tab del contatto.
+
+### Verifica visiva
+Screenshot 390×844 dell'info modal "Regole manuali": card blu con icona libro, badge "Step 1 di 3", titolo "Regole in linguaggio naturale", descrizione, 3 dots navigazione. Slideshow gira automatico ogni 3.5s.
+
+
 ## V50.l–n (Sept 2026) — Fase 2: RAG Semantico + Slash Commands + Onboarding
 
 ### 1) RAG Embeddings semantici (`/app/backend/server.py`)
