@@ -241,16 +241,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginGoogle = async () => {
-    const redirectUrl =
-      Platform.OS === "web"
-        ? (typeof window !== "undefined" ? window.location.origin + "/" : "")
-        : Linking.createURL("");
-    const emergentAuthBase = (process.env.EXPO_PUBLIC_EMERGENT_AUTH_URL as string) || "";
-    if (!emergentAuthBase) {
-      console.warn("[auth] EXPO_PUBLIC_EMERGENT_AUTH_URL non configurato — Google login disabilitato");
-      return;
+    // V49.b — Redirect + auth-base robusti anche in build deployati dove alcune
+    // env vars possono essere stripped o parziali (es. `https://auth.` senza
+    // dominio → URL rotto `https://auth./?...`). Manteniamo il valore da .env
+    // se sensato, altrimenti facciamo fallback hardcoded ai domini Emergent.
+    const DEPLOY_BASE = "https://business-card-pro-16.emergent.host";
+    const AUTH_FALLBACK = "https://auth.emergentagent.com";
+    const rawAuthBase = String(process.env.EXPO_PUBLIC_EMERGENT_AUTH_URL || "").trim();
+    // Sano solo se ha un host con almeno un punto seguito da estensione.
+    const authHostOk = /^https?:\/\/[^./]+\.[^./]+/i.test(rawAuthBase);
+    const emergentAuthBase = (authHostOk ? rawAuthBase : AUTH_FALLBACK).replace(/\/+$/, "");
+    // Redirect verso l'app: su web usiamo l'origin corrente; se assente (SSR /
+    // ambienti dove window è undefined) ripieghiamo sul dominio di deploy.
+    let redirectUrl: string;
+    if (Platform.OS === "web") {
+      const origin = typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : "";
+      redirectUrl = (origin || DEPLOY_BASE) + "/";
+    } else {
+      redirectUrl = Linking.createURL("");
     }
-    const authUrl = `${emergentAuthBase.replace(/\/+$/, "")}/?redirect=${encodeURIComponent(redirectUrl)}`;
+    const authUrl = `${emergentAuthBase}/?redirect=${encodeURIComponent(redirectUrl)}`;
     if (Platform.OS === "web") {
       window.location.href = authUrl;
       return;
