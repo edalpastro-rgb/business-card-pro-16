@@ -147,11 +147,10 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
         <View style={styles.hdr} {...panResponder.panHandlers}>
           <View style={styles.grabber} />
           <View style={styles.hdrRow}>
-            <View style={styles.hdrIcon}><Ionicons name="document-text" size={16} color="#FFF" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title} numberOfLines={1}>Chiamata: {contactName || "Cliente"}</Text>
-              {!minimized && <Text style={styles.sub}>Leggi lo script mentre chiami · Trascina per ridurre</Text>}
-            </View>
+            {/* V29.aq — Header minimale: rimossi icona documento, titolo "Chiamata: X"
+                e sottotitolo "Leggi lo script..." su richiesta utente. Restano
+                SOLO i controlli Aa/+/- e la X di chiusura. */}
+            <View style={{ flex: 1 }} />
             {!minimized && (
               <>
                 <Pressable onPress={() => setFontSize((s) => Math.max(12, s - 2))} hitSlop={8} style={styles.zoomBtn} testID="call-script-font-smaller">

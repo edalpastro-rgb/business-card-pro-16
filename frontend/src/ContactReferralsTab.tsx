@@ -168,7 +168,7 @@ export function ContactReferralsTab({ contactId, contactName, contactPhone }: Pr
             />
             <Pressable testID="wa-send-btn" onPress={sendWa} style={[styles.btn, { backgroundColor: C.wa, marginTop: 12 }]}>
               <Ionicons name="logo-whatsapp" size={22} color="#FFF" />
-              <Text style={styles.btnTxt}>Apri WhatsApp</Text>
+              <Text style={styles.btnTxt}>Invia su WhatsApp</Text>
             </Pressable>
           </View>
         </View>

@@ -695,6 +695,27 @@ function ContactDetail() {
                     <Ionicons name="logo-whatsapp" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>WhatsApp</Text>
                   </Pressable>
                 ) : null}
+                {/* V29.aq — Bottone "Invia su WhatsApp": apre WhatsApp con numero
+                    cliente precompilato e testo dello script (wa_referral_template
+                    configurato dal Master in Impostazioni) già inserito nel campo
+                    messaggio. Placeholder {name} sostituito col nome del cliente. */}
+                {(c.whatsapp || c.phone) && (settings?.wa_referral_template) ? (
+                  <Pressable testID="comm-whatsapp-script" onPress={() => {
+                    const raw = (c.whatsapp || c.phone) || "";
+                    const num = raw.replace(/[^\d+]/g, "").replace(/^\+/, "");
+                    const firstName = (c.first_name || (c.name || "").split(" ")[0] || "").trim();
+                    const tpl = String(settings?.wa_referral_template || "").replace(/\{name\}/g, firstName);
+                    const url = `https://wa.me/${num}?text=${encodeURIComponent(tpl)}`;
+                    logComm("whatsapp", raw);
+                    if (Platform.OS === "web") {
+                      try { window.open(url, "_blank"); } catch { /* ignore */ }
+                    } else {
+                      Linking.openURL(url).catch(() => {});
+                    }
+                  }} style={[styles.commBtn, { backgroundColor: "#128C7E" }]}>
+                    <Ionicons name="send" size={18} color="#FFF" /><Text style={styles.commBtnTxt}>Invia su WhatsApp</Text>
+                  </Pressable>
+                ) : null}
                 {c.telegram ? (
                   <Pressable testID="comm-telegram" onPress={() => { logComm("telegram"); openTelegram(c.telegram || ""); }} style={[styles.commBtn, { backgroundColor: "#0088CC" }]}>
                     <Ionicons name="paper-plane" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Telegram</Text>

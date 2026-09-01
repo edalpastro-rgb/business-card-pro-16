@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ImageBackground, Modal, Linking, Animated, Easing, Platform } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ImageBackground, Modal, Linking, Animated, Easing, Platform, TextInput, Alert } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -40,6 +41,75 @@ function MasterScreen() {
   const [pendingProposals, setPendingProposals] = useState<number>(0);
   // V46 — Safe bottom padding for slide-up sheets on Android gesture-nav / iOS home indicator.
   const bottomPad = useBottomSheetPadding();
+  // V48 — Assistance numbers (quick-call) + reorder mode + persisted button order.
+  const [supportConsulentiPhone, setSupportConsulentiPhone] = useState<string>("");
+  const [supportBusinessPhone, setSupportBusinessPhone] = useState<string>("");
+  const [supportEditOpen, setSupportEditOpen] = useState<null | "consulenti" | "business">(null);
+  const [supportDraft, setSupportDraft] = useState<string>("");
+  const [reorderMode, setReorderMode] = useState<boolean>(false);
+  const [buttonOrder, setButtonOrder] = useState<string[] | null>(null);
+
+  // Load saved assistance phone numbers + saved order on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const [p1, p2, ord] = await Promise.all([
+          AsyncStorage.getItem("master.support.consulenti"),
+          AsyncStorage.getItem("master.support.business"),
+          AsyncStorage.getItem("master.buttons.order.v1"),
+        ]);
+        if (p1) setSupportConsulentiPhone(p1);
+        if (p2) setSupportBusinessPhone(p2);
+        if (ord) {
+          try {
+            const parsed = JSON.parse(ord);
+            if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string")) {
+              setButtonOrder(parsed);
+            }
+          } catch { /* ignore malformed */ }
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  const callSupport = useCallback(
+    (kind: "consulenti" | "business") => {
+      const num = kind === "consulenti" ? supportConsulentiPhone : supportBusinessPhone;
+      if (!num || !num.trim()) {
+        setSupportDraft("");
+        setSupportEditOpen(kind);
+        return;
+      }
+      const url = `tel:${num.replace(/\s+/g, "")}`;
+      Linking.openURL(url).catch(() => {
+        Alert.alert("Chiamata non disponibile", "Impossibile avviare la chiamata su questo dispositivo.");
+      });
+    },
+    [supportConsulentiPhone, supportBusinessPhone],
+  );
+
+  const openSupportEdit = useCallback(
+    (kind: "consulenti" | "business") => {
+      setSupportDraft(kind === "consulenti" ? supportConsulentiPhone : supportBusinessPhone);
+      setSupportEditOpen(kind);
+    },
+    [supportConsulentiPhone, supportBusinessPhone],
+  );
+
+  const saveSupportNumber = useCallback(async () => {
+    if (!supportEditOpen) return;
+    const cleaned = (supportDraft || "").trim();
+    try {
+      if (supportEditOpen === "consulenti") {
+        await AsyncStorage.setItem("master.support.consulenti", cleaned);
+        setSupportConsulentiPhone(cleaned);
+      } else {
+        await AsyncStorage.setItem("master.support.business", cleaned);
+        setSupportBusinessPhone(cleaned);
+      }
+    } catch { /* ignore */ }
+    setSupportEditOpen(null);
+  }, [supportEditOpen, supportDraft]);
   const [now, setNow] = useState(new Date());
   const [menuOpen, setMenuOpen] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
@@ -190,7 +260,65 @@ function MasterScreen() {
     { label: "Insegna ad Axon", icon: "sparkles", color: "#FF6B35", onPress: () => goto("/ai-teach"), badge: pendingProposals },
     { label: "Cruscotto", icon: "grid", color: "#0EA5E9", onPress: () => goto("/cruscotto") },
     { label: "Azioni rapide", icon: "flash", color: "#8B5CF6", onPress: () => goto("/quick-actions") },
+    // V48 — Assistance quick-call buttons (configurable phone numbers)
+    { label: "Assistenza Consulenti", icon: "headset", color: "#0EA5E9", onPress: () => callSupport("consulenti") },
+    { label: "Assistenza Clienti Business", icon: "briefcase", color: "#059669", onPress: () => callSupport("business") },
   ];
+
+  // V48 — Apply saved order (if any), placing unknown/new buttons at the end.
+  const orderedButtons = useMemo(() => {
+    if (!buttonOrder || !buttonOrder.length) return buttons;
+    const byLabel = new Map(buttons.map((b) => [b.label, b] as const));
+    const seen = new Set<string>();
+    const out: typeof buttons = [];
+    for (const label of buttonOrder) {
+      const b = byLabel.get(label);
+      if (b && !seen.has(label)) {
+        out.push(b);
+        seen.add(label);
+      }
+    }
+    for (const b of buttons) {
+      if (!seen.has(b.label)) out.push(b);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buttons, buttonOrder]);
+
+  const persistOrder = useCallback(async (list: { label: string }[]) => {
+    try {
+      await AsyncStorage.setItem(
+        "master.buttons.order.v1",
+        JSON.stringify(list.map((b) => b.label)),
+      );
+    } catch { /* ignore */ }
+  }, []);
+
+  const moveButton = useCallback(
+    (label: string, direction: "left" | "right") => {
+      const current = orderedButtons.map((b) => b.label);
+      const i = current.indexOf(label);
+      if (i < 0) return;
+      const j = direction === "left" ? i - 1 : i + 1;
+      if (j < 0 || j >= current.length) return;
+      const next = [...current];
+      [next[i], next[j]] = [next[j], next[i]];
+      setButtonOrder(next);
+      // Persist immediately (async, best-effort)
+      const reordered = next
+        .map((lbl) => orderedButtons.find((b) => b.label === lbl))
+        .filter(Boolean) as typeof orderedButtons;
+      persistOrder(reordered);
+    },
+    [orderedButtons, persistOrder],
+  );
+
+  const resetOrder = useCallback(async () => {
+    setButtonOrder(null);
+    try {
+      await AsyncStorage.removeItem("master.buttons.order.v1");
+    } catch { /* ignore */ }
+  }, []);
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -258,9 +386,93 @@ function MasterScreen() {
       </Pressable>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+        {/* V48 — Reorder mode toggle bar */}
+        <View style={masterExtraStyles.reorderBar}>
+          {reorderMode ? (
+            <>
+              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="swap-horizontal" size={14} color="#EA580C" />
+                <Text style={masterExtraStyles.reorderTxt}>
+                  Modalità riordino attiva — usa le frecce ←/→ su ogni bottone
+                </Text>
+              </View>
+              <Pressable
+                onPress={resetOrder}
+                hitSlop={6}
+                style={masterExtraStyles.reorderResetBtn}
+                testID="master-reorder-reset"
+              >
+                <Text style={masterExtraStyles.reorderResetTxt}>Reset</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setReorderMode(false)}
+                hitSlop={6}
+                style={masterExtraStyles.reorderDoneBtn}
+                testID="master-reorder-done"
+              >
+                <Text style={masterExtraStyles.reorderDoneTxt}>Fatto</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable
+              onPress={() => setReorderMode(true)}
+              hitSlop={6}
+              style={masterExtraStyles.reorderStartBtn}
+              testID="master-reorder-start"
+            >
+              <Ionicons name="reorder-three" size={14} color="#0EA5E9" />
+              <Text style={masterExtraStyles.reorderStartTxt}>Riordina bottoni</Text>
+            </Pressable>
+          )}
+        </View>
         <View style={styles.grid}>
-          {buttons.map((b) => (
-            <MasterButton key={b.label} {...b} pulseAnim={pulseAnim} />
+          {orderedButtons.map((b, idx) => (
+            <View key={b.label} style={{ position: "relative" }}>
+              <Pressable
+                onLongPress={() => setReorderMode((v) => !v)}
+                delayLongPress={450}
+                style={{ borderRadius: 22 }}
+                testID={`master-btn-wrap-${b.label}`}
+              >
+                <MasterButton
+                  {...b}
+                  pulseAnim={pulseAnim}
+                  onPress={reorderMode ? () => {} : b.onPress}
+                  onLongPress={
+                    b.label === "Assistenza Consulenti"
+                      ? () => openSupportEdit("consulenti")
+                      : b.label === "Assistenza Clienti Business"
+                      ? () => openSupportEdit("business")
+                      : undefined
+                  }
+                />
+              </Pressable>
+              {reorderMode && (
+                <View style={masterExtraStyles.reorderArrows} pointerEvents="box-none">
+                  <Pressable
+                    onPress={() => moveButton(b.label, "left")}
+                    hitSlop={6}
+                    style={[masterExtraStyles.reorderArrowBtn, idx === 0 && { opacity: 0.3 }]}
+                    disabled={idx === 0}
+                    testID={`master-move-left-${b.label}`}
+                  >
+                    <Ionicons name="chevron-back" size={14} color="#FFF" />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => moveButton(b.label, "right")}
+                    hitSlop={6}
+                    style={[
+                      masterExtraStyles.reorderArrowBtn,
+                      idx === orderedButtons.length - 1 && { opacity: 0.3 },
+                    ]}
+                    disabled={idx === orderedButtons.length - 1}
+                    testID={`master-move-right-${b.label}`}
+                  >
+                    <Ionicons name="chevron-forward" size={14} color="#FFF" />
+                  </Pressable>
+                </View>
+              )}
+            </View>
           ))}
         </View>
 
@@ -367,13 +579,57 @@ function MasterScreen() {
         title={drill?.title || "Dettaglio"}
       />
       <MasterPromoteModal visible={promoteOpen} onClose={() => setPromoteOpen(false)} />
+
+      {/* V48 — Configure assistance phone number */}
+      <Modal
+        transparent
+        visible={!!supportEditOpen}
+        animationType="fade"
+        onRequestClose={() => setSupportEditOpen(null)}
+        statusBarTranslucent
+      >
+        <View style={masterExtraStyles.supportBackdrop}>
+          <View style={masterExtraStyles.supportCard} testID="master-support-modal">
+            <Text style={masterExtraStyles.supportTitle}>
+              {supportEditOpen === "consulenti"
+                ? "Numero Assistenza Consulenti"
+                : "Numero Assistenza Clienti Business"}
+            </Text>
+            <Text style={masterExtraStyles.supportSub}>
+              Inserisci il numero da chiamare toccando questo bottone. Puoi modificarlo in qualsiasi momento con un tocco prolungato sul bottone.
+            </Text>
+            <TextInput
+              value={supportDraft}
+              onChangeText={setSupportDraft}
+              placeholder="Es. +39 02 1234 5678"
+              placeholderTextColor="#94A3B8"
+              keyboardType="phone-pad"
+              style={masterExtraStyles.supportInput}
+              autoFocus
+              testID="master-support-input"
+            />
+            <View style={masterExtraStyles.supportBtnRow}>
+              <Pressable onPress={() => setSupportEditOpen(null)} style={masterExtraStyles.supportBtnGhost}>
+                <Text style={masterExtraStyles.supportBtnGhostTxt}>Annulla</Text>
+              </Pressable>
+              <Pressable
+                onPress={saveSupportNumber}
+                style={masterExtraStyles.supportBtnSave}
+                testID="master-support-save"
+              >
+                <Text style={masterExtraStyles.supportBtnSaveTxt}>Salva</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-function MasterButton({ label, icon, color, onPress, badge, pulseAnim, pulse }: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; badge?: number; pulseAnim: Animated.Value; pulse?: Animated.Value }) {
+function MasterButton({ label, icon, color, onPress, onLongPress, badge, pulseAnim, pulse }: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; onLongPress?: () => void; badge?: number; pulseAnim: Animated.Value; pulse?: Animated.Value }) {
   return (
-    <Pressable onPress={onPress} style={styles.btnCell} testID={`master-btn-${label.replace(/\s+/g, '-').toLowerCase()}`}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={500} style={styles.btnCell} testID={`master-btn-${label.replace(/\s+/g, '-').toLowerCase()}`}>
       <Animated.View style={[styles.btnCircle, { backgroundColor: color }, pulse ? { transform: [{ scale: pulse }] } : null]}>
         <Ionicons name={icon} size={28} color="#FFF" />
         {typeof badge === "number" && badge > 0 && (
@@ -555,6 +811,103 @@ const masterExtraStyles = StyleSheet.create({
   },
   promoteTitle: { fontSize: 14, fontWeight: "800", color: "#9A3412" },
   promoteSub: { fontSize: 12, color: "#9A3412", opacity: 0.75, marginTop: 2, lineHeight: 16 },
+  // V48 — Reorder mode + assistance-number modal styles
+  reorderBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+    minHeight: 32,
+  },
+  reorderStartBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#E0F2FE",
+    borderWidth: 1,
+    borderColor: "#7DD3FC",
+  },
+  reorderStartTxt: { fontSize: 11, color: "#0369A1", fontWeight: "800" },
+  reorderTxt: { fontSize: 11, color: "#78350F", fontWeight: "700", flexShrink: 1 },
+  reorderResetBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#F1F5F9",
+  },
+  reorderResetTxt: { fontSize: 11, color: "#64748B", fontWeight: "800" },
+  reorderDoneBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#EA580C",
+  },
+  reorderDoneTxt: { fontSize: 11, color: "#FFF", fontWeight: "800" },
+  reorderArrows: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    flexDirection: "row",
+    gap: 4,
+  },
+  reorderArrowBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#0F172A",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFF",
+  },
+  supportBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  supportCard: {
+    width: "100%",
+    maxWidth: 440,
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 20,
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  supportTitle: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  supportSub: { fontSize: 12, color: "#64748B", lineHeight: 17 },
+  supportInput: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 15,
+    color: "#0F172A",
+  },
+  supportBtnRow: { flexDirection: "row", gap: 8, justifyContent: "flex-end", marginTop: 4 },
+  supportBtnGhost: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+  },
+  supportBtnGhostTxt: { fontSize: 13, fontWeight: "700", color: "#64748B" },
+  supportBtnSave: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#0EA5E9",
+  },
+  supportBtnSaveTxt: { fontSize: 13, fontWeight: "700", color: "#FFF" },
 });
 
 
