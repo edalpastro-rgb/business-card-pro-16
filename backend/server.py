@@ -9113,7 +9113,16 @@ _MONTH_MAP_IT = {
 async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: int = 3) -> str:
     """Se il messaggio menziona mesi/anni + tema PUN, prova a scaricare i PDF
     linkati dalle pagine ai_teach_urls e ritorna il loro testo estratto.
-    Best-effort: se qualcosa fallisce ritorna stringa vuota."""
+    Best-effort: se qualcosa fallisce ritorna stringa vuota.
+
+    V50.b — PERFORMANCE + MATCHING FIX:
+    - HTTP timeout ridotto da 25s → 8s per pagina, 15s per PDF.
+    - Fetch pagine PARALLELIZZATO con asyncio.gather (era sequenziale).
+    - Download PDF PARALLELIZZATO con asyncio.gather.
+    - Cap totale su URL processati (10 pagine) per evitare stalli su tenant con 50+ URL.
+    - Regex mese/anno estesa a formati comuni GME: "202607", "07-2026", "07_2026",
+      "2026-07", "2026_07", "07.2026", "202607PMF", "PrezzoMedioFasce_202607.pdf".
+    """
     msg_lc = (user_msg or "").lower()
     if not msg_lc:
         return ""
@@ -9122,6 +9131,12 @@ async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: 
         return ""
     # Estrai mesi e anni menzionati
     months = [m for m in _MONTH_MAP_IT if m in msg_lc]
+    # Estrai anche mesi numerici (07/2026, 07-2026, 07.2026, 07 2026)
+    for _mnum in re.findall(r"\b(0[1-9]|1[0-2])[/\-\.\s](20\d{2})\b", msg_lc):
+        _mnum_int = int(_mnum[0])
+        for _mname, _mval in _MONTH_MAP_IT.items():
+            if _mval == _mnum_int and _mname not in months:
+                months.append(_mname)
     years = re.findall(r"20\d{2}", msg_lc)
     if not months and not years:
         return ""
@@ -9131,63 +9146,122 @@ async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: 
         return ""
     if not urls:
         return ""
+    # V50.b — cap max 10 URL pages processate per query (era 50). Priorità a URL
+    # che contengono "gme" o "pun" nell'indirizzo per query PUN.
+    urls_prio = sorted(
+        urls,
+        key=lambda u: (
+            0 if any(k in (u.get("url") or "").lower() for k in ["gme", "pun", "prezzo"]) else 1,
+        ),
+    )[:10]
+
     from urllib.parse import urljoin, urlparse
+
+    def _month_match_patterns(m_name: str) -> List[str]:
+        """Genera tutti i pattern possibili per un mese nel filename di un PDF GME."""
+        mnum = _MONTH_MAP_IT[m_name]
+        m2 = f"{mnum:02d}"
+        pats = [
+            m_name,           # "luglio"
+            f"-{m2}-",        # "-07-"
+            f"_{m2}_",        # "_07_"
+            f".{m2}.",        # ".07."
+            f"/{m2}/",        # "/07/"
+        ]
+        # YYYYMM / MMYYYY combinations con ogni anno menzionato
+        for y in years:
+            pats.extend([
+                f"{y}{m2}",       # "202607"
+                f"{m2}{y}",       # "072026"
+                f"{y}-{m2}",      # "2026-07"
+                f"{y}_{m2}",      # "2026_07"
+                f"{y}.{m2}",      # "2026.07"
+                f"{m2}-{y}",      # "07-2026"
+                f"{m2}_{y}",      # "07_2026"
+                f"{m2}.{y}",      # "07.2026"
+            ])
+        return pats
+
+    # Pre-computa tutti i pattern che accettano il mese
+    month_patterns_map: dict = {m: _month_match_patterns(m) for m in months} if months else {}
+
+    async def _fetch_page(client: httpx.AsyncClient, page_url: str) -> Optional[str]:
+        try:
+            r = await client.get(page_url, timeout=8.0)
+            if r.status_code != 200:
+                return None
+            return r.text or ""
+        except Exception:
+            return None
+
+    async def _fetch_pdf(client: httpx.AsyncClient, pdf_url: str) -> Optional[tuple]:
+        try:
+            pr = await client.get(pdf_url, timeout=15.0)
+            if pr.status_code != 200 or not pr.content:
+                return None
+            pdf_bytes = pr.content
+            if len(pdf_bytes) > 8 * 1024 * 1024:
+                pdf_bytes = pdf_bytes[: 8 * 1024 * 1024]
+            txt = _extract_pdf_text_bytes(pdf_bytes) or ""
+            txt = txt.strip()
+            if not txt:
+                return None
+            pdf_name = urlparse(pdf_url).path.rsplit("/", 1)[-1] or pdf_url
+            return (pdf_name, pdf_url, txt)
+        except Exception as exc:
+            logger.debug("[teach-pdf] download failed for %s: %s", pdf_url, exc)
+            return None
+
     out_blocks: List[str] = []
-    async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
-        for u in urls:
-            page_url = (u.get("url") or "").strip()
-            if not page_url:
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        # STEP 1: fetch tutte le pagine in parallelo
+        page_urls = [(u.get("url") or "").strip() for u in urls_prio if u.get("url")]
+        page_htmls = await asyncio.gather(
+            *[_fetch_page(client, pu) for pu in page_urls],
+            return_exceptions=False,
+        )
+
+        # STEP 2: collezione dei PDF url da scaricare (dedup)
+        pdf_urls_all: List[str] = []
+        seen_pdfs = set()
+        for page_url, html in zip(page_urls, page_htmls):
+            if not html:
                 continue
-            try:
-                r = await client.get(page_url)
-                if r.status_code != 200:
-                    continue
-                html = r.text or ""
-            except Exception:
-                continue
-            # Trova link .pdf nella pagina
             hrefs = re.findall(r'href=["\']([^"\']+\.pdf[^"\']*)["\']', html, flags=re.IGNORECASE)
             if not hrefs:
                 continue
-            # Match mesi/anni nel path del pdf o nel nome (case-insensitive)
-            picked: List[str] = []
             for h in hrefs:
                 h_low = h.lower()
-                # Match qualunque mese menzionato (numero o nome IT) + anno se presente
                 month_ok = (not months) or any(
-                    m in h_low or f"-{_MONTH_MAP_IT[m]:02d}-" in h_low or f"_{_MONTH_MAP_IT[m]:02d}_" in h_low
+                    any(p in h_low for p in month_patterns_map[m])
                     for m in months
                 )
                 year_ok = (not years) or any(y in h_low for y in years)
                 if month_ok and year_ok:
-                    picked.append(urljoin(page_url, h))
-                if len(picked) >= max_pdfs:
+                    full = urljoin(page_url, h)
+                    if full not in seen_pdfs:
+                        seen_pdfs.add(full)
+                        pdf_urls_all.append(full)
+                if len(pdf_urls_all) >= max_pdfs * 3:
                     break
-            if not picked:
-                continue
-            for pdf_url in picked[:max_pdfs]:
-                try:
-                    pr = await client.get(pdf_url)
-                    if pr.status_code != 200 or not pr.content:
-                        continue
-                    # Auth basic se le credenziali sono nell'URL entry (raro)
-                    pdf_bytes = pr.content
-                    if len(pdf_bytes) > 8 * 1024 * 1024:
-                        pdf_bytes = pdf_bytes[: 8 * 1024 * 1024]
-                    txt = _extract_pdf_text_bytes(pdf_bytes) or ""
-                    txt = txt.strip()
-                    if not txt:
-                        continue
-                    pdf_name = urlparse(pdf_url).path.rsplit("/", 1)[-1] or pdf_url
+            if len(pdf_urls_all) >= max_pdfs * 3:
+                break
+
+        # STEP 3: download tutti i PDF selezionati in parallelo (cap max_pdfs*2)
+        if pdf_urls_all:
+            pdf_results = await asyncio.gather(
+                *[_fetch_pdf(client, pu) for pu in pdf_urls_all[: max_pdfs * 2]],
+                return_exceptions=False,
+            )
+            for res in pdf_results:
+                if res:
+                    pdf_name, pdf_url, txt = res
                     out_blocks.append(
                         f"--- PDF scaricato: {pdf_name} (fonte: {pdf_url}) ---\n{txt[:20000]}"
                     )
-                except Exception as exc:
-                    logger.debug("[teach-pdf] download failed for %s: %s", pdf_url, exc)
                 if len(out_blocks) >= max_pdfs:
                     break
-            if len(out_blocks) >= max_pdfs:
-                break
+
     return "\n\n".join(out_blocks)
 
 
@@ -9379,42 +9453,43 @@ async def _prepare_assistant_prompt(
     history = [h async for h in hist_cursor]
     history.reverse()
 
-    try:
-        context = await _build_assistant_context(user)
-    except Exception as e:
-        context = {"error": f"Impossibile caricare i dati CRM: {e}"}
-
-    weather_ctx: Optional[dict] = None
+    # V50.b — PARALLELIZE preflight I/O per ridurre drasticamente il tempo di
+    # prompt-building. Prima queste operazioni erano sequenziali (context →
+    # weather → RAG prefetch → tavily → memories → attachments → teach section),
+    # con ogni step che poteva impiegare 1-5s. Ora vengono lanciate insieme.
     weather_city = _detect_weather_query(msg)
-    if weather_city and weather_city != "?":
-        weather_ctx = await _fetch_weather(weather_city)
+    _tenant_id_val = tenant_id(user)
 
-    # V49.p — Prefetch RAG chunks del tenant PRIMA di decidere la web search:
-    # se i documenti Master già coprono la domanda (es. tabelle PUN salvate),
-    # NON serve interrogare Tavily. Evita risposte "dati mancanti" quando il
-    # tenant ha caricato PDF con listini/tabelle.
-    _prefetch_rag_chunks = []
-    try:
-        _prefetch_rag_chunks = await _retrieve_master_doc_chunks(tenant_id(user), msg)
-    except Exception:
-        _prefetch_rag_chunks = []
+    async def _safe_context():
+        try:
+            return await _build_assistant_context(user)
+        except Exception as e:
+            return {"error": f"Impossibile caricare i dati CRM: {e}"}
 
-    _msg_low = (msg or "").lower()
-    _is_table_query = any(k in _msg_low for k in ["tabella", "per fascia", "f1", "f2", "f3", "monorario", "media pun", "pun medi"])
-    _rag_covers_query = bool(_prefetch_rag_chunks) and (_is_table_query or ("pun" in _msg_low))
+    async def _safe_weather():
+        if weather_city and weather_city != "?":
+            try:
+                return await _fetch_weather(weather_city)
+            except Exception:
+                return None
+        return None
 
-    web_search_ctx: Optional[dict] = None
-    used_web_search = False
-    if _detect_energy_query(msg) and not _rag_covers_query:
-        web_search_ctx = await _tavily_search(msg)
-        if web_search_ctx and (web_search_ctx.get("answer") or web_search_ctx.get("results")):
-            used_web_search = True
+    async def _safe_rag_prefetch():
+        try:
+            return await _retrieve_master_doc_chunks(_tenant_id_val, msg)
+        except Exception:
+            return []
 
-    memories = await _load_neo_memories(user["user_id"], limit=5)
+    async def _safe_memories():
+        try:
+            return await _load_neo_memories(user["user_id"], limit=5)
+        except Exception:
+            return []
 
-    attachments_section = ""
-    if body.attachments:
-        parts = []
+    async def _safe_attachments():
+        if not body.attachments:
+            return ""
+        parts: List[str] = []
         for att in body.attachments[:5]:
             try:
                 extracted = await _extract_attachment_text(att)
@@ -9424,21 +9499,45 @@ async def _prepare_assistant_prompt(
                 # V49.o — cap per-file portato da 6000 → 60000 char così i PDF
                 # vengono passati COMPLETI ad Axon (fino a ~30 pagine dense).
                 parts.append(f"--- File: {att.name} ({att.mime or 'unknown'}) ---\n{extracted[:60000]}")
-        if parts:
-            attachments_section = (
-                "\n\nALLEGATI CARICATI DALL'UTENTE (analizzali come CONTESTO PRINCIPALE della domanda — "
-                "leggi TUTTO il contenuto degli allegati, non solo l'inizio, ed estraine ogni dato utile):\n"
-                + "\n\n".join(parts)
-                + "\n\nQuando rispondi, cita esplicitamente il contenuto rilevante degli allegati (numeri, "
-                "clausole, valori, date, nomi) e menziona il nome del file da cui provengono.\n"
-            )
+        if not parts:
+            return ""
+        return (
+            "\n\nALLEGATI CARICATI DALL'UTENTE (analizzali come CONTESTO PRINCIPALE della domanda — "
+            "leggi TUTTO il contenuto degli allegati, non solo l'inizio, ed estraine ogni dato utile):\n"
+            + "\n\n".join(parts)
+            + "\n\nQuando rispondi, cita esplicitamente il contenuto rilevante degli allegati (numeri, "
+            "clausole, valori, date, nomi) e menziona il nome del file da cui provengono.\n"
+        )
 
-    axon_teach_section = ""
-    try:
-        axon_teach_section = await _build_axon_teach_section(tenant_id(user), msg)
-    except Exception as exc:
-        logger.warning("[axon-teach] section build failed: %s", exc)
-        axon_teach_section = ""
+    async def _safe_teach_section():
+        try:
+            return await _build_axon_teach_section(_tenant_id_val, msg)
+        except Exception as exc:
+            logger.warning("[axon-teach] section build failed: %s", exc)
+            return ""
+
+    context, weather_ctx, _prefetch_rag_chunks, memories, attachments_section, axon_teach_section = await asyncio.gather(
+        _safe_context(),
+        _safe_weather(),
+        _safe_rag_prefetch(),
+        _safe_memories(),
+        _safe_attachments(),
+        _safe_teach_section(),
+    )
+
+    _msg_low = (msg or "").lower()
+    _is_table_query = any(k in _msg_low for k in ["tabella", "per fascia", "f1", "f2", "f3", "monorario", "media pun", "pun medi"])
+    _rag_covers_query = bool(_prefetch_rag_chunks) and (_is_table_query or ("pun" in _msg_low))
+
+    web_search_ctx: Optional[dict] = None
+    used_web_search = False
+    if _detect_energy_query(msg) and not _rag_covers_query:
+        try:
+            web_search_ctx = await _tavily_search(msg)
+            if web_search_ctx and (web_search_ctx.get("answer") or web_search_ctx.get("results")):
+                used_web_search = True
+        except Exception:
+            web_search_ctx = None
 
     # V42 — RAG on Master documents (per-tenant knowledge base)
     rag_section = ""
@@ -9573,6 +9672,7 @@ async def _prepare_assistant_prompt(
         "- Formatta le liste con elenchi puntati chiari; usa nomi, orari, telefoni quando disponibili.\n"
         "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
+        "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
         "- Puoi dare consigli operativi basati sui dati (es. suggerire di chiamare clienti senza appuntamento).\n"
         "- DATI DAL TENANT: se una domanda riguarda dati che POTREBBERO essere nei documenti Master (RAG), "
         "nella memoria, negli allegati o nella base storica del tenant (es. PUN medi per fascia F1/F2/F3, "
@@ -9580,6 +9680,14 @@ async def _prepare_assistant_prompt(
         "dato manca. Se il dato è presente in una qualsiasi sezione fornita nel prompt, USALO senza chiedere "
         "conferma e senza cercare sul web. NON RIPETERE MAI 'i dati non sono disponibili' se una delle "
         "sezioni (DOCUMENTI MASTER, MEMORIA PERSISTENTE, ALLEGATI, RICERCA WEB) contiene i valori richiesti.\n"
+        "- GOOGLE DRIVE / DROPBOX (integrazioni cloud): l'utente può allegare file dal SUO Google Drive o "
+        "Dropbox tramite l'icona colorata (G blu = Drive, cassetto blu = Dropbox) nel campo di input. "
+        "Quando allega un file, ne ricevi il contenuto nella sezione ALLEGATI (per QUELLA singola richiesta). "
+        "NON dire mai 'non ho mai avuto accesso a Google Drive' e NON dire 'non ho un collegamento persistente' "
+        "in modo brusco: ogni chat parte fresca e vedo SOLO ciò che l'utente allega in questo momento. "
+        "Se ricorda di aver usato Drive in precedenza, spiega con gentilezza: «Ogni conversazione parte pulita: "
+        "ieri hai allegato il file dal Drive con l'icona G blu e l'ho letto in quella chat. Per rileggerlo ora, "
+        "tocca di nuovo l'icona G blu e selezionalo — lo apro subito.» Frase pronta da riusare al bisogno.\n"
         "- TABELLE DATI: quando l'utente chiede una tabella (PUN mensile, tariffe, storico, listino, ecc.) "
         "rispondi ESCLUSIVAMENTE con la tabella Markdown. **ZERO** testo prima, **ZERO** testo dopo, "
         "**ZERO** spiegazioni, **ZERO** commenti, **ZERO** consigli operativi, **ZERO** disclaimer, "
@@ -9870,6 +9978,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "- Formatta le liste con elenchi puntati chiari; usa nomi, orari, telefoni quando disponibili.\n"
         "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
+        "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
         "- Puoi dare consigli operativi basati sui dati (es. suggerire di chiamare clienti senza appuntamento).\n"
         "- DATI DAL TENANT: se una domanda riguarda dati che POTREBBERO essere nei documenti Master (RAG), "
         "nella memoria, negli allegati o nella base storica del tenant (es. PUN medi per fascia F1/F2/F3, "
@@ -9877,6 +9986,14 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "dato manca. Se il dato è presente in una qualsiasi sezione fornita nel prompt, USALO senza chiedere "
         "conferma e senza cercare sul web. NON RIPETERE MAI 'i dati non sono disponibili' se una delle "
         "sezioni (DOCUMENTI MASTER, MEMORIA PERSISTENTE, ALLEGATI, RICERCA WEB) contiene i valori richiesti.\n"
+        "- GOOGLE DRIVE / DROPBOX (integrazioni cloud): l'utente può allegare file dal SUO Google Drive o "
+        "Dropbox tramite l'icona colorata (G blu = Drive, cassetto blu = Dropbox) nel campo di input. "
+        "Quando allega un file, ne ricevi il contenuto nella sezione ALLEGATI (per QUELLA singola richiesta). "
+        "NON dire mai 'non ho mai avuto accesso a Google Drive' e NON dire 'non ho un collegamento persistente' "
+        "in modo brusco: ogni chat parte fresca e vedo SOLO ciò che l'utente allega in questo momento. "
+        "Se ricorda di aver usato Drive in precedenza, spiega con gentilezza: «Ogni conversazione parte pulita: "
+        "ieri hai allegato il file dal Drive con l'icona G blu e l'ho letto in quella chat. Per rileggerlo ora, "
+        "tocca di nuovo l'icona G blu e selezionalo — lo apro subito.» Frase pronta da riusare al bisogno.\n"
         "- TABELLE DATI: quando l'utente chiede una tabella (PUN mensile, tariffe, storico, listino, ecc.) "
         "rispondi ESCLUSIVAMENTE con la tabella Markdown. **ZERO** testo prima, **ZERO** testo dopo, "
         "**ZERO** spiegazioni, **ZERO** commenti, **ZERO** consigli operativi, **ZERO** disclaimer, "

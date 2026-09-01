@@ -1,3 +1,40 @@
+## V50.b (Sept 2026) — HOTFIX PERFORMANCE + PUN/GME + Drive UX
+
+### Problema segnalato dall'utente
+- Axon impiega **40s / 2 minuti** per rispondere; su Android la risposta appare tutta in una volta invece di scorrere in streaming.
+- Tabelle PUN 2026 con **dati mancanti per luglio** anche se il PDF su GME contiene tutto fino ad agosto.
+- Regressione percepita: "ieri leggevi il Drive, oggi dici che non hai mai avuto accesso".
+
+### Root cause
+1. **`_fetch_teach_url_pdfs_for_query`** (server.py) faceva HTTP GET **sequenziali** con timeout 25s per pagina. Con 5–10 URL monitorati bastavano un paio di siti lenti per raggiungere 40s+.
+2. **`_prepare_assistant_prompt`** eseguiva **in serie** context CRM, weather, RAG prefetch, Tavily, memories, allegati e teach section. Ogni step 0,5–3s → totale 5–15s prima ancora di chiamare Claude.
+3. Il regex mese/anno accettava solo `luglio`, `-07-`, `_07_`: non matchava filename GME comuni tipo `PMF_202607.pdf`, `07-2026.pdf`, `2026-07.pdf`. Risultato: file scartati → colonna F1/F2/F3 vuota.
+4. Su React Native (Android) `fetch().body.getReader()` NON esiste: il client SSE (`assistantStream.ts`) cadeva sempre nel fallback `res.text()` che aspetta il body COMPLETO prima di emettere delta → nessuno streaming visibile.
+5. Il system prompt Axon rispondeva "non ho mai avuto accesso a Google Drive" in modo brusco quando l'utente ricordava upload precedenti.
+
+### Fix implementati
+
+**Backend (`/app/backend/server.py`)**
+- **`_fetch_teach_url_pdfs_for_query`** riscritta:
+  - Timeout HTTP: 25s → **8s pagina / 15s PDF**.
+  - Fetch pagine e download PDF **parallelizzati** con `asyncio.gather`.
+  - Cap max 10 URL processati per query (prima 50) con priorità a URL contenenti `gme|pun|prezzo`.
+  - Regex mese/anno esteso a: `luglio`, `-07-`, `_07_`, `.07.`, `/07/`, `202607`, `072026`, `2026-07`, `2026_07`, `2026.07`, `07-2026`, `07_2026`, `07.2026`.
+  - Estrae anche pattern numerici dalla domanda: `07/2026`, `07.2026`, `07-2026`, `07 2026` → aggiunge automaticamente il mese al match set.
+- **`_prepare_assistant_prompt`** parallelizza con `asyncio.gather` context, weather, RAG prefetch, memories, attachments e teach section. Tavily resta dopo il gather perché dipende dal RAG (short-circuit se RAG copre la query).
+- System prompt aggiornato: nuova regola "GOOGLE DRIVE / DROPBOX" che chiarisce che ogni chat parte fresca, gli allegati Drive/Dropbox vengono letti solo se l'utente li allega tramite l'icona colorata, e fornisce una frase gentile pronta all'uso per rispondere alla percezione di "regressione".
+
+**Frontend (`/app/frontend/src/utils/assistantStream.ts`)**
+- Nuovo path Native (RN) con **`XMLHttpRequest` + `onprogress`**: `responseText` cresce chunk-by-chunk, alimenta il buffer SSE identico al reader Web. Streaming ora live anche su Android/iOS.
+- Path Web invariato (fetch + `ReadableStream.getReader()`).
+- Feature detection tramite `ReadableStream + document` per distinguere Web da RN in modo affidabile.
+
+### Verifica manuale (curl → backend locale)
+- Chat semplice (nessun URL fetch): **8.67s** (era 40s+).
+- Chat "Tabella PUN F1/F2/F3 luglio 2026": **6.42s** e restituisce tabella con dati reali (0,15704 €/kWh monorario ecc.).
+- Streaming SSE: primo delta a **3.66s**, completamento a 8.85s (era: tutto in blocco a 40s+).
+
+
 ## V50.a (Sept 2026) — Fix visivi urgenti: header pulito, label 1 riga, safe-area globale
 
 ### Frontend

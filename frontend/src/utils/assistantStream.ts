@@ -78,30 +78,6 @@ export async function streamAssistantChat(
   const token = await getToken();
   const url = `${BASE}/api/assistant/chat/stream`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({
-      message: args.message,
-      session_id: args.session_id,
-      attachments: args.attachments || [],
-    }),
-    signal: args.signal,
-  });
-
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      const j = await res.json();
-      msg = j.detail || j.message || msg;
-    } catch {}
-    throw new Error(msg);
-  }
-
   const result: StreamAssistantChatResult = {
     reply: "",
     session_id: undefined,
@@ -136,7 +112,6 @@ export async function streamAssistantChat(
   let buffer = "";
   const feed = (chunk: string) => {
     buffer += chunk;
-    // SSE blocks are separated by blank lines (\n\n or \r\n\r\n)
     let sepIdx: number;
     // eslint-disable-next-line no-cond-assign
     while ((sepIdx = buffer.search(/\r?\n\r?\n/)) !== -1) {
@@ -147,29 +122,134 @@ export async function streamAssistantChat(
     }
   };
 
-  const body: any = (res as any).body;
-  const canStream =
-    body && typeof body.getReader === "function" && typeof TextDecoder !== "undefined";
+  // V50.b — Su React Native (Android/iOS) `fetch()` NON supporta lo streaming
+  // del body: getReader() è undefined e il codice cadeva nel fallback
+  // res.text() che aspetta il body COMPLETO prima di emettere delta.
+  // Usiamo XMLHttpRequest con onprogress: responseText cresce man mano che
+  // arrivano i chunk SSE dal backend → streaming live anche su native.
+  // Su Web moderno preferiamo la ReadableStream fetch (più efficiente).
+  const isWeb = typeof (globalThis as any).ReadableStream !== "undefined" &&
+    typeof (globalThis as any).TextDecoder !== "undefined" &&
+    typeof (globalThis as any).document !== "undefined";
 
-  if (canStream) {
-    const reader = body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      const text = decoder.decode(value, { stream: true });
-      if (text) feed(text);
+  if (isWeb) {
+    // ---- Web path: fetch + ReadableStream reader ----
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        message: args.message,
+        session_id: args.session_id,
+        attachments: args.attachments || [],
+      }),
+      signal: args.signal,
+    });
+
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try {
+        const j = await res.json();
+        msg = j.detail || j.message || msg;
+      } catch {}
+      throw new Error(msg);
     }
-    // flush any final buffer (in case last block missed trailing \n\n)
-    if (buffer.trim()) feed("\n\n");
-  } else {
-    // Fallback: read the entire body as text, then parse.
-    // Not "live" but still functional; result comes back in one shot.
-    const text = await res.text();
-    feed(text);
-    if (buffer.trim()) feed("\n\n");
+
+    const body: any = (res as any).body;
+    const canStream = body && typeof body.getReader === "function";
+    if (canStream) {
+      const reader = body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value, { stream: true });
+        if (text) feed(text);
+      }
+      if (buffer.trim()) feed("\n\n");
+    } else {
+      const text = await res.text();
+      feed(text);
+      if (buffer.trim()) feed("\n\n");
+    }
+    return result;
   }
+
+  // ---- Native (RN) path: XMLHttpRequest with onprogress ----
+  await new Promise<void>((resolve, reject) => {
+    let lastLen = 0;
+    let aborted = false;
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("Accept", "text/event-stream");
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    // Do NOT set responseType — we need responseText to grow incrementally
+
+    if (args.signal) {
+      const s = args.signal;
+      const onAbort = () => {
+        aborted = true;
+        try { xhr.abort(); } catch {}
+        reject(new Error("Aborted"));
+      };
+      if (s.aborted) return onAbort();
+      s.addEventListener("abort", onAbort, { once: true });
+    }
+
+    xhr.onprogress = () => {
+      if (aborted) return;
+      try {
+        const full: string = xhr.responseText || "";
+        if (full.length > lastLen) {
+          const chunk = full.slice(lastLen);
+          lastLen = full.length;
+          feed(chunk);
+        }
+      } catch {
+        /* swallow: some RN builds throw on responseText mid-stream */
+      }
+    };
+
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === 4) {
+        if (aborted) return;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const full: string = xhr.responseText || "";
+            if (full.length > lastLen) {
+              feed(full.slice(lastLen));
+              lastLen = full.length;
+            }
+            if (buffer.trim()) feed("\n\n");
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        } else {
+          let msg = `HTTP ${xhr.status}`;
+          try {
+            const j = JSON.parse(xhr.responseText || "{}");
+            msg = j.detail || j.message || msg;
+          } catch {}
+          reject(new Error(msg));
+        }
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Errore di rete"));
+    xhr.ontimeout = () => reject(new Error("Timeout"));
+
+    xhr.send(JSON.stringify({
+      message: args.message,
+      session_id: args.session_id,
+      attachments: args.attachments || [],
+    }));
+  });
 
   return result;
 }
