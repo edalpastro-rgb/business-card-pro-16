@@ -13097,7 +13097,12 @@ async def build_ai_teach_context(tenant: str, category: str) -> str:
 # Include router & CORS
 # =========================================================================
 # V28.w — Google Drive OAuth integration
-# Scope: drive.file (accesso solo a file esplicitamente autorizzati dall'utente via Picker o creati dall'app)
+# V50.h — Scope allargato da `drive.file` → `drive.readonly` su richiesta
+# utente: `drive.file` mostra SOLO i file che l'utente ha esplicitamente
+# autorizzato via Picker (o creati dall'app), quindi da "Cerca file Drive" in
+# Axon si vedeva sempre "Nessun file trovato". Con `drive.readonly` Axon può
+# elencare e leggere TUTTI i file/cartelle dell'utente (sola lettura, no
+# scrittura né cancellazione). Richiede riautorizzazione dell'account.
 # Storage: refresh_token cifrato via Fernet; state OAuth con TTL 10min.
 # =========================================================================
 import base64 as _b64
@@ -13124,7 +13129,13 @@ def _sanitize_redirect_uri(raw: str) -> str:
 _GD_REDIRECT_URI = _sanitize_redirect_uri(os.getenv("GOOGLE_DRIVE_REDIRECT_URI", ""))
 _GD_TOKEN_KEY = os.getenv("GOOGLE_DRIVE_TOKEN_KEY", "")
 _GD_FRONTEND_URL = os.getenv("GOOGLE_DRIVE_FRONTEND_URL", "https://advisoros.it/profile")
-_GD_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+# V50.h — Scope allargato a drive.readonly + drive.metadata.readonly per
+# permettere ad Axon di elencare/leggere TUTTI i file dell'utente Drive
+# (prima: drive.file → solo file esplicitamente autorizzati).
+_GD_SCOPES = [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive.metadata.readonly",
+]
 _gd_fernet = _Fernet(_GD_TOKEN_KEY.encode()) if _GD_TOKEN_KEY else None
 
 

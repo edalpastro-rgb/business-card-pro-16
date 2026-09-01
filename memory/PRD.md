@@ -1,3 +1,38 @@
+## V50.h (Sept 2026) — Google Drive scope allargato + Axon chat input riorganizzato
+
+### Segnalazioni utente
+1. "Cliccando cerca file drive risponde 'Nessun file trovato'; Axon non entra nel Drive."
+2. "Mentre digito in chat Axon la tastiera nasconde il campo; è piccolo e scrive in verticale."
+
+### Fix Drive scope (`/app/backend/server.py`)
+- `_GD_SCOPES`: `drive.file` → `drive.readonly` + `drive.metadata.readonly`.
+- `drive.file` mostrava solo file esplicitamente autorizzati dall'utente via Picker → picker vuoto quando l'utente non aveva mai selezionato nulla.
+- Con `drive.readonly` Axon vede TUTTI i file/cartelle dell'utente in sola lettura (nessun write/delete).
+- **Richiede riautorizzazione**: l'utente deve disconnettere Drive dalle Impostazioni e ricollegarlo → Google richiederà il nuovo consenso con permessi allargati.
+
+### Fix testo modale picker vuoto (`/app/frontend/src/GoogleDrivePickerModal.tsx`)
+- Copia: "Google Drive con scope drive.file mostra solo…" → "Prova a cercare per nome oppure riautorizza Drive dalle Impostazioni per aggiornare i permessi."
+
+### Fix Axon chat input (`/app/frontend/src/AssistantChat.tsx`)
+**Problema layout precedente**: `inputBar` era `flexDirection: row` con 5 bottoni fissi (📎 + G Drive + Dropbox + 🎤 + Invio) prima/dopo l'input → il TextInput riceveva solo ~130px su phone 390px → testo lungo appariva "in verticale" (una parola per riga).
+
+**Nuovo layout a due righe**:
+1. Riga 1: TextInput a piena larghezza + bottone Invio (arrow-up) a destra.
+2. Riga 2: bottoni allegato (📎 · G Drive · Dropbox · 🎤 mic) sotto l'input.
+
+**Fix keyboard hiding**: `KeyboardAvoidingView` behavior su Android era `undefined` con edge-to-edge → tastiera copriva l'input. Ora: iOS `padding`, Android `height`, con `keyboardVerticalOffset={10}` per gap tra input e cima tastiera.
+
+**Input più leggibile**:
+- `minHeight`: 40 → 44 (tap area comoda)
+- `maxHeight`: 120 → 220 (più righe visibili senza scroll interno)
+- `fontSize`: 14 → 15 · `lineHeight: 20`
+- `textAlignVertical: "top"` (Android: cursor inizia dall'alto)
+
+### Verifica
+- Backend riavviato senza errori, endpoint `/api/google-drive/files` invariato ma con scope più ampio.
+- Lint frontend: solo warning pre-esistenti (variabili unused non collegate a queste modifiche).
+
+
 ## V50.g (Sept 2026) — Anagrafica: ripristinata "Analizza fatture"
 
 ### Segnalazione utente

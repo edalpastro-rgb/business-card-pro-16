@@ -1194,7 +1194,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             </View>
           )}
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            // V50.h — Android ora usa behavior="height" (prima undefined
+            // faceva sparire l'input sotto la tastiera con edge-to-edge
+            // abilitato). keyboardVerticalOffset piccolo per lasciare
+            // ~10px di respiro tra input e cima tastiera.
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 10}
             style={{ flex: 1 }}
           >
             {/* Header — V29.n: barra minimale. Rimossi logo e testo "AxonOS".
@@ -1378,89 +1383,97 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 </View>
               ) : null}
               <View style={styles.inputBar}>
-                {/* V28.l — Pulsante allegato (PDF, Excel, immagini, txt, csv…) */}
-                <Pressable
-                  onPress={attachFile}
-                  disabled={sending || attaching}
-                  hitSlop={4}
-                  style={[styles.attachBtn, { backgroundColor: attaching ? "#6B7280" : "#F1F0FF" }]}
-                  accessibilityLabel="Allega file"
-                  testID="assistant-attach"
-                >
-                  {attaching ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <Ionicons name="attach" size={20} color={ASSISTANT_COLOR_DARK} />
+                {/* V50.h — Layout ristrutturato su richiesta utente: input
+                    grande in cima, bottoni allegato/mic sotto. Prima l'input
+                    era spinto tra 5 bottoni fissi → largo solo ~130px su
+                    phone 390px → testo appariva "in verticale". */}
+                <View style={styles.inputRow}>
+                  <TextInput
+                    value={recording ? `Ascolto… ${recDuration}s` : input}
+                    onChangeText={setInput}
+                    editable={!recording && !transcribing}
+                    placeholder={pendingAttachments.length ? "Aggiungi un contesto (facoltativo)…" : `Scrivi a ${assistantName}…`}
+                    placeholderTextColor="#94A3B8"
+                    style={styles.input}
+                    multiline
+                    onSubmitEditing={() => send()}
+                    blurOnSubmit={false}
+                    returnKeyType="send"
+                    testID="assistant-input"
+                  />
+                  <Pressable
+                    onPress={() => send()}
+                    disabled={sending || (!input.trim() && pendingAttachments.length === 0)}
+                    style={[styles.sendBtn, { opacity: sending || (!input.trim() && pendingAttachments.length === 0) ? 0.5 : 1 }]}
+                    testID="assistant-send"
+                  >
+                    {sending ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Ionicons name="arrow-up" size={20} color="#FFF" />
+                    )}
+                  </Pressable>
+                </View>
+                <View style={styles.actionsRow}>
+                  {/* V28.l — Pulsante allegato (PDF, Excel, immagini, txt, csv…) */}
+                  <Pressable
+                    onPress={attachFile}
+                    disabled={sending || attaching}
+                    hitSlop={4}
+                    style={[styles.attachBtn, { backgroundColor: attaching ? "#6B7280" : "#F1F0FF" }]}
+                    accessibilityLabel="Allega file"
+                    testID="assistant-attach"
+                  >
+                    {attaching ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Ionicons name="attach" size={20} color={ASSISTANT_COLOR_DARK} />
+                    )}
+                  </Pressable>
+                  {/* V28.w — Google Drive picker */}
+                  <Pressable
+                    onPress={() => setDrivePickerOpen(true)}
+                    disabled={sending}
+                    hitSlop={4}
+                    style={[styles.attachBtn, { backgroundColor: "#F1F0FF" }]}
+                    accessibilityLabel="Allega da Google Drive"
+                    testID="assistant-drive-attach"
+                  >
+                    <Ionicons name="logo-google" size={16} color="#0F9D58" />
+                  </Pressable>
+                  {/* V49.i — Dropbox picker */}
+                  <Pressable
+                    onPress={() => setDropboxPickerOpen(true)}
+                    disabled={sending}
+                    hitSlop={4}
+                    style={[styles.attachBtn, { backgroundColor: "#E0EFFF" }]}
+                    accessibilityLabel="Allega da Dropbox"
+                    testID="assistant-dropbox-attach"
+                  >
+                    <Ionicons name="logo-dropbox" size={16} color="#0061FF" />
+                  </Pressable>
+                  {voiceSupported && (
+                    <Pressable
+                      onPress={recording ? stopRec : startRec}
+                      disabled={sending || transcribing}
+                      style={[
+                        styles.micBtn,
+                        { backgroundColor: recording ? "#DC2626" : transcribing ? "#6B7280" : "#F1F0FF" },
+                      ]}
+                      accessibilityLabel={recording ? "Ferma dettatura" : "Detta domanda"}
+                    >
+                      {transcribing ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <Ionicons
+                          name={recording ? "stop" : "mic"}
+                          size={20}
+                          color={recording ? "#FFF" : ASSISTANT_COLOR_DARK}
+                        />
+                      )}
+                    </Pressable>
                   )}
-                </Pressable>
-                {/* V28.w — Google Drive picker */}
-                <Pressable
-                  onPress={() => setDrivePickerOpen(true)}
-                  disabled={sending}
-                  hitSlop={4}
-                  style={[styles.attachBtn, { backgroundColor: "#F1F0FF", marginLeft: -2 }]}
-                  accessibilityLabel="Allega da Google Drive"
-                  testID="assistant-drive-attach"
-                >
-                  <Ionicons name="logo-google" size={16} color="#0F9D58" />
-                </Pressable>
-                {/* V49.i — Dropbox picker */}
-                <Pressable
-                  onPress={() => setDropboxPickerOpen(true)}
-                  disabled={sending}
-                  hitSlop={4}
-                  style={[styles.attachBtn, { backgroundColor: "#E0EFFF", marginLeft: -2 }]}
-                  accessibilityLabel="Allega da Dropbox"
-                  testID="assistant-dropbox-attach"
-                >
-                  <Ionicons name="logo-dropbox" size={16} color="#0061FF" />
-                </Pressable>
-                {voiceSupported && (
-                <Pressable
-                  onPress={recording ? stopRec : startRec}
-                  disabled={sending || transcribing}
-                  style={[
-                    styles.micBtn,
-                    { backgroundColor: recording ? "#DC2626" : transcribing ? "#6B7280" : "#F1F0FF" },
-                  ]}
-                  accessibilityLabel={recording ? "Ferma dettatura" : "Detta domanda"}
-                >
-                  {transcribing ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <Ionicons
-                      name={recording ? "stop" : "mic"}
-                      size={20}
-                      color={recording ? "#FFF" : ASSISTANT_COLOR_DARK}
-                    />
-                  )}
-                </Pressable>
-                )}
-                <TextInput
-                  value={recording ? `Ascolto… ${recDuration}s` : input}
-                  onChangeText={setInput}
-                  editable={!recording && !transcribing}
-                  placeholder={pendingAttachments.length ? "Aggiungi un contesto (facoltativo)…" : `Scrivi a ${assistantName}…`}
-                  placeholderTextColor="#94A3B8"
-                  style={styles.input}
-                  multiline
-                  onSubmitEditing={() => send()}
-                  blurOnSubmit={false}
-                  returnKeyType="send"
-                  testID="assistant-input"
-                />
-                <Pressable
-                  onPress={() => send()}
-                  disabled={sending || (!input.trim() && pendingAttachments.length === 0)}
-                  style={[styles.sendBtn, { opacity: sending || (!input.trim() && pendingAttachments.length === 0) ? 0.5 : 1 }]}
-                  testID="assistant-send"
-                >
-                  {sending ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <Ionicons name="arrow-up" size={20} color="#FFF" />
-                  )}
-                </Pressable>
+                </View>
               </View>
             </View>
             )}
@@ -2412,13 +2425,26 @@ const styles = StyleSheet.create({
   },
 
   inputBar: {
-    flexDirection: "row",
-    alignItems: "flex-end",
+    // V50.h — Layout a colonne: prima l'input+send (row), poi i bottoni
+    // allegato/mic. L'input ora prende la larghezza piena della chat invece
+    // di essere spinto tra 5 bottoni fissi.
+    flexDirection: "column",
     gap: 8,
     padding: 10,
     borderTopWidth: 1,
     borderTopColor: "#EDE9FE",
     backgroundColor: "#FFF",
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 2,
   },
   micBtn: {
     width: 40,
@@ -2465,17 +2491,22 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    minHeight: 40,
-    maxHeight: 120,
+    // V50.h — Input più alto e più espandibile per leggere quello che si
+    // scrive senza scorrimento verticale forzato. minHeight 44→ tap area
+    // comoda; maxHeight 120→220 per riga più lunghe visibili tutte insieme.
+    minHeight: 44,
+    maxHeight: 220,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#E1DAFF",
     paddingHorizontal: 14,
-    paddingTop: Platform.OS === "ios" ? 10 : 8,
-    paddingBottom: Platform.OS === "ios" ? 10 : 8,
+    paddingTop: Platform.OS === "ios" ? 12 : 10,
+    paddingBottom: Platform.OS === "ios" ? 12 : 10,
     backgroundColor: "#FAF9FF",
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 20,
     color: theme.color.onSurface,
+    textAlignVertical: "top",
   },
   sendBtn: {
     width: 40,

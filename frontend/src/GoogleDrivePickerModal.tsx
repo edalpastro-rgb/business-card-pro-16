@@ -148,7 +148,7 @@ export function GoogleDrivePickerModal({
               ) : files.length === 0 ? (
                 <View style={styles.empty}>
                   <Ionicons name="cloud-outline" size={30} color={theme.color.muted} />
-                  <Text style={styles.emptyTxt}>Nessun file trovato tra quelli autorizzati.{"\n"}Google Drive con scope drive.file mostra solo i file che hai esplicitamente autorizzato.</Text>
+                  <Text style={styles.emptyTxt}>Nessun file trovato.{"\n"}Prova a cercare per nome oppure riautorizza Drive dalle Impostazioni per aggiornare i permessi.</Text>
                 </View>
               ) : (
                 <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
