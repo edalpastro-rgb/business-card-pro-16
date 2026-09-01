@@ -322,6 +322,7 @@ export default function AiTeachScreen() {
       };
       if (editUrl.username) payload.username = editUrl.username;
       if ((editUrl as any).password) payload.password = (editUrl as any).password;
+      if ((editUrl as any).reading_rules !== undefined) payload.reading_rules = String((editUrl as any).reading_rules || "").trim();
       if (!payload.url || !payload.name) { notify("Dati mancanti", "URL e nome obbligatori"); setBusy(false); return; }
       if (editUrl.url_id) {
         await api(`/ai-teach/urls/${editUrl.url_id}`, { method: "PUT", body: payload });
@@ -862,6 +863,19 @@ export default function AiTeachScreen() {
                   );
                 })}
               </View>
+
+              <Text style={[styles.lbl, { marginTop: 12 }]}>Regole di lettura (opzionali)</Text>
+              <TextInput
+                testID="url-reading-rules"
+                value={(editUrl as any)?.reading_rules || ""}
+                onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), reading_rules: t } as any))}
+                placeholder={"Es.\n• Apri anche le sotto-sezioni \"Comunicati stampa\" e \"Delibere\"\n• Estrai tabelle e valori numerici del PUN\n• Ignora banner cookie, pubblicità e archivio storico"}
+                placeholderTextColor="#94A3B8"
+                style={[styles.input, { minHeight: 90, textAlignVertical: "top" }]}
+                multiline
+                numberOfLines={4}
+              />
+              <Text style={styles.metaTxt}>Specifica quali sezioni o sotto-link aprire, quali contenuti estrarre e quali ignorare: aiuti Axon a filtrare solo gli aggiornamenti utili.</Text>
 
               <Text style={[styles.lbl, { marginTop: 12 }]}>Credenziali (opzionali — per siti protetti)</Text>
               <TextInput testID="url-username" value={editUrl?.username || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), username: t }))} placeholder="Username (se richiesto)" placeholderTextColor="#94A3B8" style={styles.input} autoCapitalize="none" />

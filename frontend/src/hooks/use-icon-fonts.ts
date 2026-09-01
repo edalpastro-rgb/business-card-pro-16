@@ -1,13 +1,17 @@
-// Icon font loader for Expo apps. Fonts are loaded from a CDN only under
-// Expo Go (StoreClient) — that's where @expo/vector-icons' .ttf files come
-// back as 0 bytes from Metro's asset resolver on Android. Native dev/prod
-// builds and web pass an empty map, so useFonts resolves to [true, null]
-// immediately via react-native-vector-icons autolinking / web stubs.
+// Icon font loader for Expo apps. Fonts are loaded from a CDN under Expo Go
+// (StoreClient) — that's where @expo/vector-icons' .ttf files come back as
+// 0 bytes from Metro's asset resolver on Android. On Web we ALSO load from CDN
+// because production web builds served under a custom domain (e.g. Emergent
+// deploy) sometimes miss the @font-face registration for @expo/vector-icons —
+// visible symptom: labels visible but icons rendered as empty/tofu boxes.
+// Native dev/prod builds skip CDN entirely (react-native-vector-icons
+// autolinking handles bundling).
 // ICON_VECTOR_VERSION must match @expo/vector-icons in package.json.
 // Usage: const [loaded, error] = useIconFonts();
 
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { useFonts } from "expo-font";
+import { Platform } from "react-native";
 
 const ICON_VECTOR_VERSION = "15.1.1";
 
@@ -44,9 +48,12 @@ const iconFontMap = (): Record<string, string> =>
     Object.entries(ICON_FAMILIES).map(([key, file]) => [key, cdnUrl(file)]),
   );
 
+// V49.d — Carica i font da CDN sia su Expo Go sia su Web (per garantire che
+// le icone dei bottom tab e delle schermate siano sempre visibili anche in
+// build web deployate). Su Native dev/prod restiamo con mappa vuota (autolink).
+const shouldUseCdn = (): boolean =>
+  Platform.OS === "web" ||
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
 export const useIconFonts = (): readonly [boolean, Error | null] =>
-  useFonts(
-    Constants.executionEnvironment === ExecutionEnvironment.StoreClient
-      ? iconFontMap()
-      : {},
-  );
+  useFonts(shouldUseCdn() ? iconFontMap() : {});

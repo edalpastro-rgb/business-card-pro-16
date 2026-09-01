@@ -15,6 +15,7 @@ import ssl
 import asyncio
 import base64
 import json as _json_stdlib
+import re
 import secrets
 import io
 import pyotp
@@ -12008,6 +12009,10 @@ class AiTeachUrlIn(BaseModel):
     frequency: Literal["manual", "daily", "weekly", "monthly"] = "weekly"
     username: Optional[str] = None
     password: Optional[str] = None
+    # V49.f — Regole di lettura dell'URL: quali sezioni/sotto-link aprire,
+    # quali contenuti estrarre e quali ignorare. Testo libero passato ad Axon
+    # come istruzioni durante il fetch/summary.
+    reading_rules: Optional[str] = None
 
 class AiTeachUrlPatch(BaseModel):
     url: Optional[str] = None
@@ -12016,12 +12021,40 @@ class AiTeachUrlPatch(BaseModel):
     frequency: Optional[Literal["manual", "daily", "weekly", "monthly"]] = None
     username: Optional[str] = None
     password: Optional[str] = None
+    reading_rules: Optional[str] = None
 
 
 def _require_master(user: Dict[str, Any]) -> None:
     """Only owners (Master) can access this feature."""
     if (user.get("role") or "member") != "owner":
         raise HTTPException(status_code=403, detail="Sezione riservata al Master")
+
+
+async def _legacy_owner_ids(user: dict) -> List[str]:
+    """V49.e — Return every historical `user_id` that likely belonged to the
+    current owner: any other users in the DB that share the exact email.
+
+    Purpose: recover legacy rules/urls (Insegna ad Axon) attributed to a
+    previous incarnation of the same account (e.g. re-registration after a
+    tenant wipe, migration from v1.0.x). Non-blocking: on error returns [].
+    """
+    try:
+        email = (user.get("email") or "").strip().lower()
+        if not email:
+            return []
+        cur = db.users.find(
+            {"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}},
+            {"user_id": 1, "_id": 0},
+        )
+        ids: List[str] = []
+        async for u in cur:
+            uid = u.get("user_id")
+            if uid and uid != user.get("user_id"):
+                ids.append(uid)
+        return ids
+    except Exception as exc:
+        logger.warning("[ai-teach] legacy owner lookup failed: %s", exc)
+        return []
 
 
 @api_router.get("/ai-teach/rules")
@@ -12043,6 +12076,14 @@ async def ai_teach_list_rules(user=Depends(get_current_user)):
     if uid and uid != tid:
         or_clauses.append({"owner_id": uid})
     or_clauses.append({"created_by": uid, "user_id": {"$exists": False}})
+    # V49.e — Anche ogni altro user_id che condivide la stessa email (utenti
+    # re-registrati / migrazioni pre-tenant): includiamo sia `user_id` sia
+    # `created_by` sia `owner_id` in tutte le sue varianti storiche.
+    legacy_ids = await _legacy_owner_ids(user)
+    for lid in legacy_ids:
+        or_clauses.append({"user_id": lid})
+        or_clauses.append({"owner_id": lid})
+        or_clauses.append({"created_by": lid, "user_id": {"$exists": False}})
     query = {"$or": or_clauses}
     # V28.n — Lazy migration: rules with only `category` (str) get `categories: [category]`.
     # We update in-place so subsequent reads/writes are consistent.
@@ -12198,6 +12239,12 @@ async def ai_teach_list_urls(user=Depends(get_current_user)):
     if uid and uid != tid:
         or_clauses.append({"owner_id": uid})
     or_clauses.append({"created_by": uid, "user_id": {"$exists": False}})
+    # V49.e — Match anche vecchi user_id che condividevano la stessa email
+    legacy_ids = await _legacy_owner_ids(user)
+    for lid in legacy_ids:
+        or_clauses.append({"user_id": lid})
+        or_clauses.append({"owner_id": lid})
+        or_clauses.append({"created_by": lid, "user_id": {"$exists": False}})
     cur = db.ai_teach_urls.find({"$or": or_clauses}).sort("updated_at", -1)
     items = []
     async for r in cur:
@@ -12235,6 +12282,7 @@ async def ai_teach_create_url(body: AiTeachUrlIn, user=Depends(get_current_user)
         "frequency": body.frequency,
         "username": (body.username or "").strip() or None,
         "password": (body.password or "").strip() or None,
+        "reading_rules": (body.reading_rules or "").strip() or None,
         "last_fetched_at": None,
         "last_summary": "",
         "last_error": None,
@@ -12252,7 +12300,7 @@ async def ai_teach_update_url(url_id: str, body: AiTeachUrlPatch, user=Depends(g
     _require_master(user)
     tid = tenant_id(user)
     patch: Dict[str, Any] = {"updated_at": utcnow()}
-    for field in ["url", "name", "category", "frequency", "username", "password"]:
+    for field in ["url", "name", "category", "frequency", "username", "password", "reading_rules"]:
         v = getattr(body, field, None)
         if v is not None:
             patch[field] = (v.strip() if isinstance(v, str) else v) or None
@@ -12319,11 +12367,23 @@ async def _ai_teach_refresh_url(doc: Dict[str, Any]) -> Dict[str, Any]:
             pass
 
         # Fase 2: sintesi Tavily della pagina come prima
+        # V49.f — Se il Master ha indicato "Regole di lettura" per questo URL,
+        # le passiamo a Tavily come istruzioni extra così l'AI concentra la
+        # sintesi solo sui contenuti richiesti (sezioni/sotto-link) ignorando
+        # ciò che il Master ha marcato come da escludere.
+        reading_rules = (doc.get("reading_rules") or "").strip()
+        rules_hint = ""
+        if reading_rules:
+            rules_hint = (
+                f"\nIstruzioni del Master su cosa estrarre / ignorare:\n"
+                f"{reading_rules[:800]}\n"
+            )
         it_query = (
             f"Riassumi in italiano i contenuti principali di questa pagina. "
             f"Rispondi SEMPRE in italiano, in prosa chiara, max 6 frasi. "
-            f"Pagina: {name} {url}".strip()
-        )
+            f"Pagina: {name} {url}"
+            f"{rules_hint}"
+        ).strip()
         res = await _tavily_search(it_query, max_results=4, country="italy")
         if res:
             summary = (res.get("answer") or "").strip()
