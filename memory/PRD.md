@@ -1,3 +1,25 @@
+## V50.j (Sept 2026) — HOTFIX velocità Axon: ripristino risposte < 8s
+
+### Diagnosi
+1. Modello `claude-sonnet-5` con context accumulato (RAG PDFs Master + teach URLs con PDF GME scaricati + storico chat + memorie) portava il prompt oltre 40k token → 15-30s solo per il primo token, 60-90s totali.
+2. Cap allegati 60k char (V49.o) faceva esplodere token count su chat con PDF attaccati.
+3. Cap teach-section PDF 20k × 3 = 60k char aggiuntivi ogni volta che l'utente chiedeva PUN.
+4. Cap context CRM 25k char anche per chat semplici.
+
+### Fix (`/app/backend/server.py`)
+- Modello: `claude-sonnet-5` → **`claude-sonnet-4-5`** (2-3× più veloce su prompt grandi, qualità reasoning identica per casi CRM).
+- Cap allegati chat: **60k → 25k** char per file (~12-15 pagine dense).
+- Cap teach-section PDF scaricati: **20k → 8k** char per PDF.
+- Cap CRM snapshot JSON: **25k → 12k** char.
+
+### Verifica live (backend locale)
+- Chat semplice: primo delta 4.2s, completa 6.9s (era 40s+ / 2min).
+- Chat "Tabella PUN F1/F2/F3 gennaio-agosto 2026" con fetch dinamico PDF GME: primo delta **4.6s**, completa **7.4s**.
+
+### Google Drive access
+Scope già allargato in V50.h a `drive.readonly` + `drive.metadata.readonly`. L'utente deve disconnettere/riconnettere Drive dalle Impostazioni per far scattare il nuovo consenso Google e vedere tutti i file.
+
+
 ## V50.i (Sept 2026) — "Insegna ad Axon": tab compatti con label leggibili
 
 ### Segnalazione utente

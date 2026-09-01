@@ -9366,7 +9366,7 @@ async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: 
                 if res:
                     pdf_name, pdf_url, txt = res
                     out_blocks.append(
-                        f"--- PDF scaricato: {pdf_name} (fonte: {pdf_url}) ---\n{txt[:20000]}"
+                        f"--- PDF scaricato: {pdf_name} (fonte: {pdf_url}) ---\n{txt[:8000]}"
                     )
                 if len(out_blocks) >= max_pdfs:
                     break
@@ -9605,9 +9605,13 @@ async def _prepare_assistant_prompt(
             except Exception as exc:
                 extracted = f"[Errore lettura {att.name}: {exc}]"
             if extracted:
-                # V49.o — cap per-file portato da 6000 → 60000 char così i PDF
-                # vengono passati COMPLETI ad Axon (fino a ~30 pagine dense).
-                parts.append(f"--- File: {att.name} ({att.mime or 'unknown'}) ---\n{extracted[:60000]}")
+                # V50.j — cap per-file ridotto 60000 → 25000 char per abbattere
+                # la latenza LLM (Claude Sonnet 4.5 su 50k+ token impiega 15-30s
+                # per il primo token). 25k char coprono ~12-15 pagine dense che
+                # per un PDF di bolletta/anagrafica sono sufficienti; se serve
+                # analisi profonda su documenti lunghi, l'utente può usare la
+                # sezione dedicata "Analizza bolletta" del Master.
+                parts.append(f"--- File: {att.name} ({att.mime or 'unknown'}) ---\n{extracted[:25000]}")
         if not parts:
             return ""
         return (
@@ -9682,7 +9686,7 @@ async def _prepare_assistant_prompt(
     import json as _json
     ctx_json = _json.dumps(context, ensure_ascii=False, default=str)
     if len(ctx_json) > 25000:
-        ctx_json = ctx_json[:25000] + "\n... (dati troncati)"
+        ctx_json = ctx_json[:12000] + "\n... (dati troncati)"
 
     weather_section = ""
     if weather_ctx is not None:
@@ -9986,7 +9990,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     ctx_json = _json.dumps(context, ensure_ascii=False, default=str)
     # Trim if too large (Claude Sonnet accepts a lot but let's be safe)
     if len(ctx_json) > 25000:
-        ctx_json = ctx_json[:25000] + "\n... (dati troncati)"
+        ctx_json = ctx_json[:12000] + "\n... (dati troncati)"
 
     weather_section = ""
     if weather_ctx is not None:
@@ -10127,7 +10131,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         api_key=key,
         session_id=session_id,
         system_message=system_message,
-    ).with_model("anthropic", "claude-sonnet-5")
+    ).with_model("anthropic", "claude-sonnet-4-5")
 
     # Replay history so multi-turn works (LlmChat keeps internal state but we start fresh each request)
     # We prepend history summary to the current user message for continuity
@@ -10322,7 +10326,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             api_key=prep["api_key"],
             session_id=session_id,
             system_message=prep["system_message"],
-        ).with_model("anthropic", "claude-sonnet-5")
+        ).with_model("anthropic", "claude-sonnet-4-5")
 
         collected: List[str] = []
         try:
