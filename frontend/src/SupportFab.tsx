@@ -14,10 +14,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal, View, Text, StyleSheet, Pressable, ScrollView, TextInput,
-  ActivityIndicator, Platform, Alert,
+  ActivityIndicator, Alert,
 } from "react-native";
 import { usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/src/api";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
@@ -56,20 +57,29 @@ const C = {
 export function SupportFab() {
   const pathname = usePathname() || "/";
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
 
   const hide = HIDE_ON_PATHS.some((p) => pathname === p) || pathname.startsWith("/auth");
   if (!user || hide) return null;
+
+  // V49.k — Sposta il bottone da bottom-right → top-right (accanto all'avatar).
+  // top = safe-area + 12; right = 52 così l'avatar (right:8-38) rimane
+  // interamente visibile. L'icona è un mix ingranaggio blu + chiave gialla.
+  const topPos = (insets?.top || 0) + 12;
 
   return (
     <>
       <Pressable
         testID="support-fab"
         onPress={() => setOpen(true)}
-        style={styles.fab}
+        style={[styles.fab, { top: topPos }]}
         accessibilityLabel="Assistenza"
       >
-        <Ionicons name="help-circle" size={26} color="#FFF" />
+        <Ionicons name="settings" size={22} color="#2563EB" />
+        <View style={styles.fabBadge}>
+          <Ionicons name="key" size={11} color="#EAB308" />
+        </View>
       </Pressable>
       <SupportSheet visible={open} onClose={() => setOpen(false)} />
     </>
@@ -336,15 +346,26 @@ function SupportSheet({ visible, onClose }: { visible: boolean; onClose: () => v
 const styles = StyleSheet.create({
   fab: {
     position: "absolute",
-    right: 14,
-    // Sopra la PersistentBottomNav (60 + inset). Su web/ios centrato.
-    bottom: Platform.OS === "web" ? 92 : 88,
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: "#7C3AED",
+    right: 52,
+    // top calcolato dinamicamente via insets nel componente
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
     alignItems: "center", justifyContent: "center",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8,
-    elevation: 6,
-    zIndex: 99,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6,
+    elevation: 4,
+    zIndex: 100,
+  },
+  fabBadge: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 16, height: 16, borderRadius: 8,
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    alignItems: "center", justifyContent: "center",
   },
   backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.55)", justifyContent: "flex-end" },
   sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 8 },
