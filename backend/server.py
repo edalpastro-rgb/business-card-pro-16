@@ -8908,11 +8908,14 @@ async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
             import fitz  # PyMuPDF
             doc = fitz.open(stream=raw, filetype="pdf")
             pages = []
+            # V49.o — cap 60k char (era 18k): sufficiente per PDF di
+            # 30-60 pagine di testo realistico. Se il PDF eccede,
+            # tronca sulla pagina che raggiunge il limite, non prima.
             for p in doc:
                 t = (p.get_text() or "").strip()
                 if t:
                     pages.append(t)
-                if sum(len(x) for x in pages) > 18000:
+                if sum(len(x) for x in pages) > 60000:
                     break
             doc.close()
             return "\n\n".join(pages) if pages else "[PDF senza testo estraibile]"
@@ -9294,12 +9297,16 @@ async def _prepare_assistant_prompt(
             except Exception as exc:
                 extracted = f"[Errore lettura {att.name}: {exc}]"
             if extracted:
-                parts.append(f"--- File: {att.name} ({att.mime or 'unknown'}) ---\n{extracted[:6000]}")
+                # V49.o — cap per-file portato da 6000 → 60000 char così i PDF
+                # vengono passati COMPLETI ad Axon (fino a ~30 pagine dense).
+                parts.append(f"--- File: {att.name} ({att.mime or 'unknown'}) ---\n{extracted[:60000]}")
         if parts:
             attachments_section = (
-                "\n\nALLEGATI CARICATI DALL'UTENTE (analizzali come contesto principale della domanda):\n"
+                "\n\nALLEGATI CARICATI DALL'UTENTE (analizzali come CONTESTO PRINCIPALE della domanda — "
+                "leggi TUTTO il contenuto degli allegati, non solo l'inizio, ed estraine ogni dato utile):\n"
                 + "\n\n".join(parts)
-                + "\n\nQuando rispondi, cita esplicitamente il contenuto rilevante degli allegati e nomi dei file.\n"
+                + "\n\nQuando rispondi, cita esplicitamente il contenuto rilevante degli allegati (numeri, "
+                "clausole, valori, date, nomi) e menziona il nome del file da cui provengono.\n"
             )
 
     axon_teach_section = ""
