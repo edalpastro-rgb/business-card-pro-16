@@ -1,3 +1,26 @@
+## V50.c (Sept 2026) — HOTFIX Master Header + Grid Bottoni
+
+### Segnalazioni utente
+1. "Avevo chiesto di togliere il banner My Thing ed è stato tolto banner E header, ripristinare header."
+2. "I bottoni sono scentrati rispetto al centro pagina dx/sx. E le scritte dei pulsanti sono in verticale è orribile."
+
+### Fix
+**Header brandizzato AdvisorOS/AxonOS RIPRISTINATO** (`/app/frontend/app/master.tsx`)
+- In V50.a l'intero `brandHeader` con immagine di sfondo AdvisorOS + AxonOS + avatar overlay era stato rimosso per interpretazione errata di "banner con la foto personale". Ripristinato integralmente.
+- L'unico elemento rimosso resta il banner "My Thing" sotto l'header (già off dal V49.l).
+
+**Grid bottoni CENTRATO e leggibile**
+- Sostituito `width: "31%"` → `width: 84px` (pixel fissi) su `btnCell` per evitare l'inconsistenza flex-wrap di RN Web con percentuali (che squeezava 5 celle su una riga).
+- `justifyContent: space-around` + `columnGap: 0` per centrare simmetricamente 4 colonne su viewport 390 (4×84 + gap ≈ 336px < 358 disponibili).
+- `flexShrink: 0` sulle celle: impedisce che il flexbox comprima le celle sotto 84px.
+- Icona ridotta 72×72 → 66×66 (borderRadius 14) per lasciare più spazio verticale al label senza deformare la cella.
+- **`btnLabelWrap`** wrapper esplicito con `width: 100%` attorno al Text: RN (Web + Android) non stretcha i figli Text in un parent con `alignItems: center`, e senza wrapper il testo riceveva larghezza intrinseca → wrapping carattere-per-carattere ("Age\nnda", "Cal\nco\nlatri\nce"). Con il wrapper la Text riceve piena larghezza cella e il wrap avviene per PAROLA come atteso.
+- Label: `fontSize: 11`, `lineHeight: 14`, `textAlign: center`, `numberOfLines: 2`, `adjustsFontSizeToFit` con `minimumFontScale: 0.75` per shrink automatico su etichette molto lunghe (Analizza bolletta / Biglietto da visita).
+
+### Verifica visiva
+- Screenshot Playwright 390×844: header brand tornato in cima, 4 bottoni per riga centrati simmetricamente, tutti i label leggibili su 1-2 righe con wrap parola-per-parola (Agenda / New Contact / Chat Gruppo / Calcolatrice / My Web / New CRT / New App / Registra audio / I miei audio / Analizza bolletta / I miei file / Biglietto da visita / Banner Evento / Script Telefonata / Insegna ad Axon / Cruscotto / Azioni rapide).
+
+
 ## V50.b (Sept 2026) — HOTFIX PERFORMANCE + PUN/GME + Drive UX
 
 ### Problema segnalato dall'utente

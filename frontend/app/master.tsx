@@ -273,34 +273,50 @@ function MasterScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      {/* V50.a — "banner con la foto personale" RIMOSSO su richiesta utente:
-          l'immagine di brand AdvisorOS/AxonOS e l'overlay con l'avatar
-          personale sono stati sostituiti con un header minimale pulito che
-          contiene solo data/ora a sinistra e il pulsante avatar/menu a destra.
-          Il pulsante di assistenza (SupportFab) resta visibile globalmente
-          alla sinistra dell'avatar, come su tutte le altre schermate. */}
-      <View style={styles.headerBar}>
-        <Text style={styles.headerDate} numberOfLines={1} testID="master-clock-time">
-          {now.toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
-          {" · "}
-          {now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-        </Text>
-        <Pressable
-          onPress={() => setMenuOpen(true)}
-          hitSlop={8}
-          testID="master-menu-btn"
-          style={styles.headerAvatarBtn}
-        >
-          {user?.avatar_base64 ? (
-            <Image source={{ uri: user.avatar_base64 }} style={styles.headerAvatar} />
-          ) : (
-            <View style={styles.headerAvatarFallback}>
-              <Text style={styles.headerAvatarTxt}>
-                {user?.name?.[0]?.toUpperCase() || "?"}
-              </Text>
-            </View>
-          )}
-        </Pressable>
+      {/* V50.c — Header brandizzato AdvisorOS/AxonOS RIPRISTINATO su richiesta
+          utente. In V50.a avevamo rimosso l'intero header per interpretazione
+          errata del "banner con la foto personale". L'header brand resta,
+          NON viene renderizzato alcun banner My Thing sotto (già rimosso in
+          V49.l dello scroll). */}
+      <View style={styles.brandHeader}>
+        <View style={styles.brandHeaderBox} testID="master-brand-header">
+          <Image
+            source={HOME_HEADER_IMG}
+            resizeMode="cover"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              borderRadius: 12,
+            }}
+          />
+          <View pointerEvents="none" style={styles.brandHeaderScrim} />
+          <View style={styles.brandHeaderCornerTL} pointerEvents="none">
+            <Text style={styles.brandHeaderDate} numberOfLines={1} testID="master-clock-time">
+              {now.toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
+              {" · "}
+              {now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => setMenuOpen(true)}
+            hitSlop={8}
+            style={styles.brandHeaderCornerTR}
+            testID="master-menu-btn"
+          >
+            {user?.avatar_base64 ? (
+              <Image source={{ uri: user.avatar_base64 }} style={styles.brandHeaderAvatar} />
+            ) : (
+              <View style={styles.brandHeaderAvatarFallback}>
+                <Text style={styles.brandHeaderAvatarTxt}>
+                  {user?.name?.[0]?.toUpperCase() || "?"}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
       </View>
 
       {/* V49.l — Banner "My Thing" rimosso dal Master su richiesta utente
@@ -519,7 +535,17 @@ function MasterButton({ label, icon, color, onPress, onLongPress, badge, pulseAn
           </Animated.View>
         )}
       </Animated.View>
-      <Text style={styles.btnLabel}>{label}</Text>
+      <View style={styles.btnLabelWrap}>
+        <Text
+          style={styles.btnLabel}
+          numberOfLines={2}
+          ellipsizeMode="tail"
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
+        >
+          {label}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -909,19 +935,48 @@ const styles = StyleSheet.create({
   bannerTitle: { color: "#FFF", fontSize: 13, fontWeight: "800", marginTop: 1 },
   bannerBody: { color: "rgba(255,255,255,0.9)", fontSize: 11, marginTop: 1 },
 
-  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-evenly", rowGap: 4 },
-  btnCell: { width: "31%", alignItems: "center", marginBottom: 22 },
+  // V50.c — Grid a 4 colonne CENTRATO orizzontalmente con dimensioni FISSE
+  // in pixel per evitare l'inconsistenza flex-wrap con percentuali su RN Web
+  // (che tende a squeezare le celle facendone entrare 5 invece di 4).
+  // Larghezza cella 84px × 4 = 336, gap tra celle 8px × 3 = 24, totale 360.
+  // Su viewport 390 con padding 16+16 = 32, spazio disponibile = 358 → si
+  // adatta perfettamente. `justifyContent: space-around` distribuisce lo
+  // spazio residuo simmetricamente ai lati (centraggio).
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-around",
+    rowGap: 18,
+    columnGap: 0,
+  },
+  btnCell: {
+    width: 84,
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  // V50.c — Wrapper esplicito con width:100% attorno al Text. In un parent
+  // con `alignItems:"center"` RN NON stretcha i figli di tipo Text (bug
+  // storico di RN-Web + Android). Un View wrapper con width:100% forza
+  // invece la larghezza piena e permette a numberOfLines/ellipsizeMode di
+  // funzionare correttamente su tutte le piattaforme.
+  btnLabelWrap: {
+    width: "100%",
+    marginTop: 8,
+    alignItems: "center",
+  },
   // V29.ba — Stile "Optima": icona full-round su cerchio colorato con shadow
   // marcato (effetto rialzato/3D) e leggero highlight in alto.
   btnCircle: {
     // V49.g — Nome storico "btnCircle": la forma è passata da cerchio a
-    // quadrato con angoli leggermente arrotondati (borderRadius 16 su 72×72)
+    // quadrato con angoli leggermente arrotondati (borderRadius 14 su 66×66)
     // su richiesta utente. Manteniamo colori, icone, testi, badge e
     // funzionalità di riordino identici. Nessun altro punto dell'app usa
     // esattamente questa forma quindi il cambio è locale al Master.
-    width: 72,
-    height: 72,
-    borderRadius: 16,
+    // V50.c — Icona ridotta 72→66 per lasciare più spazio orizzontale al
+    // label (evita wrap carattere-per-carattere).
+    width: 66,
+    height: 66,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -932,7 +987,15 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
-  btnLabel: { marginTop: 10, fontSize: 12, fontWeight: "700", color: theme.color.onSurface, textAlign: "center" },
+  // V50.c — Label pulita: fontSize 11, textAlign center, lineHeight 14.
+  // La larghezza è garantita dal wrapper btnLabelWrap (width:100%).
+  btnLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: theme.color.onSurface,
+    textAlign: "center",
+    lineHeight: 14,
+  },
   badgeDot: { position: "absolute", top: -4, right: -4, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: "#16A34A", justifyContent: "center", alignItems: "center", paddingHorizontal: 5, borderWidth: 2, borderColor: "#FFF" },
   badgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "800" },
   myAudiosLink: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", paddingVertical: 10, paddingHorizontal: 16, backgroundColor: "#F5F3FF", borderRadius: 20, borderWidth: 1, borderColor: "#DDD6FE" },
