@@ -9384,6 +9384,49 @@ async def _prepare_assistant_prompt(
                 memory_section += f"  • {f}\n"
         memory_section += "\nUsa la memoria per personalizzare le risposte, ma non citare esplicitamente 'ricordo che...' a meno che sia utile.\n"
 
+    # V49.n — Few-shot dinamico basato sui feedback 👍/👎 del tenant.
+    # Carica gli ultimi 5 esempi con 👍 (best answers da imitare) e gli ultimi
+    # 2 con 👎 (anti-esempi da evitare). Iniezione leggera, solo Q+A troncati.
+    few_shot_section = ""
+    try:
+        _fs_tid = tenant_id(user)
+        _fs_ups_cur = db.assistant_feedback.find(
+            {"tenant_id": _fs_tid, "rating": "up"},
+            {"_id": 0, "question": 1, "reply": 1},
+        ).sort("created_at", -1).limit(5)
+        _fs_downs_cur = db.assistant_feedback.find(
+            {"tenant_id": _fs_tid, "rating": "down"},
+            {"_id": 0, "question": 1, "reply": 1, "comment": 1},
+        ).sort("created_at", -1).limit(2)
+        _fs_ups = [d async for d in _fs_ups_cur]
+        _fs_downs = [d async for d in _fs_downs_cur]
+        if _fs_ups or _fs_downs:
+            _fs_lines: List[str] = ["\n\nESEMPI DI RISPOSTE (feedback storico del tenant):"]
+            if _fs_ups:
+                _fs_lines.append("👍 Esempi apprezzati — imita QUESTO stile/tono/dettaglio:")
+                for _fs_i, _fs_ex in enumerate(_fs_ups, 1):
+                    _fs_q = (_fs_ex.get("question") or "").strip()[:180]
+                    _fs_a = (_fs_ex.get("reply") or "").strip()[:280]
+                    if _fs_q and _fs_a:
+                        _fs_lines.append(f"  {_fs_i}) Domanda: {_fs_q}")
+                        _fs_lines.append(f"     Risposta ottima: {_fs_a}")
+            if _fs_downs:
+                _fs_lines.append("👎 Esempi NON apprezzati — evita QUESTI pattern:")
+                for _fs_i, _fs_ex in enumerate(_fs_downs, 1):
+                    _fs_q = (_fs_ex.get("question") or "").strip()[:180]
+                    _fs_a = (_fs_ex.get("reply") or "").strip()[:220]
+                    _fs_cm = (_fs_ex.get("comment") or "").strip()[:120]
+                    if _fs_q and _fs_a:
+                        _fs_lines.append(f"  {_fs_i}) Domanda: {_fs_q}")
+                        _fs_lines.append(f"     Risposta da NON riprodurre: {_fs_a}")
+                        if _fs_cm:
+                            _fs_lines.append(f"     Motivo del 👎: {_fs_cm}")
+            _fs_lines.append("Applica il TONO e la STRUTTURA degli esempi 👍; evita difetti di quelli 👎.")
+            few_shot_section = "\n".join(_fs_lines) + "\n"
+    except Exception as _fs_exc:
+        logger.debug("[few-shot] skipped: %s", _fs_exc)
+        few_shot_section = ""
+
     system_message = (
         f"Sei {assistant_name}, l'assistente personale AI del CRM di {user.get('name', 'utente')}, "
         "consulente energetico e networker in Italia.\n\n"
@@ -9406,6 +9449,7 @@ async def _prepare_assistant_prompt(
         f"{memory_section}"
         f"{rag_section}"
         f"{axon_teach_section}"
+        f"{few_shot_section}"
         f"{attachments_section}"
     )
 
@@ -9622,6 +9666,49 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
                 memory_section += f"  • {f}\n"
         memory_section += "\nUsa la memoria per personalizzare le risposte, ma non citare esplicitamente 'ricordo che...' a meno che sia utile.\n"
 
+    # V49.n — Few-shot dinamico basato sui feedback 👍/👎 del tenant.
+    # Carica gli ultimi 5 esempi con 👍 (best answers da imitare) e gli ultimi
+    # 2 con 👎 (anti-esempi da evitare). Iniezione leggera, solo Q+A troncati.
+    few_shot_section = ""
+    try:
+        _fs_tid = tenant_id(user)
+        _fs_ups_cur = db.assistant_feedback.find(
+            {"tenant_id": _fs_tid, "rating": "up"},
+            {"_id": 0, "question": 1, "reply": 1},
+        ).sort("created_at", -1).limit(5)
+        _fs_downs_cur = db.assistant_feedback.find(
+            {"tenant_id": _fs_tid, "rating": "down"},
+            {"_id": 0, "question": 1, "reply": 1, "comment": 1},
+        ).sort("created_at", -1).limit(2)
+        _fs_ups = [d async for d in _fs_ups_cur]
+        _fs_downs = [d async for d in _fs_downs_cur]
+        if _fs_ups or _fs_downs:
+            _fs_lines: List[str] = ["\n\nESEMPI DI RISPOSTE (feedback storico del tenant):"]
+            if _fs_ups:
+                _fs_lines.append("👍 Esempi apprezzati — imita QUESTO stile/tono/dettaglio:")
+                for _fs_i, _fs_ex in enumerate(_fs_ups, 1):
+                    _fs_q = (_fs_ex.get("question") or "").strip()[:180]
+                    _fs_a = (_fs_ex.get("reply") or "").strip()[:280]
+                    if _fs_q and _fs_a:
+                        _fs_lines.append(f"  {_fs_i}) Domanda: {_fs_q}")
+                        _fs_lines.append(f"     Risposta ottima: {_fs_a}")
+            if _fs_downs:
+                _fs_lines.append("👎 Esempi NON apprezzati — evita QUESTI pattern:")
+                for _fs_i, _fs_ex in enumerate(_fs_downs, 1):
+                    _fs_q = (_fs_ex.get("question") or "").strip()[:180]
+                    _fs_a = (_fs_ex.get("reply") or "").strip()[:220]
+                    _fs_cm = (_fs_ex.get("comment") or "").strip()[:120]
+                    if _fs_q and _fs_a:
+                        _fs_lines.append(f"  {_fs_i}) Domanda: {_fs_q}")
+                        _fs_lines.append(f"     Risposta da NON riprodurre: {_fs_a}")
+                        if _fs_cm:
+                            _fs_lines.append(f"     Motivo del 👎: {_fs_cm}")
+            _fs_lines.append("Applica il TONO e la STRUTTURA degli esempi 👍; evita difetti di quelli 👎.")
+            few_shot_section = "\n".join(_fs_lines) + "\n"
+    except Exception as _fs_exc:
+        logger.debug("[few-shot] skipped: %s", _fs_exc)
+        few_shot_section = ""
+
     system_message = (
         f"Sei {assistant_name}, l'assistente personale AI del CRM di {user.get('name', 'utente')}, "
         "consulente energetico e networker in Italia.\n\n"
@@ -9644,6 +9731,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         f"{memory_section}"
         f"{rag_section}"
         f"{axon_teach_section}"
+        f"{few_shot_section}"
         f"{attachments_section}"
     )
 
