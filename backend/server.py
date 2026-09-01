@@ -7485,6 +7485,204 @@ async def reanalyze_offer(offer_id: str, background: BackgroundTasks, user=Depen
     return {"ok": True, "status": "pending"}
 
 
+# =========================================================================
+# V49 — Company Documents (Comunica con l'azienda)
+#
+# PDF aziendali caricati dal Master e visibili a tutti gli utenti del tenant.
+# Include un endpoint AI (Claude Sonnet 5) che estrae automaticamente i contatti
+# aziendali (nome, ruolo, email, telefono) dal testo del PDF così il Master può
+# aggiungerli al pannello con un tocco.
+# =========================================================================
+class CompanyDocIn(BaseModel):
+    name: str
+    mime: Optional[str] = "application/pdf"
+    file_base64: str
+
+
+def _is_tenant_master(u: dict) -> bool:
+    return not u.get("parent_user_id") and (u.get("role") or "member") == "owner"
+
+
+@api_router.post("/company-docs")
+async def upload_company_doc(body: CompanyDocIn, user=Depends(get_current_user)):
+    if not _is_tenant_master(user):
+        raise HTTPException(status_code=403, detail="Solo il Master può caricare documenti aziendali")
+    b64 = body.file_base64 or ""
+    if b64.startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    if not b64:
+        raise HTTPException(status_code=400, detail="File mancante")
+    approx = int(len(b64) * 0.75)
+    if approx > 12 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="PDF troppo grande (max ~12 MB)")
+    doc_id = f"cdoc_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "doc_id": doc_id,
+        "tenant_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "name": (body.name or "documento.pdf").strip()[:200],
+        "mime": body.mime or "application/pdf",
+        "size": approx,
+        "file_base64": b64,
+        "created_at": utcnow(),
+    }
+    await db.company_documents.insert_one(doc)
+    # Return metadata only (no base64) to keep the response light
+    return {
+        "doc_id": doc_id,
+        "name": doc["name"],
+        "mime": doc["mime"],
+        "size": approx,
+        "created_at": doc["created_at"].isoformat(),
+    }
+
+
+@api_router.get("/company-docs")
+async def list_company_docs(user=Depends(get_current_user)):
+    """List company docs for the tenant. Every tenant user can list (they must
+    be able to open PDFs from the 'Comunica con l'azienda' panel)."""
+    tid = tenant_id(user)
+    cursor = db.company_documents.find(
+        {"tenant_id": tid},
+        {"_id": 0, "file_base64": 0},
+    ).sort("created_at", -1)
+    items = [d async for d in cursor]
+    for it in items:
+        v = it.get("created_at")
+        if hasattr(v, "isoformat"):
+            it["created_at"] = v.isoformat()
+    return {"items": items, "total": len(items)}
+
+
+@api_router.get("/company-docs/{doc_id}/file")
+async def get_company_doc_file(doc_id: str, user=Depends(get_current_user)):
+    """Return the base64 file for viewing. Any tenant user can download."""
+    tid = tenant_id(user)
+    doc = await db.company_documents.find_one({"doc_id": doc_id, "tenant_id": tid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    return {
+        "doc_id": doc_id,
+        "name": doc.get("name"),
+        "mime": doc.get("mime", "application/pdf"),
+        "size": doc.get("size"),
+        "file_base64": doc.get("file_base64", ""),
+    }
+
+
+@api_router.delete("/company-docs/{doc_id}")
+async def delete_company_doc(doc_id: str, user=Depends(get_current_user)):
+    if not _is_tenant_master(user):
+        raise HTTPException(status_code=403, detail="Solo il Master può eliminare documenti aziendali")
+    tid = tenant_id(user)
+    r = await db.company_documents.delete_one({"doc_id": doc_id, "tenant_id": tid})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    return {"ok": True}
+
+
+@api_router.post("/company-docs/{doc_id}/extract-contacts")
+async def extract_company_contacts(doc_id: str, user=Depends(get_current_user)):
+    """Ask Claude Sonnet 5 to read the PDF and extract company contacts.
+
+    Returns a list of {label, name, role, email, phone} entries that the Master
+    can review/append to the "Comunica con l'azienda" panel. Only the Master can
+    trigger extraction (LLM cost + tenant-config action)."""
+    if not _is_tenant_master(user):
+        raise HTTPException(status_code=403, detail="Solo il Master può usare Axon sui documenti aziendali")
+    tid = tenant_id(user)
+    doc = await db.company_documents.find_one({"doc_id": doc_id, "tenant_id": tid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    file_b64 = doc.get("file_base64") or ""
+    if not file_b64:
+        raise HTTPException(status_code=400, detail="Documento senza contenuto")
+
+    # 1) Extract text from PDF
+    try:
+        text = _extract_pdf_text(file_b64)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("[company-docs] pdf extract failed: %s", exc)
+        raise HTTPException(status_code=400, detail="Impossibile leggere il PDF")
+    text = (text or "").strip()
+    if len(text) < 20:
+        raise HTTPException(status_code=400, detail="Nessun testo utile trovato nel PDF")
+
+    # 2) Ask Claude Sonnet 5 for structured contact extraction
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+    system = (
+        "Sei un assistente che estrae contatti aziendali da testi/PDF italiani. "
+        "Analizza il testo fornito e restituisci ESCLUSIVAMENTE un JSON valido, senza markdown, "
+        "senza commenti, con la seguente struttura:\n"
+        '{ "contacts": [ { "name": "Mario Rossi", "role": "Assistenza Consulenti", '
+        '"email": "assistenza@azienda.it", "phone": "+39 02 1234 5678" } ] }\n'
+        "Regole:\n"
+        "- Includi SOLO contatti con almeno UN campo tra email e phone valorizzato.\n"
+        "- `role` (opzionale) è il ruolo/reparto/etichetta (es. 'Assistenza Clienti', 'Segreteria', 'Direzione').\n"
+        "- Se un contatto non ha nome ma ha un ruolo/reparto, usa il ruolo come `name`.\n"
+        "- Normalizza i numeri di telefono in formato leggibile (mantieni prefisso +39 se presente).\n"
+        "- Deduplica per email + numero.\n"
+        "- Se non trovi contatti restituisci {\"contacts\": []}.\n"
+    )
+    chat = LlmChat(
+        api_key=key,
+        session_id=f"company-doc-extract-{doc_id[:8]}",
+        system_message=system,
+    ).with_model("anthropic", "claude-sonnet-5")
+    snippet = text[:16000]
+    try:
+        raw = await chat.send_message(UserMessage(
+            text=f"Testo del PDF aziendale:\n\n{snippet}"
+        ))
+    except Exception as exc:
+        logger.warning("[company-docs] LLM error: %s", exc)
+        raise HTTPException(status_code=502, detail="Errore chiamando Axon (Claude)")
+
+    parsed = _parse_llm_json((raw or "").strip(), fallback_key="contacts_raw")
+    contacts_raw = parsed.get("contacts") if isinstance(parsed, dict) else None
+    if not isinstance(contacts_raw, list):
+        contacts_raw = []
+
+    # 3) Sanitize + normalize output
+    import re as _re
+    def _clean(v: Any) -> str:
+        return (str(v or "").strip())[:120]
+
+    cleaned: List[dict] = []
+    seen: set = set()
+    for c in contacts_raw:
+        if not isinstance(c, dict):
+            continue
+        name = _clean(c.get("name") or c.get("label") or "")
+        role = _clean(c.get("role") or "")
+        email = _clean(c.get("email") or "")
+        phone = _clean(c.get("phone") or c.get("number") or "")
+        if not (email or phone):
+            continue
+        dedup_key = f"{email.lower()}|{_re.sub(r'[^0-9+]', '', phone)}"
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        label = name or role or "Contatto"
+        if role and name and role.lower() not in name.lower():
+            label = f"{name} — {role}"
+        cleaned.append({
+            "id": uuid.uuid4().hex[:10],
+            "name": name,
+            "role": role,
+            "email": email,
+            "phone": phone,
+            "label": label,
+        })
+
+    return {"doc_id": doc_id, "contacts": cleaned, "total": len(cleaned)}
+
+
 COMPARISON_PROMPT_BASIC = """Sei un consulente energetico italiano esperto. Confronta due offerte energia/gas/telco.
 Rispondi ESCLUSIVAMENTE con JSON valido (nessun markdown, nessuna intro):
 {
