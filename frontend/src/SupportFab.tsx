@@ -350,10 +350,12 @@ function SupportSheet({ visible, onClose }: { visible: boolean; onClose: () => v
 const styles = StyleSheet.create({
   fab: {
     position: "absolute",
-    // V50.a — right:44 → left edge del FAB (30px) è a right:74; avatar (26px)
-    // occupa right:8..34. Restano 40px di gap: FAB visibilmente a sinistra
-    // dell'avatar senza mai sovrapporlo su nessuna schermata.
-    right: 44,
+    // V50.d — Distanziato con MARGINE DI SICUREZZA dall'avatar personale:
+    // avatar in Home/Master occupa right:8 + width:26 = fino a right:34 dal
+    // bordo destro dello schermo. FAB a right:60 ha il bordo destro a 60px
+    // dal bordo → gap effettivo tra avatar e FAB = 60-34 = 26px (~5mm),
+    // impossibile fraintendere per "sovrapposto".
+    right: 60,
     // top calcolato dinamicamente via insets nel componente
     width: 30, height: 30, borderRadius: 10,
     backgroundColor: "#FFFFFF",

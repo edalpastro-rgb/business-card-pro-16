@@ -1,3 +1,14 @@
+## V50.d (Sept 2026) — SupportFab: margine dall'avatar
+
+Utente ha segnalato: "il logo assistenza è posizionato proprio a ridosso della icona foto master".
+
+**Fix** (`/app/frontend/src/SupportFab.tsx`)
+- `right: 44 → 60`. Avatar in Home/Master occupa `right:8..34` (width 26). FAB ora ha `right:60` → **gap 26px** tra bordo sinistro dell'avatar e bordo destro del FAB, impossibile percepirli sovrapposti.
+- Nessuna altra modifica: dimensioni FAB restano 30×30 con `top: insets.top+11` per allineamento verticale al centro dell'avatar.
+
+Verifica screenshot 390×844: FAB (icona gear+chiave) chiaramente distanziato dall'avatar sulla Home; posizionamento identico anche in Master.
+
+
 ## V50.c (Sept 2026) — HOTFIX Master Header + Grid Bottoni
 
 ### Segnalazioni utente
