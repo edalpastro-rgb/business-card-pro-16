@@ -437,13 +437,25 @@ function FormatOption({ testID, icon, label, sub, color, busy, disabled, onPress
 const styles = StyleSheet.create({
   wrap: { marginTop: 8, gap: 6 },
   tableScroll: { borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#FFF" },
+  // V49.m — Larghezza uniforme e testo centrato per tutte le celle.
+  // Su mobile la ScrollView orizzontale mostra ogni colonna senza tagli.
   table: { minWidth: "100%" },
   row: { flexDirection: "row" },
   headerRow: {},
-  cell: { paddingVertical: 6, paddingHorizontal: 8, minWidth: 96, borderRightWidth: 1, borderRightColor: "#E5E7EB", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  cell: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    width: 120,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRightWidth: 1,
+    borderRightColor: "#E5E7EB",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
   cellLast: { borderRightWidth: 0 },
-  headerCellTxt: { color: "#FFF", fontSize: 11, fontWeight: "800", letterSpacing: 0.2 },
-  cellTxt: { fontSize: 12, color: "#1B2B4B" },
+  headerCellTxt: { color: "#FFF", fontSize: 11, fontWeight: "800", letterSpacing: 0.2, textAlign: "center" },
+  cellTxt: { fontSize: 12, color: "#1B2B4B", textAlign: "center" },
   moreRowsTxt: { fontSize: 10, color: "#94A3B8", fontStyle: "italic", textAlign: "right" },
   exportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, alignSelf: "flex-start" },
   exportBtnTxt: { fontSize: 12, fontWeight: "800" },
