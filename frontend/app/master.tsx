@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ImageBackground, Modal, Linking, Animated, Easing, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, ImageBackground, Modal, Linking, Animated, Easing, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,7 +13,9 @@ import { MasterPromoteModal } from "@/src/MasterPromoteModal";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { ModuleErrorBoundary } from "@/src/shared";
-import { NeuralPatternBg } from "@/src/NeuralPatternBg";
+
+// V49.g — Header Master allineato all'header Home: usa la stessa immagine.
+const HOME_HEADER_IMG = require("@/assets/images/advisoros-home-header.jpg");
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
 type MyThingImage = { item_id: string; image_base64?: string | null };
@@ -171,9 +173,6 @@ function MasterScreen() {
     }
   }, [voicePhase, voicePulse]);
 
-  const dateStr = now.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
-  const timeStr = now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-
   const goto = (path: string) => { setMenuOpen(false); router.push(path as any); };
 
   const handleNewContract = async () => {
@@ -271,38 +270,48 @@ function MasterScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      {/* V29.ba — Header hero: stesso tema tecnico della Home (sfondo navy scuro +
-          circuiti neurali cyan) MA senza i loghi AdvisorOS/AxonOS. */}
-      <View style={styles.hero}>
-        <LinearGradient
-          colors={["#0B1E38", "#0F172A", "#1E293B"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFillObject}
-        />
-        <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-          <NeuralPatternBg
-            width={390}
-            height={140}
-            color="#38BDF8"
-            opacity={0.28}
-            pulseColor="#22D3EE"
+      {/* V49.g — Header allineato alla Home: stessa immagine di sfondo con
+          loghi AdvisorOS/AxonOS integrati, data/ora TL e avatar TR come
+          overlay corner. Il tap sull'avatar apre il menu Master (Setting App,
+          Team Insights, New Corporate, Invita Collaboratore, Invita Cliente)
+          — lo stesso menu che era precedentemente aperto dall'icona ellipsis. */}
+      <View style={styles.brandHeader}>
+        <View style={styles.brandHeaderBox} testID="master-brand-header">
+          <Image
+            source={HOME_HEADER_IMG}
+            resizeMode="cover"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              borderRadius: 12,
+            }}
           />
-        </View>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn} testID="master-back">
-            <Ionicons name="chevron-back" size={22} color="#FFF" />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.hi}>Ciao {(user?.name || "Master").split(" ")[0]}</Text>
-            <Text style={styles.title}>Interfaccia Master</Text>
+          <View pointerEvents="none" style={styles.brandHeaderScrim} />
+          <View style={styles.brandHeaderCornerTL} pointerEvents="none">
+            <Text style={styles.brandHeaderDate} numberOfLines={1} testID="master-clock-time">
+              {now.toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
+              {" · "}
+              {now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+            </Text>
           </View>
-          <View style={styles.clockWrap}>
-            <Text style={styles.clockTime} testID="master-clock-time">{timeStr}</Text>
-            <Text style={styles.clockDate} testID="master-clock-date">{dateStr}</Text>
-          </View>
-          <Pressable onPress={() => setMenuOpen(true)} style={styles.menuBtn} testID="master-menu-btn">
-            <Ionicons name="ellipsis-vertical" size={22} color="#FFF" />
+          <Pressable
+            onPress={() => setMenuOpen(true)}
+            hitSlop={8}
+            style={styles.brandHeaderCornerTR}
+            testID="master-menu-btn"
+          >
+            {user?.avatar_base64 ? (
+              <Image source={{ uri: user.avatar_base64 }} style={styles.brandHeaderAvatar} />
+            ) : (
+              <View style={styles.brandHeaderAvatarFallback}>
+                <Text style={styles.brandHeaderAvatarTxt}>
+                  {user?.name?.[0]?.toUpperCase() || "?"}
+                </Text>
+              </View>
+            )}
           </Pressable>
         </View>
       </View>
@@ -768,6 +777,65 @@ const masterExtraStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.background },
+  // V49.g — Header allineato alla Home (stessa immagine + data TL + avatar TR).
+  brandHeader: {
+    backgroundColor: "transparent",
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  brandHeaderBox: {
+    height: 140,
+    backgroundColor: "#000",
+    borderWidth: 1,
+    borderColor: "rgba(56,189,248,0.35)",
+    borderRadius: 12,
+    position: "relative",
+    overflow: "hidden",
+    justifyContent: "center",
+  },
+  brandHeaderScrim: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 12,
+    backgroundColor: "transparent",
+  },
+  brandHeaderCornerTL: {
+    position: "absolute",
+    top: 4,
+    left: 10,
+    zIndex: 2,
+  },
+  brandHeaderCornerTR: {
+    position: "absolute",
+    top: 4,
+    right: 8,
+    zIndex: 2,
+  },
+  brandHeaderDate: {
+    color: "rgba(186,230,253,0.85)",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    textTransform: "capitalize",
+  },
+  brandHeaderAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: "#FFF1E9",
+  },
+  brandHeaderAvatarFallback: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#FF6B35",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFF1E9",
+  },
+  brandHeaderAvatarTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
   hero: {
     paddingHorizontal: 16,
     paddingTop: 8,
@@ -838,9 +906,14 @@ const styles = StyleSheet.create({
   // V29.ba — Stile "Optima": icona full-round su cerchio colorato con shadow
   // marcato (effetto rialzato/3D) e leggero highlight in alto.
   btnCircle: {
+    // V49.g — Nome storico "btnCircle": la forma è passata da cerchio a
+    // quadrato con angoli leggermente arrotondati (borderRadius 16 su 72×72)
+    // su richiesta utente. Manteniamo colori, icone, testi, badge e
+    // funzionalità di riordino identici. Nessun altro punto dell'app usa
+    // esattamente questa forma quindi il cambio è locale al Master.
     width: 72,
     height: 72,
-    borderRadius: 36,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
