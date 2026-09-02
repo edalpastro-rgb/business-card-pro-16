@@ -270,6 +270,20 @@ export default function GoogleDriveScreen() {
                     Axon leggerà SOLO i file nelle cartelle che scegli qui. Puoi aggiungerne quante vuoi.
                   </Text>
                 </View>
+                {/* V50.o — Refresh manuale della lista cartelle */}
+                <Pressable
+                  testID="gd-refresh-folders-btn"
+                  onPress={loadFolders}
+                  hitSlop={10}
+                  disabled={foldersLoading}
+                  style={[styles.refreshBtn, foldersLoading && { opacity: 0.5 }]}
+                >
+                  {foldersLoading ? (
+                    <ActivityIndicator size="small" color={GD_GREEN} />
+                  ) : (
+                    <Ionicons name="refresh" size={18} color={GD_GREEN} />
+                  )}
+                </Pressable>
               </View>
 
               {foldersLoading ? (
@@ -366,7 +380,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: theme.color.border,
   },
-  folderHeader: { flexDirection: "row", alignItems: "flex-start" },
+  folderHeader: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  refreshBtn: {
+    padding: 8, borderRadius: 999, backgroundColor: "#ECFDF5",
+    borderWidth: 1, borderColor: "#A7F3D0",
+    alignItems: "center", justifyContent: "center", minWidth: 34, minHeight: 34,
+  },
   folderTitle: { fontSize: 15, fontWeight: "900", color: theme.color.onSurface },
   folderSub: { fontSize: 12, color: theme.color.muted, marginTop: 3, lineHeight: 17 },
   emptyFolders: {

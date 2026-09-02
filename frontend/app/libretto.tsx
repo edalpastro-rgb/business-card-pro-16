@@ -258,8 +258,21 @@ export default function LibrettoScreen() {
           </Pressable>
         )}
         <Text style={styles.headerTitle}>{isOnboarding ? "Tour Guidato" : "Libretto Informativo"}</Text>
-        {/* V50.n — Nessun pulsante PDF in header; è a piè pagina. */}
-        <View style={styles.headerRightPh} />
+        {/* V50.o — In onboarding: pulsante "Salta" per entrare subito.
+            In modalità normale: placeholder trasparente per centrare il titolo. */}
+        {isOnboarding ? (
+          <Pressable
+            onPress={dismissOnboarding}
+            hitSlop={10}
+            testID="onboarding-skip-btn"
+            style={styles.skipBtn}
+          >
+            <Text style={styles.skipBtnTxt}>Salta</Text>
+            <Ionicons name="close" size={18} color="rgba(255,255,255,0.7)" />
+          </Pressable>
+        ) : (
+          <View style={styles.headerRightPh} />
+        )}
       </View>
 
       <ScrollView
@@ -400,6 +413,15 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 6, minWidth: 36 },
   headerRightPh: { minWidth: 36 },
+  // V50.o — Salta onboarding in alto a destra
+  skipBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.14)",
+  },
+  skipBtnTxt: { color: "rgba(255,255,255,0.85)", fontWeight: "700", fontSize: 13, letterSpacing: 0.2 },
   headerTitle: { color: "#FFF", fontSize: 16, fontWeight: "900" },
   pdfBtn: {
     flexDirection: "row",

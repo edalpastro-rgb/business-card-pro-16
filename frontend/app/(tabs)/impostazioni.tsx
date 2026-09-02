@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { notify, confirmAsync } from "@/src/utils/notify";
@@ -610,6 +611,28 @@ function ImpostazioniScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.linkTitle}>📘 Libretto Informativo</Text>
             <Text style={styles.linkSub}>Guida operativa completa · scaricabile in PDF</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
+        {/* V50.o — Rivedi tour guidato: resetta AsyncStorage e riapre onboarding */}
+        <Pressable
+          testID="review-tour-link"
+          onPress={async () => {
+            try {
+              await AsyncStorage.removeItem("libretto_seen_v1");
+              notify("Tour guidato riavviato", "Ti riportiamo all'introduzione");
+              setTimeout(() => router.push("/libretto?onboarding=1" as any), 300);
+            } catch (e: any) {
+              notify("Errore", e?.message || "Impossibile riavviare il tour");
+            }
+          }}
+          style={styles.linkCard}
+        >
+          <Ionicons name="sparkles" size={26} color="#FBBF24" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>🚀 Rivedi tour guidato</Text>
+            <Text style={styles.linkSub}>Riapri l&apos;onboarding di benvenuto quando vuoi</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>
