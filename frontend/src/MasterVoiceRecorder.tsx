@@ -104,10 +104,41 @@ export function MasterVoiceRecorder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  const supported = Platform.OS === "web" && typeof navigator !== "undefined" && !!navigator.mediaDevices && typeof (globalThis as any).MediaRecorder !== "undefined";
+  // V50.r — Supporto nativo Android/iOS via expo-audio (prima solo web).
+  const supported =
+    (Platform.OS === "web" && typeof navigator !== "undefined" && !!navigator.mediaDevices && typeof (globalThis as any).MediaRecorder !== "undefined")
+    || (Platform.OS !== "web");
+
+  // Native recorder refs (expo-audio)
+  const nativeRecorderRef = useRef<any>(null);
 
   const startRecording = async () => {
-    if (!supported) { notify("Non supportato", "La registrazione richiede il browser (Chrome/Safari 14.5+)."); return; }
+    if (!supported) { notify("Non supportato", "La registrazione non è disponibile su questo dispositivo."); return; }
+    // V50.r — Path nativo Android/iOS
+    if (Platform.OS !== "web") {
+      try {
+        const AudioMod: any = await import("expo-audio");
+        const perm = await AudioMod.AudioModule.requestRecordingPermissionsAsync();
+        if (!perm?.granted) {
+          notify("Microfono", "Permesso microfono negato. Vai in Impostazioni per abilitarlo.");
+          return;
+        }
+        const recorder = await AudioMod.createAudioRecorder(AudioMod.RecordingPresets.HIGH_QUALITY);
+        await recorder.prepareToRecordAsync();
+        recorder.record();
+        nativeRecorderRef.current = recorder;
+        durationRef.current = 0; setDuration(0);
+        timerRef.current = setInterval(() => {
+          durationRef.current += 1; setDuration(durationRef.current);
+          if (durationRef.current >= 600) stopRecording();
+        }, 1000);
+        setPhase("recording");
+      } catch (e: any) {
+        notify("Microfono", e?.message || String(e));
+      }
+      return;
+    }
+    // Web path (esistente)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -137,11 +168,60 @@ export function MasterVoiceRecorder({
 
   const stopRecording = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    // V50.r — Native path
+    if (Platform.OS !== "web" && nativeRecorderRef.current) {
+      (async () => {
+        try {
+          await nativeRecorderRef.current.stop();
+          const uri: string | undefined = nativeRecorderRef.current.uri;
+          const AudioMod: any = await import("expo-audio");
+          const FS: any = await import("expo-file-system/legacy");
+          if (uri) {
+            const b64 = await FS.readAsStringAsync(uri, { encoding: FS.EncodingType.Base64 });
+            // Build data URL fake mime for handleStop
+            const fakeBlob = { size: b64.length } as any;
+            chunksRef.current = [fakeBlob];
+            (globalThis as any).__lastNativeAudioB64 = b64;
+            (globalThis as any).__lastNativeAudioMime = "audio/m4a";
+          }
+          nativeRecorderRef.current = null;
+          void handleStop("audio/m4a");
+        } catch (e: any) {
+          notify("Errore stop", e?.message || String(e));
+        }
+      })();
+      return;
+    }
     try { if (mediaRecRef.current && mediaRecRef.current.state !== "inactive") mediaRecRef.current.stop(); } catch {}
   };
 
   const handleStop = async (mime: string) => {
     if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
+    // V50.r — Native path: audio già letto in globals durante stopRecording
+    if (Platform.OS !== "web") {
+      const nb64 = (globalThis as any).__lastNativeAudioB64 as string | undefined;
+      const nmime = ((globalThis as any).__lastNativeAudioMime as string | undefined) || "audio/m4a";
+      (globalThis as any).__lastNativeAudioB64 = undefined;
+      if (!nb64) { setPhase("idle"); return; }
+      const approxSize = Math.floor(nb64.length * 0.75);
+      if (approxSize < 512) { notify("Registrazione troppo corta"); setPhase("idle"); return; }
+      setAudioB64(nb64);
+      setAudioMime(nmime);
+      setAudioSize(approxSize);
+      try {
+        const [ct, gr] = await Promise.all([
+          api<{ items: Contact[] }>("/contacts").catch(() => ({ items: [] as Contact[] })),
+          api<{ items: Group[] }>("/groups").catch(() => ({ items: [] as Group[] })),
+        ]);
+        setContacts(ct.items || []);
+        setGroups(gr.items || []);
+      } catch {}
+      const now = new Date();
+      const defaultTitle = `Audio ${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      setTitle(defaultTitle);
+      setPhase("review");
+      return;
+    }
     const parts = chunksRef.current;
     chunksRef.current = [];
     if (parts.length === 0) { setPhase("idle"); return; }

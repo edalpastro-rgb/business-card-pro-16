@@ -10116,7 +10116,7 @@ async def _prepare_assistant_prompt(
         "**ZERO** frasi come 'Ecco la tabella:'. Solo la tabella e nient'altro. Colonne uniformi, testo "
         "delle celle CENTRATO (allineamento `:---:`). Struttura per PUN elettrico: "
         "`| Mese | PUN monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh |`. Se ti mancano alcuni valori "
-        "per una cella, scrivi `n/d` in quella cella specifica — NON aggiungere note fuori dalla tabella.\n\n"
+        "per una cella, scrivi `n/d` in quella cella specifica — NON aggiungere note fuori dalla tabella. VIETATO: parole tipo Premessa, Nota, Attenzione, Ecco la tabella, Per completezza, Attualmente ho dati fino a. Anche se mancano dati recenti, produci SOLO la tabella con `n/d` sulle celle mancanti. NON avvisare fuori tabella.\n\n"
         f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
@@ -10423,7 +10423,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "**ZERO** frasi come 'Ecco la tabella:'. Solo la tabella e nient'altro. Colonne uniformi, testo "
         "delle celle CENTRATO (allineamento `:---:`). Struttura per PUN elettrico: "
         "`| Mese | PUN monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh |`. Se ti mancano alcuni valori "
-        "per una cella, scrivi `n/d` in quella cella specifica — NON aggiungere note fuori dalla tabella.\n\n"
+        "per una cella, scrivi `n/d` in quella cella specifica — NON aggiungere note fuori dalla tabella. VIETATO: parole tipo Premessa, Nota, Attenzione, Ecco la tabella, Per completezza, Attualmente ho dati fino a. Anche se mancano dati recenti, produci SOLO la tabella con `n/d` sulle celle mancanti. NON avvisare fuori tabella.\n\n"
         f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
@@ -13978,13 +13978,18 @@ async def google_drive_disconnect(user=Depends(get_current_user)):
 
 
 @api_router.get("/google-drive/files")
-async def google_drive_list_files(search: Optional[str] = None, mime_type: Optional[str] = None, page_token: Optional[str] = None, user=Depends(get_current_user)):
-    """Lista i file Drive accessibili (con scope drive.file → solo file autorizzati)."""
+async def google_drive_list_files(search: Optional[str] = None, mime_type: Optional[str] = None, page_token: Optional[str] = None, folder_id: Optional[str] = None, user=Depends(get_current_user)):
+    """Lista i file Drive accessibili.
+    V50.q — Aggiunto `folder_id` per navigare dentro una cartella (`'ID' in parents`).
+    """
     from googleapiclient.discovery import build  # type: ignore
     from googleapiclient.errors import HttpError  # type: ignore
     creds = await _gd_get_credentials(user["user_id"])
     service = build("drive", "v3", credentials=creds, cache_discovery=False)
     clauses = ["trashed = false"]
+    if folder_id:
+        # V50.q — Naviga dentro la cartella (folders sono file con parents)
+        clauses.append(f"'{folder_id}' in parents")
     if search:
         escaped = search.replace("'", "\\'")
         clauses.append(f"name contains '{escaped}'")
@@ -13995,7 +14000,7 @@ async def google_drive_list_files(search: Optional[str] = None, mime_type: Optio
             q=" and ".join(clauses),
             pageSize=50,
             pageToken=page_token,
-            orderBy="modifiedTime desc",
+            orderBy="folder,modifiedTime desc",
             fields="nextPageToken,files(id,name,mimeType,size,modifiedTime,iconLink,webViewLink)",
         ).execute()
         return result

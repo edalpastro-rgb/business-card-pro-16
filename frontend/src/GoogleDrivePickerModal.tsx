@@ -49,6 +49,8 @@ export function GoogleDrivePickerModal({
   const [searchTick, setSearchTick] = useState(0);
   const safeBottom = useSafeBottom(); // V29.aq
   const [downloading, setDownloading] = useState<string | null>(null);
+  // V50.q — Breadcrumb per la navigazione cartelle Drive.
+  const [folderPath, setFolderPath] = useState<Array<{ id: string; name: string }>>([]);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -60,14 +62,19 @@ export function GoogleDrivePickerModal({
   const loadFiles = useCallback(async () => {
     setLoading(true);
     try {
-      const url = q.trim() ? `/google-drive/files?search=${encodeURIComponent(q.trim())}` : "/google-drive/files";
+      // V50.q — Se siamo dentro una cartella, filtra per folder_id
+      const currentFolder = folderPath.length > 0 ? folderPath[folderPath.length - 1].id : "";
+      const params = new URLSearchParams();
+      if (q.trim()) params.set("search", q.trim());
+      if (currentFolder && !q.trim()) params.set("folder_id", currentFolder);
+      const url = params.toString() ? `/google-drive/files?${params.toString()}` : "/google-drive/files";
       const r = await api<{ files?: DriveFile[] }>(url);
       setFiles(Array.isArray(r?.files) ? r.files : []);
     } catch (e: any) {
       // Silent fail se non connesso
       setFiles([]);
     } finally { setLoading(false); }
-  }, [q]);
+  }, [q, folderPath]);
 
   useEffect(() => {
     if (!visible) return;
@@ -83,6 +90,26 @@ export function GoogleDrivePickerModal({
   }, [visible, status.connected, searchTick]);
 
   const pickFile = async (f: DriveFile) => {
+    // V50.q — Se è una CARTELLA, naviga dentro invece di provare a scaricarla
+    // come PDF (causa 403 "Export only supports Docs Editors files").
+    if (f.mimeType === "application/vnd.google-apps.folder") {
+      setQ(""); // reset ricerca
+      setLoading(true);
+      try {
+        const url = `/google-drive/files?folder_id=${encodeURIComponent(f.id)}`;
+        const r = await api<{ files?: DriveFile[] }>(url);
+        setFiles(Array.isArray(r?.files) ? r.files : []);
+        setFolderPath(prev => [...prev, { id: f.id, name: f.name }]);
+      } catch (e: any) {
+        notify("Errore apertura cartella", e?.message || String(e));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    // V50.q — I Google Docs/Sheets/Slides devono usare export mime types, non
+    // il download raw. Il backend gestisce già l'export ma se restituisce 403
+    // mostriamo un messaggio più chiaro.
     try {
       setDownloading(f.id);
       const info = await api<{ name: string; mime: string; data_base64: string; size: number }>(`/google-drive/files/${f.id}/content`);
@@ -90,7 +117,13 @@ export function GoogleDrivePickerModal({
       onFilePicked({ name: info.name, mime: info.mime, data_base64: info.data_base64 });
       onClose();
     } catch (e: any) {
-      notify("Errore download Drive", e?.message || String(e));
+      const msg = e?.message || String(e);
+      // Messaggio più leggibile per l'errore "fileNotExportable"
+      if (msg.includes("fileNotExportable") || msg.includes("Export only supports Docs")) {
+        notify("File non esportabile", "Questo tipo di file non può essere scaricato via Drive. Aprilo su Drive e scaricalo manualmente, poi caricalo dal picker file.");
+      } else {
+        notify("Errore download Drive", msg);
+      }
     } finally {
       setDownloading(null);
     }
@@ -125,6 +158,34 @@ export function GoogleDrivePickerModal({
             </View>
           ) : (
             <>
+              {/* V50.q — Breadcrumb navigazione cartelle Drive */}
+              {folderPath.length > 0 && (
+                <View style={styles.breadcrumb}>
+                  <Pressable
+                    onPress={() => { setFolderPath([]); setSearchTick((t) => t + 1); }}
+                    style={styles.crumbBtn}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="home" size={14} color={theme.color.primary} />
+                    <Text style={styles.crumbTxt}>Drive</Text>
+                  </Pressable>
+                  {folderPath.map((f, i) => (
+                    <React.Fragment key={f.id}>
+                      <Ionicons name="chevron-forward" size={12} color={theme.color.muted} />
+                      <Pressable
+                        onPress={() => {
+                          setFolderPath(folderPath.slice(0, i + 1));
+                          setSearchTick((t) => t + 1);
+                        }}
+                        style={styles.crumbBtn}
+                        hitSlop={6}
+                      >
+                        <Text style={styles.crumbTxt} numberOfLines={1}>{f.name}</Text>
+                      </Pressable>
+                    </React.Fragment>
+                  ))}
+                </View>
+              )}
               <View style={styles.searchBox}>
                 <Ionicons name="search" size={16} color="#94A3B8" />
                 <TextInput
@@ -197,6 +258,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
   sub: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F1F5F9", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
+  // V50.q — Breadcrumb per navigazione cartelle Drive
+  breadcrumb: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, marginBottom: 6, paddingHorizontal: 4 },
+  crumbBtn: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#EEF2FF", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, maxWidth: 140 },
+  crumbTxt: { fontSize: 12, fontWeight: "700", color: theme.color.primary },
   searchInput: { flex: 1, fontSize: 14, color: theme.color.onSurface, padding: 0 },
   empty: { alignItems: "center", padding: 30, gap: 8 },
   emptyTxt: { color: theme.color.muted, textAlign: "center", fontSize: 13, fontWeight: "600" },

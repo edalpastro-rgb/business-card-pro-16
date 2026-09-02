@@ -1,3 +1,39 @@
+## V50.q–r (Sept 2026) — HOTFIX 3 bug segnalati
+
+### Segnalazioni utente
+1. Click su cartella Drive → 403 "Export only supports Docs Editors files".
+2. Quick action "PUN MEDIO X FASCE" ritorna "Premessa importante" + testo prima della tabella.
+3. Icona "Registra audio" nel Master non fa nulla su Android.
+
+### Fix V50.q — Google Drive folder navigation
+**Backend `/app/backend/server.py`**
+- Endpoint `GET /api/google-drive/files` accetta ora `folder_id` query param.
+- Quando presente, aggiunge `'{folder_id}' in parents` alla query Drive → lista i contenuti di quella cartella.
+- `orderBy: "folder,modifiedTime desc"` per mostrare cartelle in cima.
+
+**Frontend `/app/frontend/src/GoogleDrivePickerModal.tsx`**
+- `pickFile` distingue folder vs file: se `mimeType === "application/vnd.google-apps.folder"` → naviga dentro, non prova download.
+- Nuovo state `folderPath` per breadcrumb.
+- Nuovo componente breadcrumb (Drive → cartella1 → cartella2) con tap su ciascuna crumb per tornare al livello.
+- Gestione errore specifico `fileNotExportable` con messaggio comprensibile.
+
+### Fix V50.q — PUN tabella senza premessa
+System prompt rafforzato in due punti di `server.py`:
+> "VIETATO: parole tipo Premessa, Nota, Attenzione, Ecco la tabella, Per completezza, Attualmente ho dati fino a. Anche se mancano dati recenti, produci SOLO la tabella con `n/d` sulle celle mancanti. NON avvisare fuori tabella."
+
+Verifica live: risposta a "Tabella PUN F1 F2 F3 mensile 2026" ora inizia direttamente con `| Mese |` — zero preamboli.
+
+### Fix V50.r — Audio recording nativo (Android/iOS)
+**`/app/frontend/src/MasterVoiceRecorder.tsx`**
+- Rimosso il gate `Platform.OS === "web"` che rendeva l'audio ricordabile solo su web.
+- Aggiunto path nativo con `expo-audio` (`createAudioRecorder(RecordingPresets.HIGH_QUALITY)` + `AudioModule.requestRecordingPermissionsAsync`).
+- `stopRecording` sull'audio nativo: legge il file registrato con `expo-file-system/legacy`, converte in base64 e passa a `handleStop` come per il flusso web.
+- `handleStop` gestisce sia audio web (blob) che nativo (base64 già letto).
+
+### Nota critica al utente
+Le fix di questa sessione (e di V50.k-p) vivono nel **backend preview**. La build 1.0.17 sul telefono usa la produzione. Perché le vedere sul telefono serve **redeploy** (bottone Publish in alto a destra). Il redeploy è gratuito.
+
+
 ## V50.o–p (Sept 2026) — Fase 3: Copilot Vocale Auto + Micro-Tutorial
 
 ### 1) Copilot Vocale in Auto (backend + frontend)
