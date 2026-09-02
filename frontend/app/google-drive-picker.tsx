@@ -33,7 +33,7 @@ import { notify } from "@/src/utils/notify";
 
 const GD_GREEN = "#0F9D58";
 
-type Folder = { id: string; name: string };
+type Folder = { id: string; name: string; path?: string };
 type Crumb = { id: string; name: string };
 
 export default function GoogleDrivePickerNative() {
@@ -46,6 +46,7 @@ export default function GoogleDrivePickerNative() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
+  const [isGlobalSearch, setIsGlobalSearch] = useState(false);
   const [selected, setSelected] = useState<Record<string, Folder>>({});
   const [saving, setSaving] = useState(false);
   // Debounce ricerca
@@ -58,11 +59,13 @@ export default function GoogleDrivePickerNative() {
     try {
       const params = new URLSearchParams({ parent: parentId });
       if (q?.trim()) params.set("q", q.trim());
-      const r = await api<{ folders: Folder[] }>(`/google-drive/folders/browse?${params.toString()}`);
+      const r = await api<{ folders: Folder[]; global_search?: boolean }>(`/google-drive/folders/browse?${params.toString()}`);
       setFolders(Array.isArray(r?.folders) ? r.folders : []);
+      setIsGlobalSearch(!!r?.global_search);
     } catch (e: any) {
       notify("Errore", e?.message || "Impossibile leggere le cartelle Drive");
       setFolders([]);
+      setIsGlobalSearch(false);
     } finally {
       setLoading(false);
     }
@@ -133,9 +136,16 @@ export default function GoogleDrivePickerNative() {
         {/* Nome + tap = naviga dentro */}
         <Pressable style={styles.rowMain} onPress={() => enterFolder(item)}>
           <Ionicons name="folder" size={22} color={GD_GREEN} />
-          <Text style={styles.rowName} numberOfLines={1}>
-            {item.name}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowName} numberOfLines={1}>
+              {item.name}
+            </Text>
+            {!!item.path && (
+              <Text style={styles.rowPath} numberOfLines={1}>
+                {item.path}
+              </Text>
+            )}
+          </View>
           <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
         </Pressable>
       </View>
@@ -187,11 +197,12 @@ export default function GoogleDrivePickerNative() {
         <TextInput
           value={query}
           onChangeText={onSearchChange}
-          placeholder="Filtra cartelle di questo livello…"
+          placeholder="Cerca cartelle in tutto il Drive…"
           placeholderTextColor="#94A3B8"
           style={styles.searchInput}
           autoCorrect={false}
           autoCapitalize="none"
+          returnKeyType="search"
         />
         {query.length > 0 && (
           <Pressable onPress={() => onSearchChange("")} hitSlop={10}>
@@ -199,6 +210,15 @@ export default function GoogleDrivePickerNative() {
           </Pressable>
         )}
       </View>
+
+      {isGlobalSearch && !loading && folders.length > 0 && (
+        <View style={styles.globalHint}>
+          <Ionicons name="globe-outline" size={13} color="#0F9D58" />
+          <Text style={styles.globalHintTxt}>
+            Ricerca globale · {folders.length} risultat{folders.length === 1 ? "o" : "i"}
+          </Text>
+        </View>
+      )}
 
       {/* Lista */}
       <View style={{ flex: 1 }}>
@@ -312,7 +332,16 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   rowName: { flex: 1, fontSize: 14, color: "#0F172A", fontWeight: "600" },
+  rowPath: { fontSize: 11, color: "#64748B", marginTop: 2 },
   sep: { height: 1, backgroundColor: "#E2E8F0", marginLeft: 44 },
+  globalHint: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 6,
+    backgroundColor: "rgba(15,157,88,0.12)",
+    marginHorizontal: 12, marginBottom: 4,
+    borderRadius: 8,
+  },
+  globalHintTxt: { color: "#0F9D58", fontSize: 12, fontWeight: "700" },
   footer: {
     position: "absolute", left: 0, right: 0, bottom: 0,
     paddingHorizontal: 14, paddingTop: 10,

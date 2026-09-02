@@ -14133,8 +14133,13 @@ async def google_drive_folders_browse(
 ):
     """Lista cartelle figlie di `parent` (default root) opzionalmente filtrate da `q`.
 
+    V50.u — Se `q` è presente, la ricerca diventa GLOBALE su tutto il Drive
+    (non più limitata al parent corrente). Così l'utente che cerca dalla root
+    "corporate club" trova la cartella anche se è annidata in profondità.
+    Ritorna anche `path` (percorso leggibile) per ogni risultato quando globale.
+
     Ritorna:
-        { parent: str, folders: [{id, name, path?}], breadcrumb?: [{id,name}] }
+        { parent: str, folders: [{id, name, path?}], global_search: bool }
     """
     if not _gd_configured():
         raise HTTPException(status_code=503, detail="Google Drive non configurato")
@@ -14146,14 +14151,18 @@ async def google_drive_folders_browse(
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Credenziali Drive non valide: {e}")
     service = build("drive", "v3", credentials=creds, cache_discovery=False)
+    q_clean = (q or "").strip()
+    is_global = bool(q_clean)
     clauses = [
         "mimeType = 'application/vnd.google-apps.folder'",
         "trashed = false",
-        f"'{parent}' in parents",
     ]
-    if q:
-        # Escape apici singoli in q (contains)
-        q_esc = q.replace("'", "\\'")
+    if not is_global:
+        # Navigazione livello per livello
+        clauses.append(f"'{parent}' in parents")
+    else:
+        # Ricerca globale su tutto il Drive
+        q_esc = q_clean.replace("'", "\\'")
         clauses.append(f"name contains '{q_esc}'")
     query = " and ".join(clauses)
     try:
@@ -14163,11 +14172,57 @@ async def google_drive_folders_browse(
             fields="files(id,name,parents)",
             pageSize=200,
             orderBy="name",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+            corpora="user",
         ).execute()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore Drive: {e}")
-    folders = [{"id": f.get("id"), "name": f.get("name")} for f in (r.get("files") or [])]
-    return {"parent": parent, "folders": folders}
+    raw = r.get("files") or []
+
+    # Se ricerca globale, costruiamo un path leggibile risalendo i parents.
+    # Cache di lookup per non chiedere lo stesso id due volte.
+    name_cache: Dict[str, Dict[str, Any]] = {}
+
+    def _resolve_parent(pid: str) -> Optional[Dict[str, Any]]:
+        if not pid or pid == "root":
+            return None
+        if pid in name_cache:
+            return name_cache[pid]
+        try:
+            info = service.files().get(
+                fileId=pid,
+                fields="id,name,parents",
+                supportsAllDrives=True,
+            ).execute()
+            name_cache[pid] = info
+            return info
+        except Exception:
+            return None
+
+    folders = []
+    for f in raw:
+        item: Dict[str, Any] = {"id": f.get("id"), "name": f.get("name")}
+        if is_global:
+            # Ricostruisci path risalendo max 6 livelli
+            path_parts: List[str] = []
+            parents = f.get("parents") or []
+            cur = parents[0] if parents else None
+            depth = 0
+            while cur and depth < 6:
+                info = _resolve_parent(cur)
+                if not info:
+                    break
+                path_parts.insert(0, info.get("name") or "")
+                nps = info.get("parents") or []
+                cur = nps[0] if nps else None
+                depth += 1
+            if path_parts:
+                item["path"] = "My Drive / " + " / ".join(path_parts)
+            else:
+                item["path"] = "My Drive"
+        folders.append(item)
+    return {"parent": parent, "folders": folders, "global_search": is_global}
 
 
 @api_router.get("/google-drive/files")
