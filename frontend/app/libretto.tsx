@@ -200,10 +200,20 @@ export default function LibrettoScreen() {
 
   useEffect(() => {
     (async () => {
-      // Verifica se l'utente è owner (Master) per mostrare il pulsante "Modifica"
+      // Verifica se l'utente è il Super Master per mostrare il pulsante "Modifica"
       try {
         const me = await api<any>("/auth/me");
-        setCanEdit((me?.role || "member") === "owner");
+        const isOwner = (me?.role || "member") === "owner";
+        // Prova a fare un PUT dry-check? Meglio esporre l'informazione dal backend
+        // via un piccolo endpoint. Per semplicità qui: mostriamo il bottone solo
+        // se l'utente è owner; il backend rifiuta se non è il Super Master.
+        // Aggiungiamo un check attraverso /libretto/permission (usa API già disponibile).
+        try {
+          const perm = await api<any>("/libretto/permission");
+          setCanEdit(!!perm?.can_edit);
+        } catch {
+          setCanEdit(isOwner);
+        }
       } catch { /* silent */ }
       // Carica contenuto libretto dal backend, se presente
       try {

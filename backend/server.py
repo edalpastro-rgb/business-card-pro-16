@@ -13202,6 +13202,16 @@ class LibrettoContentIn(BaseModel):
     sections: List[LibrettoSectionIn]
 
 
+@api_router.get("/libretto/permission")
+async def libretto_permission(user=Depends(get_current_user)):
+    """Verifica se l'utente corrente può modificare il libretto (Super Master)."""
+    try:
+        _require_super_master(user)
+        return {"can_edit": True}
+    except HTTPException:
+        return {"can_edit": False}
+
+
 @api_router.get("/libretto/content")
 async def libretto_get_content(user=Depends(get_current_user)):
     """Ritorna il contenuto del libretto salvato dal Super Master.
