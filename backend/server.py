@@ -101,8 +101,15 @@ async def _oauth_callback_bridge(request: Request):
 
     async def _try_exchange_and_page(ok: bool, message: str, detail: str = "") -> HTMLResponse:
         # HTML minimalista, brand navy + arancione, self-close-friendly
+        # V50.i — Auto deep-link all'app Expo (scheme "frontend") + pulsante
+        # manuale "Apri app". Su mobile il redirect a `frontend://impostazioni`
+        # apre l'app installata (se presente) e la porta alla schermata
+        # Impostazioni; da lì il polling `/api/google-drive/status` aggancia
+        # la UI. In-app browser (WebBrowser.openAuthSessionAsync) si chiude
+        # automaticamente al deep-link. Fallback: window.close() dopo 4s.
         color = "#16A34A" if ok else "#DC2626"
         icon = "✓" if ok else "✗"
+        deep_link = "frontend://impostazioni?oauth=google&status=" + ("ok" if ok else "err")
         html = f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AdvisorOS · Google Drive</title>
@@ -115,14 +122,27 @@ body {{ font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; pad
            color: #FFF; font-weight: 800; margin-bottom: 20px; }}
 h1 {{ font-size: 22px; margin: 0 0 8px 0; font-weight: 800; letter-spacing: -0.4px; }}
 p {{ color: rgba(255,255,255,0.75); font-size: 14px; margin: 4px 0; max-width: 380px; }}
-.hint {{ margin-top: 20px; color: #38BDF8; font-size: 12px; font-weight: 700;
+.btn {{ display: inline-block; margin-top: 22px; padding: 14px 28px;
+        background: #EA580C; color: #FFF; font-weight: 800; font-size: 15px;
+        border-radius: 999px; text-decoration: none; letter-spacing: 0.3px;
+        box-shadow: 0 6px 20px rgba(234,88,12,0.35); }}
+.btn:active {{ transform: scale(0.98); }}
+.hint {{ margin-top: 14px; color: #38BDF8; font-size: 11px; font-weight: 700;
         text-transform: uppercase; letter-spacing: 1px; }}
 </style></head><body>
 <div class="circle">{icon}</div>
 <h1>{message}</h1>
 <p>{detail}</p>
-<p class="hint">Torna all'app AdvisorOS per continuare</p>
-<script>setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 2500);</script>
+<a class="btn" href="{deep_link}">Apri AdvisorOS</a>
+<p class="hint">Ti riportiamo automaticamente all'app…</p>
+<script>
+// 1) Tentativo di deep-link automatico (mobile): apre l'app se installata
+setTimeout(function(){{
+  try {{ window.location.href = "{deep_link}"; }} catch(e){{}}
+}}, 600);
+// 2) Fallback: chiude il tab/browser dopo 4s (utile su in-app WebBrowser)
+setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
+</script>
 </body></html>"""
         return HTMLResponse(content=html, status_code=200)
 
@@ -205,8 +225,10 @@ async def _dropbox_oauth_callback_bridge(request: Request):
     err = qp.get("error") or qp.get("error_description")
 
     def _page(ok: bool, message: str, detail: str = "") -> HTMLResponse:
+        # V50.i — Auto deep-link "frontend://dropbox" + pulsante manuale.
         color = "#0061FF" if ok else "#DC2626"
         icon = "✓" if ok else "✗"
+        deep_link = "frontend://dropbox?oauth=dropbox&status=" + ("ok" if ok else "err")
         html = f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AdvisorOS · Dropbox</title>
@@ -219,14 +241,25 @@ body {{ font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; pad
            color: #FFF; font-weight: 800; margin-bottom: 20px; }}
 h1 {{ font-size: 22px; margin: 0 0 8px 0; font-weight: 800; letter-spacing: -0.4px; }}
 p {{ color: rgba(255,255,255,0.75); font-size: 14px; margin: 4px 0; max-width: 380px; }}
-.hint {{ margin-top: 20px; color: #38BDF8; font-size: 12px; font-weight: 700;
+.btn {{ display: inline-block; margin-top: 22px; padding: 14px 28px;
+        background: #EA580C; color: #FFF; font-weight: 800; font-size: 15px;
+        border-radius: 999px; text-decoration: none; letter-spacing: 0.3px;
+        box-shadow: 0 6px 20px rgba(234,88,12,0.35); }}
+.btn:active {{ transform: scale(0.98); }}
+.hint {{ margin-top: 14px; color: #38BDF8; font-size: 11px; font-weight: 700;
         text-transform: uppercase; letter-spacing: 1px; }}
 </style></head><body>
 <div class="circle">{icon}</div>
 <h1>{message}</h1>
 <p>{detail}</p>
-<p class="hint">Torna all'app AdvisorOS per continuare</p>
-<script>setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 2500);</script>
+<a class="btn" href="{deep_link}">Apri AdvisorOS</a>
+<p class="hint">Ti riportiamo automaticamente all'app…</p>
+<script>
+setTimeout(function(){{
+  try {{ window.location.href = "{deep_link}"; }} catch(e){{}}
+}}, 600);
+setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
+</script>
 </body></html>"""
         return HTMLResponse(content=html, status_code=200)
 
@@ -13719,12 +13752,17 @@ def _sanitize_redirect_uri(raw: str) -> str:
 _GD_REDIRECT_URI = _sanitize_redirect_uri(os.getenv("GOOGLE_DRIVE_REDIRECT_URI", ""))
 _GD_TOKEN_KEY = os.getenv("GOOGLE_DRIVE_TOKEN_KEY", "")
 _GD_FRONTEND_URL = os.getenv("GOOGLE_DRIVE_FRONTEND_URL", "https://advisoros.it/profile")
-# V50.h — Scope allargato a drive.readonly + drive.metadata.readonly per
-# permettere ad Axon di elencare/leggere TUTTI i file dell'utente Drive
-# (prima: drive.file → solo file esplicitamente autorizzati).
+# V50.i — Scope RIDOTTO a drive.file su richiesta esplicita utente ("voglio
+# dare accesso a UNA sola cartella, non a tutto il Drive"). Con drive.file
+# l'app vede SOLO i file che l'utente autorizza esplicitamente (via Google
+# Picker) o che l'app stessa crea. Google non offre un vero scope
+# "singola cartella" via OAuth: drive.file è il modo standard per ottenere
+# accesso limitato + Picker (implementazione Picker può essere aggiunta in
+# seguito). NB: la vecchia funzionalità "elenca tutti i file Drive" non è
+# più supportata con questo scope; per ora resta solo l'accesso ai file
+# esplicitamente aperti/creati dall'app.
 _GD_SCOPES = [
-    "https://www.googleapis.com/auth/drive.readonly",
-    "https://www.googleapis.com/auth/drive.metadata.readonly",
+    "https://www.googleapis.com/auth/drive.file",
 ]
 _gd_fernet = _Fernet(_GD_TOKEN_KEY.encode()) if _GD_TOKEN_KEY else None
 
