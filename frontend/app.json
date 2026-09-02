@@ -83,7 +83,8 @@
           "color": "#EA580C"
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "onnxruntime-react-native"
     ],
     "experiments": {
       "typedRoutes": true

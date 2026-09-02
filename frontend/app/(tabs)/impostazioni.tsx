@@ -637,6 +637,20 @@ function ImpostazioniScreen() {
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>
 
+        {/* V50.v — Wake word Axon */}
+        <Pressable
+          testID="wake-word-link"
+          onPress={() => router.push("/wake-word" as any)}
+          style={styles.linkCard}
+        >
+          <Ionicons name="mic" size={26} color="#EA580C" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>🎙️ Wake Word &quot;Axon&quot;</Text>
+            <Text style={styles.linkSub}>Ascolto continuo per attivare Axon a voce · in preparazione</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
         {!user?.parent_user_id && (
           <Pressable testID="invitati-link" onPress={() => router.push("/invita" as any)} style={styles.linkCard}>
             <Ionicons name="person-add" size={26} color={theme.color.brandPrimary} />
