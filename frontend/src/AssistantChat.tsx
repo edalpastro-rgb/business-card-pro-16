@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 // V29.au — Import expo-audio per il pulsante microfono su native (APK Android/iOS).
 // Prima era solo web (MediaRecorder), quindi su APK i pulsanti mic + ascolto
 // continuo sparivano. Ora usiamo useAudioRecorder di expo-audio in modo nativo.
-import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
+import { useAudioRecorder, useAudioRecorderState, AudioModule, RecordingPresets } from "expo-audio";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
@@ -1040,14 +1040,47 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // era sempre `false` e i bottoni sparivano. Ora `voiceSupported = true`
   // ovunque; su native usiamo `expo-audio` (useAudioRecorder), su web
   // manteniamo MediaRecorder.
-  const nativeRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  // V50.u — Abilita metering per rilevare silenzio e stoppare automaticamente
+  const nativeRecorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
+  // Polling metering ogni 250ms (state.metering in dB, range ~ -160..0)
+  const nativeRecState = useAudioRecorderState(nativeRecorder, 250);
   const nativeUriRef = useRef<string | null>(null);
+  // V50.u — Timer di silenzio: se il livello audio resta sotto -40 dB per 2s
+  // consecutivi DOPO che almeno una volta è stato sopra soglia (utente ha
+  // parlato), fermiamo automaticamente la registrazione.
+  const lastVoiceRef = useRef<number | null>(null);
+  const hasSpokenRef = useRef<boolean>(false);
+  const VOICE_DB_THRESHOLD = -40;
+  const SILENCE_TIMEOUT_MS = 2200;
   const voiceSupported =
     Platform.OS === "web"
       ? (typeof navigator !== "undefined" &&
          !!navigator.mediaDevices &&
          typeof (globalThis as any).MediaRecorder !== "undefined")
       : true; // native = sempre supportato via expo-audio
+
+  // V50.u — Auto-stop su silenzio prolungato (solo native):
+  // se dopo aver rilevato la voce (metering > -40 dB) restiamo sotto
+  // soglia per SILENCE_TIMEOUT_MS, chiudiamo la registrazione.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (!recording) return;
+    const m = typeof nativeRecState?.metering === "number" ? nativeRecState.metering : -160;
+    const now = Date.now();
+    if (m > VOICE_DB_THRESHOLD) {
+      // Utente sta parlando
+      hasSpokenRef.current = true;
+      lastVoiceRef.current = now;
+    } else if (hasSpokenRef.current && lastVoiceRef.current) {
+      // Silenzio dopo aver parlato: check timeout
+      if (now - lastVoiceRef.current >= SILENCE_TIMEOUT_MS && durRef.current >= 2) {
+        // Auto-stop
+        stopRec();
+      }
+    }
+    // dep esplicite: reagiamo al cambio di metering
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nativeRecState?.metering, recording]);
 
   const startRec = async () => {
     if (!voiceSupported) return;
@@ -1062,6 +1095,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         setRecording(true);
         durRef.current = 0;
         setRecDuration(0);
+        // V50.u — Reset stato voice/silence detection
+        lastVoiceRef.current = null;
+        hasSpokenRef.current = false;
         timerRef.current = setInterval(() => {
           durRef.current += 1;
           setRecDuration(durRef.current);
