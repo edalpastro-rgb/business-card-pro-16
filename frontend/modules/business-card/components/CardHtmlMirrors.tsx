@@ -87,8 +87,7 @@ export function CardHtmlMirrors({ card }: Props): React.ReactElement | null {
             boxShadow: staticGlow,
           }}
         >
-          {/* V50.k — Se c'è un logo, occupa tutto il fronte (cover) e nasconde
-              stripes + gold border + shimmer. Altrimenti mostra il placeholder. */}
+          {/* V50.p — Logo intero nel fronte (contain, no crop). Stripes+gold nascosti. */}
           {card.logo_base64 ? (
             <img
               src={card.logo_base64}
@@ -96,7 +95,7 @@ export function CardHtmlMirrors({ card }: Props): React.ReactElement | null {
               style={{
                 position: "absolute", top: 0, left: 0,
                 width: "100%", height: "100%",
-                objectFit: "cover",
+                objectFit: "contain",
                 background: "transparent",
                 border: "none", boxShadow: "none", outline: "none",
                 display: "block",

@@ -242,10 +242,9 @@ export function BusinessCardScreen(): React.ReactElement {
                 },
               ]}
             >
-              {/* V50.k — Se c'è un logo, occupa TUTTO il fronte come background
-                  (cover). Nasconde le strisce diagonali e il gold-border per
-                  non "incastonare" il logo in una cornice.
-                  Se NON c'è logo: stripes + gold + placeholder come prima. */}
+              {/* V50.p — Se c'è un logo, riempie il fronte SENZA tagliarlo
+                  (contain invece di cover). Nasconde stripes/gold border
+                  per non incasellare il logo dentro cornici. */}
               {card.logo_base64 ? (
                 <>
                   {Platform.OS === "web" ? (
@@ -258,7 +257,7 @@ export function BusinessCardScreen(): React.ReactElement {
                         top: 0, left: 0,
                         width: "100%",
                         height: "100%",
-                        objectFit: "cover",
+                        objectFit: "contain",
                         background: "transparent",
                         border: "none",
                         display: "block",
@@ -268,7 +267,7 @@ export function BusinessCardScreen(): React.ReactElement {
                     <RNImage
                       source={{ uri: card.logo_base64 }}
                       style={StyleSheet.absoluteFill}
-                      resizeMode="cover"
+                      resizeMode="contain"
                     />
                   )}
                 </>
@@ -407,7 +406,7 @@ export function BusinessCardScreen(): React.ReactElement {
             </Pressable>
           ) : null}
         </View>
-        <Text style={styles.helperTxt}>Il logo occupa <Text style={{ fontWeight: "700" }}>l&apos;intero fronte</Text> del biglietto. Consiglio: usa un&apos;immagine 900×567 px (rapporto 8.5:5.4) o superiore per la massima qualità.</Text>
+        <Text style={styles.helperTxt}>Il logo è mostrato <Text style={{ fontWeight: "700" }}>intero</Text> sul fronte del biglietto (nessun taglio). Consiglio: PNG con sfondo trasparente, rapporto ~8.5:5.4 (es. 900×567 px).</Text>
 
         <Text style={styles.section}>QR Code (retro)</Text>
         <View style={{ gap: 6 }}>
