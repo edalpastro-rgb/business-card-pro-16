@@ -13734,6 +13734,10 @@ from cryptography.fernet import Fernet as _Fernet
 
 _GD_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 _GD_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+# V50.i — Browser API key per Google Picker (Cloud Console > API key con
+# Picker API + Drive API abilitate). Non è un secret sensibile, ma la teniamo
+# lato server per non hardcodarla nel bundle mobile.
+_GD_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 # V29.as — Hardening: some deployments have accidentally included query-string
 # fragments (e.g. `?flowName=GeneralOAuthFlow` from a copy-paste) inside the
 # GOOGLE_DRIVE_REDIRECT_URI secret. Google rejects any redirect_uri that does
@@ -14012,7 +14016,109 @@ async def google_drive_disconnect(user=Depends(get_current_user)):
         except Exception:
             pass
     await db.google_drive_connections.delete_one({"user_id": user["user_id"]})
+    # V50.i — Rimuovi anche la lista di cartelle Axon salvate
+    await db.google_drive_folders.delete_many({"user_id": user["user_id"]})
     return {"connected": False}
+
+
+# =========================================================================
+# V50.i — Google Picker + gestione cartelle Axon
+#
+# Flusso:
+#   1) Frontend chiama GET /google-drive/picker-config → riceve api_key,
+#      app_id (numeric project number derivato dal client_id) e un
+#      access_token fresco (mintato dal refresh_token cifrato).
+#   2) Frontend renderizza una WebView con l'HTML del Picker (contenente
+#      Google Picker JS SDK). L'utente sceglie 1 o più cartelle.
+#   3) Il Picker chiama window.ReactNativeWebView.postMessage con i folder_id.
+#   4) Frontend POST /google-drive/folders → salva {id, name} in Mongo.
+#   5) Da qui in poi, quando `folder_id` NON è specificato in /files, la
+#      lista è filtrata SOLO alle cartelle Axon dell'utente (con scope
+#      drive.file, comunque le altre non sarebbero visibili).
+# =========================================================================
+
+@api_router.get("/google-drive/picker-config")
+async def google_drive_picker_config(user=Depends(get_current_user)):
+    """Ritorna api_key + app_id + access_token per il Google Picker.
+
+    `app_id` = project number, estratto dalla prima parte del client_id
+    (formato: `<PROJECT_NUMBER>-<HASH>.apps.googleusercontent.com`).
+    """
+    if not _gd_configured():
+        raise HTTPException(status_code=503, detail="Google Drive non configurato")
+    if not _GD_API_KEY:
+        raise HTTPException(status_code=503, detail="GOOGLE_API_KEY mancante lato server. Vai su Google Cloud → Credentials → API key → abilita Picker API + Drive API.")
+    # Access token fresco dal refresh
+    creds = await _gd_get_credentials(user["user_id"])
+    access_token = getattr(creds, "token", None)
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Impossibile ottenere access_token")
+    # App ID = project number davanti al primo dash del client_id
+    app_id = (_GD_CLIENT_ID or "").split("-", 1)[0] if _GD_CLIENT_ID else ""
+    return {
+        "api_key": _GD_API_KEY,
+        "app_id": app_id,
+        "client_id": _GD_CLIENT_ID,
+        "oauth_token": access_token,
+    }
+
+
+class DrivePickedFolderIn(BaseModel):
+    id: str
+    name: str
+
+
+class DrivePickedFoldersIn(BaseModel):
+    folders: List[DrivePickedFolderIn]
+
+
+@api_router.get("/google-drive/folders")
+async def google_drive_folders_list(user=Depends(get_current_user)):
+    """Lista le cartelle Axon scelte dall'utente."""
+    cur = db.google_drive_folders.find(
+        {"user_id": user["user_id"]},
+        {"_id": 0, "folder_id": 1, "folder_name": 1, "picked_at": 1},
+    ).sort("picked_at", -1)
+    items = [i async for i in cur]
+    return {"folders": items}
+
+
+@api_router.post("/google-drive/folders")
+async def google_drive_folders_add(body: DrivePickedFoldersIn, user=Depends(get_current_user)):
+    """Aggiunge una o più cartelle scelte dal picker (upsert per folder_id)."""
+    if not body.folders:
+        return {"added": 0}
+    now = utcnow()
+    added = 0
+    for f in body.folders:
+        if not f.id or not f.name:
+            continue
+        r = await db.google_drive_folders.update_one(
+            {"user_id": user["user_id"], "folder_id": f.id},
+            {"$set": {
+                "user_id": user["user_id"],
+                "folder_id": f.id,
+                "folder_name": f.name,
+                "picked_at": now,
+            }},
+            upsert=True,
+        )
+        if r.upserted_id or r.modified_count:
+            added += 1
+    return {"added": added}
+
+
+@api_router.delete("/google-drive/folders/{folder_id}")
+async def google_drive_folders_remove(folder_id: str, user=Depends(get_current_user)):
+    """Rimuove una cartella dalla lista Axon (non revoca l'OAuth grant)."""
+    r = await db.google_drive_folders.delete_one({"user_id": user["user_id"], "folder_id": folder_id})
+    return {"removed": r.deleted_count}
+
+
+async def _gd_user_folder_ids(user_id: str) -> List[str]:
+    """Helper: ritorna gli ID delle cartelle Axon salvate (o [] se nessuna)."""
+    cur = db.google_drive_folders.find({"user_id": user_id}, {"_id": 0, "folder_id": 1})
+    return [d["folder_id"] async for d in cur if d.get("folder_id")]
 
 
 @api_router.get("/google-drive/files")
@@ -14028,6 +14134,17 @@ async def google_drive_list_files(search: Optional[str] = None, mime_type: Optio
     if folder_id:
         # V50.q — Naviga dentro la cartella (folders sono file con parents)
         clauses.append(f"'{folder_id}' in parents")
+    else:
+        # V50.i — Se l'utente ha scelto delle "cartelle Axon" tramite Picker,
+        # limitiamo l'elenco top-level a QUELLE cartelle (e ai loro figli
+        # diretti). Se non ne ha ancora scelte, ritorniamo elenco vuoto con
+        # un flag `needs_picker` così il frontend può guidarlo al picker.
+        user_folders = await _gd_user_folder_ids(user["user_id"])
+        if not user_folders:
+            return {"files": [], "needs_picker": True, "message": "Scegli una cartella Axon dal picker"}
+        # Filtra ai figli diretti delle cartelle scelte
+        parents_or = " or ".join([f"'{fid}' in parents" for fid in user_folders])
+        clauses.append(f"({parents_or})")
     if search:
         escaped = search.replace("'", "\\'")
         clauses.append(f"name contains '{escaped}'")

@@ -44,6 +44,8 @@ export default function GoogleDriveScreen() {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [status, setStatus] = useState<{ connected: boolean; configured: boolean; google_email?: string; updated_at?: string; scopes?: string[] }>({ connected: false, configured: false });
+  const [folders, setFolders] = useState<Array<{ folder_id: string; folder_name: string; picked_at?: string }>>([]);
+  const [foldersLoading, setFoldersLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -55,7 +57,49 @@ export default function GoogleDriveScreen() {
     } finally { setLoading(false); }
   }, []);
 
+  const loadFolders = useCallback(async () => {
+    try {
+      setFoldersLoading(true);
+      const r = await api<{ folders: Array<{ folder_id: string; folder_name: string; picked_at?: string }> }>("/google-drive/folders");
+      setFolders(r?.folders || []);
+    } catch (e: any) {
+      // Silenzioso: se non è connesso l'endpoint può fallire
+    } finally { setFoldersLoading(false); }
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (status.connected) loadFolders();
+  }, [status.connected, loadFolders]);
+
+  // V50.i — Ricarica cartelle quando la schermata torna in foreground
+  // (utile dopo il picker che chiama router.back())
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    // useFocusEffect è più corretto ma richiede import extra; qui basta un poll
+    const t = setInterval(() => { if (status.connected) loadFolders(); }, 3000);
+    return () => clearInterval(t);
+  }, [status.connected, loadFolders]);
+
+  const removeFolder = async (folder_id: string, folder_name: string) => {
+    const doRemove = async () => {
+      try {
+        await api(`/google-drive/folders/${encodeURIComponent(folder_id)}`, { method: "DELETE" });
+        await loadFolders();
+      } catch (e: any) {
+        notify("Errore", e?.message || "Rimozione fallita");
+      }
+    };
+    if (Platform.OS === "web") {
+      const ok = (globalThis as any).window.confirm(`Rimuovere "${folder_name}" da Axon?`);
+      if (ok) await doRemove();
+    } else {
+      Alert.alert("Rimuovi cartella", `Rimuovere "${folder_name}" da Axon?`, [
+        { text: "Annulla", style: "cancel" },
+        { text: "Rimuovi", style: "destructive", onPress: doRemove },
+      ]);
+    }
+  };
 
   // Reload status when web tab comes back to foreground
   useEffect(() => {
@@ -216,6 +260,60 @@ export default function GoogleDriveScreen() {
             </Pressable>
           )}
 
+          {/* V50.i — Cartelle Axon (Google Picker) */}
+          {status.connected && (
+            <View style={styles.folderBlock}>
+              <View style={styles.folderHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.folderTitle}>📂 Cartelle Axon</Text>
+                  <Text style={styles.folderSub}>
+                    Axon leggerà SOLO i file nelle cartelle che scegli qui. Puoi aggiungerne quante vuoi.
+                  </Text>
+                </View>
+              </View>
+
+              {foldersLoading ? (
+                <ActivityIndicator color={GD_GREEN} style={{ marginTop: 8 }} />
+              ) : folders.length === 0 ? (
+                <View style={styles.emptyFolders}>
+                  <Ionicons name="folder-open-outline" size={26} color="#94A3B8" />
+                  <Text style={styles.emptyTxt}>Nessuna cartella scelta ancora</Text>
+                  <Text style={styles.emptyHint}>Tocca &ldquo;Scegli cartella&rdquo; per aprire il Google Picker</Text>
+                </View>
+              ) : (
+                <View style={{ gap: 8 }}>
+                  {folders.map((f) => (
+                    <View key={f.folder_id} style={styles.folderRow}>
+                      <Ionicons name="folder" size={20} color={GD_GREEN} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.folderName} numberOfLines={1}>{f.folder_name}</Text>
+                        <Text style={styles.folderId} numberOfLines={1}>{f.folder_id}</Text>
+                      </View>
+                      <Pressable
+                        onPress={() => removeFolder(f.folder_id, f.folder_name)}
+                        hitSlop={10}
+                        style={styles.folderDelBtn}
+                      >
+                        <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <Pressable
+                testID="gd-pick-folder-btn"
+                onPress={() => router.push("/google-drive-picker" as any)}
+                style={styles.pickerBtn}
+              >
+                <Ionicons name="add-circle" size={20} color="#FFF" />
+                <Text style={styles.pickerBtnTxt}>
+                  {folders.length === 0 ? "Scegli cartella" : "Aggiungi altra cartella"}
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
           <View style={styles.infoCard}>
             <Ionicons name="information-circle" size={18} color={theme.color.brandPrimary} />
             <Text style={styles.infoTxt}>
@@ -259,4 +357,39 @@ const styles = StyleSheet.create({
   secondaryBtnTxt: { color: "#DC2626", fontWeight: "800", fontSize: 14 },
   infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 12, backgroundColor: "#EDE9FE" },
   infoTxt: { flex: 1, fontSize: 12, color: theme.color.onSurface, lineHeight: 17 },
+  // V50.i — Cartelle Axon
+  folderBlock: {
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1.5,
+    borderColor: theme.color.border,
+  },
+  folderHeader: { flexDirection: "row", alignItems: "flex-start" },
+  folderTitle: { fontSize: 15, fontWeight: "900", color: theme.color.onSurface },
+  folderSub: { fontSize: 12, color: theme.color.muted, marginTop: 3, lineHeight: 17 },
+  emptyFolders: {
+    alignItems: "center", justifyContent: "center", gap: 4,
+    paddingVertical: 18, paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1, borderColor: theme.color.border, borderStyle: "dashed",
+    backgroundColor: "#F8FAFC",
+  },
+  emptyTxt: { fontSize: 13, color: theme.color.onSurface, fontWeight: "700" },
+  emptyHint: { fontSize: 11, color: theme.color.muted },
+  folderRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: 10, backgroundColor: "#F1F5F9",
+    borderWidth: 1, borderColor: "#E2E8F0",
+  },
+  folderName: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
+  folderId: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
+  folderDelBtn: { padding: 6, borderRadius: 8 },
+  pickerBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 13, borderRadius: 12, backgroundColor: GD_GREEN,
+  },
+  pickerBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
 });

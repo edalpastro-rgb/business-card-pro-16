@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, TextInput, ScrollView, ActivityIndicator, Image, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
+import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
@@ -45,12 +46,14 @@ export function GoogleDrivePickerModal({
   const bottomPad = useBottomSheetPadding();
   const [loading, setLoading] = useState(true);
   const [files, setFiles] = useState<DriveFile[]>([]);
+  const [needsPicker, setNeedsPicker] = useState(false);
   const [q, setQ] = useState("");
   const [searchTick, setSearchTick] = useState(0);
   const safeBottom = useSafeBottom(); // V29.aq
   const [downloading, setDownloading] = useState<string | null>(null);
   // V50.q — Breadcrumb per la navigazione cartelle Drive.
   const [folderPath, setFolderPath] = useState<Array<{ id: string; name: string }>>([]);
+  const router = useRouter();
 
   const loadStatus = useCallback(async () => {
     try {
@@ -68,11 +71,13 @@ export function GoogleDrivePickerModal({
       if (q.trim()) params.set("search", q.trim());
       if (currentFolder && !q.trim()) params.set("folder_id", currentFolder);
       const url = params.toString() ? `/google-drive/files?${params.toString()}` : "/google-drive/files";
-      const r = await api<{ files?: DriveFile[] }>(url);
+      const r = await api<{ files?: DriveFile[]; needs_picker?: boolean }>(url);
       setFiles(Array.isArray(r?.files) ? r.files : []);
+      setNeedsPicker(!!r?.needs_picker);
     } catch (e: any) {
       // Silent fail se non connesso
       setFiles([]);
+      setNeedsPicker(false);
     } finally { setLoading(false); }
   }, [q, folderPath]);
 
@@ -206,10 +211,35 @@ export function GoogleDrivePickerModal({
 
               {loading ? (
                 <ActivityIndicator color="#0F9D58" style={{ marginTop: 20 }} />
+              ) : needsPicker ? (
+                // V50.i — Nessuna cartella Axon scelta: guida al picker
+                <View style={styles.empty}>
+                  <Ionicons name="folder-open-outline" size={30} color="#F59E0B" />
+                  <Text style={[styles.emptyTxt, { fontWeight: "800", color: theme.color.onSurface }]}>
+                    Nessuna cartella Axon scelta
+                  </Text>
+                  <Text style={styles.emptyTxt}>
+                    Apri il Google Picker per scegliere una o più cartelle: Axon leggerà solo i file al loro interno.
+                  </Text>
+                  <Pressable
+                    onPress={() => { onClose(); setTimeout(() => router.push("/google-drive-picker" as any), 250); }}
+                    style={styles.pickerCta}
+                  >
+                    <Ionicons name="add-circle" size={18} color="#FFF" />
+                    <Text style={styles.pickerCtaTxt}>Scegli cartella Axon</Text>
+                  </Pressable>
+                </View>
               ) : files.length === 0 ? (
                 <View style={styles.empty}>
                   <Ionicons name="cloud-outline" size={30} color={theme.color.muted} />
-                  <Text style={styles.emptyTxt}>Nessun file trovato.{"\n"}Prova a cercare per nome oppure riautorizza Drive dalle Impostazioni per aggiornare i permessi.</Text>
+                  <Text style={styles.emptyTxt}>File non presente nella cartella.{"\n"}Aggiungilo alla cartella Axon oppure cambia cartella dalle Impostazioni → Google Drive.</Text>
+                  <Pressable
+                    onPress={() => { onClose(); setTimeout(() => router.push("/google-drive-picker" as any), 250); }}
+                    style={styles.pickerCta}
+                  >
+                    <Ionicons name="folder" size={16} color="#FFF" />
+                    <Text style={styles.pickerCtaTxt}>Gestisci cartelle</Text>
+                  </Pressable>
                 </View>
               ) : (
                 <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
@@ -269,4 +299,11 @@ const styles = StyleSheet.create({
   icon16: { width: 22, height: 22 },
   rowName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
   rowMeta: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
+  // V50.i — CTA per aprire il Google Picker
+  pickerCta: {
+    marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 18, paddingVertical: 12, borderRadius: 999,
+    backgroundColor: "#0F9D58",
+  },
+  pickerCtaTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
 });
