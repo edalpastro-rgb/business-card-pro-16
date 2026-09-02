@@ -18,6 +18,8 @@ export type LibrettoSection = {
     title: string;
     lines: string[]; // ogni riga è mostrata come blocco in mono/mock
   };
+  /** V50.m — Screenshot reale (require path). Se presente sostituisce il mockup testuale. */
+  image?: number;
   warning?: string;
 };
 
@@ -70,20 +72,11 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#4C1D95",
     title: "2 · Accesso e registrazione",
     subtitle: "Email + password oppure invito Master",
+    image: require("@/assets/images/libretto/01_login.jpg"),
     paragraphs: [
       "Se sei un Master, registrati con email e password. Se sei un Agente, riceverai un link di invito dal tuo Master: apriti crea la password personale e sei dentro.",
       "Puoi abilitare l'accesso biometrico (Face ID / Touch ID / Impronta) da Impostazioni → Sicurezza per accedere in un tocco.",
     ],
-    mockup: {
-      title: "Schermata di login",
-      lines: [
-        "✉️  Email: mario.rossi@energia.it",
-        "🔒  Password: ●●●●●●●●",
-        "[ Accedi ]",
-        "🔵 Accedi con Google (Emergent)",
-        "→  «Non hai un account? Registrati»",
-      ],
-    },
     tips: [
       { emoji: "🧠", text: "Password consigliata: minimo 10 caratteri, con maiuscole e numeri." },
       { emoji: "🔁", text: "Puoi resettare la password dalla stessa schermata di login." },
@@ -96,23 +89,11 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#EA580C",
     title: "3 · Home",
     subtitle: "Il tuo cruscotto operativo del giorno",
+    image: require("@/assets/images/libretto/02_home.jpg"),
     paragraphs: [
       "La Home mostra in alto il tuo brand personalizzato (Cognome, Nome, logo agenzia opzionale) e sotto le sezioni operative: appuntamenti di oggi, scadenze in arrivo, ultimi contatti aggiunti e KPI mensili.",
       "Ogni card è tap-friendly: toccala per andare direttamente alla sezione approfondita.",
     ],
-    mockup: {
-      title: "Esempio Home",
-      lines: [
-        "🏷️  ROSSI · MARIO · Consulente Energetico",
-        "📅  Oggi hai 3 appuntamenti",
-        "     • 10:00 Colferai · Milano",
-        "     • 14:30 Bianchi · online",
-        "     • 17:00 Verdi · sopralluogo",
-        "⏰  Scadenze prossime · 5",
-        "📞  Da richiamare · 2",
-        "💡  KPI mese: 12 contratti · 47 lead",
-      ],
-    },
     tips: [
       { emoji: "🔄", text: "Trascina verso il basso per aggiornare (pull-to-refresh)." },
     ],
@@ -124,22 +105,11 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#1D4ED8",
     title: "4 · Contatti · Anagrafica",
     subtitle: "Il cuore del tuo CRM",
+    image: require("@/assets/images/libretto/03_contatti.jpg"),
     paragraphs: [
       "Ogni contatto ha: dati anagrafici, referente/i, aree merceologiche, tag, script personalizzato, note vocali e allegati.",
       "Puoi aggiungere campi personalizzati per adattare l'anagrafica al tuo processo commerciale (Es.: «Vendita fissa», «PV installato», «Data ultimo contratto»).",
     ],
-    mockup: {
-      title: "Scheda contatto",
-      lines: [
-        "👤  Carlo Colferai · Milano",
-        "📞  +39 335 12 34 567",
-        "📧  carlo@studio.it",
-        "🏷️  Tag: fotovoltaico · lead caldo",
-        "🗓️  Ultimo appuntamento: 12/05",
-        "📝  Nota vocale (0:47)",
-        "📎  Bolletta_luglio.pdf",
-      ],
-    },
     tips: [
       { emoji: "🎯", text: "Usa le AREE per filtrare rapidamente per servizio." },
       { emoji: "🏷️", text: "I TAG sono liberi e si aggiungono digitando." },
@@ -152,20 +122,12 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#16A34A",
     title: "5 · Aggiungere un contatto",
     subtitle: "5 modi rapidissimi",
+    image: require("@/assets/images/libretto/05_nuovo_contatto.jpg"),
     paragraphs: [
       "Puoi aggiungere un nuovo contatto in cinque modi:",
       "1) Manualmente compilando il form.\n2) Dal biglietto da visita (fotografato: OCR + AI).\n3) Dalla rubrica del telefono (import massivo o singolo).\n4) Da un URL / vCard (incolla e AxonOS riempie i campi).\n5) A voce, dettando i dati ad AxonOS.",
       "Al salvataggio l'app ti chiede se vuoi copiare il contatto anche nella rubrica del telefono. Se il contatto esiste già in rubrica, ti avvisa prima di creare duplicati.",
     ],
-    mockup: {
-      title: "Modale post-creazione",
-      lines: [
-        "✅ Contatto salvato · Carlo Colferai",
-        "[ 📱  Salva anche in rubrica telefono ]",
-        "[ 📅  Fissa appuntamento ]",
-        "[ ➡️  Vai alla scheda ]",
-      ],
-    },
     tips: [
       { emoji: "📸", text: "Per il biglietto: buona luce, inquadratura dritta, testo nitido." },
       { emoji: "🗣️", text: "Modalità voce: «Aggiungi Mario Rossi, telefono 335 12 34 567, mail rossi at energia punto it»." },
@@ -178,6 +140,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#DB2777",
     title: "6 · Appuntamenti & Calendario",
     subtitle: "Prenotazione, promemoria, cronologia",
+    image: require("@/assets/images/libretto/08_calendario.jpg"),
     paragraphs: [
       "Dal contatto o dalla tab Calendario puoi creare un appuntamento: data, ora, tipologia (sopralluogo, chiamata, riunione online, ecc.), note e link Meet/Zoom.",
       "Ricevi promemoria push 30 minuti prima e vedi tutti gli appuntamenti passati per ogni contatto.",
@@ -195,6 +158,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#0891B2",
     title: "7 · Biglietto da visita digitale",
     subtitle: "Condividi il tuo profilo in un tap",
+    image: require("@/assets/images/libretto/07_biglietto.jpg"),
     paragraphs: [
       "Ogni consulente ha un biglietto digitale a due facce: fronte con logo aziendale (che ora occupa l'intero fronte come sfondo) e retro con foto, dati e QR code.",
       "Condividi il biglietto via WhatsApp, email, AirDrop o NFC. Il destinatario può salvarlo direttamente nella sua rubrica.",
@@ -212,6 +176,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#7C3AED",
     title: "8 · AxonOS — Chat AI",
     subtitle: "Il tuo assistente sempre disponibile",
+    image: require("@/assets/images/libretto/04_chat.jpg"),
     paragraphs: [
       "AxonOS è la chat integrata: gli fai domande e ti risponde in tempo reale usando il tuo contesto personale (contatti, bollette, appuntamenti, regole aziendali).",
       "Nel campo di input trovi anche il pulsante microfono per parlare invece di scrivere e allegare file da Drive, Dropbox o dal telefono.",
@@ -239,6 +204,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#B91C1C",
     title: "9 · Insegna ad Axon",
     subtitle: "Regole, URL sorgente, documenti",
+    image: require("@/assets/images/libretto/10_ai_teach.jpg"),
     paragraphs: [
       "Da Impostazioni → Insegna ad Axon puoi creare regole personalizzate per rendere Axon esperto del TUO business: linee guida di vendita, script preferiti, terminologia tecnica.",
       "Aggiungi anche URL di siti sorgente (es. autorità energia, il tuo sito) e documenti PDF che Axon leggerà come contesto RAG (embeddings semantici).",
@@ -315,6 +281,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#0EA5E9",
     title: "14 · Report",
     subtitle: "Analytics chiari, decisioni migliori",
+    image: require("@/assets/images/libretto/09_report.jpg"),
     paragraphs: [
       "La tab Report mostra grafici a barre, torta e trend nel tempo: contratti chiusi, tipologie di appuntamento, area geografica, provenienza lead, uso di Axon.",
       "Puoi filtrare per periodo (7/30/90 giorni, YTD) ed esportare CSV/PDF.",
@@ -327,6 +294,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#475569",
     title: "15 · Impostazioni",
     subtitle: "Personalizza AdvisorOS a modo tuo",
+    image: require("@/assets/images/libretto/06_impostazioni.jpg"),
     paragraphs: [
       "In Impostazioni trovi tutto: profilo, biglietto da visita, integrazioni cloud, aree e categorie personalizzate, gestione team, memoria di Axon, SMTP per invio email, sicurezza biometrica, invito collaboratori.",
     ],

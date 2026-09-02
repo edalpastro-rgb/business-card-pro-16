@@ -6,6 +6,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import Svg, { Circle, G } from "react-native-svg";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { CallScriptOverlay } from "@/src/CallScriptOverlay";
 import { CompanyContactSheet } from "@/src/CompanyContactSheet";
@@ -137,6 +138,22 @@ export default function HomeScreen() {
   const [deadlinesLoading, setDeadlinesLoading] = useState<boolean>(true);
   // V49 — "Comunica con l'azienda" panel (nome, email, numeri di servizio)
   const [companySheetOpen, setCompanySheetOpen] = useState<boolean>(false);
+
+  // V50.m — Onboarding esteso: al primo login mostra automaticamente il
+  // libretto informativo in modalità tour guidato. Una volta visto, non
+  // riappare più (chiave AsyncStorage persistente).
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const seen = await AsyncStorage.getItem("libretto_seen_v1");
+        if (mounted && !seen) {
+          router.replace("/libretto?onboarding=1" as any);
+        }
+      } catch { /* silent */ }
+    })();
+    return () => { mounted = false; };
+  }, [router]);
 
   // Update header clock every minute (aligned to the next :00 second)
   useEffect(() => {

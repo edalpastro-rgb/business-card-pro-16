@@ -4,7 +4,7 @@
  * Schermata full-page con guida operativa completa dell'app.
  * Include pulsante di export PDF (expo-print + expo-sharing) con logo brand.
  */
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -17,11 +17,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { Asset } from "expo-asset";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection } from "@/src/libretto/libretto-content";
@@ -61,8 +62,9 @@ async function assetToBase64(mod: number): Promise<string> {
   }
 }
 
-function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string): string {
+function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages: Record<string, string>): string {
   const dataUri = (b64: string) => (b64 ? `data:image/png;base64,${b64}` : "");
+  const jpgUri = (b64: string) => (b64 ? `data:image/jpeg;base64,${b64}` : "");
   const cover = `
     <div class="cover">
       <div class="cover-logos">
@@ -89,6 +91,10 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string): string {
     const tips = s.tips
       ? `<ul class="tips">${s.tips.map((t) => `<li><span class="tip-em">${t.emoji}</span> ${t.text}</li>`).join("")}</ul>`
       : "";
+    const imgB64 = sectionImages[s.id];
+    const imgHtml = imgB64
+      ? `<div class="screenshot"><img src="${jpgUri(imgB64)}" alt="${s.title}" /></div>`
+      : "";
     const mockup = s.mockup
       ? `<div class="mockup">
            <div class="mockup-title">${s.mockup.title}</div>
@@ -107,6 +113,7 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string): string {
         </div>
         <div class="sec-body">
           ${s.paragraphs.map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`).join("")}
+          ${imgHtml}
           ${mockup}
           ${tips}
           ${warning}
@@ -147,6 +154,8 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string): string {
   .mockup { background: #0F172A; color: #E2E8F0; border-radius: 10px; padding: 14px 18px; margin: 14px 0; }
   .mockup-title { color: #FBBF24; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
   .mockup-body { font-family: "Menlo", "Consolas", monospace; font-size: 12px; margin: 0; white-space: pre-wrap; }
+  .screenshot { text-align: center; margin: 16px 0; }
+  .screenshot img { max-width: 55%; max-height: 380px; border-radius: 12px; box-shadow: 0 6px 20px rgba(15,23,42,0.15); border: 1px solid #E2E8F0; }
   .tips { list-style: none; padding: 0; margin: 14px 0 0; }
   .tips li { padding: 8px 12px; margin-bottom: 6px; background: #FEF3C7; border-radius: 8px; font-size: 12.5px; }
   .tip-em { display: inline-block; width: 22px; }
@@ -167,10 +176,27 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+const LIBRETTO_SEEN_KEY = "libretto_seen_v1";
+
 export default function LibrettoScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ onboarding?: string }>();
+  const isOnboarding = params.onboarding === "1";
   const [exporting, setExporting] = useState(false);
   const bottomPad = useSafeBottom();
+
+  // V50.m — Se apriamo il libretto in modalità onboarding, non è più "primo giro":
+  // segna come visto quando l'utente inizia a leggerlo (evita che riappaia).
+  useEffect(() => {
+    if (isOnboarding) {
+      AsyncStorage.setItem(LIBRETTO_SEEN_KEY, "1").catch(() => {});
+    }
+  }, [isOnboarding]);
+
+  const dismissOnboarding = useCallback(async () => {
+    try { await AsyncStorage.setItem(LIBRETTO_SEEN_KEY, "1"); } catch { /* noop */ }
+    router.replace("/");
+  }, [router]);
 
   const onExport = useCallback(async () => {
     try {
@@ -180,11 +206,23 @@ export default function LibrettoScreen() {
         assetToBase64(ADVISOR_LOGO),
         assetToBase64(AXON_LOGO),
       ]);
-      // 2) Costruisci HTML
-      const html = buildPdfHtml(logoAdvisor, logoAxon);
-      // 3) Genera PDF
+      // 2) Prepara gli screenshot delle sezioni in base64 (in parallelo)
+      const sectionImages: Record<string, string> = {};
+      await Promise.all(
+        LIBRETTO_SECTIONS
+          .filter((s) => !!s.image)
+          .map(async (s) => {
+            try {
+              const b64 = await assetToBase64(s.image as number);
+              if (b64) sectionImages[s.id] = b64;
+            } catch { /* skip */ }
+          }),
+      );
+      // 3) Costruisci HTML
+      const html = buildPdfHtml(logoAdvisor, logoAxon, sectionImages);
+      // 4) Genera PDF
       const { uri } = await Print.printToFileAsync({ html, base64: false });
-      // 4) Condividi
+      // 5) Condividi
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(uri, {
@@ -193,7 +231,6 @@ export default function LibrettoScreen() {
           UTI: "com.adobe.pdf",
         });
       } else if (Platform.OS === "web") {
-        // Su web: apri in nuova tab
         (globalThis as any).window.open(uri, "_blank");
       } else {
         notify("PDF pronto", `Salvato in: ${uri}`);
@@ -209,10 +246,16 @@ export default function LibrettoScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       {/* Header */}
       <View style={styles.headerBar}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Libretto Informativo</Text>
+        {isOnboarding ? (
+          <View style={styles.backBtn}>
+            <Ionicons name="sparkles" size={22} color="#FBBF24" />
+          </View>
+        ) : (
+          <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#FFF" />
+          </Pressable>
+        )}
+        <Text style={styles.headerTitle}>{isOnboarding ? "Tour Guidato" : "Libretto Informativo"}</Text>
         <Pressable
           onPress={onExport}
           disabled={exporting}
@@ -232,7 +275,7 @@ export default function LibrettoScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad + 40 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad + (isOnboarding ? 100 : 40) }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Cover */}
@@ -241,8 +284,12 @@ export default function LibrettoScreen() {
             <Image source={ADVISOR_LOGO} style={styles.coverLogo} resizeMode="contain" />
             <Image source={AXON_LOGO} style={styles.coverLogo} resizeMode="contain" />
           </View>
-          <Text style={styles.coverTitle}>{LIBRETTO_META.title}</Text>
-          <Text style={styles.coverSub}>{LIBRETTO_META.subtitle}</Text>
+          <Text style={styles.coverTitle}>{isOnboarding ? "Benvenuto in AdvisorOS" : LIBRETTO_META.title}</Text>
+          <Text style={styles.coverSub}>
+            {isOnboarding
+              ? "Ecco un giro guidato di tutto quello che puoi fare. Scorri, esplora, poi tocca «Iniziamo!» in fondo."
+              : LIBRETTO_META.subtitle}
+          </Text>
           <View style={styles.coverBadge}>
             <Text style={styles.coverBadgeTxt}>{LIBRETTO_META.version}</Text>
           </View>
@@ -260,6 +307,16 @@ export default function LibrettoScreen() {
           <Text style={styles.footerTxt}>Per assistenza: support@advisoros.it</Text>
         </View>
       </ScrollView>
+
+      {/* V50.m — Sticky CTA quando siamo in onboarding */}
+      {isOnboarding && (
+        <View style={[styles.stickyCta, { paddingBottom: bottomPad + 12 }]}>
+          <Pressable onPress={dismissOnboarding} testID="onboarding-start-btn" style={styles.stickyBtn}>
+            <Ionicons name="rocket" size={18} color="#FFF" />
+            <Text style={styles.stickyBtnTxt}>Ho capito · Iniziamo!</Text>
+          </Pressable>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -280,6 +337,11 @@ function SectionCard({ section }: { section: LibrettoSection }) {
             {p}
           </Text>
         ))}
+        {section.image ? (
+          <View style={styles.screenshotWrap}>
+            <Image source={section.image} style={styles.screenshotImg} resizeMode="contain" />
+          </View>
+        ) : null}
         {section.mockup ? (
           <View style={styles.mockup}>
             <Text style={styles.mockupTitle}>{section.mockup.title}</Text>
@@ -396,6 +458,22 @@ const styles = StyleSheet.create({
   secSub: { color: "rgba(255,255,255,0.9)", fontSize: 12, marginTop: 3 },
   secBody: { padding: 18 },
   secP: { fontSize: 13.5, lineHeight: 21, color: "#0F172A", marginBottom: 10 },
+  screenshotWrap: {
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 6,
+    padding: 8,
+    borderRadius: 14,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  screenshotImg: {
+    width: "88%",
+    height: 260,
+    borderRadius: 10,
+    backgroundColor: "#FFF",
+  },
   mockup: {
     backgroundColor: "#0F172A",
     borderRadius: 10,
@@ -448,4 +526,20 @@ const styles = StyleSheet.create({
   },
   footerIcon: { width: 60, height: 60, borderRadius: 12, marginBottom: 6 },
   footerTxt: { fontSize: 11, color: theme.color.muted, textAlign: "center" },
+  // V50.m — Sticky CTA per onboarding
+  stickyCta: {
+    position: "absolute",
+    left: 0, right: 0, bottom: 0,
+    paddingHorizontal: 20, paddingTop: 12,
+    backgroundColor: "rgba(15,36,56,0.98)",
+    borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)",
+  },
+  stickyBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    paddingVertical: 15, borderRadius: 999,
+    backgroundColor: "#EA580C",
+    shadowColor: "#EA580C", shadowOpacity: 0.45, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  stickyBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 15, letterSpacing: 0.3 },
 });
