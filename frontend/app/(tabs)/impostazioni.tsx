@@ -604,6 +604,16 @@ function ImpostazioniScreen() {
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>
 
+        {/* V50.l — Libretto informativo AdvisorOS + AxonOS */}
+        <Pressable testID="libretto-link" onPress={() => router.push("/libretto" as any)} style={styles.linkCard}>
+          <Ionicons name="book" size={26} color="#EA580C" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>📘 Libretto Informativo</Text>
+            <Text style={styles.linkSub}>Guida operativa completa · scaricabile in PDF</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
         {!user?.parent_user_id && (
           <Pressable testID="invitati-link" onPress={() => router.push("/invita" as any)} style={styles.linkCard}>
             <Ionicons name="person-add" size={26} color={theme.color.brandPrimary} />
