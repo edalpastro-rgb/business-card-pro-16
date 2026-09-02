@@ -119,6 +119,9 @@ function NewContactScreen() {
   const [expandAreas, setExpandAreas] = useState(false);
   const [expandGroups, setExpandGroups] = useState(false);
   const [postCreateModal, setPostCreateModal] = useState<{ contact_id: string; name: string } | null>(null);
+  // V50.j — Stato per il salvataggio in rubrica telefono (post-create modal)
+  const [savingToPhone, setSavingToPhone] = useState(false);
+  const [savedToPhone, setSavedToPhone] = useState(false);
   // V38H — user's sender emails (main + additional) for the birthday email picker
   const [userEmails, setUserEmails] = useState<string[]>([]);
   const [bdayGenerating, setBdayGenerating] = useState(false);
@@ -901,6 +904,7 @@ function NewContactScreen() {
           contact_id: contactId,
           name: `${form.first_name} ${form.last_name}`.trim() || "il nuovo contatto",
         });
+        setSavedToPhone(false); // V50.j — reset per nuovo contatto
       }
     } finally { setBusy(false); }
   };
@@ -994,6 +998,66 @@ function NewContactScreen() {
       setGroupModal(null);
     } catch (e: any) {
       notify("Errore", e?.message || "Salvataggio fallito");
+    }
+  };
+
+  // V50.j — Salva il contatto anche nella rubrica del telefono
+  const saveContactToPhone = async () => {
+    if (savingToPhone || savedToPhone) return;
+    try {
+      setSavingToPhone(true);
+      const perm = await Contacts.requestPermissionsAsync();
+      if (perm.status !== "granted") {
+        if (perm.canAskAgain === false) {
+          notify("Permessi negati", "Vai nelle impostazioni del telefono e abilita l'accesso ai Contatti per AdvisorOS.");
+        } else {
+          notify("Permesso mancante", "Serve il permesso Contatti per salvare in rubrica.");
+        }
+        return;
+      }
+      // Costruisci il Contact object per expo-contacts
+      const phones: any[] = [];
+      if (form.phone?.trim()) phones.push({ label: "mobile", number: form.phone.trim(), isPrimary: true });
+      if (form.phone_alt?.trim()) phones.push({ label: "other", number: form.phone_alt.trim() });
+      if (form.whatsapp?.trim() && form.whatsapp.trim() !== form.phone?.trim()) {
+        phones.push({ label: "WhatsApp", number: form.whatsapp.trim() });
+      }
+      const emails: any[] = [];
+      if (form.email?.trim()) emails.push({ label: "work", email: form.email.trim(), isPrimary: true });
+      if (form.email_alt?.trim()) emails.push({ label: "other", email: form.email_alt.trim() });
+      const addresses: any[] = [];
+      const street = [form.address_street, form.address_number].filter(Boolean).join(" ").trim();
+      if (street || form.address_city || form.address_zip) {
+        addresses.push({
+          label: "home",
+          street: street || undefined,
+          city: form.address_city || undefined,
+          postalCode: form.address_zip || undefined,
+          region: form.address_province || undefined,
+        });
+      }
+      const contact: any = {
+        [Contacts.Fields.FirstName]: form.first_name || "",
+        [Contacts.Fields.LastName]: form.last_name || "",
+        contactType: Contacts.ContactTypes.Person,
+      };
+      if (phones.length) contact[Contacts.Fields.PhoneNumbers] = phones;
+      if (emails.length) contact[Contacts.Fields.Emails] = emails;
+      if (addresses.length) contact[Contacts.Fields.Addresses] = addresses;
+      if ((form as any).company?.trim()) contact[Contacts.Fields.Company] = (form as any).company.trim();
+
+      if (Platform.OS === "ios") {
+        // Su iOS mostra la scheda di sistema per anteprima/edit prima di salvare.
+        await Contacts.presentFormAsync(null, contact);
+      } else {
+        await Contacts.addContactAsync(contact);
+      }
+      setSavedToPhone(true);
+      notify("Rubrica aggiornata ✅", `${form.first_name || "Il contatto"} è stato salvato nella rubrica del telefono.`);
+    } catch (e: any) {
+      notify("Errore", e?.message || "Salvataggio in rubrica fallito");
+    } finally {
+      setSavingToPhone(false);
     }
   };
 
@@ -1959,18 +2023,52 @@ function NewContactScreen() {
                   </Pressable>
                 </>
               ) : (
-                <Pressable
-                  testID="post-create-skip-btn"
-                  onPress={() => {
-                    const id = postCreateModal?.contact_id;
-                    setPostCreateModal(null);
-                    if (id) router.replace(`/contact/${id}`);
-                  }}
-                  style={[styles.modalBtn, { backgroundColor: "#E2E8F0", borderWidth: 1, borderColor: "#94A3B8", flexDirection: "row", justifyContent: "center", gap: 8 }]}
-                >
-                  <Ionicons name="arrow-forward" size={18} color="#0F172A" />
-                  <Text style={{ color: "#0F172A", fontWeight: "800", fontSize: 15 }}>Salta, vai alla scheda</Text>
-                </Pressable>
+                <>
+                  {/* V50.j — Salva anche nella rubrica del telefono */}
+                  <Pressable
+                    testID="post-create-phone-btn"
+                    disabled={savingToPhone || savedToPhone}
+                    onPress={saveContactToPhone}
+                    style={[
+                      styles.modalBtn,
+                      {
+                        backgroundColor: savedToPhone ? "#DCFCE7" : "#F1F5F9",
+                        borderWidth: 1,
+                        borderColor: savedToPhone ? "#16A34A" : "#CBD5E1",
+                        flexDirection: "row",
+                        justifyContent: "center",
+                        gap: 8,
+                        opacity: savingToPhone ? 0.6 : 1,
+                      },
+                    ]}
+                  >
+                    {savingToPhone ? (
+                      <ActivityIndicator color="#0F172A" />
+                    ) : (
+                      <Ionicons
+                        name={savedToPhone ? "checkmark-circle" : "phone-portrait"}
+                        size={18}
+                        color={savedToPhone ? "#16A34A" : "#0F172A"}
+                      />
+                    )}
+                    <Text style={{ color: savedToPhone ? "#16A34A" : "#0F172A", fontWeight: "800", fontSize: 14 }}>
+                      {savedToPhone ? "Salvato in rubrica ✓" : (savingToPhone ? "Salvo in rubrica…" : "Salva anche in rubrica telefono")}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    testID="post-create-skip-btn"
+                    onPress={() => {
+                      const id = postCreateModal?.contact_id;
+                      setPostCreateModal(null);
+                      if (id) router.replace(`/contact/${id}`);
+                    }}
+                    style={[styles.modalBtn, { backgroundColor: "#E2E8F0", borderWidth: 1, borderColor: "#94A3B8", flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                  >
+                    <Ionicons name="arrow-forward" size={18} color="#0F172A" />
+                    <Text style={{ color: "#0F172A", fontWeight: "800", fontSize: 15 }}>{savedToPhone ? "Vai alla scheda" : "Salta, vai alla scheda"}</Text>
+                  </Pressable>
+                </>
               )}
             </View>
           </View>

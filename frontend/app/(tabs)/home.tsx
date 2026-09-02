@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, Image, ImageBackground, Platform, Animated, Easing, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -128,16 +128,12 @@ export default function HomeScreen() {
   // V29 — Scadenze imminenti (widget Home)
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [deadlinesDays, setDeadlinesDays] = useState<number>(60);
-  // V29.ar — Collapsable header on scroll: da 140px (full) a 60px (compact).
-  // useNativeDriver: false perché animiamo `height` (layout prop non nativa).
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const HEADER_MAX = 140;
-  const HEADER_MIN = 60;
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, HEADER_MAX - HEADER_MIN],
-    outputRange: [HEADER_MAX, HEADER_MIN],
-    extrapolate: "clamp",
-  });
+  // V50.j — Header FISSO (rimossa animazione di collapse su scroll).
+  //   Motivo: animare `height` richiede useNativeDriver:false, che rialloca
+  //   layout ad ogni frame di scroll → "effetto scatto" visibile su Android.
+  //   Preferiamo scroll fluido (native driver possibile perché non serve
+  //   più agganciare scrollY a nulla) rispetto a un mini-collapse del brand.
+  const HEADER_HEIGHT = 140;
   const [deadlinesLoading, setDeadlinesLoading] = useState<boolean>(true);
   // V49 — "Comunica con l'azienda" panel (nome, email, numeri di servizio)
   const [companySheetOpen, setCompanySheetOpen] = useState<boolean>(false);
@@ -297,8 +293,8 @@ export default function HomeScreen() {
           L'immagine include già il logo AdvisorOS + AxonOS quindi non serve
           il fade animato con testo "Ciao, NOME". */}
       <View style={styles.brandHeader}>
-        <Animated.View
-          style={[styles.brandHeaderBox, { height: headerHeight }]}
+        <View
+          style={[styles.brandHeaderBox, { height: HEADER_HEIGHT }]}
           testID="home-brand-header"
         >
           <Image
@@ -333,17 +329,12 @@ export default function HomeScreen() {
               </View>
             )}
           </Pressable>
-        </Animated.View>
+        </View>
       </View>
-      <Animated.ScrollView
+      <ScrollView
         style={styles.scrollBg}
         contentContainerStyle={[styles.scroll, { paddingBottom: pagePad }]}
         showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false },
-        )}
-        scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.primary} />}
       >
         {/* ── Trial banners ── */}
@@ -670,7 +661,7 @@ export default function HomeScreen() {
         </Pressable>
 
         <View style={{ height: 40 }} />
-      </Animated.ScrollView>
+      </ScrollView>
 
       <CallActionSheet
         visible={!!callTarget}

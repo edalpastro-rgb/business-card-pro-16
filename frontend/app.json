@@ -35,7 +35,8 @@
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
         "RECORD_AUDIO",
-        "READ_CONTACTS"
+        "READ_CONTACTS",
+        "WRITE_CONTACTS"
       ]
     },
     "web": {
