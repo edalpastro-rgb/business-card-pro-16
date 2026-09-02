@@ -13,6 +13,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { WakeWordService } from "@/src/wakeword/WakeWordService";
 import { theme } from "@/src/theme";
 
 const WAKE_ENABLED_KEY = "wake_word_enabled_v1";
@@ -53,11 +54,20 @@ export default function WakeWordSettingsScreen() {
   const toggle = useCallback(async (v: boolean) => {
     setEnabled(v);
     try { await AsyncStorage.setItem(WAKE_ENABLED_KEY, v ? "1" : "0"); } catch {/* noop */}
-    if (v) {
-      Alert.alert(
-        "Wake-word in preparazione",
-        "L'infrastruttura è pronta (ONNX Runtime installato), ma il modulo nativo di ascolto continuo verrà attivato nella prossima build dell'app. Ti avviseremo quando pronto.\n\nNel frattempo puoi comunque usare AxonOS tramite il pulsante microfono nella chat.",
-      );
+    try {
+      if (v) {
+        const r = await WakeWordService.start({ threshold: 0.8 });
+        if (r.mode === "mock") {
+          Alert.alert(
+            "Wake-word in modalità TEST",
+            "Il modulo nativo di ascolto continuo verrà attivato nella prossima build.\n\nPer ora puoi provare tutto il flusso premendo il pulsante 'Simula rilevamento' qui sotto: aprirà automaticamente il Voice Copilot come farebbe la parola magica.",
+          );
+        }
+      } else {
+        await WakeWordService.stop();
+      }
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || String(e));
     }
   }, []);
 
@@ -99,6 +109,16 @@ export default function WakeWordSettingsScreen() {
             </View>
             <Switch value={enabled} onValueChange={toggle} />
           </View>
+          {enabled && !WakeWordService.hasNativeSupport && (
+            <Pressable
+              testID="wake-simulate-btn"
+              onPress={() => WakeWordService.triggerMock(0.97)}
+              style={styles.testBtn}
+            >
+              <Ionicons name="flash" size={18} color="#FFF" />
+              <Text style={styles.testBtnTxt}>Simula rilevamento &quot;Axon&quot;</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Selezione modello */}
@@ -203,6 +223,14 @@ const styles = StyleSheet.create({
   modelActive: { borderColor: "#EA580C", backgroundColor: "#FFF7ED" },
   badgeReady: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: "#16A34A" },
   badgeReadyTxt: { color: "#FFF", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  testBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    marginTop: 4, paddingVertical: 12, borderRadius: 999,
+    backgroundColor: "#EA580C",
+    shadowColor: "#EA580C", shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  testBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 13.5, letterSpacing: 0.3 },
   modelName: { fontSize: 13.5, fontWeight: "800", color: theme.color.onSurface },
   modelSub: { fontSize: 11.5, color: theme.color.muted, marginTop: 2 },
   statusCard: { backgroundColor: "#F1F5F9", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E2E8F0" },

@@ -1,5 +1,5 @@
 import "@/src/polyfills"; // MUST be first — TextEncoder/TextDecoder polyfill for Hermes (xlsx e altre libs legacy)
-import { Stack } from "expo-router";
+import { Stack, router as expoRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { LogBox, Platform, View, AppState } from "react-native";
@@ -9,6 +9,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth, isAppLockEnabled, isTrustStillValid } from "@/src/auth";
 import { AppLockOverlay } from "@/src/AppLock";
+import { WakeWordService } from "@/src/wakeword/WakeWordService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AssistantFAB } from "@/src/AssistantChat";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
 import { SupportFab } from "@/src/SupportFab";
@@ -153,6 +155,30 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [loaded, error, proceed]);
+
+  // V50.x — Wake Word globale: se l'utente ha attivato il toggle in Impostazioni,
+  // avvia il servizio (native se disponibile, mock altrimenti) e alla rilevazione
+  // apre la schermata Voice Copilot in modalità automatica.
+  useEffect(() => {
+    let unsub: (() => void) | null = null;
+    let mounted = true;
+    (async () => {
+      try {
+        const enabled = await AsyncStorage.getItem("wake_word_enabled_v1");
+        if (!mounted || enabled !== "1") return;
+        await WakeWordService.start({ threshold: 0.8 });
+        unsub = WakeWordService.onWake(({ score, source }) => {
+          console.log(`[WakeWord] Axon rilevato (${source}, score=${score.toFixed(2)}) → Voice Copilot`);
+          try { expoRouter.push("/voice-copilot?auto=1" as any); } catch {/* noop */}
+        });
+      } catch (e) { console.warn("[WakeWord] init error:", e); }
+    })();
+    return () => {
+      mounted = false;
+      if (unsub) unsub();
+      WakeWordService.stop().catch(() => {});
+    };
+  }, []);
 
   if (!loaded && !error && !proceed) return null;
 
