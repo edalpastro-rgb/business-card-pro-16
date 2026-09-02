@@ -16,6 +16,7 @@ import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/med
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { QRScannerModal } from "@/src/QRScannerModal";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 // V29.av — Date picker nativo Android/iOS per la data di nascita
 import DateTimePicker from "@react-native-community/datetimepicker";
 
@@ -54,6 +55,7 @@ export default function NewContactRoute() {
 function NewContactScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const bottomSheetPad = useBottomSheetPadding(); // V50.j — safe bottom per tutti i bottom-sheet
   const params = useLocalSearchParams<{ id?: string; source?: string; referred_by?: string; chain?: string; back_to?: string; add_reference_of?: string }>();
   const editId = params.id;
   const isEdit = !!editId;
@@ -1706,10 +1708,10 @@ function NewContactScreen() {
               ))}
             </View>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
-              <Pressable onPress={() => setNewAreaModal(false)} style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
+              <Pressable onPress={() => setNewAreaModal(false)} style={[styles.modalBtn, { flex: 1, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
                 <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
-              <Pressable testID="new-area-save" onPress={saveNewCustomArea} disabled={!newAreaName.trim()} style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary, opacity: newAreaName.trim() ? 1 : 0.5 }]}>
+              <Pressable testID="new-area-save" onPress={saveNewCustomArea} disabled={!newAreaName.trim()} style={[styles.modalBtn, { flex: 1, backgroundColor: theme.color.brandPrimary, opacity: newAreaName.trim() ? 1 : 0.5 }]}>
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>Crea</Text>
               </Pressable>
             </View>
@@ -1741,14 +1743,14 @@ function NewContactScreen() {
               ))}
             </View>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
-              <Pressable onPress={() => setGroupModal(null)} style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
+              <Pressable onPress={() => setGroupModal(null)} style={[styles.modalBtn, { flex: 1, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
                 <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
               <Pressable
                 testID="c-group-modal-save"
                 onPress={saveGroupModal}
                 disabled={!groupModal?.name?.trim()}
-                style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary, opacity: groupModal?.name?.trim() ? 1 : 0.5 }]}
+                style={[styles.modalBtn, { flex: 1, backgroundColor: theme.color.brandPrimary, opacity: groupModal?.name?.trim() ? 1 : 0.5 }]}
               >
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>{groupModal?.mode === "create" ? "Crea" : "Salva"}</Text>
               </Pressable>
@@ -1853,7 +1855,7 @@ function NewContactScreen() {
               )}
             </ScrollView>
             {/* Footer with Import button */}
-            <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF" }}>
+            <View style={{ padding: 12, paddingBottom: 12 + bottomSheetPad, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF" }}>
               {phoneImportBusy && phoneImportProgress ? (
                 <View style={{ alignItems: "center", gap: 6 }}>
                   <ActivityIndicator color={theme.color.brandPrimary} />
@@ -1987,7 +1989,7 @@ function NewContactScreen() {
                 <Ionicons name="close" size={22} color={theme.color.onSurface} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomSheetPad + 16, gap: 12 }}>
               {aiMode === "url" && (
                 <>
                   <Text style={{ fontSize: 13, color: theme.color.muted }}>Incolla un URL (LinkedIn, sito aziendale, profilo…). L&apos;AI estrae i dati.</Text>
@@ -2417,7 +2419,7 @@ const styles = StyleSheet.create({
   swatches: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   swatch: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
   swatchActive: { borderColor: theme.color.onSurface },
-  modalBtn: { flex: 1, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center" },
+  modalBtn: { paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center", justifyContent: "center", minHeight: 46 },
 });
 
 const webDateInputStyle: any = {
