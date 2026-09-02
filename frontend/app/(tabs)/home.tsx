@@ -585,7 +585,9 @@ export default function HomeScreen() {
               accent={C.primary}
               hint={cbLate > 0 ? `${cbLate} in ritardo` : cbDone > 0 ? `${cbDone} completate` : "nessuna urgenza"}
               hintColor={cbLate > 0 ? C.danger : C.success}
-              onPress={() => router.push("/callbacks-list" as any)}
+              // V50.r — Rimosso navigate a route inesistente (/callbacks-list).
+              // La lista delle ritelefonate di oggi è già mostrata più sotto
+              // nella sezione "Da Ritelefonare". Card ora solo informativa.
             />
             <KpiCard
               testID="kpi-appointments"
@@ -617,7 +619,8 @@ export default function HomeScreen() {
               accent={C.navy}
               hint={cbPending > 0 ? `${cbPending} da chiudere` : "tutto ok"}
               hintColor={cbPending > 0 ? C.warning : C.success}
-              onPress={() => router.push("/callbacks-list" as any)}
+              // V50.r — Rimosso navigate a route inesistente (/callbacks-list).
+              // Lista già visibile nella sezione "Da Ritelefonare" sotto.
             />
           </View>
 
