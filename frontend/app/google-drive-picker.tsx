@@ -1,281 +1,264 @@
 /**
- * V50.i — Google Drive Folder Picker (WebView + Google Picker JS SDK).
+ * V50.t — Picker CARTELLE Drive NATIVO (RN, non WebView).
+ *
+ * Motivazione: il Google Picker web è inutilizzabile su mobile per
+ *   selezionare cartelle (tap = navigazione dentro, checkbox invisibile).
+ * Soluzione: costruiamo un picker nativo che usa Drive API via il nostro
+ *   backend (endpoint /api/google-drive/folders/browse) con navigazione
+ *   a breadcrumb + checkbox chiaro per multi-selezione.
  *
  * Flusso:
- *  1) GET /api/google-drive/picker-config → { api_key, app_id, oauth_token }
- *  2) Render WebView con HTML inline che carica Google Picker JS SDK
- *  3) L'utente seleziona 1+ cartelle → postMessage `{type:"picked", folders:[...]}`
- *  4) Salviamo le cartelle via POST /api/google-drive/folders
- *  5) router.back()
- *
- * Nota: il Picker funziona solo se l'utente è già connesso a Drive (per
- * ottenere l'access_token) e se sul progetto Cloud sono abilitate:
- *  - Google Picker API
- *  - Google Drive API
- * e se GOOGLE_API_KEY è configurata lato server.
+ *   1) Utente entra al livello "root" (My Drive)
+ *   2) Vede le cartelle figlie
+ *   3) Tap ROW → naviga dentro (breadcrumb si aggiorna)
+ *   4) Tap CHECKBOX o pulsante ➕ → aggiunge alla selezione
+ *   5) In fondo, sticky bar "Salva N cartelle"
  */
-import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, Platform, Linking } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { WebView } from "react-native-webview";
-import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ActivityIndicator,
+  ScrollView,
+  FlatList,
+  TextInput,
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
-
-type PickerConfig = {
-  api_key: string;
-  app_id: string;
-  client_id: string;
-  oauth_token: string;
-};
 
 const GD_GREEN = "#0F9D58";
 
-function buildPickerHtml(cfg: PickerConfig) {
-  // NB: gli apici sono escape-safe perché usiamo JSON.stringify quando iniettiamo.
-  const apiKey = JSON.stringify(cfg.api_key);
-  const appId = JSON.stringify(cfg.app_id);
-  const oauthToken = JSON.stringify(cfg.oauth_token);
-  return `<!DOCTYPE html>
-<html lang="it">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Google Picker</title>
-<style>
-  html, body { margin:0; padding:0; height:100%; background:#0F2438; color:#FFF;
-               font-family:-apple-system,Segoe UI,Roboto,sans-serif; }
-  #status { position:absolute; top:0; left:0; right:0; padding:14px;
-            text-align:center; font-size:13px; color:rgba(255,255,255,0.75); }
-  #err { color:#FCA5A5; font-weight:700; }
-</style>
-</head>
-<body>
-<div id="status">Caricamento Google Picker…</div>
-<script>
-  var API_KEY = ${apiKey};
-  var APP_ID = ${appId};
-  var OAUTH_TOKEN = ${oauthToken};
+type Folder = { id: string; name: string };
+type Crumb = { id: string; name: string };
 
-  function postToApp(obj) {
-    var s = JSON.stringify(obj);
-    try {
-      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-        window.ReactNativeWebView.postMessage(s);
-      } else {
-        // Fallback su web: navigate to a synthetic URL that RN capture via onNavigationStateChange
-        window.location.href = "gdpicker://msg?data=" + encodeURIComponent(s);
-      }
-    } catch (e) {}
-  }
-
-  function showErr(msg) {
-    var el = document.getElementById("status");
-    if (el) { el.innerHTML = '<span id="err">' + msg + '</span>'; }
-  }
-
-  function onPickerApiLoad() {
-    try {
-      // V50.n — Vista FOLDERS con NAVIGAZIONE ricorsiva:
-      //  • ViewId.FOLDERS mostra solo cartelle (senza file), navigabili
-      //  • setSelectFolderEnabled(true) permette la selezione della cartella corrente
-      //  • setIncludeFolders(true) mostra i sottolivelli
-      //  • setMode(LIST) è più leggibile su mobile (una colonna, tap → navigazione)
-      //  • MULTISELECT_ENABLED per scegliere più cartelle in una sessione
-      //  • NAV_HIDDEN per pulire l'UI (l'utente non naviga tra viste)
-      // NB: NON usare setMimeTypes("application/vnd.google-apps.folder") — su ViewId.FOLDERS
-      // filtra troppo e blocca la navigazione dentro le sottocartelle.
-      var view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(true)
-        .setParent("root")
-        .setMode(google.picker.DocsViewMode.LIST);
-
-      var picker = new google.picker.PickerBuilder()
-        .setAppId(APP_ID)
-        .setOAuthToken(OAUTH_TOKEN)
-        .setDeveloperKey(API_KEY)
-        .setLocale("it")
-        .setTitle("Scegli le cartelle Axon")
-        .addView(view)
-        .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
-        .enableFeature(google.picker.Feature.NAV_HIDDEN)
-        .setCallback(pickerCallback)
-        .setOrigin(window.location.protocol + "//" + window.location.host)
-        .build();
-      picker.setVisible(true);
-      // Segnala al bridge RN che il picker è aperto (debug)
-      postToApp({ type: "picker_ready" });
-    } catch (e) {
-      showErr("Errore inizializzazione Picker: " + (e && e.message ? e.message : e));
-      postToApp({ type: "error", error: String(e && e.message || e) });
-    }
-  }
-
-  function pickerCallback(data) {
-    if (!data || !data.action) return;
-    if (data.action === google.picker.Action.PICKED) {
-      var folders = (data.docs || []).map(function(d) {
-        return { id: d.id, name: d.name || "Cartella" };
-      });
-      postToApp({ type: "picked", folders: folders });
-    } else if (data.action === google.picker.Action.CANCEL) {
-      postToApp({ type: "cancel" });
-    }
-  }
-
-  // Carica gapi + picker
-  var s = document.createElement("script");
-  s.src = "https://apis.google.com/js/api.js";
-  s.async = true; s.defer = true;
-  s.onload = function() {
-    try {
-      gapi.load("picker", { callback: onPickerApiLoad, onerror: function(e){ showErr("gapi.load picker failed"); } });
-    } catch (e) {
-      showErr("gapi.load exception: " + e);
-    }
-  };
-  s.onerror = function() { showErr("Impossibile caricare gapi (rete?)"); postToApp({ type:"error", error:"gapi load failed" }); };
-  document.body.appendChild(s);
-</script>
-</body>
-</html>`;
-}
-
-export default function GoogleDrivePickerScreen() {
+export default function GoogleDrivePickerNative() {
   const router = useRouter();
-  const [cfg, setCfg] = useState<PickerConfig | null>(null);
-  const [err, setErr] = useState<string>("");
-  const [saving, setSaving] = useState(false);
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 16);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const c = await api<PickerConfig>("/google-drive/picker-config");
-        setCfg(c);
-      } catch (e: any) {
-        setErr(e?.message || "Impossibile ottenere la configurazione del picker");
-      }
-    })();
+  // Breadcrumb: primo elemento sempre "root"
+  const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: "root", name: "My Drive" }]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Record<string, Folder>>({});
+  const [saving, setSaving] = useState(false);
+  // Debounce ricerca
+  const searchTimer = useRef<any>(null);
+
+  const currentParent = crumbs[crumbs.length - 1];
+
+  const load = useCallback(async (parentId: string, q?: string) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ parent: parentId });
+      if (q?.trim()) params.set("q", q.trim());
+      const r = await api<{ folders: Folder[] }>(`/google-drive/folders/browse?${params.toString()}`);
+      setFolders(Array.isArray(r?.folders) ? r.folders : []);
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile leggere le cartelle Drive");
+      setFolders([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const html = useMemo(() => (cfg ? buildPickerHtml(cfg) : ""), [cfg]);
+  useEffect(() => {
+    // Ricarica quando cambia il parent
+    load(currentParent.id);
+    setQuery(""); // reset ricerca al cambio livello
+  }, [currentParent.id, load]);
 
-  const handleMessage = async (raw: string) => {
+  const onSearchChange = (txt: string) => {
+    setQuery(txt);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      load(currentParent.id, txt);
+    }, 350);
+  };
+
+  const enterFolder = (f: Folder) => {
+    setCrumbs((prev) => [...prev, { id: f.id, name: f.name }]);
+  };
+
+  const goToCrumb = (index: number) => {
+    setCrumbs((prev) => prev.slice(0, index + 1));
+  };
+
+  const toggleSelect = (f: Folder) => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      if (next[f.id]) delete next[f.id];
+      else next[f.id] = f;
+      return next;
+    });
+  };
+
+  const selectedList = useMemo(() => Object.values(selected), [selected]);
+
+  const save = async () => {
+    if (selectedList.length === 0) return;
+    setSaving(true);
     try {
-      const data = JSON.parse(raw);
-      if (data.type === "picker_ready") {
-        // Debug: picker aperto
-        console.log("[Picker] pronto");
-        return;
-      }
-      if (data.type === "picked" && Array.isArray(data.folders) && data.folders.length > 0) {
-        setSaving(true);
-        try {
-          const r = await api<{ added: number }>("/google-drive/folders", {
-            method: "POST",
-            body: { folders: data.folders },
-          });
-          notify("Cartelle salvate", `${r?.added || data.folders.length} cartella/e aggiunta/e ad Axon`);
-        } catch (e: any) {
-          notify("Errore", e?.message || "Salvataggio cartelle fallito");
-        } finally {
-          setSaving(false);
-          router.back();
-        }
-      } else if (data.type === "cancel") {
-        router.back();
-      } else if (data.type === "error") {
-        setErr(data.error || "Errore nel picker");
-      }
-    } catch {
-      // ignore
+      const r = await api<{ added: number }>("/google-drive/folders", {
+        method: "POST",
+        body: { folders: selectedList.map((f) => ({ id: f.id, name: f.name })) },
+      });
+      notify("Cartelle salvate ✅", `${r?.added ?? selectedList.length} cartella/e aggiunta/e ad Axon`);
+      router.back();
+    } catch (e: any) {
+      notify("Errore", e?.message || "Salvataggio fallito");
+    } finally {
+      setSaving(false);
     }
+  };
+
+  const renderFolder = ({ item }: { item: Folder }) => {
+    const isSelected = !!selected[item.id];
+    return (
+      <View style={[styles.row, isSelected && styles.rowSelected]}>
+        {/* Checkbox / area di selezione */}
+        <Pressable onPress={() => toggleSelect(item)} hitSlop={10} style={styles.checkBox}>
+          <Ionicons
+            name={isSelected ? "checkbox" : "square-outline"}
+            size={26}
+            color={isSelected ? GD_GREEN : "#94A3B8"}
+          />
+        </Pressable>
+        {/* Nome + tap = naviga dentro */}
+        <Pressable style={styles.rowMain} onPress={() => enterFolder(item)}>
+          <Ionicons name="folder" size={22} color={GD_GREEN} />
+          <Text style={styles.rowName} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+        </Pressable>
+      </View>
+    );
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.root} edges={["top"]}>
+      {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="close" size={26} color="#FFF" />
         </Pressable>
-        <Text style={styles.title}>Scegli cartelle Axon</Text>
+        <Text style={styles.headerTitle}>Scegli cartelle Axon</Text>
         <View style={{ width: 26 }} />
       </View>
 
-      {err ? (
-        <View style={styles.errBox}>
-          <Ionicons name="alert-circle" size={40} color="#FCA5A5" />
-          <Text style={styles.errTitle}>Picker non disponibile</Text>
-          <Text style={styles.errMsg}>{err}</Text>
-          {err.toLowerCase().includes("api_key") || err.toLowerCase().includes("api key") ? (
-            <Text style={styles.hint}>
-              Chiedi all&apos;amministratore di configurare GOOGLE_API_KEY e abilitare Picker API su Google Cloud Console.
-            </Text>
-          ) : null}
-          <Pressable style={styles.btn} onPress={() => router.back()}>
-            <Text style={styles.btnTxt}>Chiudi</Text>
+      {/* Breadcrumb */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.crumbBar}
+        contentContainerStyle={{ paddingHorizontal: 12, gap: 6, alignItems: "center" }}
+      >
+        {crumbs.map((c, i) => {
+          const last = i === crumbs.length - 1;
+          return (
+            <React.Fragment key={c.id + i}>
+              <Pressable
+                onPress={() => !last && goToCrumb(i)}
+                style={[styles.crumb, last && styles.crumbActive]}
+              >
+                {i === 0 ? (
+                  <Ionicons name="home" size={14} color={last ? "#FFF" : "#94A3B8"} />
+                ) : null}
+                <Text style={[styles.crumbTxt, last && styles.crumbTxtActive]} numberOfLines={1}>
+                  {c.name}
+                </Text>
+              </Pressable>
+              {!last && <Ionicons name="chevron-forward" size={14} color="#64748B" />}
+            </React.Fragment>
+          );
+        })}
+      </ScrollView>
+
+      {/* Search */}
+      <View style={styles.searchBox}>
+        <Ionicons name="search" size={18} color="#94A3B8" />
+        <TextInput
+          value={query}
+          onChangeText={onSearchChange}
+          placeholder="Filtra cartelle di questo livello…"
+          placeholderTextColor="#94A3B8"
+          style={styles.searchInput}
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+        {query.length > 0 && (
+          <Pressable onPress={() => onSearchChange("")} hitSlop={10}>
+            <Ionicons name="close-circle" size={18} color="#94A3B8" />
           </Pressable>
-        </View>
-      ) : !cfg ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={GD_GREEN} size="large" />
-          <Text style={styles.hint}>Preparo Google Picker…</Text>
-        </View>
-      ) : (
-        <View style={{ flex: 1 }}>
-          <WebView
-            originWhitelist={["*"]}
-            source={{ html, baseUrl: "https://business-card-pro-16.emergent.host" }}
-            onMessage={(e) => handleMessage(e.nativeEvent.data)}
-            onShouldStartLoadWithRequest={(req) => {
-              // Intercept gdpicker:// fallback for older WebViews on web
-              if (req.url.startsWith("gdpicker://msg")) {
-                try {
-                  const q = decodeURIComponent(req.url.split("data=")[1] || "");
-                  handleMessage(q);
-                } catch { /* noop */ }
-                return false;
-              }
-              // Blocca l'apertura di link esterni (es. sign-in) nella stessa WebView
-              // in favore del browser di sistema quando non è il picker stesso.
-              if (req.url.startsWith("https://accounts.google.com") ||
-                  req.url.startsWith("https://drive.google.com") ||
-                  req.url.startsWith("https://docs.google.com") ||
-                  req.url.startsWith("https://apis.google.com") ||
-                  req.url.startsWith("about:")) {
-                return true;
-              }
-              // Ambiente attuale della WebView (baseUrl)
-              if (req.url.startsWith("https://business-card-pro-16.emergent.host")) {
-                return true;
-              }
-              // Altri URL: aprili nel browser esterno
-              try { Linking.openURL(req.url); } catch { /* noop */ }
-              return false;
-            }}
-            javaScriptEnabled
-            domStorageEnabled
-            thirdPartyCookiesEnabled
-            sharedCookiesEnabled
-            startInLoadingState
-            renderLoading={() => (
-              <View style={styles.center}>
-                <ActivityIndicator color={GD_GREEN} size="large" />
-              </View>
+        )}
+      </View>
+
+      {/* Lista */}
+      <View style={{ flex: 1 }}>
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={GD_GREEN} size="large" />
+            <Text style={styles.centerTxt}>Caricamento cartelle…</Text>
+          </View>
+        ) : folders.length === 0 ? (
+          <View style={styles.center}>
+            <Ionicons name="folder-open-outline" size={40} color="#94A3B8" />
+            <Text style={styles.centerTxt}>
+              {query ? "Nessuna cartella trovata." : "Questa cartella non contiene sottocartelle."}
+            </Text>
+            {crumbs.length === 1 && (
+              <Text style={[styles.centerTxt, { fontSize: 11, color: "#64748B" }]}>
+                Suggerimento: se non vedi cartelle, verifica di aver dato accesso al Drive giusto in Impostazioni → Google Drive.
+              </Text>
             )}
-            style={{ flex: 1, backgroundColor: "#0F2438" }}
+          </View>
+        ) : (
+          <FlatList
+            data={folders}
+            keyExtractor={(f) => f.id}
+            renderItem={renderFolder}
+            contentContainerStyle={{ paddingBottom: 140 + bottomInset }}
+            ItemSeparatorComponent={() => <View style={styles.sep} />}
           />
-          {saving && (
-            <View style={styles.savingOverlay}>
-              <ActivityIndicator color="#FFF" size="large" />
-              <Text style={styles.savingTxt}>Salvataggio cartelle…</Text>
-            </View>
-          )}
+        )}
+      </View>
+
+      {/* Sticky footer */}
+      <View style={[styles.footer, { paddingBottom: bottomInset + 10 }]}>
+        <View style={styles.footerInfo}>
+          <Ionicons name="checkbox" size={18} color={GD_GREEN} />
+          <Text style={styles.footerCount}>
+            {selectedList.length === 0
+              ? "Nessuna cartella selezionata"
+              : `${selectedList.length} cartella/e selezionata/e`}
+          </Text>
         </View>
-      )}
+        <Pressable
+          onPress={save}
+          disabled={selectedList.length === 0 || saving}
+          style={[
+            styles.saveBtn,
+            (selectedList.length === 0 || saving) && { opacity: 0.5 },
+          ]}
+          testID="picker-save-btn"
+        >
+          {saving ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+              <Text style={styles.saveBtnTxt}>Salva {selectedList.length > 0 ? `(${selectedList.length})` : ""}</Text>
+            </>
+          )}
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 }
@@ -283,26 +266,68 @@ export default function GoogleDrivePickerScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#0F2438" },
   header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 14, paddingVertical: 12,
-    backgroundColor: "#0F2438",
-    borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
   },
-  title: { color: "#FFF", fontSize: 16, fontWeight: "900" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30, gap: 10 },
-  hint: { color: "rgba(255,255,255,0.7)", fontSize: 13, textAlign: "center", marginTop: 8 },
-  errBox: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 10 },
-  errTitle: { color: "#FFF", fontSize: 18, fontWeight: "900", marginTop: 6 },
-  errMsg: { color: "rgba(255,255,255,0.8)", fontSize: 13, textAlign: "center", lineHeight: 19 },
-  btn: {
-    marginTop: 20, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 999,
-    backgroundColor: "#EA580C",
+  headerTitle: { color: "#FFF", fontSize: 16, fontWeight: "900" },
+  crumbBar: {
+    maxHeight: 44,
+    backgroundColor: "#0B1B2C",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
-  btnTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
-  savingOverlay: {
-    ...StyleSheet.absoluteFillObject as any,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center", justifyContent: "center", gap: 10,
+  crumb: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
-  savingTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
+  crumbActive: { backgroundColor: GD_GREEN },
+  crumbTxt: { color: "#94A3B8", fontSize: 12, fontWeight: "700", maxWidth: 130 },
+  crumbTxtActive: { color: "#FFF" },
+  searchBox: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginHorizontal: 12, marginTop: 10, marginBottom: 6,
+    paddingHorizontal: 12,
+    height: 42, borderRadius: 12,
+    backgroundColor: "#FFF",
+  },
+  searchInput: { flex: 1, fontSize: 14, color: "#0F172A" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30, gap: 8 },
+  centerTxt: { color: "rgba(255,255,255,0.75)", fontSize: 13, textAlign: "center" },
+  row: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 12,
+    backgroundColor: "#FFF",
+  },
+  rowSelected: { backgroundColor: "#ECFDF5" },
+  checkBox: { padding: 4 },
+  rowMain: {
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 10,
+    paddingVertical: 4,
+  },
+  rowName: { flex: 1, fontSize: 14, color: "#0F172A", fontWeight: "600" },
+  sep: { height: 1, backgroundColor: "#E2E8F0", marginLeft: 44 },
+  footer: {
+    position: "absolute", left: 0, right: 0, bottom: 0,
+    paddingHorizontal: 14, paddingTop: 10,
+    backgroundColor: "rgba(15,36,56,0.98)",
+    borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)",
+    gap: 10,
+  },
+  footerInfo: { flexDirection: "row", alignItems: "center", gap: 8 },
+  footerCount: { color: "rgba(255,255,255,0.85)", fontSize: 12.5, fontWeight: "700", flex: 1 },
+  saveBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 14, borderRadius: 999,
+    backgroundColor: GD_GREEN,
+    shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  saveBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 14, letterSpacing: 0.3 },
 });

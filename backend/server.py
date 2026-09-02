@@ -13762,17 +13762,14 @@ def _sanitize_redirect_uri(raw: str) -> str:
 _GD_REDIRECT_URI = _sanitize_redirect_uri(os.getenv("GOOGLE_DRIVE_REDIRECT_URI", ""))
 _GD_TOKEN_KEY = os.getenv("GOOGLE_DRIVE_TOKEN_KEY", "")
 _GD_FRONTEND_URL = os.getenv("GOOGLE_DRIVE_FRONTEND_URL", "https://advisoros.it/profile")
-# V50.i — Scope RIDOTTO a drive.file su richiesta esplicita utente ("voglio
-# dare accesso a UNA sola cartella, non a tutto il Drive"). Con drive.file
-# l'app vede SOLO i file che l'utente autorizza esplicitamente (via Google
-# Picker) o che l'app stessa crea. Google non offre un vero scope
-# "singola cartella" via OAuth: drive.file è il modo standard per ottenere
-# accesso limitato + Picker (implementazione Picker può essere aggiunta in
-# seguito). NB: la vecchia funzionalità "elenca tutti i file Drive" non è
-# più supportata con questo scope; per ora resta solo l'accesso ai file
-# esplicitamente aperti/creati dall'app.
+# V50.t — Scope Drive: usiamo drive.readonly per permettere la navigazione
+# nativa delle cartelle (l'utente ha bisogno di un picker interno all'app;
+# il Google Picker web è inutilizzabile su mobile per selezionare cartelle).
+# L'app RESTRINGE localmente l'accesso solo alle cartelle scelte dall'utente
+# (endpoint /google-drive/folders → filter in /files).
 _GD_SCOPES = [
-    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive.metadata.readonly",
 ]
 _gd_fernet = _Fernet(_GD_TOKEN_KEY.encode()) if _GD_TOKEN_KEY else None
 
@@ -14125,6 +14122,52 @@ async def _gd_user_folder_ids(user_id: str) -> List[str]:
     """Helper: ritorna gli ID delle cartelle Axon salvate (o [] se nessuna)."""
     cur = db.google_drive_folders.find({"user_id": user_id}, {"_id": 0, "folder_id": 1})
     return [d["folder_id"] async for d in cur if d.get("folder_id")]
+
+
+# V50.t — Browse cartelle Drive per il picker NATIVO (RN, non WebView).
+@api_router.get("/google-drive/folders/browse")
+async def google_drive_folders_browse(
+    parent: str = "root",
+    q: str = "",
+    user=Depends(get_current_user),
+):
+    """Lista cartelle figlie di `parent` (default root) opzionalmente filtrate da `q`.
+
+    Ritorna:
+        { parent: str, folders: [{id, name, path?}], breadcrumb?: [{id,name}] }
+    """
+    if not _gd_configured():
+        raise HTTPException(status_code=503, detail="Google Drive non configurato")
+    from googleapiclient.discovery import build  # type: ignore
+    try:
+        creds = await _gd_get_credentials(user["user_id"])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Credenziali Drive non valide: {e}")
+    service = build("drive", "v3", credentials=creds, cache_discovery=False)
+    clauses = [
+        "mimeType = 'application/vnd.google-apps.folder'",
+        "trashed = false",
+        f"'{parent}' in parents",
+    ]
+    if q:
+        # Escape apici singoli in q (contains)
+        q_esc = q.replace("'", "\\'")
+        clauses.append(f"name contains '{q_esc}'")
+    query = " and ".join(clauses)
+    try:
+        r = service.files().list(
+            q=query,
+            spaces="drive",
+            fields="files(id,name,parents)",
+            pageSize=200,
+            orderBy="name",
+        ).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore Drive: {e}")
+    folders = [{"id": f.get("id"), "name": f.get("name")} for f in (r.get("files") or [])]
+    return {"parent": parent, "folders": folders}
 
 
 @api_router.get("/google-drive/files")
