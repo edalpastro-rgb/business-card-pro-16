@@ -13606,6 +13606,226 @@ async def axon_scripts_use(script_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 
+# ─── V50.w — Import massivo Script da cartella Google Drive ────────────────
+
+class ScriptImportDriveIn(BaseModel):
+    folder_id: str
+    folder_name: Optional[str] = None
+    default_category: Optional[str] = None  # se None, Axon la determina
+
+
+async def _download_drive_file_bytes(service, file_id: str) -> Optional[Dict[str, Any]]:
+    """Scarica un file Drive; ritorna {name, mime, data_base64, size} o None."""
+    from googleapiclient.errors import HttpError  # type: ignore
+    from googleapiclient.http import MediaIoBaseDownload  # type: ignore
+    from io import BytesIO
+    try:
+        meta = service.files().get(fileId=file_id, fields="id,name,mimeType,size").execute()
+    except HttpError:
+        return None
+    mime = meta.get("mimeType", "") or ""
+    out = BytesIO()
+    try:
+        if mime.startswith("application/vnd.google-apps."):
+            if mime.endswith("document"):
+                export_mime = "application/pdf"; out_ext = ".pdf"
+            elif mime.endswith("spreadsheet"):
+                export_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; out_ext = ".xlsx"
+            elif mime.endswith("presentation"):
+                export_mime = "application/pdf"; out_ext = ".pdf"
+            else:
+                export_mime = "text/plain"; out_ext = ".txt"
+            req = service.files().export_media(fileId=file_id, mimeType=export_mime)
+            display_name = f"{meta.get('name','file')}{out_ext}"
+            display_mime = export_mime
+        else:
+            req = service.files().get_media(fileId=file_id)
+            display_name = meta.get("name", "file")
+            display_mime = mime or "application/octet-stream"
+        downloader = MediaIoBaseDownload(out, req, chunksize=1024 * 1024)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+        raw = out.getvalue()
+        if len(raw) > 15 * 1024 * 1024:  # skip file > 15MB
+            return None
+        return {
+            "name": display_name,
+            "mime": display_mime,
+            "data_base64": _b64.b64encode(raw).decode(),
+            "size": len(raw),
+        }
+    except Exception as e:
+        logger.warning("[import-drive] download failed for %s: %s", file_id, e)
+        return None
+
+
+async def _llm_split_document_into_scripts(text: str, source_name: str, default_category: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Chiama Claude Sonnet 5 per dividere un documento in N script strutturati."""
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key or not (text or "").strip():
+        return []
+    text_trunc = (text or "").strip()[:15000]
+    cat_hint = ""
+    if default_category:
+        cat_hint = f"\n\nCATEGORIA DA USARE PER TUTTI GLI SCRIPT (se sensata): {default_category}"
+    system = (
+        "Sei un analista di materiale formativo per consulenti energetici italiani. "
+        "Ricevi UN documento (che può contenere UN singolo script o N script separati) e lo "
+        "trasformi in una lista di script pronti all'uso in un CRM.\n\n"
+        "REGOLE:\n"
+        "- Identifica se il documento contiene UN singolo modello di messaggio/script "
+        "oppure N script distinti (numerati, con sottotitoli, o separati per contesto).\n"
+        "- Massimo 10 script per documento.\n"
+        "- Ogni script deve essere autonomo e utilizzabile (email/messaggio/discorso pronto).\n"
+        "- Categorie valide: apertura_chiamata | email_freddo | gestione_obiezione | closing "
+        "| follow_up | primo_incontro | altro. Deduci la categoria dal contenuto.\n"
+        "- content max 3000 caratteri, title max 100, tags max 5 parole chiave.\n"
+        "- Ignora indice/copertine/introduzioni non actionable.\n\n"
+        "OUTPUT (JSON array, SENZA markdown, SENZA testo prima/dopo):\n"
+        '[{"title":"...","category":"apertura_chiamata|email_freddo|gestione_obiezione|closing|follow_up|primo_incontro|altro","content":"...","tags":["parola1","parola2"]}]\n'
+        "Se il documento non contiene materiale utile, ritorna []."
+        f"{cat_hint}"
+    )
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"script-import-{uuid.uuid4().hex[:8]}",
+            system_message=system,
+        ).with_model("anthropic", "claude-sonnet-5")
+        raw = await chat.send_message(UserMessage(
+            text=f"Nome file: {source_name}\n\nCONTENUTO:\n{text_trunc}\n\nEstrai gli script in JSON array."
+        ))
+        # Trova array nella risposta
+        m = re.search(r"\[.*\]", raw or "", re.S)
+        if not m:
+            return []
+        data = json.loads(m.group(0))
+        if not isinstance(data, list):
+            return []
+        out: List[Dict[str, Any]] = []
+        valid_cats = {"apertura_chiamata", "email_freddo", "gestione_obiezione", "closing", "follow_up", "primo_incontro", "altro"}
+        for s in data[:10]:
+            title = (s.get("title") or "").strip()[:100]
+            content = (s.get("content") or "").strip()[:3000]
+            if not title or not content:
+                continue
+            cat = (s.get("category") or default_category or "altro").strip().lower()
+            if cat not in valid_cats:
+                cat = default_category or "altro"
+            tags = [t.strip()[:30] for t in (s.get("tags") or []) if t and isinstance(t, str)][:5]
+            out.append({"title": title, "category": cat, "content": content, "tags": tags})
+        return out
+    except Exception as e:
+        logger.warning("[import-drive] llm split failed: %s", e)
+        return []
+
+
+@api_router.post("/axon/scripts/import/drive")
+async def axon_scripts_import_drive(body: ScriptImportDriveIn, user=Depends(get_current_user)):
+    """Importa in massa script da una cartella Google Drive.
+    Legge tutti i file supportati (PDF, DOCX, TXT, Google Docs/Sheets/Slides),
+    chiede a Claude di dividerli in script strutturati e li salva nel Playbook.
+    """
+    if not _gd_configured():
+        raise HTTPException(status_code=503, detail="Google Drive non configurato")
+    from googleapiclient.discovery import build  # type: ignore
+    try:
+        creds = await _gd_get_credentials(user["user_id"])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Credenziali Drive non valide: {e}")
+    service = build("drive", "v3", credentials=creds, cache_discovery=False)
+
+    # Lista file (non cartelle) dentro la cartella
+    supported_mimes_prefix = (
+        "application/pdf",
+        "application/vnd.google-apps.document",
+        "application/vnd.google-apps.spreadsheet",
+        "application/vnd.google-apps.presentation",
+        "application/vnd.openxmlformats-officedocument",
+        "text/",
+        "application/msword",
+        "application/rtf",
+    )
+    q = (
+        f"'{body.folder_id}' in parents and trashed = false and "
+        "mimeType != 'application/vnd.google-apps.folder'"
+    )
+    try:
+        r = service.files().list(
+            q=q, spaces="drive",
+            fields="files(id,name,mimeType,size)",
+            pageSize=100, orderBy="name",
+            supportsAllDrives=True, includeItemsFromAllDrives=True, corpora="user",
+        ).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore Drive: {e}")
+    files = r.get("files") or []
+    supported = [
+        f for f in files
+        if any((f.get("mimeType") or "").startswith(p) for p in supported_mimes_prefix)
+    ]
+    if not supported:
+        return {"files_processed": 0, "scripts_imported": 0, "errors": [], "message": "Nessun file supportato nella cartella"}
+
+    scripts_imported = 0
+    errors: List[Dict[str, str]] = []
+    tid = tenant_id(user)
+
+    # Costruisci un modello leggero per _extract_attachment_text (usa lo stesso helper)
+    class _Att:
+        def __init__(self, name, mime, data_base64):
+            self.name = name; self.mime = mime; self.data_base64 = data_base64
+
+    processed = 0
+    for f in supported[:30]:  # max 30 file per chiamata
+        fname = f.get("name") or "file"
+        try:
+            blob = await _download_drive_file_bytes(service, f["id"])
+            if not blob:
+                errors.append({"file": fname, "error": "Download fallito o file troppo grande"})
+                continue
+            att = _Att(blob["name"], blob["mime"], blob["data_base64"])
+            text = await _extract_attachment_text(att)  # type: ignore
+            if not text or text.startswith("[") and text.endswith("]"):
+                errors.append({"file": fname, "error": "Testo non estraibile"})
+                continue
+            scripts = await _llm_split_document_into_scripts(text, fname, body.default_category)
+            if not scripts:
+                errors.append({"file": fname, "error": "Nessuno script rilevato"})
+                continue
+            # Salva ognuno
+            for s in scripts:
+                doc = {
+                    "user_id": tid,
+                    "created_by": user["user_id"],
+                    "script_id": uuid.uuid4().hex[:16],
+                    "category": s["category"],
+                    "title": s["title"],
+                    "content": s["content"],
+                    "tags": s.get("tags") or [],
+                    "times_used": 0,
+                    "source": {"drive_file_id": f["id"], "drive_file_name": fname, "folder_name": body.folder_name or None},
+                    "created_at": utcnow(),
+                    "updated_at": utcnow(),
+                }
+                await db.axon_scripts.insert_one(doc)
+                scripts_imported += 1
+            processed += 1
+        except Exception as e:
+            errors.append({"file": fname, "error": str(e)[:200]})
+
+    return {
+        "files_processed": processed,
+        "files_total_supported": len(supported),
+        "scripts_imported": scripts_imported,
+        "errors": errors[:20],
+    }
+
+
 async def _load_scripts_index(user_id_or_tenant: str) -> str:
     """Ritorna un elenco compatto (solo titolo+categoria) degli script del tenant,
     per iniezione nel system prompt."""

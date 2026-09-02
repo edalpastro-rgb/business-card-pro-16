@@ -98,9 +98,14 @@ export default function AxonScriptsScreen() {
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </Pressable>
         <Text style={styles.hTitle}>📚 Playbook Script</Text>
-        <Pressable onPress={() => setCreating(true)} hitSlop={10} style={styles.hBtn} testID="script-add-btn">
-          <Ionicons name="add-circle" size={26} color="#FBBF24" />
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 4 }}>
+          <Pressable onPress={() => router.push("/axon-scripts-import" as any)} hitSlop={10} style={styles.hBtn} testID="script-import-btn">
+            <Ionicons name="cloud-download" size={22} color="#0F9D58" />
+          </Pressable>
+          <Pressable onPress={() => setCreating(true)} hitSlop={10} style={styles.hBtn} testID="script-add-btn">
+            <Ionicons name="add-circle" size={26} color="#FBBF24" />
+          </Pressable>
+        </View>
       </View>
 
       {/* Filtri categoria */}
