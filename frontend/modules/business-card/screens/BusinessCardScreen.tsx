@@ -242,53 +242,61 @@ export function BusinessCardScreen(): React.ReactElement {
                 },
               ]}
             >
-              <View style={styles.stripesOverlay} pointerEvents="none">
-                {Array.from({ length: 22 }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={{
-                      position: "absolute", top: -30, left: i * 22 - 60,
-                      width: 2, height: CARD_H + 90,
-                      backgroundColor: "rgba(255,255,255,0.06)",
-                      transform: [{ rotate: "-32deg" }],
-                    }}
-                  />
-                ))}
-              </View>
-              <View style={styles.goldBorder} pointerEvents="none" />
-              <View style={styles.logoWrap}>
-                {card.logo_base64 ? (
-                  Platform.OS === "web" ? (
-                    // V2.2 — On web, use a native <img> tag with explicit transparent
-                    // background/border so no implicit "white box" is drawn around the
-                    // logo. React-Native-Web's Image renders as a <div> with
-                    // background-image which caused a subtle box around the logo.
+              {/* V50.k — Se c'è un logo, occupa TUTTO il fronte come background
+                  (cover). Nasconde le strisce diagonali e il gold-border per
+                  non "incastonare" il logo in una cornice.
+                  Se NON c'è logo: stripes + gold + placeholder come prima. */}
+              {card.logo_base64 ? (
+                <>
+                  {Platform.OS === "web" ? (
                     // @ts-expect-error web-only intrinsic
                     <img
                       src={card.logo_base64}
                       alt="logo"
                       style={{
-                        width: "70%",
-                        height: "70%",
-                        objectFit: "contain",
+                        position: "absolute",
+                        top: 0, left: 0,
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
                         background: "transparent",
-                        backgroundColor: "transparent",
                         border: "none",
-                        boxShadow: "none",
-                        outline: "none",
+                        display: "block",
                       }}
                     />
                   ) : (
-                    <RNImage source={{ uri: card.logo_base64 }} style={styles.logoImg} resizeMode="contain" />
-                  )
-                ) : (
-                  <View style={styles.logoPlaceholder}>
-                    <Ionicons name="business" size={44} color="rgba(255,255,255,0.6)" />
-                    <Text style={styles.logoPlaceholderTxt}>Logo Agenzia</Text>
+                    <RNImage
+                      source={{ uri: card.logo_base64 }}
+                      style={StyleSheet.absoluteFill}
+                      resizeMode="cover"
+                    />
+                  )}
+                </>
+              ) : (
+                <>
+                  <View style={styles.stripesOverlay} pointerEvents="none">
+                    {Array.from({ length: 22 }).map((_, i) => (
+                      <View
+                        key={i}
+                        style={{
+                          position: "absolute", top: -30, left: i * 22 - 60,
+                          width: 2, height: CARD_H + 90,
+                          backgroundColor: "rgba(255,255,255,0.06)",
+                          transform: [{ rotate: "-32deg" }],
+                        }}
+                      />
+                    ))}
                   </View>
-                )}
-              </View>
-              <View style={styles.shimmerStreak} pointerEvents="none" dataSet={Platform.OS === "web" ? { bcShimmer: "1" } : undefined} />
+                  <View style={styles.goldBorder} pointerEvents="none" />
+                  <View style={styles.logoWrap}>
+                    <View style={styles.logoPlaceholder}>
+                      <Ionicons name="business" size={44} color="rgba(255,255,255,0.6)" />
+                      <Text style={styles.logoPlaceholderTxt}>Logo Agenzia</Text>
+                    </View>
+                  </View>
+                  <View style={styles.shimmerStreak} pointerEvents="none" dataSet={Platform.OS === "web" ? { bcShimmer: "1" } : undefined} />
+                </>
+              )}
             </Animated.View>
 
             {/* BACK */}
@@ -399,7 +407,7 @@ export function BusinessCardScreen(): React.ReactElement {
             </Pressable>
           ) : null}
         </View>
-        <Text style={styles.helperTxt}>Il logo appare sul <Text style={{ fontWeight: "700" }}>fronte</Text>, grande e centrato in bianco sullo sfondo navy.</Text>
+        <Text style={styles.helperTxt}>Il logo occupa <Text style={{ fontWeight: "700" }}>l&apos;intero fronte</Text> del biglietto. Consiglio: usa un&apos;immagine 900×567 px (rapporto 8.5:5.4) o superiore per la massima qualità.</Text>
 
         <Text style={styles.section}>QR Code (retro)</Text>
         <View style={{ gap: 6 }}>

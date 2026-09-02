@@ -1015,48 +1015,111 @@ function NewContactScreen() {
         }
         return;
       }
-      // Costruisci il Contact object per expo-contacts
-      const phones: any[] = [];
-      if (form.phone?.trim()) phones.push({ label: "mobile", number: form.phone.trim(), isPrimary: true });
-      if (form.phone_alt?.trim()) phones.push({ label: "other", number: form.phone_alt.trim() });
-      if (form.whatsapp?.trim() && form.whatsapp.trim() !== form.phone?.trim()) {
-        phones.push({ label: "WhatsApp", number: form.whatsapp.trim() });
-      }
-      const emails: any[] = [];
-      if (form.email?.trim()) emails.push({ label: "work", email: form.email.trim(), isPrimary: true });
-      if (form.email_alt?.trim()) emails.push({ label: "other", email: form.email_alt.trim() });
-      const addresses: any[] = [];
-      const street = [form.address_street, form.address_number].filter(Boolean).join(" ").trim();
-      if (street || form.address_city || form.address_zip) {
-        addresses.push({
-          label: "home",
-          street: street || undefined,
-          city: form.address_city || undefined,
-          postalCode: form.address_zip || undefined,
-          region: form.address_province || undefined,
-        });
-      }
-      const contact: any = {
-        [Contacts.Fields.FirstName]: form.first_name || "",
-        [Contacts.Fields.LastName]: form.last_name || "",
-        contactType: Contacts.ContactTypes.Person,
-      };
-      if (phones.length) contact[Contacts.Fields.PhoneNumbers] = phones;
-      if (emails.length) contact[Contacts.Fields.Emails] = emails;
-      if (addresses.length) contact[Contacts.Fields.Addresses] = addresses;
-      if ((form as any).company?.trim()) contact[Contacts.Fields.Company] = (form as any).company.trim();
 
-      if (Platform.OS === "ios") {
-        // Su iOS mostra la scheda di sistema per anteprima/edit prima di salvare.
-        await Contacts.presentFormAsync(null, contact);
-      } else {
-        await Contacts.addContactAsync(contact);
+      // V50.k — ANTI-DUPLICATO: cerca in rubrica per nome+cognome oppure per
+      // numero di telefono. Se trova un match, chiedi conferma prima di
+      // creare un duplicato.
+      const fullName = `${form.first_name || ""} ${form.last_name || ""}`.trim();
+      const normalizedPhone = (form.phone || "").replace(/[\s\-\.]/g, "");
+      let duplicate: { name: string; reason: "name" | "phone" } | null = null;
+      try {
+        const nameQuery = fullName || form.last_name || form.first_name || "";
+        if (nameQuery) {
+          const found = await Contacts.getContactsAsync({
+            fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
+            name: nameQuery,
+            pageSize: 20,
+          });
+          for (const c of (found?.data || [])) {
+            const cname = (c.name || "").trim().toLowerCase();
+            if (cname && cname === fullName.toLowerCase()) {
+              duplicate = { name: c.name || fullName, reason: "name" };
+              break;
+            }
+          }
+        }
+        // Se non trovato per nome, controlla per numero di telefono
+        if (!duplicate && normalizedPhone) {
+          const found = await Contacts.getContactsAsync({
+            fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
+            pageSize: 2000, // rubrica intera
+          });
+          for (const c of (found?.data || [])) {
+            const nums = (c.phoneNumbers || []).map((p: any) => (p?.number || "").replace(/[\s\-\.]/g, ""));
+            if (nums.includes(normalizedPhone) || nums.some((n: string) => n.endsWith(normalizedPhone.slice(-9)))) {
+              duplicate = { name: c.name || "un contatto esistente", reason: "phone" };
+              break;
+            }
+          }
+        }
+      } catch { /* silent: fallback = procedi al salvataggio */ }
+
+      const proceedSave = async () => {
+        // Costruisci il Contact object per expo-contacts
+        const phones: any[] = [];
+        if (form.phone?.trim()) phones.push({ label: "mobile", number: form.phone.trim(), isPrimary: true });
+        if (form.phone_alt?.trim()) phones.push({ label: "other", number: form.phone_alt.trim() });
+        if (form.whatsapp?.trim() && form.whatsapp.trim() !== form.phone?.trim()) {
+          phones.push({ label: "WhatsApp", number: form.whatsapp.trim() });
+        }
+        const emails: any[] = [];
+        if (form.email?.trim()) emails.push({ label: "work", email: form.email.trim(), isPrimary: true });
+        if (form.email_alt?.trim()) emails.push({ label: "other", email: form.email_alt.trim() });
+        const addresses: any[] = [];
+        const street = [form.address_street, form.address_number].filter(Boolean).join(" ").trim();
+        if (street || form.address_city || form.address_zip) {
+          addresses.push({
+            label: "home",
+            street: street || undefined,
+            city: form.address_city || undefined,
+            postalCode: form.address_zip || undefined,
+            region: form.address_province || undefined,
+          });
+        }
+        const contact: any = {
+          [Contacts.Fields.FirstName]: form.first_name || "",
+          [Contacts.Fields.LastName]: form.last_name || "",
+          contactType: Contacts.ContactTypes.Person,
+        };
+        if (phones.length) contact[Contacts.Fields.PhoneNumbers] = phones;
+        if (emails.length) contact[Contacts.Fields.Emails] = emails;
+        if (addresses.length) contact[Contacts.Fields.Addresses] = addresses;
+        if ((form as any).company?.trim()) contact[Contacts.Fields.Company] = (form as any).company.trim();
+
+        if (Platform.OS === "ios") {
+          // Su iOS mostra la scheda di sistema per anteprima/edit prima di salvare.
+          await Contacts.presentFormAsync(null, contact);
+        } else {
+          await Contacts.addContactAsync(contact);
+        }
+        setSavedToPhone(true);
+        notify("Rubrica aggiornata ✅", `${form.first_name || "Il contatto"} è stato salvato nella rubrica del telefono.`);
+      };
+
+      if (duplicate) {
+        const msg = duplicate.reason === "phone"
+          ? `In rubrica esiste già "${duplicate.name}" con lo stesso numero di telefono. Vuoi salvare comunque un duplicato?`
+          : `In rubrica esiste già un contatto chiamato "${duplicate.name}". Vuoi salvare comunque un duplicato?`;
+        Alert.alert("Contatto già in rubrica", msg, [
+          { text: "Annulla", style: "cancel", onPress: () => { setSavingToPhone(false); } },
+          {
+            text: "Salva duplicato",
+            style: "destructive",
+            onPress: async () => {
+              try { await proceedSave(); } catch (e: any) { notify("Errore", e?.message || "Salvataggio in rubrica fallito"); }
+              finally { setSavingToPhone(false); }
+            },
+          },
+        ]);
+        return; // Non azzerare savingToPhone qui: il caller Alert lo farà.
       }
-      setSavedToPhone(true);
-      notify("Rubrica aggiornata ✅", `${form.first_name || "Il contatto"} è stato salvato nella rubrica del telefono.`);
+
+      await proceedSave();
     } catch (e: any) {
       notify("Errore", e?.message || "Salvataggio in rubrica fallito");
     } finally {
+      // Solo se non abbiamo un Alert in corso — se `duplicate` era truthy siamo
+      // usciti prima. Qui è sicuro spegnere il loading.
       setSavingToPhone(false);
     }
   };

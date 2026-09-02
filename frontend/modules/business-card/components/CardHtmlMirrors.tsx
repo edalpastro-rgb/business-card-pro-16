@@ -87,48 +87,54 @@ export function CardHtmlMirrors({ card }: Props): React.ReactElement | null {
             boxShadow: staticGlow,
           }}
         >
-          {/* Diagonal stripes overlay */}
-          {/* @ts-expect-error web-only */}
-          <div style={{
-            position: "absolute", inset: 0,
-            backgroundImage: "repeating-linear-gradient(-32deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 22px)",
-            pointerEvents: "none",
-          }} />
-          {/* Gold inner border */}
-          {/* @ts-expect-error web-only */}
-          <div style={{
-            position: "absolute", top: 8, left: 8, right: 8, bottom: 8,
-            borderRadius: 10,
-            border: `1px solid ${CARD_GOLD}`,
-            pointerEvents: "none",
-          }} />
-          {/* Static shimmer gradient */}
-          {/* @ts-expect-error web-only */}
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.35) 48%, rgba(255,255,255,0.55) 52%, rgba(255,255,255,0.35) 56%, rgba(255,255,255,0) 74%)",
-            pointerEvents: "none",
-            mixBlendMode: "screen",
-          }} />
+          {/* V50.k — Se c'è un logo, occupa tutto il fronte (cover) e nasconde
+              stripes + gold border + shimmer. Altrimenti mostra il placeholder. */}
           {card.logo_base64 ? (
             <img
               src={card.logo_base64}
               alt="logo"
               style={{
-                maxWidth: "70%", maxHeight: "70%", objectFit: "contain",
-                position: "relative", zIndex: 2,
-                background: "transparent", backgroundColor: "transparent",
+                position: "absolute", top: 0, left: 0,
+                width: "100%", height: "100%",
+                objectFit: "cover",
+                background: "transparent",
                 border: "none", boxShadow: "none", outline: "none",
+                display: "block",
               }}
             />
           ) : (
-            // @ts-expect-error web-only
-            <div style={{ textAlign: "center", color: "rgba(255,255,255,0.7)", position: "relative", zIndex: 2, background: "transparent" }}>
+            <>
+              {/* Diagonal stripes overlay */}
               {/* @ts-expect-error web-only */}
-              <div style={{ fontSize: 44, lineHeight: 1 }}>🏢</div>
+              <div style={{
+                position: "absolute", inset: 0,
+                backgroundImage: "repeating-linear-gradient(-32deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 22px)",
+                pointerEvents: "none",
+              }} />
+              {/* Gold inner border */}
               {/* @ts-expect-error web-only */}
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 6 }}>Logo Agenzia</div>
-            </div>
+              <div style={{
+                position: "absolute", top: 8, left: 8, right: 8, bottom: 8,
+                borderRadius: 10,
+                border: `1px solid ${CARD_GOLD}`,
+                pointerEvents: "none",
+              }} />
+              {/* Static shimmer gradient */}
+              {/* @ts-expect-error web-only */}
+              <div style={{
+                position: "absolute", inset: 0,
+                background: "linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.35) 48%, rgba(255,255,255,0.55) 52%, rgba(255,255,255,0.35) 56%, rgba(255,255,255,0) 74%)",
+                pointerEvents: "none",
+                mixBlendMode: "screen",
+              }} />
+              {/* @ts-expect-error web-only */}
+              <div style={{ textAlign: "center", color: "rgba(255,255,255,0.7)", position: "relative", zIndex: 2, background: "transparent" }}>
+                {/* @ts-expect-error web-only */}
+                <div style={{ fontSize: 44, lineHeight: 1 }}>🏢</div>
+                {/* @ts-expect-error web-only */}
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 6 }}>Logo Agenzia</div>
+              </div>
+            </>
           )}
         </div>
       </div>
