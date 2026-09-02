@@ -276,7 +276,13 @@ setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
         if not st:
             return _page(False, "Sessione scaduta",
                          "Riprova dalla schermata Dropbox")
-        if st.get("expires_at") and st["expires_at"] < utcnow():
+        # V50.q — Mongo può restituire datetime tz-naive: normalizza a UTC
+        # prima del confronto per evitare "can't compare offset-naive and
+        # offset-aware datetimes".
+        exp = st.get("expires_at")
+        if exp is not None and getattr(exp, "tzinfo", None) is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp is not None and exp < utcnow():
             return _page(False, "Stato OAuth scaduto",
                          "Riprova dalla schermata Dropbox")
         # Scambia il code con Dropbox usando lo stesso client_secret + code_verifier
@@ -14317,7 +14323,11 @@ async def dropbox_oauth_exchange(body: DropboxExchangeIn, user=Depends(get_curre
     st = await db.dropbox_oauth_states.find_one_and_delete({"_id": body.state})
     if not st or st.get("user_id") != user["user_id"]:
         raise HTTPException(status_code=400, detail="Stato OAuth non valido o scaduto")
-    if st["expires_at"] < utcnow():
+    # V50.q — normalizza a UTC (Mongo può restituire naive)
+    exp = st.get("expires_at")
+    if exp is not None and getattr(exp, "tzinfo", None) is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp is not None and exp < utcnow():
         raise HTTPException(status_code=400, detail="Stato OAuth scaduto")
     async with httpx.AsyncClient(timeout=20) as client:
         r = await client.post(
