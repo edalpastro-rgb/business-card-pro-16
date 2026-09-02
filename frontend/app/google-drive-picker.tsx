@@ -78,11 +78,20 @@ function buildPickerHtml(cfg: PickerConfig) {
 
   function onPickerApiLoad() {
     try {
-      // View: solo cartelle, multi-select, radice My Drive
+      // V50.n — Vista FOLDERS con NAVIGAZIONE ricorsiva:
+      //  • ViewId.FOLDERS mostra solo cartelle (senza file), navigabili
+      //  • setSelectFolderEnabled(true) permette la selezione della cartella corrente
+      //  • setIncludeFolders(true) mostra i sottolivelli
+      //  • setMode(LIST) è più leggibile su mobile (una colonna, tap → navigazione)
+      //  • MULTISELECT_ENABLED per scegliere più cartelle in una sessione
+      //  • NAV_HIDDEN per pulire l'UI (l'utente non naviga tra viste)
+      // NB: NON usare setMimeTypes("application/vnd.google-apps.folder") — su ViewId.FOLDERS
+      // filtra troppo e blocca la navigazione dentro le sottocartelle.
       var view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
         .setIncludeFolders(true)
         .setSelectFolderEnabled(true)
-        .setMimeTypes("application/vnd.google-apps.folder");
+        .setParent("root")
+        .setMode(google.picker.DocsViewMode.LIST);
 
       var picker = new google.picker.PickerBuilder()
         .setAppId(APP_ID)
@@ -92,9 +101,13 @@ function buildPickerHtml(cfg: PickerConfig) {
         .setTitle("Scegli le cartelle Axon")
         .addView(view)
         .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
+        .enableFeature(google.picker.Feature.NAV_HIDDEN)
         .setCallback(pickerCallback)
+        .setOrigin(window.location.protocol + "//" + window.location.host)
         .build();
       picker.setVisible(true);
+      // Segnala al bridge RN che il picker è aperto (debug)
+      postToApp({ type: "picker_ready" });
     } catch (e) {
       showErr("Errore inizializzazione Picker: " + (e && e.message ? e.message : e));
       postToApp({ type: "error", error: String(e && e.message || e) });
@@ -153,6 +166,11 @@ export default function GoogleDrivePickerScreen() {
   const handleMessage = async (raw: string) => {
     try {
       const data = JSON.parse(raw);
+      if (data.type === "picker_ready") {
+        // Debug: picker aperto
+        console.log("[Picker] pronto");
+        return;
+      }
       if (data.type === "picked" && Array.isArray(data.folders) && data.folders.length > 0) {
         setSaving(true);
         try {

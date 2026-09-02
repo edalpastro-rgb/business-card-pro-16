@@ -15,7 +15,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Print from "expo-print";
@@ -26,7 +26,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection } from "@/src/libretto/libretto-content";
-import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 const ADVISOR_LOGO = require("@/assets/images/advisoros-logo-transparent.png");
 const AXON_LOGO = require("@/assets/images/axonos-logo-transparent.png");
@@ -183,7 +182,10 @@ export default function LibrettoScreen() {
   const params = useLocalSearchParams<{ onboarding?: string }>();
   const isOnboarding = params.onboarding === "1";
   const [exporting, setExporting] = useState(false);
-  const bottomPad = useSafeBottom();
+  // V50.n — usa insets nativi per la sticky bar: la vecchia useSafeBottom
+  // ritornava un pagePad grosso per contenuti, non serve per un footer.
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 12);
 
   // V50.m — Se apriamo il libretto in modalità onboarding, non è più "primo giro":
   // segna come visto quando l'utente inizia a leggerlo (evita che riappaia).
@@ -256,26 +258,17 @@ export default function LibrettoScreen() {
           </Pressable>
         )}
         <Text style={styles.headerTitle}>{isOnboarding ? "Tour Guidato" : "Libretto Informativo"}</Text>
-        <Pressable
-          onPress={onExport}
-          disabled={exporting}
-          style={[styles.pdfBtn, exporting && { opacity: 0.6 }]}
-          testID="libretto-pdf-btn"
-        >
-          {exporting ? (
-            <ActivityIndicator color="#FFF" size="small" />
-          ) : (
-            <>
-              <Ionicons name="download" size={16} color="#FFF" />
-              <Text style={styles.pdfBtnTxt}>PDF</Text>
-            </>
-          )}
-        </Pressable>
+        {/* V50.n — Nessun pulsante PDF in header; è a piè pagina. */}
+        <View style={styles.headerRightPh} />
       </View>
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad + (isOnboarding ? 100 : 40) }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          // Riserva spazio per la sticky (sempre presente ora)
+          { paddingBottom: (isOnboarding ? 190 : 130) + bottomInset },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Cover */}
@@ -308,15 +301,35 @@ export default function LibrettoScreen() {
         </View>
       </ScrollView>
 
-      {/* V50.m — Sticky CTA quando siamo in onboarding */}
-      {isOnboarding && (
-        <View style={[styles.stickyCta, { paddingBottom: bottomPad + 12 }]}>
+      {/* V50.n — Sticky footer sempre presente:
+            • Bottone "Scarica Manuale d'uso PDF" (per tutti)
+            • In modalità onboarding: sopra c'è anche "Ho capito · Iniziamo!" */}
+      <View style={[styles.stickyCta, { paddingBottom: bottomInset + 10 }]}>
+        {isOnboarding && (
           <Pressable onPress={dismissOnboarding} testID="onboarding-start-btn" style={styles.stickyBtn}>
             <Ionicons name="rocket" size={18} color="#FFF" />
             <Text style={styles.stickyBtnTxt}>Ho capito · Iniziamo!</Text>
           </Pressable>
-        </View>
-      )}
+        )}
+        <Pressable
+          onPress={onExport}
+          disabled={exporting}
+          testID="libretto-pdf-btn"
+          style={[styles.stickyPdfBtn, exporting && { opacity: 0.7 }, isOnboarding && { marginTop: 10 }]}
+        >
+          {exporting ? (
+            <>
+              <ActivityIndicator color="#0F172A" size="small" />
+              <Text style={styles.stickyPdfBtnTxt}>Generazione PDF in corso…</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="download" size={18} color="#0F172A" />
+              <Text style={styles.stickyPdfBtnTxt}>Scarica Manuale d&apos;uso PDF</Text>
+            </>
+          )}
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 }
@@ -385,7 +398,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.08)",
   },
-  backBtn: { padding: 6 },
+  backBtn: { padding: 6, minWidth: 36 },
+  headerRightPh: { minWidth: 36 },
   headerTitle: { color: "#FFF", fontSize: 16, fontWeight: "900" },
   pdfBtn: {
     flexDirection: "row",
@@ -542,4 +556,13 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   stickyBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 15, letterSpacing: 0.3 },
+  // V50.n — Bottone "Scarica Manuale d'uso PDF" a piè pagina
+  stickyPdfBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    paddingVertical: 14, borderRadius: 999,
+    backgroundColor: "#FBBF24",
+    shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  stickyPdfBtnTxt: { color: "#0F172A", fontWeight: "900", fontSize: 14, letterSpacing: 0.2 },
 });

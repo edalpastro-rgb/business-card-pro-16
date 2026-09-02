@@ -79,17 +79,27 @@ export default function DropboxScreen() {
         showInRecents: false,
         preferEphemeralSession: true,
       });
+      // V50.n — Polling più lungo (30 tentativi × 1.5s = 45s) e messaggio
+      // di errore chiaro se dopo il flow non risulta collegato.
       if (result.type === "success" || result.type === "cancel" || result.type === "dismiss") {
-        for (let i = 0; i < 10; i++) {
+        let ok = false;
+        for (let i = 0; i < 30; i++) {
           try {
             const s = await api<DbxStatus>("/dropbox/status");
             if (s?.connected) {
               setStatus(s);
-              notify("Collegato", "Dropbox è ora collegato a Axon");
-              return;
+              notify("Collegato ✅", "Dropbox è ora collegato ad Axon");
+              ok = true;
+              break;
             }
           } catch { /* ignore */ }
           await new Promise((rs) => setTimeout(rs, 1500));
+        }
+        if (!ok) {
+          notify(
+            "Connessione Dropbox non completata",
+            "Verifica sul Dropbox App Console che l'URI di redirect autorizzato sia:\nhttps://business-card-pro-16.emergent.host/auth/dropbox/callback\n\nPoi riprova.",
+          );
         }
       }
       await load();
