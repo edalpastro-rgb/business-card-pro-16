@@ -615,6 +615,36 @@ function ImpostazioniScreen() {
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>
 
+        {/* V50.w — Cervello Axon (memoria distillata + profilo) */}
+        <Pressable testID="axon-brain-link" onPress={() => router.push("/axon-brain" as any)} style={styles.linkCard}>
+          <Ionicons name="sparkles" size={26} color="#7C3AED" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>🧠 Cervello Axon</Text>
+            <Text style={styles.linkSub}>Memoria e profilo appresi · più cervello ad ogni chat</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
+        {/* V50.w — Playbook Script Bank */}
+        <Pressable testID="axon-scripts-link" onPress={() => router.push("/axon-scripts" as any)} style={styles.linkCard}>
+          <Ionicons name="library" size={26} color="#FBBF24" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>📚 Playbook Script</Text>
+            <Text style={styles.linkSub}>Libreria script vincenti · usata da Axon come modello</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
+        {/* V50.w — Cheat Sheet fornitori bollette */}
+        <Pressable testID="axon-cheatsheet-link" onPress={() => router.push("/axon-cheatsheet" as any)} style={styles.linkCard}>
+          <Ionicons name="analytics" size={26} color="#F59E0B" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>📊 Cheat Sheet Fornitori</Text>
+            <Text style={styles.linkSub}>Prezzi medi visti nelle tue bollette · confronti veloci</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
         {/* V50.o — Rivedi tour guidato: resetta AsyncStorage e riapre onboarding */}
         <Pressable
           testID="review-tour-link"

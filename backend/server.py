@@ -4837,6 +4837,11 @@ async def _analyze_bill_task(bill_id: str):
             "analyzed_at": utcnow(),
             "error_message": None,
         }})
+        # V50.w — Aggiorna cheat sheet fornitori/prezzi (best-effort, non blocca)
+        try:
+            await _update_bill_cheatsheet(bill.get("user_id"), bill.get("bill_type"), extracted or {})
+        except Exception:
+            pass
     except Exception as e:
         logger.exception(f"bill analysis failed for {bill_id}: {e}")
         curr = await db.energy_bills.find_one({"bill_id": bill_id}, {"status": 1})
@@ -10168,6 +10173,22 @@ async def _prepare_assistant_prompt(
         f"{attachments_section}"
     )
 
+    # V50.w — Iniezione Axon Brain (memoria distillata + profilo appreso)
+    try:
+        _brain = await _load_axon_brain(user["user_id"])
+        _brain_section = _brain_section_for_prompt(_brain)
+    except Exception:
+        _brain_section = ""
+    try:
+        _scripts_section = await _load_scripts_index(tenant_id(user))
+    except Exception:
+        _scripts_section = ""
+    try:
+        _cheat_section = await _cheatsheet_section_for_prompt(user["user_id"])
+    except Exception:
+        _cheat_section = ""
+    system_message = system_message + _brain_section + _scripts_section + _cheat_section
+
     if history:
         convo_text = ""
         for h in history[-10:]:
@@ -10475,6 +10496,22 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         f"{attachments_section}"
     )
 
+    # V50.w — Iniezione Axon Brain (memoria distillata + profilo appreso)
+    try:
+        _brain = await _load_axon_brain(user["user_id"])
+        _brain_section = _brain_section_for_prompt(_brain)
+    except Exception:
+        _brain_section = ""
+    try:
+        _scripts_section = await _load_scripts_index(tenant_id(user))
+    except Exception:
+        _scripts_section = ""
+    try:
+        _cheat_section = await _cheatsheet_section_for_prompt(user["user_id"])
+    except Exception:
+        _cheat_section = ""
+    system_message = system_message + _brain_section + _scripts_section + _cheat_section
+
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     chat = LlmChat(
         api_key=key,
@@ -10519,6 +10556,14 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # V38T — Fire-and-forget memory distillation (does not block the response)
     try:
         asyncio.create_task(_maybe_save_memory(user["user_id"], session_id, assistant_name))
+    except Exception:
+        pass
+
+    # V50.w — Fire-and-forget Axon Brain distillation ogni ~8 messaggi
+    try:
+        _count = await db.assistant_messages.count_documents({"user_id": user["user_id"], "session_id": session_id})
+        if _count >= 8 and _count % 8 == 0:
+            asyncio.create_task(_distill_axon_brain(user["user_id"], session_id))
     except Exception:
         pass
 
@@ -13262,6 +13307,448 @@ async def libretto_reset_content(user=Depends(get_current_user)):
     _require_super_master(user)
     await db.libretto_content.delete_one({"_id": "global"})
     return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ─── V50.w — AXON BRAIN: memoria distillata + profilo auto-appreso ─────────
+# ═══════════════════════════════════════════════════════════════════════════
+# Collezioni:
+#   axon_brain_profile: {user_id, specialization, tone, style_markers, jargon,
+#                        preferences, learning_enabled, last_distilled_at,
+#                        updated_at}
+#   axon_brain_facts:   {user_id, fact_id, fact, category, importance,
+#                        source_session, created_at}
+
+class BrainSettingsIn(BaseModel):
+    learning_enabled: Optional[bool] = None
+    specialization: Optional[str] = None
+    tone: Optional[str] = None
+    preferences: Optional[str] = None
+
+
+async def _load_axon_brain(user_id: str) -> Dict[str, Any]:
+    """Carica profilo + fatti stabili appresi da Axon per l'utente."""
+    prof = await db.axon_brain_profile.find_one({"user_id": user_id}, {"_id": 0}) or {}
+    if prof.get("learning_enabled") is False:
+        return {"profile": prof, "facts": [], "enabled": False}
+    facts_cur = db.axon_brain_facts.find(
+        {"user_id": user_id}, {"_id": 0, "fact_id": 1, "fact": 1, "category": 1, "importance": 1}
+    ).sort([("importance", -1), ("created_at", -1)]).limit(40)
+    facts = [f async for f in facts_cur]
+    return {"profile": prof, "facts": facts, "enabled": True}
+
+
+def _brain_section_for_prompt(brain: Dict[str, Any]) -> str:
+    """Serializza il brain in una sezione compatta da iniettare nel system prompt."""
+    if not brain or not brain.get("enabled"):
+        return ""
+    lines: List[str] = []
+    prof = brain.get("profile") or {}
+    facts = brain.get("facts") or []
+    if not prof and not facts:
+        return ""
+    lines.append("\n\nCERVELLO AXON (memoria appresa e profilo utente — usa senza citare esplicitamente):")
+    if prof.get("specialization"):
+        lines.append(f"- Specializzazione: {prof['specialization']}")
+    if prof.get("tone"):
+        lines.append(f"- Tono preferito: {prof['tone']}")
+    if prof.get("preferences"):
+        lines.append(f"- Preferenze: {prof['preferences']}")
+    if prof.get("jargon"):
+        lines.append(f"- Gergo tipico: {prof['jargon']}")
+    if prof.get("style_markers"):
+        lines.append(f"- Stile: {prof['style_markers']}")
+    if facts:
+        lines.append("Fatti stabili memorizzati:")
+        for f in facts[:20]:
+            fact = (f.get("fact") or "").strip()
+            cat = f.get("category") or ""
+            if fact:
+                lines.append(f"  • [{cat}] {fact}" if cat else f"  • {fact}")
+    lines.append("Adatta tono, esempi e vocabolario a queste informazioni. Non elencarle mai esplicitamente.")
+    return "\n".join(lines) + "\n"
+
+
+async def _distill_axon_brain(user_id: str, session_id: str) -> Dict[str, Any]:
+    """Analizza gli ultimi messaggi della sessione e distilla fatti stabili + aggiorna profilo.
+    Chiamata via BackgroundTasks dopo ogni risposta assistant (nono blocca la UX).
+    """
+    prof = await db.axon_brain_profile.find_one({"user_id": user_id}) or {}
+    if prof.get("learning_enabled") is False:
+        return {"skipped": "learning_disabled"}
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return {"skipped": "no_key"}
+    # Prendi ultimi 20 messaggi della sessione
+    msgs_cur = db.assistant_messages.find(
+        {"user_id": user_id, "session_id": session_id},
+        {"_id": 0, "role": 1, "content": 1}
+    ).sort("created_at", -1).limit(20)
+    msgs = [m async for m in msgs_cur]
+    if len(msgs) < 4:  # troppi pochi per distillare
+        return {"skipped": "not_enough_messages"}
+    msgs.reverse()
+    convo = "\n".join([f"{m['role']}: {(m.get('content') or '')[:500]}" for m in msgs])
+    # Fatti già noti (per evitare duplicati)
+    existing = [f async for f in db.axon_brain_facts.find({"user_id": user_id}, {"_id": 0, "fact": 1}).limit(50)]
+    existing_txt = "\n".join([f"- {e.get('fact')}" for e in existing])
+    system = (
+        "Sei un analista che estrae UN JSON strutturato con FATTI STABILI e un PROFILO "
+        "COMPORTAMENTALE su un consulente energetico italiano, basandoti su una "
+        "conversazione. NON estrarre dati sensibili di clienti (email, telefoni, importi "
+        "specifici). Estrai solo pattern generali su come lavora il consulente, "
+        "specializzazioni, tono, gergo, preferenze.\n\n"
+        "OUTPUT (JSON compatto, senza markdown):\n"
+        '{"profile":{"specialization":"<max 100 char, o null>","tone":"<max 60 char, o null>",'
+        '"jargon":"<max 100 char, o null>","preferences":"<max 200 char, o null>",'
+        '"style_markers":"<max 100 char, o null>"},'
+        '"new_facts":[{"fact":"<max 140 char, dichiarativo>","category":"<preferenze|specializzazione|clienti|processo|obiezioni|altro>","importance":<1-5>}]}\n\n'
+        "REGOLE:\n"
+        "- 'new_facts' MAX 5, solo se DAVVERO stabili e non già presenti tra i fatti noti.\n"
+        "- Se non c'è nulla di nuovo da estrarre, ritorna new_facts:[].\n"
+        "- Ogni campo del profilo che non riesci a determinare deve essere null.\n"
+    )
+    user_prompt = (
+        f"FATTI GIÀ NOTI (non ripeterli):\n{existing_txt or 'nessuno'}\n\n"
+        f"CONVERSAZIONE:\n{convo}\n\n"
+        "Estrai il JSON."
+    )
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"brain-distill-{uuid.uuid4().hex[:8]}",
+            system_message=system,
+        ).with_model("anthropic", "claude-haiku-4-5")
+        raw = await chat.send_message(UserMessage(text=user_prompt))
+        # Trova JSON nella risposta
+        m = re.search(r"\{.*\}", raw, re.S)
+        if not m:
+            return {"skipped": "no_json"}
+        data = json.loads(m.group(0))
+        # Salva profilo
+        p = data.get("profile") or {}
+        upd = {"user_id": user_id, "updated_at": utcnow()}
+        for k in ("specialization", "tone", "jargon", "preferences", "style_markers"):
+            v = (p.get(k) or "").strip() if isinstance(p.get(k), str) else None
+            if v and v.lower() not in ("null", "none", ""):
+                upd[k] = v[:200]
+        upd["last_distilled_at"] = utcnow()
+        await db.axon_brain_profile.update_one(
+            {"user_id": user_id},
+            {"$set": upd, "$setOnInsert": {"created_at": utcnow(), "learning_enabled": True}},
+            upsert=True,
+        )
+        # Salva nuovi fatti (deduplica su testo)
+        new_facts = data.get("new_facts") or []
+        existing_norms = {(e.get("fact") or "").strip().lower() for e in existing}
+        added = 0
+        for nf in new_facts[:5]:
+            fact = (nf.get("fact") or "").strip()
+            if not fact or fact.lower() in existing_norms:
+                continue
+            await db.axon_brain_facts.insert_one({
+                "user_id": user_id,
+                "fact_id": uuid.uuid4().hex[:16],
+                "fact": fact[:200],
+                "category": (nf.get("category") or "altro")[:30],
+                "importance": max(1, min(5, int(nf.get("importance") or 3))),
+                "source_session": session_id,
+                "created_at": utcnow(),
+            })
+            existing_norms.add(fact.lower())
+            added += 1
+        return {"ok": True, "profile_updated": bool(upd), "facts_added": added}
+    except Exception as e:
+        logger.warning("[brain] distill failed: %s", e)
+        return {"error": str(e)}
+
+
+@api_router.get("/axon/brain")
+async def axon_brain_get(user=Depends(get_current_user)):
+    brain = await _load_axon_brain(user["user_id"])
+    return {
+        "profile": brain.get("profile") or {},
+        "facts": brain.get("facts") or [],
+        "learning_enabled": brain.get("profile", {}).get("learning_enabled") is not False,
+    }
+
+
+@api_router.put("/axon/brain/settings")
+async def axon_brain_settings(body: BrainSettingsIn, user=Depends(get_current_user)):
+    upd: Dict[str, Any] = {"user_id": user["user_id"], "updated_at": utcnow()}
+    if body.learning_enabled is not None:
+        upd["learning_enabled"] = bool(body.learning_enabled)
+    for k in ("specialization", "tone", "preferences"):
+        v = getattr(body, k)
+        if v is not None:
+            upd[k] = (v or "").strip()[:200]
+    await db.axon_brain_profile.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": upd, "$setOnInsert": {"created_at": utcnow()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api_router.delete("/axon/brain/facts/{fact_id}")
+async def axon_brain_delete_fact(fact_id: str, user=Depends(get_current_user)):
+    r = await db.axon_brain_facts.delete_one({"user_id": user["user_id"], "fact_id": fact_id})
+    return {"deleted": r.deleted_count}
+
+
+@api_router.post("/axon/brain/reset")
+async def axon_brain_reset(user=Depends(get_current_user)):
+    await db.axon_brain_facts.delete_many({"user_id": user["user_id"]})
+    await db.axon_brain_profile.delete_one({"user_id": user["user_id"]})
+    return {"ok": True}
+
+
+@api_router.post("/axon/brain/refresh")
+async def axon_brain_refresh(session_id: Optional[str] = None, user=Depends(get_current_user)):
+    """Forza una distillazione immediata dalla sessione corrente."""
+    if not session_id:
+        # Prendi la sessione più recente
+        last = await db.assistant_messages.find_one(
+            {"user_id": user["user_id"]},
+            {"_id": 0, "session_id": 1},
+            sort=[("created_at", -1)],
+        )
+        if not last:
+            raise HTTPException(status_code=400, detail="Nessuna sessione recente")
+        session_id = last["session_id"]
+    r = await _distill_axon_brain(user["user_id"], session_id)
+    return r
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ─── V50.w — AXON SCRIPT BANK: libreria di script vincenti ─────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+# Collection: axon_scripts
+#   {user_id, script_id, category, title, content, tags, times_used,
+#    created_at, updated_at}
+#
+# Categorie suggerite: apertura_chiamata, email_freddo, gestione_obiezione,
+# closing, follow_up, primo_incontro, altro
+
+class ScriptIn(BaseModel):
+    category: str = "altro"
+    title: str
+    content: str
+    tags: List[str] = Field(default_factory=list)
+
+
+class ScriptUpdate(BaseModel):
+    category: Optional[str] = None
+    title: Optional[str] = None
+    content: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+@api_router.get("/axon/scripts")
+async def axon_scripts_list(category: Optional[str] = None, user=Depends(get_current_user)):
+    q: Dict[str, Any] = {"user_id": tenant_id(user)}
+    if category:
+        q["category"] = category
+    cur = db.axon_scripts.find(q, {"_id": 0}).sort([("times_used", -1), ("updated_at", -1)])
+    return {"scripts": [s async for s in cur]}
+
+
+@api_router.post("/axon/scripts")
+async def axon_scripts_create(body: ScriptIn, user=Depends(get_current_user)):
+    doc = {
+        "user_id": tenant_id(user),
+        "created_by": user["user_id"],
+        "script_id": uuid.uuid4().hex[:16],
+        "category": (body.category or "altro").strip()[:40],
+        "title": body.title.strip()[:120],
+        "content": body.content.strip()[:4000],
+        "tags": [t.strip()[:30] for t in body.tags if t.strip()][:8],
+        "times_used": 0,
+        "created_at": utcnow(),
+        "updated_at": utcnow(),
+    }
+    await db.axon_scripts.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.put("/axon/scripts/{script_id}")
+async def axon_scripts_update(script_id: str, body: ScriptUpdate, user=Depends(get_current_user)):
+    upd: Dict[str, Any] = {"updated_at": utcnow()}
+    if body.category is not None: upd["category"] = body.category.strip()[:40]
+    if body.title is not None: upd["title"] = body.title.strip()[:120]
+    if body.content is not None: upd["content"] = body.content.strip()[:4000]
+    if body.tags is not None: upd["tags"] = [t.strip()[:30] for t in body.tags if t.strip()][:8]
+    r = await db.axon_scripts.update_one(
+        {"user_id": tenant_id(user), "script_id": script_id},
+        {"$set": upd},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Script non trovato")
+    return {"ok": True}
+
+
+@api_router.delete("/axon/scripts/{script_id}")
+async def axon_scripts_delete(script_id: str, user=Depends(get_current_user)):
+    r = await db.axon_scripts.delete_one({"user_id": tenant_id(user), "script_id": script_id})
+    return {"deleted": r.deleted_count}
+
+
+@api_router.post("/axon/scripts/{script_id}/use")
+async def axon_scripts_use(script_id: str, user=Depends(get_current_user)):
+    r = await db.axon_scripts.update_one(
+        {"user_id": tenant_id(user), "script_id": script_id},
+        {"$inc": {"times_used": 1}, "$set": {"last_used_at": utcnow()}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Script non trovato")
+    return {"ok": True}
+
+
+async def _load_scripts_index(user_id_or_tenant: str) -> str:
+    """Ritorna un elenco compatto (solo titolo+categoria) degli script del tenant,
+    per iniezione nel system prompt."""
+    try:
+        cur = db.axon_scripts.find(
+            {"user_id": user_id_or_tenant},
+            {"_id": 0, "script_id": 1, "title": 1, "category": 1, "times_used": 1}
+        ).sort("times_used", -1).limit(30)
+        items = [s async for s in cur]
+        if not items:
+            return ""
+        lines = ["\n\nPLAYBOOK SCRIPT DEL CONSULENTE (indice — usali quando l'utente chiede un modello di messaggio, apertura chiamata, email, obiezione, closing):"]
+        for s in items:
+            lines.append(f"  • [{s.get('category','altro')}] {s.get('title','')} (id: {s.get('script_id')})")
+        lines.append("Se l'utente chiede uno script/messaggio simile a uno di questi, cita brevemente il titolo e proponi il contenuto adattato. Se vuole crearne uno nuovo, guidalo (categoria, titolo, contenuto).")
+        return "\n".join(lines) + "\n"
+    except Exception:
+        return ""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ─── V50.w — AXON CHEAT SHEET BOLLETTE: fornitori/prezzi auto-appreso ──────
+# ═══════════════════════════════════════════════════════════════════════════
+# Collection: axon_bill_cheatsheet
+#   {user_id, supplier_norm, bill_type, samples: [{price_kwh, price_smc,
+#     price_pcv, canone, extracted_at}], last_updated}
+
+def _norm_supplier(s: Optional[str]) -> str:
+    if not s: return ""
+    v = str(s).strip().lower()
+    # rimuovi società, s.p.a., etc.
+    v = re.sub(r"\b(s\.?p\.?a\.?|s\.?r\.?l\.?|s\.?a\.?s\.?|società|group|italia|italy)\b", "", v)
+    v = re.sub(r"[^a-z0-9 ]", "", v)
+    v = re.sub(r"\s+", " ", v).strip()
+    return v[:60]
+
+
+async def _update_bill_cheatsheet(user_id: str, bill_type: str, extracted: Dict[str, Any]) -> None:
+    """Aggiorna la mini-statistica di prezzi visti dall'utente. Best-effort, non blocca."""
+    try:
+        supplier = _norm_supplier(extracted.get("fornitore") or extracted.get("supplier"))
+        if not supplier:
+            return
+        sample: Dict[str, Any] = {"extracted_at": utcnow()}
+        # Estrai prezzi noti in modo tollerante
+        for k_src, k_dst in [
+            ("prezzo_kwh", "price_kwh"),
+            ("prezzo_smc", "price_smc"),
+            ("prezzo_luce_kwh", "price_kwh"),
+            ("prezzo_gas_smc", "price_smc"),
+            ("pcv", "pcv"),
+            ("canone_mensile", "canone"),
+        ]:
+            v = extracted.get(k_src)
+            if v is None: continue
+            try:
+                sample[k_dst] = float(str(v).replace(",", ".").replace("€", "").strip())
+            except Exception:
+                pass
+        if len(sample) <= 1:
+            return  # nessun prezzo estratto
+        await db.axon_bill_cheatsheet.update_one(
+            {"user_id": user_id, "supplier_norm": supplier, "bill_type": bill_type},
+            {
+                "$push": {"samples": {"$each": [sample], "$slice": -30}},  # tieni ultimi 30
+                "$set": {"last_updated": utcnow()},
+                "$setOnInsert": {
+                    "user_id": user_id, "supplier_norm": supplier, "bill_type": bill_type,
+                    "created_at": utcnow(),
+                }
+            },
+            upsert=True,
+        )
+    except Exception as e:
+        logger.debug("[cheatsheet] update failed: %s", e)
+
+
+def _cheatsheet_stats(samples: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Calcola medie per ogni prezzo dai samples."""
+    out: Dict[str, Any] = {"count": len(samples or [])}
+    for key in ("price_kwh", "price_smc", "pcv", "canone"):
+        vals = [s.get(key) for s in (samples or []) if isinstance(s.get(key), (int, float))]
+        if vals:
+            out[f"avg_{key}"] = round(sum(vals) / len(vals), 4)
+            out[f"min_{key}"] = round(min(vals), 4)
+            out[f"max_{key}"] = round(max(vals), 4)
+    return out
+
+
+@api_router.get("/axon/cheatsheet/bills")
+async def axon_cheatsheet_bills(user=Depends(get_current_user)):
+    cur = db.axon_bill_cheatsheet.find({"user_id": user["user_id"]}, {"_id": 0})
+    out: List[Dict[str, Any]] = []
+    async for row in cur:
+        samples = row.get("samples") or []
+        stats = _cheatsheet_stats(samples)
+        out.append({
+            "supplier": row.get("supplier_norm"),
+            "bill_type": row.get("bill_type"),
+            "count": stats.get("count", 0),
+            "avg_price_kwh": stats.get("avg_price_kwh"),
+            "avg_price_smc": stats.get("avg_price_smc"),
+            "avg_pcv": stats.get("avg_pcv"),
+            "avg_canone": stats.get("avg_canone"),
+            "min_price_kwh": stats.get("min_price_kwh"),
+            "max_price_kwh": stats.get("max_price_kwh"),
+            "last_updated": (row.get("last_updated") or "").isoformat() if row.get("last_updated") and not isinstance(row.get("last_updated"), str) else row.get("last_updated"),
+        })
+    out.sort(key=lambda x: (x.get("bill_type") or "", -(x.get("count") or 0)))
+    return {"rows": out}
+
+
+@api_router.delete("/axon/cheatsheet/bills")
+async def axon_cheatsheet_bills_reset(user=Depends(get_current_user)):
+    r = await db.axon_bill_cheatsheet.delete_many({"user_id": user["user_id"]})
+    return {"deleted": r.deleted_count}
+
+
+async def _cheatsheet_section_for_prompt(user_id: str) -> str:
+    """Sezione compatta cheat sheet fornitori da iniettare nel prompt (solo se ci sono dati)."""
+    try:
+        cur = db.axon_bill_cheatsheet.find(
+            {"user_id": user_id}, {"_id": 0, "supplier_norm": 1, "bill_type": 1, "samples": 1}
+        ).limit(30)
+        rows = [r async for r in cur]
+        if not rows:
+            return ""
+        lines = ["\n\nCHEAT SHEET FORNITORI/PREZZI (basato sulle bollette che HAI GIÀ analizzato — usa questi per confronti veloci):"]
+        for r in rows[:20]:
+            stats = _cheatsheet_stats(r.get("samples") or [])
+            n = stats.get("count", 0)
+            price_kwh = stats.get("avg_price_kwh")
+            price_smc = stats.get("avg_price_smc")
+            pcv = stats.get("avg_pcv")
+            parts = []
+            if price_kwh is not None: parts.append(f"€/kWh medio {price_kwh}")
+            if price_smc is not None: parts.append(f"€/Smc medio {price_smc}")
+            if pcv is not None: parts.append(f"PCV medio {pcv}")
+            if parts:
+                lines.append(f"  • {r.get('supplier_norm','?')} [{r.get('bill_type','?')}] n={n} · {' · '.join(parts)}")
+        return "\n".join(lines) + "\n"
+    except Exception:
+        return ""
 
 
 async def _legacy_owner_ids(user: dict) -> List[str]:
