@@ -18,7 +18,7 @@ import {
   Animated,
   Modal,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -51,6 +51,9 @@ import { CardHtmlMirrors } from "../components/CardHtmlMirrors";
 
 export function BusinessCardScreen(): React.ReactElement {
   const router = useRouter();
+  // V50.s — Safe bottom insets per rispettare la nav bar Android/home indicator iOS
+  const insets = useSafeAreaInsets();
+  const bottomSafe = Math.max(insets.bottom, 16);
   const { resource, card, busy, errorMsg, update, save, pickAndSaveLogo } = useBusinessCard();
   const [flipped, setFlipped] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -222,7 +225,7 @@ export function BusinessCardScreen(): React.ReactElement {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 90 + bottomSafe }}>
         <View style={styles.flipHint}>
           <Ionicons name="sync-outline" size={14} color={theme.color.muted} />
           <Text style={styles.flipHintTxt}>Tocca il biglietto per ruotarlo • Attualmente: {flipped ? "Retro" : "Fronte"}</Text>

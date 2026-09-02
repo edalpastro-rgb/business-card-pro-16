@@ -546,9 +546,10 @@ export default function HomeScreen() {
 
         {/* ── V29 · Scadenze imminenti ── */}
         <View style={styles.section}>
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Scadenze imminenti</Text>
-            <View style={styles.dlChipsRow}>
+          {/* V50.s — Titolo "SCADENZE" compatto + chips centrati sotto */}
+          <View style={styles.dlHeader}>
+            <Text style={styles.dlSectionTitle}>SCADENZE</Text>
+            <View style={styles.dlChipsRowCentered}>
               {[30, 60, 90, 180].map((d) => {
                 const active = d === deadlinesDays;
                 return (
@@ -1292,6 +1293,10 @@ const styles = StyleSheet.create({
 
   /* V29 · Scadenze */
   dlChipsRow: { flexDirection: "row", gap: 6 },
+  // V50.s — Header "SCADENZE" con chips centrati sotto
+  dlHeader: { alignItems: "center", gap: 10, marginBottom: 12 },
+  dlSectionTitle: { fontSize: 18, fontWeight: "900", color: C.navy, letterSpacing: 2, textAlign: "center" },
+  dlChipsRowCentered: { flexDirection: "row", gap: 8, justifyContent: "center", alignItems: "center", flexWrap: "wrap" },
   dlChip: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: C.navySoft, borderWidth: 1, borderColor: C.border },
   dlChipActive: { backgroundColor: C.primarySoft, borderColor: C.primary },
   dlChipTxt: { fontSize: 11, fontWeight: "800", color: C.navy },
