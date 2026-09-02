@@ -13136,6 +13136,124 @@ def _require_master(user: Dict[str, Any]) -> None:
         raise HTTPException(status_code=403, detail="Sezione riservata al Master")
 
 
+def _require_super_master(user: Dict[str, Any]) -> None:
+    """V50.v — Super Master gate for cross-tenant / platform-wide features
+    (es. Libretto Informativo globale).
+
+    Environment: `SUPER_MASTER_EMAILS` — CSV di email autorizzate
+      (case-insensitive). Se non impostata, autorizza qualsiasi owner
+      (retro-compatibile per l'MVP).
+    """
+    import os as _os
+    emails_env = (_os.environ.get("SUPER_MASTER_EMAILS") or "").strip()
+    email = (user.get("email") or "").strip().lower()
+    if emails_env:
+        allowed = {e.strip().lower() for e in emails_env.split(",") if e.strip()}
+        if email not in allowed:
+            raise HTTPException(status_code=403, detail="Sezione riservata al Super Master")
+    else:
+        # Fallback MVP: qualsiasi owner tenant può modificare
+        if (user.get("role") or "member") != "owner":
+            raise HTTPException(status_code=403, detail="Sezione riservata al Super Master")
+
+
+# ─── V50.v — Libretto Informativo: contenuto EDITABILE dal Super Master ──────
+# Singleton document nella collection `libretto_content` (`_id = "global"`).
+# Struttura: { meta: {...}, sections: [...], updated_at, updated_by }.
+# Se il documento non esiste, il GET risponde con `{ sections: [], meta: {} }`
+# e il frontend userà il fallback statico (LIBRETTO_SECTIONS) come default.
+
+class LibrettoTip(BaseModel):
+    emoji: str = ""
+    text: str = ""
+
+
+class LibrettoMockup(BaseModel):
+    title: str = ""
+    lines: List[str] = Field(default_factory=list)
+
+
+class LibrettoSectionIn(BaseModel):
+    id: str
+    icon: str = "book"
+    emoji: str = "📘"
+    color: str = "#1C4869"
+    title: str
+    subtitle: Optional[str] = None
+    paragraphs: List[str] = Field(default_factory=list)
+    tips: List[LibrettoTip] = Field(default_factory=list)
+    mockup: Optional[LibrettoMockup] = None
+    warning: Optional[str] = None
+    # Immagine: chiave asset bundled (mantiene compatibilità con default)
+    # oppure data URL (base64) caricato dal master.
+    image_key: Optional[str] = None
+    image_data_url: Optional[str] = None
+
+
+class LibrettoMetaIn(BaseModel):
+    title: str = "Libretto Informativo"
+    subtitle: str = "AdvisorOS + AxonOS · Guida operativa completa"
+    version: str = "1.0"
+    footer: str = "© AdvisorOS. Documento generato dall'app."
+
+
+class LibrettoContentIn(BaseModel):
+    meta: LibrettoMetaIn
+    sections: List[LibrettoSectionIn]
+
+
+@api_router.get("/libretto/content")
+async def libretto_get_content(user=Depends(get_current_user)):
+    """Ritorna il contenuto del libretto salvato dal Super Master.
+
+    Se non esiste, ritorna un documento vuoto: il frontend userà il default
+    statico. Accessibile a QUALSIASI utente autenticato (i clienti leggono).
+    """
+    doc = await db.libretto_content.find_one({"_id": "global"}, {"_id": 0})
+    if not doc:
+        return {"meta": None, "sections": [], "is_default": True}
+    doc["is_default"] = False
+    # Sanitize datetimes to strings
+    for k in ("updated_at",):
+        v = doc.get(k)
+        if v and not isinstance(v, str):
+            try:
+                doc[k] = v.isoformat()
+            except Exception:
+                doc[k] = str(v)
+    return doc
+
+
+@api_router.put("/libretto/content")
+async def libretto_put_content(body: LibrettoContentIn, user=Depends(get_current_user)):
+    """Sostituisce il contenuto del libretto. Solo Super Master."""
+    _require_super_master(user)
+    if not body.sections:
+        raise HTTPException(status_code=400, detail="Almeno una sezione è richiesta")
+    # Verifica unicità id sezioni
+    ids = [s.id for s in body.sections]
+    if len(set(ids)) != len(ids):
+        raise HTTPException(status_code=400, detail="Gli id delle sezioni devono essere unici")
+    doc = {
+        "_id": "global",
+        "meta": body.meta.model_dump(),
+        "sections": [s.model_dump() for s in body.sections],
+        "updated_at": utcnow(),
+        "updated_by": user.get("email") or user.get("user_id"),
+    }
+    await db.libretto_content.replace_one({"_id": "global"}, doc, upsert=True)
+    return {"ok": True, "sections": len(body.sections), "updated_at": doc["updated_at"].isoformat()}
+
+
+@api_router.post("/libretto/content/reset")
+async def libretto_reset_content(user=Depends(get_current_user)):
+    """Ripristina il libretto al default statico (elimina il documento).
+    Solo Super Master."""
+    _require_super_master(user)
+    await db.libretto_content.delete_one({"_id": "global"})
+    return {"ok": True}
+
+
 async def _legacy_owner_ids(user: dict) -> List[str]:
     """V49.e — Return every historical `user_id` that likely belonged to the
     current owner: any other users in the DB that share the exact email.

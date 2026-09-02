@@ -1,9 +1,14 @@
 /**
  * V50.l — Libretto Informativo AdvisorOS + AxonOS
+ * V50.v — Refactor: struttura serializzabile (image_key + image_data_url)
  *
- * Contenuto strutturato del libretto informativo. Usato sia dalla schermata
- * in-app (`/libretto`) sia dal template HTML per l'export PDF.
+ * Il contenuto di default è statico ma viene sovrascritto dai dati salvati
+ * dal Super Master in `GET /api/libretto/content`. Il frontend prova prima
+ * il backend, poi il fallback qui sotto.
  */
+
+export type LibrettoTip = { emoji: string; text: string };
+export type LibrettoMockup = { title: string; lines: string[] };
 
 export type LibrettoSection = {
   id: string;
@@ -13,14 +18,44 @@ export type LibrettoSection = {
   title: string;
   subtitle?: string;
   paragraphs: string[];
-  tips?: { emoji: string; text: string }[];
-  mockup?: {
-    title: string;
-    lines: string[]; // ogni riga è mostrata come blocco in mono/mock
-  };
-  /** V50.m — Screenshot reale (require path). Se presente sostituisce il mockup testuale. */
-  image?: number;
-  warning?: string;
+  tips?: LibrettoTip[];
+  mockup?: LibrettoMockup;
+  /** Chiave di un asset bundled (mappata in LIBRETTO_IMAGE_MAP). */
+  image_key?: string | null;
+  /** Data URL (es. `data:image/jpeg;base64,...`) caricato dal Master. */
+  image_data_url?: string | null;
+  warning?: string | null;
+};
+
+export type LibrettoMeta = {
+  title: string;
+  subtitle: string;
+  version: string;
+  footer: string;
+};
+
+/** Mappa image_key → require(...) per le immagini bundled default. */
+export const LIBRETTO_IMAGE_MAP: Record<string, number> = {
+  "01_login": require("@/assets/images/libretto/01_login.jpg"),
+  "02_home": require("@/assets/images/libretto/02_home.jpg"),
+  "03_contatti": require("@/assets/images/libretto/03_contatti.jpg"),
+  "04_chat": require("@/assets/images/libretto/04_chat.jpg"),
+  "05_nuovo_contatto": require("@/assets/images/libretto/05_nuovo_contatto.jpg"),
+  "06_impostazioni": require("@/assets/images/libretto/06_impostazioni.jpg"),
+  "07_biglietto": require("@/assets/images/libretto/07_biglietto.jpg"),
+  "08_calendario": require("@/assets/images/libretto/08_calendario.jpg"),
+  "09_report": require("@/assets/images/libretto/09_report.jpg"),
+  "10_ai_teach": require("@/assets/images/libretto/10_ai_teach.jpg"),
+};
+
+/** Elenco chiavi disponibili per il selector nell'editor. */
+export const LIBRETTO_IMAGE_KEYS = Object.keys(LIBRETTO_IMAGE_MAP);
+
+export const LIBRETTO_META: LibrettoMeta = {
+  title: "Libretto Informativo",
+  subtitle: "AdvisorOS + AxonOS · Guida operativa completa",
+  version: "1.0 · Giugno 2026",
+  footer: "© AdvisorOS. Documento generato dall'app.",
 };
 
 export const LIBRETTO_SECTIONS: LibrettoSection[] = [
@@ -72,7 +107,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#4C1D95",
     title: "2 · Accesso e registrazione",
     subtitle: "Email + password oppure invito Master",
-    image: require("@/assets/images/libretto/01_login.jpg"),
+    image_key: "01_login",
     paragraphs: [
       "Se sei un Master, registrati con email e password. Se sei un Agente, riceverai un link di invito dal tuo Master: apriti crea la password personale e sei dentro.",
       "Puoi abilitare l'accesso biometrico (Face ID / Touch ID / Impronta) da Impostazioni → Sicurezza per accedere in un tocco.",
@@ -89,7 +124,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#EA580C",
     title: "3 · Home",
     subtitle: "Il tuo cruscotto operativo del giorno",
-    image: require("@/assets/images/libretto/02_home.jpg"),
+    image_key: "02_home",
     paragraphs: [
       "La Home mostra in alto il tuo brand personalizzato (Cognome, Nome, logo agenzia opzionale) e sotto le sezioni operative: appuntamenti di oggi, scadenze in arrivo, ultimi contatti aggiunti e KPI mensili.",
       "Ogni card è tap-friendly: toccala per andare direttamente alla sezione approfondita.",
@@ -105,7 +140,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#1D4ED8",
     title: "4 · Contatti · Anagrafica",
     subtitle: "Il cuore del tuo CRM",
-    image: require("@/assets/images/libretto/03_contatti.jpg"),
+    image_key: "03_contatti",
     paragraphs: [
       "Ogni contatto ha: dati anagrafici, referente/i, aree merceologiche, tag, script personalizzato, note vocali e allegati.",
       "Puoi aggiungere campi personalizzati per adattare l'anagrafica al tuo processo commerciale (Es.: «Vendita fissa», «PV installato», «Data ultimo contratto»).",
@@ -122,7 +157,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#16A34A",
     title: "5 · Aggiungere un contatto",
     subtitle: "5 modi rapidissimi",
-    image: require("@/assets/images/libretto/05_nuovo_contatto.jpg"),
+    image_key: "05_nuovo_contatto",
     paragraphs: [
       "Puoi aggiungere un nuovo contatto in cinque modi:",
       "1) Manualmente compilando il form.\n2) Dal biglietto da visita (fotografato: OCR + AI).\n3) Dalla rubrica del telefono (import massivo o singolo).\n4) Da un URL / vCard (incolla e AxonOS riempie i campi).\n5) A voce, dettando i dati ad AxonOS.",
@@ -140,7 +175,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#DB2777",
     title: "6 · Appuntamenti & Calendario",
     subtitle: "Prenotazione, promemoria, cronologia",
-    image: require("@/assets/images/libretto/08_calendario.jpg"),
+    image_key: "08_calendario",
     paragraphs: [
       "Dal contatto o dalla tab Calendario puoi creare un appuntamento: data, ora, tipologia (sopralluogo, chiamata, riunione online, ecc.), note e link Meet/Zoom.",
       "Ricevi promemoria push 30 minuti prima e vedi tutti gli appuntamenti passati per ogni contatto.",
@@ -158,7 +193,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#0891B2",
     title: "7 · Biglietto da visita digitale",
     subtitle: "Condividi il tuo profilo in un tap",
-    image: require("@/assets/images/libretto/07_biglietto.jpg"),
+    image_key: "07_biglietto",
     paragraphs: [
       "Ogni consulente ha un biglietto digitale a due facce: fronte con logo aziendale (che ora occupa l'intero fronte come sfondo) e retro con foto, dati e QR code.",
       "Condividi il biglietto via WhatsApp, email, AirDrop o NFC. Il destinatario può salvarlo direttamente nella sua rubrica.",
@@ -176,7 +211,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#7C3AED",
     title: "8 · AxonOS — Chat AI",
     subtitle: "Il tuo assistente sempre disponibile",
-    image: require("@/assets/images/libretto/04_chat.jpg"),
+    image_key: "04_chat",
     paragraphs: [
       "AxonOS è la chat integrata: gli fai domande e ti risponde in tempo reale usando il tuo contesto personale (contatti, bollette, appuntamenti, regole aziendali).",
       "Nel campo di input trovi anche il pulsante microfono per parlare invece di scrivere e allegare file da Drive, Dropbox o dal telefono.",
@@ -204,7 +239,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#B91C1C",
     title: "9 · Insegna ad Axon",
     subtitle: "Regole, URL sorgente, documenti",
-    image: require("@/assets/images/libretto/10_ai_teach.jpg"),
+    image_key: "10_ai_teach",
     paragraphs: [
       "Da Impostazioni → Insegna ad Axon puoi creare regole personalizzate per rendere Axon esperto del TUO business: linee guida di vendita, script preferiti, terminologia tecnica.",
       "Aggiungi anche URL di siti sorgente (es. autorità energia, il tuo sito) e documenti PDF che Axon leggerà come contesto RAG (embeddings semantici).",
@@ -281,7 +316,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#0EA5E9",
     title: "14 · Report",
     subtitle: "Analytics chiari, decisioni migliori",
-    image: require("@/assets/images/libretto/09_report.jpg"),
+    image_key: "09_report",
     paragraphs: [
       "La tab Report mostra grafici a barre, torta e trend nel tempo: contratti chiusi, tipologie di appuntamento, area geografica, provenienza lead, uso di Axon.",
       "Puoi filtrare per periodo (7/30/90 giorni, YTD) ed esportare CSV/PDF.",
@@ -294,7 +329,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#475569",
     title: "15 · Impostazioni",
     subtitle: "Personalizza AdvisorOS a modo tuo",
-    image: require("@/assets/images/libretto/06_impostazioni.jpg"),
+    image_key: "06_impostazioni",
     paragraphs: [
       "In Impostazioni trovi tutto: profilo, biglietto da visita, integrazioni cloud, aree e categorie personalizzate, gestione team, memoria di Axon, SMTP per invio email, sicurezza biometrica, invito collaboratori.",
     ],
@@ -330,9 +365,13 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
   },
 ];
 
-export const LIBRETTO_META = {
-  title: "Libretto Informativo",
-  subtitle: "AdvisorOS + AxonOS · Guida operativa completa",
-  version: "1.0 · Giugno 2026",
-  footer: "© AdvisorOS. Documento generato dall'app.",
-};
+/** Risolve la fonte immagine per una sezione. */
+export function resolveSectionImage(section: LibrettoSection): number | { uri: string } | null {
+  if (section.image_data_url && section.image_data_url.startsWith("data:")) {
+    return { uri: section.image_data_url };
+  }
+  if (section.image_key && LIBRETTO_IMAGE_MAP[section.image_key]) {
+    return LIBRETTO_IMAGE_MAP[section.image_key];
+  }
+  return null;
+}

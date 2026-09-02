@@ -25,7 +25,8 @@ import { Asset } from "expo-asset";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
-import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection } from "@/src/libretto/libretto-content";
+import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection, LibrettoMeta, LIBRETTO_IMAGE_MAP, resolveSectionImage } from "@/src/libretto/libretto-content";
+import { api } from "@/src/api";
 
 const ADVISOR_LOGO = require("@/assets/images/advisoros-logo-transparent.png");
 const AXON_LOGO = require("@/assets/images/axonos-logo-transparent.png");
@@ -61,7 +62,7 @@ async function assetToBase64(mod: number): Promise<string> {
   }
 }
 
-function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages: Record<string, string>): string {
+function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages: Record<string, string>, sections: LibrettoSection[], meta: LibrettoMeta): string {
   const dataUri = (b64: string) => (b64 ? `data:image/png;base64,${b64}` : "");
   const jpgUri = (b64: string) => (b64 ? `data:image/jpeg;base64,${b64}` : "");
   const cover = `
@@ -70,10 +71,10 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
         ${logoAdvisorB64 ? `<img class="cover-logo" src="${dataUri(logoAdvisorB64)}" />` : ""}
         ${logoAxonB64 ? `<img class="cover-logo" src="${dataUri(logoAxonB64)}" />` : ""}
       </div>
-      <div class="cover-title">${LIBRETTO_META.title}</div>
-      <div class="cover-sub">${LIBRETTO_META.subtitle}</div>
-      <div class="cover-version">${LIBRETTO_META.version}</div>
-      <div class="cover-footer">${LIBRETTO_META.footer}</div>
+      <div class="cover-title">${meta.title}</div>
+      <div class="cover-sub">${meta.subtitle}</div>
+      <div class="cover-version">${meta.version}</div>
+      <div class="cover-footer">${meta.footer}</div>
     </div>
   `;
 
@@ -81,19 +82,25 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
     <div class="toc page-break">
       <h2>Indice</h2>
       <ol>
-        ${LIBRETTO_SECTIONS.map((s) => `<li><span class="toc-em">${s.emoji}</span> ${s.title}</li>`).join("")}
+        ${sections.map((s) => `<li><span class="toc-em">${s.emoji}</span> ${s.title}</li>`).join("")}
       </ol>
     </div>
   `;
 
-  const sectionsHtml = LIBRETTO_SECTIONS.map((s) => {
+  const sectionsHtml = sections.map((s) => {
     const tips = s.tips
       ? `<ul class="tips">${s.tips.map((t) => `<li><span class="tip-em">${t.emoji}</span> ${t.text}</li>`).join("")}</ul>`
       : "";
-    const imgB64 = sectionImages[s.id];
-    const imgHtml = imgB64
-      ? `<div class="screenshot"><img src="${jpgUri(imgB64)}" alt="${s.title}" /></div>`
-      : "";
+    // Priorità: data URL uploaded > base64 dell'asset bundled (risolto dal chiamante)
+    let imgHtml = "";
+    if (s.image_data_url && s.image_data_url.startsWith("data:")) {
+      imgHtml = `<div class="screenshot"><img src="${s.image_data_url}" alt="${escapeHtml(s.title)}" /></div>`;
+    } else {
+      const imgB64 = sectionImages[s.id];
+      if (imgB64) {
+        imgHtml = `<div class="screenshot"><img src="${jpgUri(imgB64)}" alt="${escapeHtml(s.title)}" /></div>`;
+      }
+    }
     const mockup = s.mockup
       ? `<div class="mockup">
            <div class="mockup-title">${s.mockup.title}</div>
@@ -122,7 +129,7 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
   }).join("");
 
   return `<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"/>
-<title>${LIBRETTO_META.title}</title>
+<title>${meta.title}</title>
 <style>
   @page { size: A4; margin: 0; }
   * { box-sizing: border-box; }
@@ -182,10 +189,32 @@ export default function LibrettoScreen() {
   const params = useLocalSearchParams<{ onboarding?: string }>();
   const isOnboarding = params.onboarding === "1";
   const [exporting, setExporting] = useState(false);
-  // V50.n — usa insets nativi per la sticky bar: la vecchia useSafeBottom
-  // ritornava un pagePad grosso per contenuti, non serve per un footer.
+  // V50.n — usa insets nativi per la sticky bar
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 12);
+
+  // V50.v — Contenuto remoto (editabile dal Super Master) con fallback statico
+  const [sections, setSections] = useState<LibrettoSection[]>(LIBRETTO_SECTIONS);
+  const [meta, setMeta] = useState<LibrettoMeta>(LIBRETTO_META);
+  const [canEdit, setCanEdit] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      // Verifica se l'utente è owner (Master) per mostrare il pulsante "Modifica"
+      try {
+        const me = await api<any>("/auth/me");
+        setCanEdit((me?.role || "member") === "owner");
+      } catch { /* silent */ }
+      // Carica contenuto libretto dal backend, se presente
+      try {
+        const r = await api<any>("/libretto/content");
+        if (r && !r.is_default && Array.isArray(r.sections) && r.sections.length > 0) {
+          setSections(r.sections as LibrettoSection[]);
+          if (r.meta) setMeta(r.meta as LibrettoMeta);
+        }
+      } catch { /* fallback statico */ }
+    })();
+  }, []);
 
   // V50.m — Se apriamo il libretto in modalità onboarding, non è più "primo giro":
   // segna come visto quando l'utente inizia a leggerlo (evita che riappaia).
@@ -208,20 +237,23 @@ export default function LibrettoScreen() {
         assetToBase64(ADVISOR_LOGO),
         assetToBase64(AXON_LOGO),
       ]);
-      // 2) Prepara gli screenshot delle sezioni in base64 (in parallelo)
+      // 2) Prepara gli screenshot delle sezioni in base64 (in parallelo).
+      // Solo per le sezioni che usano image_key (asset bundled). Le sezioni
+      // che hanno image_data_url usano direttamente il data URL nel PDF.
       const sectionImages: Record<string, string> = {};
       await Promise.all(
-        LIBRETTO_SECTIONS
-          .filter((s) => !!s.image)
+        sections
+          .filter((s) => !s.image_data_url && s.image_key && LIBRETTO_IMAGE_MAP[s.image_key])
           .map(async (s) => {
             try {
-              const b64 = await assetToBase64(s.image as number);
+              const mod = LIBRETTO_IMAGE_MAP[s.image_key as string];
+              const b64 = await assetToBase64(mod);
               if (b64) sectionImages[s.id] = b64;
             } catch { /* skip */ }
           }),
       );
       // 3) Costruisci HTML
-      const html = buildPdfHtml(logoAdvisor, logoAxon, sectionImages);
+      const html = buildPdfHtml(logoAdvisor, logoAxon, sectionImages, sections, meta);
       // 4) Genera PDF
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       // 5) Condividi
@@ -242,7 +274,7 @@ export default function LibrettoScreen() {
     } finally {
       setExporting(false);
     }
-  }, []);
+  }, [sections, meta]);
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -258,8 +290,7 @@ export default function LibrettoScreen() {
           </Pressable>
         )}
         <Text style={styles.headerTitle}>{isOnboarding ? "Tour Guidato" : "Libretto Informativo"}</Text>
-        {/* V50.o — In onboarding: pulsante "Salta" per entrare subito.
-            In modalità normale: placeholder trasparente per centrare il titolo. */}
+        {/* V50.o — In onboarding: "Salta". Modalità normale: se Master, "Modifica"; altrimenti placeholder. */}
         {isOnboarding ? (
           <Pressable
             onPress={dismissOnboarding}
@@ -269,6 +300,16 @@ export default function LibrettoScreen() {
           >
             <Text style={styles.skipBtnTxt}>Salta</Text>
             <Ionicons name="close" size={18} color="rgba(255,255,255,0.7)" />
+          </Pressable>
+        ) : canEdit ? (
+          <Pressable
+            onPress={() => router.push("/libretto-editor" as any)}
+            hitSlop={10}
+            testID="libretto-edit-btn"
+            style={styles.editBtn}
+          >
+            <Ionicons name="create-outline" size={18} color="#FBBF24" />
+            <Text style={styles.editBtnTxt}>Modifica</Text>
           </Pressable>
         ) : (
           <View style={styles.headerRightPh} />
@@ -290,26 +331,26 @@ export default function LibrettoScreen() {
             <Image source={ADVISOR_LOGO} style={styles.coverLogo} resizeMode="contain" />
             <Image source={AXON_LOGO} style={styles.coverLogo} resizeMode="contain" />
           </View>
-          <Text style={styles.coverTitle}>{isOnboarding ? "Benvenuto in AdvisorOS" : LIBRETTO_META.title}</Text>
+          <Text style={styles.coverTitle}>{isOnboarding ? "Benvenuto in AdvisorOS" : meta.title}</Text>
           <Text style={styles.coverSub}>
             {isOnboarding
               ? "Ecco un giro guidato di tutto quello che puoi fare. Scorri, esplora, poi tocca «Iniziamo!» in fondo."
-              : LIBRETTO_META.subtitle}
+              : meta.subtitle}
           </Text>
           <View style={styles.coverBadge}>
-            <Text style={styles.coverBadgeTxt}>{LIBRETTO_META.version}</Text>
+            <Text style={styles.coverBadgeTxt}>{meta.version}</Text>
           </View>
         </View>
 
         {/* Sezioni */}
-        {LIBRETTO_SECTIONS.map((s) => (
+        {sections.map((s) => (
           <SectionCard key={s.id} section={s} />
         ))}
 
         {/* Footer */}
         <View style={styles.footerBox}>
           <Image source={ADVISOR_ICON} style={styles.footerIcon} resizeMode="contain" />
-          <Text style={styles.footerTxt}>{LIBRETTO_META.footer}</Text>
+          <Text style={styles.footerTxt}>{meta.footer}</Text>
           <Text style={styles.footerTxt}>Per assistenza: support@advisoros.it</Text>
         </View>
       </ScrollView>
@@ -348,6 +389,7 @@ export default function LibrettoScreen() {
 }
 
 function SectionCard({ section }: { section: LibrettoSection }) {
+  const imgSrc = resolveSectionImage(section);
   return (
     <View style={styles.sec}>
       <View style={[styles.secHeader, { backgroundColor: section.color }]}>
@@ -363,9 +405,9 @@ function SectionCard({ section }: { section: LibrettoSection }) {
             {p}
           </Text>
         ))}
-        {section.image ? (
+        {imgSrc ? (
           <View style={styles.screenshotWrap}>
-            <Image source={section.image} style={styles.screenshotImg} resizeMode="contain" />
+            <Image source={imgSrc as any} style={styles.screenshotImg} resizeMode="contain" />
           </View>
         ) : null}
         {section.mockup ? (
@@ -422,6 +464,15 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(255,255,255,0.14)",
   },
   skipBtnTxt: { color: "rgba(255,255,255,0.85)", fontWeight: "700", fontSize: 13, letterSpacing: 0.2 },
+  // V50.v — Pulsante "Modifica" per Super Master
+  editBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(251,191,36,0.15)",
+    borderWidth: 1, borderColor: "rgba(251,191,36,0.4)",
+  },
+  editBtnTxt: { color: "#FBBF24", fontWeight: "800", fontSize: 12, letterSpacing: 0.3 },
   headerTitle: { color: "#FFF", fontSize: 16, fontWeight: "900" },
   pdfBtn: {
     flexDirection: "row",
