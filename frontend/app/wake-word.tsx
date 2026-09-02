@@ -17,6 +17,16 @@ import { theme } from "@/src/theme";
 
 const WAKE_ENABLED_KEY = "wake_word_enabled_v1";
 const WAKE_MODEL_KEY = "wake_word_model_v1"; // "hey_jarvis" | "axon_custom"
+// V50.w — Modello Axon custom addestrato dall'utente su ViolaWake (Job #253)
+//   • Architettura: TemporalCNN
+//   • Framework: PyTorch 2.1 → export ONNX
+//   • Corpus: 154 positivi + 2920 negativi
+//   • Size: ~100 KB (leggerissimo)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const AXON_MODEL = require("@/assets/wake/axon.onnx");
+// Riferimento all'asset per essere sicuri che Metro lo bundle
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _AXON_MODEL_REF = AXON_MODEL;
 
 export default function WakeWordSettingsScreen() {
   const router = useRouter();
@@ -104,8 +114,11 @@ export default function WakeWordSettingsScreen() {
           <Pressable style={[styles.modelRow, model === "axon_custom" && styles.modelActive]} onPress={() => chooseModel("axon_custom")}>
             <Ionicons name={model === "axon_custom" ? "radio-button-on" : "radio-button-off"} size={22} color={model === "axon_custom" ? "#EA580C" : theme.color.muted} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.modelName}>Axon custom · ViolaWake</Text>
-              <Text style={styles.modelSub}>Modello personalizzato allenato con la tua voce · richiede upload samples</Text>
+              <Text style={styles.modelName}>Axon custom · ViolaWake ✅</Text>
+              <Text style={styles.modelSub}>Modello TemporalCNN addestrato · 154 samples · Job #253</Text>
+            </View>
+            <View style={styles.badgeReady}>
+              <Text style={styles.badgeReadyTxt}>PRONTO</Text>
             </View>
           </Pressable>
         </View>
@@ -115,11 +128,11 @@ export default function WakeWordSettingsScreen() {
           <Text style={styles.statusTitle}>📋 Stato di sviluppo</Text>
           <StatusItem done label="Infrastruttura ONNX Runtime installata (onnxruntime-react-native 1.24)" />
           <StatusItem done label="Impostazioni + toggle salvataggio preferenze" />
+          <StatusItem done label="Modello Axon custom addestrato e bundle nell'app (100 KB, TemporalCNN)" />
           <StatusItem label="Modulo nativo audio-streaming (Android AudioRecord + iOS AVAudioEngine)" />
-          <StatusItem label="Foreground service Android per ascolto continuo (V50.v-A2)" />
-          <StatusItem label="Bundle modello .onnx (Hey Jarvis pre-addestrato)" />
+          <StatusItem label="Foreground service Android per ascolto continuo" />
+          <StatusItem label="Wiring: WakeWord.start() / stop() / onWake(callback) API JS" />
           <StatusItem label="Test su build reale Android + iOS" />
-          <StatusItem label="Fase 2: Training modello Axon custom via ViolaWake" />
         </View>
 
         <View style={styles.hint}>
@@ -188,6 +201,8 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: 12, color: theme.color.muted, lineHeight: 16 },
   modelRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.background },
   modelActive: { borderColor: "#EA580C", backgroundColor: "#FFF7ED" },
+  badgeReady: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: "#16A34A" },
+  badgeReadyTxt: { color: "#FFF", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
   modelName: { fontSize: 13.5, fontWeight: "800", color: theme.color.onSurface },
   modelSub: { fontSize: 11.5, color: theme.color.muted, marginTop: 2 },
   statusCard: { backgroundColor: "#F1F5F9", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E2E8F0" },

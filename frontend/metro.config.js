@@ -22,4 +22,9 @@ config.cacheStores = [
 // Reduce the number of workers to decrease resource usage
 config.maxWorkers = 2;
 
+// V50.w — Aggiungi estensione .onnx agli asset bundle-abili (modello wake-word ViolaWake)
+if (config.resolver && Array.isArray(config.resolver.assetExts) && !config.resolver.assetExts.includes('onnx')) {
+  config.resolver.assetExts = [...config.resolver.assetExts, 'onnx'];
+}
+
 module.exports = config;
