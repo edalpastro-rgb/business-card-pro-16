@@ -201,6 +201,12 @@ export default function AxonScriptsScreen() {
               <Ionicons name="add" size={18} color="#0F172A" />
               <Text style={styles.emptyCtaTxt}>Crea primo script</Text>
             </Pressable>
+            {/* V50.z6 — Import ben visibile sotto (non più solo nell'header
+                coperto dal FAB Aiuto). */}
+            <Pressable onPress={() => setShowImport(true)} style={[styles.emptyCta, { backgroundColor: "#0F9D58", marginTop: 10 }]} testID="script-import-btn-empty">
+              <Ionicons name="cloud-download" size={18} color="#FFF" />
+              <Text style={[styles.emptyCtaTxt, { color: "#FFF" }]}>Importa da Drive / File / Testo</Text>
+            </Pressable>
           </View>
         ) : (
           visible.map((s) => {
