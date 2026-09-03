@@ -368,9 +368,9 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ── 2) Banner My Thing (images + messages, tap = pause/play, edit via icon) ── */}
+        {/* ── 2) Banner My Thing — nascosto completamente se vuoto (V50.z5) ── */}
+        {myThingSlide ? (
         <View style={styles.myThingBtn} testID="home-my-thing-banner">
-          {myThingSlide ? (
             <Pressable
               testID="home-my-thing-toggle"
               onPress={() => setBannerPaused((p) => !p)}
@@ -388,7 +388,6 @@ export default function HomeScreen() {
                 ) : (
                   <View style={[StyleSheet.absoluteFill, { backgroundColor: myThingSlide.color }]}>
                     <View style={styles.myThingMsg}>
-                      {/* V29.ad — Titolo nascosto, testo su una riga con overflow */}
                       <Text
                         numberOfLines={1}
                         ellipsizeMode="tail"
@@ -409,16 +408,6 @@ export default function HomeScreen() {
                 )}
               </Animated.View>
             </Pressable>
-          ) : (
-            <Pressable
-              testID="home-my-thing-empty"
-              onPress={() => router.push("/my-thing")}
-              style={styles.myThingEmpty}
-            >
-              <Ionicons name="images-outline" size={22} color={C.primary} />
-              <Text style={styles.myThingEmptyTxt}>Personalizza il tuo spazio</Text>
-            </Pressable>
-          )}
 
           {/* Pause/play indicator (visible only when paused) */}
           {myThingSlide && bannerPaused ? (
@@ -441,6 +430,7 @@ export default function HomeScreen() {
             </Pressable>
           ) : null}
         </View>
+        ) : null}
 
         {/* ── 2b) Banner Evento ── */}
         <HomeEventBanner />

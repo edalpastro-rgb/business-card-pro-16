@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AssistantFAB } from "@/src/AssistantChat";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
 import { SupportFab } from "@/src/SupportFab";
+import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { OnboardingWizard } from "@/src/OnboardingWizard";
 import { AnimatedSplash } from "@/src/AnimatedSplash";
 import { FabStackProvider } from "@/src/FabStack";
@@ -132,6 +133,9 @@ function StackWithCallBar() {
       <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
       <AssistantFAB />
       {user ? <SupportFab /> : null}
+      {/* V50.z5 — Calculator FAB globale: appare in tutte le pagine, anche
+          sopra i modali fatture (posizionato accanto al FAB Axon). */}
+      {user ? <CalculatorFAB /> : null}
       {user ? <PersistentBottomNav /> : null}
       {user ? <OnboardingWizard /> : null}
     </View>

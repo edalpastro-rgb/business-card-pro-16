@@ -68,7 +68,10 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   // Bug 11.c — Auto-shutter: fire capture when the document is stable for
   // AUTO_STABLE_MS. State machine per-detection: unstable → stable → captured
   // (cool-down for AUTO_COOLDOWN_MS so we don't take two shots in a row).
-  const [autoShutter, setAutoShutter] = useState(true);
+  // V50.z5 — Auto-shutter DISATTIVATO di default: l'utente vuole scattare
+  // manualmente per avere il tempo di posizionare bene il foglio.
+  // Può riattivarlo dal pulsante ⚡ in basso a destra.
+  const [autoShutter, setAutoShutter] = useState(false);
   const [autoCountdown, setAutoCountdown] = useState<number | null>(null); // 0..1 progress
   const stableSinceRef = useRef<number | null>(null); // ms timestamp when doc became stable
   const cooldownUntilRef = useRef<number>(0); // ms timestamp until which no auto-shot allowed
@@ -117,9 +120,9 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
     let cancelled = false;
     const SAMPLE_INTERVAL = 900; // faster sampling so auto-shutter feels responsive
     const ALPHA = 0.55; // 0 = no smoothing, 1 = only new value
-    const STABILITY_THRESHOLD = 0.03; // max normalized delta across 4 corners
-    const AUTO_STABLE_MS = 1000; // hold time before firing auto-shutter
-    const AUTO_COOLDOWN_MS = 2000; // grace period after auto/manual shot
+    const STABILITY_THRESHOLD = 0.025; // stricter: rileva anche piccoli movimenti
+    const AUTO_STABLE_MS = 2500; // V50.z5: hold time più lungo (2.5s) per dare tempo al fuoco
+    const AUTO_COOLDOWN_MS = 2500; // grace period after auto/manual shot
 
     const smooth = (
       next: [number, number][],
@@ -286,14 +289,16 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
 
   const takeShot = useCallback(async () => {
     if (busy || !cameraRef.current) return;
-    // Reset auto-shutter timers (whether manual or auto call)
     stableSinceRef.current = null;
     setAutoCountdown(null);
     setBusy(true);
     try {
+      // V50.z5 — Piccolo delay pre-scatto per dare tempo all'autofocus di
+      // agganciare il documento (evita scatti sfocati in modalità manuale).
+      await new Promise((res) => setTimeout(res, 350));
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
-        quality: 0.85,
+        quality: 0.9,
         skipProcessing: false,
         exif: false,
       });

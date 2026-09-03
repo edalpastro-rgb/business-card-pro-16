@@ -519,7 +519,7 @@ function ContactDetail() {
           const iconName: any = t === "info" ? "person"
             : t === "notes" ? "create"
             : t === "files" ? "folder"
-            : t === "bills" ? "document-text"
+            : t === "bills" ? "flash"
             : t === "audio" ? "mic"
             : t === "calls" ? "chatbubbles"
             : t === "refs" ? "share-social"
