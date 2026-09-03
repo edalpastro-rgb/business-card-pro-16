@@ -1,3 +1,57 @@
+## V50.z13 (Sept 2026) — Fix TimePicker, notifica tap, anteprima suono, Home Master
+
+### 1️⃣ Bottone "Sveglie" nella Home Master
+`/app/frontend/app/master.tsx`: aggiunto pulsante verde "Sveglie" (icon `alarm`, colore `#22C55E`) tra "Insegna ad Axon" e "Cruscotto" nella lista `buttons`. Utilizza il sistema di ordinamento personalizzato esistente (l'utente può spostarlo con drag).
+
+### 2️⃣ Fix TimePicker Android: "l'ora torna sempre a 07:30"
+Il picker DateTimePicker JSX renderizzato inline aveva un bug su Samsung One UI: quando l'utente entrava in "modalità tastiera" (Digita l'ora), lo state veniva perso al primo re-render del parent Modal.
+
+**Fix**: passaggio ad **API imperativa** `DateTimePickerAndroid.open()`:
+- Sveglia: apre solo il time picker con `display: "clock"` (evita "keyboard mode" buggy)
+- Promemoria: apre in sequenza date-picker → time-picker (approccio Google standard)
+- iOS: continua ad usare il JSX inline picker con `display: "spinner"` (funziona bene su iOS)
+- `is24Hour` ora rispetta il preference dell'utente (`timeFmt === "24h"`)
+
+### 3️⃣ Notifica tap → apre schermata Sveglie
+`/app/frontend/app/_layout.tsx`:
+- Import `useRouter` da expo-router e `* as Notifications` da expo-notifications
+- Nuovo `useEffect` in `StackWithCallBar` che registra `Notifications.addNotificationResponseReceivedListener`
+- Quando l'utente tocca una notifica con `data.tag` che inizia con `alarm_` → `router.push("/axon-alarms")`
+- Cleanup listener con `sub.remove()` in return effect
+
+### 4️⃣ Anteprima suono (▶️ verde accanto ad ogni suono)
+`/app/frontend/app/axon-alarms.tsx`:
+- Nuova funzione `previewSound(id)`:
+  - `id === "default"` → schedula notifica immediata (`trigger: null`) con `sound: "default"` → l'handler foreground la mostra e suona
+  - `id` custom → chiama `getCustomSoundUri()` per scaricare/cache il file, poi `createAudioPlayer({ uri }).play()` con auto-stop dopo 5s
+- Import aggiunto: `createAudioPlayer, AudioModule` da expo-audio (già usato per registrazione audio)
+- Nuovo stile `previewBtn` (icona ▶️ verde, 22px)
+- Preview funziona sia per suono default che custom
+
+### 5️⃣ Fix suono default che non parte (Timer test vibra ma non suona)
+`/app/frontend/src/alarmNotifs.ts`:
+- Nuova funzione esportata `configureAlarmNotifications()` — idempotente
+- Chiamata all'avvio dell'app in `_layout.tsx` (subito dopo `configureNotifHandler()`)
+- Imposta `Notifications.setNotificationHandler` con `shouldPlaySound: true` (garantisce suono anche in foreground)
+- Ricrea il canale Android `"axon-alarms"` con:
+  - `importance: MAX` (era HIGH — bloccava suono su alcuni Samsung)
+  - `sound: "default"` esplicito
+  - `bypassDnd: true` (bypassa Non Disturbare)
+  - `lockscreenVisibility: PUBLIC` (visibile su lockscreen)
+- **Nota**: se il canale era già stato creato con importance HIGH, l'utente deve disinstallare/reinstallare l'APK (limite Android: i canali sono immutabili dopo creazione)
+
+### Test manuali
+- ✅ Lint TypeScript su tutti i file modificati: 0 errori
+- ✅ Backend `/api/health` OK, expo attivo, schermata `/axon-alarms` carica con toggle 24h
+
+### Note operative per l'utente
+- **Ricrea APK e reinstalla** (non solo update): il canale notifica Android è immutabile → serve nuova install per la nuova configurazione
+- **Anteprima suono default**: dovrai concedere il permesso "Notifiche" alla prima anteprima (Android 13+)
+- **Anteprima suono custom**: funziona anche a volume medio-basso (usa audio in-app)
+- **Tap sulla notifica**: se l'app è chiusa, si aprirà direttamente su Timer & Sveglie; se aperta, ci salta automaticamente
+
+
+
 ## V50.z12 (Sept 2026) — Fix ricorsione Drive + Fix input chat Axon
 
 ### 1️⃣ Drive: BFS ricorsivo su sottocartelle + matching per parole chiave

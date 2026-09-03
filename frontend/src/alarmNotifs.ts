@@ -17,6 +17,36 @@ import { ensureNotifPermission } from "@/src/notifs";
 
 export type AlarmKind = "timer" | "alarm" | "reminder";
 
+// V50.z13 — Notification handler: forza sound+banner anche in foreground.
+// Idempotente: la prima chiamata configura il canale Android + handler globale.
+let _handlerConfigured = false;
+export async function configureAlarmNotifications(): Promise<void> {
+  if (_handlerConfigured || Platform.OS === "web") return;
+  _handlerConfigured = true;
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("axon-alarms", {
+        name: "Sveglie Axon",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 400, 200, 400, 200, 400],
+        sound: "default",
+        enableVibrate: true,
+        bypassDnd: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      });
+    }
+  } catch { /* ignore */ }
+}
+
+
 export type Alarm = {
   id: string;
   kind: AlarmKind;

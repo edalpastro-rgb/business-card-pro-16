@@ -212,6 +212,7 @@ function MasterScreen() {
     { label: "Banner Evento", icon: "megaphone", color: "#F59E0B", onPress: () => goto("/event-banners") },
     { label: "Script Telefonata", icon: "document-text", color: "#0F766E", onPress: () => goto("/call-script-config") },
     { label: "Insegna ad Axon", icon: "sparkles", color: "#FF6B35", onPress: () => goto("/ai-teach"), badge: pendingProposals },
+    { label: "Sveglie", icon: "alarm", color: "#22C55E", onPress: () => goto("/axon-alarms") },
     { label: "Cruscotto", icon: "grid", color: "#0EA5E9", onPress: () => goto("/cruscotto") },
     { label: "Azioni rapide", icon: "flash", color: "#8B5CF6", onPress: () => goto("/quick-actions") },
   ];

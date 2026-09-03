@@ -11,12 +11,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Notifications from "expo-notifications";
+import { createAudioPlayer, AudioModule } from "expo-audio";
 import { api } from "@/src/api";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
-import { syncAlarmNotifs, removeAlarmNotifs, syncAllAlarms, type Alarm, type AlarmKind } from "@/src/alarmNotifs";
+import { syncAlarmNotifs, removeAlarmNotifs, syncAllAlarms, getCustomSoundUri, type Alarm, type AlarmKind } from "@/src/alarmNotifs";
 import { useTimeFormat, formatHHMM, formatDateTime, formatHM } from "@/src/utils/timeFormat";
 
 type Tab = "timer" | "alarm" | "reminder";
@@ -339,6 +341,42 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
     return s ? s.name : "Suono personalizzato";
   }, [soundRef, sounds]);
 
+  // V50.z13 — Anteprima suono: default → schedula notifica istantanea (usa
+  // system sound). Custom → suona con expo-audio dal file mp3 in cache.
+  const previewSound = async (id: string) => {
+    try {
+      if (id === "default") {
+        // Trigger notifica immediata (foreground handler la mostra + suono)
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Anteprima suono",
+            body: "Suono predefinito",
+            sound: "default",
+            data: { tag: "preview_default" },
+          },
+          trigger: null, // immediata
+        });
+      } else {
+        const uri = await getCustomSoundUri(id);
+        if (!uri) {
+          Alert.alert("Anteprima non disponibile", "Impossibile caricare il file audio.");
+          return;
+        }
+        try {
+          await AudioModule.setAudioModeAsync({ playsInSilentMode: true });
+        } catch { /* ignore */ }
+        const player = createAudioPlayer({ uri });
+        player.play();
+        // Auto-stop dopo 5s per non lasciarlo aperto
+        setTimeout(() => {
+          try { player.pause(); player.remove(); } catch { /* ignore */ }
+        }, 5000);
+      }
+    } catch (e: any) {
+      Alert.alert("Errore anteprima", e?.message || "Impossibile riprodurre");
+    }
+  };
+
   const totalDurationSeconds = durHours * 3600 + durMinutes * 60 + durSeconds;
 
   const canSave = useMemo(() => {
@@ -472,18 +510,40 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
             {kind === "alarm" && (
               <>
                 <Field label="Ora">
-                  <Pressable style={styles.timeBox} onPress={() => setShowTimePicker(true)}>
+                  <Pressable style={styles.timeBox} onPress={() => {
+                    // V50.z13 — Su Android usa API imperativa (evita il bug
+                    // di reset dello state quando il picker Samsung entra
+                    // in "keyboard mode"). Su iOS resta l'inline picker.
+                    if (Platform.OS === "android") {
+                      DateTimePickerAndroid.open({
+                        value: alarmDate,
+                        mode: "time",
+                        is24Hour: timeFmt === "24h",
+                        display: "clock",
+                        onChange: (event, d) => {
+                          if (event.type === "set" && d) {
+                            const merged = new Date(alarmDate);
+                            merged.setHours(d.getHours(), d.getMinutes(), 0, 0);
+                            setAlarmDate(merged);
+                          }
+                        },
+                      });
+                    } else {
+                      setShowTimePicker(true);
+                    }
+                  }}>
                     <Ionicons name="time-outline" size={22} color="#FBBF24" />
                     <Text style={styles.timeTxt}>{formatHM(alarmDate.getHours(), alarmDate.getMinutes(), timeFmt)}</Text>
                     <Ionicons name="chevron-forward" size={20} color="#64748B" />
                   </Pressable>
-                  {showTimePicker && (
+                  {Platform.OS === "ios" && showTimePicker && (
                     <DateTimePicker
                       value={alarmDate}
                       mode="time"
-                      is24Hour
+                      is24Hour={timeFmt === "24h"}
+                      display="spinner"
                       onChange={(_, d) => {
-                        setShowTimePicker(Platform.OS === "ios");
+                        setShowTimePicker(false);
                         if (d) setAlarmDate(d);
                       }}
                     />
@@ -527,39 +587,47 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
 
             {kind === "reminder" && (
               <Field label="Data e ora">
-                <Pressable style={styles.timeBox} onPress={() => setShowDatePicker(true)}>
+                <Pressable style={styles.timeBox} onPress={() => {
+                  // V50.z13 — Android: apri Date poi Time (imperativo)
+                  if (Platform.OS === "android") {
+                    DateTimePickerAndroid.open({
+                      value: reminderDate,
+                      mode: "date",
+                      onChange: (event, d) => {
+                        if (event.type !== "set" || !d) return;
+                        const merged = new Date(reminderDate);
+                        merged.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+                        // Poi apri il time picker
+                        DateTimePickerAndroid.open({
+                          value: merged,
+                          mode: "time",
+                          is24Hour: timeFmt === "24h",
+                          display: "clock",
+                          onChange: (event2, d2) => {
+                            if (event2.type !== "set" || !d2) return;
+                            const final = new Date(merged);
+                            final.setHours(d2.getHours(), d2.getMinutes(), 0, 0);
+                            setReminderDate(final);
+                          },
+                        });
+                      },
+                    });
+                  } else {
+                    setShowDatePicker(true);
+                  }
+                }}>
                   <Ionicons name="calendar-outline" size={22} color="#FBBF24" />
                   <Text style={styles.timeTxt}>{formatWhen(reminderDate.toISOString(), timeFmt)}</Text>
                   <Ionicons name="chevron-forward" size={20} color="#64748B" />
                 </Pressable>
-                {showDatePicker && (
+                {Platform.OS === "ios" && showDatePicker && (
                   <DateTimePicker
                     value={reminderDate}
-                    mode={Platform.OS === "ios" ? "datetime" : "date"}
+                    mode="datetime"
+                    is24Hour={timeFmt === "24h"}
                     onChange={(_, d) => {
-                      setShowDatePicker(Platform.OS === "ios");
-                      if (d) {
-                        setReminderDate(d);
-                        if (Platform.OS === "android") {
-                          // Su Android mode="date" → apri poi time picker
-                          setTimeout(() => setShowTimePicker(true), 100);
-                        }
-                      }
-                    }}
-                  />
-                )}
-                {Platform.OS === "android" && showTimePicker && (
-                  <DateTimePicker
-                    value={reminderDate}
-                    mode="time"
-                    is24Hour
-                    onChange={(_, d) => {
-                      setShowTimePicker(false);
-                      if (d) {
-                        const merged = new Date(reminderDate);
-                        merged.setHours(d.getHours(), d.getMinutes(), 0, 0);
-                        setReminderDate(merged);
-                      }
+                      setShowDatePicker(false);
+                      if (d) setReminderDate(d);
                     }}
                   />
                 )}
@@ -644,6 +712,9 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
               <Pressable onPress={() => { setSoundRef("default"); setShowSoundPicker(false); }} style={styles.soundRow}>
                 <Ionicons name="musical-notes" size={22} color="#FBBF24" />
                 <Text style={styles.soundRowTxt}>Suono predefinito</Text>
+                <Pressable onPress={(e) => { e.stopPropagation?.(); previewSound("default"); }} hitSlop={8} style={styles.previewBtn} testID="preview-default">
+                  <Ionicons name="play-circle" size={22} color="#22C55E" />
+                </Pressable>
                 {soundRef === "default" ? <Ionicons name="checkmark" size={20} color="#22C55E" /> : null}
               </Pressable>
               {sounds.map((s) => (
@@ -655,6 +726,9 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                     <Ionicons name="musical-note" size={22} color="#94A3B8" />
                     <Text style={styles.soundRowTxt} numberOfLines={1}>{s.name}</Text>
                     {soundRef === s.id ? <Ionicons name="checkmark" size={20} color="#22C55E" /> : null}
+                  </Pressable>
+                  <Pressable onPress={() => previewSound(s.id)} hitSlop={8} style={styles.previewBtn} testID={`preview-${s.id}`}>
+                    <Ionicons name="play-circle" size={22} color="#22C55E" />
                   </Pressable>
                   <Pressable
                     onPress={() => {
@@ -870,6 +944,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
   },
   soundRowTxt: { color: "#FFF", fontSize: 14, fontWeight: "600", flex: 1 },
+  previewBtn: { padding: 4, marginRight: 4 },
   uploadBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     marginTop: 14, paddingVertical: 12, borderRadius: 12,

@@ -1,6 +1,7 @@
 import "@/src/polyfills"; // MUST be first — TextEncoder/TextDecoder polyfill for Hermes (xlsx e altre libs legacy)
-import { Stack, router as expoRouter } from "expo-router";
+import { Stack, router as expoRouter, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import * as Notifications from "expo-notifications";
 import React, { useEffect } from "react";
 import { LogBox, Platform, View, AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -21,9 +22,11 @@ import { FabStackProvider } from "@/src/FabStack";
 import { ActiveCallProvider } from "@/src/CallTimerBar";
 import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
+import { configureAlarmNotifications } from "@/src/alarmNotifs";
 import { GlobalErrorBoundary } from "@/src/GlobalErrorBoundary";
 
 configureNotifHandler();
+configureAlarmNotifications();
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
@@ -128,6 +131,22 @@ function LockGate() {
 // background silenziosamente: nessun elemento UI mostrato all'utente.
 function StackWithCallBar() {
   const { user } = useAuth();
+  const router = useRouter();
+  useEffect(() => {
+    // V50.z13 — Response listener globale: tap su notifica sveglia/timer/
+    // promemoria → naviga alle impostazioni della sveglia (screen /axon-alarms).
+    if (Platform.OS === "web") return;
+    const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
+      try {
+        const data = resp?.notification?.request?.content?.data as any;
+        const tag = (data?.tag || "") as string;
+        if (tag.startsWith("alarm_")) {
+          router.push("/axon-alarms" as any);
+        }
+      } catch { /* ignore */ }
+    });
+    return () => sub.remove();
+  }, [router]);
   return (
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
