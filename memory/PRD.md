@@ -1,3 +1,59 @@
+## V50.z10 (Sept 2026) — Widget Sveglia Home + Toggle 12h/24h
+
+### 1️⃣ Widget prossima sveglia nella Home (V50.z10)
+`/app/frontend/src/AlarmHomeWidget.tsx` — nuovo componente:
+- Card compatta gialla (`#FFF9EC` + border `#FBBF24`) inserita nella Home tra i banner trial e My Thing
+- Mostra la **prossima sveglia/timer/promemoria attivo entro le prossime 12 ore** (soglia `HORIZON_MS = 12h`)
+- Se nessuna → **nascosto** completamente (return null)
+- Contenuto: icona a sinistra + kind uppercase + tempo assoluto ("Oggi alle 07:30" / "Domani alle 07:30" / "5 Ott 14:30") + label sveglia + badge "tra Xh Ym" a destra + chevron
+- Tap → naviga a `/axon-alarms`
+- Re-render automatico ogni 30 secondi per aggiornare "tra Xm"
+- Fetch via `/api/axon/alarms` in `useFocusEffect` (aggiorna quando torni alla Home)
+- Calcolo prossima occorrenza per tipo:
+  - timer/reminder: usa `trigger_at` diretto
+  - alarm one-shot: prossima ora del giorno (o domani)
+  - alarm ricorrente: cerca il prossimo weekday selezionato entro 8 giorni
+- **Effetto pulse animato**: se manca <5 min alla sveglia, `Animated.loop` scale 1→1.06→1 (ogni 800ms) per attirare l'attenzione
+
+Integrazione Home:
+- `/app/frontend/app/(tabs)/home.tsx`: import `AlarmHomeWidget`, inserito dopo i banner trial e prima del banner My Thing
+- **NON copre** l'header AdvisorOS né i bottoni esistenti
+- Appare solo condizionalmente (no widget = nessun visual clutter)
+
+### 2️⃣ Toggle formato ora 12h ↔ 24h (V50.z10)
+`/app/frontend/src/utils/timeFormat.ts` — nuovo modulo:
+- `useTimeFormat()` hook con AsyncStorage persistence (chiave `axon_time_format_v1`, default `24h`)
+- Broadcast tra istanze del hook via `listeners` set
+- `formatHHMM("14:30", "12h")` → `"2:30 PM"`
+- `formatHM(14, 30, "24h")` → `"14:30"`
+- `formatDateTime(Date, format)` → intelligente (solo ora se stesso giorno, altrimenti data + ora)
+
+**Frontend `/app/frontend/app/axon-alarms.tsx`**:
+- Import `useTimeFormat` + helper `formatHHMM` / `formatHM` / `formatWhen`
+- Toggle pillola gialla nell'header (`24h` ↔ `12h`) → cambia globalmente
+- `AlarmRow` riceve `timeFmt` prop → subtitle usa formato scelto
+- `AlarmEditor` riceve `timeFmt` prop → picker mostra formato scelto (il DateTimePicker nativo usa comunque il format del sistema per l'input)
+- Renamed `fmtHHMM` (local) → `fmtHHMM24` per salvataggio ISO al backend (sempre 24h) — evita shadowing con l'utility importata
+
+**Widget Home**: legge `useTimeFormat()` → mostra orari nello stesso formato
+
+### 3️⃣ Backlog voice command (V50.z10)
+📝 Richiesta utente: quando torniamo sul riconoscimento vocale (Q3-Q4 2026 con SDK ViolaWake ufficiale), aggiungere:
+- Tap 🎤 nella chat Axon
+- Frase italiana: "Axon imposta timer 15 minuti" / "sveglia domani alle 7" / "ricordami di chiamare Mario stasera"
+- Parsing intent + params via Claude Sonnet 5 function calling
+- Auto-create alarm/timer/reminder e conferma vocale ("Timer di 15 minuti impostato")
+
+Nota da ricordare: gli endpoint backend già esistono (`POST /axon/alarms`), servirà solo il layer NLP + il collegamento vocale.
+
+### Test manuali eseguiti
+- ✅ Widget renderizzato correttamente su Home (con e senza sveglie attive)
+- ✅ Toggle 12h/24h persistente tra riavvi (AsyncStorage)
+- ✅ `formatHM(14, 30, "12h")` → `"2:30 PM"`; `"12h"` → `"14:30"`
+- ✅ Lint TypeScript su tutti i file: 0 issues
+
+
+
 ## V50.z8-z9 (Sept 2026) — Alexa-style features + Calculator draggable + Axon Drive
 
 ### 1️⃣ Calculator FAB draggable (V50.z6)

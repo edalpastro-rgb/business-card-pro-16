@@ -11,6 +11,7 @@ import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { CallScriptOverlay } from "@/src/CallScriptOverlay";
 import { CompanyContactSheet } from "@/src/CompanyContactSheet";
 import { HomeEventBanner } from "@/src/HomeEventBanner";
+import { AlarmHomeWidget } from "@/src/AlarmHomeWidget";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 // V29.aq — Header dashboard image (loaded as local bundled asset so it works
@@ -367,6 +368,9 @@ export default function HomeScreen() {
             <Text style={[styles.bannerTxt, { color: C.danger }]}>Trial scaduto — contatta chi ti ha invitato per rinnovare</Text>
           </View>
         )}
+
+        {/* V50.z10 — Widget prossima sveglia (nascosto se nessuna entro 12h) */}
+        <AlarmHomeWidget />
 
         {/* ── 2) Banner My Thing — nascosto completamente se vuoto (V50.z5) ── */}
         {myThingSlide ? (

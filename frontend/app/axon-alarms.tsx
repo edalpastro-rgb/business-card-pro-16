@@ -17,6 +17,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { syncAlarmNotifs, removeAlarmNotifs, syncAllAlarms, type Alarm, type AlarmKind } from "@/src/alarmNotifs";
+import { useTimeFormat, formatHHMM, formatDateTime, formatHM } from "@/src/utils/timeFormat";
 
 type Tab = "timer" | "alarm" | "reminder";
 type Sound = { id: string; name: string; mime: string; size_bytes?: number; created_at: string };
@@ -41,13 +42,11 @@ function formatDuration(sec: number): string {
   return parts.join(" ");
 }
 
-function formatWhen(iso: string | undefined | null): string {
+function formatWhen(iso: string | undefined | null, fmt: "12h" | "24h" = "24h"): string {
   if (!iso) return "";
   try {
     const d = new Date(iso);
-    return d.toLocaleString("it-IT", {
-      day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
-    });
+    return formatDateTime(d, fmt);
   } catch { return ""; }
 }
 
@@ -69,6 +68,7 @@ export default function AxonAlarmsScreen() {
   const [editing, setEditing] = useState<Alarm | null>(null);
   const [creating, setCreating] = useState<AlarmKind | null>(null);
   const [tick, setTick] = useState(0); // per re-render countdown ogni sec
+  const [timeFmt, setTimeFmt] = useTimeFormat();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -152,7 +152,15 @@ export default function AxonAlarmsScreen() {
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </Pressable>
         <Text style={styles.headerTitle}>Timer & Sveglie</Text>
-        <View style={{ width: 30 }} />
+        {/* V50.z10 — Toggle formato 12h/24h */}
+        <Pressable
+          onPress={() => setTimeFmt(timeFmt === "24h" ? "12h" : "24h")}
+          hitSlop={10}
+          style={styles.fmtBtn}
+          testID="time-format-toggle"
+        >
+          <Text style={styles.fmtBtnTxt}>{timeFmt === "24h" ? "24h" : "12h"}</Text>
+        </Pressable>
       </View>
 
       <View style={styles.tabsBar}>
@@ -195,6 +203,7 @@ export default function AxonAlarmsScreen() {
               onEdit={() => { setCreating(null); setEditing(item); }}
               onDelete={() => onDelete(item)}
               _tick={tick}
+              timeFmt={timeFmt}
             />
           )}
         />
@@ -217,6 +226,7 @@ export default function AxonAlarmsScreen() {
         <AlarmEditor
           initial={editing}
           initialKind={creating || editing?.kind || "timer"}
+          timeFmt={timeFmt}
           onClose={() => { setEditing(null); setCreating(null); }}
           onSaved={onSaved}
         />
@@ -226,8 +236,8 @@ export default function AxonAlarmsScreen() {
 }
 
 // ─── Row ─────────────────────────────────────────────────────────
-function AlarmRow({ a, onToggle, onEdit, onDelete, _tick }: {
-  a: Alarm; onToggle: () => void; onEdit: () => void; onDelete: () => void; _tick: number;
+function AlarmRow({ a, onToggle, onEdit, onDelete, _tick, timeFmt }: {
+  a: Alarm; onToggle: () => void; onEdit: () => void; onDelete: () => void; _tick: number; timeFmt: "12h" | "24h";
 }) {
   const subtitle = useMemo(() => {
     if (a.kind === "timer") {
@@ -235,15 +245,15 @@ function AlarmRow({ a, onToggle, onEdit, onDelete, _tick }: {
       return a.enabled ? `${dur} · ${formatRemaining(a.trigger_at)}` : `${dur} · disabilitato`;
     }
     if (a.kind === "alarm") {
-      const t = a.time || "--:--";
+      const t = a.time ? formatHHMM(a.time, timeFmt) : "--:--";
       if (!a.weekdays || a.weekdays.length === 0) return `${t} · una volta`;
       if (a.weekdays.length === 7) return `${t} · Ogni giorno`;
       const wd = a.weekdays.map((w) => WEEKDAY_LABELS[w]).join(" ");
       return `${t} · ${wd}`;
     }
-    return formatWhen(a.trigger_at) || "—";
+    return formatWhen(a.trigger_at, timeFmt) || "—";
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [a, _tick]);
+  }, [a, _tick, timeFmt]);
 
   return (
     <View style={[styles.row, !a.enabled && styles.rowDisabled]}>
@@ -268,9 +278,10 @@ function AlarmRow({ a, onToggle, onEdit, onDelete, _tick }: {
 }
 
 // ─── Editor ──────────────────────────────────────────────────────
-function AlarmEditor({ initial, initialKind, onClose, onSaved }: {
+function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
   initial: Alarm | null;
   initialKind: AlarmKind;
+  timeFmt: "12h" | "24h";
   onClose: () => void;
   onSaved: (a: Alarm) => void;
 }) {
@@ -352,7 +363,7 @@ function AlarmEditor({ initial, initialKind, onClose, onSaved }: {
       };
       if (kind === "timer") payload.duration_seconds = totalDurationSeconds;
       if (kind === "alarm") {
-        payload.time = fmtHHMM(alarmDate);
+        payload.time = fmtHHMM24(alarmDate);
         payload.weekdays = weekdays;
       }
       if (kind === "reminder") payload.trigger_at = reminderDate.toISOString();
@@ -463,7 +474,7 @@ function AlarmEditor({ initial, initialKind, onClose, onSaved }: {
                 <Field label="Ora">
                   <Pressable style={styles.timeBox} onPress={() => setShowTimePicker(true)}>
                     <Ionicons name="time-outline" size={22} color="#FBBF24" />
-                    <Text style={styles.timeTxt}>{fmtHHMM(alarmDate)}</Text>
+                    <Text style={styles.timeTxt}>{formatHM(alarmDate.getHours(), alarmDate.getMinutes(), timeFmt)}</Text>
                     <Ionicons name="chevron-forward" size={20} color="#64748B" />
                   </Pressable>
                   {showTimePicker && (
@@ -518,7 +529,7 @@ function AlarmEditor({ initial, initialKind, onClose, onSaved }: {
               <Field label="Data e ora">
                 <Pressable style={styles.timeBox} onPress={() => setShowDatePicker(true)}>
                   <Ionicons name="calendar-outline" size={22} color="#FBBF24" />
-                  <Text style={styles.timeTxt}>{formatWhen(reminderDate.toISOString())}</Text>
+                  <Text style={styles.timeTxt}>{formatWhen(reminderDate.toISOString(), timeFmt)}</Text>
                   <Ionicons name="chevron-forward" size={20} color="#64748B" />
                 </Pressable>
                 {showDatePicker && (
@@ -733,7 +744,8 @@ function parseTime(t: string | undefined | null): { h: number; m: number } {
   return { h: isNaN(h) ? 7 : h, m: isNaN(m) ? 30 : m };
 }
 
-function fmtHHMM(d: Date): string {
+function fmtHHMM24(d: Date): string {
+  // Formato ISO/24h sempre — usato SOLO per il payload backend
   const h = String(d.getHours()).padStart(2, "0");
   const m = String(d.getMinutes()).padStart(2, "0");
   return `${h}:${m}`;
@@ -749,6 +761,13 @@ const styles = StyleSheet.create({
   },
   hBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   headerTitle: { color: "#FFF", fontSize: 17, fontWeight: "800" },
+  // V50.z10 — Toggle 12h/24h nell'header
+  fmtBtn: {
+    minWidth: 44, height: 30, borderRadius: 15, paddingHorizontal: 10,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(251,191,36,0.15)", borderWidth: 1, borderColor: "rgba(251,191,36,0.4)",
+  },
+  fmtBtnTxt: { color: "#FBBF24", fontSize: 12, fontWeight: "900", letterSpacing: 0.3 },
 
   tabsBar: {
     flexDirection: "row", padding: 10, gap: 8,
