@@ -9472,13 +9472,19 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
     # V49.q — Fetch dinamico dei PDF dai URL monitorati (solo pattern PUN)
     dyn_pdf_text = await _fetch_teach_url_pdfs_for_query(tenant, user_msg)
 
+    # V50.z7 — Fetch dinamico dei PDF caricati in Drive folders/files
+    # indicati come teach URL (es. link https://drive.google.com/drive/folders/…).
+    # Legge la cartella con le credenziali OAuth dell'utente e scarica i PDF
+    # rilevanti al mese/anno menzionato (o i più recenti se query generica).
+    dyn_drive_pdf_text = await _fetch_teach_drive_pdfs_for_query(tenant, user_msg)
+
     # V50.z — Fetch GENERICO delle pagine HTML degli URL insegnati.
     # Attivato per QUALSIASI messaggio (max 8 URL, max 800 char per pagina),
     # così Axon ha sempre il contenuto fresco dei siti ufficiali che gli hai
     # detto di consultare (GME, ARERA, ecc.).
     dyn_html_text = await _fetch_teach_urls_html_generic(tenant, user_msg)
 
-    if not rules and not dyn_pdf_text and not dyn_html_text:
+    if not rules and not dyn_pdf_text and not dyn_drive_pdf_text and not dyn_html_text:
         return ""
 
     msg_lc = (user_msg or "").lower()
@@ -9528,7 +9534,7 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
         out_parts.append(block)
         total += len(block)
 
-    if not out_parts and not dyn_pdf_text and not dyn_html_text:
+    if not out_parts and not dyn_pdf_text and not dyn_drive_pdf_text and not dyn_html_text:
         return ""
     header = (
         "\n\nBASE DI CONOSCENZA (Insegna ad Axon — regole e file caricati dal Master, "
@@ -9544,6 +9550,15 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
             + "\n\nQuesto contenuto è FONTE PRIMARIA. Usa questi valori numerici per rispondere; "
             "non cercare altrove e non dire 'dati non disponibili'."
         )
+    drive_block = ""
+    if dyn_drive_pdf_text:
+        drive_block = (
+            "\n\n### 📂 PDF DA GOOGLE DRIVE (cartelle/file insegnati — letti in tempo reale)\n"
+            + dyn_drive_pdf_text
+            + "\n\nQuesto è il CONTENUTO REALE dei file PDF che l'utente ha caricato in una cartella "
+            "Google Drive collegata a te. Usa QUESTI numeri come FONTE PRIMARIA. Se contengono la "
+            "risposta, cita il nome del file. Non dire 'dati non disponibili' — ce li hai qui."
+        )
     html_block = ""
     if dyn_html_text:
         html_block = (
@@ -9554,7 +9569,7 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
             "sito da cui viene."
         )
     return (
-        header + body + dyn_block + html_block
+        header + body + dyn_block + drive_block + html_block
         + "\n\nQuando rispondi, cita esplicitamente il nome del file/regola/sito e il contenuto rilevante."
     )
 
@@ -10198,6 +10213,202 @@ async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: 
                     )
                 if len(out_blocks) >= max_pdfs:
                     break
+
+    return "\n\n".join(out_blocks)
+
+
+
+
+# ─── V50.z7 — Fetch PDF da Drive folders/files in ai_teach_urls ──────────
+# Quando l'utente inserisce un link Google Drive (cartella o file singolo)
+# come "URL insegnato", Axon lo legge in tempo reale via API Drive OAuth
+# dell'utente. Filtra per mese/anno menzionato nella query, altrimenti
+# prende i più recenti.
+_DRIVE_FOLDER_RE = re.compile(r"drive\.google\.com/drive/folders/([a-zA-Z0-9_\-]+)")
+_DRIVE_FILE_RE = re.compile(r"drive\.google\.com/file/d/([a-zA-Z0-9_\-]+)")
+
+
+def _extract_drive_folder_id(url: str) -> Optional[str]:
+    m = _DRIVE_FOLDER_RE.search(url or "")
+    return m.group(1) if m else None
+
+
+def _extract_drive_file_id(url: str) -> Optional[str]:
+    m = _DRIVE_FILE_RE.search(url or "")
+    return m.group(1) if m else None
+
+
+async def _fetch_teach_drive_pdfs_for_query(
+    tenant: str, user_msg: str, max_pdfs: int = 4
+) -> str:
+    """V50.z7 — Scarica dinamicamente PDF da Drive folders/files linkati come
+    teach URL. Se la query menziona mese/anno prova a filtrare per nome
+    file, altrimenti prende gli N più recenti (ordina per modifiedTime desc).
+
+    Best-effort: se l'utente non ha Drive collegato o l'URL non è un link
+    Drive valido, ritorna stringa vuota (silent no-op).
+    """
+    msg_lc = (user_msg or "").lower()
+    try:
+        urls = await db.ai_teach_urls.find({"user_id": tenant}, {"_id": 0}).to_list(50)
+    except Exception:
+        return ""
+    if not urls:
+        return ""
+
+    drive_folders: List[str] = []
+    drive_files: List[str] = []
+    for u in urls:
+        url = (u.get("url") or "").strip()
+        if not url:
+            continue
+        fid = _extract_drive_folder_id(url)
+        if fid:
+            drive_folders.append(fid)
+            continue
+        fid = _extract_drive_file_id(url)
+        if fid:
+            drive_files.append(fid)
+
+    if not drive_folders and not drive_files:
+        return ""
+
+    # Estrai mesi/anni menzionati (mesi italiani + formati numerici)
+    months = [m for m in _MONTH_MAP_IT if m in msg_lc]
+    for _mnum in re.findall(r"\b(0[1-9]|1[0-2])[/\-\.\s](20\d{2})\b", msg_lc):
+        _mnum_int = int(_mnum[0])
+        for _mname, _mval in _MONTH_MAP_IT.items():
+            if _mval == _mnum_int and _mname not in months:
+                months.append(_mname)
+    years = re.findall(r"20\d{2}", msg_lc)
+
+    # Ottieni credenziali Drive dell'utente (silent se non connesso)
+    try:
+        creds = await _gd_get_credentials(tenant)
+    except HTTPException:
+        return ""
+    except Exception as exc:
+        logger.warning("[teach-drive] cannot get drive creds: %s", exc)
+        return ""
+
+    from googleapiclient.discovery import build  # type: ignore
+    from googleapiclient.http import MediaIoBaseDownload  # type: ignore
+    from io import BytesIO
+
+    def _list_folder_pdfs(folder_id: str, max_items: int = 30) -> List[Dict[str, Any]]:
+        try:
+            service = build("drive", "v3", credentials=creds, cache_discovery=False)
+            q = (
+                f"'{folder_id}' in parents and trashed = false "
+                f"and mimeType = 'application/pdf'"
+            )
+            result = service.files().list(
+                q=q,
+                pageSize=max_items,
+                orderBy="modifiedTime desc",
+                fields="files(id,name,mimeType,modifiedTime)",
+            ).execute()
+            return result.get("files", []) or []
+        except Exception as exc:
+            logger.warning("[teach-drive] list_folder_pdfs %s failed: %s", folder_id, exc)
+            return []
+
+    def _get_file_meta(file_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            service = build("drive", "v3", credentials=creds, cache_discovery=False)
+            return service.files().get(
+                fileId=file_id, fields="id,name,mimeType,modifiedTime"
+            ).execute()
+        except Exception as exc:
+            logger.warning("[teach-drive] meta %s failed: %s", file_id, exc)
+            return None
+
+    def _download_pdf_bytes(file_id: str) -> Optional[bytes]:
+        try:
+            service = build("drive", "v3", credentials=creds, cache_discovery=False)
+            req = service.files().get_media(fileId=file_id)
+            out = BytesIO()
+            dl = MediaIoBaseDownload(out, req, chunksize=1024 * 1024)
+            done = False
+            while not done:
+                _, done = dl.next_chunk()
+            raw = out.getvalue()
+            if len(raw) > 8 * 1024 * 1024:
+                raw = raw[: 8 * 1024 * 1024]
+            return raw
+        except Exception as exc:
+            logger.warning("[teach-drive] download %s failed: %s", file_id, exc)
+            return None
+
+    def _matches_month_year(fname: str) -> bool:
+        if not months and not years:
+            return True
+        f_low = (fname or "").lower()
+        month_pats: List[str] = []
+        for m in months:
+            mnum = _MONTH_MAP_IT[m]
+            m2 = f"{mnum:02d}"
+            month_pats.extend([m, f"-{m2}-", f"_{m2}_", f".{m2}.", f" {m2} "])
+            for y in years:
+                month_pats.extend([
+                    f"{y}{m2}", f"{m2}{y}", f"{y}-{m2}", f"{y}_{m2}",
+                    f"{y}.{m2}", f"{m2}-{y}", f"{m2}_{y}", f"{m2}.{y}",
+                ])
+        if month_pats and any(p in f_low for p in month_pats):
+            return True
+        # Se nessun mese ma anno menzionato, matcha solo per anno
+        if not months and years and any(y in f_low for y in years):
+            return True
+        return False
+
+    # 1) Raccogli tutti i candidati (max 3 cartelle × 30 file + file diretti)
+    candidate_files: List[Dict[str, Any]] = []
+    for folder_id in drive_folders[:3]:
+        files = await asyncio.to_thread(_list_folder_pdfs, folder_id, 30)
+        candidate_files.extend(files)
+    for file_id in drive_files[:5]:
+        meta = await asyncio.to_thread(_get_file_meta, file_id)
+        if meta and meta.get("mimeType") == "application/pdf":
+            candidate_files.append(meta)
+
+    if not candidate_files:
+        return ""
+
+    # 2) Filtra per mese/anno
+    filtered = [f for f in candidate_files if _matches_month_year(f.get("name", ""))]
+    if not filtered:
+        # Query senza filtro temporale → prendi i più recenti
+        if not months and not years:
+            filtered = candidate_files[:max_pdfs]
+        else:
+            # V50.z7 — Anche se non trova match esatto, prendi comunque gli
+            # ultimi N file recenti così l'AI ha almeno del contesto. Meglio
+            # che ritornare vuoto e rispondere "dati non disponibili".
+            filtered = candidate_files[:max_pdfs]
+
+    filtered = filtered[:max_pdfs]
+
+    # 3) Scarica ed estrai testo
+    out_blocks: List[str] = []
+    for f in filtered:
+        fid = f.get("id")
+        fname = f.get("name") or "documento.pdf"
+        if not fid:
+            continue
+        pdf_bytes = await asyncio.to_thread(_download_pdf_bytes, fid)
+        if not pdf_bytes:
+            continue
+        try:
+            txt = _extract_pdf_text_bytes(pdf_bytes) or ""
+        except Exception:
+            txt = ""
+        txt = (txt or "").strip()
+        if not txt:
+            continue
+        modified = f.get("modifiedTime", "")
+        out_blocks.append(
+            f"--- PDF Drive: {fname} (modificato: {modified}) ---\n{txt[:8000]}"
+        )
 
     return "\n\n".join(out_blocks)
 

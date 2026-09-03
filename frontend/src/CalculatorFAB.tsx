@@ -1,27 +1,142 @@
 // V26.o — Floating Calculator FAB with modal
-import { useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, Platform } from "react-native";
+// V50.z6 — Draggable FAB: long-press + drag to reposition. Position persisted
+// via AsyncStorage so it survives app reloads. Quick tap still opens the
+// calculator (drag threshold = 6px to distinguish tap vs drag).
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  View, Text, StyleSheet, Pressable, Modal, Platform,
+  Animated, Dimensions, PanResponder,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { theme } from "@/src/theme";
 import { useRegisterFab } from "@/src/FabStack";
 
 type Op = "+" | "-" | "×" | "÷" | null;
 
+const FAB_SIZE = 56;
+const DRAG_THRESHOLD = 6; // px — sotto questa soglia è un tap
+const POS_STORAGE_KEY = "calc_fab_position_v1";
+// Margine di sicurezza per non nascondere il FAB dietro tab bar / status bar
+const EDGE_MARGIN = 8;
+const BOTTOM_SAFE = 100; // spazio per tab bar
+
+function _clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
 export function CalculatorFAB() {
   const [open, setOpen] = useState(false);
-  // Register presence so the AI Assistant FAB can shift to avoid overlap
+  const { width: screenW, height: screenH } = Dimensions.get("window");
+
+  // Default: bottom-right, con margine per non coprire i tab
+  const defaultPos = useMemo(
+    () => ({
+      x: screenW - FAB_SIZE - 20,
+      y: screenH - FAB_SIZE - BOTTOM_SAFE,
+    }),
+    [screenW, screenH],
+  );
+
+  // Animated position (smoothness) + shadow ref per snapshot in gesture start
+  const pan = useRef(new Animated.ValueXY(defaultPos)).current;
+  const posRef = useRef(defaultPos);
+  const wasDrag = useRef(false);
+
   useRegisterFab("calculator", true);
+
+  // Carica posizione persistita al mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await AsyncStorage.getItem(POS_STORAGE_KEY);
+        if (!s) return;
+        const p = JSON.parse(s);
+        if (typeof p?.x !== "number" || typeof p?.y !== "number") return;
+        const clamped = {
+          x: _clamp(p.x, EDGE_MARGIN, screenW - FAB_SIZE - EDGE_MARGIN),
+          y: _clamp(p.y, EDGE_MARGIN, screenH - FAB_SIZE - EDGE_MARGIN),
+        };
+        pan.setValue(clamped);
+        posRef.current = clamped;
+      } catch { /* ignora */ }
+    })();
+  }, [pan, screenW, screenH]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_e, gs) =>
+        Math.abs(gs.dx) > DRAG_THRESHOLD || Math.abs(gs.dy) > DRAG_THRESHOLD,
+      onPanResponderGrant: () => {
+        wasDrag.current = false;
+        pan.setOffset({ x: posRef.current.x, y: posRef.current.y });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: (_e, gs) => {
+        if (Math.abs(gs.dx) > DRAG_THRESHOLD || Math.abs(gs.dy) > DRAG_THRESHOLD) {
+          wasDrag.current = true;
+        }
+        pan.x.setValue(gs.dx);
+        pan.y.setValue(gs.dy);
+      },
+      onPanResponderRelease: (_e, gs) => {
+        pan.flattenOffset();
+        const rawX = posRef.current.x + gs.dx;
+        const rawY = posRef.current.y + gs.dy;
+        const clamped = {
+          x: _clamp(rawX, EDGE_MARGIN, screenW - FAB_SIZE - EDGE_MARGIN),
+          y: _clamp(rawY, EDGE_MARGIN, screenH - FAB_SIZE - EDGE_MARGIN),
+        };
+        Animated.spring(pan, {
+          toValue: clamped,
+          useNativeDriver: false,
+          friction: 8,
+          tension: 60,
+        }).start(() => {
+          posRef.current = clamped;
+          AsyncStorage.setItem(POS_STORAGE_KEY, JSON.stringify(clamped)).catch(() => {});
+        });
+      },
+      onPanResponderTerminate: () => {
+        pan.flattenOffset();
+      },
+    }),
+  ).current;
+
+  const handleTap = () => {
+    // Se stavi trascinando, non aprire la calcolatrice
+    if (wasDrag.current) {
+      wasDrag.current = false;
+      return;
+    }
+    setOpen(true);
+  };
+
   return (
     <>
-      <Pressable
-        testID="calc-fab"
-        onPress={() => setOpen(true)}
-        style={styles.fab}
-        accessibilityLabel="Apri calcolatrice"
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[
+          styles.fab,
+          {
+            left: pan.x,
+            top: pan.y,
+            right: undefined,
+            bottom: undefined,
+          },
+        ]}
       >
-        <Ionicons name="calculator" size={26} color="#FFF" />
-      </Pressable>
+        <Pressable
+          testID="calc-fab"
+          onPress={handleTap}
+          style={styles.fabInner}
+          accessibilityLabel="Apri calcolatrice (tieni premuto e trascina per spostare)"
+        >
+          <Ionicons name="calculator" size={26} color="#FFF" />
+        </Pressable>
+      </Animated.View>
       <CalculatorModal visible={open} onClose={() => setOpen(false)} />
     </>
   );
@@ -182,11 +297,9 @@ function formatResult(n: number): string {
 const styles = StyleSheet.create({
   fab: {
     position: "absolute",
-    right: 20,
-    bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
     backgroundColor: theme.color.brandPrimary,
     alignItems: "center",
     justifyContent: "center",
@@ -197,13 +310,16 @@ const styles = StyleSheet.create({
     }),
     zIndex: 100,
   },
+  fabInner: {
+    width: "100%",
+    height: "100%",
+    borderRadius: FAB_SIZE / 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    // V2.5 — Center the sheet horizontally and keep it pinned to the bottom.
-    // On wide viewports (desktop web / tablet landscape) the sheet used to
-    // stretch across the whole width and could appear off-position. We now
-    // clamp to maxWidth and horizontally center it.
     justifyContent: "flex-end",
     alignItems: "center",
   },
@@ -212,18 +328,12 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 16,
-    // V2.5 — Extra safe-area padding at the bottom so the sheet doesn't get
-    // clipped by home-indicator on modern devices.
     paddingBottom: Platform.OS === "ios" ? 34 : 24,
-    // V38S — Bottom sheet at ~62% so the analysis behind stays visible while
-    // the calculator is open. Was 90% (basically full-screen).
     maxHeight: "62%",
-    // V2.5 — Responsive width: fills the viewport on phones, capped on desktop.
     width: "100%",
     maxWidth: 480,
     alignSelf: "center",
   },
-  // V38S — Drag handle at top of the calculator sheet
   dragHandle: {
     alignSelf: "center",
     width: 44,
