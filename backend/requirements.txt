@@ -133,3 +133,6 @@ yarl==1.24.2
 zipp==4.1.0
 beautifulsoup4==4.15.0
 soupsieve==2.9.2
+pdfminer.six==20260107
+pdfplumber==0.11.10
+pypdfium2==5.13.0

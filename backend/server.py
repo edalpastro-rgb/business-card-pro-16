@@ -9639,11 +9639,72 @@ async def _fetch_teach_urls_html_generic(
 async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Scarica HTML della pagina + primi 3 PDF, estrae testo, salva snapshot
     in `ai_teach_urls.axon_snapshot` e ritorna il snapshot.
+
+    V50.z4 — Usa pdfplumber per estrarre TABELLE strutturate dai PDF
+    (essenziale per PUN F1/F2/F3, listini, tariffe). Fallback pypdf.
     """
     from urllib.parse import urljoin, urlparse
     url = (u_doc.get("url") or "").strip()
     if not url or not url.startswith(("http://", "https://")):
         return None
+
+    def _extract_pdf_bytes(pdf_bytes: bytes, max_pages: int = 8, max_chars: int = 8000) -> str:
+        """Estrae testo + tabelle da un PDF. Prova prima pdfplumber (tabelle),
+        fallback pypdf. Ritorna stringa formattata."""
+        text_parts: List[str] = []
+        # Tentativo 1: pdfplumber
+        try:
+            import pdfplumber  # type: ignore
+            from io import BytesIO
+            with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
+                for pg_i, page in enumerate(pdf.pages[:max_pages]):
+                    # Testo pulito
+                    try:
+                        t = page.extract_text() or ""
+                        if t.strip():
+                            text_parts.append(t.strip())
+                    except Exception:
+                        pass
+                    # Tabelle come Markdown-like
+                    try:
+                        tables = page.extract_tables() or []
+                        for t_i, table in enumerate(tables):
+                            if not table:
+                                continue
+                            # Filtra righe/colonne vuote
+                            rows = [[(c or "").strip() for c in row] for row in table if any(c for c in row)]
+                            if not rows or len(rows[0]) < 2:
+                                continue
+                            md = f"\n[TABELLA pag.{pg_i+1}]"
+                            for row in rows[:30]:
+                                md += "\n| " + " | ".join(row) + " |"
+                            text_parts.append(md)
+                    except Exception:
+                        pass
+        except Exception as exc:
+            logger.debug("[pdf-extract] pdfplumber failed: %s (fallback pypdf)", exc)
+        # Fallback pypdf se il testo è vuoto
+        if not text_parts:
+            try:
+                from io import BytesIO
+                try:
+                    from pypdf import PdfReader  # type: ignore
+                except Exception:
+                    from PyPDF2 import PdfReader  # type: ignore
+                rdr = PdfReader(BytesIO(pdf_bytes))
+                for pg in rdr.pages[:max_pages]:
+                    try:
+                        t = pg.extract_text() or ""
+                        if t.strip():
+                            text_parts.append(t.strip())
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        out = "\n\n".join(text_parts)
+        out = re.sub(r"\n{3,}", "\n\n", out).strip()
+        return out[:max_chars]
+
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
             r = await client.get(
@@ -9675,45 +9736,19 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
                         rr = await client.get(pu, headers={"User-Agent": "Mozilla/5.0"})
                         if rr.status_code >= 400 or not rr.content:
                             return None
-                        from io import BytesIO
-                        try:
-                            from pypdf import PdfReader  # type: ignore
-                        except Exception:
-                            from PyPDF2 import PdfReader  # type: ignore
-                        rdr = PdfReader(BytesIO(rr.content))
-                        t = ""
-                        for pg in rdr.pages[:6]:
-                            try:
-                                t += (pg.extract_text() or "") + "\n"
-                            except Exception:
-                                pass
-                        t = re.sub(r"\n{3,}", "\n\n", t).strip()
-                        if not t or len(t) < 50:
+                        text = _extract_pdf_bytes(rr.content, max_pages=6, max_chars=8000)
+                        if not text or len(text) < 50:
                             return None
-                        return {"url": pu, "name": urlparse(pu).path.rsplit("/", 1)[-1] or pu, "text": t[:6000]}
+                        return {"url": pu, "name": urlparse(pu).path.rsplit("/", 1)[-1] or pu, "text": text}
                     except Exception:
                         return None
                 results = await asyncio.gather(*[_dl(pu) for pu in pdf_urls], return_exceptions=False)
                 pdf_texts = [x for x in results if x]
             elif "pdf" in ctype:
                 # L'URL punta direttamente a un PDF
-                from io import BytesIO
-                try:
-                    from pypdf import PdfReader  # type: ignore
-                except Exception:
-                    from PyPDF2 import PdfReader  # type: ignore
-                try:
-                    rdr = PdfReader(BytesIO(r.content))
-                    t = ""
-                    for pg in rdr.pages[:8]:
-                        try:
-                            t += (pg.extract_text() or "") + "\n"
-                        except Exception:
-                            pass
-                    if t.strip():
-                        pdf_texts = [{"url": url, "name": urlparse(url).path.rsplit("/", 1)[-1] or url, "text": t[:6000]}]
-                except Exception:
-                    pass
+                text = _extract_pdf_bytes(r.content, max_pages=8, max_chars=10000)
+                if text.strip():
+                    pdf_texts = [{"url": url, "name": urlparse(url).path.rsplit("/", 1)[-1] or url, "text": text}]
             snap = {
                 "html_text": html_text,
                 "pdf_texts": pdf_texts,
