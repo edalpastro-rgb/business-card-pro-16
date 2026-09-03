@@ -9433,10 +9433,16 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
         logger.warning("[axon-teach] cannot read ai_teach_rules: %s", exc)
         rules = []
 
-    # Fetch dinamico dei PDF dai URL monitorati
+    # V49.q — Fetch dinamico dei PDF dai URL monitorati (solo pattern PUN)
     dyn_pdf_text = await _fetch_teach_url_pdfs_for_query(tenant, user_msg)
 
-    if not rules and not dyn_pdf_text:
+    # V50.z — Fetch GENERICO delle pagine HTML degli URL insegnati.
+    # Attivato per QUALSIASI messaggio (max 8 URL, max 800 char per pagina),
+    # così Axon ha sempre il contenuto fresco dei siti ufficiali che gli hai
+    # detto di consultare (GME, ARERA, ecc.).
+    dyn_html_text = await _fetch_teach_urls_html_generic(tenant, user_msg)
+
+    if not rules and not dyn_pdf_text and not dyn_html_text:
         return ""
 
     msg_lc = (user_msg or "").lower()
@@ -9486,7 +9492,7 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
         out_parts.append(block)
         total += len(block)
 
-    if not out_parts and not dyn_pdf_text:
+    if not out_parts and not dyn_pdf_text and not dyn_html_text:
         return ""
     header = (
         "\n\nBASE DI CONOSCENZA (Insegna ad Axon — regole e file caricati dal Master, "
@@ -9502,9 +9508,18 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
             + "\n\nQuesto contenuto è FONTE PRIMARIA. Usa questi valori numerici per rispondere; "
             "non cercare altrove e non dire 'dati non disponibili'."
         )
+    html_block = ""
+    if dyn_html_text:
+        html_block = (
+            "\n\n### 🌐 CONTENUTO WEB LIVE dagli URL insegnati (letto ora, in tempo reale)\n"
+            + dyn_html_text
+            + "\n\nQuesto è testo APPENA scaricato dai siti ufficiali che ti sono stati insegnati. "
+            "USA questi dati come fonte primaria per rispondere. Se contengono la risposta, cita il "
+            "sito da cui viene."
+        )
     return (
-        header + body + dyn_block
-        + "\n\nQuando rispondi, cita esplicitamente il nome del file/regola e il contenuto rilevante."
+        header + body + dyn_block + html_block
+        + "\n\nQuando rispondi, cita esplicitamente il nome del file/regola/sito e il contenuto rilevante."
     )
 
 
@@ -9515,6 +9530,133 @@ _MONTH_MAP_IT = {
     "gennaio": 1, "febbraio": 2, "marzo": 3, "aprile": 4, "maggio": 5, "giugno": 6,
     "luglio": 7, "agosto": 8, "settembre": 9, "ottobre": 10, "novembre": 11, "dicembre": 12,
 }
+
+
+# ─── V50.z — Fetch GENERICO HTML degli URL insegnati ─────────────────────
+# Cache in-memory con TTL 15 min per non spammare i siti.
+_TEACH_HTML_CACHE: Dict[str, Dict[str, Any]] = {}
+_TEACH_HTML_TTL_S = 15 * 60
+
+
+def _clean_html_to_text(html: str, max_chars: int = 2000) -> str:
+    """Estrae testo pulito da HTML con BeautifulSoup + fallback regex."""
+    if not html:
+        return ""
+    try:
+        from bs4 import BeautifulSoup  # type: ignore
+        soup = BeautifulSoup(html, "html.parser")
+        # Rimuovi tag rumorosi
+        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form", "noscript"]):
+            tag.decompose()
+        # Prendi contenuto principale se identificabile
+        main = soup.find("main") or soup.find(id="content") or soup.find(class_="content") or soup.body or soup
+        text = main.get_text(separator="\n", strip=True) if main else ""
+    except Exception:
+        # Fallback naive: strip HTML tags via regex
+        text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.S | re.I)
+        text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.S | re.I)
+        text = re.sub(r"<[^>]+>", " ", text)
+    # Riduci whitespace multipli
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = text.strip()
+    if len(text) > max_chars:
+        text = text[:max_chars] + "\n... (contenuto troncato)"
+    return text
+
+
+async def _fetch_teach_urls_html_generic(
+    tenant: str, user_msg: str, max_urls: int = 8, per_url_chars: int = 1500
+) -> str:
+    """Scarica in parallelo il testo HTML degli URL insegnati per il tenant
+    e ritorna una sezione formattata da iniettare nel prompt.
+
+    - Sempre attivo (per QUALSIASI messaggio), non solo pattern PUN.
+    - Cache 15 min per URL per non stressare i siti.
+    - Timeout 6s per URL, in parallelo.
+    - Prioritizza URL rilevanti al messaggio (matching parole chiave nell'URL).
+    - Best-effort: fallimenti silenziosi.
+    """
+    try:
+        urls_docs = await db.ai_teach_urls.find({"user_id": tenant}, {"_id": 0}).to_list(50)
+    except Exception:
+        return ""
+    if not urls_docs:
+        return ""
+
+    msg_lc = (user_msg or "").lower()
+    msg_tokens = {t for t in re.findall(r"[a-zàèéìòù]{4,}", msg_lc)}
+
+    def _score(u: Dict[str, Any]) -> int:
+        url_lc = (u.get("url") or "").lower()
+        title_lc = (u.get("title") or "").lower()
+        hay = f"{url_lc} {title_lc}"
+        return sum(1 for t in msg_tokens if t in hay)
+
+    urls_docs.sort(key=lambda u: (
+        _score(u),
+        -1 if (u.get("active") is not False) else 0,
+        (u.get("updated_at") or datetime.min).isoformat() if not isinstance(u.get("updated_at"), str) else (u.get("updated_at") or ""),
+    ), reverse=True)
+    urls_docs = urls_docs[:max_urls]
+
+    now = time.time()
+
+    async def _fetch(client: "httpx.AsyncClient", u_doc: Dict[str, Any]) -> Optional[Dict[str, str]]:
+        url = (u_doc.get("url") or "").strip()
+        if not url or not url.startswith(("http://", "https://")):
+            return None
+        # Cache
+        cached = _TEACH_HTML_CACHE.get(url)
+        if cached and (now - cached.get("ts", 0)) < _TEACH_HTML_TTL_S:
+            return {"url": url, "title": u_doc.get("title") or url, "text": cached["text"]}
+        try:
+            r = await client.get(
+                url,
+                timeout=6.0,
+                follow_redirects=True,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; AxonBot/1.0; +https://advisoros.it)"},
+            )
+            if r.status_code >= 400:
+                return None
+            ctype = (r.headers.get("content-type") or "").lower()
+            if "text/html" not in ctype and "text/plain" not in ctype and "application/xhtml" not in ctype:
+                # Non è HTML → salta (i PDF li gestisce l'altra funzione)
+                return None
+            text = _clean_html_to_text(r.text, max_chars=per_url_chars)
+            if not text or len(text) < 40:
+                return None
+            _TEACH_HTML_CACHE[url] = {"ts": now, "text": text}
+            return {"url": url, "title": u_doc.get("title") or url, "text": text}
+        except Exception as exc:
+            logger.debug("[teach-html] failed %s: %s", url, exc)
+            return None
+
+    try:
+        async with httpx.AsyncClient() as client:
+            results = await asyncio.gather(*[_fetch(client, u) for u in urls_docs], return_exceptions=False)
+    except Exception as exc:
+        logger.warning("[teach-html] gather failed: %s", exc)
+        return ""
+
+    valid = [r for r in results if r]
+    if not valid:
+        return ""
+
+    parts: List[str] = []
+    for i, item in enumerate(valid, 1):
+        parts.append(
+            f"--- FONTE {i}: {item['title']} ({item['url']}) ---\n{item['text']}"
+        )
+    logger.info("[teach-html] fetched %d/%d urls for tenant=%s", len(valid), len(urls_docs), tenant)
+    return "\n\n".join(parts)
+
+
+# V49.q — Scarica dinamicamente PDF dai link ai_teach_urls quando il messaggio
+# utente menziona un mese/anno + tema PUN/fascia/GME. Utile per il pattern
+# "guarda su gme.mercatoelettrico.org e prendi luglio/agosto 2026".
+# NB: la costante _MONTH_MAP_IT è ora sopra (dedup).
+
 
 
 async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: int = 3) -> str:
