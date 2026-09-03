@@ -9568,6 +9568,218 @@ def _clean_html_to_text(html: str, max_chars: int = 2000) -> str:
 async def _fetch_teach_urls_html_generic(
     tenant: str, user_msg: str, max_urls: int = 8, per_url_chars: int = 1500
 ) -> str:
+    """V50.z3 — Ora legge SEMPRE dallo snapshot DB (istantaneo).
+    Il refresh vero avviene in background da `_run_teach_urls_prefetch_job`
+    ogni 30 minuti + rispetta la `frequency` di ogni URL. Se il snapshot
+    manca (URL appena aggiunto), fa un solo fetch live sincrono max 1 URL.
+    """
+    from urllib.parse import urljoin, urlparse  # local import (best-effort)
+    try:
+        urls_docs = await db.ai_teach_urls.find({"user_id": tenant}, {"_id": 0}).to_list(50)
+    except Exception:
+        return ""
+    if not urls_docs:
+        return ""
+
+    msg_lc = (user_msg or "").lower()
+    msg_tokens = {t for t in re.findall(r"[a-zàèéìòù]{4,}", msg_lc)}
+
+    def _score(u: Dict[str, Any]) -> int:
+        hay = f"{(u.get('url') or '').lower()} {(u.get('title') or u.get('name') or '').lower()}"
+        return sum(1 for t in msg_tokens if t in hay)
+
+    urls_docs.sort(key=lambda u: _score(u), reverse=True)
+    urls_docs = urls_docs[:max_urls]
+
+    # Snapshot già disponibili (letti in un colpo, no fetch live)
+    parts: List[str] = []
+    pdf_blocks: List[str] = []
+    stale_needing_live: List[Dict[str, Any]] = []
+    for u in urls_docs:
+        snap = u.get("axon_snapshot") or {}
+        html_text = (snap.get("html_text") or "").strip()
+        pdfs = snap.get("pdf_texts") or []
+        if html_text:
+            title = u.get("title") or u.get("name") or u.get("url")
+            parts.append(f"--- FONTE: {title} ({u.get('url')}) [snapshot: {snap.get('fetched_at') or '?'}] ---\n{html_text[:per_url_chars]}")
+        for p in pdfs[:3]:
+            name = p.get("name") or "PDF"
+            txt = (p.get("text") or "").strip()
+            if txt:
+                pdf_blocks.append(f"--- PDF SNAPSHOT: {name} (da {u.get('title') or u.get('url')}) ---\n{txt[:3500]}")
+        if not html_text and not pdfs:
+            stale_needing_live.append(u)
+
+    # Se qualche URL non ha ancora uno snapshot (URL nuovo), fai UN fetch al volo
+    # solo del primo (per non rallentare). Il resto verrà scaricato in background.
+    if stale_needing_live and not parts and not pdf_blocks:
+        u = stale_needing_live[0]
+        try:
+            snap = await _axon_refresh_teach_snapshot(u)
+            if snap:
+                html_text = (snap.get("html_text") or "").strip()
+                if html_text:
+                    title = u.get("title") or u.get("name") or u.get("url")
+                    parts.append(f"--- FONTE: {title} ({u.get('url')}) [snapshot appena creato] ---\n{html_text[:per_url_chars]}")
+                for p in (snap.get("pdf_texts") or [])[:3]:
+                    if p.get("text"):
+                        pdf_blocks.append(f"--- PDF LIVE: {p.get('name')} ---\n{p['text'][:3500]}")
+        except Exception:
+            pass
+
+    if not parts and not pdf_blocks:
+        return ""
+
+    out = "\n\n".join(parts)
+    if pdf_blocks:
+        out += "\n\n### 📎 PDF SCARICATI DALLE FONTI LIVE (contenuto testuale)\n" + "\n\n".join(pdf_blocks)
+    return out
+
+
+async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Scarica HTML della pagina + primi 3 PDF, estrae testo, salva snapshot
+    in `ai_teach_urls.axon_snapshot` e ritorna il snapshot.
+    """
+    from urllib.parse import urljoin, urlparse
+    url = (u_doc.get("url") or "").strip()
+    if not url or not url.startswith(("http://", "https://")):
+        return None
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
+            r = await client.get(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; AxonBot/1.0; +https://advisoros.it)"},
+            )
+            if r.status_code >= 400:
+                return None
+            ctype = (r.headers.get("content-type") or "").lower()
+            html_text = ""
+            pdf_texts: List[Dict[str, str]] = []
+            if "text/html" in ctype or "text/plain" in ctype or "xhtml" in ctype:
+                html_text = _clean_html_to_text(r.text, max_chars=3000)
+                # Estrai link PDF
+                hrefs = re.findall(r'href=["\']([^"\']+\.pdf[^"\']*)["\']', r.text, flags=re.I)
+                seen = set()
+                pdf_urls = []
+                for h in hrefs:
+                    full = urljoin(url, h)
+                    if full in seen:
+                        continue
+                    seen.add(full)
+                    pdf_urls.append(full)
+                    if len(pdf_urls) >= 3:
+                        break
+                # Scarica i primi 3 PDF (in parallelo)
+                async def _dl(pu: str) -> Optional[Dict[str, str]]:
+                    try:
+                        rr = await client.get(pu, headers={"User-Agent": "Mozilla/5.0"})
+                        if rr.status_code >= 400 or not rr.content:
+                            return None
+                        from io import BytesIO
+                        try:
+                            from pypdf import PdfReader  # type: ignore
+                        except Exception:
+                            from PyPDF2 import PdfReader  # type: ignore
+                        rdr = PdfReader(BytesIO(rr.content))
+                        t = ""
+                        for pg in rdr.pages[:6]:
+                            try:
+                                t += (pg.extract_text() or "") + "\n"
+                            except Exception:
+                                pass
+                        t = re.sub(r"\n{3,}", "\n\n", t).strip()
+                        if not t or len(t) < 50:
+                            return None
+                        return {"url": pu, "name": urlparse(pu).path.rsplit("/", 1)[-1] or pu, "text": t[:6000]}
+                    except Exception:
+                        return None
+                results = await asyncio.gather(*[_dl(pu) for pu in pdf_urls], return_exceptions=False)
+                pdf_texts = [x for x in results if x]
+            elif "pdf" in ctype:
+                # L'URL punta direttamente a un PDF
+                from io import BytesIO
+                try:
+                    from pypdf import PdfReader  # type: ignore
+                except Exception:
+                    from PyPDF2 import PdfReader  # type: ignore
+                try:
+                    rdr = PdfReader(BytesIO(r.content))
+                    t = ""
+                    for pg in rdr.pages[:8]:
+                        try:
+                            t += (pg.extract_text() or "") + "\n"
+                        except Exception:
+                            pass
+                    if t.strip():
+                        pdf_texts = [{"url": url, "name": urlparse(url).path.rsplit("/", 1)[-1] or url, "text": t[:6000]}]
+                except Exception:
+                    pass
+            snap = {
+                "html_text": html_text,
+                "pdf_texts": pdf_texts,
+                "fetched_at": utcnow().isoformat(),
+            }
+            await db.ai_teach_urls.update_one(
+                {"user_id": u_doc.get("user_id"), "url_id": u_doc.get("url_id")},
+                {"$set": {"axon_snapshot": snap, "last_fetched_at": utcnow()}},
+            )
+            return snap
+    except Exception as exc:
+        logger.debug("[axon-snapshot] failed for %s: %s", url, exc)
+        return None
+
+
+async def _run_teach_urls_prefetch_job() -> None:
+    """Ogni 30 min: aggiorna gli snapshot degli URL insegnati stale
+    in base alla frequency (daily/weekly/monthly). Max 20 URL per run.
+    """
+    try:
+        now = utcnow()
+        thresholds_hours = {"daily": 24, "weekly": 24 * 7, "monthly": 24 * 30}
+        cur = db.ai_teach_urls.find({"active": {"$ne": False}}, {"_id": 0}).limit(200)
+        stale: List[Dict[str, Any]] = []
+        async for u in cur:
+            freq = (u.get("frequency") or "weekly").lower()
+            if freq == "manual":
+                # Fai solo il primo fetch se non c'è mai stato
+                if not u.get("axon_snapshot"):
+                    stale.append(u)
+                continue
+            hrs = thresholds_hours.get(freq, 24 * 7)
+            last = u.get("last_fetched_at")
+            if not last:
+                stale.append(u)
+            else:
+                if isinstance(last, str):
+                    try:
+                        last = datetime.fromisoformat(last)
+                    except Exception:
+                        last = None
+                if last:
+                    if last.tzinfo is None:
+                        last = last.replace(tzinfo=timezone.utc)
+                    age_h = (now - last).total_seconds() / 3600
+                    if age_h >= hrs:
+                        stale.append(u)
+        # Aggiorna max 20 URL per run per non caricare troppo
+        stale = stale[:20]
+        if not stale:
+            return
+        logger.info("[axon-prefetch] refreshing %d stale teach URLs", len(stale))
+        for u in stale:
+            try:
+                await _axon_refresh_teach_snapshot(u)
+            except Exception as exc:
+                logger.debug("[axon-prefetch] fail %s: %s", u.get("url"), exc)
+        logger.info("[axon-prefetch] done: %d URLs refreshed", len(stale))
+    except Exception as exc:
+        logger.warning("[axon-prefetch] job failed: %s", exc)
+
+
+# ─── V50.z (legacy — mantenuta ma non più usata direttamente) ────────────
+async def _fetch_teach_urls_html_generic_legacy(
+    tenant: str, user_msg: str, max_urls: int = 8, per_url_chars: int = 1500
+) -> str:
     """Scarica in parallelo il testo HTML degli URL insegnati per il tenant
     e ritorna una sezione formattata da iniettare nel prompt.
 
@@ -16628,9 +16840,17 @@ async def _start_scheduler():
             _run_rule_proposals_job, "cron", hour=3, minute=0,
             id="rule-proposals-job", replace_existing=True,
         )
+        # V50.z3 — Pre-fetch periodico degli URL insegnati (ogni 30 min)
+        # Aggiorna snapshot HTML + PDF nei tempi indicati dalla frequency.
+        # Così Axon risponde ISTANTANEAMENTE senza scaricare live.
+        _birthday_scheduler.add_job(
+            _run_teach_urls_prefetch_job, "interval", minutes=30,
+            id="teach-urls-prefetch", replace_existing=True,
+        )
         _birthday_scheduler.start()
         logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
         logger.info("Rule-proposals scheduler started (daily 03:00 Europe/Rome)")
+        logger.info("Teach-URLs prefetch scheduler started (every 30 minutes)")
     except Exception as e:
         logger.warning(f"birthday scheduler start failed: {e}")
 
