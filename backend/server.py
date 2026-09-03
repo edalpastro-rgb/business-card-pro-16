@@ -13425,7 +13425,7 @@ async def _distill_axon_brain(user_id: str, session_id: str) -> Dict[str, Any]:
         m = re.search(r"\{.*\}", raw, re.S)
         if not m:
             return {"skipped": "no_json"}
-        data = json.loads(m.group(0))
+        data = _json_stdlib.loads(m.group(0))
         # Salva profilo
         p = data.get("profile") or {}
         upd = {"user_id": user_id, "updated_at": utcnow()}
@@ -13701,7 +13701,7 @@ async def _llm_split_document_into_scripts(text: str, source_name: str, default_
         m = re.search(r"\[.*\]", raw or "", re.S)
         if not m:
             return []
-        data = json.loads(m.group(0))
+        data = _json_stdlib.loads(m.group(0))
         if not isinstance(data, list):
             return []
         out: List[Dict[str, Any]] = []
@@ -13720,6 +13720,69 @@ async def _llm_split_document_into_scripts(text: str, source_name: str, default_
     except Exception as e:
         logger.warning("[import-drive] llm split failed: %s", e)
         return []
+
+
+class ScriptImportTextIn(BaseModel):
+    text: str
+    source_name: str = "manuale"
+    default_category: Optional[str] = None
+
+
+class ScriptImportFileIn(BaseModel):
+    name: str
+    mime: str
+    data_base64: str
+    default_category: Optional[str] = None
+
+
+@api_router.post("/axon/scripts/import/text")
+async def axon_scripts_import_text(body: ScriptImportTextIn, user=Depends(get_current_user)):
+    """Importa script dividendo un testo grezzo incollato. Usa Claude per split."""
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Testo vuoto")
+    scripts = await _llm_split_document_into_scripts(text, body.source_name, body.default_category)
+    if not scripts:
+        return {"scripts_imported": 0, "errors": [{"file": body.source_name, "error": "Nessuno script rilevato"}]}
+    tid = tenant_id(user)
+    for s in scripts:
+        await db.axon_scripts.insert_one({
+            "user_id": tid, "created_by": user["user_id"],
+            "script_id": uuid.uuid4().hex[:16],
+            "category": s["category"], "title": s["title"], "content": s["content"],
+            "tags": s.get("tags") or [], "times_used": 0,
+            "source": {"origin": "text_paste", "name": body.source_name},
+            "created_at": utcnow(), "updated_at": utcnow(),
+        })
+    return {"scripts_imported": len(scripts), "errors": []}
+
+
+@api_router.post("/axon/scripts/import/file")
+async def axon_scripts_import_file(body: ScriptImportFileIn, user=Depends(get_current_user)):
+    """Importa script da un file locale (base64). Estrae testo + split AI."""
+    class _Att:
+        def __init__(self, name, mime, data_base64):
+            self.name = name; self.mime = mime; self.data_base64 = data_base64
+    try:
+        text = await _extract_attachment_text(_Att(body.name, body.mime, body.data_base64))  # type: ignore
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Impossibile estrarre testo: {e}")
+    if not text or (text.startswith("[") and text.endswith("]")):
+        raise HTTPException(status_code=400, detail="Il file non contiene testo estraibile")
+    scripts = await _llm_split_document_into_scripts(text, body.name, body.default_category)
+    if not scripts:
+        return {"scripts_imported": 0, "errors": [{"file": body.name, "error": "Nessuno script rilevato"}]}
+    tid = tenant_id(user)
+    for s in scripts:
+        await db.axon_scripts.insert_one({
+            "user_id": tid, "created_by": user["user_id"],
+            "script_id": uuid.uuid4().hex[:16],
+            "category": s["category"], "title": s["title"], "content": s["content"],
+            "tags": s.get("tags") or [], "times_used": 0,
+            "source": {"origin": "file_upload", "name": body.name, "mime": body.mime},
+            "created_at": utcnow(), "updated_at": utcnow(),
+        })
+    return {"scripts_imported": len(scripts), "errors": []}
 
 
 @api_router.post("/axon/scripts/import/drive")

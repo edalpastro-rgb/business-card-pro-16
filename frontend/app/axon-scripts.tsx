@@ -13,6 +13,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 
@@ -50,6 +52,10 @@ export default function AxonScriptsScreen() {
   const [filter, setFilter] = useState<string | null>(null);
   const [editing, setEditing] = useState<Script | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -83,6 +89,64 @@ export default function AxonScriptsScreen() {
 
   const visible = filter ? scripts.filter((s) => s.category === filter) : scripts;
 
+  // V50.w — Import da file locale
+  const importFromDevice = async () => {
+    setShowImport(false);
+    try {
+      const r = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "text/*", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (r.canceled || !r.assets?.[0]) return;
+      const file = r.assets[0];
+      setImporting(true);
+      const data = await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" as any });
+      const resp = await api<any>("/axon/scripts/import/file", {
+        method: "POST",
+        body: { name: file.name || "file", mime: file.mimeType || "application/octet-stream", data_base64: data },
+      });
+      notify(
+        resp?.scripts_imported ? "Import completato ✅" : "Nessuno script creato",
+        resp?.scripts_imported ? `${resp.scripts_imported} script salvati` : "Il file non conteneva script leggibili"
+      );
+      load();
+    } catch (e: any) {
+      notify("Errore import file", e?.message || String(e));
+    } finally { setImporting(false); }
+  };
+
+  // V50.w — Import da testo incollato
+  const importFromText = async () => {
+    if (!pasteText.trim()) return;
+    setImporting(true);
+    try {
+      const resp = await api<any>("/axon/scripts/import/text", {
+        method: "POST",
+        body: { text: pasteText, source_name: "Testo incollato" },
+      });
+      notify(
+        resp?.scripts_imported ? "Import completato ✅" : "Nessuno script creato",
+        resp?.scripts_imported ? `${resp.scripts_imported} script salvati` : "Non ho trovato script utilizzabili"
+      );
+      setShowPaste(false);
+      setPasteText("");
+      load();
+    } catch (e: any) {
+      notify("Errore", e?.message || String(e));
+    } finally { setImporting(false); }
+  };
+
+  const importFromDrive = () => {
+    setShowImport(false);
+    router.push("/axon-scripts-import" as any);
+  };
+
+  const importFromDropbox = () => {
+    setShowImport(false);
+    Alert.alert("Dropbox", "L'import da Dropbox arriverà a breve. Per ora usa Google Drive o carica il file dal telefono.");
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.root} edges={["top"]}>
@@ -99,7 +163,7 @@ export default function AxonScriptsScreen() {
         </Pressable>
         <Text style={styles.hTitle}>📚 Playbook Script</Text>
         <View style={{ flexDirection: "row", gap: 4 }}>
-          <Pressable onPress={() => router.push("/axon-scripts-import" as any)} hitSlop={10} style={styles.hBtn} testID="script-import-btn">
+          <Pressable onPress={() => setShowImport(true)} hitSlop={10} style={styles.hBtn} testID="script-import-btn">
             <Ionicons name="cloud-download" size={22} color="#0F9D58" />
           </Pressable>
           <Pressable onPress={() => setCreating(true)} hitSlop={10} style={styles.hBtn} testID="script-add-btn">
@@ -179,6 +243,95 @@ export default function AxonScriptsScreen() {
           onClose={() => { setEditing(null); setCreating(false); }}
           onSaved={() => { setEditing(null); setCreating(false); load(); }}
         />
+      )}
+
+      {/* V50.w — Chooser sorgente import */}
+      <Modal transparent visible={showImport} animationType="fade" onRequestClose={() => setShowImport(false)}>
+        <Pressable style={styles.chooserBackdrop} onPress={() => setShowImport(false)}>
+          <Pressable style={styles.chooserCard} onPress={() => {}}>
+            <Text style={styles.chooserTitle}>📥 Importa script da…</Text>
+
+            <Pressable onPress={importFromDrive} style={styles.chooserItem}>
+              <View style={[styles.chooserIcon, { backgroundColor: "#0F9D58" }]}><Ionicons name="logo-google" size={20} color="#FFF" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.chooserItemTitle}>Google Drive</Text>
+                <Text style={styles.chooserItemSub}>Da una cartella condivisa (batch)</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </Pressable>
+
+            <Pressable onPress={importFromDropbox} style={styles.chooserItem}>
+              <View style={[styles.chooserIcon, { backgroundColor: "#0061FF" }]}><Ionicons name="cube" size={20} color="#FFF" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.chooserItemTitle}>Dropbox</Text>
+                <Text style={styles.chooserItemSub}>In arrivo</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </Pressable>
+
+            <Pressable onPress={importFromDevice} style={styles.chooserItem}>
+              <View style={[styles.chooserIcon, { backgroundColor: "#EA580C" }]}><Ionicons name="document" size={20} color="#FFF" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.chooserItemTitle}>File dal telefono/PC</Text>
+                <Text style={styles.chooserItemSub}>PDF, DOCX, TXT dal dispositivo</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </Pressable>
+
+            <Pressable onPress={() => { setShowImport(false); setShowPaste(true); }} style={styles.chooserItem}>
+              <View style={[styles.chooserIcon, { backgroundColor: "#7C3AED" }]}><Ionicons name="clipboard" size={20} color="#FFF" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.chooserItemTitle}>Incolla testo</Text>
+                <Text style={styles.chooserItemSub}>Da appunti o chat</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </Pressable>
+
+            <Pressable onPress={() => setShowImport(false)} style={styles.chooserCancel}>
+              <Text style={styles.chooserCancelTxt}>Annulla</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* V50.w — Modal incolla testo */}
+      <Modal visible={showPaste} animationType="slide" onRequestClose={() => setShowPaste(false)}>
+        <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
+          <View style={styles.header}>
+            <Pressable onPress={() => setShowPaste(false)} hitSlop={10} style={styles.hBtn}>
+              <Ionicons name="close" size={24} color="#FFF" />
+            </Pressable>
+            <Text style={styles.hTitle}>📝 Incolla Testo</Text>
+            <View style={{ width: 30 }} />
+          </View>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+            <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
+              <Text style={styles.formLabel}>Incolla qui il tuo materiale: Axon lo dividerà automaticamente in N script</Text>
+              <TextInput
+                value={pasteText}
+                onChangeText={setPasteText}
+                multiline
+                style={[styles.input, { minHeight: 300, textAlignVertical: "top" }]}
+                placeholder="Incolla script, email, discorsi, appunti…"
+                placeholderTextColor="#94A3B8"
+                autoFocus
+              />
+              <Pressable onPress={importFromText} disabled={importing || !pasteText.trim()} style={[styles.saveBtn, (importing || !pasteText.trim()) && { opacity: 0.6 }]}>
+                {importing ? <ActivityIndicator color="#0F172A" /> : (
+                  <><Ionicons name="sparkles" size={16} color="#0F172A" /><Text style={styles.saveBtnTxt}>Analizza e importa</Text></>
+                )}
+              </Pressable>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Overlay importing globale */}
+      {importing && !showPaste && (
+        <View style={styles.overlay}>
+          <ActivityIndicator size="large" color="#FBBF24" />
+          <Text style={styles.overlayTxt}>Analizzo il file con Axon…</Text>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -302,4 +455,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#FBBF24", paddingVertical: 12, borderRadius: 999, marginTop: 12,
   },
   saveBtnTxt: { color: "#0F172A", fontWeight: "900", fontSize: 14 },
+
+  // V50.w — Import chooser
+  chooserBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
+  chooserCard: { backgroundColor: "#0F2438", padding: 14, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 8, paddingBottom: 30 },
+  chooserTitle: { color: "#FFF", fontSize: 16, fontWeight: "900", marginBottom: 6, textAlign: "center" },
+  chooserItem: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12 },
+  chooserIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  chooserItemTitle: { color: "#FFF", fontWeight: "800", fontSize: 14 },
+  chooserItemSub: { color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 2 },
+  chooserCancel: { alignItems: "center", padding: 12, marginTop: 4 },
+  chooserCancelTxt: { color: "#94A3B8", fontWeight: "700", fontSize: 13 },
+
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", gap: 10 },
+  overlayTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });
