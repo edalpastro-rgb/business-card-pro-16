@@ -9325,7 +9325,43 @@ async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
                 if sum(len(x) for x in pages) > 60000:
                     break
             doc.close()
-            return "\n\n".join(pages) if pages else "[PDF senza testo estraibile]"
+            text_out = "\n\n".join(pages) if pages else ""
+            # V50.z7 — Fallback OCR con Claude Vision se PyMuPDF non estrae testo
+            # (PDF scansionato / immagine). Max 5 pagine per non essere lento.
+            if len(text_out) < 100:
+                try:
+                    import pypdfium2 as pdfium  # type: ignore
+                    from io import BytesIO
+                    key = os.environ.get("EMERGENT_LLM_KEY")
+                    if key:
+                        pdf = pdfium.PdfDocument(raw)
+                        n_pages = min(len(pdf), 5)
+                        ocr_parts: List[str] = []
+                        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent  # type: ignore
+                        for i in range(n_pages):
+                            try:
+                                page = pdf[i]
+                                pil_image = page.render(scale=2.0).to_pil()
+                                buf = BytesIO()
+                                pil_image.save(buf, format="JPEG", quality=80)
+                                b64 = _b64.b64encode(buf.getvalue()).decode()
+                                chat = LlmChat(
+                                    api_key=key,
+                                    session_id=f"pdf-ocr-att-{uuid.uuid4().hex[:8]}",
+                                    system_message="Sei un OCR italiano. Trascrivi ESATTAMENTE tutto il testo visibile. Preserva tabelle in Markdown. Solo testo, nessun commento.",
+                                ).with_model("anthropic", "claude-haiku-4-5")
+                                content = [ImageContent(image_base64=b64, media_type="image/jpeg")]
+                                resp = await chat.send_message(UserMessage(text="Trascrivi tutto il testo di questa pagina.", images=content))  # type: ignore
+                                if resp and resp.strip():
+                                    ocr_parts.append(f"[Pagina {i+1} · OCR Vision]\n{resp.strip()}")
+                            except Exception as exc_p:
+                                logger.debug("[att-pdf-ocr] page %d failed: %s", i, exc_p)
+                        if ocr_parts:
+                            text_out = "\n\n".join(ocr_parts)
+                            logger.info("[att-pdf-ocr] recovered %d pages via Vision (name=%s)", len(ocr_parts), att.name)
+                except Exception as exc:
+                    logger.debug("[att-pdf-ocr] fallback failed: %s", exc)
+            return text_out or "[PDF senza testo estraibile — controlla se è scansionato/protetto]"
         except Exception as exc:
             return f"[Errore lettura PDF: {exc}]"
 
@@ -9648,7 +9684,7 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
     if not url or not url.startswith(("http://", "https://")):
         return None
 
-    def _extract_pdf_bytes(pdf_bytes: bytes, max_pages: int = 8, max_chars: int = 8000) -> str:
+    async def _extract_pdf_bytes(pdf_bytes: bytes, max_pages: int = 8, max_chars: int = 8000) -> str:
         """Estrae testo + tabelle da un PDF. Prova prima pdfplumber (tabelle),
         fallback pypdf. Ritorna stringa formattata."""
         text_parts: List[str] = []
@@ -9703,6 +9739,43 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
                 pass
         out = "\n\n".join(text_parts)
         out = re.sub(r"\n{3,}", "\n\n", out).strip()
+
+        # V50.z7 — Se pdfplumber/pypdf NON hanno estratto testo utile,
+        # il PDF è probabilmente SCANSIONATO (immagine). Fallback: Claude Vision.
+        if len(out) < 100:
+            try:
+                import pypdfium2 as pdfium  # type: ignore
+                from io import BytesIO
+                key = os.environ.get("EMERGENT_LLM_KEY")
+                if key:
+                    pdf = pdfium.PdfDocument(pdf_bytes)
+                    n_pages = min(len(pdf), 3)  # max 3 pagine per non essere lenti
+                    ocr_parts: List[str] = []
+                    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent  # type: ignore
+                    for i in range(n_pages):
+                        try:
+                            page = pdf[i]
+                            pil_image = page.render(scale=2.0).to_pil()
+                            buf = BytesIO()
+                            pil_image.save(buf, format="JPEG", quality=80)
+                            b64 = _b64.b64encode(buf.getvalue()).decode()
+                            chat = LlmChat(
+                                api_key=key,
+                                session_id=f"pdf-ocr-{uuid.uuid4().hex[:8]}",
+                                system_message="Sei un OCR italiano. Trascrivi ESATTAMENTE tutto il testo visibile nell'immagine. Preserva tabelle in formato Markdown. Nessun commento, solo testo.",
+                            ).with_model("anthropic", "claude-haiku-4-5")
+                            content = [ImageContent(image_base64=b64, media_type="image/jpeg")]
+                            resp = await chat.send_message(UserMessage(text="Trascrivi tutto il testo di questa pagina.", images=content))  # type: ignore
+                            if resp and resp.strip():
+                                ocr_parts.append(f"[Pagina {i+1} · OCR]\n{resp.strip()}")
+                        except Exception as exc_p:
+                            logger.debug("[pdf-ocr] page %d failed: %s", i, exc_p)
+                    if ocr_parts:
+                        out = "\n\n".join(ocr_parts)
+                        logger.info("[pdf-ocr] recovered %d pages via Claude Vision", len(ocr_parts))
+            except Exception as exc:
+                logger.debug("[pdf-ocr] fallback failed: %s", exc)
+
         return out[:max_chars]
 
     try:
@@ -9736,7 +9809,7 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
                         rr = await client.get(pu, headers={"User-Agent": "Mozilla/5.0"})
                         if rr.status_code >= 400 or not rr.content:
                             return None
-                        text = _extract_pdf_bytes(rr.content, max_pages=6, max_chars=8000)
+                        text = await _extract_pdf_bytes(rr.content, max_pages=6, max_chars=8000)
                         if not text or len(text) < 50:
                             return None
                         return {"url": pu, "name": urlparse(pu).path.rsplit("/", 1)[-1] or pu, "text": text}
@@ -9746,7 +9819,7 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
                 pdf_texts = [x for x in results if x]
             elif "pdf" in ctype:
                 # L'URL punta direttamente a un PDF
-                text = _extract_pdf_bytes(r.content, max_pages=8, max_chars=10000)
+                text = await _extract_pdf_bytes(r.content, max_pages=8, max_chars=10000)
                 if text.strip():
                     pdf_texts = [{"url": url, "name": urlparse(url).path.rsplit("/", 1)[-1] or url, "text": text}]
             snap = {
