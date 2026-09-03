@@ -16,6 +16,7 @@ import { AssistantFAB } from "@/src/AssistantChat";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
 import { SupportFab } from "@/src/SupportFab";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
+import { EdgePanel } from "@/src/EdgePanel";
 import { OnboardingWizard } from "@/src/OnboardingWizard";
 import { AnimatedSplash } from "@/src/AnimatedSplash";
 import { FabStackProvider } from "@/src/FabStack";
@@ -157,6 +158,8 @@ function StackWithCallBar() {
       {user ? <CalculatorFAB /> : null}
       {user ? <PersistentBottomNav /> : null}
       {user ? <OnboardingWizard /> : null}
+      {/* V50.z15 — Edge Panel Samsung-style: linguetta a destra, shortcut personalizzabili */}
+      {user ? <EdgePanel /> : null}
     </View>
   );
 }

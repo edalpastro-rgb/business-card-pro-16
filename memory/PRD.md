@@ -1,3 +1,56 @@
+## V50.z15 (Sept 2026) — Edge Panel Samsung-style con shortcut personalizzabili
+
+### Concept
+Replica del "Edge Panel" nativo Samsung: linguetta sottile sul bordo destro dello schermo, sempre visibile, che apre un pannello laterale con shortcut alle azioni più usate. L'utente sceglie cosa mettere dentro.
+
+### Nuovo file `/app/frontend/src/EdgePanel.tsx`
+
+**Elementi**:
+1. **Linguetta** — barretta gialla (`rgba(251,191,36,0.85)`) 6px×68px sul bordo destro, posizione verticale personalizzabile tramite drag verticale con dito
+2. **Pannello** — bottom sheet laterale 260px, sfondo `#0F2438`, appare con slide-in animato da destra (spring); overlay scuro `rgba(0,0,0,0.35)` copre la pagina sottostante
+3. **Griglia 2 colonne** di tile con icona colorata + label
+4. **Bottone "Modifica"** in fondo → apre bottom sheet con checklist di TUTTE le azioni disponibili
+5. **Bottone "Disattiva linguetta"** dentro l'editor per chi non la vuole
+
+**Elenco azioni disponibili** (25 shortcut precatalogati):
+- Navigazione: Home, Master, Agenda, Contatti, Chat Team, Report, Profilo
+- Crea: Nuovo Contatto, Nuovo Appuntamento, Nuovo Contratto
+- Assets: I miei audio, I miei file, My Web, Biglietto Visita
+- Utility: Analizza bolletta, Script Telefonata, Banner Evento
+- Axon: Insegna, Cervello, Playbook Script, Timer & Sveglie, Libretto App
+- Master: Cruscotto, Azioni Rapide, Home Assistant
+
+**Gesture**:
+- Tap linguetta → apre pannello (spring anim)
+- Drag verticale linguetta → sposta la posizione (persistita)
+- Swipe orizzontale sinistra da linguetta (dx < -30) → apre pannello
+- Tap fuori dal pannello (overlay) → chiude
+- Solo l'icona X in alto del pannello lo chiude (oltre al tap fuori)
+
+**Persistenza AsyncStorage**:
+- `edge_panel_ids_v1` — lista ID selezionati (default: home/agenda/new-contact/axon-alarms/master)
+- `edge_panel_tab_y_v1` — posizione verticale linguetta
+- `edge_panel_enabled_v1` — `"0"` per disattivare del tutto
+
+**Nascondi su rotte auth**:
+Controlla `pathname` e nasconde su `/login`, `/register`, `/reset-password`.
+
+### Integrazione `_layout.tsx`
+Import `EdgePanel` + render globale dentro `StackWithCallBar` solo se `user` esiste (dopo `PersistentBottomNav` e `OnboardingWizard`).
+
+### Test manuali
+- ✅ Lint TypeScript: 0 errori
+- ✅ Frontend carica correttamente
+- ✅ Nascosto in login (non c'è ancora user)
+
+### Note per l'utente
+- La linguetta appare in TUTTE le schermate dopo il login
+- Puoi trascinarla in su/giù con il dito per riposizionarla
+- Da "Modifica" puoi aggiungere/rimuovere tutte le shortcut che vuoi
+- Se vuoi nasconderla → Modifica → "Disattiva linguetta" (potrai riattivarla solo da codice per ora; se vuoi un'opzione UI per riattivarla dopo, chiedimi)
+
+
+
 ## V50.z14 (Sept 2026) — Calculator ridimensionabile + non chiude su tap fuori
 
 ### Problema
