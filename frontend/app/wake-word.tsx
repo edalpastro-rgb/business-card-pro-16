@@ -9,7 +9,8 @@
  */
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Switch, ScrollView, Alert, Platform } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -31,8 +32,8 @@ const _AXON_MODEL_REF = AXON_MODEL;
 
 export default function WakeWordSettingsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const bottomPad = Math.max(insets.bottom, 16);
+  // V50.x — usa la utility globale per non essere coperti dalla tab bar
+  const bottomPad = usePageBottomPadding();
   const [enabled, setEnabled] = useState(false);
   const [model, setModel] = useState<"hey_jarvis" | "axon_custom">("hey_jarvis");
   const [ready, setReady] = useState(false);
@@ -88,7 +89,7 @@ export default function WakeWordSettingsScreen() {
         <View style={{ width: 32 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomPad + 24, gap: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomPad, gap: 16 }}>
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroIcon}>

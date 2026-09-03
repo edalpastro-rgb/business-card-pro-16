@@ -9,7 +9,8 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert,
   ActivityIndicator, Modal, KeyboardAvoidingView, Platform,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -44,8 +45,7 @@ function catInfo(id: string) {
 
 export default function AxonScriptsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const bottomInset = Math.max(insets.bottom, 12);
+  const bottomInset = usePageBottomPadding();
 
   const [loading, setLoading] = useState(true);
   const [scripts, setScripts] = useState<Script[]>([]);
@@ -189,7 +189,7 @@ export default function AxonScriptsScreen() {
         })}
       </ScrollView>
 
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 40 + bottomInset }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: bottomInset }}>
         {visible.length === 0 ? (
           <View style={styles.emptyBox}>
             <Ionicons name="book-outline" size={40} color="#64748B" />

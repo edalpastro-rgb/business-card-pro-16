@@ -6,7 +6,8 @@
  */
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
@@ -32,8 +33,7 @@ const TYPE_META: Record<string, { emoji: string; color: string; unit: string; pr
 
 export default function AxonCheatsheetScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const bottomInset = Math.max(insets.bottom, 12);
+  const bottomInset = usePageBottomPadding();
 
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<CheatRow[]>([]);
@@ -89,7 +89,7 @@ export default function AxonCheatsheetScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 40 + bottomInset }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: bottomInset }}>
         <View style={styles.hint}>
           <Ionicons name="information-circle" size={18} color="#F59E0B" />
           <Text style={styles.hintTxt}>

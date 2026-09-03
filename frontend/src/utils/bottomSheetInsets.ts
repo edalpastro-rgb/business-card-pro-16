@@ -11,6 +11,25 @@
 // pagine dove è visibile la `PersistentBottomNav` (~60px + safe-area). Rende
 // il paddingBottom del ScrollView coerente in modo globale evitando che il
 // contenuto finale venga coperto dalla barra di navigazione Android.
+//
+// ══════════════════════════════════════════════════════════════════════════════
+// ⚠️  REGOLA D'ORO (V50.x) — NON DIMENTICARE MAI
+// ══════════════════════════════════════════════════════════════════════════════
+// OGNI ScrollView / FlatList di una schermata dell'app DEVE usare
+// `usePageBottomPadding()` come `paddingBottom` del `contentContainerStyle`.
+// Se NON lo fai, il contenuto finale (card, banner, pulsanti) risulterà COPERTO
+// dalla PersistentBottomNav (Home/Contatti/Chat/Calendario/Report/Profilo).
+//
+// ESEMPIO CORRETTO:
+//   const bottomPad = usePageBottomPadding();
+//   <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: bottomPad }}>
+//
+// ECCEZIONI (schermate che NASCONDONO la tab bar tramite HIDE_ON_PATHS):
+//   - /google-drive-picker
+//   - /axon-scripts-import
+//   - /libretto-editor
+//   In quei casi va bene `Math.max(insets.bottom, 16)`.
+// ══════════════════════════════════════════════════════════════════════════════
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 

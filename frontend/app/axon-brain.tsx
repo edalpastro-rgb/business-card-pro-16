@@ -14,7 +14,8 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert,
   ActivityIndicator, Switch,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
@@ -40,8 +41,7 @@ const CATEGORY_COLOR: Record<string, string> = {
 
 export default function AxonBrainScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const bottomInset = Math.max(insets.bottom, 12);
+  const bottomInset = usePageBottomPadding();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -163,7 +163,7 @@ export default function AxonBrainScreen() {
         <View style={{ width: 30 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 + bottomInset }}>
+      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: bottomInset }}>
         {/* Toggle apprendimento */}
         <View style={styles.card}>
           <View style={{ flex: 1 }}>
