@@ -39,7 +39,14 @@ const TABS: TabDef[] = [
 
 // Rotte dove la barra NON deve mai apparire (login, splash, app-lock,
 // schermate di creazione con sticky footer proprio).
-const HIDE_ON_PATHS = ["/login", "/index", "/", "/auth", "/appointment/new", "/callback/new"];
+const HIDE_ON_PATHS = [
+  "/login", "/index", "/", "/auth",
+  "/appointment/new", "/callback/new",
+  // V50.w — Schermate con footer sticky che verrebbero coperti dalla tab bar
+  "/google-drive-picker",
+  "/axon-scripts-import",
+  "/libretto-editor",
+];
 
 export function PersistentBottomNav() {
   const pathname = usePathname() || "";
