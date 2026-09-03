@@ -1,3 +1,100 @@
+## V50.z8-z9 (Sept 2026) — Alexa-style features + Calculator draggable + Axon Drive
+
+### 1️⃣ Calculator FAB draggable (V50.z6)
+`/app/frontend/src/CalculatorFAB.tsx` completamente riscritto:
+- `PanResponder` + `Animated.ValueXY` per drag fluido
+- Tap veloce (<6px movimento) = apre calcolatrice; drag = sposta
+- Posizione persistita in `AsyncStorage` (chiave `calc_fab_position_v1`)
+- Auto-clamp ai bordi (8px margine), snap animato con `Animated.spring`
+- Default: bottom-right, 100px offset dalla tab bar
+
+### 2️⃣ Fix "Modifica" coperto dal SupportFab (V50.z6)
+`/app/frontend/app/libretto.tsx`:
+- "Modifica" rimosso dall'header (era coperto dal Support FAB in alto-right)
+- Aggiunto bottone "Modifica libretto" nella sticky footer (visibile solo se `canEdit && !isOnboarding`)
+- Scroll `paddingBottom` aumentato a 200 quando canEdit
+
+`/app/frontend/app/libretto-editor.tsx` (SectionEditor modal):
+- Rimossa la spunta verde ✓ in alto-sx (incomprensibile per gli utenti)
+- Sostituita con `chevron-back` bianco (chiaro "torna al libretto")
+- Aggiunto sticky "Salva sezione" giallo in fondo al modal (borderRadius 999)
+
+### 3️⃣ Axon legge Drive folders/files (V50.z7)
+`/app/backend/server.py` — nuova funzione `_fetch_teach_drive_pdfs_for_query`:
+- Rileva URL `drive.google.com/drive/folders/{id}` e `drive.google.com/file/d/{id}` in `ai_teach_urls`
+- Usa OAuth Drive dell'utente per listare PDF nella cartella (max 30 file, ordinati per modifiedTime desc)
+- Filtra per mese/anno menzionato nella query (pattern: `202607`, `07-2026`, `luglio`, ecc.)
+- Fallback: se nessun match, prende gli N più recenti (mai ritorna vuoto se ci sono PDF)
+- Scarica con Drive API + estrae testo via `_extract_pdf_text_bytes` (pdfplumber + OCR fallback)
+- Aggiunge blocco `📂 PDF DA GOOGLE DRIVE` al prompt con istruzione "USA questi numeri come FONTE PRIMARIA"
+
+### 4️⃣ Timer / Sveglie / Promemoria in-app — Alexa-style (V50.z8)
+**Backend `/app/backend/server.py`** — nuovi endpoint personali:
+- `GET/POST/PUT/DELETE /api/axon/alarms` — CRUD sveglie
+- `POST /api/axon/alarms/{id}/toggle` — enable/disable
+- `GET /api/axon/alarm-sounds` — lista suoni custom
+- `POST /api/axon/alarm-sounds` — upload mp3/wav/aac (max ~1.5MB base64)
+- `DELETE /api/axon/alarm-sounds/{id}` — rimuove suono e resetta alarms → default
+- Data model unificato: `kind`(timer|alarm|reminder), `label`, `enabled`, `sound_ref`, `vibrate`, `note`, `trigger_at`, `duration_seconds`, `time`, `weekdays`
+
+**Frontend**:
+- `/app/frontend/app/axon-alarms.tsx` — schermata tab (Timer/Sveglie/Promemoria) + FAB nuovo + editor modale
+- `/app/frontend/src/alarmNotifs.ts` — sync notifiche locali via `expo-notifications`:
+  - Timer/Reminder: one-shot DATE trigger
+  - Alarm one-shot: DATE alla prossima occorrenza
+  - Alarm ricorrente: un WEEKLY trigger per ogni weekday selezionato
+  - Canale Android "axon-alarms" con importance MAX + vibrazione custom
+  - Cache suoni custom in `expo-file-system/legacy` (`getCustomSoundUri`)
+- Weekday preset: Lun-Ven, Weekend, Ogni giorno, Nessuno
+- Duration preset per timer: 5m/15m/30m/1h
+- Sound picker modal con upload mp3 e delete
+- iOS disclaimer: suono custom funziona solo in foreground
+
+### 5️⃣ Home Assistant integration (V50.z9) — domotica
+**Backend `/app/backend/server.py`** — nuovi endpoint proxy:
+- `GET /api/homeassistant/config` — status connessione (token mascherato)
+- `POST /api/homeassistant/config` — salva URL + Long-Lived Access Token (cifrato con Fernet, reused `GOOGLE_DRIVE_TOKEN_KEY`)
+- `DELETE /api/homeassistant/config` — disconnetti
+- `GET /api/homeassistant/entities` — lista entità supportate (light/switch/cover/lock/scene/climate/fan/media_player/vacuum/input_boolean/button)
+- `POST /api/homeassistant/service` — chiamata generica servizio HA
+- `POST /api/homeassistant/toggle` — toggle rapido con deduzione dello state opposto
+- Ping `/api/` a save-time per verifica connessione
+- `httpx.AsyncClient(verify=False)` per HA locali con cert self-signed
+
+**Frontend `/app/frontend/app/axon-homeassistant.tsx`**:
+- Empty state con 5 step per ottenere Long-Lived Token
+- Editor modale (URL + token con `secureTextEntry` toggle occhio + etichetta)
+- Lista entità raggruppate per dominio con toggle diretto (ottimistico + re-sync 400ms)
+- Refresh control pull-to-refresh
+- Icone per dominio (bulb/flash/square/lock/color-palette/thermometer/sync/…)
+- Traduzioni state IT (Acceso/Spento/Aperto/Chiuso/Bloccato/…)
+
+### 6️⃣ Entry points in Impostazioni
+`/app/frontend/app/(tabs)/impostazioni.tsx` — aggiunte 2 card:
+- 🟢 "⏰ Timer & Sveglie" (verde `#22C55E`)
+- 🔵 "🏠 Home Assistant" (blu `#3B82F6`)
+
+### 7️⃣ Pulizia stili morti (V50.z6)
+`/app/frontend/app/(tabs)/home.tsx`: rimossi `myThingEmpty` + `myThingEmptyTxt` (dead code post-fix banner nascosto).
+
+### Test manuali eseguiti
+- ✅ Backend `/api/health` — 200 OK
+- ✅ `POST /axon/alarms` (timer/alarm/reminder) — 200 con id
+- ✅ `POST /axon/alarms/{id}/toggle` — 200
+- ✅ `GET /axon/alarms` — 200 con items
+- ✅ `POST /homeassistant/config` — 200 (verified=false su token fake, come atteso)
+- ✅ `GET /homeassistant/config` — 200
+- ✅ Frontend `/axon-alarms` — carica header + tabs + empty state + FAB
+- ✅ Frontend `/axon-homeassistant` — carica empty state + 5 step + connetti button
+- ✅ Lint TypeScript su tutti i nuovi file: 0 issues
+
+### Note critiche per l'utente
+- **Suono custom iOS**: funziona solo quando l'app è in foreground (limite di piattaforma; per background serve bundling nativo del suono nell'IPA)
+- **Home Assistant self-hosted**: l'utente deve avere una propria istanza HA (Raspberry, NAS, mini PC). URL locale funziona solo sulla stessa rete Wi-Fi; per uso remoto serve DuckDNS/Nabu Casa
+- **Publish necessario**: notifiche locali funzionano solo su APK/IPA generato, non in Expo Go per certi edge case (BUT expo-notifications base FUNZIONA in Expo Go per notifiche locali)
+
+
+
 ## V50.q–r (Sept 2026) — HOTFIX 3 bug segnalati
 
 ### Segnalazioni utente

@@ -1,0 +1,860 @@
+// V50.z8 — Axon Alarms: Timer / Sveglie / Promemoria personali in-app.
+// Alexa-style ma tutto dentro AdvisorOS: nessuna dipendenza dall'orologio
+// del sistema operativo. Notifiche locali via expo-notifications, suono
+// custom opzionale via expo-audio.
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator,
+  Modal, Alert, Platform, KeyboardAvoidingView, Switch, FlatList,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter, useFocusEffect } from "expo-router";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import { api } from "@/src/api";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { syncAlarmNotifs, removeAlarmNotifs, syncAllAlarms, type Alarm, type AlarmKind } from "@/src/alarmNotifs";
+
+type Tab = "timer" | "alarm" | "reminder";
+type Sound = { id: string; name: string; mime: string; size_bytes?: number; created_at: string };
+
+const TABS: { id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { id: "timer", label: "Timer", icon: "timer-outline" },
+  { id: "alarm", label: "Sveglie", icon: "alarm-outline" },
+  { id: "reminder", label: "Promemoria", icon: "notifications-outline" },
+];
+
+const WEEKDAY_LABELS = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
+
+function formatDuration(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const parts: string[] = [];
+  if (h) parts.push(`${h}h`);
+  if (m) parts.push(`${m}m`);
+  if (s && !h) parts.push(`${s}s`);
+  return parts.join(" ");
+}
+
+function formatWhen(iso: string | undefined | null): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("it-IT", {
+      day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+    });
+  } catch { return ""; }
+}
+
+function formatRemaining(iso: string | undefined | null): string {
+  if (!iso) return "";
+  const target = new Date(iso).getTime();
+  const now = Date.now();
+  const diff = Math.max(0, Math.floor((target - now) / 1000));
+  if (diff === 0) return "scaduto";
+  return `tra ${formatDuration(diff)}`;
+}
+
+export default function AxonAlarmsScreen() {
+  const router = useRouter();
+  const bottomPad = usePageBottomPadding(96);
+  const [tab, setTab] = useState<Tab>("timer");
+  const [alarms, setAlarms] = useState<Alarm[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<Alarm | null>(null);
+  const [creating, setCreating] = useState<AlarmKind | null>(null);
+  const [tick, setTick] = useState(0); // per re-render countdown ogni sec
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api<{ items: Alarm[] }>("/axon/alarms");
+      setAlarms(r.items || []);
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || "Impossibile caricare le sveglie");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    load();
+    // Ri-sincronizza notifiche locali con lo stato server
+    syncAllAlarms().catch(() => {});
+  }, [load]));
+
+  // Timer ogni secondo per aggiornare countdown timers/reminders
+  useEffect(() => {
+    const has = alarms.some((a) => a.enabled && (a.kind === "timer" || a.kind === "reminder"));
+    if (!has) return;
+    const iv = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(iv);
+  }, [alarms]);
+
+  const visible = useMemo(() => alarms.filter((a) => a.kind === tab), [alarms, tab]);
+
+  const onToggle = async (a: Alarm) => {
+    // Ottimistic
+    const newVal = !a.enabled;
+    setAlarms((prev) => prev.map((x) => (x.id === a.id ? { ...x, enabled: newVal } : x)));
+    try {
+      await api(`/axon/alarms/${a.id}/toggle`, { method: "POST" });
+      await syncAlarmNotifs({ ...a, enabled: newVal });
+    } catch (e: any) {
+      setAlarms((prev) => prev.map((x) => (x.id === a.id ? { ...x, enabled: !newVal } : x)));
+      Alert.alert("Errore", e?.message || "Impossibile aggiornare");
+    }
+  };
+
+  const onDelete = (a: Alarm) => {
+    Alert.alert("Elimina", `Vuoi eliminare "${a.label}"?`, [
+      { text: "Annulla", style: "cancel" },
+      {
+        text: "Elimina",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await api(`/axon/alarms/${a.id}`, { method: "DELETE" });
+            await removeAlarmNotifs(a.id);
+            setAlarms((prev) => prev.filter((x) => x.id !== a.id));
+          } catch (e: any) {
+            Alert.alert("Errore", e?.message || "Impossibile eliminare");
+          }
+        },
+      },
+    ]);
+  };
+
+  const openCreate = (kind: AlarmKind) => {
+    setEditing(null);
+    setCreating(kind);
+  };
+
+  const onSaved = async (saved: Alarm) => {
+    setAlarms((prev) => {
+      const exists = prev.some((x) => x.id === saved.id);
+      return exists ? prev.map((x) => (x.id === saved.id ? saved : x)) : [saved, ...prev];
+    });
+    await syncAlarmNotifs(saved);
+    setEditing(null);
+    setCreating(null);
+  };
+
+  return (
+    <SafeAreaView style={styles.root} edges={["top"]}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.hBtn} testID="back-btn">
+          <Ionicons name="chevron-back" size={24} color="#FFF" />
+        </Pressable>
+        <Text style={styles.headerTitle}>Timer & Sveglie</Text>
+        <View style={{ width: 30 }} />
+      </View>
+
+      <View style={styles.tabsBar}>
+        {TABS.map((t) => (
+          <Pressable
+            key={t.id}
+            onPress={() => setTab(t.id)}
+            style={[styles.tabBtn, tab === t.id && styles.tabBtnActive]}
+            testID={`tab-${t.id}`}
+          >
+            <Ionicons name={t.icon} size={16} color={tab === t.id ? "#0F172A" : "#94A3B8"} />
+            <Text style={[styles.tabTxt, tab === t.id && styles.tabTxtActive]}>{t.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {loading ? (
+        <View style={styles.emptyBox}>
+          <ActivityIndicator color="#FBBF24" size="large" />
+        </View>
+      ) : visible.length === 0 ? (
+        <View style={styles.emptyBox}>
+          <Ionicons name={TABS.find((x) => x.id === tab)!.icon} size={40} color="rgba(255,255,255,0.25)" />
+          <Text style={styles.emptyTitle}>
+            Nessun{tab === "alarm" ? "a sveglia" : tab === "timer" ? " timer" : " promemoria"}
+          </Text>
+          <Text style={styles.emptySub}>
+            Tocca il pulsante in basso per crear{tab === "alarm" ? "la" : "lo"}.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={visible}
+          keyExtractor={(a) => a.id}
+          contentContainerStyle={{ padding: 14, paddingBottom: bottomPad, gap: 10 }}
+          renderItem={({ item }) => (
+            <AlarmRow
+              a={item}
+              onToggle={() => onToggle(item)}
+              onEdit={() => { setCreating(null); setEditing(item); }}
+              onDelete={() => onDelete(item)}
+              _tick={tick}
+            />
+          )}
+        />
+      )}
+
+      {/* FAB - Nuovo */}
+      <Pressable
+        onPress={() => openCreate(tab)}
+        style={[styles.fab, { bottom: bottomPad - 60 }]}
+        testID="new-alarm-fab"
+      >
+        <Ionicons name="add" size={26} color="#0F172A" />
+        <Text style={styles.fabTxt}>
+          {tab === "timer" ? "Nuovo timer" : tab === "alarm" ? "Nuova sveglia" : "Nuovo promemoria"}
+        </Text>
+      </Pressable>
+
+      {/* Editor modale */}
+      {(editing || creating) && (
+        <AlarmEditor
+          initial={editing}
+          initialKind={creating || editing?.kind || "timer"}
+          onClose={() => { setEditing(null); setCreating(null); }}
+          onSaved={onSaved}
+        />
+      )}
+    </SafeAreaView>
+  );
+}
+
+// ─── Row ─────────────────────────────────────────────────────────
+function AlarmRow({ a, onToggle, onEdit, onDelete, _tick }: {
+  a: Alarm; onToggle: () => void; onEdit: () => void; onDelete: () => void; _tick: number;
+}) {
+  const subtitle = useMemo(() => {
+    if (a.kind === "timer") {
+      const dur = a.duration_seconds ? formatDuration(a.duration_seconds) : "";
+      return a.enabled ? `${dur} · ${formatRemaining(a.trigger_at)}` : `${dur} · disabilitato`;
+    }
+    if (a.kind === "alarm") {
+      const t = a.time || "--:--";
+      if (!a.weekdays || a.weekdays.length === 0) return `${t} · una volta`;
+      if (a.weekdays.length === 7) return `${t} · Ogni giorno`;
+      const wd = a.weekdays.map((w) => WEEKDAY_LABELS[w]).join(" ");
+      return `${t} · ${wd}`;
+    }
+    return formatWhen(a.trigger_at) || "—";
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a, _tick]);
+
+  return (
+    <View style={[styles.row, !a.enabled && styles.rowDisabled]}>
+      <Pressable onPress={onEdit} style={styles.rowLeft} testID={`row-${a.id}`}>
+        <Text style={styles.rowLabel} numberOfLines={1}>{a.label}</Text>
+        <Text style={styles.rowSub} numberOfLines={1}>{subtitle}</Text>
+        {a.note ? <Text style={styles.rowNote} numberOfLines={2}>{a.note}</Text> : null}
+      </Pressable>
+      <View style={styles.rowActions}>
+        <Switch
+          value={a.enabled}
+          onValueChange={onToggle}
+          thumbColor={a.enabled ? "#FBBF24" : "#94A3B8"}
+          trackColor={{ true: "rgba(251,191,36,0.4)", false: "rgba(148,163,184,0.3)" }}
+        />
+        <Pressable onPress={onDelete} hitSlop={8} style={styles.trashBtn} testID={`del-${a.id}`}>
+          <Ionicons name="trash-outline" size={18} color="#EF4444" />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// ─── Editor ──────────────────────────────────────────────────────
+function AlarmEditor({ initial, initialKind, onClose, onSaved }: {
+  initial: Alarm | null;
+  initialKind: AlarmKind;
+  onClose: () => void;
+  onSaved: (a: Alarm) => void;
+}) {
+  const bottomPad = usePageBottomPadding(24);
+  const kind = initial?.kind || initialKind;
+  const [label, setLabel] = useState(initial?.label || defaultLabel(kind));
+  const [note, setNote] = useState(initial?.note || "");
+  const [enabled, setEnabled] = useState(initial?.enabled ?? true);
+  const [vibrate, setVibrate] = useState(initial?.vibrate ?? true);
+  const [soundRef, setSoundRef] = useState(initial?.sound_ref || "default");
+  const [saving, setSaving] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Timer state
+  const initialDur = initial?.duration_seconds ?? 5 * 60;
+  const [durHours, setDurHours] = useState(Math.floor(initialDur / 3600));
+  const [durMinutes, setDurMinutes] = useState(Math.floor((initialDur % 3600) / 60));
+  const [durSeconds, setDurSeconds] = useState(initialDur % 60);
+
+  // Alarm state
+  const parsedTime = parseTime(initial?.time);
+  const [alarmDate, setAlarmDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(parsedTime.h, parsedTime.m, 0, 0);
+    return d;
+  });
+  const [weekdays, setWeekdays] = useState<number[]>(initial?.weekdays || []);
+
+  // Reminder state
+  const [reminderDate, setReminderDate] = useState<Date>(() => {
+    if (initial?.trigger_at) return new Date(initial.trigger_at);
+    const d = new Date();
+    d.setHours(d.getHours() + 1, 0, 0, 0);
+    return d;
+  });
+
+  // Sounds
+  const [sounds, setSounds] = useState<Sound[]>([]);
+  const [showSoundPicker, setShowSoundPicker] = useState(false);
+  const [uploadingSound, setUploadingSound] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api<{ items: Sound[] }>("/axon/alarm-sounds");
+        setSounds(r.items || []);
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  const soundLabel = useMemo(() => {
+    if (soundRef === "default") return "Suono predefinito";
+    const s = sounds.find((x) => x.id === soundRef);
+    return s ? s.name : "Suono personalizzato";
+  }, [soundRef, sounds]);
+
+  const totalDurationSeconds = durHours * 3600 + durMinutes * 60 + durSeconds;
+
+  const canSave = useMemo(() => {
+    if (!label.trim()) return false;
+    if (kind === "timer") return totalDurationSeconds >= 5;
+    if (kind === "alarm") return true;
+    if (kind === "reminder") return reminderDate.getTime() > Date.now() + 1000;
+    return false;
+  }, [label, kind, totalDurationSeconds, reminderDate]);
+
+  const onSave = async () => {
+    if (!canSave || saving) return;
+    setSaving(true);
+    try {
+      const payload: any = {
+        kind,
+        label: label.trim(),
+        note: note.trim() || null,
+        enabled,
+        sound_ref: soundRef,
+        vibrate,
+      };
+      if (kind === "timer") payload.duration_seconds = totalDurationSeconds;
+      if (kind === "alarm") {
+        payload.time = fmtHHMM(alarmDate);
+        payload.weekdays = weekdays;
+      }
+      if (kind === "reminder") payload.trigger_at = reminderDate.toISOString();
+      const method = initial ? "PUT" : "POST";
+      const path = initial ? `/axon/alarms/${initial.id}` : "/axon/alarms";
+      const saved = await api<Alarm>(path, { method, body: payload });
+      onSaved(saved);
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || "Impossibile salvare");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onPickSound = async () => {
+    setShowSoundPicker(false);
+    setUploadingSound(true);
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ["audio/mpeg", "audio/mp3", "audio/wav", "audio/aac", "audio/mp4", "audio/*"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      if (asset.size && asset.size > 1_500_000) {
+        Alert.alert("Troppo grande", "Il file deve essere sotto 1.5MB (~30s a 128kbps).");
+        return;
+      }
+      const b64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const created = await api<Sound>("/axon/alarm-sounds", {
+        method: "POST",
+        body: { name: asset.name || "Suono", mime: asset.mimeType || "audio/mpeg", data_base64: b64 },
+      });
+      setSounds((prev) => [created, ...prev]);
+      setSoundRef(created.id);
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || "Impossibile caricare");
+    } finally {
+      setUploadingSound(false);
+    }
+  };
+
+  const toggleWeekday = (wd: number) => {
+    setWeekdays((prev) => prev.includes(wd) ? prev.filter((x) => x !== wd) : [...prev, wd].sort());
+  };
+
+  return (
+    <Modal visible animationType="slide" onRequestClose={onClose}>
+      <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
+        <View style={styles.header}>
+          <Pressable onPress={onClose} hitSlop={10} style={styles.hBtn}>
+            <Ionicons name="chevron-back" size={24} color="#FFF" />
+          </Pressable>
+          <Text style={styles.headerTitle}>
+            {initial ? "Modifica" : "Nuovo"} {kind === "timer" ? "Timer" : kind === "alarm" ? "Sveglia" : "Promemoria"}
+          </Text>
+          <View style={{ width: 30 }} />
+        </View>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <ScrollView
+            contentContainerStyle={{ padding: 14, paddingBottom: 120, gap: 14 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Label */}
+            <Field label="Nome">
+              <TextInput
+                value={label}
+                onChangeText={setLabel}
+                style={styles.input}
+                placeholder="es. Sveglia mattina"
+                placeholderTextColor="#64748B"
+                maxLength={120}
+              />
+            </Field>
+
+            {/* Kind-specific */}
+            {kind === "timer" && (
+              <Field label={`Durata · ${formatDuration(totalDurationSeconds)}`}>
+                <View style={styles.rowThreeCols}>
+                  <NumberPicker label="Ore" value={durHours} min={0} max={23} onChange={setDurHours} />
+                  <NumberPicker label="Min" value={durMinutes} min={0} max={59} onChange={setDurMinutes} />
+                  <NumberPicker label="Sec" value={durSeconds} min={0} max={59} onChange={setDurSeconds} />
+                </View>
+                <View style={styles.presetRow}>
+                  {[["5m", 300], ["15m", 900], ["30m", 1800], ["1h", 3600]].map(([lab, s]) => (
+                    <Pressable
+                      key={lab}
+                      onPress={() => {
+                        const sec = s as number;
+                        setDurHours(Math.floor(sec / 3600));
+                        setDurMinutes(Math.floor((sec % 3600) / 60));
+                        setDurSeconds(sec % 60);
+                      }}
+                      style={styles.presetChip}
+                    >
+                      <Text style={styles.presetTxt}>{lab}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </Field>
+            )}
+
+            {kind === "alarm" && (
+              <>
+                <Field label="Ora">
+                  <Pressable style={styles.timeBox} onPress={() => setShowTimePicker(true)}>
+                    <Ionicons name="time-outline" size={22} color="#FBBF24" />
+                    <Text style={styles.timeTxt}>{fmtHHMM(alarmDate)}</Text>
+                    <Ionicons name="chevron-forward" size={20} color="#64748B" />
+                  </Pressable>
+                  {showTimePicker && (
+                    <DateTimePicker
+                      value={alarmDate}
+                      mode="time"
+                      is24Hour
+                      onChange={(_, d) => {
+                        setShowTimePicker(Platform.OS === "ios");
+                        if (d) setAlarmDate(d);
+                      }}
+                    />
+                  )}
+                </Field>
+                <Field label="Giorni della settimana">
+                  <View style={styles.weekdayRow}>
+                    {WEEKDAY_LABELS.map((lab, idx) => {
+                      const on = weekdays.includes(idx);
+                      return (
+                        <Pressable
+                          key={idx}
+                          onPress={() => toggleWeekday(idx)}
+                          style={[styles.wdChip, on && styles.wdChipOn]}
+                        >
+                          <Text style={[styles.wdTxt, on && styles.wdTxtOn]}>{lab}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.hint}>
+                    Nessun giorno selezionato = sveglia una tantum (alla prossima ora).
+                  </Text>
+                  <View style={styles.presetRow}>
+                    <Pressable onPress={() => setWeekdays([1, 2, 3, 4, 5])} style={styles.presetChip}>
+                      <Text style={styles.presetTxt}>Lun-Ven</Text>
+                    </Pressable>
+                    <Pressable onPress={() => setWeekdays([0, 6])} style={styles.presetChip}>
+                      <Text style={styles.presetTxt}>Weekend</Text>
+                    </Pressable>
+                    <Pressable onPress={() => setWeekdays([0, 1, 2, 3, 4, 5, 6])} style={styles.presetChip}>
+                      <Text style={styles.presetTxt}>Ogni giorno</Text>
+                    </Pressable>
+                    <Pressable onPress={() => setWeekdays([])} style={styles.presetChip}>
+                      <Text style={styles.presetTxt}>Nessuno</Text>
+                    </Pressable>
+                  </View>
+                </Field>
+              </>
+            )}
+
+            {kind === "reminder" && (
+              <Field label="Data e ora">
+                <Pressable style={styles.timeBox} onPress={() => setShowDatePicker(true)}>
+                  <Ionicons name="calendar-outline" size={22} color="#FBBF24" />
+                  <Text style={styles.timeTxt}>{formatWhen(reminderDate.toISOString())}</Text>
+                  <Ionicons name="chevron-forward" size={20} color="#64748B" />
+                </Pressable>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={reminderDate}
+                    mode={Platform.OS === "ios" ? "datetime" : "date"}
+                    onChange={(_, d) => {
+                      setShowDatePicker(Platform.OS === "ios");
+                      if (d) {
+                        setReminderDate(d);
+                        if (Platform.OS === "android") {
+                          // Su Android mode="date" → apri poi time picker
+                          setTimeout(() => setShowTimePicker(true), 100);
+                        }
+                      }
+                    }}
+                  />
+                )}
+                {Platform.OS === "android" && showTimePicker && (
+                  <DateTimePicker
+                    value={reminderDate}
+                    mode="time"
+                    is24Hour
+                    onChange={(_, d) => {
+                      setShowTimePicker(false);
+                      if (d) {
+                        const merged = new Date(reminderDate);
+                        merged.setHours(d.getHours(), d.getMinutes(), 0, 0);
+                        setReminderDate(merged);
+                      }
+                    }}
+                  />
+                )}
+              </Field>
+            )}
+
+            {/* Suono */}
+            <Field label="Suono">
+              <Pressable style={styles.timeBox} onPress={() => setShowSoundPicker(true)}>
+                <Ionicons name="musical-note-outline" size={22} color="#FBBF24" />
+                <Text style={styles.timeTxt}>{soundLabel}</Text>
+                <Ionicons name="chevron-forward" size={20} color="#64748B" />
+              </Pressable>
+              {Platform.OS === "ios" && soundRef !== "default" ? (
+                <Text style={[styles.hint, { color: "#F59E0B" }]}>
+                  ⚠️ iOS usa il suono di default per le notifiche in background. Il suono
+                  custom si sente quando l&apos;app è aperta.
+                </Text>
+              ) : null}
+            </Field>
+
+            {/* Note */}
+            <Field label="Nota (opzionale)">
+              <TextInput
+                value={note}
+                onChangeText={setNote}
+                style={[styles.input, { height: 80, textAlignVertical: "top" }]}
+                placeholder="es. Ricordati di portare i documenti"
+                placeholderTextColor="#64748B"
+                multiline
+                maxLength={500}
+              />
+            </Field>
+
+            {/* Toggle */}
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>Attivo</Text>
+              <Switch
+                value={enabled}
+                onValueChange={setEnabled}
+                thumbColor={enabled ? "#FBBF24" : "#94A3B8"}
+                trackColor={{ true: "rgba(251,191,36,0.4)", false: "rgba(148,163,184,0.3)" }}
+              />
+            </View>
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>Vibrazione</Text>
+              <Switch
+                value={vibrate}
+                onValueChange={setVibrate}
+                thumbColor={vibrate ? "#FBBF24" : "#94A3B8"}
+                trackColor={{ true: "rgba(251,191,36,0.4)", false: "rgba(148,163,184,0.3)" }}
+              />
+            </View>
+          </ScrollView>
+
+          {/* Sticky Save */}
+          <View style={[styles.saveBar, { paddingBottom: Math.max(14, bottomPad - 100) }]}>
+            <Pressable
+              onPress={onSave}
+              disabled={!canSave || saving}
+              style={[styles.saveBtn, (!canSave || saving) && { opacity: 0.5 }]}
+              testID="save-alarm"
+            >
+              {saving ? (
+                <ActivityIndicator color="#0F172A" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="save" size={18} color="#0F172A" />
+                  <Text style={styles.saveTxt}>Salva</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+
+        {/* Sound picker modal */}
+        <Modal visible={showSoundPicker} transparent animationType="fade" onRequestClose={() => setShowSoundPicker(false)}>
+          <Pressable style={styles.spBackdrop} onPress={() => setShowSoundPicker(false)}>
+            <Pressable style={styles.spSheet} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.dragHandle} />
+              <Text style={styles.spTitle}>Scegli suono</Text>
+              <Pressable onPress={() => { setSoundRef("default"); setShowSoundPicker(false); }} style={styles.soundRow}>
+                <Ionicons name="musical-notes" size={22} color="#FBBF24" />
+                <Text style={styles.soundRowTxt}>Suono predefinito</Text>
+                {soundRef === "default" ? <Ionicons name="checkmark" size={20} color="#22C55E" /> : null}
+              </Pressable>
+              {sounds.map((s) => (
+                <View key={s.id} style={styles.soundRow}>
+                  <Pressable
+                    onPress={() => { setSoundRef(s.id); setShowSoundPicker(false); }}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}
+                  >
+                    <Ionicons name="musical-note" size={22} color="#94A3B8" />
+                    <Text style={styles.soundRowTxt} numberOfLines={1}>{s.name}</Text>
+                    {soundRef === s.id ? <Ionicons name="checkmark" size={20} color="#22C55E" /> : null}
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      Alert.alert("Elimina suono", `Rimuovere "${s.name}"?`, [
+                        { text: "Annulla", style: "cancel" },
+                        {
+                          text: "Elimina", style: "destructive", onPress: async () => {
+                            try {
+                              await api(`/axon/alarm-sounds/${s.id}`, { method: "DELETE" });
+                              setSounds((prev) => prev.filter((x) => x.id !== s.id));
+                              if (soundRef === s.id) setSoundRef("default");
+                            } catch (e: any) {
+                              Alert.alert("Errore", e?.message || "Impossibile eliminare");
+                            }
+                          }
+                        },
+                      ]);
+                    }}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable
+                onPress={onPickSound}
+                disabled={uploadingSound}
+                style={[styles.uploadBtn, uploadingSound && { opacity: 0.6 }]}
+              >
+                {uploadingSound ? (
+                  <ActivityIndicator color="#FBBF24" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="cloud-upload-outline" size={18} color="#FBBF24" />
+                    <Text style={styles.uploadTxt}>Carica mp3 personalizzato</Text>
+                  </>
+                )}
+              </Pressable>
+              <Text style={styles.hint}>Max ~1.5MB (mp3/wav/aac, ~30s a 128kbps).</Text>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ─── Sub-components ────────────────────────────────────────────────
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      {children}
+    </View>
+  );
+}
+
+function NumberPicker({ label, value, min, max, onChange }: {
+  label: string; value: number; min: number; max: number; onChange: (v: number) => void;
+}) {
+  return (
+    <View style={styles.npCol}>
+      <Text style={styles.npLabel}>{label}</Text>
+      <View style={styles.npBox}>
+        <Pressable onPress={() => onChange(Math.max(min, value - 1))} hitSlop={6} style={styles.npBtn}>
+          <Ionicons name="remove" size={18} color="#FBBF24" />
+        </Pressable>
+        <Text style={styles.npVal}>{String(value).padStart(2, "0")}</Text>
+        <Pressable onPress={() => onChange(Math.min(max, value + 1))} hitSlop={6} style={styles.npBtn}>
+          <Ionicons name="add" size={18} color="#FBBF24" />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────
+function defaultLabel(kind: AlarmKind): string {
+  if (kind === "timer") return "Timer";
+  if (kind === "alarm") return "Sveglia";
+  return "Promemoria";
+}
+
+function parseTime(t: string | undefined | null): { h: number; m: number } {
+  if (!t) return { h: 7, m: 30 };
+  const [h, m] = t.split(":").map((x) => parseInt(x, 10));
+  return { h: isNaN(h) ? 7 : h, m: isNaN(m) ? 30 : m };
+}
+
+function fmtHHMM(d: Date): string {
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+// ─── Styles ────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#0F2438" },
+  header: {
+    height: 52, flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between", paddingHorizontal: 12,
+    backgroundColor: "#0F2438", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  hBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
+  headerTitle: { color: "#FFF", fontSize: 17, fontWeight: "800" },
+
+  tabsBar: {
+    flexDirection: "row", padding: 10, gap: 8,
+    backgroundColor: "#0F2438", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  tabBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  tabBtnActive: { backgroundColor: "#FBBF24" },
+  tabTxt: { color: "#94A3B8", fontWeight: "700", fontSize: 13 },
+  tabTxtActive: { color: "#0F172A" },
+
+  emptyBox: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30 },
+  emptyTitle: { color: "#FFF", fontSize: 16, fontWeight: "800", marginTop: 12 },
+  emptySub: { color: "#94A3B8", fontSize: 13, marginTop: 6, textAlign: "center" },
+
+  row: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    padding: 14, borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+  },
+  rowDisabled: { opacity: 0.55 },
+  rowLeft: { flex: 1 },
+  rowLabel: { color: "#FFF", fontSize: 15, fontWeight: "800" },
+  rowSub: { color: "#94A3B8", fontSize: 13, marginTop: 2 },
+  rowNote: { color: "#64748B", fontSize: 12, marginTop: 4, fontStyle: "italic" },
+  rowActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  trashBtn: { padding: 4 },
+
+  fab: {
+    position: "absolute", right: 16, left: 16,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#FBBF24", paddingVertical: 14, borderRadius: 999,
+    shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 6,
+  },
+  fabTxt: { color: "#0F172A", fontWeight: "900", fontSize: 15 },
+
+  // Editor
+  fieldLabel: { color: "#94A3B8", fontSize: 12, fontWeight: "700", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  input: {
+    backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: "#FFF", fontSize: 15,
+  },
+  timeBox: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12,
+  },
+  timeTxt: { color: "#FFF", fontSize: 16, fontWeight: "700", flex: 1 },
+  weekdayRow: { flexDirection: "row", gap: 6, justifyContent: "space-between" },
+  wdChip: {
+    flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 10,
+    borderRadius: 10, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+  },
+  wdChipOn: { backgroundColor: "#FBBF24", borderColor: "#FBBF24" },
+  wdTxt: { color: "#94A3B8", fontSize: 12, fontWeight: "700" },
+  wdTxtOn: { color: "#0F172A" },
+  presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
+  presetChip: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
+    backgroundColor: "rgba(251,191,36,0.15)", borderWidth: 1, borderColor: "rgba(251,191,36,0.4)",
+  },
+  presetTxt: { color: "#FBBF24", fontSize: 12, fontWeight: "700" },
+  hint: { color: "#64748B", fontSize: 11, marginTop: 6, fontStyle: "italic" },
+  rowThreeCols: { flexDirection: "row", gap: 8 },
+  npCol: { flex: 1, alignItems: "center" },
+  npLabel: { color: "#94A3B8", fontSize: 11, fontWeight: "700", marginBottom: 4 },
+  npBox: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12,
+    paddingHorizontal: 6, paddingVertical: 8, width: "100%",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+  },
+  npBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "rgba(251,191,36,0.15)" },
+  npVal: { color: "#FFF", fontSize: 22, fontWeight: "900" },
+  switchRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+  },
+  switchLabel: { color: "#FFF", fontSize: 15, fontWeight: "700" },
+  saveBar: {
+    padding: 14, backgroundColor: "#0F2438",
+    borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)",
+  },
+  saveBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#FBBF24", paddingVertical: 14, borderRadius: 999,
+  },
+  saveTxt: { color: "#0F172A", fontSize: 15, fontWeight: "900" },
+
+  // Sound picker
+  spBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  spSheet: { backgroundColor: "#0F2438", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 28 },
+  dragHandle: { alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "#334155", marginBottom: 8 },
+  spTitle: { color: "#FFF", fontSize: 16, fontWeight: "800", marginBottom: 12 },
+  soundRow: {
+    flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  soundRowTxt: { color: "#FFF", fontSize: 14, fontWeight: "600", flex: 1 },
+  uploadBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    marginTop: 14, paddingVertical: 12, borderRadius: 12,
+    backgroundColor: "rgba(251,191,36,0.15)", borderWidth: 1, borderColor: "rgba(251,191,36,0.4)",
+  },
+  uploadTxt: { color: "#FBBF24", fontSize: 14, fontWeight: "700" },
+});

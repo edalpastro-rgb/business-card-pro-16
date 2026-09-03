@@ -645,6 +645,26 @@ function ImpostazioniScreen() {
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>
 
+        {/* V50.z8 — Timer / Sveglie / Promemoria in-app (Alexa-style, tutto personale) */}
+        <Pressable testID="axon-alarms-link" onPress={() => router.push("/axon-alarms" as any)} style={styles.linkCard}>
+          <Ionicons name="alarm" size={26} color="#22C55E" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>⏰ Timer & Sveglie</Text>
+            <Text style={styles.linkSub}>Sveglie, timer e promemoria personali · notifiche in-app</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
+        {/* V50.z9 — Home Assistant (domotica open-source) */}
+        <Pressable testID="axon-homeassistant-link" onPress={() => router.push("/axon-homeassistant" as any)} style={styles.linkCard}>
+          <Ionicons name="home" size={26} color="#3B82F6" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>🏠 Home Assistant</Text>
+            <Text style={styles.linkSub}>Controlla luci, tapparelle, serrature dalla tua istanza HA</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+        </Pressable>
+
         {/* V50.o — Rivedi tour guidato: resetta AsyncStorage e riapre onboarding */}
         <Pressable
           testID="review-tour-link"
