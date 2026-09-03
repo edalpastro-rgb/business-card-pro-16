@@ -10295,23 +10295,78 @@ async def _fetch_teach_drive_pdfs_for_query(
     from googleapiclient.http import MediaIoBaseDownload  # type: ignore
     from io import BytesIO
 
-    def _list_folder_pdfs(folder_id: str, max_items: int = 30) -> List[Dict[str, Any]]:
+    # V50.z12 — Ricorsione ricorsiva su sottocartelle Drive.
+    # Le cartelle collegate spesso contengono decine di sottocartelle (es.
+    # CORPORATE CLUB → 30 sottocartelle argomento). Serve BFS con visited-set
+    # e limite di sicurezza (max_folders, max_depth) per non esplodere.
+    def _list_folder_children(folder_id: str) -> List[Dict[str, Any]]:
+        """Lista TUTTI i figli diretti (PDF + cartelle) di folder_id.
+        Gestisce paginazione fino a 1000 elementi per cartella.
+        """
         try:
             service = build("drive", "v3", credentials=creds, cache_discovery=False)
             q = (
-                f"'{folder_id}' in parents and trashed = false "
-                f"and mimeType = 'application/pdf'"
+                f"'{folder_id}' in parents and trashed = false and "
+                f"(mimeType = 'application/pdf' or "
+                f"mimeType = 'application/vnd.google-apps.folder')"
             )
-            result = service.files().list(
-                q=q,
-                pageSize=max_items,
-                orderBy="modifiedTime desc",
-                fields="files(id,name,mimeType,modifiedTime)",
-            ).execute()
-            return result.get("files", []) or []
+            out: List[Dict[str, Any]] = []
+            page_token: Optional[str] = None
+            for _ in range(4):  # max 4 pagine (~4000 elementi) per cartella
+                result = service.files().list(
+                    q=q,
+                    pageSize=1000,
+                    orderBy="folder,modifiedTime desc",
+                    fields="nextPageToken, files(id,name,mimeType,modifiedTime,parents)",
+                    pageToken=page_token,
+                ).execute()
+                out.extend(result.get("files", []) or [])
+                page_token = result.get("nextPageToken")
+                if not page_token:
+                    break
+            return out
         except Exception as exc:
-            logger.warning("[teach-drive] list_folder_pdfs %s failed: %s", folder_id, exc)
+            logger.warning("[teach-drive] list_children %s failed: %s", folder_id, exc)
             return []
+
+    def _list_folder_pdfs_recursive(
+        root_folder_id: str,
+        max_folders: int = 60,
+        max_depth: int = 5,
+        max_pdfs_total: int = 400,
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
+        """BFS ricorsiva: ritorna (lista pdf, mappa folder_id → path_leggibile).
+        Il path aiuta a matchare le query per nome sottocartella
+        (es. "Super Impresa Smart" trova PDF dentro CORPORATE CLUB/Offerte/Super Impresa Smart/).
+        """
+        MIME_FOLDER = "application/vnd.google-apps.folder"
+        MIME_PDF = "application/pdf"
+        pdfs: List[Dict[str, Any]] = []
+        folder_paths: Dict[str, str] = {root_folder_id: ""}
+        visited: set = {root_folder_id}
+        queue: List[Tuple[str, int]] = [(root_folder_id, 0)]
+        folders_scanned = 0
+        while queue and folders_scanned < max_folders and len(pdfs) < max_pdfs_total:
+            folder_id, depth = queue.pop(0)
+            folders_scanned += 1
+            children = _list_folder_children(folder_id)
+            parent_path = folder_paths.get(folder_id, "")
+            for ch in children:
+                mime = ch.get("mimeType") or ""
+                name = ch.get("name") or ""
+                cid = ch.get("id") or ""
+                if not cid:
+                    continue
+                if mime == MIME_PDF:
+                    ch["_folder_path"] = parent_path
+                    pdfs.append(ch)
+                    if len(pdfs) >= max_pdfs_total:
+                        break
+                elif mime == MIME_FOLDER and cid not in visited and depth < max_depth:
+                    visited.add(cid)
+                    folder_paths[cid] = f"{parent_path}/{name}" if parent_path else name
+                    queue.append((cid, depth + 1))
+        return pdfs, folder_paths
 
     def _get_file_meta(file_id: str) -> Optional[Dict[str, Any]]:
         try:
@@ -10340,6 +10395,23 @@ async def _fetch_teach_drive_pdfs_for_query(
             logger.warning("[teach-drive] download %s failed: %s", file_id, exc)
             return None
 
+    # V50.z12 — Estrai KEYWORD dalla query (>=3 char, no stopwords) per matching
+    # per NOME file/cartella (es. "sintesi offerta Super Impresa Smart" →
+    # ["super","impresa","smart","offerta","sintesi"]).
+    _STOPWORDS_IT = {
+        "the","and","for","con","del","della","dei","delle","dal","dalla",
+        "che","una","uno","gli","alla","allo","alle","agli","tra","fra",
+        "sul","sulla","sui","sulle","suo","sua","suoi","sue","mio","mia","miei","mie",
+        "cosa","come","dove","quando","quanto","quanti","quali","perché",
+        "fai","dammi","dimmi","mostrami","fammi","voglio","vorrei","posso","puoi","puo",
+        "sintesi","riassunto","tabella","dati","elenco","lista","file","pdf",
+        "sono","siamo","sei","fatto","fatta","ecco","così","cosi","molto",
+    }
+    keywords = [
+        w for w in re.findall(r"[a-zA-Zàèéìòù]{3,}", msg_lc)
+        if w not in _STOPWORDS_IT
+    ]
+
     def _matches_month_year(fname: str) -> bool:
         if not months and not years:
             return True
@@ -10361,30 +10433,66 @@ async def _fetch_teach_drive_pdfs_for_query(
             return True
         return False
 
-    # 1) Raccogli tutti i candidati (max 3 cartelle × 30 file + file diretti)
+    def _keyword_score(f: Dict[str, Any]) -> int:
+        """Punteggio: quante keyword della query compaiono in nome file + path
+        cartella. Priorità: keyword nel nome file (peso 3) > path (peso 1)."""
+        if not keywords:
+            return 0
+        fname = (f.get("name") or "").lower()
+        fpath = (f.get("_folder_path") or "").lower()
+        score = 0
+        for kw in keywords:
+            if kw in fname:
+                score += 3
+            if kw in fpath:
+                score += 1
+        return score
+
+    # 1) Raccogli tutti i candidati con BFS ricorsivo (max 3 cartelle root)
     candidate_files: List[Dict[str, Any]] = []
     for folder_id in drive_folders[:3]:
-        files = await asyncio.to_thread(_list_folder_pdfs, folder_id, 30)
-        candidate_files.extend(files)
+        pdfs, _paths = await asyncio.to_thread(_list_folder_pdfs_recursive, folder_id)
+        candidate_files.extend(pdfs)
     for file_id in drive_files[:5]:
         meta = await asyncio.to_thread(_get_file_meta, file_id)
         if meta and meta.get("mimeType") == "application/pdf":
+            meta["_folder_path"] = ""
             candidate_files.append(meta)
 
     if not candidate_files:
         return ""
 
-    # 2) Filtra per mese/anno
-    filtered = [f for f in candidate_files if _matches_month_year(f.get("name", ""))]
-    if not filtered:
-        # Query senza filtro temporale → prendi i più recenti
-        if not months and not years:
-            filtered = candidate_files[:max_pdfs]
+    logger.info(
+        "[teach-drive] tenant=%s candidates=%d keywords=%s months=%s years=%s",
+        tenant, len(candidate_files), keywords[:6], months, years,
+    )
+
+    # 2) Priorità: matching per keyword (nome file/cartella) → poi mese/anno
+    # → altrimenti più recenti. Se una parola chiave matcha, quel PDF ha
+    # sempre priorità sui recenti generici.
+    if keywords:
+        keyword_matches = [f for f in candidate_files if _keyword_score(f) > 0]
+        # Ordina per punteggio decrescente, poi per modifiedTime desc
+        keyword_matches.sort(
+            key=lambda f: (_keyword_score(f), f.get("modifiedTime", "")),
+            reverse=True,
+        )
+        # Se abbiamo match forti (score >= 3 = keyword nel nome file), usa quelli
+        strong = [f for f in keyword_matches if _keyword_score(f) >= 3]
+        if strong:
+            filtered = strong[:max_pdfs]
         else:
-            # V50.z7 — Anche se non trova match esatto, prendi comunque gli
-            # ultimi N file recenti così l'AI ha almeno del contesto. Meglio
-            # che ritornare vuoto e rispondere "dati non disponibili".
-            filtered = candidate_files[:max_pdfs]
+            # Match deboli (solo path) + fallback
+            filtered = keyword_matches[:max_pdfs]
+    else:
+        filtered = [f for f in candidate_files if _matches_month_year(f.get("name", ""))]
+        if not filtered:
+            # Nessun filtro → più recenti
+            filtered = sorted(
+                candidate_files,
+                key=lambda f: f.get("modifiedTime", ""),
+                reverse=True,
+            )[:max_pdfs]
 
     filtered = filtered[:max_pdfs]
 
@@ -10393,6 +10501,8 @@ async def _fetch_teach_drive_pdfs_for_query(
     for f in filtered:
         fid = f.get("id")
         fname = f.get("name") or "documento.pdf"
+        fpath = f.get("_folder_path") or ""
+        display_name = f"{fpath}/{fname}" if fpath else fname
         if not fid:
             continue
         pdf_bytes = await asyncio.to_thread(_download_pdf_bytes, fid)
@@ -10407,7 +10517,7 @@ async def _fetch_teach_drive_pdfs_for_query(
             continue
         modified = f.get("modifiedTime", "")
         out_blocks.append(
-            f"--- PDF Drive: {fname} (modificato: {modified}) ---\n{txt[:8000]}"
+            f"--- PDF Drive: {display_name} (modificato: {modified}) ---\n{txt[:8000]}"
         )
 
     return "\n\n".join(out_blocks)

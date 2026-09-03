@@ -1,3 +1,50 @@
+## V50.z12 (Sept 2026) — Fix ricorsione Drive + Fix input chat Axon
+
+### 1️⃣ Drive: BFS ricorsivo su sottocartelle + matching per parole chiave
+`/app/backend/server.py` — funzione `_fetch_teach_drive_pdfs_for_query` completamente riscritta:
+
+**Prima (bug)**: leggeva SOLO i PDF al primo livello della cartella (`'{folder_id}' in parents`). Se la cartella CORPORATE CLUB conteneva 30 sottocartelle, Axon non le vedeva mai.
+
+**Adesso**:
+- Nuova `_list_folder_children(folder_id)` — lista PDF **e cartelle** figlie con paginazione fino a 4000 elementi per cartella
+- Nuova `_list_folder_pdfs_recursive(root)` — BFS con:
+  - `visited: set` per evitare cicli
+  - `max_folders = 60` (limite sicurezza)
+  - `max_depth = 5` (profondità massima sottocartelle)
+  - `max_pdfs_total = 400` (cap totale PDF raccolti)
+  - Ogni PDF conserva `_folder_path` (es. `"CORPORATE CLUB/Offerte/Super Impresa Smart"`) per debugging + matching
+- Nuovo **matching per keyword**:
+  - Estrae parole ≥3 char dal messaggio utente
+  - Rimuove stopwords italiane (~30 termini: "che", "come", "sintesi", "fai", ecc.)
+  - Punteggio: keyword nel **nome file** = 3 punti, keyword nel **path cartella** = 1 punto
+  - Priorità di selezione:
+    1. Match forti (score ≥3, ovvero keyword nel nome file)
+    2. Match deboli (score >0, solo path)
+    3. Fallback per mese/anno se query temporale
+    4. Fallback più recenti (ordinati per `modifiedTime desc`)
+- Output prompt include ora il path completo (`CORPORATE CLUB/Offerte/Super Impresa Smart/Super_Impresa_Smart_v3.pdf`) così Axon sa esattamente da dove viene il dato
+- Log info: `[teach-drive] tenant=X candidates=42 keywords=['super','impresa','smart'] months=[] years=[]`
+
+**Test caso reale utente** (post-Publish, con Drive connesso):
+- Query: "Fai sintesi offerta super Impresa Smart"
+- Prima: 0 PDF trovati (leggeva solo root di CORPORATE CLUB) → "Non ho i dati"
+- Dopo: BFS trova la sottocartella `Super Impresa Smart`, il PDF omonimo prende score 9 (super=3 + impresa=3 + smart=3) → priorità massima → letto e passato a Claude
+
+### 2️⃣ Fix input Axon nascosto dalla tastiera Android (V50.z11)
+`/app/frontend/src/AssistantChat.tsx`:
+- Aggiunto `statusBarTranslucent` al Modal — necessario su Android per ricevere correttamente il windowSoftInputMode di sistema
+- `KeyboardAvoidingView` behavior cambiato: era `"height"` su Android (falliva con `sheet height: 82%`) → ora `"padding"` su entrambe le piattaforme (approccio standard per chat)
+- `keyboardVerticalOffset = 0` (era 10 su Android — troppo piccolo dopo il fix)
+- Rimosso doppio `paddingBottom` bug: prima `paddingBottom: insets.bottom` seguito da `paddingBottom: bottomPad` conflittavano
+- Rimossa import `useBottomSheetPadding` (non serve dentro un Modal)
+
+### Test manuali
+- ✅ `_fetch_teach_drive_pdfs_for_query` no-crash quando Drive non connesso (ritorna "")
+- ✅ Python AST parse OK, backend attivo, `/api/health` 200
+- ✅ Lint TypeScript AssistantChat: 0 errori (2 preexisting warnings)
+
+
+
 ## V50.z10 (Sept 2026) — Widget Sveglia Home + Toggle 12h/24h
 
 ### 1️⃣ Widget prossima sveglia nella Home (V50.z10)
