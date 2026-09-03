@@ -53,6 +53,8 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView | null>(null);
   const [pages, setPages] = useState<LiveScannedPage[]>([]);
+  // V50.z9 — Preview post-scatto: obbliga review prima della pagina successiva
+  const [reviewIdx, setReviewIdx] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [torch, setTorch] = useState<"on" | "off">("off");
   const [facing, setFacing] = useState<"back" | "front">("back");
@@ -325,6 +327,8 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
       setTimeout(() => {
         if (newIndex >= 0) applyAutocropAsync(newIndex, photo.base64!);
       }, 0);
+      // V50.z9 — Apri preview OBBLIGATORIA prima di scattare la prossima
+      setReviewIdx(newIndex);
     } catch (e: any) {
       notify("Errore fotocamera", e?.message || "");
     } finally {
@@ -615,6 +619,53 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
               )}
             </Pressable>
           </View>
+
+          {/* V50.z9 — Preview post-scatto obbligatoria */}
+          {reviewIdx !== null && pages[reviewIdx] && (
+            <View style={styles.reviewOverlay}>
+              <View style={styles.reviewHeader}>
+                <Text style={styles.reviewTitle}>Pagina {reviewIdx + 1}</Text>
+                {pages[reviewIdx].cropped ? (
+                  <View style={styles.cropBadge}>
+                    <Ionicons name="checkmark-circle" size={14} color="#0F9D58" />
+                    <Text style={styles.cropBadgeTxt}>Ritagliata automaticamente</Text>
+                  </View>
+                ) : (
+                  <View style={styles.cropBadgeWarn}>
+                    <ActivityIndicator size="small" color="#F59E0B" />
+                    <Text style={styles.cropBadgeTxtWarn}>Ritaglio in corso…</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.reviewImgWrap}>
+                <Image
+                  source={{ uri: pages[reviewIdx].preview_uri || `data:image/jpeg;base64,${pages[reviewIdx].data_base64}` }}
+                  style={styles.reviewImg}
+                  resizeMode="contain"
+                />
+              </View>
+              <View style={styles.reviewActions}>
+                <Pressable
+                  onPress={() => {
+                    // Rifai: rimuovi pagina + torna alla camera
+                    setPages((prev) => prev.filter((_, i) => i !== reviewIdx));
+                    setReviewIdx(null);
+                  }}
+                  style={[styles.reviewBtn, { backgroundColor: "#DC2626" }]}
+                >
+                  <Ionicons name="refresh" size={20} color="#FFF" />
+                  <Text style={styles.reviewBtnTxt}>Rifai</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setReviewIdx(null)}
+                  style={[styles.reviewBtn, { backgroundColor: "#0F9D58" }]}
+                >
+                  <Ionicons name="checkmark" size={22} color="#FFF" />
+                  <Text style={styles.reviewBtnTxt}>Usa questa</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
         </SafeAreaView>
       </View>
     </Modal>
@@ -623,6 +674,25 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
+  // V50.z9 — Preview post-scatto
+  reviewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.94)",
+    padding: 14,
+    paddingTop: 30,
+    zIndex: 100,
+  },
+  reviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  reviewTitle: { color: "#FFF", fontSize: 17, fontWeight: "900" },
+  cropBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(15,157,88,0.2)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  cropBadgeTxt: { color: "#0F9D58", fontSize: 11, fontWeight: "800" },
+  cropBadgeWarn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(245,158,11,0.2)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  cropBadgeTxtWarn: { color: "#F59E0B", fontSize: 11, fontWeight: "800" },
+  reviewImgWrap: { flex: 1, backgroundColor: "#111", borderRadius: 8, overflow: "hidden", marginBottom: 12 },
+  reviewImg: { width: "100%", height: "100%" },
+  reviewActions: { flexDirection: "row", gap: 10, paddingBottom: 20 },
+  reviewBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 999 },
+  reviewBtnTxt: { color: "#FFF", fontSize: 15, fontWeight: "900" },
   guides: {
     position: "absolute",
     top: "18%",
