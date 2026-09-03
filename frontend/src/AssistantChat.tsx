@@ -203,19 +203,30 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const loadHistory = useCallback(async () => {
     setLoadingHist(true);
     try {
-      // V29.n — Ogni apertura della chat AxonOS deve partire vuota.
-      // NON chiamiamo più /assistant/history (che ripristinava la sessione precedente).
-      // Fetch delle sole impostazioni utente (nome assistente, modalità, quick actions, voce).
-      // La nuova sessione viene creata dal backend al primo /assistant/chat.
+      // V50.y — Al riavvio della chat, RIPRISTINA l'ultima sessione (persistenza).
+      // "Chiudi" NON resetta più: la conversazione precedente rimane disponibile.
+      // Solo "Nuova chat" (resetSession) svuota la conversazione.
       const us = await api<{ assistant_name?: string; assistant_response_mode?: string; assistant_voice?: string; assistant_quick_actions?: { id: string; label: string; prompt: string }[] }>("/user-settings").catch(() => ({} as any));
       setAssistantName(us?.assistant_name || "Neo");
-      setSessionId(null);
-      setMessages([]);
       const m = (us?.assistant_response_mode || "text") as ResponseMode;
       setResponseMode(MODE_ORDER.includes(m) ? m : "text");
       if (us?.assistant_voice) setAssistantVoice(us.assistant_voice);
       if (Array.isArray(us?.assistant_quick_actions)) {
         setQuickActions(us.assistant_quick_actions);
+      }
+      // Carica la conversazione precedente (se esiste)
+      try {
+        const h = await api<{ session_id?: string | null; messages?: { role: string; content: string }[] }>("/assistant/history");
+        if (h?.session_id && Array.isArray(h.messages) && h.messages.length > 0) {
+          setSessionId(h.session_id);
+          setMessages(h.messages.map((m) => ({ role: m.role as any, content: m.content })));
+        } else {
+          setSessionId(null);
+          setMessages([]);
+        }
+      } catch {
+        setSessionId(null);
+        setMessages([]);
       }
     } catch {
       // ignore
@@ -1531,6 +1542,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       <GoogleDrivePickerModal
         visible={drivePickerOpen}
         onClose={() => setDrivePickerOpen(false)}
+        onNavigateToPicker={() => {
+          // V50.y — Se navighiamo al picker cartelle, chiudi ANCHE la chat
+          // (altrimenti la Modal AssistantChat resta sopra e nasconde il picker)
+          setDrivePickerOpen(false);
+          onClose();
+        }}
         onFilePicked={(f) => addPendingAttachment({ name: f.name, mime: f.mime, base64: f.data_base64 })}
       />
       {/* V49.i — Dropbox picker for attaching Dropbox files */}

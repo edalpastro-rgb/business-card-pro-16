@@ -37,10 +37,15 @@ export function GoogleDrivePickerModal({
   visible,
   onClose,
   onFilePicked,
+  onNavigateToPicker,
 }: {
   visible: boolean;
   onClose: () => void;
   onFilePicked: (info: { name: string; mime: string; data_base64: string }) => void;
+  /** V50.y — Chiamato per NAVIGARE al picker cartelle: chi ci chiama
+   *  è responsabile di chiudere anche la modale parent (AssistantChat)
+   *  altrimenti il picker screen viene nascosto sotto. */
+  onNavigateToPicker?: () => void;
 }) {
   const [status, setStatus] = useState<{ connected: boolean; configured: boolean; google_email?: string }>({ connected: false, configured: false });
   const bottomPad = useBottomSheetPadding();
@@ -222,7 +227,13 @@ export function GoogleDrivePickerModal({
                     Apri il Google Picker per scegliere una o più cartelle: Axon leggerà solo i file al loro interno.
                   </Text>
                   <Pressable
-                    onPress={() => { onClose(); setTimeout(() => router.push("/google-drive-picker" as any), 250); }}
+                    onPress={() => {
+                      // V50.y — Chiudi anche la parent modal se disponibile,
+                      // altrimenti il picker resta invisibile dietro la chat.
+                      if (onNavigateToPicker) onNavigateToPicker();
+                      else onClose();
+                      setTimeout(() => router.push("/google-drive-picker" as any), 250);
+                    }}
                     style={styles.pickerCta}
                   >
                     <Ionicons name="add-circle" size={18} color="#FFF" />
@@ -234,7 +245,11 @@ export function GoogleDrivePickerModal({
                   <Ionicons name="cloud-outline" size={30} color={theme.color.muted} />
                   <Text style={styles.emptyTxt}>File non presente nella cartella.{"\n"}Aggiungilo alla cartella Axon oppure cambia cartella dalle Impostazioni → Google Drive.</Text>
                   <Pressable
-                    onPress={() => { onClose(); setTimeout(() => router.push("/google-drive-picker" as any), 250); }}
+                    onPress={() => {
+                      if (onNavigateToPicker) onNavigateToPicker();
+                      else onClose();
+                      setTimeout(() => router.push("/google-drive-picker" as any), 250);
+                    }}
                     style={styles.pickerCta}
                   >
                     <Ionicons name="folder" size={16} color="#FFF" />
