@@ -1204,8 +1204,6 @@ const styles = StyleSheet.create({
 
   /* My Thing */
   myThingBtn: { backgroundColor: C.primarySoft, borderRadius: 12, marginTop: 6, marginBottom: 6, overflow: "hidden", position: "relative", height: 80, borderWidth: 1, borderColor: C.border },
-  myThingEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
-  myThingEmptyTxt: { color: C.primary, fontWeight: "700", fontSize: 13 },
   // V29.ad — Card compatta (max 80px): niente titolo, testo su una riga con overflow nascosto
   myThingMsg: { paddingVertical: 6, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", gap: 0, minHeight: 78 },
   myThingMsgTitle: { fontWeight: "800", fontSize: 12, letterSpacing: 0.3, textTransform: "uppercase", opacity: 0.85, textAlign: "center" },

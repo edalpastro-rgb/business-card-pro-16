@@ -300,7 +300,8 @@ export default function LibrettoScreen() {
           </Pressable>
         )}
         <Text style={styles.headerTitle}>{isOnboarding ? "Tour Guidato" : "Libretto Informativo"}</Text>
-        {/* V50.o — In onboarding: "Salta". Modalità normale: se Master, "Modifica"; altrimenti placeholder. */}
+        {/* V50.o — In onboarding: "Salta" nell'header (necessario per uscire).
+            V50.z6 — "Modifica" spostato in sticky footer per non sovrapporsi al Support FAB. */}
         {isOnboarding ? (
           <Pressable
             onPress={dismissOnboarding}
@@ -311,16 +312,6 @@ export default function LibrettoScreen() {
             <Text style={styles.skipBtnTxt}>Salta</Text>
             <Ionicons name="close" size={18} color="rgba(255,255,255,0.7)" />
           </Pressable>
-        ) : canEdit ? (
-          <Pressable
-            onPress={() => router.push("/libretto-editor" as any)}
-            hitSlop={10}
-            testID="libretto-edit-btn"
-            style={styles.editBtn}
-          >
-            <Ionicons name="create-outline" size={18} color="#FBBF24" />
-            <Text style={styles.editBtnTxt}>Modifica</Text>
-          </Pressable>
         ) : (
           <View style={styles.headerRightPh} />
         )}
@@ -330,8 +321,8 @@ export default function LibrettoScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          // Riserva spazio per la sticky (sempre presente ora)
-          { paddingBottom: (isOnboarding ? 190 : 130) + bottomInset },
+          // V50.z6 — Riserva spazio per la sticky (onboarding: 190; canEdit: +60; base: 130)
+          { paddingBottom: (isOnboarding ? 190 : canEdit ? 200 : 130) + bottomInset },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -367,6 +358,7 @@ export default function LibrettoScreen() {
 
       {/* V50.n — Sticky footer sempre presente:
             • Bottone "Scarica Manuale d'uso PDF" (per tutti)
+            • V50.z6 — Se Super Master (canEdit) e non in onboarding: "Modifica libretto"
             • In modalità onboarding: sopra c'è anche "Ho capito · Iniziamo!" */}
       <View style={[styles.stickyCta, { paddingBottom: bottomInset + 10 }]}>
         {isOnboarding && (
@@ -393,6 +385,16 @@ export default function LibrettoScreen() {
             </>
           )}
         </Pressable>
+        {canEdit && !isOnboarding ? (
+          <Pressable
+            onPress={() => router.push("/libretto-editor" as any)}
+            testID="libretto-edit-btn"
+            style={styles.stickyEditBtn}
+          >
+            <Ionicons name="create-outline" size={18} color="#FBBF24" />
+            <Text style={styles.stickyEditBtnTxt}>Modifica libretto</Text>
+          </Pressable>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -648,4 +650,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   stickyPdfBtnTxt: { color: "#0F172A", fontWeight: "900", fontSize: 14, letterSpacing: 0.2 },
+  // V50.z6 — "Modifica libretto" (Super Master) come secondary btn sotto il PDF btn
+  stickyEditBtn: {
+    marginTop: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 12, borderRadius: 999,
+    backgroundColor: "rgba(251,191,36,0.15)",
+    borderWidth: 1, borderColor: "rgba(251,191,36,0.5)",
+  },
+  stickyEditBtnTxt: { color: "#FBBF24", fontWeight: "900", fontSize: 14, letterSpacing: 0.2 },
 });

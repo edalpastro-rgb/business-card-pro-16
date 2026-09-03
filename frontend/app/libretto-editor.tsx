@@ -364,14 +364,17 @@ function SectionEditor({ section, onChange, onClose }: {
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
         <View style={styles.headerBar}>
-          <Pressable onPress={onClose} hitSlop={10} style={styles.hBtn}>
-            <Ionicons name="checkmark" size={26} color="#FBBF24" />
+          {/* V50.z6 — chevron-back (chiaro "torna al libretto") al posto della
+              spunta verde che gli utenti non capivano come "salva". Il vero
+              "Salva sezione" è nel bottone sticky in fondo. */}
+          <Pressable onPress={onClose} hitSlop={10} style={styles.hBtn} testID="section-editor-back">
+            <Ionicons name="chevron-back" size={24} color="#FFF" />
           </Pressable>
           <Text style={styles.hTitle}>Modifica Sezione</Text>
           <View style={{ width: 30 }} />
         </View>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-          <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
             <Field label="Titolo" value={section.title} onChange={(t) => onChange({ title: t })} />
             <Field label="Sottotitolo" value={section.subtitle || ""} onChange={(t) => onChange({ subtitle: t })} />
 
@@ -494,6 +497,16 @@ function SectionEditor({ section, onChange, onClose }: {
               multiline
             />
           </ScrollView>
+          {/* V50.z6 — Sticky "Salva sezione" button at bottom (chiaro CTA,
+              sostituisce la spunta verde nell'header che gli utenti non
+              capivano). Il vero salvataggio backend avviene con il bottone
+              "Salva libretto" nel main editor. */}
+          <View style={styles.sectionEditorSticky}>
+            <Pressable onPress={onClose} style={styles.sectionEditorSaveBtn} testID="section-editor-save">
+              <Ionicons name="save" size={18} color="#0F172A" />
+              <Text style={styles.sectionEditorSaveTxt}>Salva sezione</Text>
+            </Pressable>
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
@@ -649,4 +662,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8, borderRadius: 8,
   },
   smallAddTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
+
+  // V50.z6 — Sticky "Salva sezione" bottom bar (rimpiazza la spunta verde in alto)
+  sectionEditorSticky: {
+    borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(15,36,56,0.98)",
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 14,
+  },
+  sectionEditorSaveBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#FBBF24", paddingVertical: 14, borderRadius: 999,
+    shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  sectionEditorSaveTxt: { color: "#0F172A", fontWeight: "900", fontSize: 15, letterSpacing: 0.2 },
 });
