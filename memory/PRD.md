@@ -1,3 +1,45 @@
+## V50.z14 (Sept 2026) — Calculator ridimensionabile + non chiude su tap fuori
+
+### Problema
+La calcolatrice era un `Modal transparent` con backdrop cliccabile: toccando la pagina sottostante (per scrollare/leggere) si chiudeva. Inoltre altezza fissa `maxHeight: 62%` → nessun modo di ridurla per vedere il contenuto sotto.
+
+### Fix
+`/app/frontend/src/CalculatorFAB.tsx` — `CalculatorModal` rifattorizzato:
+
+**1) Rimosso Modal → overlay assoluto**
+- Sostituito `<Modal transparent><Pressable backdrop>` con `<Animated.View style={overlayRoot} pointerEvents="box-none">`
+- `pointerEvents="box-none"` fa passare i tocchi FUORI dal sheet alla pagina sottostante → l'utente può scrollare la Home Master mentre la calcolatrice è aperta
+- Il sheet rimane touchable (`pointerEvents` default)
+- Rimosso il `backdrop onPress={onClose}` — ora si chiude SOLO con la X
+- Slide-in animation con `Animated.spring(translateY, 0)` all'apertura, `Animated.timing(translateY, 600)` alla chiusura + `setMounted(false)` a fine anim (unmount pulito)
+
+**2) Sheet ridimensionabile via drag handle**
+- Nuovo `heightAnim: Animated.Value(DEFAULT_H)` (default 62% dello schermo, capped 500px)
+- Bounds: `MIN_H = 240px` (mostra display + prima riga tasti), `MAX_H = min(560, 72% schermo)`
+- `resizePan: PanResponder`:
+  - `onPanResponderMove`: aggiorna `heightAnim` in tempo reale con `heightAnim.setValue(currentH - gs.dy)` clamped tra MIN/MAX (dita giù = più bassa, dita su = più alta)
+  - `onPanResponderRelease`: `Animated.spring` verso valore finale + salva in `currentH.current`
+- Nuovo `dragHandleWrap` con `paddingVertical: 6` — zona touch estesa per drag più facile
+- L'utente può schiacciare la calc fino a vedere solo display + AC/±/%/÷, guardare il contenuto sotto, e riaprirla al volo
+
+**3) Shadow più forte**
+Aggiunte `shadowOpacity: 0.25`, `shadowRadius: 12`, `elevation: 20` — ora la sheet appare "sopra" con contrasto chiaro senza dover usare backdrop scuro.
+
+**4) Cleanup**
+- Rimosso import `Modal` da react-native (non più usato)
+- Rimosso style `backdrop` (mantenuto vuoto per retro-compat, non referenziato)
+
+### Test
+- ✅ Lint TypeScript: 0 errori
+- ✅ Frontend carica
+
+### Note UX per l'utente
+- Chiude SOLO con la X (piccola x in alto a destra della calc)
+- Trascina l'"handle" grigio in cima (la barretta) su/giù per ridimensionare
+- Mentre calc è aperta puoi scrollare la Home Master, cliccare bottoni, leggere KPI — tutto funziona
+
+
+
 ## V50.z13 (Sept 2026) — Fix TimePicker, notifica tap, anteprima suono, Home Master
 
 ### 1️⃣ Bottone "Sveglie" nella Home Master
