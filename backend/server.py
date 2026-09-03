@@ -9576,7 +9576,11 @@ async def _fetch_teach_urls_html_generic(
     - Timeout 6s per URL, in parallelo.
     - Prioritizza URL rilevanti al messaggio (matching parole chiave nell'URL).
     - Best-effort: fallimenti silenziosi.
+    - V50.z2: se le pagine contengono link a PDF (max 3 totali), li scarica
+      automaticamente e allega il loro testo — copre il caso "aggiorna la
+      tabella" senza dover menzionare parole tecniche.
     """
+    from urllib.parse import urljoin, urlparse  # local import (best-effort)
     try:
         urls_docs = await db.ai_teach_urls.find({"user_id": tenant}, {"_id": 0}).to_list(50)
     except Exception:
@@ -9626,7 +9630,7 @@ async def _fetch_teach_urls_html_generic(
             text = _clean_html_to_text(r.text, max_chars=per_url_chars)
             if not text or len(text) < 40:
                 return None
-            _TEACH_HTML_CACHE[url] = {"ts": now, "text": text}
+            _TEACH_HTML_CACHE[url] = {"ts": now, "text": text, "raw_html": r.text[:400_000]}
             return {"url": url, "title": u_doc.get("title") or url, "text": text}
         except Exception as exc:
             logger.debug("[teach-html] failed %s: %s", url, exc)
@@ -9643,12 +9647,76 @@ async def _fetch_teach_urls_html_generic(
     if not valid:
         return ""
 
+    # V50.z2 — Se le pagine contengono link a PDF (max 3 in totale),
+    # scaricali e allega il loro testo. Questo copre casi in cui il messaggio
+    # non contiene le parole chiave "PUN/fascia/GME" ma vuole comunque dati
+    # aggiornati (es. utente chiede "aggiorna la tabella").
+    pdf_blocks: List[str] = []
+    try:
+        pdf_candidates: List[Dict[str, str]] = []
+        seen_pdf = set()
+        for item in valid:
+            base_url = item["url"]
+            # Riprendiamo l'HTML dalla cache per estrarne i link PDF
+            cached = _TEACH_HTML_CACHE.get(base_url)
+            if not cached or "raw_html" not in cached:
+                continue
+            hrefs = re.findall(r'href=["\']([^"\']+\.pdf[^"\']*)["\']', cached["raw_html"], flags=re.I)
+            for h in hrefs[:6]:  # top 6 per pagina, poi ordiniamo globalmente
+                full = urljoin(base_url, h)
+                if full in seen_pdf:
+                    continue
+                seen_pdf.add(full)
+                pdf_candidates.append({"url": full, "source_page": item["title"] or base_url})
+        # Prendi solo i primi 3 PDF (i siti tipo GME mostrano dal più recente)
+        pdf_candidates = pdf_candidates[:3]
+        if pdf_candidates:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=15) as pclient:
+                async def _dl_pdf(cand: Dict[str, str]) -> Optional[str]:
+                    try:
+                        rr = await pclient.get(
+                            cand["url"],
+                            headers={"User-Agent": "Mozilla/5.0 (compatible; AxonBot/1.0; +https://advisoros.it)"},
+                        )
+                        if rr.status_code >= 400 or not rr.content:
+                            return None
+                        ct = (rr.headers.get("content-type") or "").lower()
+                        if "pdf" not in ct and not cand["url"].lower().endswith(".pdf"):
+                            return None
+                        from io import BytesIO
+                        try:
+                            from pypdf import PdfReader  # type: ignore
+                        except Exception:
+                            from PyPDF2 import PdfReader  # type: ignore
+                        rdr = PdfReader(BytesIO(rr.content))
+                        text = ""
+                        for pg in rdr.pages[:6]:  # max 6 pagine per PDF
+                            try:
+                                text += (pg.extract_text() or "") + "\n"
+                            except Exception:
+                                pass
+                        text = re.sub(r"\n{3,}", "\n\n", text).strip()
+                        if not text or len(text) < 50:
+                            return None
+                        name = urlparse(cand["url"]).path.rsplit("/", 1)[-1] or cand["url"]
+                        return f"--- PDF LIVE: {name} (da {cand['source_page']}) ---\n{text[:4000]}"
+                    except Exception as exc:
+                        logger.debug("[teach-html-pdf] failed %s: %s", cand.get("url"), exc)
+                        return None
+                pdf_results = await asyncio.gather(*[_dl_pdf(c) for c in pdf_candidates], return_exceptions=False)
+                pdf_blocks = [p for p in pdf_results if p]
+    except Exception as exc:
+        logger.warning("[teach-html-pdf] block failed: %s", exc)
+
     parts: List[str] = []
     for i, item in enumerate(valid, 1):
         parts.append(
             f"--- FONTE {i}: {item['title']} ({item['url']}) ---\n{item['text']}"
         )
-    logger.info("[teach-html] fetched %d/%d urls for tenant=%s", len(valid), len(urls_docs), tenant)
+    if pdf_blocks:
+        parts.append("\n### 📎 PDF SCARICATI DALLE FONTI LIVE (contenuto testuale)\n" + "\n\n".join(pdf_blocks))
+    logger.info("[teach-html] fetched %d/%d pages + %d pdfs for tenant=%s",
+                len(valid), len(urls_docs), len(pdf_blocks), tenant)
     return "\n\n".join(parts)
 
 
