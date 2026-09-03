@@ -10670,6 +10670,10 @@ async def _prepare_assistant_prompt(
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
         "- Puoi dare consigli operativi basati sui dati (es. suggerire di chiamare clienti senza appuntamento).\n"
+        "- ⚡ RISPOSTE RAPIDE E ASCIUTTE: max 3-4 frasi per domande semplici. "
+        "Niente preamboli tipo 'Ecco come funziona:', niente elenchi puntati "
+        "se non necessari. Vai al punto in 1-2 frasi. Se non hai dati, "
+        "rispondi 'Non ho i dati per rispondere: [motivo]' in UNA riga.\n"
         "- ⚠️ AGGIORNAMENTO DATI: se l'utente ti chiede di AGGIORNARE una tabella / listino / dati "
         "storici (es. 'aggiorna i PUN di luglio/agosto', 'inserisci i prezzi ultima settimana') e NON "
         "sono presenti fonti NUOVE (un allegato appena caricato con quei nuovi dati, oppure una ricerca "
@@ -10725,7 +10729,32 @@ async def _prepare_assistant_prompt(
         _cheat_section = await _cheatsheet_section_for_prompt(user["user_id"])
     except Exception:
         _cheat_section = ""
-    system_message = system_message + _brain_section + _scripts_section + _cheat_section
+    # V50.z8 — Elenca cartelle Drive collegate + connessioni cloud attive.
+    # Axon deve sapere di essere COLLEGATO al Drive del Master.
+    _cloud_section = ""
+    try:
+        _drive_folders = await db.google_drive_folders.find(
+            {"user_id": user["user_id"]}, {"_id": 0, "name": 1, "folder_id": 1}
+        ).to_list(30)
+        _dropbox_ok = await db.dropbox_credentials.find_one({"user_id": user["user_id"]}) is not None
+        _drive_ok = await db.google_drive_credentials.find_one({"user_id": user["user_id"]}) is not None
+        lines = ["\n\nCLOUD & DRIVE COLLEGATI AL MASTER (usa queste info se l'utente chiede 'a cosa hai accesso'):"]
+        if _drive_ok:
+            if _drive_folders:
+                lines.append(f"- ✅ Google Drive COLLEGATO. Cartelle Axon monitorate ({len(_drive_folders)}):")
+                for f in _drive_folders[:20]:
+                    lines.append(f"    • {f.get('name','?')}")
+                lines.append("  → Puoi leggere file da queste cartelle quando l'utente allega con l'icona G blu del picker Drive nel campo input.")
+            else:
+                lines.append("- ⚠️ Google Drive collegato ma NESSUNA cartella Axon configurata. Dì all'utente di andare in Impostazioni → Google Drive → Scegli cartella.")
+        else:
+            lines.append("- ❌ Google Drive NON collegato.")
+        lines.append(f"- {'✅' if _dropbox_ok else '❌'} Dropbox {'collegato' if _dropbox_ok else 'non collegato'}.")
+        lines.append("REGOLA: non dire mai 'non ho accesso a Drive' se sopra risulta collegato. Dì invece quali cartelle sono monitorate e come allegare i file.")
+        _cloud_section = "\n".join(lines) + "\n"
+    except Exception:
+        _cloud_section = ""
+    system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
 
     if history:
         convo_text = ""
@@ -11001,6 +11030,10 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
         "- Puoi dare consigli operativi basati sui dati (es. suggerire di chiamare clienti senza appuntamento).\n"
+        "- ⚡ RISPOSTE RAPIDE E ASCIUTTE: max 3-4 frasi per domande semplici. "
+        "Niente preamboli tipo 'Ecco come funziona:', niente elenchi puntati "
+        "se non necessari. Vai al punto in 1-2 frasi. Se non hai dati, "
+        "rispondi 'Non ho i dati per rispondere: [motivo]' in UNA riga.\n"
         "- ⚠️ AGGIORNAMENTO DATI: se l'utente ti chiede di AGGIORNARE una tabella / listino / dati "
         "storici (es. 'aggiorna i PUN di luglio/agosto', 'inserisci i prezzi ultima settimana') e NON "
         "sono presenti fonti NUOVE (un allegato appena caricato con quei nuovi dati, oppure una ricerca "
@@ -11056,7 +11089,32 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         _cheat_section = await _cheatsheet_section_for_prompt(user["user_id"])
     except Exception:
         _cheat_section = ""
-    system_message = system_message + _brain_section + _scripts_section + _cheat_section
+    # V50.z8 — Elenca cartelle Drive collegate + connessioni cloud attive.
+    # Axon deve sapere di essere COLLEGATO al Drive del Master.
+    _cloud_section = ""
+    try:
+        _drive_folders = await db.google_drive_folders.find(
+            {"user_id": user["user_id"]}, {"_id": 0, "name": 1, "folder_id": 1}
+        ).to_list(30)
+        _dropbox_ok = await db.dropbox_credentials.find_one({"user_id": user["user_id"]}) is not None
+        _drive_ok = await db.google_drive_credentials.find_one({"user_id": user["user_id"]}) is not None
+        lines = ["\n\nCLOUD & DRIVE COLLEGATI AL MASTER (usa queste info se l'utente chiede 'a cosa hai accesso'):"]
+        if _drive_ok:
+            if _drive_folders:
+                lines.append(f"- ✅ Google Drive COLLEGATO. Cartelle Axon monitorate ({len(_drive_folders)}):")
+                for f in _drive_folders[:20]:
+                    lines.append(f"    • {f.get('name','?')}")
+                lines.append("  → Puoi leggere file da queste cartelle quando l'utente allega con l'icona G blu del picker Drive nel campo input.")
+            else:
+                lines.append("- ⚠️ Google Drive collegato ma NESSUNA cartella Axon configurata. Dì all'utente di andare in Impostazioni → Google Drive → Scegli cartella.")
+        else:
+            lines.append("- ❌ Google Drive NON collegato.")
+        lines.append(f"- {'✅' if _dropbox_ok else '❌'} Dropbox {'collegato' if _dropbox_ok else 'non collegato'}.")
+        lines.append("REGOLA: non dire mai 'non ho accesso a Drive' se sopra risulta collegato. Dì invece quali cartelle sono monitorate e come allegare i file.")
+        _cloud_section = "\n".join(lines) + "\n"
+    except Exception:
+        _cloud_section = ""
+    system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
 
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     chat = LlmChat(
