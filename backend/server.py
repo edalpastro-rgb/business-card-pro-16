@@ -17256,6 +17256,257 @@ async def mail_download_attachment(
 
 
 # =========================================================================
+# V50.z22 — AI AUTO-CRM DA MAIL
+# Riconosce clienti CRM dal from_email, aggancia mail, salva allegati e
+# usa LLM per estrarre dati dalla firma → propone aggiornamenti anagrafica.
+# =========================================================================
+async def _find_contact_by_email(user_id: str, email_addr: str) -> Optional[dict]:
+    """Cerca contact per email (case-insensitive) nel tenant dell'utente."""
+    tid = tenant_id({"user_id": user_id, "parent_user_id": None})  # semplice: user_id come tid
+    e = email_addr.strip().lower()
+    return await db.contacts.find_one({
+        "$or": [
+            {"user_id": tid, "email": {"$regex": f"^{re.escape(e)}$", "$options": "i"}},
+        ]
+    })
+
+
+async def _extract_signature_llm(mail_text: str, from_name: str) -> Optional[dict]:
+    """Usa Emergent LLM per estrarre nome/ruolo/telefono/CF/PIVA/indirizzo dalla firma."""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        key = os.environ.get("EMERGENT_LLM_KEY") or ""
+        if not key:
+            return None
+        prompt = f"""Estrai dalla FIRMA della seguente mail italiana i dati anagrafici. Rispondi SOLO in JSON con questi campi (usa null se non presenti):
+{{"full_name": ..., "role": ..., "phone": ..., "mobile": ..., "codice_fiscale": ..., "partita_iva": ..., "address": ..., "city": ..., "website": ...}}
+
+Mittente: {from_name}
+
+TESTO MAIL:
+{mail_text[:4000]}"""
+        chat = LlmChat(api_key=key, session_id=f"crm-sig-{uuid.uuid4().hex[:8]}", system_message="Sei un estrattore di firme email. Rispondi solo in JSON valido.").with_model("openai", "gpt-5.4-mini")
+        r = await chat.send_message(UserMessage(text=prompt))
+        txt = (r or "").strip()
+        # Rimuovi eventuale code fence
+        if txt.startswith("```"):
+            txt = re.sub(r"^```(?:json)?\n?|\n?```$", "", txt).strip()
+        import json as _json
+        data = _json.loads(txt)
+        # Rimuovi valori null / stringhe vuote
+        return {k: v for k, v in data.items() if v and str(v).strip() and str(v).lower() != "null"}
+    except Exception as e:
+        logger.warning(f"[auto-crm] LLM signature extract failed: {e}")
+        return None
+
+
+@api_router.post("/mail/auto-crm/scan")
+async def mail_auto_crm_scan(payload: Dict[str, Any] = Body(default={}), user=Depends(get_current_user)):
+    """Scansiona una casella (o tutte) per mail nuove da clienti CRM.
+    - aggancia la mail al contact matched
+    - salva allegati (base64 in `contact_mail_attachments`)
+    - estrae dati firma via LLM → crea proposals in `mail_crm_proposals`
+    - crea axon_alerts per gli aggiornamenti proposti
+    Ritorna statistiche.
+    """
+    account_id = payload.get("account_id")  # None = scan all
+    limit = int(payload.get("limit", 30))
+    q = {"user_id": user["user_id"]}
+    if account_id:
+        q["account_id"] = account_id
+    accounts = [a async for a in db.mail_accounts.find(q)]
+    if not accounts:
+        raise HTTPException(404, "Nessuna casella collegata")
+
+    stats = {"scanned": 0, "clients_matched": 0, "attachments_saved": 0, "proposals_created": 0, "alerts": 0}
+    loop = asyncio.get_event_loop()
+    tid = tenant_id(user)
+
+    def _scan_one(a: dict) -> Dict[str, Any]:
+        results = []
+        try:
+            password = _mail_dec(a["password_enc"])
+            with _imap_test_and_login_sync(
+                a["imap_host"], a["imap_port"], a.get("imap_ssl", True), a["email"], password
+            ) as mb:
+                fetched = list(mb.fetch("ALL", limit=limit, reverse=True, mark_seen=False))
+                for m in fetched:
+                    atts_data = []
+                    try:
+                        for att in m.attachments:
+                            data = att.payload or b""
+                            if len(data) > 8 * 1024 * 1024:  # skip >8MB
+                                continue
+                            import base64 as _b64
+                            atts_data.append({
+                                "filename": att.filename or "allegato",
+                                "content_type": att.content_type or "application/octet-stream",
+                                "size": len(data),
+                                "b64": _b64.b64encode(data).decode(),
+                            })
+                    except Exception:
+                        pass
+                    results.append({
+                        "uid": m.uid,
+                        "subject": m.subject or "",
+                        "from_email": ((m.from_values.email if m.from_values else m.from_) or "").lower(),
+                        "from_name": (m.from_values.name if m.from_values else "") or "",
+                        "date": m.date.isoformat() if m.date else None,
+                        "text": (m.text or "") or (re.sub(r"<[^>]+>", " ", m.html or "") if m.html else ""),
+                        "atts": atts_data,
+                    })
+            return {"account_id": a["account_id"], "messages": results, "ok": True}
+        except Exception as e:
+            return {"account_id": a["account_id"], "ok": False, "error": str(e)}
+
+    tasks = [loop.run_in_executor(None, _scan_one, a) for a in accounts]
+    fetch_results = await asyncio.gather(*tasks)
+
+    for acc_res in fetch_results:
+        if not acc_res.get("ok"):
+            continue
+        for m in acc_res["messages"]:
+            stats["scanned"] += 1
+            from_email = m["from_email"]
+            if not from_email:
+                continue
+            contact = await _find_contact_by_email(user["user_id"], from_email)
+            if not contact:
+                continue
+            stats["clients_matched"] += 1
+            cid = contact["contact_id"]
+            # Aggancia mail (dedup per uid+account_id+contact_id)
+            mail_link_key = {"contact_id": cid, "account_id": acc_res["account_id"], "uid": m["uid"]}
+            existing = await db.contact_mails.find_one(mail_link_key)
+            if existing:
+                continue  # già processata
+
+            await db.contact_mails.insert_one({
+                **mail_link_key,
+                "tenant_id": tid,
+                "subject": m["subject"],
+                "from_email": from_email,
+                "from_name": m["from_name"],
+                "received_at": m["date"],
+                "created_at": datetime.utcnow(),
+            })
+
+            # Salva allegati
+            for att in m.get("atts", []):
+                await db.contact_mail_attachments.insert_one({
+                    "attachment_id": f"cma_{uuid.uuid4().hex[:12]}",
+                    "contact_id": cid,
+                    "tenant_id": tid,
+                    "account_id": acc_res["account_id"],
+                    "mail_uid": m["uid"],
+                    "filename": att["filename"],
+                    "content_type": att["content_type"],
+                    "size": att["size"],
+                    "content_b64": att["b64"],
+                    "created_at": datetime.utcnow(),
+                })
+                stats["attachments_saved"] += 1
+
+            # LLM signature parser (solo se testo abbastanza lungo)
+            if m.get("text") and len(m["text"]) > 50:
+                sig_data = await _extract_signature_llm(m["text"], m["from_name"])
+                if sig_data:
+                    # Confronta con dati esistenti del contact
+                    changes = {}
+                    for key, new_val in sig_data.items():
+                        current_val = contact.get(key)
+                        if not current_val and new_val:
+                            changes[key] = {"from": None, "to": new_val}
+                        elif current_val and new_val and str(current_val).lower() != str(new_val).lower():
+                            changes[key] = {"from": current_val, "to": new_val}
+                    if changes:
+                        proposal_id = f"mcp_{uuid.uuid4().hex[:12]}"
+                        await db.mail_crm_proposals.insert_one({
+                            "proposal_id": proposal_id,
+                            "contact_id": cid,
+                            "tenant_id": tid,
+                            "source_mail_uid": m["uid"],
+                            "source_account_id": acc_res["account_id"],
+                            "from_email": from_email,
+                            "from_name": m["from_name"],
+                            "subject": m["subject"],
+                            "changes": changes,
+                            "status": "pending",
+                            "created_at": datetime.utcnow(),
+                        })
+                        stats["proposals_created"] += 1
+
+                        # Axon alert
+                        try:
+                            await db.axon_alerts.insert_one({
+                                "alert_id": f"aal_{uuid.uuid4().hex[:12]}",
+                                "tenant_id": tid,
+                                "type": "crm_signature",
+                                "title": f"Aggiorna anagrafica: {contact.get('name') or from_email}",
+                                "message": f"{len(changes)} campo/i da rivedere · da mail '{m['subject'][:60]}'",
+                                "url_id": proposal_id,
+                                "seen": False,
+                                "created_at": datetime.utcnow(),
+                            })
+                            stats["alerts"] += 1
+                        except Exception:
+                            pass
+
+    return {"ok": True, "stats": stats, "accounts_scanned": len(accounts)}
+
+
+@api_router.get("/mail/auto-crm/proposals")
+async def mail_auto_crm_list_proposals(status: str = "pending", user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    q = {"tenant_id": tid}
+    if status != "all":
+        q["status"] = status
+    items = [p async for p in db.mail_crm_proposals.find(q, {"_id": 0}).sort("created_at", -1).limit(100)]
+    # Serialize datetime
+    for it in items:
+        if isinstance(it.get("created_at"), datetime):
+            it["created_at"] = it["created_at"].isoformat()
+        # Attach contact info
+        c = await db.contacts.find_one({"contact_id": it["contact_id"]}, {"_id": 0, "name": 1, "email": 1})
+        it["contact_name"] = (c or {}).get("name")
+        it["contact_email"] = (c or {}).get("email")
+    return {"items": items, "count": len(items)}
+
+
+@api_router.post("/mail/auto-crm/proposals/{proposal_id}/accept")
+async def mail_auto_crm_accept(proposal_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    p = await db.mail_crm_proposals.find_one({"proposal_id": proposal_id, "tenant_id": tid})
+    if not p:
+        raise HTTPException(404, "Proposta non trovata")
+    if p.get("status") != "pending":
+        raise HTTPException(400, "Proposta già gestita")
+    updates = {}
+    for field, delta in (p.get("changes") or {}).items():
+        updates[field] = delta.get("to")
+    if updates:
+        updates["updated_at"] = datetime.utcnow()
+        await db.contacts.update_one({"contact_id": p["contact_id"]}, {"$set": updates})
+    await db.mail_crm_proposals.update_one(
+        {"proposal_id": proposal_id},
+        {"$set": {"status": "accepted", "handled_at": datetime.utcnow(), "handled_by": user["user_id"]}},
+    )
+    return {"ok": True, "applied_fields": list(updates.keys())}
+
+
+@api_router.post("/mail/auto-crm/proposals/{proposal_id}/reject")
+async def mail_auto_crm_reject(proposal_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    r = await db.mail_crm_proposals.update_one(
+        {"proposal_id": proposal_id, "tenant_id": tid, "status": "pending"},
+        {"$set": {"status": "rejected", "handled_at": datetime.utcnow(), "handled_by": user["user_id"]}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Proposta non trovata o già gestita")
+    return {"ok": True}
+
+
+# =========================================================================
 # V50.z18 — MICROSOFT OUTLOOK OAUTH (Microsoft Graph Mail.Read)
 #
 # Flow (auth code + PKCE + offline_access):

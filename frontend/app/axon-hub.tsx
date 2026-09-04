@@ -41,6 +41,8 @@ const CARDS: Card[] = [
     title: "📧 Outlook (Microsoft)", sub: "Collega la casella e leggi le mail con Axon" },
   { id: "email-accounts", href: "/email-accounts", icon: "mail-unread", color: "#0EA5E9",
     title: "📧 Caselle Email (IMAP)", sub: "Aruba, Gmail, Register, Libero, Yahoo · multi-account" },
+  { id: "mail-crm-proposals", href: "/mail-crm-proposals", icon: "sparkles", color: "#7C3AED",
+    title: "🤖 Auto-CRM da Mail", sub: "Axon riconosce clienti, salva allegati, aggiorna anagrafica" },
   { id: "help-center", href: "/help-center", icon: "shield-checkmark", color: "#7C3AED",
     title: "🛡️ HELP CENTER", sub: "Termini d'uso · richiedi cancellazione dei tuoi dati" },
 ];
