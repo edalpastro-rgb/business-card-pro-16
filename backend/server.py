@@ -17311,16 +17311,23 @@ async def mail_auto_crm_scan(payload: Dict[str, Any] = Body(default={}), user=De
     """
     account_id = payload.get("account_id")  # None = scan all
     limit = int(payload.get("limit", 30))
-    q = {"user_id": user["user_id"]}
+    result = await _auto_crm_scan_impl(user["user_id"], tenant_id(user), account_id=account_id, limit=limit)
+    if not result.get("ok") and result.get("error") == "no_accounts":
+        raise HTTPException(404, "Nessuna casella collegata")
+    return result
+
+
+async def _auto_crm_scan_impl(user_id: str, tid: str, account_id: Optional[str] = None, limit: int = 30) -> Dict[str, Any]:
+    """Core Auto-CRM scan — usato da endpoint manuale e scheduler."""
+    q = {"user_id": user_id}
     if account_id:
         q["account_id"] = account_id
     accounts = [a async for a in db.mail_accounts.find(q)]
     if not accounts:
-        raise HTTPException(404, "Nessuna casella collegata")
+        return {"ok": False, "error": "no_accounts", "stats": {}, "accounts_scanned": 0}
 
     stats = {"scanned": 0, "clients_matched": 0, "attachments_saved": 0, "proposals_created": 0, "alerts": 0}
     loop = asyncio.get_event_loop()
-    tid = tenant_id(user)
 
     def _scan_one(a: dict) -> Dict[str, Any]:
         results = []
@@ -17370,7 +17377,7 @@ async def mail_auto_crm_scan(payload: Dict[str, Any] = Body(default={}), user=De
             from_email = m["from_email"]
             if not from_email:
                 continue
-            contact = await _find_contact_by_email(user["user_id"], from_email)
+            contact = await _find_contact_by_email(user_id, from_email)
             if not contact:
                 continue
             stats["clients_matched"] += 1
@@ -17453,6 +17460,123 @@ async def mail_auto_crm_scan(payload: Dict[str, Any] = Body(default={}), user=De
                             pass
 
     return {"ok": True, "stats": stats, "accounts_scanned": len(accounts)}
+
+
+# ─── Auto-CRM scheduler settings ────────────────────────────────────
+# V50.z24 — Settings per tenant per pianificazione scansione automatica.
+# Collection `mail_auto_crm_settings`:
+#   { tenant_id, user_id, enabled, interval_minutes, last_run_at, next_run_at, updated_at }
+AUTOCRM_MIN_INTERVAL = 5      # minimo consentito (minuti)
+AUTOCRM_MAX_INTERVAL = 1440   # massimo consentito (24h)
+AUTOCRM_DEFAULT_INTERVAL = 15
+
+
+@api_router.get("/mail/auto-crm/settings")
+async def mail_auto_crm_get_settings(user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    s = await db.mail_auto_crm_settings.find_one({"tenant_id": tid, "user_id": user["user_id"]}, {"_id": 0})
+    if not s:
+        s = {
+            "tenant_id": tid,
+            "user_id": user["user_id"],
+            "enabled": False,
+            "interval_minutes": AUTOCRM_DEFAULT_INTERVAL,
+            "last_run_at": None,
+            "next_run_at": None,
+            "last_stats": None,
+        }
+    # Serialize datetimes
+    for k in ("last_run_at", "next_run_at", "updated_at"):
+        v = s.get(k)
+        if isinstance(v, datetime):
+            s[k] = v.isoformat()
+    return {
+        **s,
+        "limits": {"min_minutes": AUTOCRM_MIN_INTERVAL, "max_minutes": AUTOCRM_MAX_INTERVAL},
+    }
+
+
+@api_router.patch("/mail/auto-crm/settings")
+async def mail_auto_crm_update_settings(payload: Dict[str, Any] = Body(...), user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    updates: Dict[str, Any] = {}
+    if "enabled" in payload:
+        updates["enabled"] = bool(payload["enabled"])
+    if "interval_minutes" in payload:
+        try:
+            mins = int(payload["interval_minutes"])
+        except Exception:
+            raise HTTPException(400, "interval_minutes deve essere un numero")
+        if mins < AUTOCRM_MIN_INTERVAL or mins > AUTOCRM_MAX_INTERVAL:
+            raise HTTPException(400, f"interval_minutes deve essere tra {AUTOCRM_MIN_INTERVAL} e {AUTOCRM_MAX_INTERVAL}")
+        updates["interval_minutes"] = mins
+    if not updates:
+        raise HTTPException(400, "Nessun campo da aggiornare")
+    updates["updated_at"] = datetime.utcnow()
+    # Se enabled=true e non c'è un next_run_at, pianifica adesso
+    now = datetime.utcnow()
+    existing = await db.mail_auto_crm_settings.find_one({"tenant_id": tid, "user_id": user["user_id"]})
+    if updates.get("enabled") is True:
+        # Riparte da subito
+        updates["next_run_at"] = now
+    if updates.get("enabled") is False:
+        updates["next_run_at"] = None
+    # Se solo cambia interval e già attivo, ricalcola next_run partendo da last_run
+    if "interval_minutes" in updates and existing and existing.get("enabled") and "enabled" not in updates:
+        base = existing.get("last_run_at") or now
+        if isinstance(base, str):
+            try:
+                base = datetime.fromisoformat(base)
+            except Exception:
+                base = now
+        updates["next_run_at"] = base + timedelta(minutes=updates["interval_minutes"])
+
+    await db.mail_auto_crm_settings.update_one(
+        {"tenant_id": tid, "user_id": user["user_id"]},
+        {"$set": {**updates, "tenant_id": tid, "user_id": user["user_id"]}},
+        upsert=True,
+    )
+    return await mail_auto_crm_get_settings(user)
+
+
+async def _run_auto_crm_tick():
+    """Job schedulato: gira ogni minuto, controlla tenant con scan in scadenza."""
+    try:
+        now = datetime.utcnow()
+        cursor = db.mail_auto_crm_settings.find({"enabled": True})
+        candidates = []
+        async for s in cursor:
+            nra = s.get("next_run_at")
+            if nra is None or (isinstance(nra, datetime) and nra <= now):
+                candidates.append(s)
+        for s in candidates:
+            try:
+                interval = int(s.get("interval_minutes") or AUTOCRM_DEFAULT_INTERVAL)
+                # Prova a scanare per questo user
+                res = await _auto_crm_scan_impl(s["user_id"], s["tenant_id"], account_id=None, limit=30)
+                await db.mail_auto_crm_settings.update_one(
+                    {"tenant_id": s["tenant_id"], "user_id": s["user_id"]},
+                    {"$set": {
+                        "last_run_at": now,
+                        "next_run_at": now + timedelta(minutes=interval),
+                        "last_stats": res.get("stats") or {},
+                        "last_error": None if res.get("ok") else res.get("error"),
+                    }},
+                )
+                if res.get("ok"):
+                    st = res.get("stats") or {}
+                    logger.info(f"[auto-crm-scheduler] tenant={s['tenant_id']} scanned={st.get('scanned')} proposals={st.get('proposals_created')}")
+            except Exception as e:
+                logger.warning(f"[auto-crm-scheduler] tenant={s.get('tenant_id')} error: {e}")
+                await db.mail_auto_crm_settings.update_one(
+                    {"tenant_id": s["tenant_id"], "user_id": s["user_id"]},
+                    {"$set": {"last_error": str(e)[:200], "next_run_at": now + timedelta(minutes=int(s.get("interval_minutes") or AUTOCRM_DEFAULT_INTERVAL))}},
+                )
+    except Exception as e:
+        logger.warning(f"[auto-crm-scheduler] tick error: {e}")
+
+
+
 
 
 @api_router.get("/mail/auto-crm/proposals")
@@ -18999,10 +19123,16 @@ async def _start_scheduler():
             _run_teach_urls_prefetch_job, "interval", minutes=30,
             id="teach-urls-prefetch", replace_existing=True,
         )
+        # V50.z24 — Auto-CRM scan tick (ogni minuto: valuta chi è in scadenza)
+        _birthday_scheduler.add_job(
+            _run_auto_crm_tick, "interval", minutes=1,
+            id="auto-crm-tick", replace_existing=True,
+        )
         _birthday_scheduler.start()
         logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
         logger.info("Rule-proposals scheduler started (daily 03:00 Europe/Rome)")
         logger.info("Teach-URLs prefetch scheduler started (every 30 minutes)")
+        logger.info("Auto-CRM scheduler tick started (every 1 minute)")
     except Exception as e:
         logger.warning(f"birthday scheduler start failed: {e}")
 

@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert,
-  RefreshControl,
+  RefreshControl, Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -48,6 +48,39 @@ export default function MailCrmProposalsScreen() {
   const [scanning, setScanning] = useState(false);
   const [filter, setFilter] = useState<"pending" | "all">("pending");
 
+  // V50.z24 — Scheduler settings
+  type AutoSettings = {
+    enabled: boolean;
+    interval_minutes: number;
+    last_run_at: string | null;
+    next_run_at: string | null;
+    last_stats?: any;
+    last_error?: string | null;
+    limits?: { min_minutes: number; max_minutes: number };
+  };
+  const [settings, setSettings] = useState<AutoSettings | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const s = await api<AutoSettings>("/mail/auto-crm/settings");
+      setSettings(s);
+    } catch { /* silent */ }
+  }, []);
+
+  const patchSettings = async (upd: Partial<AutoSettings>) => {
+    if (savingSettings) return;
+    setSavingSettings(true);
+    try {
+      const s = await api<AutoSettings>("/mail/auto-crm/settings", { method: "PATCH", body: upd });
+      setSettings(s);
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || "Impossibile salvare");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   const load = useCallback(async () => {
     try {
       const r = await api<{ items: Proposal[] }>(`/mail/auto-crm/proposals?status=${filter}`);
@@ -61,6 +94,7 @@ export default function MailCrmProposalsScreen() {
   }, [filter]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadSettings(); }, [loadSettings]);
 
   const runScan = async () => {
     if (scanning) return;
@@ -112,6 +146,65 @@ export default function MailCrmProposalsScreen() {
             </>
           )}
         </Pressable>
+
+        {/* V50.z24 — Scheduler config */}
+        {settings ? (
+          <View style={styles.schedCard}>
+            <View style={styles.schedHead}>
+              <Ionicons name="time" size={16} color="#7C3AED" />
+              <Text style={styles.schedTitle}>Scansione automatica</Text>
+              <View style={{ flex: 1 }} />
+              <Switch
+                value={settings.enabled}
+                onValueChange={(v) => patchSettings({ enabled: v })}
+                disabled={savingSettings}
+                trackColor={{ true: "#7C3AED", false: "#CBD5E1" }}
+                thumbColor="#FFF"
+              />
+            </View>
+            {settings.enabled ? (
+              <>
+                <Text style={styles.schedLabel}>Intervallo scansione</Text>
+                <View style={styles.chipRow}>
+                  {[5, 10, 15, 30, 60, 120, 360].map((mins) => (
+                    <Pressable
+                      key={mins}
+                      onPress={() => patchSettings({ interval_minutes: mins })}
+                      disabled={savingSettings}
+                      style={[styles.intervalChip, settings.interval_minutes === mins && styles.intervalChipOn]}
+                    >
+                      <Text style={[styles.intervalTxt, settings.interval_minutes === mins && styles.intervalTxtOn]}>
+                        {mins < 60 ? `${mins} min` : `${mins / 60} h`}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.schedInfoRow}>
+                  {settings.last_run_at ? (
+                    <Text style={styles.schedInfo}>
+                      Ultima: {new Date(settings.last_run_at).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {settings.last_stats && typeof settings.last_stats.proposals_created === "number"
+                        ? ` · ${settings.last_stats.proposals_created} proposte`
+                        : ""}
+                    </Text>
+                  ) : (
+                    <Text style={styles.schedInfo}>Mai eseguita — parte al prossimo minuto</Text>
+                  )}
+                  {settings.next_run_at ? (
+                    <Text style={styles.schedInfo}>
+                      Prossima: {new Date(settings.next_run_at).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                  ) : null}
+                  {settings.last_error ? (
+                    <Text style={styles.schedError} numberOfLines={2}>⚠ {settings.last_error}</Text>
+                  ) : null}
+                </View>
+              </>
+            ) : (
+              <Text style={styles.schedInfo}>Disattivata · attivala per far girare Auto-CRM in background</Text>
+            )}
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.filterBar}>
@@ -241,4 +334,23 @@ const styles = StyleSheet.create({
   statusOk: { backgroundColor: "#DCFCE7" },
   statusRej: { backgroundColor: "#FEE2E2" },
   statusTxt: { fontSize: 11, fontWeight: "900" },
+  // V50.z24 — scheduler card
+  schedCard: {
+    marginTop: 10, padding: 10, borderRadius: 12,
+    backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE", gap: 6,
+  },
+  schedHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  schedTitle: { fontSize: 13, fontWeight: "800", color: "#5B21B6" },
+  schedLabel: { fontSize: 11, fontWeight: "700", color: theme.color.muted, marginTop: 4 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  intervalChip: {
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
+    backgroundColor: "#FFF", borderWidth: 1, borderColor: "#DDD6FE",
+  },
+  intervalChipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
+  intervalTxt: { fontSize: 11, fontWeight: "700", color: "#5B21B6" },
+  intervalTxtOn: { color: "#FFF" },
+  schedInfoRow: { marginTop: 6, gap: 2 },
+  schedInfo: { fontSize: 11, color: theme.color.muted },
+  schedError: { fontSize: 11, color: "#B91C1C", fontWeight: "700" },
 });

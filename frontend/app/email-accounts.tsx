@@ -4,13 +4,12 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput,
-  ActivityIndicator, Alert, RefreshControl, Modal, Switch, Platform,
+  ActivityIndicator, Alert, RefreshControl, Modal, Switch, Platform, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
-import * as WebBrowser from "expo-web-browser";
 import { api, getAuthHeader } from "@/src/api";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
@@ -260,35 +259,28 @@ function CombinedInbox() {
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
+  // V50.z23 — Anteprima allegato IN-APP (no uscita da maschera app/web)
+  const [previewSrc, setPreviewSrc] = useState<{ url: string; name: string; type: string } | null>(null);
+
   const downloadAttachment = async (m: CombinedMessage, filename: string) => {
     try {
       const backend = process.env.EXPO_PUBLIC_BACKEND_URL || "";
       const url = `${backend}/api/mail/accounts/${m.account_id}/messages/${encodeURIComponent(m.uid)}/attachments/${encodeURIComponent(filename)}`;
       const auth = await getAuthHeader();
-      if (Platform.OS === "web") {
-        // V50.z21f — fetch autenticato + blob URL (window.open non passa i token)
-        const resp = await fetch(url, { headers: auth });
-        if (!resp.ok) {
-          Alert.alert("Errore download", `HTTP ${resp.status}${resp.status === 401 ? " — non autenticato, riprova." : ""}`);
-          return;
-        }
-        const blob = await resp.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        // Apri in nuova tab + link alternativo per il download
-        const w = window.open(blobUrl, "_blank");
-        if (!w) {
-          // Fallback: forza download con anchor
-          const a = document.createElement("a");
-          a.href = blobUrl; a.download = filename;
-          document.body.appendChild(a); a.click(); a.remove();
-        }
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      const resp = await fetch(url, { headers: auth });
+      if (!resp.ok) {
+        Alert.alert("Errore download", `HTTP ${resp.status}${resp.status === 401 ? " — non autenticato, riprova." : ""}`);
         return;
       }
-      const dest = `${FileSystem.cacheDirectory}${filename}`;
-      const dl = await FileSystem.downloadAsync(url, dest, { headers: auth });
-      if (dl.status !== 200) { Alert.alert("Errore", `Download fallito (${dl.status})`); return; }
-      await WebBrowser.openBrowserAsync(dl.uri);
+      const blob = await resp.blob();
+      const blobUrl = (Platform.OS === "web") ? URL.createObjectURL(blob) : `${FileSystem.cacheDirectory}${filename}`;
+      if (Platform.OS !== "web") {
+        // Native: salva su disco per il preview
+        const dl = await FileSystem.downloadAsync(url, blobUrl, { headers: auth });
+        if (dl.status !== 200) { Alert.alert("Errore", `Download fallito (${dl.status})`); return; }
+      }
+      // Apri modal preview interno all'app
+      setPreviewSrc({ url: blobUrl, name: filename, type: blob.type || "application/octet-stream" });
     } catch (e: any) {
       Alert.alert("Errore download", e?.message || "");
     }
@@ -414,7 +406,81 @@ function CombinedInbox() {
           <Text style={styles.endHintTxt}>✓ Fine elenco ({msgs.length} mail)</Text>
         </View>
       ) : null}
+      {/* V50.z23 — Modal anteprima allegato IN-APP */}
+      {previewSrc ? <AttachmentPreview src={previewSrc} onClose={() => {
+        if (Platform.OS === "web" && previewSrc.url.startsWith("blob:")) URL.revokeObjectURL(previewSrc.url);
+        setPreviewSrc(null);
+      }} /> : null}
     </ScrollView>
+  );
+}
+
+function AttachmentPreview({ src, onClose }: { src: { url: string; name: string; type: string }; onClose: () => void }) {
+  const isImage = /^image\//i.test(src.type) || /\.(png|jpe?g|gif|webp|bmp)$/i.test(src.name);
+  const isPdf = /pdf/i.test(src.type) || /\.pdf$/i.test(src.name);
+
+  const onDownload = async () => {
+    try {
+      if (Platform.OS === "web") {
+        const a = document.createElement("a");
+        a.href = src.url; a.download = src.name;
+        document.body.appendChild(a); a.click(); a.remove();
+      } else {
+        // Native: condividi/salva il file già presente in cache
+        try {
+          const Sharing = await import("expo-sharing");
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(src.url, { dialogTitle: src.name });
+          } else {
+            Alert.alert("Salvato", `File in cache:\n${src.url}`);
+          }
+        } catch {
+          Alert.alert("Salvato", `File in cache:\n${src.url}`);
+        }
+      }
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || "Impossibile scaricare");
+    }
+  };
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <View style={attStyles.backdrop}>
+        <View style={attStyles.header}>
+          <Text style={attStyles.title} numberOfLines={1}>{src.name}</Text>
+          <Pressable onPress={onDownload} hitSlop={10} style={attStyles.dlBtn}>
+            <Ionicons name="download" size={20} color="#FFF" />
+            <Text style={attStyles.dlTxt}>Scarica</Text>
+          </Pressable>
+          <Pressable onPress={onClose} hitSlop={10} style={{ marginLeft: 8 }}>
+            <Ionicons name="close" size={28} color="#FFF" />
+          </Pressable>
+        </View>
+        <View style={attStyles.body}>
+          {Platform.OS === "web" ? (
+            isImage ? (
+              (<img src={src.url} alt={src.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />) as any
+            ) : (
+              (<iframe src={src.url} title={src.name} style={{ width: "100%", height: "100%", border: 0, background: "#FFF" }} />) as any
+            )
+          ) : isImage ? (
+            <Image source={{ uri: src.url }} style={{ width: "100%", height: "100%" }} resizeMode="contain" />
+          ) : isPdf ? (
+            <View style={attStyles.nativeHint}>
+              <Ionicons name="document-text" size={64} color="#0EA5E9" />
+              <Text style={attStyles.nativeHintTxt}>Anteprima PDF non disponibile in-app su mobile</Text>
+              <Text style={attStyles.nativeHintSub}>Tocca Scarica per aprire con il tuo lettore PDF</Text>
+            </View>
+          ) : (
+            <View style={attStyles.nativeHint}>
+              <Ionicons name="document" size={64} color="#0EA5E9" />
+              <Text style={attStyles.nativeHintTxt}>Anteprima non disponibile per questo tipo di file</Text>
+              <Text style={attStyles.nativeHintSub}>Tocca Scarica per aprire con l&apos;app di sistema</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -660,13 +726,15 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
   // V50.z21d — useEffect invece di useFocusEffect (stesso motivo)
   useEffect(() => { load(); }, [load]);
 
+  // V50.z23 — Preview allegato IN-APP (nessuna uscita dal frame)
+  const [previewSrc, setPreviewSrc] = useState<{ url: string; name: string; type: string } | null>(null);
+
   const downloadAttachment = async (uid: string, filename: string, contentType?: string) => {
     try {
       const backend = process.env.EXPO_PUBLIC_BACKEND_URL || "";
       const url = `${backend}/api/mail/accounts/${account.account_id}/messages/${encodeURIComponent(uid)}/attachments/${encodeURIComponent(filename)}`;
       const auth = await getAuthHeader();
       if (Platform.OS === "web") {
-        // V50.z21f — fetch autenticato + blob URL
         const resp = await fetch(url, { headers: auth });
         if (!resp.ok) {
           Alert.alert("Errore download", `HTTP ${resp.status}${resp.status === 401 ? " — non autenticato, riprova." : ""}`);
@@ -674,23 +742,17 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
         }
         const blob = await resp.blob();
         const blobUrl = URL.createObjectURL(blob);
-        const w = window.open(blobUrl, "_blank");
-        if (!w) {
-          const a = document.createElement("a");
-          a.href = blobUrl; a.download = filename;
-          document.body.appendChild(a); a.click(); a.remove();
-        }
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        setPreviewSrc({ url: blobUrl, name: filename, type: blob.type || contentType || "application/octet-stream" });
         return;
       }
-      // Native: download poi apri
+      // Native: scarica in cache e mostra preview in-app
       const dest = `${FileSystem.cacheDirectory}${filename}`;
       const dl = await FileSystem.downloadAsync(url, dest, { headers: auth });
       if (dl.status !== 200) {
         Alert.alert("Errore", `Download fallito (${dl.status})`);
         return;
       }
-      await WebBrowser.openBrowserAsync(dl.uri);
+      setPreviewSrc({ url: dl.uri, name: filename, type: contentType || "application/octet-stream" });
     } catch (e: any) {
       Alert.alert("Errore download", e?.message || "");
     }
@@ -774,6 +836,11 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
           </ScrollView>
         </View>
       </View>
+      {/* V50.z23 — Modal anteprima allegato IN-APP */}
+      {previewSrc ? <AttachmentPreview src={previewSrc} onClose={() => {
+        if (Platform.OS === "web" && previewSrc.url.startsWith("blob:")) URL.revokeObjectURL(previewSrc.url);
+        setPreviewSrc(null);
+      }} /> : null}
     </Modal>
   );
 }
@@ -997,4 +1064,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, maxWidth: 220,
   },
   attTxt: { fontSize: 11, color: "#0369A1", fontWeight: "600" },
+});
+
+// V50.z23 — Stili modal anteprima allegato in-app
+const attStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)" },
+  header: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 12, backgroundColor: "rgba(0,0,0,0.9)",
+    borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.15)",
+  },
+  title: { flex: 1, color: "#FFF", fontSize: 14, fontWeight: "800" },
+  body: { flex: 1, alignItems: "center", justifyContent: "center" },
+  nativeHint: { padding: 24, alignItems: "center", gap: 10 },
+  nativeHintTxt: { color: "#FFF", fontSize: 14, fontWeight: "700", textAlign: "center" },
+  nativeHintSub: { color: "rgba(255,255,255,0.6)", fontSize: 11, textAlign: "center" },
+  dlBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "#0EA5E9" },
+  dlTxt: { color: "#FFF", fontSize: 12, fontWeight: "800" },
 });

@@ -3573,3 +3573,30 @@ borderRadius: full-round (= size/2)
 
 Nessun autotest eseguito.
 
+
+
+## V50.z24 — Anteprima allegati IN-APP + Auto-CRM scheduler configurabile
+
+**Richieste utente**:
+1. Gli allegati email devono aprirsi DENTRO l'app (no window.open, no browser esterno).
+2. Poter settare ogni quanto Auto-CRM esegue la scansione automatica.
+
+**Frontend — `/app/frontend/app/email-accounts.tsx`**:
+- `CombinedInbox` e `MessagesModal` ora aprono la modale `AttachmentPreview` invece di uscire dal frame.
+- Aggiunto pulsante "Scarica" in-modale (web = download tag; native = `expo-sharing`).
+- Web: `<iframe>` per PDF, `<img>` per immagini.
+- Native: `<Image>` per foto; hint "Scarica" per PDF/altro.
+- Rimosso `expo-web-browser` (non più necessario).
+
+**Frontend — `/app/frontend/app/mail-crm-proposals.tsx`**:
+- Nuova card "Scansione automatica" con Switch enable/disable e chip di scelta intervallo
+  (5, 10, 15, 30 min, 1h, 2h, 6h).
+- Mostra ultima esecuzione, prossima esecuzione, ultimo errore.
+- Chiama `GET/PATCH /api/mail/auto-crm/settings`.
+
+**Backend — `/app/backend/server.py`**:
+- Refactor: logica scan estratta in `_auto_crm_scan_impl(user_id, tenant_id, ...)`.
+- Nuovi endpoint `GET/PATCH /api/mail/auto-crm/settings`.
+- Nuova collection `mail_auto_crm_settings` per tenant: `{enabled, interval_minutes, last_run_at, next_run_at, last_stats, last_error}`.
+- Nuovo job APScheduler `_run_auto_crm_tick` (ogni 1 min): controlla scadenze e lancia scan per tenant abilitati.
+- Limiti: min 5 min, max 1440 min (24h). Default 15 min.
