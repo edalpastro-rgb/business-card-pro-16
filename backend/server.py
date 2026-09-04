@@ -10831,18 +10831,25 @@ _HEAVY_KEYWORDS = {
 
 def _pick_axon_model(msg: str, has_attachments: bool, has_rag_context: bool, has_web: bool) -> str:
     """Ritorna 'haiku' o 'sonnet' basato su euristica veloce.
-    V50.k — Fix: has_rag_context da solo NON forza sonnet perché il RAG
-    prefetch scatta anche su saluti/domande generiche. Sonnet è forzato solo
-    quando ci sono allegati o web search attiva (situazioni analitiche vere)
-    o keyword esplicitamente pesanti.
+    V50.z26 — Preferiamo Haiku 4.5 anche per query pesanti quando i dati sono
+    già nel contesto (RAG teach snapshot / tavily) perché servono solo per
+    FORMATTARE una tabella, non per ragionare. Haiku 4.5 emette il primo
+    token in <1s vs 4-6s di Sonnet 4.5 → risposta streaming subito visibile.
+    Sonnet resta forzato solo per: allegati (analisi documenti), messaggi
+    lunghi (>320 char = domanda complessa), o keyword di ANALISI/RAGIONAMENTO.
     """
-    if has_attachments or has_web:
+    if has_attachments:
         return "sonnet"
     txt = (msg or "").strip().lower()
-    if len(txt) > 220:
+    if len(txt) > 320:
         return "sonnet"
-    # ha markdown/tabelle richieste?
-    if any(k in txt for k in _HEAVY_KEYWORDS):
+    # Solo keyword di ragionamento profondo, NON di formattazione:
+    # "tabella", "pun", "f1/f2/f3", "listino" → basta Haiku (formattazione).
+    # "analizza", "confronta", "cluster", "insights" → serve Sonnet.
+    _REASONING = {"analizza", "analisi", "confronta", "confronto", "cluster",
+                  "insights", "profilazione", "riepiloga", "riepilogo",
+                  "calcola percentuale", "trend", "previsione", "spiegami"}
+    if any(k in txt for k in _REASONING):
         return "sonnet"
     return "haiku"
 
@@ -11106,6 +11113,14 @@ async def _prepare_assistant_prompt(
         "'scarica il PDF e incolla i valori' quando i dati SONO GIÀ nel contesto. "
         "Se hai i dati mensili (F1/F2/F3) di TUTTI i mesi disponibili, compila la tabella SUBITO; "
         "per i mesi mancanti scrivi `n/d` — mai chiedere all'utente di fornirti il PDF.\n"
+        "- **REGOLA MERGE TABELLE**: quando componi una tabella storica multi-mese, "
+        "SOVRASCRIVI SEMPRE i valori `n/d` (o mancanti) del RAG Master con i numeri REALI "
+        "trovati in `🌐 CONTENUTO WEB LIVE`, `📥 PDF SCARICATO` o `📂 PDF DA GOOGLE DRIVE`. "
+        "Esempio: se il RAG Master dice `Agosto 2026: n/d` MA lo snapshot GME contiene "
+        "`Agosto 2026 F1 174,52 F2 204,35 F3 171,72`, la tabella finale DEVE riportare "
+        "quei numeri (convertiti in €/kWh se serve, dividendo per 1000). Non lasciare `n/d` "
+        "se hai il numero nella sezione live. La conversione €/MWh → €/kWh è: valore/1000 "
+        "(es. 174,52 €/MWh = 0,17452 €/kWh).\n"
         "- Formatta le liste con elenchi puntati chiari; usa nomi, orari, telefoni quando disponibili.\n"
         "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
@@ -11478,6 +11493,14 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "'scarica il PDF e incolla i valori' quando i dati SONO GIÀ nel contesto. "
         "Se hai i dati mensili (F1/F2/F3) di TUTTI i mesi disponibili, compila la tabella SUBITO; "
         "per i mesi mancanti scrivi `n/d` — mai chiedere all'utente di fornirti il PDF.\n"
+        "- **REGOLA MERGE TABELLE**: quando componi una tabella storica multi-mese, "
+        "SOVRASCRIVI SEMPRE i valori `n/d` (o mancanti) del RAG Master con i numeri REALI "
+        "trovati in `🌐 CONTENUTO WEB LIVE`, `📥 PDF SCARICATO` o `📂 PDF DA GOOGLE DRIVE`. "
+        "Esempio: se il RAG Master dice `Agosto 2026: n/d` MA lo snapshot GME contiene "
+        "`Agosto 2026 F1 174,52 F2 204,35 F3 171,72`, la tabella finale DEVE riportare "
+        "quei numeri (convertiti in €/kWh se serve, dividendo per 1000). Non lasciare `n/d` "
+        "se hai il numero nella sezione live. La conversione €/MWh → €/kWh è: valore/1000 "
+        "(es. 174,52 €/MWh = 0,17452 €/kWh).\n"
         "- Formatta le liste con elenchi puntati chiari; usa nomi, orari, telefoni quando disponibili.\n"
         "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"

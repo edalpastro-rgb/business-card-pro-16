@@ -3653,3 +3653,28 @@ Axon rispondeva "ho provato ad accedere al sito GME ma non sono riuscito a recup
 - Query "vai a leggere sul sito GME come da regole" → Axon elenca Giugno/Luglio/Agosto 2026 con tutti i valori, citando "PDF ufficiali GME".
 
 Nessuna modifica frontend richiesta.
+
+
+## V50.z27 — 🔥 FIX Buchi tabelle PUN + streaming lento
+
+**Problemi segnalati**:
+1. Axon aveva 18 mesi in RAG Master ma nella tabella lasciava `n/d` per mesi con dati LIVE disponibili (es. Agosto 2026 aveva PDF snapshot con F1=174,52 ma restava n/d nella tabella).
+2. Streaming lento: risposte apparivano solo dopo il ragionamento completo, non progressivamente.
+
+**Fix applicati in `/app/backend/server.py`**:
+
+1. **Regola merge tabelle nel system_message**: aggiunta istruzione categorica —
+   "quando componi una tabella storica multi-mese, SOVRASCRIVI SEMPRE i valori `n/d` (o mancanti) del RAG Master con i numeri REALI trovati in `🌐 CONTENUTO WEB LIVE`, `📥 PDF SCARICATO` o `📂 PDF DA GOOGLE DRIVE`."
+   Include anche l'esempio esplicito della conversione €/MWh → €/kWh (÷1000).
+
+2. **Router modello riequilibrato** (`_pick_axon_model`):
+   - Prima: keyword `tabella`, `pun`, `f1/f2/f3`, `gme`, `arera` → Sonnet 4.5 (6-8s first token)
+   - Ora: solo keyword di **ragionamento profondo** (analizza, confronta, cluster, insights, trend, previsione) → Sonnet
+   - Query tabellari con dati già nel contesto → Haiku 4.5 (~1-2s first token)
+   - Anche `has_web=True` non forza più Sonnet.
+
+**Test end-to-end verificato**:
+- Query "Aggiorna tabella PUN ultimi 18 mesi con Agosto 2026 da GME" → Axon compila la tabella con Agosto/Luglio/Giugno 2026 dai PDF live GME (valori esatti in €/kWh).
+- First delta a **5.26s** (con preflight completo di RAG+teach+tavily), Done a **8.35s** per tabella di 21 righe → 5× più veloce di Sonnet 4.5.
+
+**Nota tecnica**: I ~5s di preflight sono dovuti a Tavily search + RAG retrieval + teach snapshot fetch che girano in serie. Ottimizzabile parallelizzando (futuro).
