@@ -211,11 +211,9 @@ function MasterScreen() {
     { label: "Biglietto da visita", icon: "id-card", color: "#7C3AED", onPress: () => goto("/business-card") },
     { label: "Banner Evento", icon: "megaphone", color: "#F59E0B", onPress: () => goto("/event-banners") },
     { label: "Script Telefonata", icon: "document-text", color: "#0F766E", onPress: () => goto("/call-script-config") },
-    // V50.z16 — "Insegna ad Axon" ora apre l'Axon Center (hub che raggruppa
-    // TUTTE le funzioni Axon: regole, documenti, cervello, script, cheatsheet,
-    // memoria, wake-word, sveglie, Home Assistant). Le voci singole sono
-    // state rimosse dal Master e dalle Impostazioni.
-    { label: "Insegna ad Axon", icon: "sparkles", color: "#FF6B35", onPress: () => goto("/axon-hub"), badge: pendingProposals },
+    // V50.z18 — Rinominato "Insegna ad Axon" → "Axon Center" per coerenza con
+    // la schermata che apre (l'hub che raggruppa tutte le funzioni Axon).
+    { label: "Axon Center", icon: "sparkles", color: "#FF6B35", onPress: () => goto("/axon-hub"), badge: pendingProposals },
     { label: "Cruscotto", icon: "grid", color: "#0EA5E9", onPress: () => goto("/cruscotto") },
     { label: "Azioni rapide", icon: "flash", color: "#8B5CF6", onPress: () => goto("/quick-actions") },
   ];
