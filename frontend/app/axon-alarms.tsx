@@ -305,7 +305,11 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
   const [durSeconds, setDurSeconds] = useState(initialDur % 60);
 
   // Alarm state
-  const parsedTime = parseTime(initial?.time);
+  // V50.z16 — Fix bug "reset a 07:30": il default iniziale ora è "ora corrente
+  // + 5 minuti" (invece di un 07:30 fisso), così l'utente non vede una
+  // valorizzazione arbitraria quando apre l'editor. Se l'alarm esiste già,
+  // viene rispettato il suo `time` originale.
+  const parsedTime = parseTime(initial?.time, !initial);
   const [alarmDate, setAlarmDate] = useState<Date>(() => {
     const d = new Date();
     d.setHours(parsedTime.h, parsedTime.m, 0, 0);
@@ -514,6 +518,10 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                     // V50.z13 — Su Android usa API imperativa (evita il bug
                     // di reset dello state quando il picker Samsung entra
                     // in "keyboard mode"). Su iOS resta l'inline picker.
+                    // V50.z16 — Gestione permissiva: accetta QUALSIASI evento
+                    // con una data valida (Samsung invia talvolta "" o
+                    // "neutralButtonPressed" invece di "set"). Salviamo il
+                    // valore, quindi ignoriamo solo l'esplicito "dismissed".
                     if (Platform.OS === "android") {
                       DateTimePickerAndroid.open({
                         value: alarmDate,
@@ -521,11 +529,11 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                         is24Hour: timeFmt === "24h",
                         display: "clock",
                         onChange: (event, d) => {
-                          if (event.type === "set" && d) {
-                            const merged = new Date(alarmDate);
-                            merged.setHours(d.getHours(), d.getMinutes(), 0, 0);
-                            setAlarmDate(merged);
-                          }
+                          if (event?.type === "dismissed") return;
+                          if (!d) return;
+                          const merged = new Date(alarmDate);
+                          merged.setHours(d.getHours(), d.getMinutes(), 0, 0);
+                          setAlarmDate(merged);
                         },
                       });
                     } else {
@@ -548,6 +556,32 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                       }}
                     />
                   )}
+                  {/* V50.z16 — Fallback bulletproof: regolazione manuale con
+                      pulsanti +/- (a prova di picker Samsung difettoso). */}
+                  <View style={[styles.rowThreeCols, { marginTop: 10 }]}>
+                    <NumberPicker
+                      label="Ora"
+                      value={alarmDate.getHours()}
+                      min={0}
+                      max={23}
+                      onChange={(v) => {
+                        const nd = new Date(alarmDate);
+                        nd.setHours(v);
+                        setAlarmDate(nd);
+                      }}
+                    />
+                    <NumberPicker
+                      label="Min"
+                      value={alarmDate.getMinutes()}
+                      min={0}
+                      max={59}
+                      onChange={(v) => {
+                        const nd = new Date(alarmDate);
+                        nd.setMinutes(v);
+                        setAlarmDate(nd);
+                      }}
+                    />
+                  </View>
                 </Field>
                 <Field label="Giorni della settimana">
                   <View style={styles.weekdayRow}>
@@ -589,12 +623,14 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
               <Field label="Data e ora">
                 <Pressable style={styles.timeBox} onPress={() => {
                   // V50.z13 — Android: apri Date poi Time (imperativo)
+                  // V50.z16 — Gestione permissiva eventi (vedi commento sopra)
                   if (Platform.OS === "android") {
                     DateTimePickerAndroid.open({
                       value: reminderDate,
                       mode: "date",
                       onChange: (event, d) => {
-                        if (event.type !== "set" || !d) return;
+                        if (event?.type === "dismissed") return;
+                        if (!d) return;
                         const merged = new Date(reminderDate);
                         merged.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
                         // Poi apri il time picker
@@ -604,7 +640,8 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                           is24Hour: timeFmt === "24h",
                           display: "clock",
                           onChange: (event2, d2) => {
-                            if (event2.type !== "set" || !d2) return;
+                            if (event2?.type === "dismissed") return;
+                            if (!d2) return;
                             const final = new Date(merged);
                             final.setHours(d2.getHours(), d2.getMinutes(), 0, 0);
                             setReminderDate(final);
@@ -812,8 +849,16 @@ function defaultLabel(kind: AlarmKind): string {
   return "Promemoria";
 }
 
-function parseTime(t: string | undefined | null): { h: number; m: number } {
-  if (!t) return { h: 7, m: 30 };
+function parseTime(t: string | undefined | null, useNowPlus5: boolean = false): { h: number; m: number } {
+  if (!t) {
+    if (useNowPlus5) {
+      // V50.z16 — Default sensibile per nuove sveglie: ora attuale + 5 min,
+      // così l'utente non vede il classico 07:30 hardcoded.
+      const d = new Date(Date.now() + 5 * 60 * 1000);
+      return { h: d.getHours(), m: d.getMinutes() };
+    }
+    return { h: 7, m: 30 };
+  }
   const [h, m] = t.split(":").map((x) => parseInt(x, 10));
   return { h: isNaN(h) ? 7 : h, m: isNaN(m) ? 30 : m };
 }

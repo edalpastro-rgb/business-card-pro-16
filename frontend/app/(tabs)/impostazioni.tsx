@@ -570,7 +570,7 @@ function ImpostazioniScreen() {
         )}
 
         {!user?.parent_user_id && (
-          <Pressable testID="ai-teach-link" onPress={() => router.push("/ai-teach" as any)} style={styles.linkCard}>
+          <Pressable testID="axon-hub-link" onPress={() => router.push("/axon-hub" as any)} style={styles.linkCard}>
             <View style={{ position: "relative" }}>
               <Ionicons name="sparkles" size={26} color="#FF6B35" />
               {pendingProposals > 0 && (
@@ -580,30 +580,16 @@ function ImpostazioniScreen() {
               )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>Insegna ad Axon</Text>
+              <Text style={styles.linkTitle}>✨ Axon Center</Text>
               <Text style={styles.linkSub}>
                 {pendingProposals > 0
-                  ? `${pendingProposals} nuova/e proposta/e da rivedere · regole per categoria + fonti URL`
-                  : "Regole per categoria + fonti URL con aggiornamento manuale/automatico via Tavily"}
+                  ? `${pendingProposals} proposta/e da rivedere · tutte le funzioni Axon in un posto`
+                  : "Regole, documenti, cervello, script, sveglie, domotica, wake-word"}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
           </Pressable>
         )}
-
-        {/* V42 — Documenti Axon: base di conoscenza personale (PDF) */}
-        <Pressable testID="documenti-axon-link" onPress={() => router.push("/documenti-axon" as any)} style={styles.linkCard}>
-          <Ionicons name="library" size={26} color="#7C3AED" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>Documenti Axon</Text>
-            <Text style={styles.linkSub}>
-              {!user?.parent_user_id
-                ? "Carica PDF (contratti, listini, brochure): Axon li leggerà e li userà per rispondere"
-                : "Consulta i documenti Axon caricati dal tuo Master"}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
 
         {/* V50.l — Libretto informativo AdvisorOS + AxonOS */}
         <Pressable testID="libretto-link" onPress={() => router.push("/libretto" as any)} style={styles.linkCard}>
@@ -611,56 +597,6 @@ function ImpostazioniScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.linkTitle}>📘 Libretto Informativo</Text>
             <Text style={styles.linkSub}>Guida operativa completa · scaricabile in PDF</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
-
-        {/* V50.w — Cervello Axon (memoria distillata + profilo) */}
-        <Pressable testID="axon-brain-link" onPress={() => router.push("/axon-brain" as any)} style={styles.linkCard}>
-          <Ionicons name="sparkles" size={26} color="#7C3AED" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>🧠 Cervello Axon</Text>
-            <Text style={styles.linkSub}>Memoria e profilo appresi · più cervello ad ogni chat</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
-
-        {/* V50.w — Playbook Script Bank */}
-        <Pressable testID="axon-scripts-link" onPress={() => router.push("/axon-scripts" as any)} style={styles.linkCard}>
-          <Ionicons name="library" size={26} color="#FBBF24" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>📚 Playbook Script</Text>
-            <Text style={styles.linkSub}>Libreria script vincenti · usata da Axon come modello</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
-
-        {/* V50.w — Cheat Sheet fornitori bollette */}
-        <Pressable testID="axon-cheatsheet-link" onPress={() => router.push("/axon-cheatsheet" as any)} style={styles.linkCard}>
-          <Ionicons name="analytics" size={26} color="#F59E0B" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>📊 Cheat Sheet Fornitori</Text>
-            <Text style={styles.linkSub}>Prezzi medi visti nelle tue bollette · confronti veloci</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
-
-        {/* V50.z8 — Timer / Sveglie / Promemoria in-app (Alexa-style, tutto personale) */}
-        <Pressable testID="axon-alarms-link" onPress={() => router.push("/axon-alarms" as any)} style={styles.linkCard}>
-          <Ionicons name="alarm" size={26} color="#22C55E" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>⏰ Timer & Sveglie</Text>
-            <Text style={styles.linkSub}>Sveglie, timer e promemoria personali · notifiche in-app</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
-
-        {/* V50.z9 — Home Assistant (domotica open-source) */}
-        <Pressable testID="axon-homeassistant-link" onPress={() => router.push("/axon-homeassistant" as any)} style={styles.linkCard}>
-          <Ionicons name="home" size={26} color="#3B82F6" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>🏠 Home Assistant</Text>
-            <Text style={styles.linkSub}>Controlla luci, tapparelle, serrature dalla tua istanza HA</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>
@@ -683,20 +619,6 @@ function ImpostazioniScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.linkTitle}>🚀 Rivedi tour guidato</Text>
             <Text style={styles.linkSub}>Riapri l&apos;onboarding di benvenuto quando vuoi</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
-
-        {/* V50.v — Wake word Axon */}
-        <Pressable
-          testID="wake-word-link"
-          onPress={() => router.push("/wake-word" as any)}
-          style={styles.linkCard}
-        >
-          <Ionicons name="mic" size={26} color="#EA580C" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>🎙️ Wake Word &quot;Axon&quot;</Text>
-            <Text style={styles.linkSub}>Ascolto continuo per attivare Axon a voce · in preparazione</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
         </Pressable>
@@ -964,15 +886,7 @@ function ImpostazioniScreen() {
           </Pressable>
         )}
 
-        {/* V38T — Neo Memory management link */}
-        <Pressable testID="neo-memory-link" onPress={() => router.push("/neo-memory")} style={styles.linkCard}>
-          <Ionicons name="sparkles" size={26} color="#8B5CF6" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>Memoria di {assistantName || "Neo"}</Text>
-            <Text style={styles.linkSub}>Consulta o cancella ciò che Neo ricorda delle conversazioni</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
+        {/* V50.z16 — Neo Memory rimosso: ora dentro Axon Center (💾 Memoria Assistente) */}
 
         {!user?.parent_user_id && (
         <View style={styles.card}>
