@@ -10168,7 +10168,11 @@ async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: 
     msg_lc = (user_msg or "").lower()
     if not msg_lc:
         return ""
-    is_pun_like = any(k in msg_lc for k in ["pun", "fascia", "f1", "f2", "f3", "prezzo medio", "gme"])
+    is_pun_like = any(k in msg_lc for k in [
+        "pun", "fascia", "fasce", "f1", "f2", "f3", "prezzo medio", "prezzomedio",
+        "gme", "mercato elettrico", "mercatoelettrico", "arera", "kwh", "mwh",
+        "€/kwh", "€/mwh", "bolletta", "tariffa", "listino energia",
+    ])
     if not is_pun_like:
         return ""
     # Estrai mesi e anni menzionati
@@ -10180,8 +10184,9 @@ async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: 
             if _mval == _mnum_int and _mname not in months:
                 months.append(_mname)
     years = re.findall(r"20\d{2}", msg_lc)
-    if not months and not years:
-        return ""
+    # V50.z26 — Se manca mese/anno ma il tema è chiaramente PUN/energia, NON
+    # tornare vuoto: prendi i PDF più recenti trovati sulla pagina (fallback).
+    no_filter = (not months) and (not years)
     try:
         urls = await db.ai_teach_urls.find({"user_id": tenant}, {"_id": 0}).to_list(50)
     except Exception:
@@ -10255,7 +10260,12 @@ async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: 
             return None
 
     out_blocks: List[str] = []
-    async with httpx.AsyncClient(follow_redirects=True) as client:
+    _headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+        "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/pdf,*/*;q=0.8",
+    }
+    async with httpx.AsyncClient(follow_redirects=True, headers=_headers) as client:
         # STEP 1: fetch tutte le pagine in parallelo
         page_urls = [(u.get("url") or "").strip() for u in urls_prio if u.get("url")]
         page_htmls = await asyncio.gather(
@@ -10274,16 +10284,24 @@ async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: 
                 continue
             for h in hrefs:
                 h_low = h.lower()
-                month_ok = (not months) or any(
-                    any(p in h_low for p in month_patterns_map[m])
-                    for m in months
-                )
-                year_ok = (not years) or any(y in h_low for y in years)
-                if month_ok and year_ok:
+                if no_filter:
+                    # V50.z26 — Nessun filtro: prendiamo i PDF nell'ordine di
+                    # apparizione (le pagine tipo GME li ordinano dal più recente).
                     full = urljoin(page_url, h)
                     if full not in seen_pdfs:
                         seen_pdfs.add(full)
                         pdf_urls_all.append(full)
+                else:
+                    month_ok = (not months) or any(
+                        any(p in h_low for p in month_patterns_map[m])
+                        for m in months
+                    )
+                    year_ok = (not years) or any(y in h_low for y in years)
+                    if month_ok and year_ok:
+                        full = urljoin(page_url, h)
+                        if full not in seen_pdfs:
+                            seen_pdfs.add(full)
+                            pdf_urls_all.append(full)
                 if len(pdf_urls_all) >= max_pdfs * 3:
                     break
             if len(pdf_urls_all) >= max_pdfs * 3:
@@ -11075,7 +11093,19 @@ async def _prepare_assistant_prompt(
         "- Per domande CRM usa esclusivamente i dati forniti (SNAPSHOT_CRM). Non inventare.\n"
         "- Se un dato non è nello snapshot, dillo chiaramente.\n"
         "- Per domande sul meteo usa i dati della sezione METEO (se presente).\n"
-        "- Per dati di mercato energetico (PUN, ARERA, tariffe, oneri) usa la sezione RICERCA WEB e cita i numeri.\n"
+        "- Per dati di mercato energetico (PUN, ARERA, tariffe, oneri) USA IN ORDINE: "
+        "1) `🌐 CONTENUTO WEB LIVE dagli URL insegnati` (PDF/HTML appena scaricati da GME, ARERA, ecc. — FONTE PRIMARIA), "
+        "2) `📥 PDF SCARICATO DINAMICAMENTE`, "
+        "3) `📂 PDF DA GOOGLE DRIVE`, "
+        "4) `DOCUMENTI MASTER` (RAG storico), "
+        "5) `RICERCA WEB AGGIORNATA` (Tavily — solo se sopra non basta). "
+        "**CRITICO — ANTI-ALLUCINAZIONE**: se in una qualsiasi di queste sezioni "
+        "trovi righe con numeri (`Agosto 2026`, `F1 ... 174,52`, `€/MWh`, `€/kWh`, ecc.), "
+        "**USALI IMMEDIATAMENTE** e cita il PDF sorgente. È SEVERAMENTE VIETATO scrivere "
+        "'non sono riuscito a recuperare', 'ma la ricerca web non mi ha restituito i numeri', "
+        "'scarica il PDF e incolla i valori' quando i dati SONO GIÀ nel contesto. "
+        "Se hai i dati mensili (F1/F2/F3) di TUTTI i mesi disponibili, compila la tabella SUBITO; "
+        "per i mesi mancanti scrivi `n/d` — mai chiedere all'utente di fornirti il PDF.\n"
         "- Formatta le liste con elenchi puntati chiari; usa nomi, orari, telefoni quando disponibili.\n"
         "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
@@ -11118,10 +11148,10 @@ async def _prepare_assistant_prompt(
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
         f"{weather_section}"
-        f"{web_section}"
-        f"{memory_section}"
-        f"{rag_section}"
         f"{axon_teach_section}"
+        f"{rag_section}"
+        f"{memory_section}"
+        f"{web_section}"
         f"{few_shot_section}"
         f"{attachments_section}"
     )
@@ -11435,7 +11465,19 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "- Per domande CRM usa esclusivamente i dati forniti (SNAPSHOT_CRM). Non inventare.\n"
         "- Se un dato non è nello snapshot, dillo chiaramente.\n"
         "- Per domande sul meteo usa i dati della sezione METEO (se presente).\n"
-        "- Per dati di mercato energetico (PUN, ARERA, tariffe, oneri) usa la sezione RICERCA WEB e cita i numeri.\n"
+        "- Per dati di mercato energetico (PUN, ARERA, tariffe, oneri) USA IN ORDINE: "
+        "1) `🌐 CONTENUTO WEB LIVE dagli URL insegnati` (PDF/HTML appena scaricati da GME, ARERA, ecc. — FONTE PRIMARIA), "
+        "2) `📥 PDF SCARICATO DINAMICAMENTE`, "
+        "3) `📂 PDF DA GOOGLE DRIVE`, "
+        "4) `DOCUMENTI MASTER` (RAG storico), "
+        "5) `RICERCA WEB AGGIORNATA` (Tavily — solo se sopra non basta). "
+        "**CRITICO — ANTI-ALLUCINAZIONE**: se in una qualsiasi di queste sezioni "
+        "trovi righe con numeri (`Agosto 2026`, `F1 ... 174,52`, `€/MWh`, `€/kWh`, ecc.), "
+        "**USALI IMMEDIATAMENTE** e cita il PDF sorgente. È SEVERAMENTE VIETATO scrivere "
+        "'non sono riuscito a recuperare', 'ma la ricerca web non mi ha restituito i numeri', "
+        "'scarica il PDF e incolla i valori' quando i dati SONO GIÀ nel contesto. "
+        "Se hai i dati mensili (F1/F2/F3) di TUTTI i mesi disponibili, compila la tabella SUBITO; "
+        "per i mesi mancanti scrivi `n/d` — mai chiedere all'utente di fornirti il PDF.\n"
         "- Formatta le liste con elenchi puntati chiari; usa nomi, orari, telefoni quando disponibili.\n"
         "- Le date sono in formato DD/MM/YYYY HH:MM (fuso orario locale italiano).\n"
         "- Sii conciso: risposte brevi e utili, evita preamboli lunghi.\n"
@@ -11478,10 +11520,10 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
         f"{weather_section}"
-        f"{web_section}"
-        f"{memory_section}"
-        f"{rag_section}"
         f"{axon_teach_section}"
+        f"{rag_section}"
+        f"{memory_section}"
+        f"{web_section}"
         f"{few_shot_section}"
         f"{attachments_section}"
     )

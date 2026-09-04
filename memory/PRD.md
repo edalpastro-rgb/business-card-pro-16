@@ -3629,3 +3629,27 @@ Nessun autotest eseguito.
 
 **Integrazione — `/app/frontend/app/contact/[id].tsx`**:
 - Aggiunto sotto la tab "File" (in coda ai file caricati manualmente).
+
+
+## V50.z26 — 🔥 FIX DEFINITIVO Axon ricerca PDF GME (bug ricorrente)
+
+**Problema segnalato dall'utente**:
+Axon rispondeva "ho provato ad accedere al sito GME ma non sono riuscito a recuperare i dati PUN di agosto 2026" pur avendo l'URL nei `ai_teach_urls` con snapshot valido contenente i PDF con i valori.
+
+**Root cause** (verificata via test end-to-end):
+1. Nel `system_message` la sezione **`web_section` (Tavily)** era prima di `axon_teach_section` (PDF snapshot). Tavily risponde vago sui PDF GME e l'LLM lo seguiva, ignorando i dati puliti dallo snapshot.
+2. La funzione `_fetch_teach_url_pdfs_for_query` faceva `return ""` se il messaggio corrente non aveva mese/anno esplicito — quando l'utente diceva "vai a leggere" senza specificare, il fetch dinamico non partiva.
+3. Il gating `is_pun_like` era troppo stretto (mancavano keyword `mercatoelettrico`, `arera`, `kwh`, `mwh`, `bolletta`, `tariffa`, `fasce`, `prezzomedio`).
+
+**Fix applicati in `/app/backend/server.py`**:
+- **Riordino sezioni del `system_message`**: `axon_teach_section` (PDF snapshot dagli URL insegnati) è ora **PRIMA** di `web_section` (Tavily) in entrambi i flow (streaming + non-streaming).
+- **Istruzione anti-allucinazione rafforzata**: ordine di priorità esplicito (WEB LIVE URL insegnati → PDF dinamico → Drive → RAG Master → Tavily), con divieto categorico di dire "non sono riuscito a recuperare" quando i numeri sono nel prompt.
+- **Rilassato `_fetch_teach_url_pdfs_for_query`**: se manca mese/anno ma il tema è chiaramente energia/PUN, scarica comunque i PDF più recenti (flag `no_filter`).
+- **Estese keywords `is_pun_like`**: aggiunte `mercatoelettrico`, `arera`, `kwh`, `mwh`, `€/kwh`, `€/mwh`, `bolletta`, `tariffa`, `fasce`, `prezzomedio`.
+- **User-Agent + Accept-Language** su fetcher live (evita blocchi da CDN aggressivi).
+
+**Test end-to-end (verificato con curl)**:
+- Query "dammi PUN F1/F2/F3 agosto 2026" → Axon risponde tabella pulita con `F1: 174,52 · F2: 204,35 · F3: 171,72 €/MWh` (valori esatti dal PDF `20260902PrezzomedioperfasceAgosto2026.pdf`).
+- Query "vai a leggere sul sito GME come da regole" → Axon elenca Giugno/Luglio/Agosto 2026 con tutti i valori, citando "PDF ufficiali GME".
+
+Nessuna modifica frontend richiesta.
