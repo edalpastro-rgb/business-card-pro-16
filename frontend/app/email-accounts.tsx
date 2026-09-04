@@ -1,7 +1,7 @@
 // V50.z21 — MAIL UNIVERSALE: gestione caselle IMAP (Aruba, Gmail, Outlook,
 // Register, Libero, Yahoo, IONOS, custom). Legge INBOX e scarica allegati.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput,
   ActivityIndicator, Alert, RefreshControl, Modal, Switch, Platform,
@@ -93,8 +93,18 @@ export default function EmailAccountsScreen() {
           <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
         </Pressable>
         <Text style={styles.headerTitle}>Caselle Email</Text>
-        <Pressable onPress={() => setAddOpen(true)} hitSlop={10} style={styles.addHeaderBtn} testID="add-mail-account">
-          <Ionicons name="add-circle" size={26} color="#0EA5E9" />
+        <View style={{ width: 30 }} />
+      </View>
+
+      {/* V50.z21b — Bottone AGGIUNGI MAIL prominente sotto l'header */}
+      <View style={styles.addBarWrap}>
+        <Pressable
+          onPress={() => setAddOpen(true)}
+          style={styles.addBigBtn}
+          testID="add-mail-account"
+        >
+          <Ionicons name="add-circle" size={22} color="#FFF" />
+          <Text style={styles.addBigTxt}>AGGIUNGI MAIL</Text>
         </Pressable>
       </View>
 
@@ -363,8 +373,13 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
   const [ssl, setSsl] = useState(true);
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
+  // V50.z21b — Errore inline sempre visibile (RN Alert su web è a volte silente)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  useFocusEffect(useCallback(() => {
+  // V50.z21b — usa useEffect invece di useFocusEffect (che scatta solo al
+  // focus della pagina, non del modal). Con useFocusEffect i preset non
+  // venivano caricati e `host` restava vuoto → submit fallito silenziosamente.
+  useEffect(() => {
     (async () => {
       try {
         const r = await api<{ presets: Preset[] }>("/mail/presets");
@@ -380,7 +395,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
         Alert.alert("Errore", e?.message || "Impossibile caricare i preset");
       }
     })();
-  }, []));
+  }, []);
 
   const selectPreset = (p: Preset) => {
     setProviderId(p.id);
@@ -391,9 +406,10 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
 
   const submit = async () => {
     if (saving) return;
-    if (!email.includes("@")) { Alert.alert("Email non valida"); return; }
-    if (!password) { Alert.alert("Password mancante"); return; }
-    if (!host) { Alert.alert("Host IMAP mancante"); return; }
+    setErrorMsg(null);
+    if (!email.includes("@")) { setErrorMsg("Email non valida"); return; }
+    if (!password) { setErrorMsg("Password mancante"); return; }
+    if (!host) { setErrorMsg("Host IMAP mancante — attendi che i preset si carichino o scegli 'Altro (config manuale)'"); return; }
     setSaving(true);
     try {
       const acct = await api<MailAccount>("/mail/accounts", {
@@ -408,10 +424,12 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
           label: label.trim() || email.trim(),
         },
       });
-      Alert.alert("Casella collegata", `${acct.email} è stata aggiunta con successo.`);
       onAdded(acct);
+      // V50.z21b — Feedback esplicito success (Alert può essere silente su web)
+      setTimeout(() => Alert.alert("Casella collegata", `${acct.email} è stata aggiunta con successo.`), 200);
     } catch (e: any) {
-      Alert.alert("Errore", e?.message || "Aggiunta fallita");
+      const msg = e?.message || "Aggiunta fallita";
+      setErrorMsg(msg);
     } finally {
       setSaving(false);
     }
@@ -527,6 +545,13 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
                 </>
               )}
             </Pressable>
+            {/* V50.z21b — Banner errore inline sempre visibile */}
+            {errorMsg ? (
+              <View style={styles.errBanner}>
+                <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                <Text style={styles.errBannerTxt}>{errorMsg}</Text>
+              </View>
+            ) : null}
           </ScrollView>
         </View>
       </View>
@@ -684,6 +709,19 @@ const styles = StyleSheet.create({
   addHeaderBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
 
+  // V50.z21b — Bottone AGGIUNGI MAIL prominente
+  addBarWrap: {
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 6, backgroundColor: "#FFF",
+  },
+  addBigBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    paddingVertical: 14, borderRadius: 12,
+    backgroundColor: "#0EA5E9",
+    shadowColor: "#0EA5E9", shadowOpacity: 0.35, shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 }, elevation: 4,
+  },
+  addBigTxt: { color: "#FFF", fontSize: 15, fontWeight: "900", letterSpacing: 1.2 },
+
   // V50.z21 — Tab bar + combined inbox
   tabBar: {
     flexDirection: "row", gap: 6, padding: 8,
@@ -789,6 +827,13 @@ const styles = StyleSheet.create({
     marginTop: 10, paddingVertical: 14, borderRadius: 999, backgroundColor: "#0EA5E9",
   },
   submitTxt: { color: "#FFF", fontSize: 15, fontWeight: "900", letterSpacing: 0.3 },
+  // V50.z21b — Banner errore inline
+  errBanner: {
+    flexDirection: "row", gap: 8, alignItems: "flex-start",
+    marginTop: 10, padding: 10, borderRadius: 10,
+    backgroundColor: "#FEE2E2", borderWidth: 1, borderColor: "#FCA5A5",
+  },
+  errBannerTxt: { flex: 1, color: "#991B1B", fontSize: 13, lineHeight: 18, fontWeight: "600" },
 
   filterBar: {
     flexDirection: "row", alignItems: "center", gap: 8, padding: 10,
