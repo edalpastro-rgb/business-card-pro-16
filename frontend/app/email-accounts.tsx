@@ -220,16 +220,21 @@ type CombinedMessage = {
   preview?: string;
   is_read: boolean;
   has_attachments: boolean;
+  attachments_count?: number;
   attachments?: { filename: string; content_type: string; size: number }[];
 };
 
 function CombinedInbox() {
+  const pagePad = usePageBottomPadding();
   const [msgs, setMsgs] = useState<CombinedMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(true);
   const [errors, setErrors] = useState<{ email: string; error: string }[]>([]);
   const [stats, setStats] = useState<{ total: number; ok: number }>({ total: 0, ok: 0 });
+  // V50.z21e — paginazione client-side: carica 20 alla volta
+  const [displayCount, setDisplayCount] = useState(20);
+  useEffect(() => { setDisplayCount(20); }, [unreadOnly]);
 
   const load = useCallback(async () => {
     try {
@@ -259,9 +264,28 @@ function CombinedInbox() {
     try {
       const backend = process.env.EXPO_PUBLIC_BACKEND_URL || "";
       const url = `${backend}/api/mail/accounts/${m.account_id}/messages/${encodeURIComponent(m.uid)}/attachments/${encodeURIComponent(filename)}`;
-      if (Platform.OS === "web") { window.open(url, "_blank"); return; }
-      const dest = `${FileSystem.cacheDirectory}${filename}`;
       const auth = await getAuthHeader();
+      if (Platform.OS === "web") {
+        // V50.z21f — fetch autenticato + blob URL (window.open non passa i token)
+        const resp = await fetch(url, { headers: auth });
+        if (!resp.ok) {
+          Alert.alert("Errore download", `HTTP ${resp.status}${resp.status === 401 ? " — non autenticato, riprova." : ""}`);
+          return;
+        }
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        // Apri in nuova tab + link alternativo per il download
+        const w = window.open(blobUrl, "_blank");
+        if (!w) {
+          // Fallback: forza download con anchor
+          const a = document.createElement("a");
+          a.href = blobUrl; a.download = filename;
+          document.body.appendChild(a); a.click(); a.remove();
+        }
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        return;
+      }
+      const dest = `${FileSystem.cacheDirectory}${filename}`;
       const dl = await FileSystem.downloadAsync(url, dest, { headers: auth });
       if (dl.status !== 200) { Alert.alert("Errore", `Download fallito (${dl.status})`); return; }
       await WebBrowser.openBrowserAsync(dl.uri);
@@ -272,7 +296,7 @@ function CombinedInbox() {
 
   return (
     <ScrollView
-      contentContainerStyle={{ padding: 12, paddingBottom: 40, gap: 8 }}
+      contentContainerStyle={{ padding: 12, paddingBottom: Math.max(pagePad, 80), gap: 8 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {stats.total > 0 ? (
@@ -333,8 +357,20 @@ function CombinedInbox() {
             </Pressable>
           ) : null}
         </View>
-      ) : msgs.map((m) => (
-        <View key={`${m.account_id}-${m.uid}`} style={[styles.msgCard, !m.is_read && styles.msgUnread]}>
+      ) : msgs.slice(0, displayCount).map((m) => (
+        <View key={`${m.account_id}-${m.uid}`} style={[
+          styles.msgCard,
+          !m.is_read && styles.msgUnread,
+          m.has_attachments && styles.msgHasAtt,
+        ]}>
+          {m.has_attachments ? (
+            <View style={styles.attHeader}>
+              <Ionicons name="attach" size={14} color="#FFF" />
+              <Text style={styles.attHeaderTxt}>
+                {(m.attachments?.length || m.attachments_count || 1)} ALLEGAT{(m.attachments?.length || m.attachments_count || 1) === 1 ? "O" : "I"}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.msgHead}>
             <View style={{ flex: 1 }}>
               <View style={styles.acctPill}>
@@ -350,7 +386,6 @@ function CombinedInbox() {
                 </Text>
               ) : null}
               <View style={styles.msgFlags}>
-                {m.has_attachments ? <Ionicons name="attach" size={14} color={theme.color.muted} /> : null}
                 {!m.is_read ? <View style={styles.unreadDot} /> : null}
               </View>
             </View>
@@ -359,15 +394,26 @@ function CombinedInbox() {
           {m.attachments && m.attachments.length > 0 ? (
             <View style={styles.attRow}>
               {m.attachments.map((att) => (
-                <Pressable key={att.filename} onPress={() => downloadAttachment(m, att.filename)} style={styles.attChip}>
-                  <Ionicons name="document" size={13} color="#0EA5E9" />
-                  <Text style={styles.attTxt} numberOfLines={1}>{att.filename} · {formatSize(att.size)}</Text>
+                <Pressable key={att.filename} onPress={() => downloadAttachment(m, att.filename)} style={styles.attChipBig}>
+                  <Ionicons name="download" size={16} color="#FFF" />
+                  <Text style={styles.attTxtBig} numberOfLines={1}>{att.filename || "allegato"} · {formatSize(att.size)}</Text>
                 </Pressable>
               ))}
             </View>
           ) : null}
         </View>
       ))}
+      {/* V50.z21e — Bottone "Carica altre 20" quando ci sono più mail */}
+      {msgs.length > displayCount ? (
+        <Pressable onPress={() => setDisplayCount((n) => n + 20)} style={styles.loadMoreBtn} testID="mail-load-more">
+          <Ionicons name="chevron-down" size={18} color="#0EA5E9" />
+          <Text style={styles.loadMoreTxt}>Carica altre {Math.min(20, msgs.length - displayCount)} mail (visualizzate {displayCount}/{msgs.length})</Text>
+        </Pressable>
+      ) : msgs.length > 0 ? (
+        <View style={styles.endHint}>
+          <Text style={styles.endHintTxt}>✓ Fine elenco ({msgs.length} mail)</Text>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -618,13 +664,27 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
     try {
       const backend = process.env.EXPO_PUBLIC_BACKEND_URL || "";
       const url = `${backend}/api/mail/accounts/${account.account_id}/messages/${encodeURIComponent(uid)}/attachments/${encodeURIComponent(filename)}`;
+      const auth = await getAuthHeader();
       if (Platform.OS === "web") {
-        window.open(url, "_blank");
+        // V50.z21f — fetch autenticato + blob URL
+        const resp = await fetch(url, { headers: auth });
+        if (!resp.ok) {
+          Alert.alert("Errore download", `HTTP ${resp.status}${resp.status === 401 ? " — non autenticato, riprova." : ""}`);
+          return;
+        }
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const w = window.open(blobUrl, "_blank");
+        if (!w) {
+          const a = document.createElement("a");
+          a.href = blobUrl; a.download = filename;
+          document.body.appendChild(a); a.click(); a.remove();
+        }
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
         return;
       }
       // Native: download poi apri
       const dest = `${FileSystem.cacheDirectory}${filename}`;
-      const auth = await getAuthHeader();
       const dl = await FileSystem.downloadAsync(url, dest, { headers: auth });
       if (dl.status !== 200) {
         Alert.alert("Errore", `Download fallito (${dl.status})`);
@@ -895,6 +955,33 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: theme.color.border, gap: 6,
   },
   msgUnread: { borderLeftWidth: 3, borderLeftColor: "#0EA5E9" },
+  // V50.z21e — Card mail con allegato molto evidente
+  msgHasAtt: {
+    borderWidth: 2, borderColor: "#F59E0B", backgroundColor: "#FFFBEB",
+  },
+  attHeader: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6,
+    backgroundColor: "#F59E0B", marginBottom: 4,
+  },
+  attHeaderTxt: { color: "#FFF", fontSize: 11, fontWeight: "900", letterSpacing: 0.6 },
+  attChipBig: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "#0EA5E9",
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, maxWidth: "100%",
+    shadowColor: "#0EA5E9", shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2,
+  },
+  attTxtBig: { fontSize: 12, color: "#FFF", fontWeight: "800", flexShrink: 1 },
+  // V50.z21e — Bottone Carica altre + fine elenco
+  loadMoreBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    padding: 14, borderRadius: 10, backgroundColor: "#F0F9FF",
+    borderWidth: 1, borderColor: "#BAE6FD",
+  },
+  loadMoreTxt: { color: "#0369A1", fontSize: 13, fontWeight: "800" },
+  endHint: { alignItems: "center", padding: 12 },
+  endHintTxt: { color: theme.color.muted, fontSize: 11, fontStyle: "italic" },
   msgHead: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
   msgFrom: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
   msgSubj: { fontSize: 13, color: theme.color.onSurface, marginTop: 2 },
