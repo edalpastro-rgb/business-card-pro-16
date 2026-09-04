@@ -21,6 +21,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAudioRecorder, useAudioRecorderState, AudioModule, RecordingPresets } from "expo-audio";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
@@ -140,6 +142,7 @@ async function playAudioBase64(
 
 export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const insets = useSafeAreaInsets(); // V29.ao — safe area insets per non finire sotto la gesture bar
   // V28.y — Only the Master can save rules/URLs to Insegna ad Axon
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
@@ -240,6 +243,19 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   useEffect(() => {
     if (visible) {
       loadHistory();
+      // V50.z17 — Al primo avvio dell'assistente AxonOS, apri l'HELP CENTER
+      // (termini d'uso + richiesta cancellazione dati). Flag salvato su
+      // AsyncStorage: `helpcenter_seen_v1`.
+      (async () => {
+        try {
+          const seen = await AsyncStorage.getItem("helpcenter_seen_v1");
+          if (!seen) {
+            // Chiudi la chat e reindirizza al Help Center in modalità onboarding
+            onClose();
+            setTimeout(() => router.push("/help-center?onboarding=1" as any), 200);
+          }
+        } catch { /* ignore */ }
+      })();
     } else {
       // stop any recording on close
       if (mrRef.current && mrRef.current.state !== "inactive") {

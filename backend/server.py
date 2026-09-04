@@ -16621,7 +16621,88 @@ async def support_master_tickets(status: Optional[str] = None, user=Depends(get_
 
 
 # =========================================================================
-# V44 — Team Insights (Profilo Comportamentale Collaboratori)
+# V50.z17 — HELP CENTER (Termini d'uso + richieste cancellazione dati)
+#
+# Al primo utilizzo di AxonOS l'utente vede una schermata con i termini di
+# utilizzo dell'assistente AI. Da lì può richiedere la cancellazione dei
+# propri dati. Ogni richiesta è registrata e visibile al Master (admin).
+# =========================================================================
+
+def _help_center_serialize(r: dict) -> dict:
+    return {
+        "request_id": r.get("request_id"),
+        "user_id": r.get("user_id"),
+        "user_email": r.get("user_email"),
+        "user_name": r.get("user_name"),
+        "reason": r.get("reason", ""),
+        "status": r.get("status", "pending"),
+        "handled_by": r.get("handled_by"),
+        "handled_at": r.get("handled_at").isoformat() if r.get("handled_at") else None,
+        "created_at": r.get("created_at").isoformat() if r.get("created_at") else None,
+    }
+
+
+@api_router.post("/help-center/data-deletion-request")
+async def help_center_deletion_request(payload: Dict[str, Any] = Body(...), user=Depends(get_current_user)):
+    """Registra una richiesta di cancellazione dati. Aperto a qualsiasi utente."""
+    reason = (payload or {}).get("reason") or ""
+    reason = reason.strip()[:2000]
+    doc = {
+        "request_id": str(uuid.uuid4()),
+        "tenant_id": tenant_id(user),
+        "user_id": user["user_id"],
+        "user_email": user.get("email"),
+        "user_name": user.get("name") or user.get("email"),
+        "reason": reason,
+        "status": "pending",
+        "handled_by": None,
+        "handled_at": None,
+        "created_at": datetime.utcnow(),
+    }
+    await db.help_center_deletion_requests.insert_one(doc)
+    return _help_center_serialize(doc)
+
+
+@api_router.get("/help-center/data-deletion-requests")
+async def help_center_list_requests(status: Optional[str] = None, user=Depends(get_current_user)):
+    """Master-only: elenca tutte le richieste di cancellazione dati del tenant."""
+    _require_master(user)
+    q: Dict[str, Any] = {"tenant_id": tenant_id(user)}
+    if status:
+        q["status"] = status
+    cur = db.help_center_deletion_requests.find(q).sort("created_at", -1)
+    items = [_help_center_serialize(r) async for r in cur]
+    counts = {
+        "total": len(items),
+        "pending": sum(1 for it in items if it.get("status") == "pending"),
+        "handled": sum(1 for it in items if it.get("status") == "handled"),
+    }
+    return {"items": items, **counts}
+
+
+@api_router.post("/help-center/data-deletion-requests/{request_id}/handle")
+async def help_center_mark_handled(request_id: str, payload: Dict[str, Any] = Body(default={}), user=Depends(get_current_user)):
+    """Master-only: marca una richiesta come gestita."""
+    _require_master(user)
+    r = await db.help_center_deletion_requests.find_one({"request_id": request_id, "tenant_id": tenant_id(user)})
+    if not r:
+        raise HTTPException(404, "Richiesta non trovata")
+    new_status = (payload or {}).get("status", "handled")
+    if new_status not in ("pending", "handled", "rejected"):
+        new_status = "handled"
+    await db.help_center_deletion_requests.update_one(
+        {"request_id": request_id},
+        {"$set": {
+            "status": new_status,
+            "handled_by": user["user_id"],
+            "handled_at": datetime.utcnow(),
+        }},
+    )
+    r2 = await db.help_center_deletion_requests.find_one({"request_id": request_id})
+    return _help_center_serialize(r2 or {})
+
+
+
 #
 # Master-only. Fornisce al Master una visione aggregata + profilo AI di
 # ogni collaboratore della sua rete:

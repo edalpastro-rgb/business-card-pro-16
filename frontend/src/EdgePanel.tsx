@@ -55,6 +55,7 @@ export const EDGE_ACTIONS: EdgeAction[] = [
 const KEY_IDS = "edge_panel_ids_v1";
 const KEY_TAB_Y = "edge_panel_tab_y_v1";
 const KEY_ENABLED = "edge_panel_enabled_v1";
+const KEY_DISCOVERED = "edge_panel_discovered_v1";
 const DEFAULT_IDS = ["home", "agenda", "new-contact", "axon-alarms", "master"];
 const PANEL_WIDTH = 260;
 const TAB_WIDTH = 6;
@@ -73,7 +74,11 @@ export function EdgePanel() {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [tabY, setTabY] = useState<number>(Math.round(screenH * 0.45));
+  const [discovered, setDiscovered] = useState<boolean>(true); // V50.z17 — nuovo utente?
   const translateX = useRef(new Animated.Value(PANEL_WIDTH)).current;
+  // V50.z17 — Animated values per pulse discovery della linguetta
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   // Load config
   useEffect(() => {
@@ -93,9 +98,40 @@ export function EdgePanel() {
         }
         const en = await AsyncStorage.getItem(KEY_ENABLED);
         if (en === "0") setEnabled(false);
+        // V50.z17 — Verifica se l'utente ha già scoperto l'Edge Panel
+        const disc = await AsyncStorage.getItem(KEY_DISCOVERED);
+        if (disc !== "1") setDiscovered(false);
       } catch { /* ignore */ }
     })();
   }, [screenH]);
+
+  // V50.z17 — Pulse loop finché l'utente non ha aperto per la prima volta il
+  // pannello. Alone giallo intorno alla linguetta + leggera scala che va e viene.
+  useEffect(() => {
+    if (discovered || open) return;
+    const loop = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 0, duration: 900, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(scaleAnim, { toValue: 1.15, duration: 900, useNativeDriver: true }),
+          Animated.timing(scaleAnim, { toValue: 1.0, duration: 900, useNativeDriver: true }),
+        ]),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [discovered, open, pulseAnim, scaleAnim]);
+
+  // Segna come scoperta la prima volta che l'utente apre il pannello
+  useEffect(() => {
+    if (open && !discovered) {
+      setDiscovered(true);
+      AsyncStorage.setItem(KEY_DISCOVERED, "1").catch(() => {});
+    }
+  }, [open, discovered]);
 
   useEffect(() => {
     Animated.spring(translateX, {
@@ -171,7 +207,30 @@ export function EdgePanel() {
             style={styles.tabInner}
             hitSlop={{ left: 16, right: 4, top: 8, bottom: 8 }}
           >
-            <View style={styles.tabBar} />
+            {/* V50.z17 — Alone pulsante per farla scoprire ai nuovi utenti */}
+            {!discovered && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.tabGlow,
+                  {
+                    opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.55] }),
+                    transform: [{
+                      scaleY: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }),
+                    }, {
+                      scaleX: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 2.6] }),
+                    }],
+                  },
+                ]}
+              />
+            )}
+            <Animated.View
+              style={[
+                styles.tabBar,
+                !discovered && { transform: [{ scaleX: scaleAnim }] },
+                !discovered && { backgroundColor: "#FBBF24", width: TAB_WIDTH + 2 },
+              ]}
+            />
           </Pressable>
         </View>
       )}
@@ -303,6 +362,19 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(251,191,36,0.85)",
     shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: -1, height: 2 },
     elevation: 4,
+  },
+  // V50.z17 — Alone/pulse per farla notare ai nuovi utenti
+  tabGlow: {
+    position: "absolute",
+    right: 0,
+    width: TAB_WIDTH,
+    height: TAB_HEIGHT,
+    borderRadius: 6,
+    backgroundColor: "#FBBF24",
+    shadowColor: "#FBBF24",
+    shadowOpacity: 0.9,
+    shadowRadius: 12,
+    shadowOffset: { width: -4, height: 0 },
   },
   overlay: {
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,

@@ -474,6 +474,7 @@ function MasterScreen() {
             <MenuItem icon="person-add" color="#DB2777" label="Invita Collaboratore" hint="Genera link / QR con ruolo" onPress={() => goto("/invite-collaborator")} testID="menu-invite" />
             <MenuItem icon="gift" color="#F59E0B" label="Invita Cliente" hint="Trial gratuito con link estensibile" onPress={() => goto("/invitati")} testID="menu-invite-client" />
             <MenuItem icon="bug" color="#DC2626" label="Bug, Errori e Idee" hint="Segnalazioni degli utenti" onPress={() => goto("/bug-report")} testID="menu-bug-report" />
+            <MenuItem icon="shield-checkmark" color="#7C3AED" label="Richieste cancellazione dati" hint="Help Center · GDPR requests degli utenti" onPress={() => goto("/help-center-admin")} testID="menu-help-center-admin" />
           </View>
         </Pressable>
       </Modal>

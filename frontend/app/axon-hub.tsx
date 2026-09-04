@@ -35,6 +35,8 @@ const CARDS: Card[] = [
     title: "⏰ Timer & Sveglie", sub: "Sveglie, timer e promemoria in-app" },
   { id: "axon-homeassistant", href: "/axon-homeassistant", icon: "home", color: "#3B82F6",
     title: "🏠 Home Assistant", sub: "Controlla luci, tapparelle, serrature" },
+  { id: "help-center", href: "/help-center", icon: "shield-checkmark", color: "#7C3AED",
+    title: "🛡️ HELP CENTER", sub: "Termini d'uso · richiedi cancellazione dei tuoi dati" },
 ];
 
 export default function AxonHubScreen() {

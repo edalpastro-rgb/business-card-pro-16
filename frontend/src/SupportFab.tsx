@@ -16,7 +16,7 @@ import {
   Modal, View, Text, StyleSheet, Pressable, ScrollView, TextInput,
   ActivityIndicator, Alert,
 } from "react-native";
-import { usePathname } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/src/api";
@@ -77,7 +77,7 @@ export function SupportFab() {
         testID="support-fab"
         onPress={() => setOpen(true)}
         style={[styles.fab, { top: topPos }]}
-        accessibilityLabel="Assistenza"
+        accessibilityLabel="HELP CENTER"
         hitSlop={6}
       >
         <Ionicons name="settings" size={18} color="#2563EB" />
@@ -92,6 +92,7 @@ export function SupportFab() {
 
 function SupportSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const bottomPad = useBottomSheetPadding();
+  const router = useRouter();
   const [presets, setPresets] = useState<Preset[]>([]);
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [text, setText] = useState("");
@@ -200,7 +201,7 @@ function SupportSheet({ visible, onClose }: { visible: boolean; onClose: () => v
           <View style={styles.hdrRow}>
             <View style={styles.hdrIcon}><Ionicons name="help-circle" size={20} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.hdrLabel}>Assistenza</Text>
+              <Text style={styles.hdrLabel}>HELP CENTER</Text>
               <Text style={styles.hdrSub}>
                 {resolved ? "Risolto ✓"
                   : escalated ? "Inoltrato al Master"
@@ -212,6 +213,20 @@ function SupportSheet({ visible, onClose }: { visible: boolean; onClose: () => v
               <Ionicons name="close" size={22} color={C.navy} />
             </Pressable>
           </View>
+
+          {/* V50.z17 — Link ai termini d'uso HELP CENTER + richiesta cancellazione dati */}
+          <Pressable
+            onPress={() => { onClose(); setTimeout(() => router.push("/help-center" as any), 100); }}
+            style={styles.termsRow}
+            testID="open-help-center-terms"
+          >
+            <Ionicons name="shield-checkmark" size={16} color="#7C3AED" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.termsTitle}>Termini d&apos;uso · assistente AI</Text>
+              <Text style={styles.termsSub}>Leggi i termini e richiedi la cancellazione dei tuoi dati</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.muted} />
+          </Pressable>
 
           <ScrollView
             ref={scrollRef}
@@ -387,6 +402,16 @@ const styles = StyleSheet.create({
   hdrIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: C.purple, alignItems: "center", justifyContent: "center" },
   hdrLabel: { fontSize: 15, fontWeight: "800", color: C.navy, letterSpacing: -0.2 },
   hdrSub: { fontSize: 11, color: C.muted, marginTop: 2 },
+  // V50.z17 — HELP CENTER quick link
+  termsRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 14, paddingVertical: 10,
+    marginHorizontal: 14, marginTop: 10,
+    borderRadius: 12, backgroundColor: "#F5F3FF",
+    borderWidth: 1, borderColor: "#DDD6FE",
+  },
+  termsTitle: { fontSize: 13, fontWeight: "800", color: "#5B21B6" },
+  termsSub: { fontSize: 11, color: "#7C3AED", marginTop: 1, opacity: 0.8 },
   section: { fontSize: 12, fontWeight: "800", color: C.navy, letterSpacing: -0.1 },
   checkRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
   checkLbl: { fontSize: 13, color: C.navy, flex: 1 },
