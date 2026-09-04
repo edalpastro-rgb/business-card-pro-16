@@ -521,19 +521,19 @@ export default function HomeScreen() {
               <View style={[styles.quickIcon, { backgroundColor: C.primary }]}>
                 <Ionicons name="calendar-outline" size={22} color="#FFF" />
               </View>
-              <Text style={styles.quickTxt} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.75}>Nuovo appuntamento</Text>
+              <Text style={styles.quickTxt} numberOfLines={2}>Nuovo appuntamento</Text>
             </Pressable>
             <Pressable testID="qa-new-contact" style={styles.quick} onPress={() => router.push("/contact/new")}>
               <View style={[styles.quickIcon, { backgroundColor: C.navy }]}>
                 <Ionicons name="person-add-outline" size={22} color="#FFF" />
               </View>
-              <Text style={styles.quickTxt} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.75}>Nuovo contatto</Text>
+              <Text style={styles.quickTxt} numberOfLines={2}>Nuovo contatto</Text>
             </Pressable>
             <Pressable testID="qa-voice-copilot" style={styles.quick} onPress={() => router.push("/voice-copilot")}>
               <View style={[styles.quickIcon, { backgroundColor: "#38BDF8" }]}>
                 <Ionicons name="mic" size={22} color="#FFF" />
               </View>
-              <Text style={styles.quickTxt} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.75}>Copilot Auto</Text>
+              <Text style={styles.quickTxt} numberOfLines={2}>Copilot Auto</Text>
             </Pressable>
           </View>
         </View>
