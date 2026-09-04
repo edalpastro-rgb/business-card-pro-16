@@ -15494,6 +15494,125 @@ async def ai_teach_create_url(body: AiTeachUrlIn, user=Depends(get_current_user)
     return doc
 
 
+# V50.z29 — Suggerimenti deep link canonici per URL generici.
+# Quando l'utente aggiunge www.arera.it o www.gme.it senza specificare la
+# pagina, suggeriamo le pagine ufficiali più utili per un consulente energetico
+# (PUN, delibere, dati storici, ecc.). L'utente può aggiungerle con un tap.
+_CANONICAL_DEEP_LINKS: Dict[str, List[Dict[str, str]]] = {
+    "gme.mercatoelettrico.org": [
+        {"url": "https://gme.mercatoelettrico.org/it-it/Home/Pubblicazioni/PrezzoMedioFasce",
+         "name": "GME – Prezzo Medio per Fasce (PUN F1/F2/F3)",
+         "category": "prezzi_energia", "frequency": "daily",
+         "why": "Contiene i PDF mensili con PUN F1/F2/F3 in €/MWh. Fonte ufficiale."},
+        {"url": "https://gme.mercatoelettrico.org/it-it/Home/Esiti/Elettricita/MGP/Esiti/PrezziMedi",
+         "name": "GME – Prezzi Medi MGP", "category": "prezzi_energia", "frequency": "daily",
+         "why": "Prezzi medi mensili del Mercato del Giorno Prima."},
+        {"url": "https://gme.mercatoelettrico.org/it-it/Home/Pubblicazioni/Gas",
+         "name": "GME – Pubblicazioni Gas (PSV, MGP-GAS)", "category": "gas", "frequency": "monthly",
+         "why": "Prezzi mensili e trimestrali del mercato gas."},
+    ],
+    "arera.it": [
+        {"url": "https://www.arera.it/atti-e-provvedimenti/delibere",
+         "name": "ARERA – Delibere", "category": "normative", "frequency": "daily",
+         "why": "Tutte le delibere ARERA aggiornate. Fondamentale per aggiornamenti tariffe."},
+        {"url": "https://www.arera.it/prezzi-e-tariffe/elettricita/prezzo-energia-elettrica-servizio-tutela",
+         "name": "ARERA – Prezzo servizio tutela luce", "category": "prezzi_energia", "frequency": "weekly",
+         "why": "Prezzo del servizio di maggior tutela (PE) aggiornato trimestralmente."},
+        {"url": "https://www.arera.it/prezzi-e-tariffe/gas/prezzi-vendita-condizioni-tutela",
+         "name": "ARERA – Prezzo gas tutela", "category": "gas", "frequency": "weekly",
+         "why": "Prezzi gas del servizio di tutela aggiornati mensilmente."},
+        {"url": "https://www.arera.it/dati-e-statistiche/dettaglio/andamento-del-prezzo-dellenergia-elettrica-per-il-consumatore-domestico-tipo-in-maggior-tutela",
+         "name": "ARERA – Andamento prezzo luce domestico", "category": "prezzi_energia", "frequency": "monthly",
+         "why": "Serie storica del prezzo elettrico per famiglia tipo."},
+    ],
+    "gse.it": [
+        {"url": "https://www.gse.it/servizi-per-te/fotovoltaico/ritiro-dedicato/prezzi-minimi-garantiti",
+         "name": "GSE – Prezzi minimi garantiti fotovoltaico", "category": "rinnovabili", "frequency": "monthly",
+         "why": "Prezzi minimi garantiti per impianti FV in Ritiro Dedicato."},
+        {"url": "https://www.gse.it/servizi-per-te/fotovoltaico/scambio-sul-posto",
+         "name": "GSE – Scambio sul Posto", "category": "rinnovabili", "frequency": "monthly",
+         "why": "Regole e contributi Scambio sul Posto fotovoltaico."},
+    ],
+    "terna.it": [
+        {"url": "https://www.terna.it/it/sistema-elettrico/transparency-report/actual-generation",
+         "name": "Terna – Generazione elettrica effettiva", "category": "sistema_elettrico", "frequency": "daily",
+         "why": "Dati giornalieri di produzione per fonte."},
+        {"url": "https://download.terna.it/terna/Rapporto_Mensile_giugno_25.pdf",
+         "name": "Terna – Rapporto Mensile sistema elettrico", "category": "sistema_elettrico", "frequency": "monthly",
+         "why": "Report mensile con consumo, produzione, mix energetico."},
+    ],
+    "snam.it": [
+        {"url": "https://www.snam.it/it/trasporto/dati-operativi-business/",
+         "name": "Snam – Dati operativi trasporto gas", "category": "gas", "frequency": "daily",
+         "why": "Volumi giornalieri di trasporto gas."},
+    ],
+    "acquirenteunico.it": [
+        {"url": "https://www.acquirenteunico.it/portale-consumatori",
+         "name": "Acquirente Unico – Portale offerte", "category": "prezzi_energia", "frequency": "weekly",
+         "why": "Portale offerte luce/gas ufficiale (ex trovaofferte)."},
+    ],
+    "mercatolibero.eu": [
+        {"url": "https://www.mercatolibero.eu",
+         "name": "Portale Mercato Libero", "category": "prezzi_energia", "frequency": "weekly", "why": "Confronto offerte del mercato libero."},
+    ],
+}
+
+
+@api_router.post("/ai-teach/urls/suggest-canonicals")
+async def ai_teach_suggest_canonicals(body: Dict[str, Any] = Body(...), user=Depends(get_current_user)):
+    """Ritorna deep-link canonici suggeriti in base al dominio dell'URL inserito.
+    Es. input `https://www.arera.it` → suggerisce delibere, prezzo tutela luce/gas, andamento storico.
+    """
+    _require_master(user)
+    raw = (body.get("url") or "").strip()
+    if not raw:
+        return {"suggestions": [], "domain": None}
+    if not raw.startswith(("http://", "https://")):
+        raw = "https://" + raw.lstrip("/")
+    try:
+        from urllib.parse import urlparse
+        p = urlparse(raw)
+        host = (p.netloc or "").lower()
+        # Rimuovi www.
+        if host.startswith("www."):
+            host = host[4:]
+    except Exception:
+        return {"suggestions": [], "domain": None}
+
+    # Determina se l'URL è "generico" (solo host o path banale)
+    path = (p.path or "").strip("/").lower()
+    is_generic = len(path) < 4 or path in {"", "it", "it-it", "home", "index.html", "index.htm"}
+
+    # Trova match diretto sul dominio (o sottodominio)
+    matched_domain = None
+    for domain in _CANONICAL_DEEP_LINKS.keys():
+        if host == domain or host.endswith("." + domain):
+            matched_domain = domain
+            break
+
+    if not matched_domain:
+        # Nessuna suggerimento canonico noto per questo dominio
+        return {"suggestions": [], "domain": host, "is_generic": is_generic}
+
+    # Escludi suggerimenti che l'utente ha già insegnato (matching esatto URL)
+    tid = tenant_id(user)
+    existing_urls = {u.get("url", "").rstrip("/").lower() async for u in db.ai_teach_urls.find(
+        {"user_id": tid}, {"_id": 0, "url": 1}
+    )}
+    all_suggestions = _CANONICAL_DEEP_LINKS[matched_domain]
+    fresh = [s for s in all_suggestions if s["url"].rstrip("/").lower() not in existing_urls]
+    return {
+        "suggestions": fresh,
+        "domain": matched_domain,
+        "is_generic": is_generic,
+        "total": len(all_suggestions),
+        "already_added": len(all_suggestions) - len(fresh),
+    }
+
+
+
+
+
 @api_router.put("/ai-teach/urls/{url_id}")
 async def ai_teach_update_url(url_id: str, body: AiTeachUrlPatch, user=Depends(get_current_user)):
     _require_master(user)

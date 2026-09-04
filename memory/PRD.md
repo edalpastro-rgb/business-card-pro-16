@@ -3711,3 +3711,30 @@ Anche dopo l'ultimo aggiornamento manuale degli URL Axon lasciava `n/d` per Agos
 **Effetto atteso per l'utente reale**:
 - Riprovare la query "Aggiorna tabella PUN 18 mesi con Agosto 2026" → ora Axon avrà nel prompt i valori LIVE di Gen-Ago 2026 dalla FONTE CANONICA GME, indipendentemente da cosa ha insegnato.
 - I mesi 2025 saranno presi dal RAG Master (se caricati) o marcati `n/d` (GME non espone lo storico sulla pagina pubblica dell'anno corrente).
+
+
+## V50.z29 — Auto-suggest deep-link canonici in AI-Teach
+
+**Richiesta utente**: Quando l'utente aggiunge un URL generico (es. arera.it), l'app suggerisce deep link canonici per un consulente energetico.
+
+**Backend — `/app/backend/server.py`**:
+- Nuova mappa `_CANONICAL_DEEP_LINKS` con deep link ufficiali per domini:
+  - `gme.mercatoelettrico.org` → PrezzoMedioFasce, Prezzi Medi MGP, Pubblicazioni Gas
+  - `arera.it` → Delibere, Prezzo servizio tutela luce/gas, Andamento prezzo domestico
+  - `gse.it` → Prezzi minimi garantiti FV, Scambio sul Posto
+  - `terna.it` → Generazione effettiva, Rapporto Mensile
+  - `snam.it` → Dati operativi trasporto gas
+  - `acquirenteunico.it` → Portale offerte
+- Nuovo endpoint `POST /api/ai-teach/urls/suggest-canonicals`:
+  - Riceve `{url}` (anche senza schema, senza deep path)
+  - Ritorna suggerimenti che l'utente NON ha già insegnato (dedup su `ai_teach_urls`)
+  - Include `why` per spiegare a cosa serve il link
+  - Rileva `is_generic` (path banale) per triggerare il suggerimento in UI
+
+**Frontend — `/app/frontend/app/ai-teach.tsx`**:
+- Chiamata debounced (500ms) all'endpoint quando l'utente digita/incolla l'URL nel modale.
+- Sezione viola "Deep link suggeriti su [dominio]" con card per ogni suggerimento:
+  - **USA** — sostituisce l'URL corrente con quello canonico + prefila nome/categoria/frequenza.
+  - **Aggiungi** — crea subito il link canonico come URL separato, mantenendo quello attuale.
+- La sezione appare SOLO in creazione (non in modifica di URL esistente).
+- Loading spinner mentre cerca.

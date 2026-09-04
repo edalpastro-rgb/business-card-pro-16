@@ -6,7 +6,7 @@
  * Il contenuto viene usato da Axon come contesto prioritario durante l'analisi.
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Platform, KeyboardAvoidingView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Platform, KeyboardAvoidingView, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -106,6 +106,81 @@ export default function AiTeachScreen() {
   const [refreshingAll, setRefreshingAll] = useState(false);
   // V28.j — Info modal per tab (Regole / Fonti URL / Storico)
   const [infoTab, setInfoTab] = useState<null | "rules" | "urls" | "history" | "suggestions">(null);
+
+  // V50.z29 — Suggerimenti deep-link canonici per URL generici (es. arera.it → delibere, prezzo tutela)
+  type CanonicalSuggestion = {
+    url: string; name: string; category?: string;
+    frequency?: string; why?: string;
+  };
+  const [canonicalSuggestions, setCanonicalSuggestions] = useState<CanonicalSuggestion[]>([]);
+  const [canonicalDomain, setCanonicalDomain] = useState<string | null>(null);
+  const [canonicalLoading, setCanonicalLoading] = useState(false);
+
+  useEffect(() => {
+    const raw = (editUrl?.url || "").trim();
+    if (!raw || raw.length < 6 || editUrl?.url_id) {
+      // Non suggerire in modifica di URL esistente
+      setCanonicalSuggestions([]);
+      setCanonicalDomain(null);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        setCanonicalLoading(true);
+        const r = await api<{ suggestions: CanonicalSuggestion[]; domain: string | null }>(
+          "/ai-teach/urls/suggest-canonicals",
+          { method: "POST", body: { url: raw } },
+        );
+        if (!cancelled) {
+          setCanonicalSuggestions(r.suggestions || []);
+          setCanonicalDomain(r.domain);
+        }
+      } catch {
+        if (!cancelled) { setCanonicalSuggestions([]); setCanonicalDomain(null); }
+      } finally {
+        if (!cancelled) setCanonicalLoading(false);
+      }
+    }, 500); // debounce 500ms
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [editUrl?.url, editUrl?.url_id]);
+
+  const applySuggestion = (s: CanonicalSuggestion) => {
+    setEditUrl((u) => ({
+      ...(u || {}),
+      url: s.url,
+      name: s.name,
+      category: (s.category as any) || (u?.category as any) || "generic",
+      frequency: (s.frequency as any) || (u?.frequency as any) || "weekly",
+    }));
+    setCanonicalSuggestions([]);
+  };
+
+  const addSuggestionAndKeep = async (s: CanonicalSuggestion) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api("/ai-teach/urls", {
+        method: "POST",
+        body: {
+          url: s.url,
+          name: s.name,
+          category: s.category || "generic",
+          frequency: s.frequency || "weekly",
+        },
+      });
+      setCanonicalSuggestions((prev) => prev.filter((x) => x.url !== s.url));
+      // Ricarica la lista
+      try {
+        const u = await api<{ items: UrlItem[] }>("/ai-teach/urls");
+        setUrls(u.items || []);
+      } catch { /* silent */ }
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || "Impossibile aggiungere");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!isMaster) return;
@@ -898,6 +973,50 @@ export default function AiTeachScreen() {
               <Text style={styles.lbl}>Indirizzo web</Text>
               <TextInput testID="url-input" value={editUrl?.url || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), url: t }))} placeholder="https://www.arera.it/…" placeholderTextColor="#94A3B8" style={styles.input} autoCapitalize="none" />
 
+              {/* V50.z29 — Suggerimenti deep-link canonici (solo in creazione, non in modifica) */}
+              {!editUrl?.url_id && (canonicalLoading || canonicalSuggestions.length > 0) ? (
+                <View style={styles.canonicalBox}>
+                  <View style={styles.canonicalHead}>
+                    <Ionicons name="sparkles" size={14} color="#7C3AED" />
+                    <Text style={styles.canonicalTitle}>
+                      {canonicalLoading ? "Cerco pagine ufficiali…" :
+                        `Deep link suggeriti su ${canonicalDomain}`}
+                    </Text>
+                  </View>
+                  {!canonicalLoading && canonicalSuggestions.length > 0 ? (
+                    <Text style={styles.canonicalHint}>
+                      Il tuo URL è generico. Ecco le pagine ufficiali più utili per un consulente energetico. Tocca per USARE o AGGIUNGI per salvarle in più:
+                    </Text>
+                  ) : null}
+                  {canonicalSuggestions.map((s) => (
+                    <View key={s.url} style={styles.canonicalCard}>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={styles.canonicalName} numberOfLines={2}>{s.name}</Text>
+                        <Text style={styles.canonicalUrl} numberOfLines={1}>{s.url}</Text>
+                        {s.why ? <Text style={styles.canonicalWhy}>{s.why}</Text> : null}
+                      </View>
+                      <View style={{ gap: 6 }}>
+                        <Pressable
+                          onPress={() => applySuggestion(s)}
+                          style={styles.canonicalUseBtn}
+                          testID={`use-suggestion-${s.url}`}
+                        >
+                          <Text style={styles.canonicalUseTxt}>USA</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => addSuggestionAndKeep(s)}
+                          style={styles.canonicalAddBtn}
+                          disabled={busy}
+                        >
+                          <Ionicons name="add" size={14} color="#7C3AED" />
+                          <Text style={styles.canonicalAddTxt}>Aggiungi</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
               <Text style={styles.lbl}>Frequenza di aggiornamento</Text>
               <View style={styles.catRow}>
                 {FREQ_ORDER.map((f) => {
@@ -1154,4 +1273,31 @@ const styles = StyleSheet.create({
   },
   sugAcceptTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   emptyTitle: { fontSize: 14, fontWeight: "800", color: "#334155", marginBottom: 4 },
+  // V50.z29 — Deep link suggeriti canonici
+  canonicalBox: {
+    marginTop: 10, padding: 10, borderRadius: 12,
+    backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE", gap: 8,
+  },
+  canonicalHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  canonicalTitle: { fontSize: 12, fontWeight: "800", color: "#5B21B6" },
+  canonicalHint: { fontSize: 11, color: "#5B21B6", opacity: 0.85 },
+  canonicalCard: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    padding: 8, borderRadius: 10, backgroundColor: "#FFF",
+    borderWidth: 1, borderColor: "#E9D5FF",
+  },
+  canonicalName: { fontSize: 12, fontWeight: "800", color: C.navy },
+  canonicalUrl: { fontSize: 10, color: C.muted },
+  canonicalWhy: { fontSize: 10, color: "#5B21B6", marginTop: 3, fontStyle: "italic" },
+  canonicalUseBtn: {
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
+    backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center",
+  },
+  canonicalUseTxt: { color: "#FFF", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  canonicalAddBtn: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999,
+    backgroundColor: "#FFF", borderWidth: 1, borderColor: "#7C3AED",
+  },
+  canonicalAddTxt: { color: "#7C3AED", fontSize: 10, fontWeight: "800" },
 });
