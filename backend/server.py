@@ -9869,6 +9869,39 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
                 "pdf_texts": pdf_texts,
                 "fetched_at": utcnow().isoformat(),
             }
+            # V50.z20 — Rileva PDF nuovi (mai visti prima) e crea alert in-app.
+            # Confronta i "name" dei PDF nel vecchio snapshot con quelli nuovi;
+            # se ce ne sono di nuovi, crea un `axon_alerts` per il tenant.
+            try:
+                prev_snap = u_doc.get("axon_snapshot") or {}
+                prev_names = {(p.get("name") or "").strip().lower() for p in (prev_snap.get("pdf_texts") or []) if p.get("name")}
+                curr_pdfs = [p for p in pdf_texts if p.get("name")]
+                new_pdfs = [p for p in curr_pdfs if (p.get("name") or "").strip().lower() not in prev_names]
+                # Considera "nuovi" solo se c'era già uno snapshot precedente
+                # (altrimenti il primo fetch di sempre spammerebbe alert per tutti i PDF)
+                if prev_snap and new_pdfs:
+                    tid = u_doc.get("user_id")
+                    src_name = u_doc.get("name") or (urlparse(url).netloc) or "Sorgente Axon"
+                    for p in new_pdfs[:3]:
+                        try:
+                            await db.axon_alerts.insert_one({
+                                "alert_id": f"aal_{uuid.uuid4().hex[:12]}",
+                                "tenant_id": tid,
+                                "type": "new_pdf",
+                                "title": f"Nuovo PDF da {src_name}",
+                                "message": p.get("name") or "Documento aggiornato",
+                                "url_id": u_doc.get("url_id"),
+                                "source_url": url,
+                                "pdf_url": p.get("url"),
+                                "pdf_name": p.get("name"),
+                                "seen": False,
+                                "created_at": utcnow(),
+                            })
+                            logger.info("[axon-alert] new_pdf: %s (%s)", p.get("name"), src_name)
+                        except Exception as _e:
+                            logger.debug("[axon-alert] insert failed: %s", _e)
+            except Exception as _e2:
+                logger.debug("[axon-alert] detection failed: %s", _e2)
             await db.ai_teach_urls.update_one(
                 {"user_id": u_doc.get("user_id"), "url_id": u_doc.get("url_id")},
                 {"$set": {"axon_snapshot": snap, "last_fetched_at": utcnow(), "last_error": None}},
@@ -16768,6 +16801,78 @@ async def help_center_mark_handled(request_id: str, payload: Dict[str, Any] = Bo
     )
     r2 = await db.help_center_deletion_requests.find_one({"request_id": request_id})
     return _help_center_serialize(r2 or {})
+
+
+# =========================================================================
+# V50.z20 — AXON ALERTS (notifiche in-app per eventi Axon)
+# Es. nuovo PDF pubblicato da GME/ARERA/ecc. Ogni utente vede i propri alert.
+# =========================================================================
+
+def _axon_alert_serialize(a: dict) -> dict:
+    return {
+        "alert_id": a.get("alert_id"),
+        "type": a.get("type"),
+        "title": a.get("title"),
+        "message": a.get("message"),
+        "url_id": a.get("url_id"),
+        "source_url": a.get("source_url"),
+        "pdf_url": a.get("pdf_url"),
+        "pdf_name": a.get("pdf_name"),
+        "seen": bool(a.get("seen")),
+        "created_at": a.get("created_at").isoformat() if a.get("created_at") else None,
+    }
+
+
+@api_router.get("/axon-alerts")
+async def axon_alerts_list(unread_only: bool = False, limit: int = 50, user=Depends(get_current_user)):
+    """Lista alert Axon del tenant + conteggio non letti."""
+    tid = tenant_id(user)
+    q: Dict[str, Any] = {"tenant_id": tid}
+    if unread_only:
+        q["seen"] = False
+    cur = db.axon_alerts.find(q).sort("created_at", -1).limit(max(1, min(limit, 200)))
+    items = [_axon_alert_serialize(a) async for a in cur]
+    unread = await db.axon_alerts.count_documents({"tenant_id": tid, "seen": False})
+    return {"items": items, "unread": unread}
+
+
+@api_router.get("/axon-alerts/unread-count")
+async def axon_alerts_unread_count(user=Depends(get_current_user)):
+    """Solo il conteggio non letti (leggero, per polling frequente/badge)."""
+    tid = tenant_id(user)
+    unread = await db.axon_alerts.count_documents({"tenant_id": tid, "seen": False})
+    return {"unread": unread}
+
+
+@api_router.post("/axon-alerts/{alert_id}/seen")
+async def axon_alerts_mark_seen(alert_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    r = await db.axon_alerts.update_one(
+        {"alert_id": alert_id, "tenant_id": tid},
+        {"$set": {"seen": True, "seen_at": utcnow()}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Alert non trovato")
+    return {"seen": True}
+
+
+@api_router.post("/axon-alerts/mark-all-seen")
+async def axon_alerts_mark_all_seen(user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    r = await db.axon_alerts.update_many(
+        {"tenant_id": tid, "seen": False},
+        {"$set": {"seen": True, "seen_at": utcnow()}},
+    )
+    return {"updated": r.modified_count}
+
+
+@api_router.delete("/axon-alerts/{alert_id}")
+async def axon_alerts_delete(alert_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    r = await db.axon_alerts.delete_one({"alert_id": alert_id, "tenant_id": tid})
+    if r.deleted_count == 0:
+        raise HTTPException(404, "Alert non trovato")
+    return {"deleted": True}
 
 
 # =========================================================================

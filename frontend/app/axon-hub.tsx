@@ -1,9 +1,11 @@
 // V50.z16 — Axon Center: hub che raggruppa tutte le funzioni Axon.
 // Accessibile dal bottone "INSEGNA AD AXON" nell'area Master.
+import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
@@ -44,6 +46,17 @@ const CARDS: Card[] = [
 export default function AxonHubScreen() {
   const router = useRouter();
   const pagePad = usePageBottomPadding();
+  // V50.z20 — Badge campanellino: contatore avvisi Axon non letti
+  const [unreadAlerts, setUnreadAlerts] = useState(0);
+
+  useFocusEffect(useCallback(() => {
+    (async () => {
+      try {
+        const r = await api<{ unread: number }>("/axon-alerts/unread-count");
+        setUnreadAlerts(r?.unread || 0);
+      } catch { /* ignore */ }
+    })();
+  }, []));
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -52,7 +65,20 @@ export default function AxonHubScreen() {
           <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
         </Pressable>
         <Text style={styles.title}>Axon Center</Text>
-        <View style={{ width: 30 }} />
+        {/* V50.z20 — Campanellino con badge unread */}
+        <Pressable
+          onPress={() => router.push("/axon-alerts" as any)}
+          hitSlop={10}
+          style={styles.bellBtn}
+          testID="axon-alerts-bell"
+        >
+          <Ionicons name="notifications" size={22} color={theme.color.onSurface} />
+          {unreadAlerts > 0 ? (
+            <View style={styles.bellBadge}>
+              <Text style={styles.bellBadgeTxt}>{unreadAlerts > 9 ? "9+" : String(unreadAlerts)}</Text>
+            </View>
+          ) : null}
+        </Pressable>
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
         <View style={styles.intro}>
@@ -99,6 +125,18 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
+  // V50.z20 — Campanellino notifiche
+  bellBtn: {
+    width: 34, height: 34, alignItems: "center", justifyContent: "center",
+    position: "relative",
+  },
+  bellBadge: {
+    position: "absolute", top: 2, right: 0,
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: "#DC2626", alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 4, borderWidth: 2, borderColor: "#FFF",
+  },
+  bellBadgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "900" },
   intro: {
     flexDirection: "row", alignItems: "center", gap: 12,
     backgroundColor: "#FFF7ED", borderRadius: 14, padding: 14,

@@ -21,7 +21,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { MicroTutorial, TUTORIAL_INSEGNA_AXON } from "@/src/MicroTutorial";
 type Rule = { rule_id: string; category?: string; categories?: string[]; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string };
-type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: string };
+type LastError = { reason?: string; message?: string; at?: string } | string;
+type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: LastError };
 // V28.j — Storico aggiornamenti (elenco esecuzioni di "Aggiorna ora" automatico o manuale)
 type HistoryRunEntry = { url_id: string; name: string; url: string; error?: string };
 type HistoryRun = {
@@ -556,11 +557,32 @@ export default function AiTeachScreen() {
             </View>
             {urls.length === 0 ? (
               <View style={styles.empty}><Text style={styles.emptyTxt}>Nessun URL monitorato. Aggiungi siti (es. arera.it, gse.it) e Axon li leggerà come fonte.</Text></View>
-            ) : urls.map((u) => (
-              <View key={u.url_id} style={styles.card} testID={`url-${u.url_id}`}>
+            ) : urls.map((u) => {
+              // V50.z20 — Ricava messaggio errore da object o stringa (retro-compat)
+              const errObj = typeof u.last_error === "object" && u.last_error !== null ? u.last_error : null;
+              const errStr = typeof u.last_error === "string" ? u.last_error : null;
+              const errMsg = errObj?.message || errStr;
+              const errReason = errObj?.reason;
+              const hasError = Boolean(errMsg);
+              const reasonLabel: Record<string, string> = {
+                invalid_scheme: "URL malformato",
+                http_error: "Errore HTTP",
+                exception: "Errore di rete",
+              };
+              return (
+              <View
+                key={u.url_id}
+                style={[styles.card, hasError && styles.cardError]}
+                testID={`url-${u.url_id}`}
+              >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Ionicons name="globe" size={16} color={C.navy} />
+                  <Ionicons name={hasError ? "alert-circle" : "globe"} size={16} color={hasError ? "#DC2626" : C.navy} />
                   <Text style={styles.cardTitle} numberOfLines={1}>{u.name}</Text>
+                  {hasError ? (
+                    <View style={styles.errorBadge} testID={`err-badge-${u.url_id}`}>
+                      <Text style={styles.errorBadgeTxt}>ERRORE</Text>
+                    </View>
+                  ) : null}
                   <View style={styles.freqPill}><Text style={styles.freqPillTxt}>{FREQ_LABEL[u.frequency] || u.frequency}</Text></View>
                   <Pressable testID={`refresh-url-${u.url_id}`} onPress={() => refreshUrl(u.url_id)} hitSlop={8}><Ionicons name="refresh" size={16} color={C.primary} /></Pressable>
                   <Pressable testID={`edit-url-${u.url_id}`} onPress={() => setEditUrl({ ...u })} hitSlop={8}><Ionicons name="pencil" size={16} color={C.primary} /></Pressable>
@@ -572,11 +594,19 @@ export default function AiTeachScreen() {
                 ) : (
                   <Text style={styles.metaTxt}>Mai aggiornato — tocca ↻ o &quot;Aggiorna ora&quot;</Text>
                 )}
-                {u.last_error ? <Text style={[styles.metaTxt, { color: "#DC2626" }]}>Errore: {u.last_error}</Text> : null}
+                {hasError ? (
+                  <View style={styles.errorBox}>
+                    <Ionicons name="warning" size={14} color="#DC2626" />
+                    <Text style={styles.errorTxt} numberOfLines={3}>
+                      {errReason ? `${reasonLabel[errReason] || errReason}: ` : ""}{errMsg}
+                    </Text>
+                  </View>
+                ) : null}
                 {u.username ? <Text style={styles.metaTxt}>🔐 Login: {u.username} {u.password_masked ? "•••" : ""}</Text> : null}
                 {u.last_summary ? <Text style={styles.summaryTxt} numberOfLines={3}>{u.last_summary}</Text> : null}
               </View>
-            ))}
+              );
+            })}
           </>
         )}
 
@@ -986,6 +1016,19 @@ const styles = StyleSheet.create({
   refreshAllBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.navy, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14 },
   addBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   card: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, gap: 6, borderWidth: 1, borderColor: theme.color.border },
+  // V50.z20 — Card in errore: bordo sinistro rosso + tint
+  cardError: { borderLeftWidth: 4, borderLeftColor: "#DC2626", backgroundColor: "#FEF2F2" },
+  errorBadge: {
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+    backgroundColor: "#DC2626",
+  },
+  errorBadgeTxt: { color: "#FFF", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+  errorBox: {
+    flexDirection: "row", alignItems: "flex-start", gap: 6,
+    padding: 8, borderRadius: 8, backgroundColor: "#FEE2E2",
+    borderWidth: 1, borderColor: "#FCA5A5",
+  },
+  errorTxt: { color: "#991B1B", fontSize: 12, flex: 1, lineHeight: 16, fontWeight: "600" },
   catBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   catBadgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4 },
   cardTitle: { flex: 1, fontSize: 14, fontWeight: "800", color: C.navy },
