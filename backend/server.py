@@ -16702,6 +16702,257 @@ async def help_center_mark_handled(request_id: str, payload: Dict[str, Any] = Bo
     return _help_center_serialize(r2 or {})
 
 
+# =========================================================================
+# V50.z18 — MICROSOFT OUTLOOK OAUTH (Microsoft Graph Mail.Read)
+#
+# Flow (auth code + PKCE + offline_access):
+#   1. Frontend chiama GET /api/outlook/start → riceve URL di autorizzazione
+#   2. WebBrowser Expo apre auth Microsoft
+#   3. Callback GET /api/outlook/callback riceve code+state
+#   4. Backend scambia code → access_token+refresh_token → salvati cifrati
+#   5. Redirect al frontend (?ok=1) — chiude popup
+#   6. Frontend chiama GET /api/outlook/messages → legge inbox
+#
+# I token sono cifrati con Fernet (OUTLOOK_TOKEN_ENC_KEY in .env).
+# =========================================================================
+import base64 as _b64
+import hashlib as _hashlib
+import secrets as _secrets
+from urllib.parse import urlencode as _urlencode
+try:
+    from cryptography.fernet import Fernet as _Fernet
+except Exception:
+    _Fernet = None
+
+_MS_CLIENT_ID = os.environ.get("MS_CLIENT_ID", "")
+_MS_CLIENT_SECRET = os.environ.get("MS_CLIENT_SECRET", "")
+_MS_TENANT = os.environ.get("MS_TENANT", "common")
+_MS_REDIRECT_URI = os.environ.get("MS_REDIRECT_URI", "")
+_MS_SCOPES = os.environ.get("MS_SCOPES", "openid profile offline_access Mail.Read")
+_OUTLOOK_TOKEN_ENC_KEY = os.environ.get("OUTLOOK_TOKEN_ENC_KEY", "")
+_OUTLOOK_APP_RETURN_URL = os.environ.get("OUTLOOK_APP_RETURN_URL", "")
+
+_MS_AUTHORITY = f"https://login.microsoftonline.com/{_MS_TENANT}/oauth2/v2.0"
+_MS_GRAPH = "https://graph.microsoft.com/v1.0"
+
+_outlook_fernet = None
+if _Fernet and _OUTLOOK_TOKEN_ENC_KEY:
+    try:
+        _outlook_fernet = _Fernet(_OUTLOOK_TOKEN_ENC_KEY.encode())
+    except Exception as _e:
+        logger.error(f"[Outlook] Fernet init failed: {_e}")
+
+
+def _outlook_configured() -> bool:
+    return bool(_MS_CLIENT_ID and _MS_CLIENT_SECRET and _MS_REDIRECT_URI and _outlook_fernet)
+
+
+def _b64url(data: bytes) -> str:
+    return _b64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def _make_pkce() -> tuple:
+    verifier = _b64url(_secrets.token_bytes(32))
+    challenge = _b64url(_hashlib.sha256(verifier.encode()).digest())
+    return verifier, challenge
+
+
+def _enc(s: str) -> str:
+    return _outlook_fernet.encrypt(s.encode()).decode()
+
+
+def _dec(s: str) -> str:
+    return _outlook_fernet.decrypt(s.encode()).decode()
+
+
+@api_router.get("/outlook/status")
+async def outlook_status(user=Depends(get_current_user)):
+    """Ritorna se l'utente ha già collegato Outlook."""
+    if not _outlook_configured():
+        return {"configured": False, "connected": False}
+    doc = await db.outlook_tokens.find_one({"user_id": user["user_id"]})
+    return {
+        "configured": True,
+        "connected": bool(doc),
+        "account_email": (doc or {}).get("account_email"),
+        "connected_at": (doc or {}).get("updated_at").isoformat() if (doc or {}).get("updated_at") else None,
+    }
+
+
+@api_router.get("/outlook/start")
+async def outlook_start(user=Depends(get_current_user)):
+    """Genera URL di autorizzazione Microsoft (auth code + PKCE)."""
+    if not _outlook_configured():
+        raise HTTPException(400, "Outlook non configurato: credenziali Microsoft mancanti")
+    verifier, challenge = _make_pkce()
+    state = _secrets.token_urlsafe(32)
+    await db.outlook_oauth_states.insert_one({
+        "state": state,
+        "user_id": user["user_id"],
+        "code_verifier": verifier,
+        "created_at": datetime.utcnow(),
+        "expires_at": datetime.utcnow() + timedelta(minutes=10),
+    })
+    # Cleanup old states (best-effort)
+    try:
+        await db.outlook_oauth_states.delete_many({"expires_at": {"$lt": datetime.utcnow()}})
+    except Exception:
+        pass
+    params = {
+        "client_id": _MS_CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri": _MS_REDIRECT_URI,
+        "response_mode": "query",
+        "scope": _MS_SCOPES,
+        "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+        "prompt": "select_account",
+    }
+    return {"authorization_url": f"{_MS_AUTHORITY}/authorize?{_urlencode(params)}"}
+
+
+async def _ms_token_request(data: dict) -> dict:
+    body = {**data, "client_id": _MS_CLIENT_ID, "client_secret": _MS_CLIENT_SECRET}
+    async with httpx.AsyncClient(timeout=15) as cx:
+        r = await cx.post(f"{_MS_AUTHORITY}/token", data=body)
+    if r.status_code >= 400:
+        logger.error(f"[Outlook] token exchange failed status={r.status_code} body={r.text[:400]}")
+        raise HTTPException(502, f"Microsoft token exchange failed: {r.text[:200]}")
+    return r.json()
+
+
+@api_router.get("/outlook/callback")
+async def outlook_callback(code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None, error_description: Optional[str] = None):
+    """Callback Microsoft: scambia code→token, salva cifrato, redirige all'app."""
+    from fastapi.responses import RedirectResponse as _RR
+    return_url = _OUTLOOK_APP_RETURN_URL or "/"
+    if error or not code or not state:
+        logger.warning(f"[Outlook] callback error={error} desc={error_description}")
+        return _RR(f"{return_url}?ok=0&error={error or 'missing_code'}")
+    if not _outlook_configured():
+        return _RR(f"{return_url}?ok=0&error=not_configured")
+
+    saved = await db.outlook_oauth_states.find_one_and_delete({"state": state})
+    if not saved:
+        return _RR(f"{return_url}?ok=0&error=invalid_state")
+    exp = saved.get("expires_at")
+    if isinstance(exp, datetime) and exp < datetime.utcnow():
+        return _RR(f"{return_url}?ok=0&error=state_expired")
+
+    try:
+        tokens = await _ms_token_request({
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": _MS_REDIRECT_URI,
+            "scope": _MS_SCOPES,
+            "code_verifier": saved["code_verifier"],
+        })
+    except HTTPException as e:
+        return _RR(f"{return_url}?ok=0&error=token_exchange_failed")
+
+    # Recupera email dell'account collegato via /me
+    account_email = None
+    try:
+        async with httpx.AsyncClient(timeout=10) as cx:
+            r = await cx.get(f"{_MS_GRAPH}/me?$select=mail,userPrincipalName,displayName",
+                             headers={"Authorization": f"Bearer {tokens['access_token']}"})
+        if r.status_code < 400:
+            me = r.json()
+            account_email = me.get("mail") or me.get("userPrincipalName")
+    except Exception as e:
+        logger.warning(f"[Outlook] /me lookup failed: {e}")
+
+    now = int(datetime.utcnow().timestamp())
+    doc = {
+        "user_id": saved["user_id"],
+        "access_token_enc": _enc(tokens["access_token"]),
+        "refresh_token_enc": _enc(tokens["refresh_token"]) if tokens.get("refresh_token") else None,
+        "expires_at": now + int(tokens.get("expires_in", 3600)),
+        "scope": tokens.get("scope", _MS_SCOPES),
+        "account_email": account_email,
+        "updated_at": datetime.utcnow(),
+    }
+    await db.outlook_tokens.replace_one({"user_id": saved["user_id"]}, doc, upsert=True)
+    logger.info(f"[Outlook] connected user={saved['user_id']} account={account_email}")
+    return _RR(f"{return_url}?ok=1")
+
+
+async def _get_valid_graph_token(user_id: str) -> str:
+    doc = await db.outlook_tokens.find_one({"user_id": user_id})
+    if not doc:
+        raise HTTPException(404, "Outlook non collegato")
+    now = int(datetime.utcnow().timestamp())
+    if doc["expires_at"] > now + 120:
+        return _dec(doc["access_token_enc"])
+    if not doc.get("refresh_token_enc"):
+        raise HTTPException(401, "Outlook: riautorizzazione richiesta")
+    refreshed = await _ms_token_request({
+        "grant_type": "refresh_token",
+        "refresh_token": _dec(doc["refresh_token_enc"]),
+        "scope": _MS_SCOPES,
+    })
+    update = {
+        "access_token_enc": _enc(refreshed["access_token"]),
+        "expires_at": now + int(refreshed.get("expires_in", 3600)),
+        "updated_at": datetime.utcnow(),
+    }
+    if refreshed.get("refresh_token"):
+        update["refresh_token_enc"] = _enc(refreshed["refresh_token"])
+    await db.outlook_tokens.update_one({"user_id": user_id}, {"$set": update})
+    return refreshed["access_token"]
+
+
+@api_router.get("/outlook/messages")
+async def outlook_messages(unread_only: bool = True, top: int = 25, user=Depends(get_current_user)):
+    """Legge le mail INBOX dell'utente da Microsoft Graph."""
+    if not _outlook_configured():
+        raise HTTPException(400, "Outlook non configurato")
+    token = await _get_valid_graph_token(user["user_id"])
+    params = {
+        "$select": "id,subject,from,receivedDateTime,bodyPreview,isRead,webLink,importance,hasAttachments",
+        "$orderby": "receivedDateTime DESC",
+        "$top": str(max(1, min(top, 100))),
+    }
+    if unread_only:
+        params["$filter"] = "isRead eq false"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Prefer": 'outlook.body-content-type="text"',
+    }
+    async with httpx.AsyncClient(timeout=20) as cx:
+        r = await cx.get(f"{_MS_GRAPH}/me/mailFolders/inbox/messages", params=params, headers=headers)
+    if r.status_code == 401:
+        raise HTTPException(401, "Outlook token scaduto o revocato — ricollega Outlook")
+    if r.status_code >= 400:
+        logger.error(f"[Outlook] graph error status={r.status_code} body={r.text[:300]}")
+        raise HTTPException(502, f"Errore Microsoft Graph: {r.text[:200]}")
+    data = r.json()
+    msgs = []
+    for m in data.get("value", []):
+        sender = ((m.get("from") or {}).get("emailAddress") or {})
+        msgs.append({
+            "id": m.get("id"),
+            "subject": m.get("subject") or "(senza oggetto)",
+            "preview": m.get("bodyPreview") or "",
+            "from_name": sender.get("name"),
+            "from_email": sender.get("address"),
+            "received_at": m.get("receivedDateTime"),
+            "is_read": m.get("isRead", False),
+            "web_link": m.get("webLink"),
+            "importance": m.get("importance"),
+            "has_attachments": m.get("hasAttachments", False),
+        })
+    return {"messages": msgs, "count": len(msgs), "next_link": data.get("@odata.nextLink")}
+
+
+@api_router.post("/outlook/disconnect")
+async def outlook_disconnect(user=Depends(get_current_user)):
+    """Rimuove il collegamento Outlook dell'utente (token cancellati dal DB)."""
+    await db.outlook_tokens.delete_one({"user_id": user["user_id"]})
+    return {"disconnected": True}
+
+
 
 #
 # Master-only. Fornisce al Master una visione aggregata + profilo AI di
