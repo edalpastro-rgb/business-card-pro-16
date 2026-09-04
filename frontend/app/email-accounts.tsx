@@ -248,7 +248,10 @@ function CombinedInbox() {
     }
   }, [unreadOnly]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  // V50.z21d — useEffect invece di useFocusEffect: CombinedInbox è un
+  // sotto-componente della pagina, il focus fires solo alla pagina non al
+  // tab switch → fetch non partiva e refresh sembrava bloccato.
+  useEffect(() => { load(); }, [load]);
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
@@ -295,8 +298,12 @@ function CombinedInbox() {
           <Text style={[styles.filterTxt, !unreadOnly && styles.filterTxtOn]}>Tutte</Text>
         </Pressable>
         <View style={{ flex: 1 }} />
-        <Pressable onPress={load} hitSlop={8} style={styles.reloadBtn}>
-          <Ionicons name="refresh" size={20} color="#0EA5E9" />
+        <Pressable onPress={load} hitSlop={8} style={styles.reloadBtn} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator size="small" color="#0EA5E9" />
+          ) : (
+            <Ionicons name="refresh" size={20} color="#0EA5E9" />
+          )}
         </Pressable>
       </View>
 
@@ -320,6 +327,11 @@ function CombinedInbox() {
             {stats.total === 0 ? "Nessuna casella collegata" :
              unreadOnly ? "Nessuna mail non letta 🎉" : "Nessuna mail nelle Inbox"}
           </Text>
+          {unreadOnly && stats.total > 0 ? (
+            <Pressable onPress={() => setUnreadOnly(false)} style={styles.switchAllBtn}>
+              <Text style={styles.switchAllTxt}>Mostra tutte le mail</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : msgs.map((m) => (
         <View key={`${m.account_id}-${m.uid}`} style={[styles.msgCard, !m.is_read && styles.msgUnread]}>
@@ -599,7 +611,8 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
     }
   }, [account.account_id, unreadOnly]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  // V50.z21d — useEffect invece di useFocusEffect (stesso motivo)
+  useEffect(() => { load(); }, [load]);
 
   const downloadAttachment = async (uid: string, filename: string, contentType?: string) => {
     try {
@@ -790,6 +803,12 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", justifyContent: "center", gap: 8, padding: 40 },
   emptyTxt: { color: theme.color.onSurface, fontSize: 15, fontWeight: "700" },
   emptyHint: { color: theme.color.muted, fontSize: 12, textAlign: "center" },
+  // V50.z21d — Bottone "Mostra tutte" quando non ci sono non-lette
+  switchAllBtn: {
+    marginTop: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
+    backgroundColor: "#0EA5E9",
+  },
+  switchAllTxt: { color: "#FFF", fontSize: 12, fontWeight: "800" },
 
   card: {
     flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 12,
