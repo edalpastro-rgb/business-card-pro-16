@@ -9693,10 +9693,25 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
 
     V50.z4 — Usa pdfplumber per estrarre TABELLE strutturate dai PDF
     (essenziale per PUN F1/F2/F3, listini, tariffe). Fallback pypdf.
+    V50.z19 — Registra `last_error` con timestamp e motivo quando un fetch
+    fallisce (URL senza schema, HTTP ≥400, eccezione), invece di ignorare
+    silenziosamente. Così il pannello AI-Teach mostra il problema all'utente.
     """
     from urllib.parse import urljoin, urlparse
     url = (u_doc.get("url") or "").strip()
     if not url or not url.startswith(("http://", "https://")):
+        # V50.z19 — Salva errore: URL senza schema (es. "www.mercatoelettrico.org/it")
+        try:
+            await db.ai_teach_urls.update_one(
+                {"user_id": u_doc.get("user_id"), "url_id": u_doc.get("url_id")},
+                {"$set": {"last_error": {
+                    "reason": "invalid_scheme",
+                    "message": f"URL senza http:// o https:// (valore: '{url or '(vuoto)'}')",
+                    "at": utcnow(),
+                }}},
+            )
+        except Exception:
+            pass
         return None
 
     async def _extract_pdf_bytes(pdf_bytes: bytes, max_pages: int = 8, max_chars: int = 8000) -> str:
@@ -9800,6 +9815,18 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
                 headers={"User-Agent": "Mozilla/5.0 (compatible; AxonBot/1.0; +https://advisoros.it)"},
             )
             if r.status_code >= 400:
+                # V50.z19 — Salva errore HTTP invece di ignorarlo silenziosamente
+                try:
+                    await db.ai_teach_urls.update_one(
+                        {"user_id": u_doc.get("user_id"), "url_id": u_doc.get("url_id")},
+                        {"$set": {"last_error": {
+                            "reason": "http_error",
+                            "message": f"HTTP {r.status_code} durante il fetch di {url}",
+                            "at": utcnow(),
+                        }}},
+                    )
+                except Exception:
+                    pass
                 return None
             ctype = (r.headers.get("content-type") or "").lower()
             html_text = ""
@@ -9844,11 +9871,23 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
             }
             await db.ai_teach_urls.update_one(
                 {"user_id": u_doc.get("user_id"), "url_id": u_doc.get("url_id")},
-                {"$set": {"axon_snapshot": snap, "last_fetched_at": utcnow()}},
+                {"$set": {"axon_snapshot": snap, "last_fetched_at": utcnow(), "last_error": None}},
             )
             return snap
     except Exception as exc:
-        logger.debug("[axon-snapshot] failed for %s: %s", url, exc)
+        # V50.z19 — Registra l'errore (era solo debug prima).
+        logger.warning("[axon-snapshot] failed for %s: %s", url, exc)
+        try:
+            await db.ai_teach_urls.update_one(
+                {"user_id": u_doc.get("user_id"), "url_id": u_doc.get("url_id")},
+                {"$set": {"last_error": {
+                    "reason": "exception",
+                    "message": str(exc)[:400],
+                    "at": utcnow(),
+                }}},
+            )
+        except Exception:
+            pass
         return None
 
 
@@ -9889,12 +9928,30 @@ async def _run_teach_urls_prefetch_job() -> None:
         if not stale:
             return
         logger.info("[axon-prefetch] refreshing %d stale teach URLs", len(stale))
+        # V50.z19 — Conta separatamente successi e fallimenti
+        n_ok = 0
+        n_fail = 0
+        failures: List[str] = []
         for u in stale:
             try:
-                await _axon_refresh_teach_snapshot(u)
+                res = await _axon_refresh_teach_snapshot(u)
+                if res is not None:
+                    n_ok += 1
+                else:
+                    n_fail += 1
+                    failures.append(f"{u.get('name') or u.get('url_id')} ({u.get('url') or 'no-url'})")
             except Exception as exc:
-                logger.debug("[axon-prefetch] fail %s: %s", u.get("url"), exc)
-        logger.info("[axon-prefetch] done: %d URLs refreshed", len(stale))
+                n_fail += 1
+                failures.append(f"{u.get('name') or u.get('url_id')}: {exc}")
+                logger.warning("[axon-prefetch] fail %s: %s", u.get("url"), exc)
+        # V50.z19 — Log dettagliato con successi/fallimenti separati (non più "N aggiornate")
+        if n_fail == 0:
+            logger.info("[axon-prefetch] done: %d ok, 0 failed", n_ok)
+        else:
+            logger.warning(
+                "[axon-prefetch] done: %d ok, %d FAILED — %s",
+                n_ok, n_fail, "; ".join(failures[:5]),
+            )
     except Exception as exc:
         logger.warning("[axon-prefetch] job failed: %s", exc)
 
@@ -15201,11 +15258,15 @@ async def ai_teach_create_url(body: AiTeachUrlIn, user=Depends(get_current_user)
     _require_master(user)
     tid = tenant_id(user)
     uid_ = f"aitu_{uuid.uuid4().hex[:12]}"
+    # V50.z19 — Normalizza URL: se non ha schema, prepende https://
+    raw_url = (body.url or "").strip()
+    if raw_url and not raw_url.startswith(("http://", "https://")):
+        raw_url = "https://" + raw_url.lstrip("/")
     doc = {
         "url_id": uid_,
         "user_id": tid,
         "created_by": user["user_id"],
-        "url": body.url.strip(),
+        "url": raw_url,
         "name": body.name.strip(),
         "category": body.category or "generic",
         "frequency": body.frequency,
@@ -15232,7 +15293,14 @@ async def ai_teach_update_url(url_id: str, body: AiTeachUrlPatch, user=Depends(g
     for field in ["url", "name", "category", "frequency", "username", "password", "reading_rules"]:
         v = getattr(body, field, None)
         if v is not None:
-            patch[field] = (v.strip() if isinstance(v, str) else v) or None
+            val = (v.strip() if isinstance(v, str) else v) or None
+            # V50.z19 — Normalizza URL: se non ha schema, prepende https://
+            if field == "url" and isinstance(val, str) and val and not val.startswith(("http://", "https://")):
+                val = "https://" + val.lstrip("/")
+            patch[field] = val
+    # V50.z19 — Se aggiorniamo l'URL, resettiamo last_error (nuovo tentativo)
+    if "url" in patch:
+        patch["last_error"] = None
     r = await db.ai_teach_urls.update_one({"url_id": url_id, "user_id": tid}, {"$set": patch})
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail="URL non trovato")
