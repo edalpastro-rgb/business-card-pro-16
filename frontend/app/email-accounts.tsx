@@ -373,6 +373,8 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
   const [ssl, setSsl] = useState(true);
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
+  // V50.z21c — Toggle visualizzazione password
+  const [showPassword, setShowPassword] = useState(false);
   // V50.z21b — Errore inline sempre visibile (RN Alert su web è a volte silente)
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -479,16 +481,31 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
               testID="mail-email-input"
             />
             <Text style={styles.sectionLabel}>Password</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder={currentPreset?.note?.includes("App Password") ? "App Password (16 caratteri)" : "Password della casella"}
-              placeholderTextColor={theme.color.muted}
-              secureTextEntry
-              autoCapitalize="none"
-              style={styles.input}
-              testID="mail-password-input"
-            />
+            <View style={styles.pwdWrap}>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder={currentPreset?.note?.includes("App Password") ? "App Password (16 caratteri)" : "Password della casella"}
+                placeholderTextColor={theme.color.muted}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[styles.input, { paddingRight: 44 }]}
+                testID="mail-password-input"
+              />
+              <Pressable
+                onPress={() => setShowPassword((v) => !v)}
+                style={styles.pwdEye}
+                hitSlop={8}
+                testID="mail-password-toggle"
+              >
+                <Ionicons
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color={theme.color.muted}
+                />
+              </Pressable>
+            </View>
             <Text style={styles.sectionLabel}>Nome (opzionale)</Text>
             <TextInput
               value={label}
@@ -818,6 +835,12 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1, borderColor: theme.color.border, borderRadius: 10,
     padding: 12, fontSize: 14, color: theme.color.onSurface, backgroundColor: "#F8FAFC",
+  },
+  // V50.z21c — Password toggle 👁
+  pwdWrap: { position: "relative" },
+  pwdEye: {
+    position: "absolute", right: 10, top: 0, bottom: 0,
+    justifyContent: "center", alignItems: "center", paddingHorizontal: 6,
   },
   rowInputs: { flexDirection: "row", alignItems: "flex-start" },
   sslRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },

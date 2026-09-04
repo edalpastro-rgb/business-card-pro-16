@@ -16883,9 +16883,19 @@ async def axon_alerts_delete(alert_id: str, user=Depends(get_current_user)):
 # Backend legge INBOX via IMAPS e serve messaggi + allegati.
 # =========================================================================
 from imap_tools import MailBox, AND
+# V50.z21c — Init Fernet DIRETTAMENTE (la sezione Outlook è più in basso nel
+# file, quindi _outlook_fernet non era ancora definito qui → _MAIL_FERNET
+# risultava sempre None e ogni tentativo di salvare una casella dava
+# "Cifratura non configurata").
 try:
-    _MAIL_FERNET = _outlook_fernet  # riuso la stessa key già configurata
-except Exception:
+    from cryptography.fernet import Fernet as _FernetMail
+    _MAIL_ENC_KEY_STR = os.environ.get("OUTLOOK_TOKEN_ENC_KEY", "")
+    if _MAIL_ENC_KEY_STR:
+        _MAIL_FERNET = _FernetMail(_MAIL_ENC_KEY_STR.encode())
+    else:
+        _MAIL_FERNET = None
+except Exception as _e_mail:
+    logger.error(f"[Mail] Fernet init failed: {_e_mail}")
     _MAIL_FERNET = None
 
 
