@@ -16876,6 +16876,376 @@ async def axon_alerts_delete(alert_id: str, user=Depends(get_current_user)):
 
 
 # =========================================================================
+# V50.z21 — MAIL UNIVERSALE IMAP (Aruba, Gmail, Outlook, Register, Libero, …)
+#
+# L'utente registra la propria casella mail con host IMAP + user + password.
+# La password viene cifrata (Fernet, stessa chiave di Outlook OAuth).
+# Backend legge INBOX via IMAPS e serve messaggi + allegati.
+# =========================================================================
+from imap_tools import MailBox, AND
+try:
+    _MAIL_FERNET = _outlook_fernet  # riuso la stessa key già configurata
+except Exception:
+    _MAIL_FERNET = None
+
+
+# Preset provider comuni (host IMAPS standard su porta 993)
+_MAIL_PRESETS = {
+    "aruba": {"label": "Aruba", "host": "imaps.aruba.it", "port": 993, "ssl": True},
+    "gmail": {"label": "Gmail", "host": "imap.gmail.com", "port": 993, "ssl": True, "note": "Richiede App Password (Google → Sicurezza → Password per le app)"},
+    "outlook": {"label": "Outlook.com / Hotmail", "host": "imap-mail.outlook.com", "port": 993, "ssl": True},
+    "office365": {"label": "Microsoft 365 (aziendale)", "host": "outlook.office365.com", "port": 993, "ssl": True, "note": "Richiede che l'admin abiliti IMAP legacy nel tenant"},
+    "register": {"label": "Register.it", "host": "imaps.register.it", "port": 993, "ssl": True},
+    "libero": {"label": "Libero.it", "host": "imapmail.libero.it", "port": 993, "ssl": True},
+    "yahoo": {"label": "Yahoo Mail", "host": "imap.mail.yahoo.com", "port": 993, "ssl": True, "note": "Richiede App Password"},
+    "ionos": {"label": "IONOS", "host": "imap.ionos.it", "port": 993, "ssl": True},
+    "custom": {"label": "Altro (configurazione manuale)", "host": "", "port": 993, "ssl": True},
+}
+
+
+def _mail_enc(s: str) -> str:
+    if not _MAIL_FERNET:
+        raise HTTPException(500, "Cifratura non configurata (OUTLOOK_TOKEN_ENC_KEY manca)")
+    return _MAIL_FERNET.encrypt(s.encode()).decode()
+
+
+def _mail_dec(s: str) -> str:
+    return _MAIL_FERNET.decrypt(s.encode()).decode()
+
+
+def _mail_account_serialize(a: dict) -> dict:
+    return {
+        "account_id": a.get("account_id"),
+        "email": a.get("email"),
+        "label": a.get("label"),
+        "provider": a.get("provider"),
+        "imap_host": a.get("imap_host"),
+        "imap_port": a.get("imap_port"),
+        "imap_ssl": a.get("imap_ssl", True),
+        "connected_at": a.get("connected_at").isoformat() if a.get("connected_at") else None,
+        "last_check_at": a.get("last_check_at").isoformat() if a.get("last_check_at") else None,
+        "last_error": a.get("last_error"),
+    }
+
+
+def _imap_test_and_login_sync(host: str, port: int, ssl: bool, user_email: str, password: str):
+    """Sync helper eseguito in un executor. Ritorna un contesto MailBox già loggato."""
+    if ssl:
+        mb = MailBox(host, port=port).login(user_email, password, initial_folder="INBOX")
+    else:
+        mb = MailBox(host, port=port, ssl=False).login(user_email, password, initial_folder="INBOX")
+    return mb
+
+
+@api_router.get("/mail/presets")
+async def mail_presets_list(user=Depends(get_current_user)):
+    """Elenco provider preimpostati (host/porta già settati)."""
+    return {"presets": [
+        {"id": k, **v} for k, v in _MAIL_PRESETS.items()
+    ]}
+
+
+@api_router.get("/mail/accounts")
+async def mail_accounts_list(user=Depends(get_current_user)):
+    """Elenca le caselle mail collegate dall'utente."""
+    cur = db.mail_accounts.find({"user_id": user["user_id"]}).sort("connected_at", -1)
+    items = [_mail_account_serialize(a) async for a in cur]
+    return {"items": items}
+
+
+@api_router.post("/mail/accounts")
+async def mail_accounts_add(payload: Dict[str, Any] = Body(...), user=Depends(get_current_user)):
+    """Aggiunge una casella mail. Testa la connessione IMAP prima di salvare."""
+    if not _MAIL_FERNET:
+        raise HTTPException(500, "Cifratura non configurata")
+    email_addr = (payload.get("email") or "").strip()
+    password = payload.get("password") or ""
+    provider = (payload.get("provider") or "custom").lower()
+    label = (payload.get("label") or "").strip() or email_addr
+    host = (payload.get("imap_host") or "").strip()
+    port = int(payload.get("imap_port") or 993)
+    ssl_flag = bool(payload.get("imap_ssl", True))
+
+    if not email_addr or "@" not in email_addr:
+        raise HTTPException(400, "Email non valida")
+    if not password:
+        raise HTTPException(400, "Password mancante")
+
+    # Se provider è un preset noto, usa i suoi valori
+    if provider in _MAIL_PRESETS and provider != "custom":
+        preset = _MAIL_PRESETS[provider]
+        if not host:
+            host = preset["host"]
+        if not port:
+            port = preset["port"]
+        if "ssl" in preset:
+            ssl_flag = preset["ssl"]
+
+    if not host:
+        raise HTTPException(400, "Host IMAP mancante")
+
+    # Test connessione
+    loop = asyncio.get_event_loop()
+    try:
+        def _try():
+            mb = _imap_test_and_login_sync(host, port, ssl_flag, email_addr, password)
+            mb.logout()
+            return True
+        await asyncio.wait_for(loop.run_in_executor(None, _try), timeout=15)
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "Timeout: server IMAP non raggiungibile")
+    except Exception as e:
+        raise HTTPException(400, f"Login IMAP fallito: {str(e)[:200]}")
+
+    # Salva
+    account_id = f"mail_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "account_id": account_id,
+        "user_id": user["user_id"],
+        "tenant_id": tenant_id(user),
+        "email": email_addr,
+        "label": label,
+        "provider": provider,
+        "imap_host": host,
+        "imap_port": port,
+        "imap_ssl": ssl_flag,
+        "password_enc": _mail_enc(password),
+        "connected_at": datetime.utcnow(),
+        "last_check_at": datetime.utcnow(),
+        "last_error": None,
+    }
+    await db.mail_accounts.insert_one(doc)
+    return _mail_account_serialize(doc)
+
+
+@api_router.delete("/mail/accounts/{account_id}")
+async def mail_accounts_delete(account_id: str, user=Depends(get_current_user)):
+    r = await db.mail_accounts.delete_one({"account_id": account_id, "user_id": user["user_id"]})
+    if r.deleted_count == 0:
+        raise HTTPException(404, "Casella non trovata")
+    return {"deleted": True}
+
+
+async def _mail_load_account(account_id: str, user_id: str) -> dict:
+    a = await db.mail_accounts.find_one({"account_id": account_id, "user_id": user_id})
+    if not a:
+        raise HTTPException(404, "Casella non trovata")
+    return a
+
+
+@api_router.get("/mail/inbox")
+async def mail_inbox_combined(
+    unread_only: bool = True,
+    per_account: int = 15,
+    user=Depends(get_current_user),
+):
+    """V50.z21 — Vista UNIFICATA: legge le mail da TUTTE le caselle collegate
+    dell'utente **in parallelo** e le restituisce ordinate per data desc.
+
+    Utile per il collaboratore/Master che ha più caselle e vuole vedere
+    tutto in un colpo senza dover selezionare account per account.
+    """
+    per_account = max(1, min(per_account, 50))
+    accounts_cur = db.mail_accounts.find({"user_id": user["user_id"]})
+    accounts = [a async for a in accounts_cur]
+    if not accounts:
+        return {"messages": [], "accounts_count": 0, "errors": []}
+
+    loop = asyncio.get_event_loop()
+
+    def _fetch_account(a: dict) -> Dict[str, Any]:
+        try:
+            password = _mail_dec(a["password_enc"])
+            results = []
+            with _imap_test_and_login_sync(
+                a["imap_host"], a["imap_port"], a.get("imap_ssl", True), a["email"], password
+            ) as mb:
+                criteria = AND(seen=False) if unread_only else "ALL"
+                fetched = list(mb.fetch(criteria, limit=per_account, reverse=True, mark_seen=False))
+                for m in fetched:
+                    atts = []
+                    try:
+                        for att in m.attachments:
+                            atts.append({
+                                "filename": att.filename or "allegato",
+                                "content_type": att.content_type or "application/octet-stream",
+                                "size": att.size or 0,
+                            })
+                    except Exception:
+                        pass
+                    preview = ""
+                    try:
+                        if m.text:
+                            preview = (m.text or "").strip()[:400]
+                        elif m.html:
+                            preview = re.sub(r"<[^>]+>", " ", m.html or "").strip()[:400]
+                    except Exception:
+                        pass
+                    results.append({
+                        "account_id": a["account_id"],
+                        "account_email": a["email"],
+                        "account_label": a.get("label") or a["email"],
+                        "uid": m.uid,
+                        "subject": m.subject or "(senza oggetto)",
+                        "from_name": (m.from_values.name if m.from_values else "") or "",
+                        "from_email": (m.from_values.email if m.from_values else m.from_) or "",
+                        "date": m.date.isoformat() if m.date else None,
+                        "date_ts": m.date.timestamp() if m.date else 0,
+                        "preview": preview,
+                        "is_read": ("\\Seen" in (m.flags or [])),
+                        "has_attachments": len(atts) > 0,
+                        "attachments": atts,
+                    })
+            return {"account_id": a["account_id"], "ok": True, "messages": results}
+        except Exception as e:
+            return {"account_id": a["account_id"], "ok": False, "error": str(e)[:200], "account_email": a["email"]}
+
+    tasks = [loop.run_in_executor(None, _fetch_account, a) for a in accounts]
+    try:
+        results = await asyncio.wait_for(asyncio.gather(*tasks), timeout=60)
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "Timeout fetch multi-account")
+
+    # Aggrega + salva errori per singolo account
+    all_messages: List[Dict[str, Any]] = []
+    errors: List[Dict[str, str]] = []
+    now = datetime.utcnow()
+    for r in results:
+        if r.get("ok"):
+            all_messages.extend(r.get("messages", []))
+            await db.mail_accounts.update_one(
+                {"account_id": r["account_id"]},
+                {"$set": {"last_check_at": now, "last_error": None}},
+            )
+        else:
+            errors.append({"account_id": r["account_id"], "email": r.get("account_email", ""), "error": r.get("error", "")})
+            await db.mail_accounts.update_one(
+                {"account_id": r["account_id"]},
+                {"$set": {"last_check_at": now, "last_error": r.get("error", "")[:200]}},
+            )
+
+    all_messages.sort(key=lambda x: x.get("date_ts", 0), reverse=True)
+    return {
+        "messages": all_messages,
+        "accounts_count": len(accounts),
+        "success_count": len(accounts) - len(errors),
+        "errors": errors,
+    }
+
+
+@api_router.get("/mail/accounts/{account_id}/messages")
+async def mail_messages_list(
+    account_id: str,
+    unread_only: bool = True,
+    limit: int = 30,
+    user=Depends(get_current_user),
+):
+    """Elenca gli ultimi messaggi INBOX della casella."""
+    a = await _mail_load_account(account_id, user["user_id"])
+    password = _mail_dec(a["password_enc"])
+    limit = max(1, min(limit, 100))
+
+    loop = asyncio.get_event_loop()
+
+    def _fetch():
+        results = []
+        with _imap_test_and_login_sync(a["imap_host"], a["imap_port"], a.get("imap_ssl", True), a["email"], password) as mb:
+            criteria = AND(seen=False) if unread_only else "ALL"
+            fetched = list(mb.fetch(criteria, limit=limit, reverse=True, bulk=True, mark_seen=False, headers_only=False))
+            for m in fetched:
+                atts = []
+                try:
+                    for att in m.attachments:
+                        atts.append({
+                            "filename": att.filename or "allegato",
+                            "content_type": att.content_type or "application/octet-stream",
+                            "size": att.size or 0,
+                            # part_id sostituito da un identificativo posizionale
+                            "part_id": att.part,
+                        })
+                except Exception:
+                    pass
+                # V50.z21 — Anteprima testo (max ~500 char)
+                preview = ""
+                try:
+                    if m.text:
+                        preview = (m.text or "").strip()[:500]
+                    elif m.html:
+                        preview = re.sub(r"<[^>]+>", " ", m.html or "").strip()[:500]
+                except Exception:
+                    pass
+                results.append({
+                    "uid": m.uid,
+                    "subject": m.subject or "(senza oggetto)",
+                    "from_name": (m.from_values.name if m.from_values else "") or "",
+                    "from_email": (m.from_values.email if m.from_values else m.from_) or "",
+                    "date": m.date.isoformat() if m.date else None,
+                    "preview": preview,
+                    "flags": list(m.flags or []),
+                    "is_read": ("\\Seen" in (m.flags or [])),
+                    "has_attachments": len(atts) > 0,
+                    "attachments_count": len(atts),
+                    "attachments": atts,
+                })
+        return results
+
+    try:
+        messages = await asyncio.wait_for(loop.run_in_executor(None, _fetch), timeout=30)
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "Timeout durante il download messaggi")
+    except Exception as e:
+        # Salva last_error
+        try:
+            await db.mail_accounts.update_one({"account_id": account_id},
+                {"$set": {"last_error": str(e)[:300], "last_check_at": datetime.utcnow()}})
+        except Exception:
+            pass
+        raise HTTPException(400, f"Errore lettura mail: {str(e)[:200]}")
+
+    # OK: reset last_error, aggiorna last_check_at
+    await db.mail_accounts.update_one({"account_id": account_id},
+        {"$set": {"last_error": None, "last_check_at": datetime.utcnow()}})
+
+    return {"messages": messages, "count": len(messages)}
+
+
+@api_router.get("/mail/accounts/{account_id}/messages/{uid}/attachments/{filename}")
+async def mail_download_attachment(
+    account_id: str, uid: str, filename: str, user=Depends(get_current_user),
+):
+    """Scarica un allegato specifico di un messaggio dalla casella."""
+    from fastapi.responses import Response as _Resp
+    a = await _mail_load_account(account_id, user["user_id"])
+    password = _mail_dec(a["password_enc"])
+
+    loop = asyncio.get_event_loop()
+
+    def _fetch_attachment():
+        with _imap_test_and_login_sync(a["imap_host"], a["imap_port"], a.get("imap_ssl", True), a["email"], password) as mb:
+            for m in mb.fetch(AND(uid=uid), limit=1, mark_seen=False):
+                for att in m.attachments:
+                    if (att.filename or "") == filename:
+                        return {"payload": att.payload, "content_type": att.content_type or "application/octet-stream"}
+        return None
+
+    try:
+        result = await asyncio.wait_for(loop.run_in_executor(None, _fetch_attachment), timeout=30)
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "Timeout durante il download allegato")
+    except Exception as e:
+        raise HTTPException(400, f"Errore: {str(e)[:200]}")
+
+    if not result:
+        raise HTTPException(404, "Allegato non trovato")
+
+    return _Resp(
+        content=result["payload"],
+        media_type=result["content_type"],
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# =========================================================================
 # V50.z18 — MICROSOFT OUTLOOK OAUTH (Microsoft Graph Mail.Read)
 #
 # Flow (auth code + PKCE + offline_access):

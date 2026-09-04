@@ -39,6 +39,8 @@ const CARDS: Card[] = [
     title: "🏠 Home Assistant", sub: "Controlla luci, tapparelle, serrature" },
   { id: "outlook", href: "/outlook", icon: "mail", color: "#0078D4",
     title: "📧 Outlook (Microsoft)", sub: "Collega la casella e leggi le mail con Axon" },
+  { id: "email-accounts", href: "/email-accounts", icon: "mail-unread", color: "#0EA5E9",
+    title: "📧 Caselle Email (IMAP)", sub: "Aruba, Gmail, Register, Libero, Yahoo · multi-account" },
   { id: "help-center", href: "/help-center", icon: "shield-checkmark", color: "#7C3AED",
     title: "🛡️ HELP CENTER", sub: "Termini d'uso · richiedi cancellazione dei tuoi dati" },
 ];

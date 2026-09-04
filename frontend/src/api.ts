@@ -6,6 +6,11 @@ const TOKEN_KEY = "auth_token_v1";
 export async function getToken(): Promise<string | null> {
   return (await storage.secureGet<string | null>(TOKEN_KEY, null)) as string | null;
 }
+// V50.z21 — Helper per download binari (allegati mail) e altre fetch dirette
+export async function getAuthHeader(): Promise<Record<string, string>> {
+  const t = await getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
 export async function setToken(t: string) {
   await storage.secureSet(TOKEN_KEY, t);
 }
