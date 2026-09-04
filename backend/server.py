@@ -9484,7 +9484,13 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
     # detto di consultare (GME, ARERA, ecc.).
     dyn_html_text = await _fetch_teach_urls_html_generic(tenant, user_msg)
 
-    if not rules and not dyn_pdf_text and not dyn_drive_pdf_text and not dyn_html_text:
+    # V50.z28 — FALLBACK CANONICI: se il tenant NON ha insegnato l'URL GME PUN
+    # ma il messaggio riguarda PUN/fasce/energia, Axon deve comunque saperli
+    # trovare. Scarica la pagina GME PrezzoMedioFasce come "conoscenza di
+    # sistema" (non serve teach esplicito).
+    canonical_gme_text = await _fetch_gme_pun_canonical(tenant, user_msg)
+
+    if not rules and not dyn_pdf_text and not dyn_drive_pdf_text and not dyn_html_text and not canonical_gme_text:
         return ""
 
     msg_lc = (user_msg or "").lower()
@@ -9568,10 +9574,105 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
             "USA questi dati come fonte primaria per rispondere. Se contengono la risposta, cita il "
             "sito da cui viene."
         )
+    canonical_block = ""
+    if canonical_gme_text:
+        canonical_block = (
+            "\n\n### 🏦 FONTE CANONICA GME (PUN – Prezzo Medio per Fasce, pagina ufficiale)\n"
+            + canonical_gme_text
+            + "\n\nQuesti sono i PDF ufficiali del GME letti in tempo reale dalla pagina "
+            "`gme.mercatoelettrico.org/it-it/Home/Pubblicazioni/PrezzoMedioFasce`. "
+            "**PRIORITÀ MASSIMA per query PUN/F1/F2/F3**: usa questi numeri anche se altre "
+            "sezioni contengono valori diversi o `n/d`. Nome file mostra il mese/anno del dato."
+        )
     return (
-        header + body + dyn_block + drive_block + html_block
+        header + body + dyn_block + drive_block + html_block + canonical_block
         + "\n\nQuando rispondi, cita esplicitamente il nome del file/regola/sito e il contenuto rilevante."
     )
+
+
+async def _fetch_gme_pun_canonical(tenant: str, user_msg: str, max_pdfs: int = 18) -> str:
+    """V50.z28 — Fallback canonico: scarica sempre la pagina GME PrezzoMedioFasce
+    quando il messaggio riguarda PUN/fasce/energia, anche se il tenant non ha
+    insegnato esplicitamente questo URL. Cache in-memory 30 min per tenant.
+    """
+    msg_lc = (user_msg or "").lower()
+    if not msg_lc:
+        return ""
+    keys = ("pun", "fascia", "fasce", "f1", "f2", "f3", "prezzo medio", "prezzomedio",
+            "gme", "mercatoelettrico", "€/mwh", "€/kwh", "monorario")
+    if not any(k in msg_lc for k in keys):
+        return ""
+
+    # Cache 15 min (in-memory globale)
+    global _GME_CANONICAL_CACHE  # noqa: PLW0603
+    try:
+        _GME_CANONICAL_CACHE  # type: ignore[name-defined]
+    except NameError:
+        _GME_CANONICAL_CACHE = {"ts": None, "text": ""}
+    now_ts = datetime.utcnow()
+    ts = _GME_CANONICAL_CACHE.get("ts")
+    if ts and (now_ts - ts).total_seconds() < 900 and _GME_CANONICAL_CACHE.get("text"):
+        return _GME_CANONICAL_CACHE["text"]
+
+    GME_PAGE = "https://gme.mercatoelettrico.org/it-it/Home/Pubblicazioni/PrezzoMedioFasce"
+    _headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+        "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/pdf,*/*;q=0.8",
+    }
+    from urllib.parse import urljoin, urlparse
+
+    async def _dl_pdf(client: httpx.AsyncClient, pu: str) -> Optional[Dict[str, str]]:
+        try:
+            r = await client.get(pu, timeout=10)
+            if r.status_code != 200 or not r.content:
+                return None
+            txt = _extract_pdf_text_bytes(r.content) or ""
+            txt = re.sub(r"\s{3,}", " ", txt).strip()
+            if len(txt) < 30:
+                return None
+            return {"url": pu, "name": urlparse(pu).path.rsplit("/", 1)[-1] or pu, "text": txt[:900]}
+        except Exception:
+            return None
+
+    blocks: List[str] = []
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, headers=_headers) as client:
+            page = await client.get(GME_PAGE, timeout=10)
+            if page.status_code != 200:
+                return ""
+            hrefs = re.findall(r'href=["\']([^"\']+\.pdf[^"\']*)["\']', page.text or "", flags=re.I)
+            seen = set()
+            pdf_urls: List[str] = []
+            for h in hrefs:
+                full = urljoin(GME_PAGE, h)
+                # Normalizza query string per dedup
+                _norm = full.split("?")[0].lower()
+                if _norm in seen:
+                    continue
+                seen.add(_norm)
+                pdf_urls.append(full)
+                if len(pdf_urls) >= max_pdfs:
+                    break
+            if not pdf_urls:
+                return ""
+            results = await asyncio.gather(*[_dl_pdf(client, pu) for pu in pdf_urls], return_exceptions=False)
+            seen_names = set()
+            for res in results:
+                if not res:
+                    continue
+                nm = (res.get("name") or "").lower()
+                if nm in seen_names:
+                    continue
+                seen_names.add(nm)
+                blocks.append(f"--- PDF GME: {res['name']} ---\n{res['text']}")
+    except Exception as exc:
+        logger.debug("[gme-canonical] fetch failed: %s", exc)
+        return ""
+
+    out = "\n\n".join(blocks)
+    _GME_CANONICAL_CACHE = {"ts": now_ts, "text": out}
+    return out
 
 
 # V49.q — Scarica dinamicamente PDF dai link ai_teach_urls quando il messaggio
@@ -9650,6 +9751,16 @@ async def _fetch_teach_urls_html_generic(
         snap = u.get("axon_snapshot") or {}
         html_text = (snap.get("html_text") or "").strip()
         pdfs = snap.get("pdf_texts") or []
+        # V50.z28 — Fallback su `last_summary` (fetcher manuale via Tavily) se
+        # il snapshot vero è vuoto. Prima Axon leggeva SOLO axon_snapshot,
+        # ignorando i contenuti che il refresh manuale dall'UI salvava
+        # in `last_summary` (bug ricorrente su URL come www.arera.it).
+        if not html_text and not pdfs:
+            ls = (u.get("last_summary") or "").strip()
+            if ls:
+                title = u.get("title") or u.get("name") or u.get("url")
+                parts.append(f"--- FONTE: {title} ({u.get('url')}) [refresh manuale: {u.get('last_fetched_at') or '?'}] ---\n{ls[:max(per_url_chars, 4000)]}")
+                continue  # non aggiungerlo a stale_needing_live
         if html_text:
             title = u.get("title") or u.get("name") or u.get("url")
             parts.append(f"--- FONTE: {title} ({u.get('url')}) [snapshot: {snap.get('fetched_at') or '?'}] ---\n{html_text[:per_url_chars]}")

@@ -3678,3 +3678,36 @@ Nessuna modifica frontend richiesta.
 - First delta a **5.26s** (con preflight completo di RAG+teach+tavily), Done a **8.35s** per tabella di 21 righe → 5× più veloce di Sonnet 4.5.
 
 **Nota tecnica**: I ~5s di preflight sono dovuti a Tavily search + RAG retrieval + teach snapshot fetch che girano in serie. Ottimizzabile parallelizzando (futuro).
+
+
+## V50.z28 — 🔥 FIX critico Axon: bug DUAL-STORAGE + fallback canonico GME
+
+**Problema segnalato dall'utente reale (`user_ae92fe85cdaf`)**:
+Anche dopo l'ultimo aggiornamento manuale degli URL Axon lasciava `n/d` per Agosto 2026 e mesi storici, pur avendo insegnato URL come `arera.it`, `gse.it`, `ansa.it`. L'utente si aspettava che Axon andasse su GME autonomamente.
+
+**Diagnosi (via query DB reale)**:
+1. **DUAL STORAGE BUG**: esistono DUE fetcher paralleli nel backend:
+   - `_ai_teach_refresh_url` (linea 15418) → chiamato quando l'utente clicca "aggiorna" nell'UI, salva in `last_summary` (con contenuti PDF inclusi via Tavily).
+   - `_axon_refresh_teach_snapshot` (linea 9690) → chiamato dallo scheduler ogni 30 min, salva in `axon_snapshot`.
+   
+   La chat `_fetch_teach_urls_html_generic` leggeva SOLO `axon_snapshot`, IGNORANDO `last_summary`. Risultato: gli aggiornamenti manuali dell'utente non arrivavano mai ad Axon.
+2. **GME URL non insegnato**: l'utente aveva insegnato `www.arera.it` (senza deep link) sperando che Axon "capisse" di andare su GME per i PUN. Non funzionava.
+
+**Fix in `/app/backend/server.py`**:
+
+1. **Fallback merge dual-storage** (`_fetch_teach_urls_html_generic`):
+   - Se `axon_snapshot` è vuoto, legge `last_summary` (fetch manuale via Tavily+PDF).
+   - Tag `[refresh manuale: ...]` così Axon sa da dove viene.
+
+2. **Fallback canonico GME** (nuova funzione `_fetch_gme_pun_canonical`):
+   - Attivata SEMPRE quando la query contiene keyword PUN/fascia/f1-f3/mercato elettrico/€kWh/€MWh/monorario.
+   - Scarica direttamente `gme.mercatoelettrico.org/it-it/Home/Pubblicazioni/PrezzoMedioFasce` e i primi 18 PDF (Gen→Dic dell'anno corrente).
+   - Cache in-memory 15 min per non ricaricare ad ogni query.
+   - Header canonico `🏦 FONTE CANONICA GME`, PRIORITÀ MASSIMA per PUN F1/F2/F3.
+   - Perf: 8 mesi caricati in 3.26s (parallelo).
+
+3. **Dedup PDF** su base name lowercase per evitare duplicati (GME espone alcuni PDF 2x).
+
+**Effetto atteso per l'utente reale**:
+- Riprovare la query "Aggiorna tabella PUN 18 mesi con Agosto 2026" → ora Axon avrà nel prompt i valori LIVE di Gen-Ago 2026 dalla FONTE CANONICA GME, indipendentemente da cosa ha insegnato.
+- I mesi 2025 saranno presi dal RAG Master (se caricati) o marcati `n/d` (GME non espone lo storico sulla pagina pubblica dell'anno corrente).
