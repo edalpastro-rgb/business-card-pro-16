@@ -3600,3 +3600,32 @@ Nessun autotest eseguito.
 - Nuova collection `mail_auto_crm_settings` per tenant: `{enabled, interval_minutes, last_run_at, next_run_at, last_stats, last_error}`.
 - Nuovo job APScheduler `_run_auto_crm_tick` (ogni 1 min): controlla scadenze e lancia scan per tenant abilitati.
 - Limiti: min 5 min, max 1440 min (24h). Default 15 min.
+
+
+## V50.z25 — Bottone Caselle mail su Home + Sezione Allegati dalle mail su contatto
+
+**Richieste utente**:
+1. Aggiungere un bottone "Caselle mail" nel menu Azioni rapide della home, rendendolo a scomparsa.
+2. Aggiungere in scheda contatto la sezione "Allegati dalle mail" con i file salvati automaticamente dall'Auto-CRM.
+
+**Frontend — `/app/frontend/app/(tabs)/home.tsx`**:
+- Sezione "Azioni rapide" ora è collassabile (chevron up/down sul titolo).
+- Stato persistito in `AsyncStorage` (`home_qa_open_v1`), default aperto.
+- Aggiunto 4° pulsante "Caselle mail" (arancione #F97316) → naviga a `/email-accounts`.
+- `quickRow` cambia in `flexWrap` con `flexBasis: 45%` per andare a capo con 4+ pulsanti.
+
+**Backend — `/app/backend/server.py`**:
+- Nuovi endpoint tenant-safe:
+  - `GET /api/contacts/{contact_id}/mail-attachments` — lista allegati (senza payload).
+  - `GET /api/contacts/{contact_id}/mail-attachments/{attachment_id}/download` — binario file.
+  - `DELETE /api/contacts/{contact_id}/mail-attachments/{attachment_id}` — rimozione.
+- Ogni endpoint filtra su `tenant_id` per isolamento multi-tenant.
+
+**Frontend — `/app/frontend/src/ContactMailAttachmentsSection.tsx` (nuovo)**:
+- Componente che si mostra solo se ci sono allegati (`items.length > 0`).
+- Card arancione con lista file: filename, size, subject della mail, mittente.
+- Preview IN-APP identica alla casella mail: iframe (web PDF), Image (foto), hint scarica per native/altro.
+- Pulsante "Rimuovi" con confermazione.
+
+**Integrazione — `/app/frontend/app/contact/[id].tsx`**:
+- Aggiunto sotto la tab "File" (in coda ai file caricati manualmente).

@@ -139,6 +139,23 @@ export default function HomeScreen() {
   const [deadlinesLoading, setDeadlinesLoading] = useState<boolean>(true);
   // V49 — "Comunica con l'azienda" panel (nome, email, numeri di servizio)
   const [companySheetOpen, setCompanySheetOpen] = useState<boolean>(false);
+  // V50.z25 — Sezione "Azioni rapide" collassabile (a scomparsa) con persistenza
+  const [qaOpen, setQaOpen] = useState<boolean>(true);
+  useEffect(() => {
+    (async () => {
+      try {
+        const v = await AsyncStorage.getItem("home_qa_open_v1");
+        if (v === "0") setQaOpen(false);
+      } catch { /* silent */ }
+    })();
+  }, []);
+  const toggleQa = useCallback(() => {
+    setQaOpen((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem("home_qa_open_v1", next ? "1" : "0").catch(() => {});
+      return next;
+    });
+  }, []);
 
   // V50.m — Onboarding esteso: al primo login mostra automaticamente il
   // libretto informativo in modalità tour guidato. Una volta visto, non
@@ -513,29 +530,41 @@ export default function HomeScreen() {
           })}
         </View>
 
-        {/* ── 5) Azioni rapide ── */}
+        {/* ── 5) Azioni rapide (a scomparsa) ── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Azioni rapide</Text>
-          <View style={styles.quickRow}>
-            <Pressable testID="qa-new-appt" style={styles.quick} onPress={() => router.push("/appointment/new")}>
-              <View style={[styles.quickIcon, { backgroundColor: C.primary }]}>
-                <Ionicons name="calendar-outline" size={22} color="#FFF" />
-              </View>
-              <Text style={styles.quickTxt} numberOfLines={2}>Nuovo appuntamento</Text>
-            </Pressable>
-            <Pressable testID="qa-new-contact" style={styles.quick} onPress={() => router.push("/contact/new")}>
-              <View style={[styles.quickIcon, { backgroundColor: C.navy }]}>
-                <Ionicons name="person-add-outline" size={22} color="#FFF" />
-              </View>
-              <Text style={styles.quickTxt} numberOfLines={2}>Nuovo contatto</Text>
-            </Pressable>
-            <Pressable testID="qa-voice-copilot" style={styles.quick} onPress={() => router.push("/voice-copilot")}>
-              <View style={[styles.quickIcon, { backgroundColor: "#38BDF8" }]}>
-                <Ionicons name="mic" size={22} color="#FFF" />
-              </View>
-              <Text style={styles.quickTxt} numberOfLines={2}>Copilot Auto</Text>
-            </Pressable>
-          </View>
+          <Pressable onPress={toggleQa} style={styles.qaHeader} hitSlop={8}>
+            <Text style={styles.sectionTitle}>Azioni rapide</Text>
+            <Ionicons name={qaOpen ? "chevron-up" : "chevron-down"} size={20} color={C.navy} />
+          </Pressable>
+          {qaOpen ? (
+            <View style={styles.quickRow}>
+              <Pressable testID="qa-new-appt" style={styles.quick} onPress={() => router.push("/appointment/new")}>
+                <View style={[styles.quickIcon, { backgroundColor: C.primary }]}>
+                  <Ionicons name="calendar-outline" size={22} color="#FFF" />
+                </View>
+                <Text style={styles.quickTxt} numberOfLines={2}>Nuovo appuntamento</Text>
+              </Pressable>
+              <Pressable testID="qa-new-contact" style={styles.quick} onPress={() => router.push("/contact/new")}>
+                <View style={[styles.quickIcon, { backgroundColor: C.navy }]}>
+                  <Ionicons name="person-add-outline" size={22} color="#FFF" />
+                </View>
+                <Text style={styles.quickTxt} numberOfLines={2}>Nuovo contatto</Text>
+              </Pressable>
+              <Pressable testID="qa-voice-copilot" style={styles.quick} onPress={() => router.push("/voice-copilot")}>
+                <View style={[styles.quickIcon, { backgroundColor: "#38BDF8" }]}>
+                  <Ionicons name="mic" size={22} color="#FFF" />
+                </View>
+                <Text style={styles.quickTxt} numberOfLines={2}>Copilot Auto</Text>
+              </Pressable>
+              {/* V50.z25 — Caselle mail (IMAP) */}
+              <Pressable testID="qa-email-accounts" style={styles.quick} onPress={() => router.push("/email-accounts")}>
+                <View style={[styles.quickIcon, { backgroundColor: "#F97316" }]}>
+                  <Ionicons name="mail-outline" size={22} color="#FFF" />
+                </View>
+                <Text style={styles.quickTxt} numberOfLines={2}>Caselle mail</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
 
         {/* ── V29 · Scadenze imminenti ── */}
@@ -1261,9 +1290,11 @@ const styles = StyleSheet.create({
   areaTitle: { fontSize: 12, fontWeight: "800", color: C.navy, textTransform: "uppercase", letterSpacing: 0.5 },
 
   /* Quick — V29.ba stile "Optima": icona full-round colorata con shadow rialzato */
-  quickRow: { flexDirection: "row", gap: 12 },
+  qaHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  quickRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   quick: {
-    flex: 1, backgroundColor: C.white, padding: 14, borderRadius: 16, alignItems: "flex-start", gap: 10,
+    flexGrow: 1, flexBasis: "45%", minWidth: 140, maxWidth: "100%",
+    backgroundColor: C.white, padding: 14, borderRadius: 16, alignItems: "flex-start", gap: 10,
     borderWidth: 1, borderColor: C.border,
     ...(cardShadow as any),
   },

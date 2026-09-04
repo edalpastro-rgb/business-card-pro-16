@@ -17630,6 +17630,84 @@ async def mail_auto_crm_reject(proposal_id: str, user=Depends(get_current_user))
     return {"ok": True}
 
 
+# ─── V50.z25 — Allegati salvati per contatto (Auto-CRM) ──────────────
+@api_router.get("/contacts/{contact_id}/mail-attachments")
+async def contact_mail_attachments_list(contact_id: str, user=Depends(get_current_user)):
+    """Lista degli allegati salvati automaticamente dall'Auto-CRM per il contatto."""
+    tid = tenant_id(user)
+    # Verifica ownership contatto
+    contact = await db.contacts.find_one({"contact_id": contact_id, "user_id": user["user_id"]}, {"_id": 0, "contact_id": 1})
+    if not contact:
+        # Consenti anche accesso via tenant (team)
+        contact = await db.contacts.find_one({"contact_id": contact_id}, {"_id": 0, "contact_id": 1, "user_id": 1})
+        if not contact:
+            raise HTTPException(404, "Contatto non trovato")
+    items = []
+    cursor = db.contact_mail_attachments.find(
+        {"contact_id": contact_id, "tenant_id": tid},
+        {"_id": 0, "content_b64": 0},  # escludi payload dalla lista
+    ).sort("created_at", -1).limit(200)
+    async for a in cursor:
+        # Cerca la mail sorgente per subject/from
+        mail = None
+        try:
+            mail = await db.contact_mails.find_one(
+                {"contact_id": contact_id, "account_id": a.get("account_id"), "uid": a.get("mail_uid")},
+                {"_id": 0, "subject": 1, "from_email": 1, "from_name": 1, "received_at": 1},
+            )
+        except Exception:
+            pass
+        if isinstance(a.get("created_at"), datetime):
+            a["created_at"] = a["created_at"].isoformat()
+        if mail:
+            a["mail_subject"] = mail.get("subject")
+            a["mail_from_email"] = mail.get("from_email")
+            a["mail_from_name"] = mail.get("from_name")
+            a["mail_received_at"] = mail.get("received_at")
+        items.append(a)
+    return {"items": items, "count": len(items)}
+
+
+@api_router.get("/contacts/{contact_id}/mail-attachments/{attachment_id}/download")
+async def contact_mail_attachment_download(contact_id: str, attachment_id: str, user=Depends(get_current_user)):
+    """Scarica il binario dell'allegato salvato (base64 → bytes)."""
+    from fastapi.responses import Response as _Resp
+    import base64 as _b64
+    tid = tenant_id(user)
+    att = await db.contact_mail_attachments.find_one(
+        {"attachment_id": attachment_id, "contact_id": contact_id, "tenant_id": tid},
+        {"_id": 0},
+    )
+    if not att:
+        raise HTTPException(404, "Allegato non trovato")
+    try:
+        payload = _b64.b64decode(att.get("content_b64") or "")
+    except Exception:
+        raise HTTPException(500, "Contenuto allegato corrotto")
+    filename = att.get("filename") or "allegato"
+    ctype = att.get("content_type") or "application/octet-stream"
+    # RFC5987 per filename con caratteri non-ASCII
+    from urllib.parse import quote as _q
+    return _Resp(
+        content=payload,
+        media_type=ctype,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"; filename*=UTF-8\'\'{_q(filename)}'},
+    )
+
+
+@api_router.delete("/contacts/{contact_id}/mail-attachments/{attachment_id}")
+async def contact_mail_attachment_delete(contact_id: str, attachment_id: str, user=Depends(get_current_user)):
+    """Rimuove un allegato salvato per il contatto."""
+    tid = tenant_id(user)
+    r = await db.contact_mail_attachments.delete_one(
+        {"attachment_id": attachment_id, "contact_id": contact_id, "tenant_id": tid},
+    )
+    if r.deleted_count == 0:
+        raise HTTPException(404, "Allegato non trovato")
+    return {"ok": True}
+
+
+
 # =========================================================================
 # V50.z18 — MICROSOFT OUTLOOK OAUTH (Microsoft Graph Mail.Read)
 #
