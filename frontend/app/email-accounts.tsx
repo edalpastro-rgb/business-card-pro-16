@@ -68,20 +68,28 @@ export default function EmailAccountsScreen() {
   const onRefresh = () => { setRefreshing(true); load(); };
 
   const removeAccount = (a: MailAccount) => {
+    const doRemove = async () => {
+      try {
+        await api(`/mail/accounts/${a.account_id}`, { method: "DELETE" });
+        setAccounts((prev) => prev.filter((x) => x.account_id !== a.account_id));
+      } catch (e: any) {
+        if (Platform.OS === "web") {
+          window.alert(`Errore: ${e?.message || "Impossibile rimuovere"}`);
+        } else {
+          Alert.alert("Errore", e?.message || "Impossibile rimuovere");
+        }
+      }
+    };
+    // V50.z30 — Su web Alert.alert non mostra i pulsanti multipli (bug RN-Web):
+    // usiamo window.confirm() nativo del browser. Su native manteniamo Alert.alert.
+    if (Platform.OS === "web") {
+      const ok = window.confirm(`Vuoi scollegare la casella ${a.email}?\n\nLe mail sul server non verranno toccate.`);
+      if (ok) doRemove();
+      return;
+    }
     Alert.alert("Rimuovi casella", `Vuoi scollegare ${a.email}?`, [
       { text: "Annulla", style: "cancel" },
-      {
-        text: "Rimuovi",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await api(`/mail/accounts/${a.account_id}`, { method: "DELETE" });
-            setAccounts((prev) => prev.filter((x) => x.account_id !== a.account_id));
-          } catch (e: any) {
-            Alert.alert("Errore", e?.message || "Impossibile rimuovere");
-          }
-        },
-      },
+      { text: "Rimuovi", style: "destructive", onPress: doRemove },
     ]);
   };
 
