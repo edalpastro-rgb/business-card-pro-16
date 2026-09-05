@@ -9175,10 +9175,37 @@ async def _tavily_search(query: str, max_results: int = 5, country: Optional[str
 
     Docs: https://docs.tavily.com — POST /search with `api_key`, `query`,
     `search_depth: 'advanced'`, `include_answer: true`, `max_results`.
+
+    V50.z36 — In-memory cache 15 min per (query, max_results, country).
+    Query identiche (normalizzate lowercase+trim) tornano in ~0ms.
     """
     key = os.environ.get("TAVILY_API_KEY")
     if not key:
         return None
+
+    # Cache lookup
+    global _TAVILY_CACHE  # noqa: PLW0603
+    try:
+        _TAVILY_CACHE  # type: ignore[name-defined]
+    except NameError:
+        _TAVILY_CACHE = {}  # type: Dict[str, Tuple[datetime, dict]]
+    q_norm = (query or "").strip().lower()
+    if not q_norm:
+        return None
+    cache_key = f"{q_norm}|{max_results}|{country or ''}"
+    now_ts = datetime.utcnow()
+    hit = _TAVILY_CACHE.get(cache_key)
+    if hit:
+        ts, cached = hit
+        if (now_ts - ts).total_seconds() < 900:  # 15 minuti
+            return cached
+    # Ordinaria pulizia opportunistica: se dizionario > 200 entries, rimuovi
+    # gli item più vecchi di 30 min (semplice sweep, no LRU).
+    if len(_TAVILY_CACHE) > 200:
+        stale = [k for k, (t, _) in _TAVILY_CACHE.items() if (now_ts - t).total_seconds() > 1800]
+        for k in stale:
+            _TAVILY_CACHE.pop(k, None)
+
     try:
         payload: Dict[str, Any] = {
             "api_key": key,
@@ -9203,7 +9230,7 @@ async def _tavily_search(query: str, max_results: int = 5, country: Optional[str
             )
             r.raise_for_status()
             data = r.json()
-            return {
+            result = {
                 "answer": data.get("answer") or "",
                 "results": [
                     {
@@ -9214,6 +9241,10 @@ async def _tavily_search(query: str, max_results: int = 5, country: Optional[str
                 ],
                 "query": query,
             }
+            # Salva in cache solo se ha davvero contenuto utile
+            if result.get("answer") or result.get("results"):
+                _TAVILY_CACHE[cache_key] = (now_ts, result)
+            return result
     except Exception as e:
         logger.warning("tavily search failed for %s: %s", query, e)
         return None

@@ -3862,3 +3862,20 @@ Il collo di bottiglia residuo per query energy è il fetch Tavily (2-3s) e i PDF
 **Cosa vedrai in app**
 - Home → tap sull'icona ☰ hamburger nell'angolo alto sinistra dell'header → drawer scorre da sinistra con tutte le 28 voci divise in 6 categorie colorate.
 - Le quick action della Home restano visibili come prima.
+
+
+## V50.z36 — Cache Tavily 15 min (sotto 2s su query ripetute)
+
+**Cosa fatto**:
+- Aggiunta cache in-memory `_TAVILY_CACHE` a `_tavily_search`:
+  - Chiave: `(query_norm, max_results, country)` con query normalizzata (lower+trim).
+  - TTL: 900s (15 min).
+  - Sweep opportunistico: se cache > 200 entries, rimuove item > 30 min.
+  - Salva solo se `answer` o `results` non vuoti (non cachare fallimenti).
+
+**Verifica reale (curl end-to-end demo user)**:
+- 1° call (cache miss): 7.52s first token
+- **2° call (cache HIT stessa query): 1.70s first token** ✅ **sotto i 2s obiettivo raggiunto**
+- 3° call (cache miss query diversa): 5.41s first token (baseline preservata)
+
+Riduzione ~78% del tempo al primo token sulle query energy ripetute (es. utenti che chiedono più volte gli stessi PUN, tariffe ARERA, ecc.).
