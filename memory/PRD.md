@@ -3837,3 +3837,28 @@ Il collo di bottiglia residuo per query energy è il fetch Tavily (2-3s) e i PDF
 **Test visivo (screenshot Axon Hub)**: 
 - Header viola "AI & AXON" con icona sparkles + card viola sotto ✓
 - Prossimi gruppi arancione "COMUNICAZIONI" e grigio "AMMINISTRAZIONE" scorrendo giù ✓
+
+
+## V50.z35 — Drawer laterale con 6 categorie colorate
+
+**Richiesta utente**: menu drawer completo (stile screenshot) con 6 categorie per accedere velocemente a tutto da un unico punto, mantenendo le quick action attuali della Home.
+
+**Implementazione**:
+- **Nuovo componente `/app/frontend/src/DrawerMenu.tsx`**:
+  - Modal transparente con overlay + slide-in da sinistra (Animated 220ms).
+  - Larghezza 85% schermo (max 340px), safe area top/bottom.
+  - Header "AdvisorOS · Menu completo" con badge sparkles.
+  - **28 voci** raggruppate nelle 6 categorie palette (blu CRM, viola AI, arancione Comm, verde Docs, giallo Team, grigio Admin).
+  - Ogni gruppo ha header stile screenshot: badge tondo colorato + label UPPERCASE + linea sottile.
+  - Voci con icona circolare piena colorata + label + chevron; ripple pressed a tinta categoria.
+  - Chiusura via backdrop tap, pulsante X, o navigazione (con 80ms delay per animazione fluida).
+
+- **`/app/frontend/app/(tabs)/home.tsx`**:
+  - Aggiunto pulsante hamburger nell'angolo top-left dell'header, sopra la data (background scuro semitrasparente per contrasto).
+  - Data spostata a `left: 44` per lasciare spazio all'hamburger.
+  - State `drawerOpen` e mount `<DrawerMenu>` alla fine del componente.
+  - **Le quick actions esistenti sono INVARIATE** (Nuovo appuntamento, Nuovo contatto, Copilot Auto, Caselle mail).
+
+**Cosa vedrai in app**
+- Home → tap sull'icona ☰ hamburger nell'angolo alto sinistra dell'header → drawer scorre da sinistra con tutte le 28 voci divise in 6 categorie colorate.
+- Le quick action della Home restano visibili come prima.

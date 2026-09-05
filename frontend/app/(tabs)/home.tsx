@@ -12,6 +12,7 @@ import { CallScriptOverlay } from "@/src/CallScriptOverlay";
 import { CompanyContactSheet } from "@/src/CompanyContactSheet";
 import { HomeEventBanner } from "@/src/HomeEventBanner";
 import { AlarmHomeWidget } from "@/src/AlarmHomeWidget";
+import { DrawerMenu } from "@/src/DrawerMenu";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 // V29.aq — Header dashboard image (loaded as local bundled asset so it works
@@ -141,6 +142,8 @@ export default function HomeScreen() {
   const [companySheetOpen, setCompanySheetOpen] = useState<boolean>(false);
   // V50.z25 — Sezione "Azioni rapide" collassabile (a scomparsa) con persistenza
   const [qaOpen, setQaOpen] = useState<boolean>(true);
+  // V50.z35 — Drawer laterale con 6 categorie
+  const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   useEffect(() => {
     (async () => {
       try {
@@ -355,6 +358,16 @@ export default function HomeScreen() {
               {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
             </Text>
           </View>
+          {/* V50.z35 — Hamburger drawer (angolo top-left, sopra la data) */}
+          <Pressable
+            onPress={() => setDrawerOpen(true)}
+            hitSlop={10}
+            style={styles.brandHeaderHamburger}
+            testID="home-drawer-open"
+            accessibilityLabel="Apri menu completo"
+          >
+            <Ionicons name="menu" size={22} color="#FFF" />
+          </Pressable>
           <Pressable onPress={() => router.push("/impostazioni" as any)} hitSlop={8} style={styles.brandHeaderCornerTR}>
             {user?.avatar_base64 ? (
               <Image source={{ uri: user.avatar_base64 }} style={styles.brandHeaderAvatar} />
@@ -734,6 +747,9 @@ export default function HomeScreen() {
         visible={companySheetOpen}
         onClose={() => setCompanySheetOpen(false)}
       />
+
+      {/* V50.z35 — Drawer laterale con 6 categorie */}
+      <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </SafeAreaView>
   );
 }
@@ -1074,8 +1090,18 @@ const styles = StyleSheet.create({
   brandHeaderCornerTL: {
     position: "absolute",
     top: 4,
-    left: 10,
+    left: 44,   // V50.z35: spazio a sinistra per hamburger
     zIndex: 2,
+  },
+  brandHeaderHamburger: {
+    position: "absolute",
+    top: 4,
+    left: 8,
+    zIndex: 3,
+    width: 32, height: 28,
+    alignItems: "center", justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.28)",
   },
   brandHeaderCornerTR: {
     position: "absolute",
