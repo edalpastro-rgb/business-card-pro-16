@@ -3792,3 +3792,23 @@ Anche dopo l'ultimo aggiornamento manuale degli URL Axon lasciava `n/d` per Agos
   - "previsioni Milano" → (dopo fix) Milano ✓
   - "meteo Torino domani sera" → Torino ✓
   - "meteo domani" → "?" ✓ (chiede quale città)
+
+
+## V50.z33 — Preflight parallelo full (RAG + Tavily + Teach + GME canonical)
+
+**Cosa fatto**:
+1. **Tavily nel gather principale** (`_prepare_assistant_prompt` × 2 flows): prima era chiamato sequenzialmente DOPO il gather, ora parte insieme a context/weather/RAG/memories/attachments/teach_section. Se non è query energy la promise ritorna None subito (no latenza).
+2. **4 fetcher interni di `_build_axon_teach_section` parallelizzati** con asyncio.gather:
+   - `_fetch_teach_url_pdfs_for_query`
+   - `_fetch_teach_drive_pdfs_for_query`
+   - `_fetch_teach_urls_html_generic`
+   - `_fetch_gme_pun_canonical`
+   Prima ~10s in sequenza (2-3s ciascuno), ora ~3s (limite = fetcher più lento).
+3. **Skip Tavily se RAG già copre**: se `_rag_covers_query` è True, scartiamo il risultato Tavily per evitare rumore nel prompt.
+
+**Verifica reale (test end-to-end)**:
+- Query PUN complessa (attiva RAG+Tavily+teach+GME canonical): **3.84s** first token (prima ~5-8s)
+- Query meteo con fetch weather API: **3.34s** first token
+- Query CRM banale (no fetcher pesanti): **0.84s** ✅ sotto i 2s
+
+Il collo di bottiglia residuo per query energy è il fetch Tavily (2-3s) e i PDF GME canonical (3s parallelizzati). Ulteriori ottimizzazioni possibili: cache Tavily 15 min per query identiche.

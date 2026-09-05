@@ -9480,26 +9480,27 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
         logger.warning("[axon-teach] cannot read ai_teach_rules: %s", exc)
         rules = []
 
-    # V49.q — Fetch dinamico dei PDF dai URL monitorati (solo pattern PUN)
-    dyn_pdf_text = await _fetch_teach_url_pdfs_for_query(tenant, user_msg)
-
-    # V50.z7 — Fetch dinamico dei PDF caricati in Drive folders/files
-    # indicati come teach URL (es. link https://drive.google.com/drive/folders/…).
-    # Legge la cartella con le credenziali OAuth dell'utente e scarica i PDF
-    # rilevanti al mese/anno menzionato (o i più recenti se query generica).
-    dyn_drive_pdf_text = await _fetch_teach_drive_pdfs_for_query(tenant, user_msg)
-
-    # V50.z — Fetch GENERICO delle pagine HTML degli URL insegnati.
-    # Attivato per QUALSIASI messaggio (max 8 URL, max 800 char per pagina),
-    # così Axon ha sempre il contenuto fresco dei siti ufficiali che gli hai
-    # detto di consultare (GME, ARERA, ecc.).
-    dyn_html_text = await _fetch_teach_urls_html_generic(tenant, user_msg)
-
-    # V50.z28 — FALLBACK CANONICI: se il tenant NON ha insegnato l'URL GME PUN
-    # ma il messaggio riguarda PUN/fasce/energia, Axon deve comunque saperli
-    # trovare. Scarica la pagina GME PrezzoMedioFasce come "conoscenza di
-    # sistema" (non serve teach esplicito).
-    canonical_gme_text = await _fetch_gme_pun_canonical(tenant, user_msg)
+    # V50.z33 — PARALLELIZE i 4 fetcher pesanti (prima sequenziali):
+    #  - PDF dinamici URL insegnati
+    #  - PDF Google Drive folder
+    #  - HTML generico URL insegnati (snapshot + last_summary)
+    #  - GME canonical fallback
+    # Ogni fetcher può richiedere 1-3s: in sequenza ~10s, in parallelo ~3s.
+    async def _s_pdf():
+        try: return await _fetch_teach_url_pdfs_for_query(tenant, user_msg)
+        except Exception: return ""
+    async def _s_drive():
+        try: return await _fetch_teach_drive_pdfs_for_query(tenant, user_msg)
+        except Exception: return ""
+    async def _s_html():
+        try: return await _fetch_teach_urls_html_generic(tenant, user_msg)
+        except Exception: return ""
+    async def _s_canonical():
+        try: return await _fetch_gme_pun_canonical(tenant, user_msg)
+        except Exception: return ""
+    dyn_pdf_text, dyn_drive_pdf_text, dyn_html_text, canonical_gme_text = await asyncio.gather(
+        _s_pdf(), _s_drive(), _s_html(), _s_canonical(),
+    )
 
     if not rules and not dyn_pdf_text and not dyn_drive_pdf_text and not dyn_html_text and not canonical_gme_text:
         return ""
@@ -11070,28 +11071,39 @@ async def _prepare_assistant_prompt(
             logger.warning("[axon-teach] section build failed: %s", exc)
             return ""
 
-    context, weather_ctx, _prefetch_rag_chunks, memories, attachments_section, axon_teach_section = await asyncio.gather(
+    # V50.z33 — Tavily nel gather principale (prima era sequenziale dopo).
+    # Se non è una query energy, ritorna None subito (nessuna latenza).
+    _needs_tavily = _detect_energy_query(msg)
+    async def _safe_tavily():
+        if not _needs_tavily:
+            return None
+        try:
+            return await _tavily_search(msg)
+        except Exception:
+            return None
+
+    context, weather_ctx, _prefetch_rag_chunks, memories, attachments_section, axon_teach_section, web_search_ctx = await asyncio.gather(
         _safe_context(),
         _safe_weather(),
         _safe_rag_prefetch(),
         _safe_memories(),
         _safe_attachments(),
         _safe_teach_section(),
+        _safe_tavily(),
     )
 
     _msg_low = (msg or "").lower()
     _is_table_query = any(k in _msg_low for k in ["tabella", "per fascia", "f1", "f2", "f3", "monorario", "media pun", "pun medi"])
     _rag_covers_query = bool(_prefetch_rag_chunks) and (_is_table_query or ("pun" in _msg_low))
 
-    web_search_ctx: Optional[dict] = None
+    # Se il RAG copre la query, scarta Tavily (evita rumore) e disattiva flag web.
     used_web_search = False
-    if _detect_energy_query(msg) and not _rag_covers_query:
-        try:
-            web_search_ctx = await _tavily_search(msg)
-            if web_search_ctx and (web_search_ctx.get("answer") or web_search_ctx.get("results")):
-                used_web_search = True
-        except Exception:
-            web_search_ctx = None
+    if _rag_covers_query:
+        web_search_ctx = None
+    elif web_search_ctx and (web_search_ctx.get("answer") or web_search_ctx.get("results")):
+        used_web_search = True
+    else:
+        web_search_ctx = None
 
     # V42 — RAG on Master documents (per-tenant knowledge base)
     rag_section = ""
