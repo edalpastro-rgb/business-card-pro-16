@@ -185,17 +185,24 @@ function MasterScreen() {
   };
 
   const buttons: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; badge?: number; pulse?: Animated.Value }[] = [
-    { label: "Agenda", icon: "calendar", color: "#0891B2", onPress: () => goto("/(tabs)/calendario") },
-    { label: "New Contact", icon: "person-add", color: "#7C3AED", onPress: () => goto("/contact/new") },
-    { label: "Chat Gruppo", icon: "chatbubbles", color: "#F59E0B", onPress: () => setChatPickerOpen(true) },
-    { label: "Calcolatrice", icon: "calculator", color: "#6366F1", onPress: () => setCalcOpen(true) },
-    { label: "My Web", icon: "globe", color: "#DB2777", onPress: () => goto("/my-web") },
-    { label: "New CRT", icon: "document-text", color: "#059669", onPress: handleNewContract, badge: alerts.unread },
-    { label: "New App", icon: "add-circle", color: "#16A34A", onPress: () => goto("/appointment/new") },
+    // V50.z40 — Colori palette semantica (Proposta A): stessa di Axon Hub e drawer.
+    // CRM Core (blu #0EA5E9)
+    { label: "Agenda", icon: "calendar", color: "#0EA5E9", onPress: () => goto("/(tabs)/calendario") },
+    { label: "New Contact", icon: "person-add", color: "#0EA5E9", onPress: () => goto("/contact/new") },
+    // Comunicazioni (arancione #F97316)
+    { label: "Chat Gruppo", icon: "chatbubbles", color: "#F97316", onPress: () => setChatPickerOpen(true) },
+    // Amministrazione / utility (grigio #475569)
+    { label: "Calcolatrice", icon: "calculator", color: "#475569", onPress: () => setCalcOpen(true) },
+    // AI & Axon (viola #7C3AED)
+    { label: "My Web", icon: "globe", color: "#7C3AED", onPress: () => goto("/my-web") },
+    // CRM Core
+    { label: "New CRT", icon: "document-text", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread },
+    { label: "New App", icon: "add-circle", color: "#0EA5E9", onPress: () => goto("/appointment/new") },
+    // Comunicazioni
     {
       label: voicePhase === "recording" ? "Ferma registrazione" : "Registra audio",
       icon: voicePhase === "recording" ? "stop" : "mic",
-      color: voicePhase === "recording" ? "#DC2626" : "#7C3AED",
+      color: voicePhase === "recording" ? "#DC2626" : "#F97316",
       onPress: () => {
         if (voicePhase === "recording") {
           setVoiceStopSignal((s) => s + 1);
@@ -205,36 +212,55 @@ function MasterScreen() {
       },
       pulse: voicePhase === "recording" ? voicePulse : undefined,
     },
-    { label: "I miei audio", icon: "folder-open", color: "#8B5CF6", onPress: () => goto("/my-audios") },
-    { label: "Analizza bolletta", icon: "flash", color: "#EA580C", onPress: () => goto("/bill-quick") },
-    { label: "I miei file", icon: "folder-open", color: "#0891B2", onPress: () => goto("/master-files") },
-    { label: "Biglietto da visita", icon: "id-card", color: "#7C3AED", onPress: () => goto("/business-card") },
-    { label: "Banner Evento", icon: "megaphone", color: "#F59E0B", onPress: () => goto("/event-banners") },
-    { label: "Script Telefonata", icon: "document-text", color: "#0F766E", onPress: () => goto("/call-script-config") },
-    // V50.z18 — Rinominato "Insegna ad Axon" → "Axon Center" per coerenza con
-    // la schermata che apre (l'hub che raggruppa tutte le funzioni Axon).
-    { label: "Axon Center", icon: "sparkles", color: "#FF6B35", onPress: () => goto("/axon-hub"), badge: pendingProposals },
+    // Documenti & Cloud (verde #10B981)
+    { label: "I miei audio", icon: "folder-open", color: "#10B981", onPress: () => goto("/my-audios") },
+    // AI & Axon
+    { label: "Analizza bolletta", icon: "flash", color: "#7C3AED", onPress: () => goto("/bill-quick") },
+    // Documenti & Cloud
+    { label: "I miei file", icon: "folder-open", color: "#10B981", onPress: () => goto("/master-files") },
+    { label: "Biglietto da visita", icon: "id-card", color: "#10B981", onPress: () => goto("/business-card") },
+    // Comunicazioni
+    { label: "Banner Evento", icon: "megaphone", color: "#F97316", onPress: () => goto("/event-banners") },
+    { label: "Script Telefonata", icon: "document-text", color: "#F97316", onPress: () => goto("/call-script-config") },
+    // AI & Axon
+    { label: "Axon Center", icon: "sparkles", color: "#7C3AED", onPress: () => goto("/axon-hub"), badge: pendingProposals },
+    // CRM Core
     { label: "Cruscotto", icon: "grid", color: "#0EA5E9", onPress: () => goto("/cruscotto") },
-    { label: "Azioni rapide", icon: "flash", color: "#8B5CF6", onPress: () => goto("/quick-actions") },
+    { label: "Azioni rapide", icon: "flash", color: "#0EA5E9", onPress: () => goto("/quick-actions") },
   ];
 
   // V48 — Apply saved order (if any), placing unknown/new buttons at the end.
+  // V50.z40 — Se non c'è ordine custom, raggruppa per categoria colore
+  // (CRM blu → Comunicazioni arancio → AI viola → Documenti verde → Utility grigio).
   const orderedButtons = useMemo(() => {
-    if (!buttonOrder || !buttonOrder.length) return buttons;
-    const byLabel = new Map(buttons.map((b) => [b.label, b] as const));
-    const seen = new Set<string>();
-    const out: typeof buttons = [];
-    for (const label of buttonOrder) {
-      const b = byLabel.get(label);
-      if (b && !seen.has(label)) {
-        out.push(b);
-        seen.add(label);
+    if (buttonOrder && buttonOrder.length) {
+      const byLabel = new Map(buttons.map((b) => [b.label, b] as const));
+      const seen = new Set<string>();
+      const out: typeof buttons = [];
+      for (const label of buttonOrder) {
+        const b = byLabel.get(label);
+        if (b && !seen.has(label)) { out.push(b); seen.add(label); }
       }
+      for (const b of buttons) { if (!seen.has(b.label)) out.push(b); }
+      return out;
     }
-    for (const b of buttons) {
-      if (!seen.has(b.label)) out.push(b);
-    }
-    return out;
+    // Default: ordina per priorità categoria (colore) mantenendo ordine
+    // originale dentro ogni categoria.
+    const catPriority: Record<string, number> = {
+      "#0EA5E9": 1,  // CRM Core
+      "#F97316": 2,  // Comunicazioni
+      "#7C3AED": 3,  // AI & Axon
+      "#10B981": 4,  // Documenti & Cloud
+      "#EAB308": 5,  // Team & Insights
+      "#475569": 6,  // Amministrazione / utility
+      "#DC2626": 2,  // rec attivo → resta accanto a Comunicazioni
+    };
+    return [...buttons].sort((a, b) => {
+      const pa = catPriority[a.color] ?? 99;
+      const pb = catPriority[b.color] ?? 99;
+      if (pa !== pb) return pa - pb;
+      return buttons.indexOf(a) - buttons.indexOf(b);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buttons, buttonOrder]);
 

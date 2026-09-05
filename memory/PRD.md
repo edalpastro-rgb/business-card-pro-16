@@ -3930,3 +3930,20 @@ Nessun altro file toccato.
 - Su iOS `keyboardWillShow` per animazione fluida, su Android `keyboardDidShow`.
 
 Nessun altro file toccato.
+
+
+## V50.z40 — Master bottoni ricategorizzati per colore (Proposta A)
+
+**Richiesta utente**: raggruppare i bottoni Master per area con la stessa palette di Axon Hub.
+
+**Fix in `/app/frontend/app/master.tsx`**:
+- 17 bottoni ricategorizzati con palette semantica Proposta A:
+  - 🔵 **CRM Core** (#0EA5E9): Agenda, New Contact, New CRT, New App, Cruscotto, Azioni rapide (6)
+  - 🟠 **Comunicazioni** (#F97316): Chat Gruppo, Registra audio, Banner Evento, Script Telefonata (4)
+  - 🟣 **AI & Axon** (#7C3AED): My Web, Analizza bolletta, Axon Center (3)
+  - 🟢 **Documenti & Cloud** (#10B981): I miei audio, I miei file, Biglietto da visita (3)
+  - ⚫ **Utility / Admin** (#475569): Calcolatrice (1)
+- Se l'utente non ha un ordine custom salvato, `orderedButtons` ora ordina per **priorità categoria** (CRM → Comunicazioni → AI → Docs → Utility) mantenendo l'ordine originale dentro ogni gruppo. Risultato: bottoni dello stesso colore appaiono raggruppati insieme visivamente.
+- Se l'utente ha già personalizzato l'ordine (via "Modifica"), il suo ordine viene preservato.
+
+**Impostazioni**: rimandate — la schermata `/app/frontend/app/(tabs)/impostazioni.tsx` ha una struttura complessa con righe non uniformi; sistemarla richiede un refactor dedicato per non introdurre regressioni.
