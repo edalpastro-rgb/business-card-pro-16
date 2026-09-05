@@ -3758,3 +3758,37 @@ Anche dopo l'ultimo aggiornamento manuale degli URL Axon lasciava `n/d` per Agos
 - Prima: ~20 s
 - Ora: **First delta 0.01 s, Done 0.01 s** → risposta pressoché istantanea.
 - Risposta identica a quella LLM (test: "Non hai appuntamenti nei prossimi 7 giorni" + suggerimento operativo con nomi clienti).
+
+
+## V50.z32 — 🔥 Fix meteo (parser rotto) + messaggio Drive intelligente
+
+**Problemi segnalati**:
+1. Axon rispondeva "non ho accesso al meteo" anche per query esplicite tipo "meteo Vicenza".
+2. Axon diceva "non ho accesso a Google Drive" anche se l'utente lo aveva collegato in precedenza (sessione OAuth scaduta).
+
+**Diagnosi**:
+1. **Parser meteo rotto**: `_detect_weather_query` matchava solo "a/in/di/per/su <City>", quindi:
+   - ✅ "che tempo fa a Roma" → Roma
+   - ❌ "meteo Vicenza" → "?" (assumeva query senza città → chiedeva quale città)
+   - ❌ "previsioni Milano" → None (keyword "previsioni" non era in `_WEATHER_KEYWORDS`)
+2. **Drive scaduto ≠ Drive mai collegato**: quando le credenziali OAuth scadono (`google_drive_credentials` vuota) ma esistevano `google_drive_folders` o teach URLs a `drive.google.com`, Axon rispondeva "non collegato / contatta Neo" invece di dire "sessione scaduta, riconnettiti in Impostazioni".
+
+**Fix in `/app/backend/server.py`**:
+
+1. **Parser meteo esteso** (`_detect_weather_query`):
+   - Nuovo regex "meteo/previsioni/tempo/clima <City>" (senza preposizione).
+   - Filtra stop-words nella city extraction.
+   - Aggiunte keyword `previsioni`, `previsione` a `_WEATHER_KEYWORDS`.
+
+2. **Detection Drive "sessione scaduta"** (`_cloud_section`):
+   - Se `google_drive_credentials` è vuota MA `google_drive_folders` o `ai_teach_urls` con `drive.google.com` esistono → messaggio "🔴 Google Drive SESSIONE SCADUTA. Vai in Impostazioni → Google Drive → Ricollega".
+   - Se davvero non è mai stato collegato → "Vai in Impostazioni → Google Drive → Collega" (auto-servito, no Neo).
+   - Regola esplicita: **non suggerire mai di contattare Neo/Admin per Drive**.
+
+**Verifica reale (curl end-to-end)**:
+- "meteo Vicenza domani" → risposta completa con temperatura, condizioni, alba/tramonto **in 4.23s** (first delta 3.09s).
+- Detection test:
+  - "meteo Vicenza" → Vicenza ✓
+  - "previsioni Milano" → (dopo fix) Milano ✓
+  - "meteo Torino domani sera" → Torino ✓
+  - "meteo domani" → "?" ✓ (chiede quale città)

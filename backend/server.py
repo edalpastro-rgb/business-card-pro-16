@@ -8744,9 +8744,10 @@ async def update_user_settings(body: UserSettingsIn, user=Depends(get_current_us
 # AI Personal Assistant (Neo)
 # =========================
 _WEATHER_KEYWORDS = [
-    "tempo", "meteo", "pioggia", "piove", "piover", "sole", "soleggiato", "sereno",
-    "temperatura", "gradi", "nevica", "neve", "vento", "nuvoloso", "nuvole", "nebbia",
-    "clima", "umidità", "afoso", "caldo", "freddo", "temporale",
+    "tempo", "meteo", "previsioni", "previsione", "pioggia", "piove", "piover",
+    "sole", "soleggiato", "sereno", "temperatura", "gradi", "nevica", "neve",
+    "vento", "nuvoloso", "nuvole", "nebbia", "clima", "umidità", "afoso",
+    "caldo", "freddo", "temporale",
 ]
 
 _WEATHER_CODES_IT = {
@@ -8770,24 +8771,34 @@ def _detect_weather_query(text: str) -> Optional[str]:
     lower = text.lower()
     if not any(kw in lower for kw in _WEATHER_KEYWORDS):
         return None
-    # Try to extract "a <City>" / "in <City>" / "di <City>" / "per <City>" / "su <City>"
-    # Capture up to 4 tokens; stop at time words or punctuation
     import re
-    # Words that indicate end of city name
+    stop_words = {
+        "oggi", "domani", "dopodomani", "stamattina", "stanotte", "pomeriggio",
+        "sera", "mattina", "adesso", "ora", "questa", "questo", "nel", "nella",
+        "dalle", "alle", "verso", "tra", "entro", "settimana", "weekend",
+        "prossimo", "prossima", "prossimi", "prossime",
+    }
     stop = r"(?:oggi|domani|dopodomani|stamattina|stanotte|pomeriggio|sera|mattina|adesso|ora|questa|questo|nel|nella|dalle|alle|verso|tra|tra\s+\w+|entro|prossim\w+|\?|\.|,|!|$)"
-    # City must start with capital in original text (best-effort)
+    # V50.z32 — Match diretto: "meteo/tempo/previsioni <City>" (senza preposizione)
+    m2 = re.search(
+        r"\b(?:meteo|previsioni|previsione|tempo|clima)\s+(?:di\s+|a\s+|in\s+|per\s+|su\s+)?([A-ZÀ-Ú][\wÀ-úà-ú'\-]*(?:\s+[A-ZÀ-Ú]?[\wÀ-úà-ú'\-]+){0,2})",
+        text,
+    )
+    if m2:
+        city = m2.group(1).strip().rstrip(",.;:!?").strip()
+        parts = [p for p in city.split() if p.lower() not in stop_words]
+        city = " ".join(parts).strip()
+        if len(city) >= 2:
+            return city
+    # Fallback: pattern "a/in/di/per/su <City>"
     m = re.search(
         r"\b(?:a|ad|in|di|per|su)\s+([A-ZÀ-Ú][\wÀ-úà-ú'\-]*(?:\s+(?!" + stop + r"\b)[A-ZÀ-Ú]?[\wÀ-úà-ú'\-]+){0,3})",
         text,
     )
     if m:
         city = m.group(1).strip().rstrip(",.;:!?").strip()
-        # Cleanup: drop trailing time words that slipped in
         parts = city.split()
-        while parts and parts[-1].lower() in {
-            "oggi", "domani", "dopodomani", "stamattina", "stanotte", "pomeriggio",
-            "sera", "mattina", "adesso", "ora", "questa", "questo",
-        }:
+        while parts and parts[-1].lower() in stop_words:
             parts.pop()
         city = " ".join(parts).strip()
         if len(city) >= 2:
@@ -11305,6 +11316,13 @@ async def _prepare_assistant_prompt(
         ).to_list(30)
         _dropbox_ok = await db.dropbox_credentials.find_one({"user_id": user["user_id"]}) is not None
         _drive_ok = await db.google_drive_credentials.find_one({"user_id": user["user_id"]}) is not None
+        # V50.z32 — Sessione scaduta detection
+        _drive_had_before = (not _drive_ok) and (len(_drive_folders) > 0)
+        if not _drive_ok and not _drive_had_before:
+            _teach_drive = await db.ai_teach_urls.count_documents(
+                {"user_id": tenant_id(user), "url": {"$regex": "drive.google.com", "$options": "i"}}
+            )
+            _drive_had_before = _teach_drive > 0
         lines = ["\n\nCLOUD & DRIVE COLLEGATI AL MASTER (usa queste info se l'utente chiede 'a cosa hai accesso'):"]
         if _drive_ok:
             if _drive_folders:
@@ -11314,10 +11332,24 @@ async def _prepare_assistant_prompt(
                 lines.append("  → Puoi leggere file da queste cartelle quando l'utente allega con l'icona G blu del picker Drive nel campo input.")
             else:
                 lines.append("- ⚠️ Google Drive collegato ma NESSUNA cartella Axon configurata. Dì all'utente di andare in Impostazioni → Google Drive → Scegli cartella.")
+        elif _drive_had_before:
+            lines.append(
+                "- 🔴 Google Drive SESSIONE SCADUTA (era collegato prima). L'utente deve RICONNETTERSI: "
+                "dì ESATTAMENTE 'Il tuo collegamento Google Drive è scaduto. Vai in **Impostazioni → Google Drive → Ricollega** "
+                "(basta un tap). Le tue cartelle monitorate vengono ripristinate automaticamente dopo il nuovo login.' "
+                "**NON dire 'non ho accesso'** – dì che è scaduto e va rinnovato."
+            )
         else:
-            lines.append("- ❌ Google Drive NON collegato.")
+            lines.append(
+                "- ❌ Google Drive NON ANCORA COLLEGATO. Se l'utente chiede file, dì: "
+                "'Vai in **Impostazioni → Google Drive → Collega** per darmi accesso alle tue cartelle.'"
+            )
         lines.append(f"- {'✅' if _dropbox_ok else '❌'} Dropbox {'collegato' if _dropbox_ok else 'non collegato'}.")
-        lines.append("REGOLA: non dire mai 'non ho accesso a Drive' se sopra risulta collegato. Dì invece quali cartelle sono monitorate e come allegare i file.")
+        lines.append(
+            "REGOLA: non dire mai 'non ho accesso a Drive' senza qualifica. Se scaduto dì 'sessione scaduta, "
+            "vai in Impostazioni per riconnettermi'. Se mai collegato spiega come collegarlo. **Non suggerire mai** "
+            "di 'contattare Neo/Admin' per Drive – è auto-servito dall'utente in 2 tap."
+        )
         _cloud_section = "\n".join(lines) + "\n"
     except Exception:
         _cloud_section = ""
@@ -11685,6 +11717,13 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         ).to_list(30)
         _dropbox_ok = await db.dropbox_credentials.find_one({"user_id": user["user_id"]}) is not None
         _drive_ok = await db.google_drive_credentials.find_one({"user_id": user["user_id"]}) is not None
+        # V50.z32 — Sessione scaduta detection
+        _drive_had_before = (not _drive_ok) and (len(_drive_folders) > 0)
+        if not _drive_ok and not _drive_had_before:
+            _teach_drive = await db.ai_teach_urls.count_documents(
+                {"user_id": tenant_id(user), "url": {"$regex": "drive.google.com", "$options": "i"}}
+            )
+            _drive_had_before = _teach_drive > 0
         lines = ["\n\nCLOUD & DRIVE COLLEGATI AL MASTER (usa queste info se l'utente chiede 'a cosa hai accesso'):"]
         if _drive_ok:
             if _drive_folders:
@@ -11694,10 +11733,24 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
                 lines.append("  → Puoi leggere file da queste cartelle quando l'utente allega con l'icona G blu del picker Drive nel campo input.")
             else:
                 lines.append("- ⚠️ Google Drive collegato ma NESSUNA cartella Axon configurata. Dì all'utente di andare in Impostazioni → Google Drive → Scegli cartella.")
+        elif _drive_had_before:
+            lines.append(
+                "- 🔴 Google Drive SESSIONE SCADUTA (era collegato prima). L'utente deve RICONNETTERSI: "
+                "dì ESATTAMENTE 'Il tuo collegamento Google Drive è scaduto. Vai in **Impostazioni → Google Drive → Ricollega** "
+                "(basta un tap). Le tue cartelle monitorate vengono ripristinate automaticamente dopo il nuovo login.' "
+                "**NON dire 'non ho accesso'** – dì che è scaduto e va rinnovato."
+            )
         else:
-            lines.append("- ❌ Google Drive NON collegato.")
+            lines.append(
+                "- ❌ Google Drive NON ANCORA COLLEGATO. Se l'utente chiede file, dì: "
+                "'Vai in **Impostazioni → Google Drive → Collega** per darmi accesso alle tue cartelle.'"
+            )
         lines.append(f"- {'✅' if _dropbox_ok else '❌'} Dropbox {'collegato' if _dropbox_ok else 'non collegato'}.")
-        lines.append("REGOLA: non dire mai 'non ho accesso a Drive' se sopra risulta collegato. Dì invece quali cartelle sono monitorate e come allegare i file.")
+        lines.append(
+            "REGOLA: non dire mai 'non ho accesso a Drive' senza qualifica. Se scaduto dì 'sessione scaduta, "
+            "vai in Impostazioni per riconnettermi'. Se mai collegato spiega come collegarlo. **Non suggerire mai** "
+            "di 'contattare Neo/Admin' per Drive – è auto-servito dall'utente in 2 tap."
+        )
         _cloud_section = "\n".join(lines) + "\n"
     except Exception:
         _cloud_section = ""
