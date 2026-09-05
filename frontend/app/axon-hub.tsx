@@ -19,31 +19,35 @@ type Card = {
 };
 
 const CARDS: Card[] = [
-  { id: "ai-teach", href: "/ai-teach", icon: "sparkles", color: "#FF6B35",
+  // V50.z34 — Palette semantica AdvisorOS Pro (categorie: AI/Axon viola, Comunicazioni arancione, Documenti verde)
+  // AI & Axon
+  { id: "ai-teach", href: "/ai-teach", icon: "sparkles", color: "#7C3AED",
     title: "✨ Insegna ad Axon", sub: "Regole per categoria + fonti URL con aggiornamento Tavily" },
   { id: "documenti-axon", href: "/documenti-axon", icon: "library", color: "#7C3AED",
     title: "📄 Documenti Axon", sub: "PDF (contratti, listini, brochure) letti da Axon" },
   { id: "axon-brain", href: "/axon-brain", icon: "sparkles", color: "#7C3AED",
     title: "🧠 Cervello Axon", sub: "Memoria distillata e profilo appreso dalle chat" },
-  { id: "axon-scripts", href: "/axon-scripts", icon: "library", color: "#FBBF24",
+  { id: "axon-scripts", href: "/axon-scripts", icon: "library", color: "#7C3AED",
     title: "📚 Playbook Script", sub: "Libreria script vincenti · modello di Axon" },
-  { id: "axon-cheatsheet", href: "/axon-cheatsheet", icon: "analytics", color: "#F59E0B",
+  { id: "axon-cheatsheet", href: "/axon-cheatsheet", icon: "analytics", color: "#7C3AED",
     title: "📊 Cheat Sheet Fornitori", sub: "Prezzi medi visti nelle tue bollette" },
-  { id: "neo-memory", href: "/neo-memory", icon: "hardware-chip", color: "#8B5CF6",
+  { id: "neo-memory", href: "/neo-memory", icon: "hardware-chip", color: "#7C3AED",
     title: "💾 Memoria Assistente", sub: "Consulta o cancella cosa ricorda l'assistente" },
-  { id: "wake-word", href: "/wake-word", icon: "mic", color: "#EA580C",
+  { id: "wake-word", href: "/wake-word", icon: "mic", color: "#7C3AED",
     title: "🎙️ Wake Word \"Axon\"", sub: "Ascolto continuo per attivare Axon a voce" },
-  { id: "axon-alarms", href: "/axon-alarms", icon: "alarm", color: "#22C55E",
+  { id: "axon-alarms", href: "/axon-alarms", icon: "alarm", color: "#7C3AED",
     title: "⏰ Timer & Sveglie", sub: "Sveglie, timer e promemoria in-app" },
-  { id: "axon-homeassistant", href: "/axon-homeassistant", icon: "home", color: "#3B82F6",
+  { id: "axon-homeassistant", href: "/axon-homeassistant", icon: "home", color: "#7C3AED",
     title: "🏠 Home Assistant", sub: "Controlla luci, tapparelle, serrature" },
-  { id: "outlook", href: "/outlook", icon: "mail", color: "#0078D4",
+  // Comunicazioni
+  { id: "outlook", href: "/outlook", icon: "mail", color: "#F97316",
     title: "📧 Outlook (Microsoft)", sub: "Collega la casella e leggi le mail con Axon" },
-  { id: "email-accounts", href: "/email-accounts", icon: "mail-unread", color: "#0EA5E9",
+  { id: "email-accounts", href: "/email-accounts", icon: "mail-unread", color: "#F97316",
     title: "📧 Caselle Email (IMAP)", sub: "Aruba, Gmail, Register, Libero, Yahoo · multi-account" },
-  { id: "mail-crm-proposals", href: "/mail-crm-proposals", icon: "sparkles", color: "#7C3AED",
+  { id: "mail-crm-proposals", href: "/mail-crm-proposals", icon: "sparkles", color: "#F97316",
     title: "🤖 Auto-CRM da Mail", sub: "Axon riconosce clienti, salva allegati, aggiorna anagrafica" },
-  { id: "help-center", href: "/help-center", icon: "shield-checkmark", color: "#7C3AED",
+  // Amministrazione
+  { id: "help-center", href: "/help-center", icon: "shield-checkmark", color: "#475569",
     title: "🛡️ HELP CENTER", sub: "Termini d'uso · richiedi cancellazione dei tuoi dati" },
 ];
 
@@ -97,23 +101,42 @@ export default function AxonHubScreen() {
             </Text>
           </View>
         </View>
-        {CARDS.map((c) => (
-          <Pressable
-            key={c.id}
-            onPress={() => router.push(c.href as any)}
-            style={styles.card}
-            testID={`hub-${c.id}`}
-          >
-            <View style={[styles.iconBox, { backgroundColor: `${c.color}20` }]}>
-              <Ionicons name={c.icon} size={24} color={c.color} />
+        {(() => {
+          // V50.z34 — Raggruppa le card per colore/categoria con header visivi.
+          const groups: { label: string; icon: any; color: string; items: Card[] }[] = [
+            { label: "AI & Axon",       icon: "sparkles",         color: "#7C3AED", items: CARDS.filter(c => c.color === "#7C3AED") },
+            { label: "Comunicazioni",   icon: "mail",             color: "#F97316", items: CARDS.filter(c => c.color === "#F97316") },
+            { label: "Amministrazione", icon: "shield-checkmark", color: "#475569", items: CARDS.filter(c => c.color === "#475569") },
+          ];
+          return groups.filter(g => g.items.length > 0).map((g) => (
+            <View key={g.label}>
+              <View style={styles.catHeader}>
+                <View style={[styles.catBadge, { backgroundColor: g.color + "22" }]}>
+                  <Ionicons name={g.icon} size={13} color={g.color} />
+                </View>
+                <Text style={[styles.catLabel, { color: g.color }]}>{g.label}</Text>
+                <View style={[styles.catLine, { backgroundColor: g.color + "33" }]} />
+              </View>
+              {g.items.map((c) => (
+                <Pressable
+                  key={c.id}
+                  onPress={() => router.push(c.href as any)}
+                  style={styles.card}
+                  testID={`hub-${c.id}`}
+                >
+                  <View style={[styles.iconBox, { backgroundColor: `${c.color}20` }]}>
+                    <Ionicons name={c.icon} size={24} color={c.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>{c.title}</Text>
+                    <Text style={styles.cardSub} numberOfLines={2}>{c.sub}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+                </Pressable>
+              ))}
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{c.title}</Text>
-              <Text style={styles.cardSub} numberOfLines={2}>{c.sub}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-          </Pressable>
-        ))}
+          ));
+        })()}
       </ScrollView>
     </SafeAreaView>
   );
@@ -163,4 +186,9 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
   cardSub: { fontSize: 12, color: theme.color.muted, marginTop: 3, lineHeight: 17 },
+  // V50.z34 — Header categoria (badge + label + linea)
+  catHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 18, marginBottom: 8, paddingHorizontal: 4 },
+  catBadge: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  catLabel: { fontSize: 12, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" },
+  catLine: { flex: 1, height: 2, borderRadius: 1, marginLeft: 4 },
 });

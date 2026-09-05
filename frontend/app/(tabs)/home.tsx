@@ -539,26 +539,26 @@ export default function HomeScreen() {
           {qaOpen ? (
             <View style={styles.quickRow}>
               <Pressable testID="qa-new-appt" style={styles.quick} onPress={() => router.push("/appointment/new")}>
-                <View style={[styles.quickIcon, { backgroundColor: C.primary }]}>
+                <View style={[styles.quickIcon, { backgroundColor: "#0EA5E9" /* V50.z34 CRM Core */ }]}>
                   <Ionicons name="calendar-outline" size={22} color="#FFF" />
                 </View>
                 <Text style={styles.quickTxt} numberOfLines={2}>Nuovo appuntamento</Text>
               </Pressable>
               <Pressable testID="qa-new-contact" style={styles.quick} onPress={() => router.push("/contact/new")}>
-                <View style={[styles.quickIcon, { backgroundColor: C.navy }]}>
+                <View style={[styles.quickIcon, { backgroundColor: "#0EA5E9" /* V50.z34 CRM Core */ }]}>
                   <Ionicons name="person-add-outline" size={22} color="#FFF" />
                 </View>
                 <Text style={styles.quickTxt} numberOfLines={2}>Nuovo contatto</Text>
               </Pressable>
               <Pressable testID="qa-voice-copilot" style={styles.quick} onPress={() => router.push("/voice-copilot")}>
-                <View style={[styles.quickIcon, { backgroundColor: "#38BDF8" }]}>
+                <View style={[styles.quickIcon, { backgroundColor: "#7C3AED" /* V50.z34 AI & Axon */ }]}>
                   <Ionicons name="mic" size={22} color="#FFF" />
                 </View>
                 <Text style={styles.quickTxt} numberOfLines={2}>Copilot Auto</Text>
               </Pressable>
-              {/* V50.z25 — Caselle mail (IMAP) */}
+              {/* V50.z25 — Caselle mail (IMAP) — categoria Comunicazioni */}
               <Pressable testID="qa-email-accounts" style={styles.quick} onPress={() => router.push("/email-accounts")}>
-                <View style={[styles.quickIcon, { backgroundColor: "#F97316" }]}>
+                <View style={[styles.quickIcon, { backgroundColor: "#F97316" /* V50.z34 Comunicazioni */ }]}>
                   <Ionicons name="mail-outline" size={22} color="#FFF" />
                 </View>
                 <Text style={styles.quickTxt} numberOfLines={2}>Caselle mail</Text>

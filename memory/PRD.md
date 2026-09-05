@@ -3812,3 +3812,28 @@ Anche dopo l'ultimo aggiornamento manuale degli URL Axon lasciava `n/d` per Agos
 - Query CRM banale (no fetcher pesanti): **0.84s** ✅ sotto i 2s
 
 Il collo di bottiglia residuo per query energy è il fetch Tavily (2-3s) e i PDF GME canonical (3s parallelizzati). Ulteriori ottimizzazioni possibili: cache Tavily 15 min per query identiche.
+
+
+## V50.z34 — Menu categorizzato con palette semantica (Proposta A)
+
+**Richiesta utente**: raggruppare menu/icone per categoria con codice colore coerente.
+
+**Palette applicata (Proposta A – AdvisorOS Pro)**:
+- 🔵 **CRM Core** `#0EA5E9` — Contatti, Appuntamenti, Cruscotto, Scadenze, Note, Corporate, Invita Cliente
+- 🟣 **AI & Axon** `#7C3AED` — Axon Hub, AI-Teach, Voice, Alarms, Brain, Scripts, Cheatsheet, Wake Word, Home Assistant, Memory
+- 🟠 **Comunicazioni** `#F97316` — Caselle Mail, Auto-CRM, Outlook, Chat
+- 🟢 **Documenti & Cloud** `#10B981` — Master Files, Drive, Business Cards
+- 🟡 **Team & Insights** `#EAB308` — Team Insights, Invita Collaboratore, Report
+- ⚫ **Amministrazione** `#475569` — Settings, Bug Report, Help Center Admin
+
+**File modificati**:
+- **Nuovo `/app/frontend/src/menuCategories.ts`**: modulo centrale con palette + mappa `ROUTE_CATEGORY` per estensibilità futura (drawer, breadcrumb, ecc.).
+- **`/app/frontend/app/axon-hub.tsx`**: 
+  - Ricategorizzati tutti i 13 CARDS con i colori della palette (prima erano casuali).
+  - Aggiunti header visivi per sezione: badge tondo colorato + label MAIUSCOLO + linea sottile — layout stile screenshot utente.
+- **`/app/frontend/app/master.tsx`**: menu 3-dot con 3 header categoria ("Team & Insights", "CRM Core", "Amministrazione") + colori voci ricategorizzati.
+- **`/app/frontend/app/(tabs)/home.tsx`**: 4 quick actions ricolorate secondo categoria (blu CRM, viola AI, arancione Comunicazioni).
+
+**Test visivo (screenshot Axon Hub)**: 
+- Header viola "AI & AXON" con icona sparkles + card viola sotto ✓
+- Prossimi gruppi arancione "COMUNICAZIONI" e grigio "AMMINISTRAZIONE" scorrendo giù ✓

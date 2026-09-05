@@ -466,13 +466,19 @@ function MasterScreen() {
       <Modal transparent visible={menuOpen} onRequestClose={() => setMenuOpen(false)} animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setMenuOpen(false)}>
           <View style={[styles.menuBox, { paddingBottom: bottomPad }]} onStartShouldSetResponder={() => true}>
-            <MenuItem icon="color-palette" color="#7C3AED" label="Setting App" hint="Cambia tema e colori" onPress={() => goto("/settings-app")} testID="menu-settings" />
-            <MenuItem icon="analytics" color="#0EA5E9" label="Team Insights" hint="Metriche + profilo AI dei collaboratori" onPress={() => goto("/team-insights")} testID="menu-team-insights" />
-            <MenuItem icon="business" color="#059669" label="New Corporate" hint="Crea nuova area business" onPress={() => goto("/corporate/new")} testID="menu-corporate" />
-            <MenuItem icon="person-add" color="#DB2777" label="Invita Collaboratore" hint="Genera link / QR con ruolo" onPress={() => goto("/invite-collaborator")} testID="menu-invite" />
-            <MenuItem icon="gift" color="#F59E0B" label="Invita Cliente" hint="Trial gratuito con link estensibile" onPress={() => goto("/invitati")} testID="menu-invite-client" />
-            <MenuItem icon="bug" color="#DC2626" label="Bug, Errori e Idee" hint="Segnalazioni degli utenti" onPress={() => goto("/bug-report")} testID="menu-bug-report" />
-            <MenuItem icon="shield-checkmark" color="#7C3AED" label="Richieste cancellazione dati" hint="Help Center · GDPR requests degli utenti" onPress={() => goto("/help-center-admin")} testID="menu-help-center-admin" />
+            {/* V50.z34 — Menu categorizzato: Team & Insights, CRM Core, Amministrazione */}
+            <Text style={styles.menuCatHeader}>👥 Team & Insights</Text>
+            <MenuItem icon="analytics" color="#EAB308" label="Team Insights" hint="Metriche + profilo AI dei collaboratori" onPress={() => goto("/team-insights")} testID="menu-team-insights" />
+            <MenuItem icon="person-add" color="#EAB308" label="Invita Collaboratore" hint="Genera link / QR con ruolo" onPress={() => goto("/invite-collaborator")} testID="menu-invite" />
+
+            <Text style={styles.menuCatHeader}>💼 CRM Core</Text>
+            <MenuItem icon="business" color="#0EA5E9" label="New Corporate" hint="Crea nuova area business" onPress={() => goto("/corporate/new")} testID="menu-corporate" />
+            <MenuItem icon="gift" color="#0EA5E9" label="Invita Cliente" hint="Trial gratuito con link estensibile" onPress={() => goto("/invitati")} testID="menu-invite-client" />
+
+            <Text style={styles.menuCatHeader}>⚙️ Amministrazione</Text>
+            <MenuItem icon="color-palette" color="#475569" label="Setting App" hint="Cambia tema e colori" onPress={() => goto("/settings-app")} testID="menu-settings" />
+            <MenuItem icon="bug" color="#475569" label="Bug, Errori e Idee" hint="Segnalazioni degli utenti" onPress={() => goto("/bug-report")} testID="menu-bug-report" />
+            <MenuItem icon="shield-checkmark" color="#475569" label="Richieste cancellazione dati" hint="Help Center · GDPR requests degli utenti" onPress={() => goto("/help-center-admin")} testID="menu-help-center-admin" />
           </View>
         </Pressable>
       </Modal>
@@ -1017,6 +1023,8 @@ const styles = StyleSheet.create({
 
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   menuBox: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 30 },
+  // V50.z34 — Header categoria nel menu 3-dot (grigio muted, 11pt uppercase)
+  menuCatHeader: { fontSize: 11, fontWeight: "800", color: theme.color.muted, letterSpacing: 0.6, textTransform: "uppercase", paddingHorizontal: 4, paddingTop: 10, paddingBottom: 4 },
   menuItem: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 10 },
   menuIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   menuLabel: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
