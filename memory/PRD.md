@@ -3914,3 +3914,19 @@ Riduzione ~78% del tempo al primo token sulle query energy ripetute (es. utenti 
 - `editSheet` (modal Modifica scorciatoie): `paddingBottom = 16 + max(insets.bottom, 12)` sulla stessa logica.
 
 Nessun altro file toccato.
+
+
+## V50.z39 — Fix ricorrente: TextInput chat Axon coperto dalla tastiera Android
+
+**Problema segnalato dall'utente**: quando digita nella chat Axon la tastiera Android copre completamente il TextInput — impossibile vedere cosa si sta scrivendo.
+
+**Root cause**: il `KeyboardAvoidingView` con `behavior="padding"` non funziona correttamente dentro un `Modal` transparent su Android. Il Modal riceve `windowSoftInputMode` `adjustPan` di default e non `adjustResize`, quindi la vista non si ridimensiona quando appare la tastiera.
+
+**Fix in `/app/frontend/src/AssistantChat.tsx`**:
+- Aggiunto listener manuale `Keyboard.addListener('keyboardDidShow'/'keyboardDidHide')` con state `kbHeight`.
+- `KeyboardAvoidingView` ora ha:
+  - Su iOS: `behavior="padding"` (fallback nativo che funziona)
+  - Su Android: `paddingBottom` dinamico = `kbHeight` (forza il container a sollevarsi sopra la tastiera)
+- Su iOS `keyboardWillShow` per animazione fluida, su Android `keyboardDidShow`.
+
+Nessun altro file toccato.

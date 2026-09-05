@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Animated,
   Easing,
@@ -147,6 +148,18 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // V28.y — Only the Master can save rules/URLs to Insegna ad Axon
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const [messages, setMessages] = useState<ChatMsg[]>([]);
+  // V50.z39 — Fix ricorrente: TextInput coperto dalla tastiera Android nel Modal.
+  // KeyboardAvoidingView non funziona correttamente dentro Modal transparent
+  // su Android: aggiungiamo un listener manuale che spinge il footer sopra
+  // la tastiera con paddingBottom dinamico.
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    const showEv = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEv = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const s = Keyboard.addListener(showEv, (e) => setKbHeight(e.endCoordinates?.height || 0));
+    const h = Keyboard.addListener(hideEv, () => setKbHeight(0));
+    return () => { s.remove(); h.remove(); };
+  }, []);
   // V50.z11 — bottomPad rimosso: il paddingBottom del sheet ora usa solo
   // insets.bottom (il KeyboardAvoidingView spinge autonomamente sopra la tastiera).
   const [assistantName, setAssistantName] = useState("Neo");
@@ -1260,14 +1273,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           )}
           <KeyboardAvoidingView
             // V50.z11 — Fix input Axon nascosto dalla tastiera Android.
-            // Il Modal transparent su Android non riceve il windowSoftInputMode
-            // di sistema; per garantire che il TextInput resti visibile serve
-            // "padding" su entrambe le piattaforme (era "height" su Android
-            // ma con height:82% del sheet non spingeva l'input abbastanza).
-            // Il verticalOffset compensa la porzione trasparente in alto.
-            behavior="padding"
+            // V50.z39 — In aggiunta a KeyboardAvoidingView (fallback iOS),
+            // applichiamo paddingBottom = kbHeight direttamente al container
+            // così su Android nel Modal transparent (dove behavior:padding
+            // non funziona) il TextInput sale comunque sopra la tastiera.
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
             keyboardVerticalOffset={0}
-            style={{ flex: 1 }}
+            style={{ flex: 1, paddingBottom: Platform.OS === "android" ? kbHeight : 0 }}
           >
             {/* Header — V29.n: barra minimale. Rimossi logo e testo "AxonOS".
                 Selettore modalità a sinistra come pill dropdown; a destra le 4
