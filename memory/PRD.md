@@ -3879,3 +3879,26 @@ Il collo di bottiglia residuo per query energy è il fetch Tavily (2-3s) e i PDF
 - 3° call (cache miss query diversa): 5.41s first token (baseline preservata)
 
 Riduzione ~78% del tempo al primo token sulle query energy ripetute (es. utenti che chiedono più volte gli stessi PUN, tariffe ARERA, ecc.).
+
+
+## V50.z37 — Cache Semantica Tavily (embedding similarity)
+
+**Cosa fatto**:
+- Estesa la cache Tavily con matching per **similarità semantica** (embedding cosine).
+- Se manca match esatto, genera embedding della query (via `_axon_embed` — OpenAI text-embedding-3-large sul proxy Emergent).
+- Scorre le entries in cache non scadute e calcola cosine similarity con quelle che hanno embedding.
+- Se `sim >= 0.88` (threshold bilanciato), ritorna il risultato senza chiamare Tavily.
+- Filtro su `max_results` e `country` per non mescolare varianti diverse.
+- Embedding generato solo per query non-triviali (>=12 char e >=2 parole) per evitare overhead su query brevi.
+
+**Verifica reale (test end-to-end)**:
+- Query 1: "prezzo PUN medio agosto 2026 mercato elettrico" → miss (chiama Tavily)
+- Query 2: "costo del PUN nel mese di agosto 2026" → **semantic HIT sim=0.880** ✅
+  - Log server: `[tavily-cache] semantic HIT sim=0.880`
+- Query 3: "quanto vale il PUN ad agosto 2026" → semantic HIT
+- Query 4 (diversa): "cos'è il capacity market energia elettrica" → cache miss
+
+**Beneficio**:
+- Query semanticamente equivalenti ma formulate diversamente (frequente nei team) condividono la stessa risposta cachata.
+- Elimina il costo di Tavily API (~2-5s + costo per token) sui riformulari.
+- Cache persistente 15 min in-memory, sweep automatico oltre 200 entries.

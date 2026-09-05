@@ -9173,36 +9173,64 @@ def _detect_energy_query(text: str) -> bool:
 async def _tavily_search(query: str, max_results: int = 5, country: Optional[str] = None) -> Optional[dict]:
     """V38T — Query the Tavily search API. Returns a compact answer block or None.
 
-    Docs: https://docs.tavily.com — POST /search with `api_key`, `query`,
-    `search_depth: 'advanced'`, `include_answer: true`, `max_results`.
-
-    V50.z36 — In-memory cache 15 min per (query, max_results, country).
-    Query identiche (normalizzate lowercase+trim) tornano in ~0ms.
+    V50.z36 — Cache in-memory 15 min per query identiche.
+    V50.z37 — Cache SEMANTICA: query simili (embedding cosine > 0.88) tornano
+    la stessa risposta senza chiamare Tavily. Es. 'PUN agosto 2026' e 'Costo
+    PUN mese di agosto 2026' condividono la stessa cache hit.
     """
     key = os.environ.get("TAVILY_API_KEY")
     if not key:
         return None
 
-    # Cache lookup
     global _TAVILY_CACHE  # noqa: PLW0603
     try:
         _TAVILY_CACHE  # type: ignore[name-defined]
     except NameError:
-        _TAVILY_CACHE = {}  # type: Dict[str, Tuple[datetime, dict]]
+        _TAVILY_CACHE = {}  # {cache_key: (ts, result, embedding|None, raw_query)}
     q_norm = (query or "").strip().lower()
     if not q_norm:
         return None
     cache_key = f"{q_norm}|{max_results}|{country or ''}"
     now_ts = datetime.utcnow()
+
+    # Fast path: exact match
     hit = _TAVILY_CACHE.get(cache_key)
     if hit:
-        ts, cached = hit
-        if (now_ts - ts).total_seconds() < 900:  # 15 minuti
+        ts, cached, _emb, _raw = hit
+        if (now_ts - ts).total_seconds() < 900:
             return cached
-    # Ordinaria pulizia opportunistica: se dizionario > 200 entries, rimuovi
-    # gli item più vecchi di 30 min (semplice sweep, no LRU).
+
+    # Semantic match: cerca la query più simile tra quelle in cache non scadute
+    # Usa embedding solo se non-trivial (>= 12 caratteri e almeno 2 parole).
+    q_embedding: Optional[List[float]] = None
+    if len(q_norm) >= 12 and len(q_norm.split()) >= 2:
+        try:
+            q_embedding = await _axon_embed(query)
+        except Exception:
+            q_embedding = None
+    if q_embedding:
+        SIM_THRESHOLD = 0.88   # bilanciato: 0.90 troppo stretto, 0.85 troppo largo
+        best_sim = 0.0
+        best_result = None
+        for k, (ts, cached, emb, _raw) in _TAVILY_CACHE.items():
+            if not emb:
+                continue
+            # Filtra su max_results/country matching per non mescolare varianti
+            if not k.endswith(f"|{max_results}|{country or ''}"):
+                continue
+            if (now_ts - ts).total_seconds() >= 900:
+                continue
+            sim = _cosine_sim(q_embedding, emb)
+            if sim > best_sim:
+                best_sim = sim
+                best_result = cached
+        if best_sim >= SIM_THRESHOLD and best_result:
+            logger.info("[tavily-cache] semantic HIT sim=%.3f", best_sim)
+            return best_result
+
+    # Sweep opportunistico
     if len(_TAVILY_CACHE) > 200:
-        stale = [k for k, (t, _) in _TAVILY_CACHE.items() if (now_ts - t).total_seconds() > 1800]
+        stale = [k for k, (t, _, _, _) in _TAVILY_CACHE.items() if (now_ts - t).total_seconds() > 1800]
         for k in stale:
             _TAVILY_CACHE.pop(k, None)
 
@@ -9241,9 +9269,8 @@ async def _tavily_search(query: str, max_results: int = 5, country: Optional[str
                 ],
                 "query": query,
             }
-            # Salva in cache solo se ha davvero contenuto utile
             if result.get("answer") or result.get("results"):
-                _TAVILY_CACHE[cache_key] = (now_ts, result)
+                _TAVILY_CACHE[cache_key] = (now_ts, result, q_embedding, query)
             return result
     except Exception as e:
         logger.warning("tavily search failed for %s: %s", query, e)
