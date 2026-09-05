@@ -1089,7 +1089,7 @@ function ImpostazioniScreen() {
 
         {!user?.parent_user_id && (
         <View style={styles.card}>
-          <CatHeader color="#10B981" label="Documenti · Categorie prodotti" icon="cube" />
+          <CatHeader color="#10B981" label="Anagrafica & DB · Categorie prodotti" icon="id-card" />
           <Text style={styles.hint}>Categorie oltre a &quot;Demo prodotti&quot; (Artistry / Nutrilite / Home). Aggiungi la categoria, poi le sotto-categorie</Text>
           <View style={styles.addRow}>
             <TextInput

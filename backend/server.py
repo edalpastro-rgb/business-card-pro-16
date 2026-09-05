@@ -17462,6 +17462,90 @@ def _mail_dec(s: str) -> str:
     return _MAIL_FERNET.decrypt(s.encode()).decode()
 
 
+# V50.z42 — Master Profile & Password Vault (isolamento per-utente)
+@api_router.get("/master/profile")
+async def master_profile_get(user=Depends(get_current_user)):
+    p = await db.master_profiles.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not p:
+        p = {"user_id": user["user_id"], "tenant_id": tenant_id(user),
+             "first_name": "", "last_name": "", "phone": "", "address": "",
+             "iban": "", "tax_id": "", "vat_id": "", "notes": "", "credentials": []}
+    creds_out = []
+    for c in (p.get("credentials") or []):
+        creds_out.append({
+            "cred_id": c.get("cred_id"), "service": c.get("service"),
+            "username": c.get("username"), "url": c.get("url"),
+            "notes": c.get("notes"), "password_masked": bool(c.get("password_enc")),
+        })
+    p["credentials"] = creds_out
+    return p
+
+
+@api_router.put("/master/profile")
+async def master_profile_update(payload: Dict[str, Any] = Body(...), user=Depends(get_current_user)):
+    updates: Dict[str, Any] = {}
+    for k in ["first_name", "last_name", "phone", "address", "iban", "tax_id", "vat_id", "notes"]:
+        if k in payload:
+            updates[k] = str(payload.get(k) or "").strip()
+    updates["updated_at"] = datetime.utcnow()
+    await db.master_profiles.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {**updates, "user_id": user["user_id"], "tenant_id": tenant_id(user)}},
+        upsert=True,
+    )
+    return await master_profile_get(user)
+
+
+@api_router.post("/master/profile/credentials")
+async def master_profile_add_credential(payload: Dict[str, Any] = Body(...), user=Depends(get_current_user)):
+    service = (payload.get("service") or "").strip()
+    username = (payload.get("username") or "").strip()
+    password = (payload.get("password") or "").strip()
+    url = (payload.get("url") or "").strip()
+    notes = (payload.get("notes") or "").strip()
+    if not service or not password:
+        raise HTTPException(400, "service e password sono obbligatori")
+    cred = {
+        "cred_id": f"cr_{uuid.uuid4().hex[:12]}",
+        "service": service, "username": username, "url": url, "notes": notes,
+        "password_enc": _mail_enc(password), "created_at": datetime.utcnow(),
+    }
+    await db.master_profiles.update_one(
+        {"user_id": user["user_id"]},
+        {"$push": {"credentials": cred},
+         "$setOnInsert": {"tenant_id": tenant_id(user), "user_id": user["user_id"]}},
+        upsert=True,
+    )
+    return {"ok": True, "cred_id": cred["cred_id"]}
+
+
+@api_router.get("/master/profile/credentials/{cred_id}/reveal")
+async def master_profile_reveal_credential(cred_id: str, user=Depends(get_current_user)):
+    p = await db.master_profiles.find_one(
+        {"user_id": user["user_id"], "credentials.cred_id": cred_id},
+        {"_id": 0, "credentials.$": 1},
+    )
+    if not p or not p.get("credentials"):
+        raise HTTPException(404, "Credenziale non trovata")
+    try:
+        return {"password": _mail_dec(p["credentials"][0]["password_enc"])}
+    except Exception:
+        raise HTTPException(500, "Impossibile decifrare la password")
+
+
+@api_router.delete("/master/profile/credentials/{cred_id}")
+async def master_profile_delete_credential(cred_id: str, user=Depends(get_current_user)):
+    r = await db.master_profiles.update_one(
+        {"user_id": user["user_id"]},
+        {"$pull": {"credentials": {"cred_id": cred_id}}},
+    )
+    if r.modified_count == 0:
+        raise HTTPException(404, "Credenziale non trovata")
+    return {"ok": True}
+
+
+
+
 def _mail_account_serialize(a: dict) -> dict:
     return {
         "account_id": a.get("account_id"),

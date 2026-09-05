@@ -1,3 +1,50 @@
+## V50.z50 (Sept 2026) — Utility Sveglia + Scanner standalone + Hub Impostazioni in Master
+
+### Richiesta utente
+"tra le utility va messa la sveglia, lo scanner che puo funzionare anche al di fuori della caricamento fattura. tutto quello che ce' nel menu profilo pulsante bottom in basso a dx della app va spalmato all'interno dell'area master ovviamente categorizzato per appartenenza area. non toccare altro."
+
+### Fix implementati
+
+**1) Griglia Master → 2 nuovi bottoni Utility (grigio #475569)**
+`/app/frontend/app/master.tsx`:
+- **Sveglia** → `/axon-alarms` (icona `alarm`)
+- **Scanner** → `/scanner` (icona `scan`)
+Compaiono nella categoria "UTILITY" della griglia insieme a "Calcolatrice", con mini-header dedicato.
+
+**2) Scanner standalone `/app/frontend/app/scanner.tsx`**
+- Nuova pagina che apre automaticamente il `DocumentScannerModal` (multi-pagina + auto-crop + PDF merge)
+- Salva il PDF risultante in **I miei file → categoria "files"** via `POST /api/master-files`
+- Nome default: `Scansione-YYYY-MM-DD-HHMM.pdf`
+- Feedback UI: card "Ultima scansione salvata" + shortcut per aprire "I miei file"
+
+**3) Pannello "Impostazioni & Configurazioni" in Master**
+Nuovo componente `SettingsHubSection` inserito subito dopo "Promuovi ad agente" nel `/master.tsx`. Contiene TUTTI i link presenti nel tab Profilo, raggruppati per categoria semantica (palette AdvisorOS Pro):
+- 💼 CRM Core (blu): Gestione Team, Script Telefonata, Invita Prospect/Collaboratore, Gruppi Contatti, Aree & Categorie CRM
+- ✨ AI & Axon (viola): Axon Center, Personalizza Assistente
+- 📧 Comunicazioni (arancio): Email aggiuntive, Configurazione SMTP, Caselle mail
+- 🟢 Anagrafica & DB Master (verde): Anagrafica vault, Biglietto da visita, I miei file, Google Drive, Dropbox
+- 👥 Team & Insights (giallo): Team Insights, Invita Collaboratore
+- ⚙️ Amministrazione (grigio): Setting App, Branding aziendale, Sicurezza & 2FA, Libretto, Rivedi tour, Bug/Errori, Richieste GDPR
+- 🚪 Esci (logout in fondo)
+
+Le voci `ownerOnly` (es. Gestione Team, Branding) sono nascoste ai collaboratori. Il tab Profilo `(tabs)/impostazioni.tsx` resta invariato per retro-compatibilità.
+
+**4) Routing**
+- `/app/frontend/src/menuCategories.ts`: aggiunto `"/scanner": "admin"` alla mappa route→categoria.
+
+### Test manuali eseguiti
+- ✅ Lint TypeScript su `master.tsx` + `scanner.tsx`: 0 errori
+- ✅ Screenshot Master 390×844: bottoni Sveglia + Scanner visibili sotto "UTILITY"
+- ✅ Screenshot pannello hub: 6 gruppi categorizzati correttamente
+- ✅ Screenshot pagina Scanner: modal auto-aperto, opzioni Autocrop/Migliora/B/N, nome file precompilato
+
+### Note operative
+- Il tab Profilo (bottom-right) resta funzionante; il pannello Master è una **duplicazione categorizzata** dei link, non una sostituzione.
+- I bottoni Sveglia/Scanner rispettano il sistema di riordino personale (long-press per attivare "Riordina bottoni").
+- I PDF salvati dallo scanner appaiono in `/master-files?category=files`.
+
+
+
 ## V50.z15 (Sept 2026) — Edge Panel Samsung-style con shortcut personalizzabili
 
 ### Concept
@@ -3969,3 +4016,39 @@ Nessun altro file toccato.
      - Categorie prodotti → 🟢 Documenti
 
 Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master grid, Drawer laterale, Home quick actions, Menu 3-dot Master, Impostazioni.
+
+
+## V50.z42 — Anagrafica Master & Password Vault (rinomina categoria verde)
+
+**Cosa fatto**:
+
+**Backend** — nuovi endpoint isolati per-utente (filter user_id):
+- `GET /api/master/profile` — dati anagrafici + credenziali con password mascherata
+- `PUT /api/master/profile` — aggiorna dati (nome, cognome, telefono, indirizzo, IBAN, CF, P.IVA, note)
+- `POST /api/master/profile/credentials` — aggiunge password vault cifrata con Fernet (_MAIL_FERNET)
+- `GET /api/master/profile/credentials/{id}/reveal` — decripta password (solo per il proprietario)
+- `DELETE /api/master/profile/credentials/{id}` — rimuove credenziale
+- Nuova collection `master_profiles` — ogni utente vede SOLO il proprio profilo (query sempre su `user_id`)
+
+**Frontend** — nuova pagina `/app/frontend/app/anagrafica-master.tsx`:
+- Card "Dati personali" con 8 campi anagrafici
+- Card "Password salvate" con lista credenziali cifrate
+  - Occhio 👁 per reveal/hide inline
+  - Copy 📋 per copiare negli appunti (expo-clipboard su native, navigator.clipboard su web)
+  - Trash 🗑 per rimuovere
+  - Modal "Nuova credenziale" con Service (obbligatorio), Username, Password (obbligatorio), URL, Note
+
+**UI palette globale**:
+- Rinominata categoria verde `docs` da "Documenti & Cloud" a **"Anagrafica & DB Master"** in:
+  - `menuCategories.ts` (icona `id-card`)
+  - `DrawerMenu` (aggiunta voce "Anagrafica Master" in cima al gruppo verde)
+  - `master.tsx` (nuovo bottone "Anagrafica" primo verde + label header aggiornato)
+  - `impostazioni.tsx` (header "Anagrafica & DB · Categorie prodotti")
+
+**Test end-to-end verificato**:
+- Add credential "Test Aruba" con password "segreta123"
+- Reveal restituisce esattamente "segreta123" (Fernet decrypt OK)
+
+**Isolamento privacy**:
+- Ogni endpoint filtra su `user_id` dell'utente autenticato
+- Nessun modo per un utente di vedere le password di un altro (nemmeno Master può vedere le password dei collaboratori)

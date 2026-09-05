@@ -8,6 +8,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { notify } from "@/src/utils/notify";
 import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 import { MasterPromoteModal } from "@/src/MasterPromoteModal";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
@@ -33,7 +34,7 @@ export default function MasterRoute() {
 
 function MasterScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [banner, setBanner] = useState<Banner>(null); // kept only for optional title/body from random-banner
   const [myThingImages, setMyThingImages] = useState<string[]>([]);
@@ -195,6 +196,9 @@ function MasterScreen() {
     { label: "Calcolatrice", icon: "calculator", color: "#475569", onPress: () => setCalcOpen(true) },
     // AI & Axon (viola #7C3AED)
     { label: "My Web", icon: "globe", color: "#7C3AED", onPress: () => goto("/my-web") },
+    // Utility (grigio #475569) — V50.z50 richiesta utente: Sveglia + Scanner
+    { label: "Sveglia", icon: "alarm", color: "#475569", onPress: () => goto("/axon-alarms") },
+    { label: "Scanner", icon: "scan", color: "#475569", onPress: () => goto("/scanner") },
     // CRM Core
     { label: "New CRT", icon: "document-text", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread },
     { label: "New App", icon: "add-circle", color: "#0EA5E9", onPress: () => goto("/appointment/new") },
@@ -213,6 +217,7 @@ function MasterScreen() {
       pulse: voicePhase === "recording" ? voicePulse : undefined,
     },
     // Documenti & Cloud (verde #10B981)
+    { label: "Anagrafica", icon: "id-card", color: "#10B981", onPress: () => goto("/anagrafica-master") },
     { label: "I miei audio", icon: "folder-open", color: "#10B981", onPress: () => goto("/my-audios") },
     // AI & Axon
     { label: "Analizza bolletta", icon: "flash", color: "#7C3AED", onPress: () => goto("/bill-quick") },
@@ -401,7 +406,7 @@ function MasterScreen() {
               "#F97316": { label: "Comunicazioni", icon: "mail" },
               "#DC2626": { label: "Comunicazioni", icon: "mail" },
               "#7C3AED": { label: "AI & Axon", icon: "sparkles" },
-              "#10B981": { label: "Documenti & Cloud", icon: "cloud" },
+              "#10B981": { label: "Anagrafica & DB Master", icon: "id-card" },
               "#EAB308": { label: "Team & Insights", icon: "people" },
               "#475569": { label: "Utility", icon: "options" },
             };
@@ -478,6 +483,19 @@ function MasterScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color="#EA580C" />
         </Pressable>
+
+        {/* V50.z50 — Pannello "Impostazioni & Configurazioni" categorizzato.
+            Include TUTTI i link del tab Profilo (spalmati per categoria) così
+            l'utente può accedervi direttamente dall'area Master. Il tab Profilo
+            resta invariato per retro-compatibilità. */}
+        <SettingsHubSection
+          isOwner={!user?.parent_user_id}
+          onGoto={goto}
+          onLogout={async () => {
+            await logout();
+            router.replace("/login");
+          }}
+        />
 
         {/* V26.o — Statistiche giornaliere (spostate da Home) */}
         <View style={styles.statsSection}>
@@ -753,7 +771,213 @@ function Calculator() {
   );
 }
 
+// V50.z50 — Pannello "Impostazioni & Configurazioni" categorizzato mostrato
+// nell'area Master. Raccoglie tutti i link presenti nel tab Profilo, così
+// l'utente li può raggiungere direttamente da Master, raggruppati per
+// categoria (CRM Core, AI & Axon, Comunicazioni, Docs, Team, Amministrazione).
+type HubItem = {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  hint?: string;
+  onPress: () => void;
+  ownerOnly?: boolean;
+  testID?: string;
+};
+type HubGroup = {
+  color: string;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  items: HubItem[];
+};
+
+function SettingsHubSection({
+  isOwner,
+  onGoto,
+  onLogout,
+}: {
+  isOwner: boolean;
+  onGoto: (path: string) => void;
+  onLogout: () => Promise<void>;
+}) {
+  const groups: HubGroup[] = [
+    {
+      color: "#0EA5E9", label: "CRM Core", icon: "briefcase",
+      items: [
+        { icon: "people-circle", label: "Gestione Team", hint: "Invita collaboratori e assegna aree", onPress: () => onGoto("/team"), ownerOnly: true, testID: "hub-team" },
+        { icon: "document-text", label: "Script Telefonata", hint: "Testo mostrato agli agenti durante le chiamate", onPress: () => onGoto("/call-script-config"), ownerOnly: true, testID: "hub-call-script" },
+        { icon: "person-add", label: "Invita Prospect / Collaboratore", hint: "Prospect esterno o Collaboratore del tuo team", onPress: () => onGoto("/invita"), ownerOnly: true, testID: "hub-invita" },
+        { icon: "people-outline", label: "Gruppi Contatti", hint: "Crea gruppi personalizzati per invii bulk", onPress: () => onGoto("/groups"), testID: "hub-groups" },
+        { icon: "settings", label: "Aree & Categorie CRM", hint: "Aree contatto, appuntamenti, prodotti (nel Profilo)", onPress: () => onGoto("/(tabs)/impostazioni"), ownerOnly: true, testID: "hub-crm-settings" },
+      ],
+    },
+    {
+      color: "#7C3AED", label: "AI & Axon", icon: "sparkles",
+      items: [
+        { icon: "sparkles", label: "Axon Center", hint: "Regole, documenti, cervello, script, sveglie, domotica", onPress: () => onGoto("/axon-hub"), ownerOnly: true, testID: "hub-axon-hub" },
+        { icon: "chatbox-ellipses", label: "Personalizza Assistente", hint: "Nome, modalità (testo/voce), voce", onPress: () => onGoto("/(tabs)/impostazioni"), testID: "hub-assistant" },
+      ],
+    },
+    {
+      color: "#F97316", label: "Comunicazioni", icon: "mail",
+      items: [
+        { icon: "mail-open", label: "Email aggiuntive", hint: "Indirizzi da usare come mittente", onPress: () => onGoto("/(tabs)/impostazioni"), testID: "hub-extra-emails" },
+        { icon: "mail-open", label: "Configurazione Email (SMTP)", hint: "Aruba, Gmail o altro provider per invii bulk", onPress: () => onGoto("/smtp"), ownerOnly: true, testID: "hub-smtp" },
+        { icon: "mail", label: "Caselle mail", hint: "IMAP: leggi, allega, importa in CRM", onPress: () => onGoto("/email-accounts"), testID: "hub-email-accounts" },
+      ],
+    },
+    {
+      color: "#10B981", label: "Anagrafica & DB Master", icon: "id-card",
+      items: [
+        { icon: "id-card", label: "Anagrafica & DB Master", hint: "Password vault e credenziali riservate", onPress: () => onGoto("/anagrafica-master"), testID: "hub-anagrafica-master" },
+        { icon: "id-card", label: "Biglietto da visita", hint: "Modifica il tuo biglietto pubblico", onPress: () => onGoto("/business-card"), testID: "hub-business-card" },
+        { icon: "folder-open", label: "I miei file", hint: "Note, bollette, audio, file allegati", onPress: () => onGoto("/master-files"), testID: "hub-master-files" },
+        { icon: "logo-google", label: "Google Drive", hint: "Collega il tuo Drive per allegare file ad Axon", onPress: () => onGoto("/google-drive"), testID: "hub-gdrive" },
+        { icon: "logo-dropbox", label: "Dropbox", hint: "Collega il tuo Dropbox per allegare file ad Axon", onPress: () => onGoto("/dropbox"), testID: "hub-dropbox" },
+      ],
+    },
+    {
+      color: "#EAB308", label: "Team & Insights", icon: "people",
+      items: [
+        { icon: "analytics", label: "Team Insights", hint: "Metriche + profilo AI dei collaboratori", onPress: () => onGoto("/team-insights"), ownerOnly: true, testID: "hub-insights" },
+        { icon: "person-add", label: "Invita Collaboratore", hint: "Genera link / QR con ruolo", onPress: () => onGoto("/invite-collaborator"), ownerOnly: true, testID: "hub-invite-collab" },
+      ],
+    },
+    {
+      color: "#475569", label: "Amministrazione", icon: "options",
+      items: [
+        { icon: "color-palette", label: "Setting App", hint: "Cambia tema e colori", onPress: () => onGoto("/settings-app"), testID: "hub-settings-app" },
+        { icon: "ribbon", label: "Branding aziendale", hint: "Logo e nome sui PDF (report, comparazioni)", onPress: () => onGoto("/(tabs)/impostazioni"), ownerOnly: true, testID: "hub-branding" },
+        { icon: "shield-checkmark", label: "Sicurezza & 2FA", hint: "Autenticazione a due fattori, PIN e biometria", onPress: () => onGoto("/security"), testID: "hub-security" },
+        { icon: "book", label: "Libretto Informativo", hint: "Guida operativa completa · PDF", onPress: () => onGoto("/libretto"), testID: "hub-libretto" },
+        {
+          icon: "sparkles",
+          label: "Rivedi tour guidato",
+          hint: "Riapri l'onboarding di benvenuto",
+          onPress: async () => {
+            try {
+              await AsyncStorage.removeItem("libretto_seen_v1");
+              notify("Tour guidato riavviato", "Ti riportiamo all'introduzione");
+              setTimeout(() => onGoto("/libretto?onboarding=1"), 300);
+            } catch (e: any) {
+              notify("Errore", e?.message || "Impossibile riavviare il tour");
+            }
+          },
+          testID: "hub-tour",
+        },
+        { icon: "bug", label: "Bug, Errori e Idee", hint: "Segnalazioni degli utenti", onPress: () => onGoto("/bug-report"), ownerOnly: true, testID: "hub-bug" },
+        { icon: "shield-checkmark", label: "Richieste cancellazione dati", hint: "GDPR requests degli utenti", onPress: () => onGoto("/help-center-admin"), ownerOnly: true, testID: "hub-gdpr" },
+      ],
+    },
+  ];
+
+  return (
+    <View style={masterExtraStyles.hubSection} testID="master-settings-hub">
+      <View style={masterExtraStyles.hubHeader}>
+        <View style={[masterExtraStyles.hubHeaderIcon, { backgroundColor: "#0F172A22" }]}>
+          <Ionicons name="options" size={14} color="#0F172A" />
+        </View>
+        <Text style={[masterExtraStyles.hubHeaderTitle, { color: "#0F172A" }]}>Impostazioni & Configurazioni</Text>
+        <View style={[masterExtraStyles.hubHeaderLine, { backgroundColor: "#0F172A22" }]} />
+      </View>
+
+      {groups.map((g) => {
+        const items = g.items.filter((it) => !it.ownerOnly || isOwner);
+        if (items.length === 0) return null;
+        return (
+          <View key={g.label} style={masterExtraStyles.hubGroup} testID={`hub-group-${g.label}`}>
+            <View style={[masterExtraStyles.hubGroupBar, { backgroundColor: g.color + "12" }]}>
+              <View style={[masterExtraStyles.hubGroupBarIcon, { backgroundColor: g.color + "26" }]}>
+                <Ionicons name={g.icon} size={12} color={g.color} />
+              </View>
+              <Text style={[masterExtraStyles.hubGroupBarTitle, { color: g.color }]}>{g.label}</Text>
+            </View>
+            {items.map((it) => (
+              <Pressable
+                key={it.label}
+                onPress={it.onPress}
+                style={masterExtraStyles.hubRow}
+                testID={it.testID}
+              >
+                <View style={[masterExtraStyles.hubRowIcon, { backgroundColor: g.color + "22" }]}>
+                  <Ionicons name={it.icon} size={18} color={g.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={masterExtraStyles.hubRowTitle} numberOfLines={1}>{it.label}</Text>
+                  {!!it.hint && <Text style={masterExtraStyles.hubRowHint} numberOfLines={2}>{it.hint}</Text>}
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+              </Pressable>
+            ))}
+          </View>
+        );
+      })}
+
+      <Pressable onPress={onLogout} style={masterExtraStyles.hubLogoutBtn} testID="hub-logout">
+        <Ionicons name="log-out-outline" size={18} color={theme.color.error} />
+        <Text style={masterExtraStyles.hubLogoutTxt}>Esci</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const masterExtraStyles = StyleSheet.create({
+  // V50.z50 — Pannello "Impostazioni & Configurazioni" categorizzato
+  hubSection: { marginTop: 16, marginBottom: 8, gap: 12 },
+  hubHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 2,
+    marginBottom: 4,
+  },
+  hubHeaderIcon: {
+    width: 26, height: 26, borderRadius: 13,
+    alignItems: "center", justifyContent: "center",
+  },
+  hubHeaderTitle: {
+    fontSize: 12, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase",
+  },
+  hubHeaderLine: { flex: 1, height: 2, borderRadius: 1 },
+  hubGroup: {
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    padding: 4,
+    gap: 2,
+    overflow: "hidden",
+  },
+  hubGroupBar: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 10, paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: theme.color.border,
+    marginHorizontal: -4, marginTop: -4, marginBottom: 2,
+  },
+  hubGroupBarIcon: {
+    width: 20, height: 20, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+  },
+  hubGroupBarTitle: {
+    fontSize: 11, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase",
+  },
+  hubRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 10, paddingVertical: 10,
+    borderRadius: 10,
+  },
+  hubRowIcon: {
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+  },
+  hubRowTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
+  hubRowHint: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  hubLogoutBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#FFF", padding: 12, borderRadius: 12,
+    borderWidth: 1, borderColor: "#FCA5A5",
+    marginTop: 4,
+  },
+  hubLogoutTxt: { color: theme.color.error, fontWeight: "800", fontSize: 14 },
   // V50.z41 — Mini-header di categoria nella grid Master
   catHeader: {
     width: "100%", flexDirection: "row", alignItems: "center", gap: 6,

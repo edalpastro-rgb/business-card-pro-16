@@ -25,7 +25,7 @@ export const MENU_CATEGORIES: Record<MenuCategoryKey, MenuCategory> = {
   crm:   { key: "crm",   label: "CRM Core",          color: "#0EA5E9", soft: "#0EA5E922", icon: "briefcase",     order: 1 },
   axon:  { key: "axon",  label: "AI & Axon",         color: "#7C3AED", soft: "#7C3AED22", icon: "sparkles",       order: 2 },
   comm:  { key: "comm",  label: "Comunicazioni",     color: "#F97316", soft: "#F9731622", icon: "mail",           order: 3 },
-  docs:  { key: "docs",  label: "Documenti & Cloud", color: "#10B981", soft: "#10B98122", icon: "cloud",          order: 4 },
+  docs:  { key: "docs",  label: "Anagrafica & DB Master", color: "#10B981", soft: "#10B98122", icon: "id-card",         order: 4 },
   team:  { key: "team",  label: "Team & Insights",   color: "#EAB308", soft: "#EAB30822", icon: "people",         order: 5 },
   admin: { key: "admin", label: "Amministrazione",   color: "#475569", soft: "#47556922", icon: "settings",       order: 6 },
 };
@@ -75,6 +75,7 @@ export const ROUTE_CATEGORY: Record<string, MenuCategoryKey> = {
   "/(tabs)/impostazioni": "admin",
   "/bug-report":          "admin",
   "/help-center-admin":   "admin",
+  "/scanner":             "admin",
 };
 
 export function categoryForRoute(route: string): MenuCategory {

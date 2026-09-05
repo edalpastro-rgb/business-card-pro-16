@@ -47,10 +47,11 @@ const ITEMS: DrawerItem[] = [
   { label: "Auto-CRM da Mail",  icon: "flash-outline",        href: "/mail-crm-proposals", categoryKey: "comm" },
   { label: "Outlook",           icon: "mail-open-outline",    href: "/outlook",            categoryKey: "comm" },
   { label: "Chat Team",         icon: "chatbubbles-outline",  href: "/(tabs)/chat",        categoryKey: "comm" },
-  // Documenti & Cloud (verde #10B981)
-  { label: "Master Files",      icon: "folder-outline",       href: "/master-files",       categoryKey: "docs" },
-  { label: "Google Drive",      icon: "cloud-outline",        href: "/google-drive",       categoryKey: "docs" },
-  { label: "Business Cards",    icon: "card-outline",         href: "/business-cards",     categoryKey: "docs" },
+  // Anagrafica & DB Master (verde #10B981)
+  { label: "Anagrafica Master",   icon: "id-card-outline",      href: "/anagrafica-master",   categoryKey: "docs" },
+  { label: "Master Files",        icon: "folder-outline",       href: "/master-files",        categoryKey: "docs" },
+  { label: "Google Drive",        icon: "cloud-outline",        href: "/google-drive",        categoryKey: "docs" },
+  { label: "Business Cards",      icon: "card-outline",         href: "/business-cards",      categoryKey: "docs" },
   // Team & Insights (giallo #EAB308)
   { label: "Team Insights",     icon: "analytics-outline",    href: "/team-insights",      categoryKey: "team" },
   { label: "Invita Collaboratore", icon: "person-add-outline",href: "/invite-collaborator",categoryKey: "team" },
