@@ -9,11 +9,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, Animated, Dimensions,
-  PanResponder, ScrollView, Modal, Platform,
-} from "react-native";
+  PanResponder, ScrollView, Modal, Platform,} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ── Elenco azioni disponibili ──────────────────────────────────────
 export type EdgeAction = {
@@ -68,6 +68,10 @@ export function EdgePanel() {
   const router = useRouter();
   const pathname = usePathname();
   const { height: screenH } = Dimensions.get("window");
+  // V50.z38 — Safe area insets per evitare che il pulsante Modifica e altre
+  // parti in fondo al pannello vengano coperte dalla barra di sistema Android
+  // (tasti navigazione) o dalla home indicator iOS.
+  const insets = useSafeAreaInsets();
 
   const [enabled, setEnabled] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>(DEFAULT_IDS);
@@ -280,7 +284,7 @@ export function EdgePanel() {
             ))
           )}
         </ScrollView>
-        <View style={styles.panelFoot}>
+        <View style={[styles.panelFoot, { paddingBottom: 12 + Math.max(insets.bottom, 12) }]}>
           <Pressable onPress={() => setEditOpen(true)} style={styles.editBtn} testID="edge-edit">
             <Ionicons name="create-outline" size={16} color="#FBBF24" />
             <Text style={styles.editTxt}>Modifica</Text>
@@ -292,7 +296,7 @@ export function EdgePanel() {
       <Modal visible={editOpen} animationType="slide" transparent onRequestClose={() => setEditOpen(false)}>
         <View style={styles.editBackdrop}>
           <Pressable style={{ flex: 1 }} onPress={() => setEditOpen(false)} />
-          <View style={styles.editSheet}>
+          <View style={[styles.editSheet, { paddingBottom: 16 + Math.max(insets.bottom, 12) }]}>
             <View style={styles.editHead}>
               <Text style={styles.editTitle}>Scegli le scorciatoie</Text>
               <Pressable onPress={() => setEditOpen(false)} hitSlop={10}>

@@ -3902,3 +3902,15 @@ Riduzione ~78% del tempo al primo token sulle query energy ripetute (es. utenti 
 - Query semanticamente equivalenti ma formulate diversamente (frequente nei team) condividono la stessa risposta cachata.
 - Elimina il costo di Tavily API (~2-5s + costo per token) sui riformulari.
 - Cache persistente 15 min in-memory, sweep automatico oltre 200 entries.
+
+
+## V50.z38 — Fix Edge Panel: pulsante "Modifica" coperto dalla navigation bar
+
+**Problema segnalato dall'utente**: nell'Edge Panel (pannello Azioni rapide che si apre dalla linguetta laterale), il pulsante "Modifica" in fondo veniva coperto dalla barra di sistema Android (tasti navigazione | ○ <). Stesso problema con il pulsante Fatto nel modal Modifica scorciatoie.
+
+**Fix in `/app/frontend/src/EdgePanel.tsx`**:
+- Aggiunto `useSafeAreaInsets` dal `react-native-safe-area-context`.
+- `panelFoot` (contenitore pulsante Modifica): `paddingBottom = 12 + max(insets.bottom, 12)` per garantire margine anche su device con nav bar visibile.
+- `editSheet` (modal Modifica scorciatoie): `paddingBottom = 16 + max(insets.bottom, 12)` sulla stessa logica.
+
+Nessun altro file toccato.
