@@ -11696,10 +11696,10 @@ async def _prepare_assistant_prompt(
         _cloud_section = ""
     system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
 
-    # V50.z51 — PINNED rules + <MEMORIA_PERSISTENTE> in CIMA al system message.
-    # Devono essere la PRIMA cosa che il modello vede, prima ancora del
-    # "Sei {assistant_name}...", così vincolano tutto il resto della risposta.
-    system_message = (_pinned_section or "") + (_tenant_mem_section or "") + system_message
+    # V50.z53 — ROLLBACK EMERGENCY: PINNED rules e MEMORIA_PERSISTENTE
+    # DISATTIVATI (causavano risposte inutili tipo "Sono qui. Pronto. Cosa ti chiedi?"
+    # invece della vera risposta AI). Il sistema torna al comportamento V50.z50.
+    # _pinned_section e _tenant_mem_section restano calcolati ma NON iniettati.
 
     if history:
         convo_text = ""
@@ -12102,16 +12102,8 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         _cloud_section = ""
     system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
 
-    # V50.z51 — PINNED rules + <MEMORIA_PERSISTENTE> in CIMA anche per la
-    # variante non-streaming di /api/assistant/chat.
-    try:
-        _pinned_ns, _mem_ns = await asyncio.gather(
-            _build_pinned_rules_section(tenant_id(user), msg),
-            _load_tenant_memory_section(tenant_id(user)),
-        )
-        system_message = (_pinned_ns or "") + (_mem_ns or "") + system_message
-    except Exception:
-        pass
+    # V50.z53 — ROLLBACK EMERGENCY: rimossa iniezione PINNED/MEMORIA anche
+    # nell'endpoint non-streaming.
 
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     chat = LlmChat(
@@ -12484,14 +12476,9 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         # "Sto raccogliendo il contesto…" invece di attendere silenziosamente).
         yield sse("progress", {"stage": "preflight", "text": "Sto raccogliendo il contesto…"})
 
-        # V50.z51 — Streaming ACK immediato: appena parte lo stream, cita le
-        # 2-3 regole PINNED più rilevanti così l'utente ha feedback <500ms e
-        # sa che Axon sta rispettando le sue istruzioni.
-        try:
-            _ack_text = await _build_pinned_rules_ack_text(tenant_id(user), body.message or "")
-            yield sse("progress", {"stage": "ack", "text": _ack_text})
-        except Exception:
-            pass
+        # V50.z53 — ROLLBACK EMERGENCY: streaming ACK con citazione regole
+        # DISATTIVATO (il modello lo interpretava come la risposta finale e
+        # rispondeva solo con scuse). Ripristinato comportamento V50.z50.
 
         # --- Preflight: build prompt (raises HTTPException on error) ---
         try:
