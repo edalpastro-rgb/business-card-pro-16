@@ -11919,6 +11919,103 @@ async def _maybe_slash_command(msg: str, user: dict) -> Optional[dict]:
     return {"reply": f"❓ Comando `/{cmd}` non riconosciuto. Digita `/aiuto` per l'elenco.", "cmd": "unknown"}
 
 
+# V50.z31 — Intercept natural-language per le Quick Actions (senza `/`).
+# I prompt canonici tipo "Qual è il mio prossimo appuntamento?" arrivavano nel
+# flow LLM completo (preflight + Tavily + RAG + GME canonical) impiegando 20s.
+# Ora rispondiamo direttamente in <1s con dati dal DB.
+async def _maybe_quick_action_intercept(msg: str, user: dict) -> Optional[dict]:
+    """Se il messaggio matcha un prompt canonico di quick-action, risponde
+    istantaneamente senza toccare la LLM. Ritorna None se non c'è match."""
+    txt = (msg or "").strip().lower().rstrip("?!.")
+    if not txt or len(txt) > 120:
+        return None
+    tenant = tenant_id(user)
+    uid_ = user["user_id"]
+
+    # ── Prossimo appuntamento ──────────────────────────────
+    trigger_next_appt = {
+        "qual è il mio prossimo appuntamento",
+        "qual e il mio prossimo appuntamento",
+        "prossimo appuntamento",
+        "mio prossimo appuntamento",
+        "che appuntamento ho",
+        "quando ho il prossimo appuntamento",
+        "prossimi appuntamenti",
+    }
+    if any(t in txt for t in trigger_next_appt):
+        from datetime import timedelta as _td
+        now = utcnow()
+        # 7 giorni davanti
+        end = now + _td(days=7)
+        appts = await db.appointments.find(
+            {"user_id": uid_, "start_date": {"$gte": now, "$lte": end}},
+            {"_id": 0, "start_date": 1, "title": 1, "contact_name": 1, "location": 1, "phone": 1},
+        ).sort("start_date", 1).limit(3).to_list(3)
+        if not appts:
+            # Suggerisci clienti senza appt (max 4 nomi)
+            orphans = await db.contacts.find(
+                {"user_id": uid_},
+                {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "name": 1},
+            ).limit(50).to_list(50)
+            names = []
+            for c in orphans:
+                # Verifica no future appt
+                nxt = await db.appointments.find_one(
+                    {"user_id": uid_, "contact_id": c.get("contact_id"), "start_date": {"$gte": now}},
+                    {"_id": 0, "start_date": 1},
+                )
+                if not nxt:
+                    nm = c.get("name") or f"{c.get('first_name','')} {c.get('last_name','')}".strip()
+                    if nm:
+                        names.append(nm)
+                if len(names) >= 4:
+                    break
+            reply = "Non hai appuntamenti programmati nei prossimi 7 giorni."
+            if names:
+                reply += f"\n\n**Suggerimento operativo**: hai {len(names)} clienti senza appuntamenti futuri fissati ({', '.join(names)}). Considera di contattarli per pianificare nuovi incontri."
+            return {"reply": reply, "cmd": "qa_next_appt"}
+        # C'è almeno un appuntamento
+        lines = ["📅 **Prossimi appuntamenti (7 giorni)**\n"]
+        for a in appts:
+            when = a.get("start_date")
+            when_s = when.strftime("%a %d/%m %H:%M") if when else "?"
+            title = a.get("title") or a.get("contact_name") or "Appuntamento"
+            loc = a.get("location")
+            phone = a.get("phone")
+            row = f"• **{when_s}** — {title}"
+            if loc: row += f" · 📍 {loc}"
+            if phone: row += f" · ☎ {phone}"
+            lines.append(row)
+        return {"reply": "\n".join(lines), "cmd": "qa_next_appt"}
+
+    # ── Clienti senza appuntamento futuro ──────────────────
+    if "senza appuntament" in txt and ("clienti" in txt or "contatt" in txt or "mostr" in txt):
+        now = utcnow()
+        orphans = await db.contacts.find(
+            {"user_id": uid_},
+            {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "name": 1, "phone": 1},
+        ).limit(200).to_list(200)
+        result: List[str] = []
+        for c in orphans:
+            nxt = await db.appointments.find_one(
+                {"user_id": uid_, "contact_id": c.get("contact_id"), "start_date": {"$gte": now}},
+                {"_id": 0, "start_date": 1},
+            )
+            if not nxt:
+                nm = c.get("name") or f"{c.get('first_name','')} {c.get('last_name','')}".strip()
+                if nm:
+                    ph = c.get("phone") or ""
+                    result.append(f"• {nm}" + (f" · ☎ {ph}" if ph else ""))
+            if len(result) >= 25:
+                break
+        if not result:
+            return {"reply": "✅ Tutti i clienti hanno un appuntamento futuro pianificato.", "cmd": "qa_orphans"}
+        reply = f"📋 **Clienti senza appuntamento futuro** ({len(result)})\n\n" + "\n".join(result)
+        return {"reply": reply, "cmd": "qa_orphans"}
+
+    return None
+
+
 @api_router.post("/assistant/chat/stream")
 async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_current_user)):
     """SSE streaming variant of /assistant/chat.
@@ -11948,6 +12045,30 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             return
         if _slash_result and _slash_result.get("rebuild_msg"):
             body.message = _slash_result["rebuild_msg"]
+
+        # V50.z31 — Quick-action intercept (natural language, senza `/`):
+        # "Qual è il mio prossimo appuntamento?" → risposta dal DB in <1s,
+        # nessun preflight LLM. Bug: la quick action prima passava per la LLM
+        # con 20s di attesa e Tavily/GME canonical fetch inutili.
+        _qa_result = await _maybe_quick_action_intercept(body.message or "", user)
+        if _qa_result and _qa_result.get("reply") is not None:
+            _sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
+            _mid = uuid.uuid4().hex[:16]
+            # Persist both messages so history and feedback still work
+            try:
+                await db.assistant_messages.insert_many([
+                    {"user_id": user["user_id"], "session_id": _sid, "role": "user",
+                     "content": body.message or "", "created_at": utcnow()},
+                    {"message_id": _mid, "user_id": user["user_id"], "session_id": _sid,
+                     "role": "assistant", "content": _qa_result["reply"], "created_at": utcnow()},
+                ])
+            except Exception:
+                pass
+            yield sse("meta", {"session_id": _sid, "message_id": _mid, "from_cache": False, "slash": _qa_result.get("cmd")})
+            yield sse("delta", {"text": _qa_result["reply"]})
+            yield sse("done", {"session_id": _sid, "message_id": _mid, "used_web_search": False,
+                               "web_sources": [], "from_cache": False, "slash": _qa_result.get("cmd")})
+            return
 
         # V50.k — Progress event: preflight iniziato (l'utente vede subito
         # "Sto raccogliendo il contesto…" invece di attendere silenziosamente).

@@ -3738,3 +3738,23 @@ Anche dopo l'ultimo aggiornamento manuale degli URL Axon lasciava `n/d` per Agos
   - **Aggiungi** — crea subito il link canonico come URL separato, mantenendo quello attuale.
 - La sezione appare SOLO in creazione (non in modifica di URL esistente).
 - Loading spinner mentre cerca.
+
+
+## V50.z31 — 🔥 Quick Action "Prossimo appuntamento" da 20s a 0.01s
+
+**Bug segnalato**: Cliccare la quick action "Prossimo appuntamento" impiegava 20 secondi per rispondere anche con 0 appuntamenti e 3 contatti in DB. Inaccettabile per una risposta che dovrebbe essere immediata.
+
+**Root cause**: Le quick action inviavano il prompt natural-language "Qual è il mio prossimo appuntamento?" — che entrava nel flow LLM completo con preflight (RAG retrieval, Tavily search, GME canonical fetch, teach snapshot). Tutto inutile per una semplice query DB.
+
+**Fix in `/app/backend/server.py`**:
+- Nuova funzione `_maybe_quick_action_intercept(msg, user)` che matcha natural-language dei prompt canonici delle quick actions e risponde direttamente dal DB.
+- Intercept installato PRIMA del preflight LLM in `assistant_chat_stream`.
+- Copre attualmente:
+  - **"Prossimo appuntamento"** varianti → query `db.appointments` (7gg) + suggerisce clienti senza appuntamento futuro se vuoto.
+  - **"Clienti senza appuntamento"** varianti → elenca contatti orfani (max 25).
+- Persiste user + assistant messages così history/feedback continuano a funzionare.
+
+**Verifica reale (curl end-to-end sul demo user)**:
+- Prima: ~20 s
+- Ora: **First delta 0.01 s, Done 0.01 s** → risposta pressoché istantanea.
+- Risposta identica a quella LLM (test: "Non hai appuntamenti nei prossimi 7 giorni" + suggerimento operativo con nomi clienti).
