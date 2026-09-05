@@ -257,6 +257,9 @@ export default function AiTeachScreen() {
         await api(`/ai-teach/rules/${editRule.rule_id}`, { method: "PUT", body: payload });
       } else {
         payload.files = payload.files || [];
+        // V50.z53 — Regola creata manualmente dal Master via UI "Insegna ad Axon":
+        // sempre auto_generated=false (alta priorità PINNED).
+        payload.auto_generated = false;
         await api("/ai-teach/rules", { method: "POST", body: payload });
       }
       setEditRule(null);

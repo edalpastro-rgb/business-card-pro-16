@@ -9922,9 +9922,16 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
 
 
 async def _fetch_gme_pun_canonical(tenant: str, user_msg: str, max_pdfs: int = 18) -> str:
-    """V50.z28 — Fallback canonico: scarica sempre la pagina GME PrezzoMedioFasce
-    quando il messaggio riguarda PUN/fasce/energia, anche se il tenant non ha
-    insegnato esplicitamente questo URL. Cache in-memory 30 min per tenant.
+    """V50.z53 — Rewrite completo (velocità + affidabilità dati):
+    - Legge mesi/anni menzionati nel messaggio utente e SCARICA SOLO i PDF di
+      quei mesi (invece dei primi 18 link della pagina)
+    - Esclude sempre i PDF con "FAQ" nel nome
+    - Sostituisce la cache in-memory con collection MongoDB `gme_pun_cache`
+      (una riga per mese, senza scadenza: i prezzi GME chiusi non cambiano)
+    - Estrae F1/F2/F3 e il numero di ore associato dal PDF (pattern "(253 ore)")
+    - Calcola il Monorario PUN in codice come media ponderata per ore
+    - Restituisce SOLO valori precalcolati; il modello non stima nulla
+    - Per mesi senza PDF, restituisce "dati non disponibili" esplicito
     """
     msg_lc = (user_msg or "").lower()
     if not msg_lc:
@@ -9934,17 +9941,29 @@ async def _fetch_gme_pun_canonical(tenant: str, user_msg: str, max_pdfs: int = 1
     if not any(k in msg_lc for k in keys):
         return ""
 
-    # Cache 15 min (in-memory globale)
-    global _GME_CANONICAL_CACHE  # noqa: PLW0603
-    try:
-        _GME_CANONICAL_CACHE  # type: ignore[name-defined]
-    except NameError:
-        _GME_CANONICAL_CACHE = {"ts": None, "text": ""}
-    now_ts = datetime.utcnow()
-    ts = _GME_CANONICAL_CACHE.get("ts")
-    if ts and (now_ts - ts).total_seconds() < 900 and _GME_CANONICAL_CACHE.get("text"):
-        return _GME_CANONICAL_CACHE["text"]
+    # 1) Parse mesi/anni menzionati nel messaggio utente
+    requested_months = _parse_gme_months_from_msg(user_msg or "")
+    # Se l'utente non ha specificato niente, prendiamo comunque gli ultimi 18 mesi
+    # ma DOPO aver filtrato FAQ e dopo aver escluso mesi già in cache.
 
+    # 2) Carica cache MongoDB per i mesi richiesti (se qualcuno esiste già, evita download)
+    from_cache: Dict[str, dict] = {}
+    if requested_months:
+        try:
+            docs = await db.gme_pun_cache.find(
+                {"month_key": {"$in": [m["key"] for m in requested_months]}},
+                {"_id": 0},
+            ).to_list(50)
+            for d in docs:
+                from_cache[d["month_key"]] = d
+        except Exception as exc:
+            logger.debug("[gme-cache] read failed: %s", exc)
+
+    # 3) Se tutti i mesi richiesti sono in cache, salta il download della pagina
+    if requested_months and len(from_cache) == len(requested_months):
+        return _format_gme_blocks(requested_months, from_cache, {})
+
+    # 4) Scarica la pagina GME e trova i link PDF (escludendo FAQ)
     GME_PAGE = "https://gme.mercatoelettrico.org/it-it/Home/Pubblicazioni/PrezzoMedioFasce"
     _headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
@@ -9953,7 +9972,7 @@ async def _fetch_gme_pun_canonical(tenant: str, user_msg: str, max_pdfs: int = 1
     }
     from urllib.parse import urljoin, urlparse
 
-    async def _dl_pdf(client: httpx.AsyncClient, pu: str) -> Optional[Dict[str, str]]:
+    async def _dl_pdf(client: httpx.AsyncClient, pu: str) -> Optional[Dict[str, Any]]:
         try:
             r = await client.get(pu, timeout=10)
             if r.status_code != 200 or not r.content:
@@ -9962,48 +9981,281 @@ async def _fetch_gme_pun_canonical(tenant: str, user_msg: str, max_pdfs: int = 1
             txt = re.sub(r"\s{3,}", " ", txt).strip()
             if len(txt) < 30:
                 return None
-            return {"url": pu, "name": urlparse(pu).path.rsplit("/", 1)[-1] or pu, "text": txt[:900]}
+            return {"url": pu, "name": urlparse(pu).path.rsplit("/", 1)[-1] or pu, "text": txt}
         except Exception:
             return None
 
-    blocks: List[str] = []
+    downloaded: Dict[str, dict] = {}
     try:
         async with httpx.AsyncClient(follow_redirects=True, headers=_headers) as client:
             page = await client.get(GME_PAGE, timeout=10)
             if page.status_code != 200:
-                return ""
+                # Fallback: usa solo quello che c'è in cache
+                return _format_gme_blocks(requested_months, from_cache, {})
             hrefs = re.findall(r'href=["\']([^"\']+\.pdf[^"\']*)["\']', page.text or "", flags=re.I)
             seen = set()
-            pdf_urls: List[str] = []
+            candidates: List[Tuple[str, str, Optional[dict]]] = []  # (url, name, month_dict)
             for h in hrefs:
                 full = urljoin(GME_PAGE, h)
-                # Normalizza query string per dedup
                 _norm = full.split("?")[0].lower()
                 if _norm in seen:
                     continue
                 seen.add(_norm)
-                pdf_urls.append(full)
-                if len(pdf_urls) >= max_pdfs:
-                    break
-            if not pdf_urls:
-                return ""
-            results = await asyncio.gather(*[_dl_pdf(client, pu) for pu in pdf_urls], return_exceptions=False)
-            seen_names = set()
-            for res in results:
-                if not res:
+                nm = urlparse(full).path.rsplit("/", 1)[-1] or full
+                # Esclusione FAQ
+                if "faq" in nm.lower():
                     continue
-                nm = (res.get("name") or "").lower()
-                if nm in seen_names:
+                # Prova a inferire il mese dal nome file
+                mnth = _infer_month_from_filename(nm)
+                candidates.append((full, nm, mnth))
+
+            # Se l'utente ha chiesto mesi specifici, filtra i candidati
+            wanted_keys = {m["key"] for m in requested_months} if requested_months else None
+            to_download: List[Tuple[str, str, Optional[dict]]] = []
+            if wanted_keys:
+                for (u, n, m) in candidates:
+                    if m and m["key"] in wanted_keys and m["key"] not in from_cache:
+                        to_download.append((u, n, m))
+            else:
+                # Nessuna richiesta specifica: prendi i primi N unici per mese, escludi già in cache
+                seen_months: set = set()
+                for (u, n, m) in candidates:
+                    if not m:
+                        continue
+                    if m["key"] in seen_months or m["key"] in from_cache:
+                        continue
+                    seen_months.add(m["key"])
+                    to_download.append((u, n, m))
+                    if len(to_download) >= max_pdfs:
+                        break
+
+            if not to_download:
+                return _format_gme_blocks(requested_months or [], from_cache, {})
+
+            results = await asyncio.gather(*[_dl_pdf(client, u) for (u, _, _) in to_download], return_exceptions=False)
+            for (u, n, m), res in zip(to_download, results):
+                if not res or not m:
                     continue
-                seen_names.add(nm)
-                blocks.append(f"--- PDF GME: {res['name']} ---\n{res['text']}")
+                # Parse strutturato del PDF: F1/F2/F3 + ore
+                parsed = _parse_gme_pdf_prices(res["text"], m)
+                if not parsed:
+                    continue
+                doc = {
+                    "month_key": m["key"],
+                    "year": m["year"],
+                    "month": m["month"],
+                    "month_name": m["month_name"],
+                    "source_url": u,
+                    "source_name": n,
+                    "F1": parsed["F1"], "F1_hours": parsed["F1_hours"],
+                    "F2": parsed["F2"], "F2_hours": parsed["F2_hours"],
+                    "F3": parsed["F3"], "F3_hours": parsed["F3_hours"],
+                    "monorario": parsed["monorario"],
+                    "total_hours": parsed["total_hours"],
+                    "unit": parsed.get("unit") or "€/MWh",
+                    "extracted_at": utcnow(),
+                }
+                downloaded[m["key"]] = doc
+                # Upsert cache persistente (senza scadenza)
+                try:
+                    await db.gme_pun_cache.update_one(
+                        {"month_key": m["key"]},
+                        {"$set": doc},
+                        upsert=True,
+                    )
+                except Exception as exc:
+                    logger.debug("[gme-cache] upsert failed for %s: %s", m["key"], exc)
     except Exception as exc:
         logger.debug("[gme-canonical] fetch failed: %s", exc)
+        return _format_gme_blocks(requested_months or [], from_cache, {})
+
+    return _format_gme_blocks(requested_months or [], from_cache, downloaded)
+
+
+# --- V50.z53 helpers: month parsing + PDF price extraction ---
+
+_GME_MONTH_NAMES = {
+    "gennaio": 1, "febbraio": 2, "marzo": 3, "aprile": 4, "maggio": 5, "giugno": 6,
+    "luglio": 7, "agosto": 8, "settembre": 9, "ottobre": 10, "novembre": 11, "dicembre": 12,
+}
+_GME_MONTH_NAMES_REV = {v: k for k, v in _GME_MONTH_NAMES.items()}
+
+
+def _parse_gme_months_from_msg(msg: str) -> List[dict]:
+    """Estrae {key, year, month, month_name} per ogni mese esplicitamente
+    menzionato nel messaggio ('luglio 2026', '07/2026', 'ultimi 18 mesi', ecc.).
+    Supporta anche il pattern 'ultimi N mesi'/'tabella 18 mesi'."""
+    out: List[dict] = []
+    msg_lc = (msg or "").lower()
+
+    # Pattern 1: "luglio 2026", "gennaio 2025" ecc.
+    for name, num in _GME_MONTH_NAMES.items():
+        for m in re.finditer(rf"\b{name}\s+(\d{{4}})\b", msg_lc):
+            y = int(m.group(1))
+            key = f"{y:04d}-{num:02d}"
+            if not any(o["key"] == key for o in out):
+                out.append({"key": key, "year": y, "month": num, "month_name": name})
+
+    # Pattern 2: "07/2026", "7/2026", "07-2026"
+    for m in re.finditer(r"\b(\d{1,2})[/\-\.](\d{4})\b", msg_lc):
+        mo = int(m.group(1)); y = int(m.group(2))
+        if 1 <= mo <= 12 and 2015 <= y <= 2035:
+            key = f"{y:04d}-{mo:02d}"
+            if not any(o["key"] == key for o in out):
+                out.append({"key": key, "year": y, "month": mo, "month_name": _GME_MONTH_NAMES_REV.get(mo, "")})
+
+    # Pattern 3: "ultimi N mesi", "tabella N mesi", "N mesi"
+    m_n = re.search(r"\bultim[io]\s+(\d{1,2})\s+mesi\b", msg_lc) or \
+          re.search(r"\btabella\s+(?:d[ei]\s+)?(\d{1,2})\s+mesi\b", msg_lc) or \
+          re.search(r"\b(\d{1,2})\s+mesi\b", msg_lc)
+    if m_n and not out:
+        n = min(int(m_n.group(1)), 24)
+        today = datetime.utcnow()
+        for i in range(n):
+            # Torna indietro di i+1 mesi rispetto al mese CORRENTE (l'ultimo chiuso è il mese scorso)
+            y = today.year
+            mo = today.month - (i + 1)
+            while mo <= 0:
+                mo += 12
+                y -= 1
+            key = f"{y:04d}-{mo:02d}"
+            if not any(o["key"] == key for o in out):
+                out.append({"key": key, "year": y, "month": mo, "month_name": _GME_MONTH_NAMES_REV.get(mo, "")})
+
+    out.sort(key=lambda x: x["key"], reverse=True)
+    return out
+
+
+def _infer_month_from_filename(name: str) -> Optional[dict]:
+    """Estrae il mese/anno dal nome file GME. Tipici: 'PrezzoMedioFasce_202607.pdf',
+    'PMF_2026_07.pdf', 'luglio-2026.pdf', ecc."""
+    n = (name or "").lower()
+    # YYYYMM
+    m = re.search(r"(20\d{2})[_\-\.]?(0[1-9]|1[0-2])(?!\d)", n)
+    if m:
+        y = int(m.group(1)); mo = int(m.group(2))
+        return {"key": f"{y:04d}-{mo:02d}", "year": y, "month": mo, "month_name": _GME_MONTH_NAMES_REV.get(mo, "")}
+    # MMYYYY
+    m = re.search(r"(?<!\d)(0[1-9]|1[0-2])[_\-\.]?(20\d{2})(?!\d)", n)
+    if m:
+        mo = int(m.group(1)); y = int(m.group(2))
+        return {"key": f"{y:04d}-{mo:02d}", "year": y, "month": mo, "month_name": _GME_MONTH_NAMES_REV.get(mo, "")}
+    # nome mese in italiano
+    for name_it, num in _GME_MONTH_NAMES.items():
+        if name_it in n:
+            m2 = re.search(r"(20\d{2})", n)
+            if m2:
+                y = int(m2.group(1))
+                return {"key": f"{y:04d}-{num:02d}", "year": y, "month": num, "month_name": name_it}
+    return None
+
+
+def _parse_gme_pdf_prices(pdf_text: str, month: dict) -> Optional[dict]:
+    """Estrae F1/F2/F3 con relative ore dal testo del PDF GME e calcola il
+    Monorario PUN come media ponderata per ore. Ritorna None se non trova i 3
+    valori con le loro ore.
+
+    Struttura tipica PDF GME PrezzoMedioFasce (verificata su luglio 2026):
+        Luglio 2026
+        (253 ore)
+        154,20
+        (179 ore)
+        169,38
+        (312 ore)
+        152,26
+    Le fasce F1, F2, F3 sono in ordine sequenziale dopo il nome del mese.
+    """
+    # Trova tutte le coppie "(NNN ore) VAL,YY" nell'ordine di apparizione.
+    # Il PDF può contenere anche mesi passati; per essere robusti,
+    # tagliamo il testo a partire dal nome del mese richiesto se presente.
+    month_name = (month or {}).get("month_name", "").capitalize()
+    year = (month or {}).get("year")
+    t = pdf_text or ""
+    if month_name and year:
+        idx = t.lower().find(f"{month_name.lower()} {year}")
+        if idx >= 0:
+            t = t[idx:]
+    # Compattiamo il testo per gestire spazi non-break (\xa0) e ritorni a capo
+    t_norm = re.sub(r"[\s\xa0]+", " ", t)
+    # Trova coppie ordinate: "(N ore) prezzo"
+    pattern = re.compile(r"\(\s*(\d{2,4})\s*ore\s*\)\s*([\d]{1,4}[,.]\d{1,4})", re.I)
+    triples: List[Tuple[int, float]] = []
+    for m in pattern.finditer(t_norm):
+        try:
+            hours = int(m.group(1))
+            price = float(m.group(2).replace(".", "").replace(",", "."))
+            if 0 < hours < 800 and 0 < price < 10000:
+                triples.append((hours, price))
+        except Exception:
+            pass
+        if len(triples) >= 3:
+            break
+    if len(triples) < 3:
+        return None
+    (f1_h, f1_p), (f2_h, f2_p), (f3_h, f3_p) = triples[0], triples[1], triples[2]
+    total_h = f1_h + f2_h + f3_h
+    if total_h <= 0:
+        return None
+    monorario = (f1_p * f1_h + f2_p * f2_h + f3_p * f3_h) / total_h
+    # Rileva unit: GME usa €/MWh come default. Cerchiamo indizi.
+    tl = pdf_text.lower()
+    if "€/kwh" in tl or "eur/kwh" in tl or "€/kwh".lower() in tl:
+        unit = "€/kWh"
+    else:
+        unit = "€/MWh"
+    return {
+        "F1": round(f1_p, 4), "F1_hours": f1_h,
+        "F2": round(f2_p, 4), "F2_hours": f2_h,
+        "F3": round(f3_p, 4), "F3_hours": f3_h,
+        "total_hours": total_h,
+        "monorario": round(monorario, 6),
+        "unit": unit,
+    }
+
+
+def _format_gme_blocks(requested: List[dict], from_cache: Dict[str, dict], downloaded: Dict[str, dict]) -> str:
+    """Formatta l'output finale con SOLO valori precalcolati.
+    Se un mese è mancante, scrive 'dati non disponibili'. Se `requested` è
+    vuoto ma abbiamo dati (from_cache/downloaded), li mostra tutti."""
+    merged: Dict[str, dict] = {}
+    merged.update(from_cache)
+    merged.update(downloaded)
+    if not merged and not requested:
         return ""
 
-    out = "\n\n".join(blocks)
-    _GME_CANONICAL_CACHE = {"ts": now_ts, "text": out}
-    return out
+    # Se requested è vuoto, mostra tutti quelli in merged (ordinati per key desc)
+    keys = [m["key"] for m in requested] if requested else sorted(merged.keys(), reverse=True)
+
+    header = (
+        "--- DATI GME (PREZZO MEDIO FASCE) ---\n"
+        "Tutti i valori F1/F2/F3 e il Monorario sono ESTRATTI DAL PDF UFFICIALE GME\n"
+        "e calcolati in codice come media ponderata per ore. NON stimare né modificare\n"
+        "questi valori. Per i mesi contrassegnati 'dati non disponibili', NON riempire\n"
+        "la cella con un numero: mostra 'dati non disponibili'.\n"
+    )
+    blocks: List[str] = [header]
+    for k in keys:
+        d = merged.get(k)
+        if not d:
+            # Cerca month info dai requested (o parse dalla key)
+            info = next((m for m in requested if m["key"] == k), None)
+            if not info:
+                y, mo = k.split("-")
+                info = {"key": k, "year": int(y), "month": int(mo), "month_name": _GME_MONTH_NAMES_REV.get(int(mo), "")}
+            blocks.append(
+                f"[{info['month_name'].capitalize()} {info['year']}] dati non disponibili "
+                f"(nessun PDF GME pubblicato per questo mese)."
+            )
+            continue
+        blocks.append(
+            f"[{d.get('month_name','').capitalize()} {d.get('year')}]  unit={d.get('unit','€/MWh')}\n"
+            f"  F1 = {d['F1']}   ({d['F1_hours']} ore)\n"
+            f"  F2 = {d['F2']}   ({d['F2_hours']} ore)\n"
+            f"  F3 = {d['F3']}   ({d['F3_hours']} ore)\n"
+            f"  Monorario PUN = {d['monorario']}   (media ponderata calcolata su {d['total_hours']} ore totali)\n"
+            f"  Fonte: {d.get('source_name','')}"
+        )
+    return "\n\n".join(blocks)
 
 
 # V49.q — Scarica dinamicamente PDF dai link ai_teach_urls quando il messaggio
@@ -14929,6 +15181,10 @@ class AiTeachRuleIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     text: str = Field(min_length=1)
     files: List[AiTeachFileIn] = Field(default_factory=list)
+    # V50.z53 — Il flag deve essere sempre esplicito (True per proposte auto,
+    # False per regole manuali del Master). Default False = manuale ad alta
+    # priorità nella nuova logica PINNED.
+    auto_generated: bool = False
 
 class AiTeachRulePatch(BaseModel):
     category: Optional[str] = None
@@ -15958,6 +16214,9 @@ async def ai_teach_create_rule(body: AiTeachRuleIn, user=Depends(get_current_use
         "title": body.title.strip(),
         "text": body.text.strip(),
         "files": files,
+        # V50.z53 — Sempre esplicito: True = proposta auto (bassa priorità),
+        # False = regola manuale (alta priorità PINNED).
+        "auto_generated": bool(body.auto_generated),
         "created_at": utcnow(),
         "updated_at": utcnow(),
     }
@@ -19988,6 +20247,11 @@ async def _startup():
     # V50.z51 — Memoria tenant distillata (una entry per tenant_id).
     try:
         await db.axon_tenant_memory.create_index("tenant_id", unique=True)
+    except Exception:
+        pass
+    # V50.z53 — Cache GME PUN per mese (persistente, senza scadenza).
+    try:
+        await db.gme_pun_cache.create_index("month_key", unique=True)
     except Exception:
         pass
     # V29.ag — Cache azioni rapide Axon (una entry per (user, label))

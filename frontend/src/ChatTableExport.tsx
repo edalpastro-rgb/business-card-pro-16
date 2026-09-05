@@ -180,25 +180,13 @@ async function tableToPdfBase64(table: ParsedTable, title: string): Promise<stri
   return b64;
 }
 
-/** V28.t — Auto-save del file esportato in "Insegna ad Axon" (Master only). */
-async function saveToAxonKnowledge(table: ParsedTable, filename: string, mime: string, data_base64: string): Promise<boolean> {
-  try {
-    const preview = [table.headers.join(" | "), ...table.rows.slice(0, 60).map((r) => r.join(" | "))].join("\n");
-    const stamped = new Date().toLocaleString("it-IT");
-    await api("/ai-teach/rules", {
-      method: "POST",
-      body: {
-        categories: ["Dati esportati"],
-        category: "Dati esportati",
-        title: `Tabella esportata · ${stamped}`,
-        text: `Dati esportati da una risposta di Axon il ${stamped}. Righe: ${table.rows.length}, colonne: ${table.headers.length}.\n\nAnteprima:\n${preview}`,
-        files: [{ name: filename, mime, data_base64 }],
-      },
-    });
-    return true;
-  } catch {
-    return false;
-  }
+/** V50.z53 — DEPRECATED: non più utilizzata. Manteneva l'auto-save delle
+ * tabelle esportate come regole "Insegna ad Axon" (categoria "Dati esportati").
+ * Rimossa perché la nuova logica PINNED trattava queste regole come istruzioni
+ * assolute con valori datati. Il Master può salvare manualmente se serve. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function _saveToAxonKnowledge_DEPRECATED(_table: ParsedTable, _filename: string, _mime: string, _data_base64: string): Promise<boolean> {
+  return false;
 }
 
 export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: ParsedTable; assistantColor?: string }) {
@@ -242,12 +230,13 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
 
       await shareDataUri(`data:${mime};base64,${data_base64}`, filename, mime);
 
-      if (isMaster && data_base64) {
-        const saved = await saveToAxonKnowledge(table, filename, mime, data_base64);
-        if (saved) {
-          notify("Salvato tra i file Axon", `"${filename}" è stato aggiunto alla knowledge base di Axon per l'auto-apprendimento.`);
-        }
-      }
+      // V50.z53 — Auto-save "Dati esportati" RIMOSSO.
+      // Motivazione: la nuova logica delle regole PINNED tratta le regole con
+      // auto_generated non impostato come regole manuali ad alta priorità.
+      // L'auto-save di ogni tabella esportata creava regole con dati datati
+      // che Axon usava come riferimento assoluto (poison rules).
+      // Se il Master vuole insegnare una tabella specifica, la aggiunge
+      // manualmente da "Insegna ad Axon".
       setOpen(false);
     } catch (e: any) {
       notify("Errore esportazione", e?.message || String(e));

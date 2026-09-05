@@ -81,6 +81,8 @@ export function SaveToAxonPrompt({
           title: t,
           text: x,
           files: [],
+          // V50.z53 — Sempre esplicito: questa è una regola manuale del Master
+          auto_generated: false,
         },
       });
       setSavedRule(true);
