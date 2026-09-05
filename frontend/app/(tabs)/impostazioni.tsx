@@ -26,6 +26,19 @@ type Settings = {
 
 const COLOR_SWATCHES = ["#EF4444", "#F97316", "#F59E0B", "#22C55E", "#10B981", "#06B6D4", "#3B82F6", "#2563EB", "#8B5CF6", "#EC4899", "#F43F5E", "#84CC16"];
 
+// V50.z41 — Header categorizzato per Impostazioni (palette AdvisorOS Pro)
+function CatHeader({ color, label, icon }: { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12, marginTop: 2 }}>
+      <View style={{ width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: color + "22" }}>
+        <Ionicons name={icon} size={12} color={color} />
+      </View>
+      <Text style={{ fontSize: 12, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase", color }}>{label}</Text>
+      <View style={{ flex: 1, height: 2, borderRadius: 1, marginLeft: 4, backgroundColor: color + "33" }} />
+    </View>
+  );
+}
+
 export default function ImpostazioniRoute() {
   return (
     <ModuleErrorBoundary moduleName="profile">
@@ -679,7 +692,7 @@ function ImpostazioniScreen() {
                 <Ionicons name="ribbon" size={20} color="#B45309" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Branding aziendale</Text>
+                <CatHeader color="#475569" label="Amministrazione · Branding" icon="business" />
                 <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
                   Logo e nome che appaiono sui PDF (report Fatture, confronti offerte)
                 </Text>
@@ -789,7 +802,7 @@ function ImpostazioniScreen() {
               <Ionicons name="sparkles" size={20} color="#7C3AED" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.sectionTitle}>Assistente AI</Text>
+              <CatHeader color="#7C3AED" label="AI & Axon · Assistente" icon="sparkles" />
               <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
                 Personalizza il nome del tuo assistente personale
               </Text>
@@ -890,7 +903,7 @@ function ImpostazioniScreen() {
 
         {!user?.parent_user_id && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Script telefonata & Messaggio referenze</Text>
+          <CatHeader color="#F97316" label="Comunicazioni · Script & Referenze" icon="mail" />
           <Text style={{ fontSize: 12, color: theme.color.muted, marginBottom: 8 }}>
             Questi due testi vengono usati da tutti gli agenti del tuo team. Il primo compare nel widget floating
             &quot;Script&quot; durante le chiamate; il secondo è il messaggio WhatsApp che il cliente invia ai suoi contatti
@@ -930,7 +943,7 @@ function ImpostazioniScreen() {
 
         {!user?.parent_user_id && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Personalizza aree</Text>
+          <CatHeader color="#0EA5E9" label="CRM · Personalizza aree" icon="briefcase" />
 
           <Text style={styles.label}>Nome App</Text>
           <TextInput
@@ -1019,7 +1032,7 @@ function ImpostazioniScreen() {
 
         {!user?.parent_user_id && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Aree contatto personalizzate</Text>
+          <CatHeader color="#0EA5E9" label="CRM · Aree contatto" icon="people" />
           <Text style={styles.hint}>Oltre a &quot;Consulente Energetico&quot; e &quot;Networker&quot;, gestisci le aree custom (es. Assicurazioni, Immobiliare). Crea nuove aree direttamente dalla scheda contatto.</Text>
           {(s.custom_areas || []).length === 0 ? (
             <Text style={{ color: theme.color.muted, fontSize: 12, fontStyle: "italic", marginTop: 4 }}>Nessuna area personalizzata. Creane dalla schermata Nuovo Contatto → &quot;Nuova area&quot;.</Text>
@@ -1045,7 +1058,7 @@ function ImpostazioniScreen() {
 
         {!user?.parent_user_id && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Aree merceologiche / Tipi di appuntamento</Text>
+          <CatHeader color="#0EA5E9" label="CRM · Aree merceologiche & Appuntamenti" icon="calendar" />
           <Text style={styles.hint}>Modifica e crea nuove aree merceologiche degli appuntamenti (Piano Marketing / Energia / Ant / Dare seguito / Demo prodotti sono predefinite). Puoi eliminarle toccandole.</Text>
           <View style={styles.addRow}>
             <TextInput
@@ -1076,7 +1089,7 @@ function ImpostazioniScreen() {
 
         {!user?.parent_user_id && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Categorie prodotti custom</Text>
+          <CatHeader color="#10B981" label="Documenti · Categorie prodotti" icon="cube" />
           <Text style={styles.hint}>Categorie oltre a &quot;Demo prodotti&quot; (Artistry / Nutrilite / Home). Aggiungi la categoria, poi le sotto-categorie</Text>
           <View style={styles.addRow}>
             <TextInput

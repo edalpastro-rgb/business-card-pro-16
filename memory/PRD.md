@@ -3947,3 +3947,25 @@ Nessun altro file toccato.
 - Se l'utente ha già personalizzato l'ordine (via "Modifica"), il suo ordine viene preservato.
 
 **Impostazioni**: rimandate — la schermata `/app/frontend/app/(tabs)/impostazioni.tsx` ha una struttura complessa con righe non uniformi; sistemarla richiede un refactor dedicato per non introdurre regressioni.
+
+
+## V50.z41 — Header categorie visivi in Master grid + Impostazioni
+
+**Cosa fatto**:
+1. **Master grid** (`/app/frontend/app/master.tsx`): mini-header di categoria inseriti automaticamente quando cambia il colore rispetto al bottone precedente. Ogni header ha:
+   - Badge tondo colorato (icona categoria)
+   - Label UPPERCASE colorata
+   - Linea sottile colorata
+   - Full-width (spinge i bottoni successivi a nuova riga)
+   Attivi solo in modalità non-reorder. Categorie: CRM Core (briefcase), Comunicazioni (mail), AI & Axon (sparkles), Documenti & Cloud (cloud), Utility (options).
+
+2. **Impostazioni** (`/app/frontend/app/(tabs)/impostazioni.tsx`): 
+   - Nuovo componente `<CatHeader>` inline (badge tondo + label uppercase + linea colorata).
+   - Sostituiti tutti i 7 `<Text style={styles.sectionTitle}>` con `<CatHeader>` categorizzato:
+     - Branding aziendale → ⚫ Amministrazione
+     - Assistente AI → 🟣 AI & Axon
+     - Script & Referenze → 🟠 Comunicazioni
+     - Personalizza aree / Aree contatto / Aree merceologiche → 🔵 CRM
+     - Categorie prodotti → 🟢 Documenti
+
+Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master grid, Drawer laterale, Home quick actions, Menu 3-dot Master, Impostazioni.

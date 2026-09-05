@@ -392,37 +392,63 @@ function MasterScreen() {
           )}
         </View>
         <View style={styles.grid}>
-          {orderedButtons.map((b, idx) => (
-            <View key={b.label} style={{ position: "relative" }}>
-              <Pressable
-                onLongPress={() => setReorderMode((v) => !v)}
-                delayLongPress={450}
-                style={{ borderRadius: 22 }}
-                testID={`master-btn-wrap-${b.label}`}
-              >
-                <MasterButton
-                  {...b}
-                  pulseAnim={pulseAnim}
-                  onPress={reorderMode ? () => {} : b.onPress}
-                />
-              </Pressable>
-              {reorderMode && (
-                <View style={masterExtraStyles.reorderArrows} pointerEvents="box-none">
+          {orderedButtons.map((b, idx) => {
+            // V50.z41 — Mini-header di categoria: inserito quando cambia colore
+            // rispetto al bottone precedente (in modalità non-reorder e senza
+            // buttonOrder custom, così i gruppi restano puliti).
+            const catLabelMap: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
+              "#0EA5E9": { label: "CRM Core", icon: "briefcase" },
+              "#F97316": { label: "Comunicazioni", icon: "mail" },
+              "#DC2626": { label: "Comunicazioni", icon: "mail" },
+              "#7C3AED": { label: "AI & Axon", icon: "sparkles" },
+              "#10B981": { label: "Documenti & Cloud", icon: "cloud" },
+              "#EAB308": { label: "Team & Insights", icon: "people" },
+              "#475569": { label: "Utility", icon: "options" },
+            };
+            const prevColor = idx > 0 ? orderedButtons[idx - 1].color : null;
+            const isCategoryStart = !reorderMode && (idx === 0 || (prevColor && prevColor !== b.color));
+            const cat = catLabelMap[b.color];
+            return (
+              <React.Fragment key={b.label}>
+                {isCategoryStart && cat ? (
+                  <View style={masterExtraStyles.catHeader}>
+                    <View style={[masterExtraStyles.catBadge, { backgroundColor: b.color + "22" }]}>
+                      <Ionicons name={cat.icon} size={12} color={b.color} />
+                    </View>
+                    <Text style={[masterExtraStyles.catLabel, { color: b.color }]}>{cat.label}</Text>
+                    <View style={[masterExtraStyles.catLine, { backgroundColor: b.color + "33" }]} />
+                  </View>
+                ) : null}
+                <View style={{ position: "relative" }}>
                   <Pressable
-                    onPress={() => moveButton(b.label, "left")}
-                    hitSlop={6}
-                    style={[masterExtraStyles.reorderArrowBtn, idx === 0 && { opacity: 0.3 }]}
-                    disabled={idx === 0}
-                    testID={`master-move-left-${b.label}`}
+                    onLongPress={() => setReorderMode((v) => !v)}
+                    delayLongPress={450}
+                    style={{ borderRadius: 22 }}
+                    testID={`master-btn-wrap-${b.label}`}
                   >
-                    <Ionicons name="chevron-back" size={14} color="#FFF" />
+                    <MasterButton
+                      {...b}
+                      pulseAnim={pulseAnim}
+                      onPress={reorderMode ? () => {} : b.onPress}
+                    />
                   </Pressable>
-                  <Pressable
-                    onPress={() => moveButton(b.label, "right")}
-                    hitSlop={6}
-                    style={[
-                      masterExtraStyles.reorderArrowBtn,
-                      idx === orderedButtons.length - 1 && { opacity: 0.3 },
+                  {reorderMode && (
+                    <View style={masterExtraStyles.reorderArrows} pointerEvents="box-none">
+                      <Pressable
+                        onPress={() => moveButton(b.label, "left")}
+                        hitSlop={6}
+                        style={[masterExtraStyles.reorderArrowBtn, idx === 0 && { opacity: 0.3 }]}
+                        disabled={idx === 0}
+                        testID={`master-move-left-${b.label}`}
+                      >
+                        <Ionicons name="chevron-back" size={14} color="#FFF" />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => moveButton(b.label, "right")}
+                        hitSlop={6}
+                        style={[
+                          masterExtraStyles.reorderArrowBtn,
+                          idx === orderedButtons.length - 1 && { opacity: 0.3 },
                     ]}
                     disabled={idx === orderedButtons.length - 1}
                     testID={`master-move-right-${b.label}`}
@@ -431,8 +457,10 @@ function MasterScreen() {
                   </Pressable>
                 </View>
               )}
-            </View>
-          ))}
+                </View>
+              </React.Fragment>
+            );
+          })}
         </View>
 
         {/* V29.o — Promuovi ad agente (solo Master) */}
@@ -726,6 +754,14 @@ function Calculator() {
 }
 
 const masterExtraStyles = StyleSheet.create({
+  // V50.z41 — Mini-header di categoria nella grid Master
+  catHeader: {
+    width: "100%", flexDirection: "row", alignItems: "center", gap: 6,
+    marginTop: 12, marginBottom: 4, paddingHorizontal: 2,
+  },
+  catBadge: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  catLabel: { fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" },
+  catLine: { flex: 1, height: 2, borderRadius: 1, marginLeft: 4 },
   promoteBtn: {
     flexDirection: "row",
     alignItems: "center",
