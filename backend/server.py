@@ -9523,6 +9523,267 @@ def _rule_relevance_score(rule: dict, msg_lc: str) -> int:
     return score
 
 
+# ============================================================================
+# V50.z51 — MEMORIA AXON RISCRITTA (approvato dall'utente)
+# ============================================================================
+# Obiettivo: risolvere i 2 problemi noti (Axon "dimentica" le regole in una
+# nuova chat, non rispetta le istruzioni insegnate). Struttura:
+#  1. PINNED rules → sezione <REGOLE_ASSOLUTE> in cima al system prompt.
+#  2. Auto-distillation → job notturno (04:00 Europe/Rome) che comprime le
+#     chat degli ultimi 90 giorni in un summary per tenant, salvato in
+#     `db.axon_tenant_memory` e iniettato come <MEMORIA_PERSISTENTE>.
+#  3. Streaming ack → nel `/api/assistant/stream`, evento `progress` immediato
+#     con conferma "sto rispettando le regole insegnate…" (<500ms feedback).
+# Priorità in caso di conflitto: PINNED rules > RAG > web (default scelto).
+# ============================================================================
+
+AXON_MEMORY_LOOKBACK_DAYS = 90
+AXON_MEMORY_MAX_MESSAGES = 200
+AXON_MEMORY_MIN_MESSAGES = 20
+AXON_PINNED_RULES_MAX = 10
+AXON_PINNED_RULES_TEXT_CHARS = 700
+
+
+async def _build_pinned_rules_section(tenant: str, user_msg: str) -> str:
+    """Costruisce il blocco `<REGOLE_ASSOLUTE>` da mettere in cima al system
+    prompt. Legge `ai_teach_rules` del tenant, le ordina per rilevanza rispetto
+    al messaggio, prende le top N e le presenta come LEGGI TASSATIVE che
+    vincolano il comportamento del modello (indipendentemente da RAG/web).
+    """
+    try:
+        rules = await db.ai_teach_rules.find({"user_id": tenant}, {"_id": 0}).to_list(200)
+    except Exception as exc:
+        logger.warning("[axon-pinned] cannot read ai_teach_rules: %s", exc)
+        return ""
+    if not rules:
+        return ""
+    msg_lc = (user_msg or "").lower()
+    # Ordine: prima le "auto_generated:false" (regole manuali del Master hanno
+    # priorità implicita), poi per rilevanza rispetto al messaggio.
+    rules.sort(key=lambda r: (
+        0 if not r.get("auto_generated") else 1,
+        -_rule_relevance_score(r, msg_lc),
+    ))
+    top = rules[:AXON_PINNED_RULES_MAX]
+    lines: List[str] = [
+        "<REGOLE_ASSOLUTE>",
+        "Queste sono LEGGI che il Master ha insegnato ad Axon. Sono la fonte più",
+        "autorevole IN ASSOLUTO: prevalgono su tutto (RAG, web, memoria, allegati).",
+        "Applicale rigorosamente in ogni risposta. NON deviare mai. Se sono in",
+        "contrasto con altre fonti, seguono LE REGOLE. NON riassumere queste",
+        "regole all'utente a meno che non lo chieda esplicitamente.",
+        "",
+    ]
+    for idx, r in enumerate(top, 1):
+        title = (r.get("title") or "").strip() or "(senza titolo)"
+        text = (r.get("text") or "").strip()
+        cats = r.get("categories") or ([r.get("category")] if r.get("category") else [])
+        cats_txt = ", ".join([c for c in cats if c]) or "Generale"
+        lines.append(f"[{idx}] {title}  •  Categoria: {cats_txt}")
+        if text:
+            lines.append(f"    -> {text[:AXON_PINNED_RULES_TEXT_CHARS]}")
+    lines.append("</REGOLE_ASSOLUTE>")
+    return "\n".join(lines) + "\n\n"
+
+
+async def _load_tenant_memory_section(tenant: str) -> str:
+    """Carica il summary distillato del tenant (aggiornato dal job notturno)
+    e lo formatta come `<MEMORIA_PERSISTENTE>` da iniettare nel prompt."""
+    try:
+        doc = await db.axon_tenant_memory.find_one({"tenant_id": tenant}, {"_id": 0})
+    except Exception as exc:
+        logger.debug("[axon-memory] load failed: %s", exc)
+        return ""
+    if not doc:
+        return ""
+    summary = (doc.get("summary") or "").strip()
+    facts = doc.get("facts") or []
+    if not summary and not facts:
+        return ""
+    generated = doc.get("updated_at")
+    header = "<MEMORIA_PERSISTENTE>"
+    if generated:
+        try:
+            header += f"  (aggiornata: {generated.strftime('%d/%m/%Y')})"
+        except Exception:
+            pass
+    lines: List[str] = [
+        header,
+        "Sintesi delle interazioni passate del tenant (compressa automaticamente",
+        "ogni notte). Usa questi elementi per personalizzare le risposte e mantenere",
+        "coerenza tra chat diverse, senza citarli in modo brusco.",
+        "",
+    ]
+    if summary:
+        lines.append(summary[:2500])
+    if facts:
+        lines.append("")
+        lines.append("Fatti chiave da ricordare:")
+        for f in facts[:15]:
+            f_str = str(f).strip()
+            if f_str:
+                lines.append(f"- {f_str[:220]}")
+    lines.append("</MEMORIA_PERSISTENTE>")
+    return "\n".join(lines) + "\n\n"
+
+
+async def _distill_tenant_memory(tenant: str, messages: List[dict]) -> Optional[dict]:
+    """Distilla una lista di messaggi in un summary + facts via Claude Haiku 4.5
+    (modello economico). Ritorna {summary, facts} oppure None se la LLM fallisce.
+    """
+    if len(messages) < AXON_MEMORY_MIN_MESSAGES:
+        return None
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return None
+    # Costruzione dump compatto (ultimi N, 300 char cad)
+    dump_lines: List[str] = []
+    for m in messages[-AXON_MEMORY_MAX_MESSAGES:]:
+        role = m.get("role") or "user"
+        content = (m.get("content") or "").strip().replace("\n", " ")[:300]
+        if content:
+            dump_lines.append(f"[{role}] {content}")
+    dump = "\n".join(dump_lines)
+    if not dump:
+        return None
+
+    system_msg = (
+        "Sei un compressore di memoria per un assistente CRM italiano. Ricevi le "
+        "ultime chat di un tenant negli ultimi 90 giorni. Devi produrre un JSON "
+        "compatto con 2 campi:\n"
+        '  "summary": paragrafo di max 2000 caratteri con i temi ricorrenti, '
+        "preferenze, stile di lavoro, argomenti frequenti.\n"
+        '  "facts":   array di max 15 stringhe, ciascuna con un FATTO PERSISTENTE '
+        "(es. 'Preferisce risposte brevi', 'Ha 3 clienti gas su Trebisacce'). "
+        "Ogni fatto max 200 char.\n"
+        "Regole: rispondi SOLO con JSON puro (no markdown fence), niente prosa, "
+        "niente saluti, niente commenti. Se il dump è troppo povero, ritorna "
+        '{"summary":"","facts":[]}.'
+    )
+    user_prompt = f"CHAT DUMP (formato [ruolo] contenuto):\n{dump[:60000]}"
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(api_key=key, session_id=f"distill_{tenant}", system_message=system_msg)
+        chat = chat.with_model("anthropic", "claude-haiku-4-5")
+        resp = await chat.send_message(UserMessage(text=user_prompt))
+        raw = (resp or "").strip()
+        # Strip fence se presente
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            if raw.startswith("json"):
+                raw = raw[4:].strip()
+        import json as _json_mod
+        try:
+            parsed = _json_mod.loads(raw)
+        except Exception:
+            # Fallback: prova a estrarre il primo blocco {...}
+            import re as _re
+            m = _re.search(r"\{.*\}", raw, _re.DOTALL)
+            if not m:
+                return None
+            parsed = _json_mod.loads(m.group(0))
+        if not isinstance(parsed, dict):
+            return None
+        summary = (parsed.get("summary") or "").strip()[:2500]
+        facts_raw = parsed.get("facts") or []
+        facts = [str(f).strip()[:220] for f in facts_raw if str(f).strip()][:15]
+        if not summary and not facts:
+            return None
+        return {"summary": summary, "facts": facts}
+    except Exception as exc:
+        logger.warning("[axon-memory] distillation LLM error tenant=%s: %s", tenant, exc)
+        return None
+
+
+async def _run_axon_memory_distillation_job() -> Dict[str, Any]:
+    """Job notturno: per ogni tenant attivo, comprime le chat degli ultimi 90
+    giorni in un summary persistente salvato in `db.axon_tenant_memory`.
+    Idempotente (upsert per tenant_id)."""
+    started = utcnow()
+    since = started - timedelta(days=AXON_MEMORY_LOOKBACK_DAYS)
+    try:
+        tenants_cur = db.assistant_messages.aggregate([
+            {"$match": {"created_at": {"$gte": since}}},
+            {"$group": {"_id": "$user_id"}},
+        ])
+        tenants: List[str] = []
+        async for row in tenants_cur:
+            tid = row.get("_id")
+            if tid:
+                tenants.append(str(tid))
+    except Exception as exc:
+        logger.warning("[axon-memory-job] tenant scan failed: %s", exc)
+        return {"ok": False, "error": str(exc)}
+    processed = 0
+    updated = 0
+    skipped = 0
+    for tid in tenants:
+        try:
+            msgs_cur = db.assistant_messages.find(
+                {"user_id": tid, "created_at": {"$gte": since}},
+                {"_id": 0, "role": 1, "content": 1, "created_at": 1},
+            ).sort("created_at", 1).limit(AXON_MEMORY_MAX_MESSAGES)
+            msgs = [m async for m in msgs_cur]
+            processed += 1
+            if len(msgs) < AXON_MEMORY_MIN_MESSAGES:
+                skipped += 1
+                continue
+            distilled = await _distill_tenant_memory(tid, msgs)
+            if not distilled:
+                skipped += 1
+                continue
+            await db.axon_tenant_memory.update_one(
+                {"tenant_id": tid},
+                {"$set": {
+                    "tenant_id": tid,
+                    "summary": distilled["summary"],
+                    "facts": distilled["facts"],
+                    "message_count": len(msgs),
+                    "lookback_days": AXON_MEMORY_LOOKBACK_DAYS,
+                    "updated_at": utcnow(),
+                }},
+                upsert=True,
+            )
+            updated += 1
+        except Exception as exc:
+            logger.warning("[axon-memory-job] tenant=%s error: %s", tid, exc)
+            skipped += 1
+    duration_s = (utcnow() - started).total_seconds()
+    logger.info(
+        "[axon-memory-job] processed=%d updated=%d skipped=%d duration=%.1fs",
+        processed, updated, skipped, duration_s,
+    )
+    return {"ok": True, "processed": processed, "updated": updated, "skipped": skipped, "duration_s": duration_s}
+
+
+async def _build_pinned_rules_ack_text(tenant: str, user_msg: str) -> str:
+    """Costruisce il testo dello 'streaming ack' iniziale citando 2-3 regole
+    PINNED più rilevanti. Usato dal streaming endpoint per dare feedback
+    immediato all'utente (<500ms)."""
+    try:
+        rules = await db.ai_teach_rules.find(
+            {"user_id": tenant},
+            {"_id": 0, "title": 1, "auto_generated": 1, "category": 1, "categories": 1, "text": 1},
+        ).to_list(50)
+    except Exception:
+        return "Ok, sto elaborando la tua richiesta…"
+    if not rules:
+        return "Ok, sto elaborando la tua richiesta…"
+    msg_lc = (user_msg or "").lower()
+    rules.sort(key=lambda r: (
+        0 if not r.get("auto_generated") else 1,
+        -_rule_relevance_score(r, msg_lc),
+    ))
+    top_titles = [(r.get("title") or "").strip() for r in rules[:3] if (r.get("title") or "").strip()]
+    if not top_titles:
+        return "Ok, sto elaborando la tua richiesta rispettando le regole insegnate…"
+    citations = ", ".join(f'"{t}"' for t in top_titles)
+    return f"Ok, sto elaborando la tua richiesta rispettando le regole insegnate ({citations})…"
+
+
+
+
 async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
     """Prepara il contesto "Insegna ad Axon" da iniettare nella chat.
     Include: titolo/testo delle regole + testo estratto dai file allegati (PDF/xlsx/csv/txt/immagini).
@@ -11150,6 +11411,16 @@ async def _prepare_assistant_prompt(
         _safe_tavily(),
     )
 
+    # V50.z51 — PINNED rules + tenant memory (rewrite architettura memoria).
+    # Recuperate in parallelo per non aggiungere latenza al preflight.
+    try:
+        _pinned_section, _tenant_mem_section = await asyncio.gather(
+            _build_pinned_rules_section(_tenant_id_val, msg),
+            _load_tenant_memory_section(_tenant_id_val),
+        )
+    except Exception:
+        _pinned_section, _tenant_mem_section = "", ""
+
     _msg_low = (msg or "").lower()
     _is_table_query = any(k in _msg_low for k in ["tabella", "per fascia", "f1", "f2", "f3", "monorario", "media pun", "pun medi"])
     _rag_covers_query = bool(_prefetch_rag_chunks) and (_is_table_query or ("pun" in _msg_low))
@@ -11424,6 +11695,11 @@ async def _prepare_assistant_prompt(
     except Exception:
         _cloud_section = ""
     system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
+
+    # V50.z51 — PINNED rules + <MEMORIA_PERSISTENTE> in CIMA al system message.
+    # Devono essere la PRIMA cosa che il modello vede, prima ancora del
+    # "Sei {assistant_name}...", così vincolano tutto il resto della risposta.
+    system_message = (_pinned_section or "") + (_tenant_mem_section or "") + system_message
 
     if history:
         convo_text = ""
@@ -11826,6 +12102,17 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         _cloud_section = ""
     system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
 
+    # V50.z51 — PINNED rules + <MEMORIA_PERSISTENTE> in CIMA anche per la
+    # variante non-streaming di /api/assistant/chat.
+    try:
+        _pinned_ns, _mem_ns = await asyncio.gather(
+            _build_pinned_rules_section(tenant_id(user), msg),
+            _load_tenant_memory_section(tenant_id(user)),
+        )
+        system_message = (_pinned_ns or "") + (_mem_ns or "") + system_message
+    except Exception:
+        pass
+
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     chat = LlmChat(
         api_key=key,
@@ -12196,6 +12483,15 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         # V50.k — Progress event: preflight iniziato (l'utente vede subito
         # "Sto raccogliendo il contesto…" invece di attendere silenziosamente).
         yield sse("progress", {"stage": "preflight", "text": "Sto raccogliendo il contesto…"})
+
+        # V50.z51 — Streaming ACK immediato: appena parte lo stream, cita le
+        # 2-3 regole PINNED più rilevanti così l'utente ha feedback <500ms e
+        # sa che Axon sta rispettando le sue istruzioni.
+        try:
+            _ack_text = await _build_pinned_rules_ack_text(tenant_id(user), body.message or "")
+            yield sse("progress", {"stage": "ack", "text": _ack_text})
+        except Exception:
+            pass
 
         # --- Preflight: build prompt (raises HTTPException on error) ---
         try:
@@ -13140,6 +13436,73 @@ async def run_rule_proposals_now(user=Depends(get_current_user)):
         })
         created += 1
     return {"ok": True, "proposals_created": created, "analyzed_messages": len(msgs)}
+
+
+# V50.z51 — Endpoint admin per gestire la memoria distillata del tenant.
+@api_router.get("/axon/tenant-memory")
+async def get_axon_tenant_memory(user=Depends(get_current_user)):
+    """Ritorna il summary distillato del tenant (Master-only). Se non esiste
+    ancora, ritorna vuoto (il job notturno lo genera automaticamente)."""
+    _require_master(user)
+    tid = tenant_id(user)
+    doc = await db.axon_tenant_memory.find_one({"tenant_id": tid}, {"_id": 0})
+    if not doc:
+        return {"exists": False, "summary": "", "facts": [], "updated_at": None}
+    return {
+        "exists": True,
+        "summary": doc.get("summary") or "",
+        "facts": doc.get("facts") or [],
+        "message_count": doc.get("message_count") or 0,
+        "lookback_days": doc.get("lookback_days") or AXON_MEMORY_LOOKBACK_DAYS,
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@api_router.post("/axon/tenant-memory/run-now")
+async def run_axon_memory_now(user=Depends(get_current_user)):
+    """Trigger manuale del job di distillazione per il tenant corrente
+    (Master-only). Utile per verificare senza aspettare il cron delle 04:00."""
+    _require_master(user)
+    tid = tenant_id(user)
+    since = utcnow() - timedelta(days=AXON_MEMORY_LOOKBACK_DAYS)
+    msgs_cur = db.assistant_messages.find(
+        {"user_id": tid, "created_at": {"$gte": since}},
+        {"_id": 0, "role": 1, "content": 1, "created_at": 1},
+    ).sort("created_at", 1).limit(AXON_MEMORY_MAX_MESSAGES)
+    msgs = [m async for m in msgs_cur]
+    if len(msgs) < AXON_MEMORY_MIN_MESSAGES:
+        return {"ok": False, "reason": f"Servono almeno {AXON_MEMORY_MIN_MESSAGES} messaggi negli ultimi {AXON_MEMORY_LOOKBACK_DAYS}gg (attuali: {len(msgs)})"}
+    distilled = await _distill_tenant_memory(tid, msgs)
+    if not distilled:
+        return {"ok": False, "reason": "Distillazione LLM fallita o output vuoto"}
+    await db.axon_tenant_memory.update_one(
+        {"tenant_id": tid},
+        {"$set": {
+            "tenant_id": tid,
+            "summary": distilled["summary"],
+            "facts": distilled["facts"],
+            "message_count": len(msgs),
+            "lookback_days": AXON_MEMORY_LOOKBACK_DAYS,
+            "updated_at": utcnow(),
+        }},
+        upsert=True,
+    )
+    return {
+        "ok": True,
+        "summary": distilled["summary"],
+        "facts": distilled["facts"],
+        "message_count": len(msgs),
+    }
+
+
+@api_router.delete("/axon/tenant-memory")
+async def delete_axon_tenant_memory(user=Depends(get_current_user)):
+    """Cancella la memoria distillata del tenant (Master-only). Verrà
+    rigenerata al prossimo cron notturno."""
+    _require_master(user)
+    tid = tenant_id(user)
+    r = await db.axon_tenant_memory.delete_one({"tenant_id": tid})
+    return {"ok": True, "deleted": r.deleted_count}
 
 
 
@@ -19635,6 +19998,11 @@ async def _startup():
     await db.audio_records.create_index([("user_id", 1), ("target_type", 1), ("target_id", 1)])
     await db.audio_records.create_index("audio_id", unique=True)
     await db.assistant_messages.create_index([("user_id", 1), ("session_id", 1), ("created_at", 1)])
+    # V50.z51 — Memoria tenant distillata (una entry per tenant_id).
+    try:
+        await db.axon_tenant_memory.create_index("tenant_id", unique=True)
+    except Exception:
+        pass
     # V29.ag — Cache azioni rapide Axon (una entry per (user, label))
     await db.axon_qa_cache.create_index([("user_id", 1), ("label", 1)], unique=True)
     # V40 — Semantic cache for Axon assistant (global). Note: we intentionally
@@ -19829,11 +20197,19 @@ async def _start_scheduler():
             _run_auto_crm_tick, "interval", minutes=1,
             id="auto-crm-tick", replace_existing=True,
         )
+        # V50.z51 — Distillazione notturna memoria tenant (04:00 Europe/Rome).
+        # Comprime le chat degli ultimi 90 giorni in un summary persistente
+        # iniettato come <MEMORIA_PERSISTENTE> nel system prompt.
+        _birthday_scheduler.add_job(
+            _run_axon_memory_distillation_job, "cron", hour=4, minute=0,
+            id="axon-memory-distillation", replace_existing=True,
+        )
         _birthday_scheduler.start()
         logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
         logger.info("Rule-proposals scheduler started (daily 03:00 Europe/Rome)")
         logger.info("Teach-URLs prefetch scheduler started (every 30 minutes)")
         logger.info("Auto-CRM scheduler tick started (every 1 minute)")
+        logger.info("Axon memory distillation scheduler started (daily 04:00 Europe/Rome)")
     except Exception as e:
         logger.warning(f"birthday scheduler start failed: {e}")
 

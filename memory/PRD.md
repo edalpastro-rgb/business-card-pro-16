@@ -1,3 +1,60 @@
+## V50.z51 (Sept 2026) — Rewrite architetturale MEMORIA AXON
+
+### Richiesta utente (approvata esplicitamente)
+Risolvere i 2 problemi noti:
+1. Axon "dimentica" le regole quando apri una nuova chat
+2. Non rispetta rigorosamente le istruzioni insegnate dal Master
+
+### Implementazione — 3 componenti architetturali
+
+**1) PINNED rules → `<REGOLE_ASSOLUTE>` in cima al system prompt**
+`/app/backend/server.py` — nuova funzione `_build_pinned_rules_section(tenant, msg)`:
+- Legge `ai_teach_rules` del tenant, ordina per (a) manuali del Master prima, (b) rilevanza `_rule_relevance_score` rispetto al messaggio
+- Prende top 10 e le racchiude in un blocco `<REGOLE_ASSOLUTE>...</REGOLE_ASSOLUTE>` con istruzione tassativa: *"Sono LEGGI... prevalgono su tutto (RAG, web, memoria, allegati). NON deviare mai."*
+- Iniettato come **PRIMA cosa** nel system_message, prima ancora del "Sei {assistant_name}..." → il modello vede le regole prima di qualsiasi altro contesto
+- Applicato sia allo streaming (`/api/assistant/chat/stream`) che al non-streaming (`/api/assistant/chat`)
+
+**2) Auto-distillation notturna → `<MEMORIA_PERSISTENTE>`**
+- Nuova collection MongoDB `db.axon_tenant_memory` (indice unique su `tenant_id`)
+- Nuovo scheduler job `_run_axon_memory_distillation_job` → **cron 04:00 Europe/Rome**
+- Per ogni tenant con ≥20 messaggi negli ultimi 90 giorni: chiama Claude Haiku 4.5 (economico) per distillare le chat in JSON `{summary, facts[]}`
+- Salvato via upsert e iniettato come `<MEMORIA_PERSISTENTE>` subito dopo `<REGOLE_ASSOLUTE>` nel system prompt
+- Costanti: `AXON_MEMORY_LOOKBACK_DAYS=90`, `AXON_MEMORY_MAX_MESSAGES=200`, `AXON_MEMORY_MIN_MESSAGES=20`, `AXON_PINNED_RULES_MAX=10`
+- Endpoint admin (Master-only):
+  - `GET  /api/axon/tenant-memory` → legge summary + facts + updated_at
+  - `POST /api/axon/tenant-memory/run-now` → trigger manuale per test/debug
+  - `DELETE /api/axon/tenant-memory` → cancella (verrà rigenerata al prossimo cron)
+
+**3) Streaming ACK immediato**
+- Nel `event_stream()` dell'endpoint `/api/assistant/chat/stream`, subito dopo il primo `progress "preflight"`, invio un secondo evento `progress` con `stage: "ack"` e testo che cita le 2-3 regole PINNED più rilevanti alla query
+- Feedback all'utente in **<500ms** → percezione che Axon stia rispettando le regole prima ancora di iniziare a ragionare
+- Nuova funzione `_build_pinned_rules_ack_text(tenant, msg)` costruisce la frase con le regole PINNED reali del tenant
+- Frontend `AssistantChat.tsx` non richiede modifiche: l'evento `progress` è già gestito
+
+### Priorità in caso di conflitto (default scelto)
+**PINNED rules > RAG > web** — Le regole assolute vincolano sempre il modello. Se una `ai_teach_rule` contraddice un contenuto RAG, VINCE la regola. Documentato esplicitamente nel testo del blocco `<REGOLE_ASSOLUTE>`.
+
+### Test manuali eseguiti
+- ✅ Python AST parse OK, backend riavviato senza errori
+- ✅ Scheduler startup log: `Axon memory distillation scheduler started (daily 04:00 Europe/Rome)`
+- ✅ `GET /axon/tenant-memory` → 200 con `{exists:false}` (nessuna memoria ancora)
+- ✅ **Streaming ACK verificato live**: chiamata a `/api/assistant/chat/stream` con "Ciao Axon, come stai?":
+  - Evento `progress {stage:"ack", text:"Ok, sto elaborando la tua richiesta rispettando le regole insegnate (\"Suggerire clienti da contattare se agenda vuota\", \"Spiegazione sintetica Capacity Market\")…"}`
+  - **La risposta AI ha applicato ISTANTANEAMENTE la regola PINNED**: *"Ho visto che oggi l'agenda è vuota... Hai 8 clienti senza appuntamento futuro: Marco Bianchi, Laura Rossi, Giuseppe Verdi..."* → pattern imposto dalla regola.
+- ✅ Distillazione LLM standalone testata con 25 messaggi fake: Claude Haiku 4.5 ha prodotto un summary di alta qualità (settore energia, Trebisacce, preferenze "detesta disclaimer") + 12 facts persistenti (top 3 clienti per fatturato, 5 contratti in scadenza, workflow WhatsApp).
+
+### Note operative
+- Il job cron gira ogni notte alle 04:00 → dopo 1-2 notti di utilizzo, il Master vede le sue chat compresse in memoria persistente disponibile per tutte le nuove chat
+- Il Master può forzare la rigenerazione via `POST /axon/tenant-memory/run-now` (utile subito dopo un import massivo o cambio di preferenze)
+- Le regole PINNED sono le stesse di "Insegna ad Axon" — nessuna migrazione richiesta
+- Non è stata toccata la pipeline API pubblica, la cache semantica, il router Haiku/Sonnet, RAG o Tavily
+
+### File modificati
+- `/app/backend/server.py` (+ ~270 righe: helpers memoria, scheduler, endpoint, iniezione prompt)
+- `/app/memory/PRD.md` (questa nota)
+
+
+
 ## V50.z50 (Sept 2026) — Utility Sveglia + Scanner standalone + Hub Impostazioni in Master
 
 ### Richiesta utente
