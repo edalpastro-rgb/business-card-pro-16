@@ -1,3 +1,66 @@
+## V50.z52 (Sept 2026) — Master avatar menu snellito + Profilo de-duplicato
+
+### Richiesta utente
+"dal menu che compare cliccando la foto lascia solo la possibilita di modificare la foto, togli tutto il resto, alleggeriamo qualche passaggio e link, poi dal menu profilo mantieni solo voci che eventualmente non sono presenti nella nuova disposizione nelle aree master, alleggeriamo il sistema. non toccare altro."
+
+### Fix implementati
+
+**1) Master `/master.tsx` — menu avatar semplificato**
+Il tap sull'avatar in cima alla schermata Master apriva un modal 3-punti con 7 voci di navigazione (Team Insights, Invita Collaboratore, New Corporate, Invita Cliente, Setting App, Bug Report, Richieste GDPR). Tutte quelle voci sono ora nell'hub "Impostazioni & Configurazioni" (V50.z50).
+
+**Cambiato**: il modal ora contiene UNA sola azione **"Cambia foto — Scegli una nuova immagine dalla galleria"** + bottone Chiudi.
+- Nuova funzione `changeAvatar()` in Master: apre `pickAvatarBase64()` → `PUT /api/auth/profile` con `avatar_base64` → `refresh()` context auth → notify "Foto aggiornata ✅"
+- State `avatarBusy` per feedback caricamento
+- Import: `pickAvatarBase64 from @/src/image-picker`, aggiunto `refresh` da `useAuth()`
+
+**2) Hub Master → aggiunte 2 voci mancanti**
+`SettingsHubSection` nel `/master.tsx`: aggiunte nella categoria **CRM Core**:
+- `New Corporate` → `/corporate/new` (ownerOnly)
+- `Invita Cliente` → `/invitati` (ownerOnly)
+
+Ora l'hub copre TUTTE le voci del vecchio menu 3-punti + tutti i link del Profilo tab.
+
+**3) `/app/frontend/app/(tabs)/impostazioni.tsx` — Profilo tab de-duplicato**
+Rimosse tutte le voci di **navigazione** già presenti nell'hub Master (evita duplicazione). Mantenuti SOLO i **form di configurazione** che l'hub linka comunque qui.
+
+**Rimossi** (ora unicamente nell'hub Master):
+- Master card duplicata (business card, contatti, condividi) → già in hub via "Anagrafica & DB Master" + "Biglietto da visita"
+- Link Gestione Team → hub CRM Core
+- Link Script Telefonata → hub CRM Core
+- Link Axon Center → hub AI & Axon (+ già nella griglia Master)
+- Link Libretto Informativo → hub Amministrazione
+- Link Rivedi tour guidato → hub Amministrazione
+- Link Invita Prospect / Collaboratore → hub CRM Core
+- Link Gruppi Contatti → hub CRM Core
+- Link Sicurezza & 2FA → hub Amministrazione
+- Link Google Drive → hub Anagrafica & DB Master
+- Link Dropbox → hub Anagrafica & DB Master
+- Link Configurazione Email (SMTP) → hub Comunicazioni
+- Pulsante Esci (logout) → hub (in fondo)
+
+**Mantenuti** (form di configurazione, non duplicabili):
+- Card utente (avatar, nome, email, ruolo) con edit avatar
+- Form **Email aggiuntive** (indirizzi mittente per auguri/comunicazioni)
+- Form **Branding aziendale** (nome agenzia, logo, slogan, contatti per PDF report)
+- Form **Personalizza Assistente** (nome, modalità testo/voce/entrambi, voce OpenAI)
+- Form **Script telefonata + WA template** (widget floating + messaggio referenze)
+- Form **Personalizza aree Energy/Network** (colori, titoli)
+- Form **Aree contatto** (aree personalizzate)
+- Form **Aree merceologiche appuntamenti**
+- Form **Categorie prodotti** (con sotto-categorie)
+
+### Test manuali eseguiti
+- ✅ Lint TypeScript su master.tsx + (tabs)/impostazioni.tsx: 0 errori
+- ✅ Screenshot Master 390×844: tap sull'avatar apre modal snello con "Cambia foto" + Chiudi
+- ✅ Screenshot Profilo tab autenticato: card Emanuele Demo + Email aggiuntive + Amministrazione · Branding (nome, logo, slogan) — nessun link di navigazione, nessuna Master card duplicata, nessun logout
+
+### Impatto UX
+- **1 tap → 1 azione** sull'avatar (invece di scegliere tra 7 voci)
+- **Profilo tab = solo configurazioni** (~50% più corto, scroll ridotto drasticamente)
+- **Hub Master = single source of truth** per tutta la navigazione impostazioni
+
+
+
 ## V50.z51 (Sept 2026) — Rewrite architetturale MEMORIA AXON
 
 ### Richiesta utente (approvata esplicitamente)

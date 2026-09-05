@@ -370,121 +370,9 @@ function ImpostazioniScreen() {
           </View>
         </View>
 
-        {/* Bug 9 — Dati Master & Biglietto da Visita */}
-        {master && (
-          <View style={styles.masterCard}>
-            <View style={styles.masterHead}>
-              <View style={styles.masterAvatarWrap}>
-                {master.avatar_base64 || master.photo_base64 || master.logo_base64 ? (
-                  <Image
-                    source={{ uri: master.avatar_base64 || master.photo_base64 || master.logo_base64 }}
-                    style={styles.masterAvatar}
-                  />
-                ) : (
-                  <View style={[styles.masterAvatar, { backgroundColor: master.accent_color || theme.color.brandTertiary, alignItems: "center", justifyContent: "center" }]}>
-                    <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 22 }}>
-                      {(master.name || "M").trim().charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <Text style={styles.masterName} numberOfLines={1}>{master.name || "—"}</Text>
-                  <View style={styles.masterBadge}>
-                    <Ionicons name="star" size={10} color="#FFF" />
-                    <Text style={styles.masterBadgeTxt}>{master.role_label || "Master"}</Text>
-                  </View>
-                </View>
-                {!!master.title && <Text style={styles.masterTitle} numberOfLines={1}>{master.title}</Text>}
-                {!!master.company_name && <Text style={styles.masterCompany} numberOfLines={1}>{master.company_name}</Text>}
-                {!!master.tagline && <Text style={styles.masterTagline} numberOfLines={2}>{master.tagline}</Text>}
-              </View>
-            </View>
-
-            <View style={styles.masterDivider} />
-
-            {/* Contatti */}
-            <View style={{ gap: 8 }}>
-              {!!master.phone && (
-                <Pressable testID="master-phone" onPress={() => openPhone(master.phone)} style={styles.masterRow}>
-                  <View style={[styles.masterIcon, { backgroundColor: "#DCFCE7" }]}>
-                    <Ionicons name="call" size={16} color="#15803D" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.masterRowLabel}>Telefono</Text>
-                    <Text style={styles.masterRowValue}>{master.phone}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
-                </Pressable>
-              )}
-              {!!master.email && (
-                <Pressable testID="master-email" onPress={() => openEmail(master.email)} style={styles.masterRow}>
-                  <View style={[styles.masterIcon, { backgroundColor: "#DBEAFE" }]}>
-                    <Ionicons name="mail" size={16} color="#1D4ED8" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.masterRowLabel}>Email aziendale</Text>
-                    <Text style={styles.masterRowValue}>{master.email}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
-                </Pressable>
-              )}
-              {!!master.website && (
-                <Pressable testID="master-website" onPress={() => openWebsite(master.website)} style={styles.masterRow}>
-                  <View style={[styles.masterIcon, { backgroundColor: "#EDE9FE" }]}>
-                    <Ionicons name="globe" size={16} color="#6D28D9" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.masterRowLabel}>Sito web</Text>
-                    <Text style={styles.masterRowValue}>{master.website}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
-                </Pressable>
-              )}
-              {!!master.address && (
-                <View style={styles.masterRow}>
-                  <View style={[styles.masterIcon, { backgroundColor: "#FEF3C7" }]}>
-                    <Ionicons name="location" size={16} color="#B45309" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.masterRowLabel}>Indirizzo</Text>
-                    <Text style={styles.masterRowValue}>{master.address}</Text>
-                  </View>
-                </View>
-              )}
-              {!master.phone && !master.email && !master.website && (
-                <Text style={styles.masterEmpty}>
-                  {user?.parent_user_id
-                    ? "Il tuo Master non ha ancora compilato i contatti nel biglietto da visita."
-                    : "Non hai ancora compilato i tuoi contatti. Apri il biglietto da visita per aggiungerli."}
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.masterActions}>
-              <Pressable
-                testID="master-open-card"
-                onPress={() => router.push("/business-card" as any)}
-                style={[styles.masterBtn, styles.masterBtnPrimary]}
-              >
-                <Ionicons name="id-card" size={16} color="#FFF" />
-                <Text style={styles.masterBtnPrimaryTxt}>
-                  {user?.parent_user_id ? "Vedi biglietto" : "Apri biglietto"}
-                </Text>
-              </Pressable>
-              <Pressable
-                testID="master-share-card"
-                onPress={shareMasterCard}
-                disabled={!master.business_card?.card_id}
-                style={[styles.masterBtn, styles.masterBtnGhost, !master.business_card?.card_id && { opacity: 0.5 }]}
-              >
-                <Ionicons name="share-social" size={16} color={theme.color.brandPrimary} />
-                <Text style={styles.masterBtnGhostTxt}>Condividi</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
+        {/* V50.z52 — Master card RIMOSSA: già disponibile nell'hub
+            "Impostazioni & Configurazioni" del Master (→ Biglietto da visita
+            + Anagrafica & DB Master). Evita duplicazione UI. */}
 
         {/* V38H — Additional emails management (used as sender for birthday/comms) */}
         <View style={styles.linkCard}>
@@ -560,129 +448,10 @@ function ImpostazioniScreen() {
           </View>
         </View>
 
-        {!user?.parent_user_id && (
-          <Pressable testID="team-link" onPress={() => router.push("/team")} style={styles.linkCard}>
-            <Ionicons name="people-circle" size={26} color={theme.color.brandPrimary} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>Gestione Team</Text>
-              <Text style={styles.linkSub}>Invita collaboratori e assegna aree</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-          </Pressable>
-        )}
-
-        {!user?.parent_user_id && (
-          <Pressable testID="script-tel-link" onPress={() => router.push("/call-script-config" as any)} style={styles.linkCard}>
-            <Ionicons name="document-text" size={26} color="#0F766E" />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>Script Telefonata</Text>
-              <Text style={styles.linkSub}>Testo mostrato agli agenti durante le chiamate</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-          </Pressable>
-        )}
-
-        {!user?.parent_user_id && (
-          <Pressable testID="axon-hub-link" onPress={() => router.push("/axon-hub" as any)} style={styles.linkCard}>
-            <View style={{ position: "relative" }}>
-              <Ionicons name="sparkles" size={26} color="#FF6B35" />
-              {pendingProposals > 0 && (
-                <View style={imp45Styles.badge} testID="ai-teach-badge">
-                  <Text style={imp45Styles.badgeTxt}>{pendingProposals > 9 ? "9+" : pendingProposals}</Text>
-                </View>
-              )}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>✨ Axon Center</Text>
-              <Text style={styles.linkSub}>
-                {pendingProposals > 0
-                  ? `${pendingProposals} proposta/e da rivedere · tutte le funzioni Axon in un posto`
-                  : "Regole, documenti, cervello, script, sveglie, domotica, wake-word"}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-          </Pressable>
-        )}
-
-        {/* V50.l — Libretto informativo AdvisorOS + AxonOS */}
-        <Pressable testID="libretto-link" onPress={() => router.push("/libretto" as any)} style={styles.linkCard}>
-          <Ionicons name="book" size={26} color="#EA580C" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>📘 Libretto Informativo</Text>
-            <Text style={styles.linkSub}>Guida operativa completa · scaricabile in PDF</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
-
-        {/* V50.o — Rivedi tour guidato: resetta AsyncStorage e riapre onboarding */}
-        <Pressable
-          testID="review-tour-link"
-          onPress={async () => {
-            try {
-              await AsyncStorage.removeItem("libretto_seen_v1");
-              notify("Tour guidato riavviato", "Ti riportiamo all'introduzione");
-              setTimeout(() => router.push("/libretto?onboarding=1" as any), 300);
-            } catch (e: any) {
-              notify("Errore", e?.message || "Impossibile riavviare il tour");
-            }
-          }}
-          style={styles.linkCard}
-        >
-          <Ionicons name="sparkles" size={26} color="#FBBF24" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>🚀 Rivedi tour guidato</Text>
-            <Text style={styles.linkSub}>Riapri l&apos;onboarding di benvenuto quando vuoi</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
-
-        {!user?.parent_user_id && (
-          <Pressable testID="invitati-link" onPress={() => router.push("/invita" as any)} style={styles.linkCard}>
-            <Ionicons name="person-add" size={26} color={theme.color.brandPrimary} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>Invita Prospect o Collaboratore</Text>
-              <Text style={styles.linkSub}>Prospect esterno o Collaboratore del tuo team</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-          </Pressable>
-        )}
-
-        <Pressable testID="groups-link" onPress={() => router.push("/groups")} style={styles.linkCard}>
-          <Ionicons name="people-outline" size={26} color={theme.color.brandPrimary} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>Gruppi Contatti</Text>
-            <Text style={styles.linkSub}>Crea gruppi personalizzati per invii bulk</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
-
-        <Pressable testID="security-link" onPress={() => router.push("/security")} style={styles.linkCard}>
-          <Ionicons name="shield-checkmark" size={26} color={theme.color.brandPrimary} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>Sicurezza & 2FA</Text>
-            <Text style={styles.linkSub}>Autenticazione a due fattori, PIN e biometria</Text>          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
-
-        {/* V28.w — Google Drive integration */}
-        <Pressable testID="google-drive-link" onPress={() => router.push("/google-drive" as any)} style={styles.linkCard}>
-          <Ionicons name="logo-google" size={26} color="#0F9D58" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>Google Drive</Text>
-            <Text style={styles.linkSub}>Collega il tuo Drive per allegare file ad Axon dalla cloud</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
-
-        {/* V49.i — Dropbox integration (accanto a Google Drive) */}
-        <Pressable testID="dropbox-link" onPress={() => router.push("/dropbox" as any)} style={styles.linkCard}>
-          <Ionicons name="logo-dropbox" size={26} color="#0061FF" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>Dropbox</Text>
-            <Text style={styles.linkSub}>Collega il tuo Dropbox per allegare file ad Axon dalla cloud</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-        </Pressable>
+        {/* V50.z52 — Link cards di navigazione RIMOSSI (Team, Script,
+            Axon Center, Libretto, Tour, Invita, Gruppi, Sicurezza, Drive,
+            Dropbox): tutti presenti nell'hub "Impostazioni & Configurazioni"
+            del Master. Qui restano SOLO i form di configurazione. */}
 
         {/* V38I — Branding aziendale for PDF reports (owner only) */}
         {!user?.parent_user_id && (
@@ -888,16 +657,7 @@ function ImpostazioniScreen() {
           )}
         </View>
 
-        {!user?.parent_user_id && (
-          <Pressable testID="smtp-link" onPress={() => router.push("/smtp")} style={styles.linkCard}>
-            <Ionicons name="mail-open" size={26} color={theme.color.brandPrimary} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>Configurazione Email (SMTP)</Text>
-              <Text style={styles.linkSub}>Aruba, Gmail o altro provider per invii bulk</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-          </Pressable>
-        )}
+        {/* V50.z52 — SMTP link RIMOSSO: presente nell'hub Master → Comunicazioni. */}
 
         {/* V50.z16 — Neo Memory rimosso: ora dentro Axon Center (💾 Memoria Assistente) */}
 
@@ -1135,10 +895,7 @@ function ImpostazioniScreen() {
         </View>
         )}
 
-        <Pressable testID="logout-btn" onPress={async () => { await logout(); router.replace("/login"); }} style={styles.logoutBtn}>
-          <Ionicons name="log-out-outline" size={20} color={theme.color.error} />
-          <Text style={styles.logoutTxt}>Esci</Text>
-        </Pressable>
+        {/* V50.z52 — Logout RIMOSSO: presente nell'hub Master (in fondo). */}
       </ScrollView>
     </SafeAreaView>
   );

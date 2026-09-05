@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { pickAvatarBase64 } from "@/src/image-picker";
 import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 import { MasterPromoteModal } from "@/src/MasterPromoteModal";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
@@ -34,7 +35,7 @@ export default function MasterRoute() {
 
 function MasterScreen() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, refresh } = useAuth();
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [banner, setBanner] = useState<Banner>(null); // kept only for optional title/body from random-banner
   const [myThingImages, setMyThingImages] = useState<string[]>([]);
@@ -70,6 +71,7 @@ function MasterScreen() {
   }, []);
   const [now, setNow] = useState(new Date());
   const [menuOpen, setMenuOpen] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
   const [chatPickerOpen, setChatPickerOpen] = useState(false);
   const [report, setReport] = useState<ReportStats | null>(null);
@@ -178,6 +180,25 @@ function MasterScreen() {
   }, [voicePhase, voicePulse]);
 
   const goto = (path: string) => { setMenuOpen(false); router.push(path as any); };
+
+  // V50.z52 — Tap sull'avatar del Master apre SOLO l'azione "Cambia foto"
+  // (l'utente ha chiesto di rimuovere il menu 3-punti con navigazioni multiple).
+  const changeAvatar = async () => {
+    setMenuOpen(false);
+    setAvatarBusy(true);
+    try {
+      const b64 = await pickAvatarBase64();
+      if (b64) {
+        await api("/auth/profile", { method: "PUT", body: { avatar_base64: b64 } });
+        await refresh();
+        notify("Foto aggiornata ✅", "");
+      }
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile aggiornare la foto");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const handleNewContract = async () => {
     // Mark as seen (clears the badge)
@@ -534,23 +555,30 @@ function MasterScreen() {
         />
       </ScrollView>
 
-      {/* 3-dot menu */}
+      {/* V50.z52 — Menu avatar semplificato: SOLO "Cambia foto" (l'utente
+          ha rimosso il menu 3-punti con Team/Corporate/Invita/Setting/Bug/GDPR:
+          tutte quelle voci sono ora nell'hub "Impostazioni & Configurazioni"
+          sotto la griglia Master). */}
       <Modal transparent visible={menuOpen} onRequestClose={() => setMenuOpen(false)} animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setMenuOpen(false)}>
           <View style={[styles.menuBox, { paddingBottom: bottomPad }]} onStartShouldSetResponder={() => true}>
-            {/* V50.z34 — Menu categorizzato: Team & Insights, CRM Core, Amministrazione */}
-            <Text style={styles.menuCatHeader}>👥 Team & Insights</Text>
-            <MenuItem icon="analytics" color="#EAB308" label="Team Insights" hint="Metriche + profilo AI dei collaboratori" onPress={() => goto("/team-insights")} testID="menu-team-insights" />
-            <MenuItem icon="person-add" color="#EAB308" label="Invita Collaboratore" hint="Genera link / QR con ruolo" onPress={() => goto("/invite-collaborator")} testID="menu-invite" />
-
-            <Text style={styles.menuCatHeader}>💼 CRM Core</Text>
-            <MenuItem icon="business" color="#0EA5E9" label="New Corporate" hint="Crea nuova area business" onPress={() => goto("/corporate/new")} testID="menu-corporate" />
-            <MenuItem icon="gift" color="#0EA5E9" label="Invita Cliente" hint="Trial gratuito con link estensibile" onPress={() => goto("/invitati")} testID="menu-invite-client" />
-
-            <Text style={styles.menuCatHeader}>⚙️ Amministrazione</Text>
-            <MenuItem icon="color-palette" color="#475569" label="Setting App" hint="Cambia tema e colori" onPress={() => goto("/settings-app")} testID="menu-settings" />
-            <MenuItem icon="bug" color="#475569" label="Bug, Errori e Idee" hint="Segnalazioni degli utenti" onPress={() => goto("/bug-report")} testID="menu-bug-report" />
-            <MenuItem icon="shield-checkmark" color="#475569" label="Richieste cancellazione dati" hint="Help Center · GDPR requests degli utenti" onPress={() => goto("/help-center-admin")} testID="menu-help-center-admin" />
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Foto profilo</Text>
+            <MenuItem
+              icon="camera"
+              color="#FF6B35"
+              label={avatarBusy ? "Caricamento…" : "Cambia foto"}
+              hint="Scegli una nuova immagine dalla galleria"
+              onPress={changeAvatar}
+              testID="master-avatar-change"
+            />
+            <Pressable
+              onPress={() => setMenuOpen(false)}
+              style={styles.sheetCancel}
+              testID="master-avatar-close"
+            >
+              <Text style={styles.sheetCancelTxt}>Chiudi</Text>
+            </Pressable>
           </View>
         </Pressable>
       </Modal>
@@ -807,6 +835,8 @@ function SettingsHubSection({
         { icon: "document-text", label: "Script Telefonata", hint: "Testo mostrato agli agenti durante le chiamate", onPress: () => onGoto("/call-script-config"), ownerOnly: true, testID: "hub-call-script" },
         { icon: "person-add", label: "Invita Prospect / Collaboratore", hint: "Prospect esterno o Collaboratore del tuo team", onPress: () => onGoto("/invita"), ownerOnly: true, testID: "hub-invita" },
         { icon: "people-outline", label: "Gruppi Contatti", hint: "Crea gruppi personalizzati per invii bulk", onPress: () => onGoto("/groups"), testID: "hub-groups" },
+        { icon: "business", label: "New Corporate", hint: "Crea nuova area business", onPress: () => onGoto("/corporate/new"), ownerOnly: true, testID: "hub-corporate" },
+        { icon: "gift", label: "Invita Cliente", hint: "Trial gratuito con link estensibile", onPress: () => onGoto("/invitati"), ownerOnly: true, testID: "hub-invite-client" },
         { icon: "settings", label: "Aree & Categorie CRM", hint: "Aree contatto, appuntamenti, prodotti (nel Profilo)", onPress: () => onGoto("/(tabs)/impostazioni"), ownerOnly: true, testID: "hub-crm-settings" },
       ],
     },
