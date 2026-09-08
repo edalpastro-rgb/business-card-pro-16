@@ -930,6 +930,11 @@ class AppointmentIn(BaseModel):
     broadcast_scope: Optional[Literal["all", "subtree", "custom"]] = None
     broadcast_to_user_ids: List[str] = Field(default_factory=list)
     broadcast_notify_advance_min: int = 15
+    # V50.z80 — Condivisione appuntamento col cliente (WhatsApp/Email + reminder auto)
+    client_reminder_hours: Optional[int] = None  # ore prima dell'appuntamento (es. 24, 3)
+    client_reminder_channels: List[Literal["whatsapp", "email"]] = Field(default_factory=list)
+    client_reminder_message: Optional[str] = None  # template personalizzato (fallback = generato)
+    client_reminder_sent_at: Optional[datetime] = None  # anti-duplicato
 
 
 class AppointmentUpdate(BaseModel):
@@ -970,6 +975,10 @@ class AppointmentUpdate(BaseModel):
     rescheduled_to: Optional[str] = None
     # V38W — allow linking / relinking a contact from the appointment detail
     contact_id: Optional[str] = None
+    # V50.z80 — Condivisione appuntamento col cliente
+    client_reminder_hours: Optional[int] = None
+    client_reminder_channels: Optional[List[Literal["whatsapp", "email"]]] = None
+    client_reminder_message: Optional[str] = None
 
 
 class CallbackIn(BaseModel):
@@ -3301,6 +3310,71 @@ async def get_appointment(appointment_id: str, user=Depends(get_current_user)):
             raise HTTPException(status_code=404, detail="Appuntamento non trovato")
     a["read_only"] = bool(a.get("is_broadcast") and a.get("created_by") != user["user_id"] and not is_owner(user))
     return a
+
+
+# V50.z80 — Preview per condivisione appuntamento con cliente (WA + email)
+@api_router.get("/appointments/{appointment_id}/share-preview")
+async def appointment_share_preview(appointment_id: str, user=Depends(get_current_user)):
+    a = await db.appointments.find_one({"user_id": tenant_id(user), "appointment_id": appointment_id}, {"_id": 0})
+    if not a:
+        raise HTTPException(status_code=404, detail="Appuntamento non trovato")
+    contact = None
+    if a.get("contact_id"):
+        contact = await db.contacts.find_one(
+            {"user_id": tenant_id(user), "contact_id": a["contact_id"]},
+            {"_id": 0, "first_name": 1, "last_name": 1, "phone": 1, "email": 1}
+        )
+    start = a.get("start_at")
+    if isinstance(start, datetime):
+        # Fuso orario Europe/Rome per il preview leggibile
+        try:
+            import zoneinfo as _zoneinfo
+            local = start.astimezone(_zoneinfo.ZoneInfo("Europe/Rome")) if start.tzinfo else start.replace(tzinfo=timezone.utc).astimezone(_zoneinfo.ZoneInfo("Europe/Rome"))
+        except Exception:
+            local = start
+        date_str = local.strftime("%A %d %B %Y").lower()
+        time_str = local.strftime("%H:%M")
+        # V50.z80.1 — Localizzazione italiana forzata (indipendente dal locale di sistema)
+        _IT_DAYS = {"monday": "lunedì", "tuesday": "martedì", "wednesday": "mercoledì", "thursday": "giovedì", "friday": "venerdì", "saturday": "sabato", "sunday": "domenica"}
+        _IT_MONTHS = {"january": "gennaio", "february": "febbraio", "march": "marzo", "april": "aprile", "may": "maggio", "june": "giugno", "july": "luglio", "august": "agosto", "september": "settembre", "october": "ottobre", "november": "novembre", "december": "dicembre"}
+        for en, it in _IT_DAYS.items():
+            date_str = date_str.replace(en, it)
+        for en, it in _IT_MONTHS.items():
+            date_str = date_str.replace(en, it)
+    else:
+        date_str = "data da definire"; time_str = "orario da definire"
+    first_name = (contact or {}).get("first_name") or "Gentile Cliente"
+    location = (a.get("location") or "").strip() or "presso il nostro ufficio"
+    title = (a.get("title") or "Appuntamento").strip()
+    agent_name = (user.get("name") or "").split(" ")[0] or "il tuo consulente"
+    default_msg = (
+        f"Ciao {first_name}, ti confermo il nostro appuntamento «{title}» "
+        f"del {date_str} alle {time_str} presso {location}. "
+        f"A presto — {agent_name}"
+    )
+    phone_raw = ((contact or {}).get("phone") or "").replace(" ", "").replace("+", "").replace("-", "")
+    email = (contact or {}).get("email") or ""
+    from urllib.parse import quote
+    wa_url = f"https://wa.me/{phone_raw}?text={quote(default_msg)}" if phone_raw else None
+    mailto = f"mailto:{email}?subject={quote('Conferma appuntamento')}&body={quote(default_msg)}" if email else None
+    return {
+        "message": default_msg,
+        "wa_url": wa_url,
+        "mailto": mailto,
+        "contact": contact,
+        "channels_available": {
+            "whatsapp": bool(phone_raw),
+            "email": bool(email),
+        },
+        "current_settings": {
+            "hours": a.get("client_reminder_hours"),
+            "channels": a.get("client_reminder_channels") or [],
+            "sent_at": a.get("client_reminder_sent_at"),
+        },
+    }
+
+
+
 
 
 @api_router.put("/appointments/{appointment_id}")

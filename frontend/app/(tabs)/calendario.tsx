@@ -1,3 +1,4 @@
+import { ShareAppointmentSheet } from "@/src/ShareAppointmentSheet";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -70,6 +71,8 @@ function CalendarioScreen() {
   const [appts, setAppts] = useState<Appointment[]>([]);
   // V50.z79 — Meteo per appuntamenti (cache in memoria: apptId → {icon, temp, label})
   const [weatherByAppt, setWeatherByAppt] = useState<Record<string, { icon: string; temp: number; label: string } | null>>({});
+  // V50.z80 — Sheet condivisione
+  const [shareApptId, setShareApptId] = useState<string | null>(null);
   const [teamAppts, setTeamAppts] = useState<TeamAppointment[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -519,6 +522,17 @@ function CalendarioScreen() {
                           </View>
                         );
                       })()}
+                      {/* V50.z80 — Bottone condividi con cliente (solo su appuntamenti reali) */}
+                      {item.kind === "appt" ? (
+                        <Pressable
+                          onPress={(e) => { (e as any).stopPropagation?.(); setShareApptId(item.id); }}
+                          hitSlop={8}
+                          style={styles.shareInline}
+                          testID={`cal-share-${item.id}`}
+                        >
+                          <Ionicons name="share-social-outline" size={13} color={theme.color.brandPrimary} />
+                        </Pressable>
+                      ) : null}
                       {/* V38T — Collaborator badge on non-own events */}
                       {item.kind === "appt" && !item.is_mine && item.created_by_name && (
                         <View style={[styles.creatorBadge, { backgroundColor: item.created_by_color || theme.color.muted }]}>
@@ -620,6 +634,14 @@ function CalendarioScreen() {
           }
         }}
       />
+      {/* V50.z80 — Modal condivisione appuntamento con cliente */}
+      {shareApptId ? (
+        <ShareAppointmentSheet
+          appointmentId={shareApptId}
+          visible={!!shareApptId}
+          onClose={() => setShareApptId(null)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -682,6 +704,8 @@ const styles = StyleSheet.create({
   // V50.z79 — Meteo badge accanto all'orario
   wxBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: "#E0F2FE", borderWidth: 1, borderColor: "#BAE6FD" },
   wxBadgeTxt: { fontSize: 10, fontWeight: "700", color: "#0369A1" },
+  // V50.z80 — Bottone condividi inline
+  shareInline: { marginLeft: "auto", padding: 3, borderRadius: 999, backgroundColor: "#EEF2FF" },
   apptTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface, marginTop: 2 },
   loc: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
   checkBtn: { padding: 10 },

@@ -1,6 +1,7 @@
 // V26.q — Contact appointments tab (upcoming + past with outcome + inline note editing)
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Platform } from "react-native";
+import { ShareAppointmentSheet } from "@/src/ShareAppointmentSheet";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
@@ -28,6 +29,8 @@ export function ContactAppointmentsSection({ contactId }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [appts, setAppts] = useState<Appointment[]>([]);
+  // V50.z80 — Sheet condivisione appuntamento con cliente
+  const [shareApptId, setShareApptId] = useState<string | null>(null);
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState("");
@@ -117,6 +120,15 @@ export function ContactAppointmentsSection({ contactId }: Props) {
                     <Text style={styles.metaTxt}>{a.appointment_type_tags[0]}</Text>
                   </>
                 ) : null}
+                {/* V50.z80 — Bottone condividi con cliente */}
+                <Pressable
+                  onPress={(e) => { (e as any).stopPropagation?.(); setShareApptId(a.appointment_id); }}
+                  hitSlop={8}
+                  style={styles.shareInlineBtn}
+                  testID={`share-appt-${a.appointment_id}`}
+                >
+                  <Ionicons name="share-social-outline" size={14} color={theme.color.brandPrimary} />
+                </Pressable>
               </View>
             </Pressable>
           );
@@ -211,6 +223,14 @@ export function ContactAppointmentsSection({ contactId }: Props) {
           );
         })
       )}
+      {/* V50.z80 — Modal condivisione */}
+      {shareApptId ? (
+        <ShareAppointmentSheet
+          appointmentId={shareApptId}
+          visible={!!shareApptId}
+          onClose={() => setShareApptId(null)}
+        />
+      ) : null}
     </ScrollView>
   );
 }
@@ -227,6 +247,7 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface, flex: 1 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
   metaTxt: { fontSize: 11, color: theme.color.muted },
+  shareInlineBtn: { marginLeft: "auto", padding: 4, borderRadius: 999, backgroundColor: "#EEF2FF" },
   dotSep: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: theme.color.muted, marginHorizontal: 4 },
   outcomesRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 8 },
   outcomeChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.pill, borderWidth: 1 },

@@ -4576,3 +4576,34 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
 **Isolamento privacy**:
 - Ogni endpoint filtra su `user_id` dell'utente autenticato
 - Nessun modo per un utente di vedere le password di un altro (nemmeno Master può vedere le password dei collaboratori)
+
+---
+
+## PROMPT 16 — Condivisione appuntamento con cliente (V50.z80) ✅ TESTATO
+
+**Backend (`server.py`)**:
+- Modello `Appointment` esteso con `client_reminder_hours`, `client_reminder_channels: List["whatsapp"|"email"]`, `client_reminder_message`, `client_reminder_sent_at`.
+- Modello `AppointmentUpdate` accetta i campi opzionali del promemoria.
+- Endpoint `GET /api/appointments/{id}/share-preview` restituisce:
+  - Messaggio precompilato in **italiano** (giorni/mesi tradotti manualmente, indipendente dal locale di sistema)
+  - `wa_url` (link `wa.me` con testo URL-encoded)
+  - `mailto` (link `mailto:` con subject+body)
+  - `channels_available` (whatsapp/email disponibili in base a phone/email del contatto)
+  - `current_settings` (promemoria già impostati)
+
+**Frontend**:
+- Nuovo componente `/app/frontend/src/ShareAppointmentSheet.tsx`:
+  - Modal bottom-sheet con textarea editabile del messaggio
+  - Bottone allegati (DocumentPicker multiplo con hint su limite wa.me/mailto)
+  - Bottoni WhatsApp (verde) + Email (blu) disabilitati se canale non disponibile
+  - Chip preset promemoria: Off / 1h / 3h / 6h / 12h / 24h / 48h
+  - Chip canali (WhatsApp/Email) attivi solo se `reminderHours` selezionato
+  - Save button che PUT `/appointments/{id}` con `client_reminder_hours` + `client_reminder_channels` + `client_reminder_message`
+- Integrato in:
+  - `ContactAppointmentsSection.tsx` — bottone share-social-outline inline su ogni card
+  - `(tabs)/calendario.tsx` — bottone share sulla riga di ogni appuntamento reale
+
+**Test verificato**:
+- ✅ Backend: login demo → creazione appt → GET share-preview → PUT reminder → cleanup
+- ✅ Frontend: login → tab Calendario → click share → modal si apre con messaggio in italiano corretto ("martedì 08 settembre 2026 alle 17:00")
+- ✅ Chip preset ore + canali funzionano
