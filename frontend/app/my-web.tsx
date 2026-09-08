@@ -80,7 +80,10 @@ export default function MyWebScreen() {
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
         <Text style={styles.headerTitle}>My Web</Text>
-        <Pressable onPress={() => setAddOpen(true)} testID="add-link-btn" style={[styles.headerBtn, { backgroundColor: "#DB2777" }]}><Ionicons name="add" size={22} color="#FFF" /></Pressable>
+        {/* V50.z64 — Pulsante Aggiungi link spostato in fondo alla griglia
+            (ben visibile). Il posto qui è mantenuto vuoto per bilanciare
+            l'header (chevron-back a sinistra). */}
+        <View style={styles.headerBtn} />
       </View>
 
       {loading ? (
@@ -130,6 +133,17 @@ export default function MyWebScreen() {
               );
             })}
           </View>
+
+          {/* V50.z64 — Bottone "Aggiungi link" spostato dall'header a fondo
+              lista, ben visibile con testo e icona (non più solo icona +). */}
+          <Pressable
+            onPress={() => setAddOpen(true)}
+            style={styles.addBigBtn}
+            testID="add-link-btn"
+          >
+            <Ionicons name="add-circle" size={22} color="#FFF" />
+            <Text style={styles.addBigBtnTxt}>Aggiungi link</Text>
+          </Pressable>
         </ScrollView>
       )}
 
@@ -184,6 +198,14 @@ const styles = StyleSheet.create({
   emptyTxt: { fontSize: 12, color: theme.color.muted, marginTop: 4, textAlign: "center" },
   emptyBtn: { marginTop: 20, flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#DB2777", paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },
   emptyBtnTxt: { color: "#FFF", fontWeight: "800" },
+  // V50.z64 — Pulsante "Aggiungi link" grande sotto la griglia
+  addBigBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    marginTop: 16, marginHorizontal: 4,
+    backgroundColor: "#DB2777", paddingVertical: 14, borderRadius: 12,
+    shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3,
+  },
+  addBigBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   card: { width: "47%", backgroundColor: theme.color.surface, borderRadius: 14, marginBottom: 12, borderWidth: 1, borderColor: theme.color.border, position: "relative" },
   cardInner: { padding: 14, alignItems: "flex-start" },

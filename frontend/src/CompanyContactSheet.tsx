@@ -112,6 +112,11 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
   const [linkSaving, setLinkSaving] = useState(false);
   const [webView, setWebView] = useState<{ title: string; url: string } | null>(null);
   const [linkImporting, setLinkImporting] = useState(false);
+  // V50.z63 — Picker "Da My Web": mostra tutti i link personali con checkbox
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerLinks, setPickerLinks] = useState<CompanyLink[]>([]);
+  const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
+  const [pickerLoading, setPickerLoading] = useState(false);
 
   const loadLinks = useCallback(async () => {
     setLinksLoading(true);
@@ -410,36 +415,61 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
     }
   };
 
-  const importFromMyWeb = async () => {
+  // V50.z63 — Apri picker: carica My Web e mostra checkbox
+  const openMyWebPicker = async () => {
+    setPickerOpen(true);
+    setPickerLoading(true);
+    setPickerSelected(new Set());
+    try {
+      const r = await api<{ items: CompanyLink[] }>("/web-links");
+      const items = Array.isArray(r.items) ? r.items : [];
+      setPickerLinks(items);
+      // Pre-seleziona quelli non ancora presenti in company-web-links
+      const existingUrls = new Set(links.map((l) => l.url));
+      const toPreselect = new Set<string>();
+      items.forEach((it) => {
+        if (!existingUrls.has(it.url)) toPreselect.add(it.link_id);
+      });
+      setPickerSelected(toPreselect);
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile caricare My Web");
+      setPickerOpen(false);
+    } finally {
+      setPickerLoading(false);
+    }
+  };
+
+  const togglePickerLink = (id: string) => {
+    setPickerSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const runImportSelected = async () => {
+    if (pickerSelected.size === 0) {
+      notify("Selezione vuota", "Seleziona almeno un link da importare.");
+      return;
+    }
     setLinkImporting(true);
-    // V50.z61 — Fix: messaggi chiari (distingue "My Web vuoto" da "già presenti"),
-    // reload garantito anche in errore, uso di `notify()` (compatibile web + APK)
-    // al posto di Alert.alert che su web react-native-web non sempre funziona.
     try {
       const r = await api<{ added: number; skipped_duplicate: number; source_total: number }>(
         "/company-web-links/import-from-my-web",
-        { method: "POST" },
+        { method: "POST", body: { link_ids: Array.from(pickerSelected) } },
       );
-      if (r.source_total === 0) {
-        notify(
-          "Nessun link in My Web",
-          "Non hai ancora link salvati in My Web. Aggiungili prima dalla schermata My Web, poi torna qui e riprova.",
-        );
-      } else if (r.added === 0) {
-        notify(
-          "Tutti già presenti",
-          `I ${r.source_total} link della tua sezione My Web sono già stati importati.`,
-        );
+      if (r.added === 0 && r.skipped_duplicate > 0) {
+        notify("Già presenti", `I ${r.skipped_duplicate} link selezionati sono già in Link utili.`);
       } else {
         notify(
           "Import completato ✅",
-          `Importati ${r.added} link da My Web${r.skipped_duplicate ? ` (${r.skipped_duplicate} già presenti)` : ""}.`,
+          `Importati ${r.added} link${r.skipped_duplicate ? ` (${r.skipped_duplicate} duplicati saltati)` : ""}.`,
         );
       }
+      setPickerOpen(false);
     } catch (e: any) {
-      notify("Errore import", e?.message || "Import non riuscito. Riprova.");
+      notify("Errore import", e?.message || "Import non riuscito.");
     } finally {
-      // Reload SEMPRE, così anche in caso di errore la UI mostra lo stato aggiornato
       await loadLinks();
       setLinkImporting(false);
     }
@@ -886,7 +916,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                   {isMaster && (
                     <View style={{ flexDirection: "row", gap: 6 }}>
                       <Pressable
-                        onPress={importFromMyWeb}
+                        onPress={openMyWebPicker}
                         disabled={linkImporting}
                         style={[styles.addBtn, { backgroundColor: "#7C3AED" }, linkImporting && { opacity: 0.6 }]}
                         testID="company-sheet-import-my-web"
@@ -1060,6 +1090,115 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
       </Modal>
 
       {/* V50.z58 — Link editor (add/edit): Master-only */}
+      {/* V50.z63 — Picker "Da My Web" con checkbox per selezione singola.
+          Master-only. Precompila i checkbox su tutti i link NON già presenti. */}
+      {pickerOpen && (
+        <Modal
+          transparent
+          visible={pickerOpen}
+          animationType="slide"
+          onRequestClose={() => setPickerOpen(false)}
+        >
+          <View style={styles.backdrop} pointerEvents="box-none">
+            <View style={styles.linkSheet}>
+              <View style={styles.sheetHandle} />
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={styles.sheetTitle}>Importa da My Web</Text>
+                <Pressable
+                  onPress={() => setPickerOpen(false)}
+                  hitSlop={10}
+                  style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" }}
+                  testID="my-web-picker-close"
+                >
+                  <Ionicons name="close" size={18} color={C.muted} />
+                </Pressable>
+              </View>
+              {pickerLoading ? (
+                <ActivityIndicator color={C.primary} style={{ marginVertical: 20 }} />
+              ) : pickerLinks.length === 0 ? (
+                <View style={styles.emptyBox}>
+                  <Text style={styles.emptyTxt}>Nessun link in My Web. Aggiungili prima dalla schermata My Web.</Text>
+                </View>
+              ) : (
+                <>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                    <Text style={{ fontSize: 12, color: C.muted, fontWeight: "700" }}>
+                      Seleziona i link da importare ({pickerSelected.size}/{pickerLinks.length})
+                    </Text>
+                    <Pressable
+                      onPress={() => {
+                        if (pickerSelected.size === pickerLinks.length) setPickerSelected(new Set());
+                        else setPickerSelected(new Set(pickerLinks.map((x) => x.link_id)));
+                      }}
+                      testID="my-web-picker-toggle-all"
+                    >
+                      <Text style={{ fontSize: 12, color: C.primary, fontWeight: "800" }}>
+                        {pickerSelected.size === pickerLinks.length ? "Deseleziona tutti" : "Seleziona tutti"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <ScrollView style={{ maxHeight: 340 }} keyboardShouldPersistTaps="handled">
+                    {pickerLinks.map((lk) => {
+                      const checked = pickerSelected.has(lk.link_id);
+                      const already = links.some((l) => l.url === lk.url);
+                      return (
+                        <Pressable
+                          key={lk.link_id}
+                          onPress={() => togglePickerLink(lk.link_id)}
+                          style={styles.pickerRow}
+                          testID={`my-web-picker-item-${lk.link_id}`}
+                        >
+                          <View style={[styles.checkbox, checked && styles.checkboxOn]}>
+                            {checked ? <Ionicons name="checkmark" size={14} color="#FFF" /> : null}
+                          </View>
+                          <Text style={{ fontSize: 22 }}>{lk.icon || "🔗"}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.linkTitle} numberOfLines={1}>{lk.title}</Text>
+                            <Text style={styles.linkUrl} numberOfLines={1}>
+                              {(lk.url || "").replace(/^https?:\/\//, "")}
+                            </Text>
+                          </View>
+                          {already ? (
+                            <View style={styles.alreadyBadge}>
+                              <Text style={styles.alreadyBadgeTxt}>già presente</Text>
+                            </View>
+                          ) : null}
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                  <View style={styles.actionsRow}>
+                    <Pressable
+                      onPress={() => setPickerOpen(false)}
+                      style={styles.btnGhost}
+                      disabled={linkImporting}
+                      testID="my-web-picker-cancel"
+                    >
+                      <Text style={styles.btnGhostTxt}>Annulla</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={runImportSelected}
+                      style={[styles.btnSave, (linkImporting || pickerSelected.size === 0) && { opacity: 0.5 }]}
+                      disabled={linkImporting || pickerSelected.size === 0}
+                      testID="my-web-picker-import"
+                    >
+                      {linkImporting ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="download" size={16} color="#FFF" />
+                          <Text style={styles.btnSaveTxt}>Importa ({pickerSelected.size})</Text>
+                        </>
+                      )}
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {linkEditor && (
         <Modal
           transparent
@@ -1527,4 +1666,22 @@ const styles = StyleSheet.create({
   iconRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
   iconOpt: { padding: 8, borderRadius: 10, backgroundColor: "#F1F5F9" },
   iconOptActive: { backgroundColor: "#DBEAFE", borderWidth: 2, borderColor: C.primary },
+  // V50.z63 — Picker My Web con checkbox
+  pickerRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingVertical: 10, paddingHorizontal: 8,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6,
+    borderWidth: 2, borderColor: "#CBD5E1",
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#FFF",
+  },
+  checkboxOn: { backgroundColor: C.primary, borderColor: C.primary },
+  alreadyBadge: {
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 999, backgroundColor: "#F1F5F9",
+  },
+  alreadyBadgeTxt: { fontSize: 10, color: C.muted, fontWeight: "700" },
 });

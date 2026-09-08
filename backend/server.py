@@ -8670,14 +8670,24 @@ async def delete_company_web_link(link_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 
+class ImportMyWebIn(BaseModel):
+    """V50.z63 — Se `link_ids` è None/vuoto → importa tutti (comportamento V50.z58).
+    Se valorizzato → importa solo i link con quegli id."""
+    link_ids: Optional[List[str]] = None
+
+
 @api_router.post("/company-web-links/import-from-my-web")
-async def import_from_my_web(user=Depends(get_current_user)):
+async def import_from_my_web(body: Optional[ImportMyWebIn] = None, user=Depends(get_current_user)):
     """V50.z58 — Import "one shot" dei link personali del Master (/web-links)
-    verso i Link utili aziendali. Utile per ridurre la duplicazione manuale."""
+    verso i Link utili aziendali. V50.z63 — Supporta selezione singola via
+    body.link_ids (se assente, importa tutti come prima)."""
     if user.get("parent_user_id"):
         raise HTTPException(status_code=403, detail="Solo il Master può importare i Link utili")
     owner = user["user_id"]
-    src = await db.web_links.find({"user_id": owner}, {"_id": 0}).sort("order", 1).to_list(200)
+    query: Dict[str, Any] = {"user_id": owner}
+    if body and body.link_ids:
+        query["link_id"] = {"$in": body.link_ids}
+    src = await db.web_links.find(query, {"_id": 0}).sort("order", 1).to_list(200)
     order_max = await db.company_web_links.find_one({"owner_user_id": owner}, sort=[("order", -1)])
     next_order = ((order_max or {}).get("order") or 0) + 1
     added = 0
