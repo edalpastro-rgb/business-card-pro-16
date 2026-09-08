@@ -5503,3 +5503,6 @@ else Linking.openURL(url).catch(() => {});
 - Causa: "Power Quality" è l'etichetta personalizzata dell'area Energy (`settings.energy_title`); l'area era preselezionata e nel form mostrava la scritta fissa "Energia", mentre il dettaglio non mostrava affatto il tipo scelto.
 - `appointment/new.tsx`: le pill Area ora usano `energy_title` / `network_title` del tenant.
 - `appointment/[id].tsx`: il dettaglio mostra i chip dei tipi appuntamento (`appointment_type_tags`, testID `ap-detail-type-<tipo>`).
+
+## Fix "Scadenze → Unmatched Route" (Giugno 2026)
+- Il menu laterale puntava a `/deadlines` ma la pagina non esisteva. Creata `app/deadlines.tsx`: lista completa contratti in scadenza (`GET /api/deadlines/upcoming?days=`), chip finestra 30/60/90/180gg (persistita in `user-settings.deadlines_window_days`), tap → scheda contatto tab bollette, pull-to-refresh.
