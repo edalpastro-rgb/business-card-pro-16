@@ -7,7 +7,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
-import { apptTypeColor } from "@/app/appointment/new";
+import { apptTypeColor, DEFAULT_APPT_TYPES } from "@/app/appointment/new";
 import { useAuth } from "@/src/auth";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
@@ -27,7 +27,7 @@ type TeamAppointment = Appointment & {
   created_by_color: string;
 };
 type Contact = { contact_id: string; first_name: string; last_name: string; birth_date?: string; area: string; phone?: string };
-type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
+type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_appointment_types?: string[]; hidden_appointment_types?: string[] };
 type TeamMember = { user_id: string; name: string; email?: string; role: string; color: string; is_me: boolean; is_owner: boolean };
 
 type CalItem = {
@@ -283,6 +283,12 @@ function CalendarioScreen() {
       .sort((a, b) => a.start_at.getTime() - b.start_at.getTime());
   }, [items, filter]);
 
+  // Legenda: tipi default (non nascosti) + tipi personalizzati dell'utente
+  const legendTypes = useMemo(() => {
+    const hidden = new Set(settings?.hidden_appointment_types || []);
+    return Array.from(new Set([...DEFAULT_APPT_TYPES, ...(settings?.custom_appointment_types || [])])).filter((t) => !hidden.has(t));
+  }, [settings]);
+
   const colorFor = (area: string) => {
     if (area === "energy") return settings?.energy_color || theme.color.energy;
     if (area === "network") return settings?.network_color || theme.color.network;
@@ -434,6 +440,18 @@ function CalendarioScreen() {
               </Pressable>
             ))}
           </ScrollView>
+
+          {/* Legenda colori tipi appuntamento (solo vista "I miei": nelle viste team il colore è del collaboratore) */}
+          {scope === "mine" && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.legendRow} style={{ maxHeight: 30 }} testID="cal-type-legend">
+              {legendTypes.map((t) => (
+                <View key={t} style={styles.legendItem} testID={`cal-legend-${t}`}>
+                  <View style={[styles.legendDot, { backgroundColor: apptTypeColor(t) }]} />
+                  <Text style={styles.legendTxt}>{t}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
 
           {(scope === "team" || scope === "all") && teamMembers.length > 0 && (
             <ScrollView
@@ -681,6 +699,10 @@ const styles = StyleSheet.create({
   scopeTxtOn: { color: "#FFF" },
   daysRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 4 },
   filtersRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 4 },
+  legendRow: { paddingHorizontal: 16, gap: 12, alignItems: "center", paddingBottom: 6 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendTxt: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
   chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0 },
   chipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
   chipTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 12 },

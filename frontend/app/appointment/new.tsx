@@ -44,7 +44,7 @@ type Settings = {
   custom_product_categories?: { name: string; subs?: string[] }[];
 };
 
-const DEFAULT_APPT_TYPES = ["Energy", "Telefonata", "Personale", "Riunione", "Promemoria", "Altro"];
+export const DEFAULT_APPT_TYPES = ["Energy", "Telefonata", "Personale", "Riunione", "Promemoria", "Altro"];
 // V38S — Color per appointment type (shown in calendar week/month view + on the pill)
 const APPT_TYPE_COLORS: Record<string, string> = {
   "Energy": "#DC2626",         // rosso

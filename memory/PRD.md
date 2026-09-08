@@ -5516,3 +5516,4 @@ else Linking.openURL(url).catch(() => {});
 - Dettaglio appuntamento (`appointment/[id].tsx`): pulsante "Modifica appuntamento" (→ `/appointment/new?edit=<id>`), pulsante "Vai alla scheda cliente", card "Note e allegati" (note testuali, foto con anteprima fullscreen, audio riproducibile, file apribile/condivisibile).
 - `appointment/new.tsx`: modalità modifica via `?edit=<id>` (precompila form + allegati, salva con PUT, riprogramma il promemoria, torna al dettaglio). Sezione broadcast nascosta in modifica.
 - Calendario: puntini della vista Settimana colorati per tipo appuntamento (max 3, come vista Mese); corretto anche il pallino della lista "Da recuperare" (era sempre arancione).
+- Calendario: legenda colori tipi appuntamento (riga scrollabile sotto i filtri area, solo scope "I miei"; include tipi default non nascosti + personalizzati). testID `cal-type-legend`.
