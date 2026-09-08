@@ -4855,3 +4855,23 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
   - Ogni fascia mostra valore + unità + `delta_pct` colorata (verde ↓, rosso ↑).
 
 **Verifica visiva**: home mostra `Appuntamenti di oggi (0)` → widget PUN `F1 AGO 174.5 €/MWh +13.2%` · `F2 204.3 €/MWh +20.6%` · `F3 171.7 €/MWh +12.8%`. Nessuna riga "Contatti totali/Alert scadenze/Richieste info in attesa" nella sezione widget.
+
+---
+
+## PROMPT 20.a — Nome file custom scanner (V50.z88) ✅ IMPLEMENTATO
+
+`/app/frontend/src/JscanifyScannerModal.tsx`:
+- Aggiunto dialog HTML `#nameDialog` (overlay full-screen fisso su `.scanner-body`, sfondo semi-trasparente, card centrata) con:
+  - Titolo "Nome del file" + sottotitolo con esempio "Contratto Rossi Luce"
+  - Input testo con placeholder = nome default (`scan_Npagine_TIMESTAMP` o `scanner_TIMESTAMP`)
+  - Bottoni "Annulla" / "Allega"
+- Handler `btnDone`:
+  - Apre il dialog + focus automatico sull'input dopo 60ms.
+  - `Enter` conferma, `Escape` annulla.
+  - Sanitize del nome: rimuove `\ / : * ? " < > | \n \r \t`, fallback al default se vuoto.
+  - Aggiunge automaticamente estensione `.pdf` (multi-pagina) o `.jpg` (singola pagina) se non presente.
+- Funzionalità retro-compatibile: il messaggio postato al RN mantiene la stessa struttura `{type,dataUrl,name,mime}`.
+
+**Test**:
+- Lint pulito ✅.
+- UI: aprendo la chat Axon → 🔍 Scanner → scattare pagina/e → "Termina e usa" → appare il dialog nome file → inserire "Contratto Rossi Luce" → tap "Allega" → PDF `Contratto Rossi Luce.pdf` allegato al messaggio.

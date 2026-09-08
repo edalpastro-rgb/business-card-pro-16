@@ -73,6 +73,18 @@ const SCANNER_HTML = `<!doctype html>
     <div class="row" id="bottomRow" style="display:none">
       <button class="btn danger" id="btnCancel">Annulla tutto</button>
     </div>
+    <!-- V50.z88 — Nome file custom prima di allegare -->
+    <div id="nameDialog" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;z-index:99;padding:20px;">
+      <div style="background:#1E293B;border:1px solid #334155;border-radius:14px;padding:16px;max-width:340px;width:100%;">
+        <div style="font-size:14px;font-weight:800;margin-bottom:4px;">Nome del file</div>
+        <div style="font-size:12px;color:#94A3B8;margin-bottom:10px;">Dai un nome al PDF prima di allegarlo (es. Contratto Rossi Luce).</div>
+        <input id="nameInput" type="text" placeholder="Contratto Rossi Luce" style="width:100%;padding:12px 10px;background:#0F172A;color:#F8FAFC;border:1px solid #334155;border-radius:10px;font-size:14px;box-sizing:border-box;"/>
+        <div class="row" style="justify-content:flex-end;margin-top:12px;">
+          <button class="btn secondary" id="nameCancel">Annulla</button>
+          <button class="btn success" id="nameConfirm">Allega</button>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 <script async src="https://docs.opencv.org/4.9.0/opencv.js"></script>
@@ -196,38 +208,56 @@ const SCANNER_HTML = `<!doctype html>
     const list = pages.slice();
     if (currentClean) list.push(currentClean);
     if (list.length === 0) return;
-    // Se una sola pagina → invia PNG diretto (retro-compat con singola immagine)
-    if (list.length === 1) {
-      // Convertiamo la JPEG in PNG per uniformità: non necessario, la data URL è già valida.
-      post({ type: 'scanned', dataUrl: list[0].dataUrl, name: 'scanner_' + Date.now() + '.jpg', mime: 'image/jpeg' });
-      return;
-    }
-    // Multi-pagina → genera PDF con jsPDF
-    try {
-      $status.textContent = 'Genero PDF…';
-      const { jsPDF } = window.jspdf || {};
-      if (!jsPDF) throw new Error('jsPDF non disponibile');
-      // A4 in mm: 210 x 297. Adattiamo ogni pagina al foglio mantenendo aspect.
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const A4W = 210, A4H = 297, margin = 8;
-      for (let i = 0; i < list.length; i++) {
-        const p = list[i];
-        if (i > 0) pdf.addPage();
-        const availW = A4W - margin * 2, availH = A4H - margin * 2;
-        const ratio = Math.min(availW / p.w, availH / p.h);
-        const w = p.w * ratio, h = p.h * ratio;
-        const x = (A4W - w) / 2, y = (A4H - h) / 2;
-        pdf.addImage(p.dataUrl, 'JPEG', x, y, w, h, undefined, 'FAST');
+    // V50.z88 — Chiedi il nome file prima di allegare (sia PDF che immagine)
+    const $dlg = document.getElementById('nameDialog');
+    const $inp = document.getElementById('nameInput');
+    const defaultName = list.length > 1 ? ('scan_' + list.length + 'pagine_' + Date.now()) : ('scanner_' + Date.now());
+    $inp.value = '';
+    $inp.setAttribute('placeholder', defaultName);
+    $dlg.style.display = 'flex';
+    setTimeout(() => $inp.focus(), 60);
+
+    const cleanup = () => { $dlg.style.display = 'none'; };
+    const finalize = async (chosenName) => {
+      cleanup();
+      $status.textContent = 'Genero file…';
+      // Sanitize del nome: rimuovi caratteri illegali per filesystem
+      let base = (chosenName || '').replace(/[\\\\/:*?"<>|\\n\\r\\t]/g, '').trim();
+      if (!base) base = defaultName;
+      if (list.length === 1) {
+        // Singola pagina → JPEG
+        const filename = /\\.(jpe?g|png)$/i.test(base) ? base : (base + '.jpg');
+        post({ type: 'scanned', dataUrl: list[0].dataUrl, name: filename, mime: 'image/jpeg' });
+        return;
       }
-      const dataUrl = pdf.output('datauristring'); // "data:application/pdf;filename=..;base64,..."
-      // Normalizziamo il MIME
-      const idx = dataUrl.indexOf(',');
-      const base64 = idx >= 0 ? dataUrl.slice(idx + 1) : dataUrl;
-      const cleanUrl = 'data:application/pdf;base64,' + base64;
-      post({ type: 'scanned', dataUrl: cleanUrl, name: 'scan_' + list.length + 'pagine_' + Date.now() + '.pdf', mime: 'application/pdf' });
-    } catch (err) {
-      $status.textContent = 'Errore generazione PDF: ' + (err && err.message ? err.message : err);
-    }
+      // Multi-pagina → PDF
+      try {
+        const { jsPDF } = window.jspdf || {};
+        if (!jsPDF) throw new Error('jsPDF non disponibile');
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const A4W = 210, A4H = 297, margin = 8;
+        for (let i = 0; i < list.length; i++) {
+          const p = list[i];
+          if (i > 0) pdf.addPage();
+          const availW = A4W - margin * 2, availH = A4H - margin * 2;
+          const ratio = Math.min(availW / p.w, availH / p.h);
+          const w = p.w * ratio, h = p.h * ratio;
+          const x = (A4W - w) / 2, y = (A4H - h) / 2;
+          pdf.addImage(p.dataUrl, 'JPEG', x, y, w, h, undefined, 'FAST');
+        }
+        const dataUrl = pdf.output('datauristring');
+        const idx = dataUrl.indexOf(',');
+        const base64 = idx >= 0 ? dataUrl.slice(idx + 1) : dataUrl;
+        const cleanUrl = 'data:application/pdf;base64,' + base64;
+        const filename = /\\.pdf$/i.test(base) ? base : (base + '.pdf');
+        post({ type: 'scanned', dataUrl: cleanUrl, name: filename, mime: 'application/pdf' });
+      } catch (err) {
+        $status.textContent = 'Errore generazione PDF: ' + (err && err.message ? err.message : err);
+      }
+    };
+    document.getElementById('nameCancel').onclick = () => { cleanup(); };
+    document.getElementById('nameConfirm').onclick = () => finalize($inp.value);
+    $inp.onkeydown = (ev) => { if (ev.key === 'Enter') finalize($inp.value); if (ev.key === 'Escape') cleanup(); };
   });
 </script>
 </body>
