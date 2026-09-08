@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Linking, Platform, Image } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Linking, Platform, Image, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -55,6 +55,7 @@ type Contact = {
   status?: "prospect" | "collaborator" | "client";
   linked_user_id?: string;
   custom_fields?: Record<string, any> | null;
+  preferred_address?: "main" | "legacy" | "work" | "residence" | null;
 };
 
 const STATUS_META: Record<string, { label: string; color: string; icon: any }> = {
@@ -96,6 +97,12 @@ function ContactDetail() {
   // V28.r — Barra timer globale (sostituisce il modal a schermo intero V28.f).
   const activeCall = useActiveCall();
   const [callsRefreshTick, setCallsRefreshTick] = useState(0);
+  // V50.z71 — Distanze indirizzi (km) + override origine (per contatto)
+  const [distances, setDistances] = useState<Record<string, number | null>>({});
+  const [distanceOrigin, setDistanceOrigin] = useState<string>("");
+  const [originOverrideOpen, setOriginOverrideOpen] = useState(false);
+  const [originDraft, setOriginDraft] = useState<string>("");
+  const [distLoading, setDistLoading] = useState(false);
 
   // V28.r — Quando la barra timer termina la chiamata (active passa a null),
   // refreshiamo la lista comunicazioni per mostrare la durata registrata.
@@ -108,6 +115,49 @@ function ContactDetail() {
     }
     prevActiveRef.current = isActive;
   }, [activeCall.active]);
+
+  // V50.z71 — Al primo caricamento delle settings, popola l'origine di default con l'ufficio
+  useEffect(() => {
+    if (!distanceOrigin && settings?.office_address) {
+      setDistanceOrigin(settings.office_address);
+    }
+  }, [settings?.office_address, distanceOrigin]);
+
+  // V50.z71 — Ricalcola distanze quando cambia origine o gli indirizzi del contatto
+  useEffect(() => {
+    if (!c || !distanceOrigin) return;
+    const items: Array<{ key: string; addr: string }> = [];
+    const structAddr = [c.address_street, [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province].filter(Boolean).join(", ").trim();
+    if (structAddr) items.push({ key: "main", addr: structAddr });
+    const legAddr = (c.address || "").trim();
+    if (legAddr && legAddr !== structAddr) items.push({ key: "legacy", addr: legAddr });
+    if (c.work_address) items.push({ key: "work", addr: c.work_address });
+    if (c.residence_address) items.push({ key: "residence", addr: c.residence_address });
+    if (items.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      setDistLoading(true);
+      try {
+        const res = await api<{ origin_valid: boolean; distances_km: (number | null)[] }>("/geocode/distances", {
+          method: "POST",
+          body: { origin: distanceOrigin, targets: items.map((i) => i.addr) },
+        });
+        if (cancelled) return;
+        const map: Record<string, number | null> = {};
+        items.forEach((it, idx) => {
+          map[it.key] = res.distances_km?.[idx] ?? null;
+        });
+        setDistances(map);
+      } catch {
+        if (!cancelled) setDistances({});
+      } finally {
+        if (!cancelled) setDistLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [c?.contact_id, c?.address, c?.address_street, c?.address_city, c?.address_zip, c?.address_province, c?.work_address, c?.residence_address, distanceOrigin]);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [viewerFile, setViewerFile] = useState<CFile | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -217,13 +267,59 @@ function ContactDetail() {
     Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`);
   };
 
-  // V50.z70 — Blocco riutilizzabile: mostra una riga indirizzo con i propri bottoni Waze/Maps.
-  // Ogni indirizzo del contatto (principale, legacy, lavoro, residenza) usa questo blocco.
-  const AddressBlock = ({ icon, label, addr, testIdPrefix }: { icon: any; label: string; addr: string; testIdPrefix: string }) => {
+  // V50.z71 — Toggle "indirizzo preferito" (persistente sul contatto).
+  const togglePreferredAddress = async (kind: "main" | "legacy" | "work" | "residence") => {
+    if (!c) return;
+    const next = c.preferred_address === kind ? null : kind;
+    // Optimistic
+    setC({ ...c, preferred_address: next });
+    try {
+      await api(`/contacts/${id}`, { method: "PUT", body: { preferred_address: next } });
+    } catch (e: any) {
+      // rollback in caso di errore
+      setC(c);
+      notify("Errore", e?.message || "Impossibile aggiornare l'indirizzo preferito");
+    }
+  };
+
+  // V50.z70 — Blocco riutilizzabile: mostra una riga indirizzo con i propri bottoni Waze/Maps,
+  // + stella preferito (V50.z71) + distanza in km dall'origine configurata (V50.z71).
+  const AddressBlock = ({
+    icon,
+    label,
+    addr,
+    testIdPrefix,
+    kind,
+  }: {
+    icon: any;
+    label: string;
+    addr: string;
+    testIdPrefix: string;
+    kind: "main" | "legacy" | "work" | "residence";
+  }) => {
     if (!addr || !addr.trim()) return null;
+    const isPreferred = c?.preferred_address === kind;
+    const km = distances[kind];
     return (
-      <View>
-        <InfoRow icon={icon} label={label} value={addr} />
+      <View style={[styles.addrBlock, isPreferred && styles.addrBlockPreferred]}>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
+          <View style={{ flex: 1 }}>
+            <InfoRow icon={icon} label={isPreferred ? `${label} · ⭐ preferito` : label} value={addr} />
+          </View>
+          <Pressable
+            testID={`${testIdPrefix}-star`}
+            onPress={() => togglePreferredAddress(kind)}
+            hitSlop={8}
+            style={styles.starBtn}
+            accessibilityLabel={isPreferred ? "Rimuovi preferito" : "Imposta come preferito"}
+          >
+            <Ionicons
+              name={isPreferred ? "star" : "star-outline"}
+              size={20}
+              color={isPreferred ? "#F59E0B" : theme.color.muted}
+            />
+          </Pressable>
+        </View>
         <View style={styles.navBtnRow}>
           <Pressable
             testID={`${testIdPrefix}-waze-btn`}
@@ -241,6 +337,20 @@ function ContactDetail() {
             <Ionicons name="map" size={14} color="#FFF" />
             <Text style={styles.wazeInlineTxt}>Google Maps</Text>
           </Pressable>
+          {distanceOrigin ? (
+            <View style={styles.kmBadge}>
+              <Ionicons name="speedometer-outline" size={13} color="#0369A1" />
+              <Text style={styles.kmBadgeTxt}>
+                {distLoading && km === undefined
+                  ? "…"
+                  : km === null
+                  ? "posizione non trovata"
+                  : km !== undefined
+                  ? `≈ ${km.toFixed(1)} km`
+                  : "…"}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
     );
@@ -254,6 +364,24 @@ function ContactDetail() {
   const legacyAddr = (c.address || "").trim();
   // Mostro `address` (legacy) solo se non è già uguale a quello strutturato (evita duplicati per utenti migrati)
   const showLegacyAddr = legacyAddr && legacyAddr !== structuredAddr;
+
+  // V50.z71 — Ordino i blocchi: preferito in cima, poi gli altri nell'ordine naturale.
+  type AddrKind = "main" | "legacy" | "work" | "residence";
+  const addressBlocks: Array<{ kind: AddrKind; addr: string; icon: any; label: string; testIdPrefix: string } | null> = [
+    structuredAddr ? { kind: "main" as AddrKind, addr: structuredAddr, icon: "location-outline", label: "Indirizzo", testIdPrefix: "address" } : null,
+    showLegacyAddr ? { kind: "legacy" as AddrKind, addr: legacyAddr, icon: "location-outline", label: structuredAddr ? "Indirizzo alternativo" : "Indirizzo", testIdPrefix: structuredAddr ? "address-legacy" : "address" } : null,
+    c.work_address ? { kind: "work" as AddrKind, addr: c.work_address, icon: "briefcase-outline", label: "Indirizzo di lavoro", testIdPrefix: "work-address" } : null,
+    c.residence_address ? { kind: "residence" as AddrKind, addr: c.residence_address, icon: "home-outline", label: "Indirizzo di residenza", testIdPrefix: "residence-address" } : null,
+  ];
+  const orderedBlocks = addressBlocks
+    .filter((b): b is NonNullable<typeof addressBlocks[number]> => !!b)
+    .sort((a, b) => {
+      const aPref = c.preferred_address === a.kind;
+      const bPref = c.preferred_address === b.kind;
+      if (aPref && !bPref) return -1;
+      if (!aPref && bPref) return 1;
+      return 0;
+    });
 
   const addTextNote = async () => {
     if (!noteText.trim()) return;
@@ -818,23 +946,36 @@ function ContactDetail() {
             {c.whatsapp ? <InfoRow icon="logo-whatsapp" label="WhatsApp" value={c.whatsapp} /> : null}
             <InfoRow icon="mail-outline" label="Email principale" value={c.email || "—"} />
             {c.email_alt ? <InfoRow icon="mail-outline" label="Email 2°" value={c.email_alt} /> : null}
-            {(c.address_street || c.address_city) ? (
-              <AddressBlock icon="location-outline" label="Indirizzo" addr={structuredAddr} testIdPrefix="address" />
+            {(c.address_street || c.address_city) || showLegacyAddr || c.work_address || c.residence_address ? (
+              <View style={{ marginTop: 4 }}>
+                {distanceOrigin ? (
+                  <View style={styles.originRow}>
+                    <Ionicons name="business-outline" size={13} color={theme.color.muted} />
+                    <Text style={styles.originLbl}>Distanze da: </Text>
+                    <Text style={styles.originVal} numberOfLines={1}>{distanceOrigin}</Text>
+                    <Pressable
+                      testID="distance-origin-edit"
+                      onPress={() => { setOriginDraft(distanceOrigin); setOriginOverrideOpen(true); }}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="create-outline" size={14} color={theme.color.brandPrimary} />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    testID="distance-origin-set"
+                    onPress={() => { setOriginDraft(""); setOriginOverrideOpen(true); }}
+                    style={styles.originSetBtn}
+                  >
+                    <Ionicons name="speedometer-outline" size={14} color={theme.color.brandPrimary} />
+                    <Text style={styles.originSetTxt}>Calcola distanze da un indirizzo</Text>
+                  </Pressable>
+                )}
+              </View>
             ) : null}
-            {showLegacyAddr ? (
-              <AddressBlock
-                icon="location-outline"
-                label={(c.address_street || c.address_city) ? "Indirizzo alternativo" : "Indirizzo"}
-                addr={legacyAddr}
-                testIdPrefix={(c.address_street || c.address_city) ? "address-legacy" : "address"}
-              />
-            ) : null}
-            {c.work_address ? (
-              <AddressBlock icon="briefcase-outline" label="Indirizzo di lavoro" addr={c.work_address} testIdPrefix="work-address" />
-            ) : null}
-            {c.residence_address ? (
-              <AddressBlock icon="home-outline" label="Indirizzo di residenza" addr={c.residence_address} testIdPrefix="residence-address" />
-            ) : null}
+            {orderedBlocks.map((b) => (
+              <AddressBlock key={b.kind} icon={b.icon} label={b.label} addr={b.addr} testIdPrefix={b.testIdPrefix} kind={b.kind} />
+            ))}
             {c.birth_date ? <InfoRow icon="gift-outline" label="Data di nascita / Compleanno" value={c.birth_date} /> : null}
             {(c.anniversaries || []).map((ann: any, i: number) => (
               <InfoRow key={`ann-${i}`} icon="calendar-outline" label={ann.name || "Ricorrenza"} value={ann.date || "—"} />
@@ -1193,6 +1334,58 @@ function ContactDetail() {
         contactEmail={c?.email}
         onPromoted={load}
       />
+
+      {/* V50.z71 — Modal per impostare/cambiare l'indirizzo di partenza per calcolo distanze */}
+      <Modal visible={originOverrideOpen} transparent animationType="fade" onRequestClose={() => setOriginOverrideOpen(false)}>
+        <View style={styles.originModalBackdrop} pointerEvents="box-none">
+          <View style={styles.originModalSheet}>
+            <Text style={styles.originModalTitle}>Indirizzo di partenza</Text>
+            <Text style={styles.originModalSub}>
+              Da qui verranno calcolate le distanze verso ogni indirizzo del contatto.
+              {settings?.office_address ? " Default = indirizzo ufficio." : ""}
+            </Text>
+            <TextInput
+              testID="distance-origin-input"
+              value={originDraft}
+              onChangeText={setOriginDraft}
+              placeholder="es. Corso Italia 42, Milano"
+              placeholderTextColor={theme.color.muted}
+              style={styles.originModalInput}
+              autoFocus
+            />
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+              {settings?.office_address && originDraft.trim() !== settings.office_address ? (
+                <Pressable
+                  testID="distance-origin-reset"
+                  onPress={() => setOriginDraft(settings.office_address)}
+                  style={[styles.originModalBtn, styles.originModalBtnGhost]}
+                >
+                  <Ionicons name="business-outline" size={14} color={theme.color.onSurface} />
+                  <Text style={styles.originModalBtnGhostTxt}>Usa ufficio</Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={() => setOriginOverrideOpen(false)}
+                style={[styles.originModalBtn, styles.originModalBtnGhost, { flex: 1 }]}
+              >
+                <Text style={styles.originModalBtnGhostTxt}>Annulla</Text>
+              </Pressable>
+              <Pressable
+                testID="distance-origin-save"
+                onPress={() => {
+                  setDistanceOrigin(originDraft.trim());
+                  setDistances({});
+                  setOriginOverrideOpen(false);
+                }}
+                style={[styles.originModalBtn, { flex: 1, backgroundColor: theme.color.brandPrimary }]}
+              >
+                <Ionicons name="checkmark" size={16} color="#FFF" />
+                <Text style={styles.originModalBtnTxt}>Calcola</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1281,7 +1474,27 @@ const styles = StyleSheet.create({
   linkTxt: { color: theme.color.brandPrimary, fontWeight: "600", flex: 1 },
   wazeInline: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandPrimary, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill },
   wazeInlineTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
-  navBtnRow: { flexDirection: "row", gap: 8, marginLeft: 30, marginTop: 6, flexWrap: "wrap" },
+  navBtnRow: { flexDirection: "row", gap: 8, marginLeft: 30, marginTop: 6, flexWrap: "wrap", alignItems: "center" },
+  // V50.z71 — Address block + preferred + km badge + origin editor
+  addrBlock: { paddingVertical: 4, marginBottom: 6 },
+  addrBlockPreferred: { backgroundColor: "#FEF3C7", borderRadius: 10, borderWidth: 1, borderColor: "#FBBF24", padding: 6, marginBottom: 8 },
+  starBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  kmBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: "#E0F2FE", borderWidth: 1, borderColor: "#BAE6FD" },
+  kmBadgeTxt: { fontSize: 11, fontWeight: "700", color: "#0369A1" },
+  originRow: { flexDirection: "row", alignItems: "center", gap: 6, padding: 8, borderRadius: 8, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, marginBottom: 6 },
+  originLbl: { fontSize: 11, fontWeight: "700", color: theme.color.muted },
+  originVal: { flex: 1, fontSize: 12, color: theme.color.onSurface, fontWeight: "600" },
+  originSetBtn: { flexDirection: "row", alignItems: "center", gap: 6, padding: 8, borderRadius: 8, borderWidth: 1, borderStyle: "dashed", borderColor: theme.color.brandPrimary, alignSelf: "flex-start", marginBottom: 6 },
+  originSetTxt: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary },
+  originModalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 20 },
+  originModalSheet: { backgroundColor: "#FFF", borderRadius: 14, padding: 18 },
+  originModalTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
+  originModalSub: { fontSize: 12, color: theme.color.muted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
+  originModalInput: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, backgroundColor: "#F8FAFC", color: theme.color.onSurface },
+  originModalBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 },
+  originModalBtnGhost: { backgroundColor: "#F1F5F9" },
+  originModalBtnGhostTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 13 },
+  originModalBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   commSectionTitle: { fontSize: 13, fontWeight: "700", color: theme.color.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
   // V29.av — Codice cliente compatto (elemento secondario in fondo pagina)
   codeCompactRow: {

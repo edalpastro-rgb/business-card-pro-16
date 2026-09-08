@@ -693,6 +693,8 @@ class SettingsModel(BaseModel):
     communica_azienda_email: str = ""
     # Each entry: {"id": str, "label": str, "number": str}
     communica_azienda_phones: List[Dict[str, Any]] = Field(default_factory=list)
+    # V50.z71 — Indirizzo ufficio: usato come origine di default per calcolo distanze indirizzi cliente
+    office_address: str = ""
 
 
 DEFAULT_CALL_OUTCOMES = [
@@ -816,6 +818,8 @@ class ContactIn(BaseModel):
     reference_contact_ids: List[str] = Field(default_factory=list)
     # V50.z67 — Campi personalizzati definiti dal Master
     custom_fields: Dict[str, Any] = Field(default_factory=dict)
+    # V50.z71 — Indirizzo preferito (main | legacy | work | residence) — mostrato in cima nella scheda
+    preferred_address: Optional[str] = None
 
 
 class ContactUpdate(BaseModel):
@@ -876,6 +880,8 @@ class ContactUpdate(BaseModel):
     reference_contact_ids: Optional[List[str]] = None
     # V50.z67 — Campi personalizzati anagrafica (chiavi definite dal master)
     custom_fields: Optional[Dict[str, Any]] = None
+    # V50.z71 — Indirizzo preferito (main | legacy | work | residence)
+    preferred_address: Optional[str] = None
 
 
 class ProfileUpdate(BaseModel):
@@ -2178,6 +2184,150 @@ async def reorder_contact_custom_fields(body: ContactCustomFieldReorderIn, user=
         )
         order += 1
     return {"ok": True, "reordered": order}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# V50.z71 — Geocoding & distance (OpenStreetMap Nominatim, cache 30 giorni)
+# ─────────────────────────────────────────────────────────────────────────────
+
+import math as _math
+import asyncio as _asyncio
+import httpx as _httpx
+
+_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+_PHOTON_URL = "https://photon.komoot.io/api"
+_NOMINATIM_UA = "AdvisorOS-CRM/1.0 (contact: support@advisoros.it)"
+_geocode_lock = _asyncio.Lock()
+_last_nominatim_call = 0.0
+
+
+class GeocodeDistancesIn(BaseModel):
+    origin: str
+    targets: List[str] = Field(default_factory=list)
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in km."""
+    r = 6371.0
+    p1 = _math.radians(lat1)
+    p2 = _math.radians(lat2)
+    dp = _math.radians(lat2 - lat1)
+    dl = _math.radians(lon2 - lon1)
+    a = _math.sin(dp / 2) ** 2 + _math.cos(p1) * _math.cos(p2) * _math.sin(dl / 2) ** 2
+    c = 2 * _math.atan2(_math.sqrt(a), _math.sqrt(1 - a))
+    return r * c
+
+
+async def _geocode_one(query: str) -> Optional[Dict[str, float]]:
+    """Geocoding con cache 30gg + fallback multi-provider (Photon primary, Nominatim secondary)."""
+    global _last_nominatim_call
+    q = (query or "").strip()
+    if not q:
+        return None
+    # Cache lookup (30 giorni)
+    try:
+        cached = await db.geocode_cache.find_one({"query": q}, {"_id": 0})
+    except Exception:
+        cached = None
+    if cached:
+        cached_at = cached.get("cached_at")
+        if isinstance(cached_at, datetime):
+            # Normalizza timezone: se `cached_at` è naive (letto da Mongo senza tz), assumiamo UTC
+            if cached_at.tzinfo is None:
+                cached_at = cached_at.replace(tzinfo=timezone.utc)
+            age = (utcnow() - cached_at).total_seconds()
+        else:
+            age = 0
+        if age < 30 * 24 * 3600:
+            if cached.get("lat") is not None and cached.get("lon") is not None:
+                return {"lat": cached["lat"], "lon": cached["lon"]}
+            # cached-not-found: riprova comunque dopo 24h nel caso il provider fosse down
+            if age < 24 * 3600:
+                return None
+
+    async def _try_photon() -> Optional[Dict[str, float]]:
+        try:
+            async with _httpx.AsyncClient(timeout=8.0, headers={"User-Agent": _NOMINATIM_UA}) as client:
+                # Photon supporta solo: default/de/en/fr — usiamo default (multilingua/senza filtro)
+                r = await client.get(_PHOTON_URL, params={"q": q, "limit": 1})
+                if r.status_code != 200:
+                    return None
+                data = r.json() or {}
+                feats = data.get("features") or []
+                if not feats:
+                    return None
+                coords = (feats[0].get("geometry") or {}).get("coordinates") or []
+                if len(coords) >= 2:
+                    return {"lat": float(coords[1]), "lon": float(coords[0])}  # [lon, lat]
+        except Exception:
+            return None
+        return None
+
+    async def _try_nominatim() -> Optional[Dict[str, float]]:
+        global _last_nominatim_call
+        async with _geocode_lock:
+            import time as _time
+            now = _time.time()
+            wait = max(0.0, 1.05 - (now - _last_nominatim_call))
+            if wait > 0:
+                await _asyncio.sleep(wait)
+            try:
+                async with _httpx.AsyncClient(timeout=8.0, headers={"User-Agent": _NOMINATIM_UA, "Accept-Language": "it"}) as client:
+                    r = await client.get(_NOMINATIM_URL, params={"q": q, "format": "json", "limit": 1, "countrycodes": "it"})
+                    _last_nominatim_call = _time.time()
+                    if r.status_code != 200:
+                        return None
+                    data = r.json() or []
+                    if not data:
+                        return None
+                    return {"lat": float(data[0].get("lat")), "lon": float(data[0].get("lon"))}
+            except Exception:
+                return None
+
+    # Prova Photon prima (no rate limit stringente), poi fallback Nominatim
+    result = await _try_photon()
+    if not result:
+        result = await _try_nominatim()
+
+    # Cache result (anche fallimenti per evitare hammering)
+    try:
+        if result:
+            await db.geocode_cache.update_one(
+                {"query": q},
+                {"$set": {"query": q, "lat": result["lat"], "lon": result["lon"], "cached_at": utcnow()}},
+                upsert=True,
+            )
+        else:
+            await db.geocode_cache.update_one(
+                {"query": q},
+                {"$set": {"query": q, "lat": None, "lon": None, "cached_at": utcnow()}},
+                upsert=True,
+            )
+    except Exception:
+        pass
+    return result
+
+
+@api_router.post("/geocode/distances")
+async def geocode_distances(body: GeocodeDistancesIn, user=Depends(get_current_user)):
+    """
+    Return distances (km, arrotondate a 1 decimale) da `origin` a ciascun target.
+    Se un target non è geocodificabile → None nella lista.
+    """
+    origin_coords = await _geocode_one(body.origin)
+    distances: List[Optional[float]] = []
+    if not origin_coords:
+        return {"origin_valid": False, "distances_km": [None] * len(body.targets)}
+    for t in body.targets:
+        c = await _geocode_one(t)
+        if not c:
+            distances.append(None)
+        else:
+            km = _haversine_km(origin_coords["lat"], origin_coords["lon"], c["lat"], c["lon"])
+            distances.append(round(km, 1))
+    return {"origin_valid": True, "distances_km": distances}
+
+
 
 
 

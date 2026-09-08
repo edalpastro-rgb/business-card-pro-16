@@ -22,6 +22,8 @@ type Settings = {
   // V27 — templates configurable by Master, used by agents
   wa_referral_template?: string;
   call_script?: string;
+  // V50.z71 — Indirizzo ufficio per calcolo distanze
+  office_address?: string;
 };
 
 const COLOR_SWATCHES = ["#EF4444", "#F97316", "#F59E0B", "#22C55E", "#10B981", "#06B6D4", "#3B82F6", "#2563EB", "#8B5CF6", "#EC4899", "#F43F5E", "#84CC16"];
@@ -697,6 +699,20 @@ function ImpostazioniScreen() {
           />
           <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 4 }}>
             Placeholder disponibile: <Text style={{ fontWeight: "800" }}>{"{name}"}</Text> = nome del cliente che ha firmato
+          </Text>
+
+          <Text style={[styles.label, { marginTop: 16 }]}>Indirizzo ufficio</Text>
+          <TextInput
+            testID="settings-office-address"
+            value={s.office_address || ""}
+            onChangeText={(t) => setS({ ...s, office_address: t })}
+            style={styles.input}
+            placeholder="es. Corso Italia 42, Milano MI"
+            placeholderTextColor="#94A3B8"
+            autoCapitalize="words"
+          />
+          <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 4 }}>
+            Origine di default per il calcolo delle distanze mostrate nelle schede cliente. Ogni agente può sovrascriverlo temporaneamente dalla scheda.
           </Text>
         </View>
         )}

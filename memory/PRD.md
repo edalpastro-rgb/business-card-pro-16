@@ -1,3 +1,40 @@
+## V50.z71 (Set 2026) — Indirizzi preferiti (stella) + distanza da ufficio
+
+### Richieste utente
+1. "Aggiungi una stellina per marcare l'indirizzo più usato che apparirà in cima con evidenza visiva."
+2. "Mostra i km stimati sotto ogni indirizzo così l'agente sa subito quanto dovrà guidare."
+
+### Backend (`server.py`)
+- **Settings**: nuovo campo `office_address: str = ""` (indirizzo ufficio, configurato dal Master in Impostazioni).
+- **Contact**: `preferred_address: Optional["main"|"legacy"|"work"|"residence"] = None` su `ContactIn` e `ContactUpdate`.
+- **Endpoint geocoding**: `POST /api/geocode/distances` body `{origin: str, targets: [str]}` → `{origin_valid: bool, distances_km: [float|null]}`.
+  - Provider primario: **Photon (Komoot)** — gratuito, no rate-limit stringente, funziona con virgole.
+  - Fallback: **Nominatim** (OSM) con throttle 1req/s + User-Agent identificativo.
+  - Cache DB `geocode_cache` (30 giorni per hit, 24h per miss).
+  - Distanza calcolata con formula Haversine (arrotondata a 1 decimale).
+  - Fix TZ: cache `cached_at` letto da Mongo come naive → normalizzato a UTC per subtraction sicura.
+
+### Frontend `/app/frontend/app/contact/[id].tsx`
+- Componente `AddressBlock` esteso:
+  - Prop `kind: main|legacy|work|residence`.
+  - Stella (⭐/☆) sulla destra: tap toggle `preferred_address` (optimistic + rollback su errore).
+  - Se preferito → bordo dorato (#FBBF24) + label con "⭐ preferito".
+  - Badge azzurro `≈ X.X km` accanto ai bottoni Waze/Maps quando l'origine è settata.
+- **Ordinamento dinamico**: l'indirizzo preferito viene mostrato per primo (`orderedBlocks`).
+- **Barra origine** sopra i blocchi: mostra "Distanze da: <indirizzo>" con icona ✏️ per modificare al volo, oppure bottone "Calcola distanze da un indirizzo" se non impostata.
+- **Modal override origine**: input libero + bottone "Usa ufficio" (ripristina il default da settings) + Annulla/Calcola.
+- **useEffect** carica automaticamente le distanze quando cambiano origine o indirizzi del contatto (con `cancelled` flag per evitare stale updates).
+
+### Frontend `/app/(tabs)/impostazioni.tsx`
+- Aggiunto input "Indirizzo ufficio" sotto "Messaggio WhatsApp Chiedi Referenze", con testo esplicativo.
+
+### Test end-to-end
+- Preferred_address persistito su contatto (PUT `/contacts/{id}` con `{preferred_address:"residence"}` → GET ritorna correttamente).
+- Distanze Milano → Torino/Venezia/Napoli: 126.0 / 245.6 / 657.5 km (Haversine, coerenti).
+- Prima chiamata cold: ~5s (2 geocoding call). Seconda chiamata cached: 34ms.
+- Frontend compila lint-clean, nessuna regressione ai bottoni Waze/Maps esistenti.
+
+
 ## V50.z70 (Set 2026) — Waze e Google Maps sotto ogni indirizzo (PROMPT 9)
 
 ### Richiesta utente
