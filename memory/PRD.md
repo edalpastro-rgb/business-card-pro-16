@@ -1,3 +1,52 @@
+## V50.z105 (Giu 2026) — PROMPT 28: Landing Page AdvisorOS
+
+### Route
+- Nuova pagina **`/app/frontend/app/adv-landing.tsx`** → accessibile via `/adv-landing` (pubblica, no auth).
+- La `landing.tsx` esistente (onboarding/auth flow) NON è stata toccata.
+
+### Architettura i18n
+- Object `COPY_IT` con tutti i testi in italiano (default)
+- Slot `COPY_EN` e `COPY_ES` predisposti (attualmente aliasati a IT con commento `TODO`)
+- Selector lingua in nav bar (IT/EN/ES) → `useState<Lang>` istantaneo
+- Struttura oggetti identica → traduzione futura richiede solo copy-paste testi
+
+### Sezioni
+1. **Nav bar sticky**: brand logo dot blu + "AdvisorOS" + selector IT/EN/ES
+2. **HERO**: badge arancione "✨ AI-native CRM · 2026", headline principale, subtitle, 2 pulsanti store (App Store + Google Play) con icone `logo-apple`/`logo-google-playstore`, 3 slogan chips blu
+3. **Confronto costi**: 2 card affiancate (desktop) o stacked (mobile) — rossa "Senza AdvisorOS" con 6 voci prezzo + totale €3.000/mese, blu "Con AdvisorOS" con 4 voci vantaggio + note
+4. **Quote banner**: slogan #3 "Mentre guidi, AdvisorOS lavora."
+5. **Funzioni principali** (9 gruppi con 51 feature totali):
+   - Gestione contatti (8 feature), Calendario (5), Comunicazione (5), Analisi documenti (5), AxonOS AI (9), My Web (3), Notifiche (5), Pannello Master (7), Area Clienti (5)
+   - Ogni gruppo: header con icona/colore alternato blu/arancione, grid 3-colonne (desktop) o 1-colonna (mobile) con card feature
+6. **Quote banner large**: slogan #4 (manifesto AdvisorOS)
+7. **Sicurezza** (6 garanzie senza tecnicismi): connessione cifrata, AES-256, backup automatici, credenziali KMS, server aggiornato, avvio verificato
+8. **FAQ** (7 domande): accordion con toggle add/remove-circle blu/arancione
+9. **Final CTA**: titolo "Pronto a lavorare in modo diverso?" + store buttons + subtitle "Più di 250+ consulenti…"
+10. **Footer**: brand + tagline + 3 link (Privacy/Termini/Contatti) + copyright
+
+### Styling
+- Dark theme: `#0A0F1E` bg, `#141B2E` card, `#26314B` border
+- Blu accent `#3B82F6` + Arancione accent `#F97316`
+- Glow decorativi (blur circles) hero + final CTA
+- Typography: 32-46px hero, 24px section title, 14-17px body
+- Responsive: `useWindowDimensions()` con breakpoint `width >= 900` → layout desktop centered/wider
+
+### URL store (placeholder)
+- `APP_STORE_URL = "https://apps.apple.com/app/advisoros"`
+- `PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.advisoros"`
+
+### Testing manuale
+- ✅ Route `/adv-landing` accessibile senza login
+- ✅ Screenshot mobile (390px): tutta la struttura renderizzata correttamente
+- ✅ Screenshot desktop (1440px): hero centered, costi affiancati
+- ✅ Language switcher funziona (visibile IT attivo, EN/ES cliccabili — testi identici per ora)
+- ✅ FAQ apertura/chiusura funziona
+- ✅ Store buttons con Linking.openURL
+- ✅ Frontend lint pulito
+
+---
+
+
 ## V50.z104 (Giu 2026) — PROMPT 27: Gestione Clienti AdvisorOS
 
 ### Concept
