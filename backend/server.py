@@ -7403,6 +7403,147 @@ async def cancel_bill_draft(draft_id: str, user=Depends(get_current_user)):
     return {"ok": True, "status": "cancelled"}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# V50.z76 — Master "Analizza fattura": endpoints paralleli su bill_drafts
+# Allineamento con /contacts/{id}/bills/*: reportistica, confronto offerte e
+# CTE comparativa lavorano ora anche sui drafts (senza contatto associato).
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_router.get("/bill-drafts-report")
+async def bill_drafts_report(user=Depends(get_current_user)):
+    """Report AI su tutti i drafts analizzati (done) del Master. Nessun contatto richiesto."""
+    items = await db.bill_drafts.find(
+        {"user_id": tenant_id(user), "status": "done"},
+        {"_id": 0, "pdf_base64": 0, "raw_text_preview": 0},
+    ).sort("created_at", -1).to_list(200)
+    if not items:
+        raise HTTPException(status_code=400, detail="Nessuna fattura analizzata disponibile")
+    grouped: Dict[str, List[Dict[str, Any]]] = {"luce": [], "gas": [], "telco": []}
+    for it in items:
+        bt = it.get("bill_type") or "luce"
+        grouped.setdefault(bt, []).append({
+            "pdf_name": it.get("pdf_name"),
+            "extracted": it.get("extracted") or {},
+        })
+    ai_suggestions = await _llm_bill_suggestions(grouped)
+    # Anagrafica "vuota" ma coerente con contatto (per riusare buildReportHtml lato FE)
+    return {
+        "contact": None,
+        "grouped": grouped,
+        "ai_suggestions": ai_suggestions,
+        "generated_at": utcnow(),
+    }
+
+
+@api_router.get("/bill-drafts-comparison")
+async def bill_drafts_comparison(
+    draft_id: Optional[str] = None,
+    offer_id: Optional[str] = None,
+    user=Depends(get_current_user),
+):
+    """Confronto fatture (drafts) vs offerte aziendali. Se non specificati id → confronta l'ultima
+    draft `done` per bill_type con l'ultima offerta `done` per stesso tipo."""
+    drafts = await db.bill_drafts.find(
+        {"user_id": tenant_id(user), "status": "done"},
+        {"_id": 0, "pdf_base64": 0, "raw_text_preview": 0},
+    ).sort("created_at", -1).to_list(200)
+    offers = await db.company_offers.find(
+        {"user_id": tenant_id(user), "status": "done"},
+        {"_id": 0, "pdf_base64": 0},
+    ).sort("created_at", -1).to_list(50)
+    if not drafts:
+        raise HTTPException(status_code=400, detail="Nessuna fattura analizzata disponibile")
+    if not offers:
+        raise HTTPException(status_code=400, detail="Nessuna offerta aziendale analizzata disponibile")
+
+    async def _safe_compare(bill_ex: dict, offer_ex: dict, bt: str) -> dict:
+        try:
+            return await _llm_compare_offers(bill_ex or {}, offer_ex or {}, bt)
+        except Exception as e:
+            logger.exception(f"comparison failed for bill_type={bt}: {e}")
+            return {
+                "parse_error": True,
+                "error_message": f"Impossibile completare il confronto: {str(e)[:200]}",
+                "sintesi": [f"Errore durante l'elaborazione AI ({bt}). Riprova più tardi."],
+                "raccomandazione": "neutro",
+            }
+
+    # Ids specifici → confronto singolo
+    if draft_id and offer_id:
+        draft = next((b for b in drafts if b.get("draft_id") == draft_id), None)
+        offer = next((o for o in offers if o.get("offer_id") == offer_id), None)
+        if not draft or not offer:
+            raise HTTPException(status_code=404, detail="Draft o offerta non trovata")
+        comparison = await _safe_compare(draft.get("extracted") or {}, offer.get("extracted") or {}, draft.get("bill_type") or "luce")
+        return {
+            "contact": None,
+            "bill_type": draft.get("bill_type") or "luce",
+            "bill": {"pdf_name": draft.get("pdf_name"), "extracted": draft.get("extracted") or {}},
+            "offer": {"label": offer.get("label"), "pdf_name": offer.get("pdf_name"), "extracted": offer.get("extracted") or {}},
+            "comparison": comparison,
+            "generated_at": utcnow(),
+        }
+
+    # Automatico: raggruppa ultime draft/offer per bill_type comuni
+    comparisons: List[Dict[str, Any]] = []
+    seen_types: set = set()
+    for d in drafts:
+        bt = d.get("bill_type") or "luce"
+        if bt in seen_types:
+            continue
+        offer = next((o for o in offers if o.get("bill_type") == bt), None)
+        if not offer:
+            continue
+        seen_types.add(bt)
+        comp = await _safe_compare(d.get("extracted") or {}, offer.get("extracted") or {}, bt)
+        comparisons.append({
+            "bill_type": bt,
+            "bill": {"pdf_name": d.get("pdf_name"), "extracted": d.get("extracted") or {}},
+            "offer": {"label": offer.get("label"), "pdf_name": offer.get("pdf_name"), "extracted": offer.get("extracted") or {}},
+            "comparison": comp,
+        })
+    if not comparisons:
+        raise HTTPException(status_code=400, detail="Nessuna fornitura confrontabile trovata (serve almeno una draft e un'offerta dello stesso tipo)")
+    return {"contact": None, "comparisons": comparisons, "generated_at": utcnow()}
+
+
+@api_router.get("/bill-drafts-cte-report")
+async def bill_drafts_cte_report(user=Depends(get_current_user)):
+    """CTE comparativa multi-fattura sui drafts del Master."""
+    drafts = await db.bill_drafts.find(
+        {"user_id": tenant_id(user), "status": "done"},
+        {"_id": 0, "pdf_base64": 0, "raw_text_preview": 0},
+    ).sort("created_at", 1).to_list(200)
+    if not drafts:
+        raise HTTPException(status_code=400, detail="Nessuna fattura analizzata disponibile. Carica e attendi l'analisi di almeno una fattura.")
+    u = await db.users.find_one({"user_id": tenant_id(user)}, {"_id": 0, "name": 1, "company_name": 1, "company_logo_base64": 1}) or {}
+    branding = {
+        "agency_name": (u.get("company_name") or u.get("name") or "").strip(),
+        "logo_base64": (u.get("company_logo_base64") or "").strip(),
+    }
+    # Adatta i drafts al formato atteso da _build_cte_report_html (che vuole `bill_id`)
+    bills_adapted = []
+    for d in drafts:
+        bd = dict(d)
+        bd["bill_id"] = d.get("draft_id")  # alias per compatibilità con _build_cte_report_html
+        bills_adapted.append(bd)
+    verdict = await _llm_cte_verdict(bills_adapted)
+    # Pseudo-contatto per non modificare _build_cte_report_html
+    pseudo_contact = {"first_name": "", "last_name": "Analisi Master", "contact_code": "", "phone": "", "email": ""}
+    html = _build_cte_report_html(pseudo_contact, bills_adapted, verdict, branding)
+    import base64 as _b64
+    name = "CTE-Comparativa-Master.html"
+    return {
+        "name": name,
+        "mime": "text/html",
+        "data_base64": _b64.b64encode(html.encode("utf-8")).decode("ascii"),
+        "bills_count": len(bills_adapted),
+        "verdict": verdict,
+    }
+
+
+
+
 class DraftAssociateIn(BaseModel):
     contact_id: str
 

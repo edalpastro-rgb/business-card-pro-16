@@ -8,13 +8,14 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { uriToBase64 } from "@/src/utils/media";
 import { notify, confirmAsync } from "@/src/utils/notify";
-import { DEFAULT_PARAMS, QuickBillType } from "@/src/BillsSection";
+import { DEFAULT_PARAMS, QuickBillType, buildReportHtml, buildComparisonHtml } from "@/src/BillsSection";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
 import { DocumentScannerModal, suggestBillScanName } from "@/src/DocumentScannerModal";
+import { InAppWebViewer } from "@/src/InAppWebViewer";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 // ---------- Types ----------
@@ -127,6 +128,12 @@ function BillQuickScreen() {
   const [loadingMasterFiles, setLoadingMasterFiles] = useState(false);
   // v2.17 — Report header (branding) configuration modal
   const [headerCfgOpen, setHeaderCfgOpen] = useState(false);
+  // V50.z76 — Reportistica master (allineamento con BillsSection lato cliente)
+  const [reportBusy, setReportBusy] = useState(false);
+  const [comparisonBusy, setComparisonBusy] = useState(false);
+  const [cteBusy, setCteBusy] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<{ title: string; html: string } | null>(null);
+  const [branding, setBranding] = useState<{ agency_name?: string; logo_base64?: string; slogan?: string; contacts?: string }>({});
 
   // ---------- Data loading ----------
 
@@ -146,6 +153,71 @@ function BillQuickScreen() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // V50.z76 — Carica branding per report/comparison HTML (agency name + logo + slogan + contatti)
+  useEffect(() => {
+    (async () => {
+      try {
+        const b = await api<any>("/settings/report-header");
+        setBranding({
+          agency_name: b?.report_agency_name || "",
+          logo_base64: b?.report_logo_base64 || "",
+          slogan: b?.report_slogan || "",
+          contacts: b?.report_contacts || "",
+        });
+      } catch { /* ignore, non blocca la reportistica */ }
+    })();
+  }, []);
+
+  // ---------- V50.z76 — Reportistica master ----------
+
+  const generateReport = async () => {
+    try {
+      setReportBusy(true);
+      const rep = await api<any>("/bill-drafts-report");
+      const html = buildReportHtml(rep, "Analisi Master", branding);
+      setPreviewHtml({ title: "Report Fatture Master", html });
+    } catch (e: any) {
+      notify("Errore report", e?.message || "");
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
+  const generateComparison = async () => {
+    try {
+      setComparisonBusy(true);
+      const rep = await api<any>("/bill-drafts-comparison");
+      const html = buildComparisonHtml(rep, "Analisi Master", branding);
+      setPreviewHtml({ title: "Confronto Offerte Master", html });
+    } catch (e: any) {
+      notify("Errore confronto", e?.message || "");
+    } finally {
+      setComparisonBusy(false);
+    }
+  };
+
+  const generateCTE = async () => {
+    try {
+      setCteBusy(true);
+      const r = await api<{ name: string; mime: string; data_base64: string; bills_count: number }>("/bill-drafts-cte-report");
+      // Il backend restituisce l'HTML già codificato in base64 — lo decodifico per il preview
+      let html = "";
+      try {
+        html = decodeURIComponent(escape(atob(r.data_base64)));
+      } catch {
+        // Fallback: se atob/escape non funzionano su alcuni bundler, decodifica in modo naïve
+        html = atob(r.data_base64);
+      }
+      setPreviewHtml({ title: `CTE Comparativa (${r.bills_count} fatture)`, html });
+    } catch (e: any) {
+      notify("Errore CTE", e?.message || "");
+    } finally {
+      setCteBusy(false);
+    }
+  };
+
+  const totalDone = drafts.filter((d) => d.status === "done").length;
 
   // Auto-refresh while any draft/offer is still analyzing
   useEffect(() => {
@@ -773,7 +845,77 @@ function BillQuickScreen() {
             </View>
           );
         })}
+
+        {/* V50.z76 — Reportistica master (allineamento con BillsSection) */}
+        {!loading && totalDone > 0 ? (
+          <View style={styles.masterReportsBlock}>
+            <Text style={styles.masterReportsTitle}>Report & confronto</Text>
+            <Pressable
+              testID="master-report-btn"
+              onPress={generateReport}
+              disabled={reportBusy}
+              style={[styles.reportBtnRow, { backgroundColor: "#6366F1" }, reportBusy && { opacity: 0.6 }]}
+            >
+              {reportBusy ? <ActivityIndicator color="#FFF" /> : (
+                <>
+                  <Ionicons name="document-text" size={18} color="#FFF" />
+                  <Text style={styles.reportBtnTxt}>Genera Report PDF ({totalDone} {totalDone === 1 ? "fattura" : "fatture"})</Text>
+                </>
+              )}
+            </Pressable>
+            <Pressable
+              testID="master-comparison-btn"
+              onPress={generateComparison}
+              disabled={comparisonBusy || offers.filter((o) => o.status === "done").length === 0}
+              style={[
+                styles.reportBtnRow,
+                { backgroundColor: "#7C3AED" },
+                (comparisonBusy || offers.filter((o) => o.status === "done").length === 0) && { opacity: 0.5 },
+              ]}
+            >
+              {comparisonBusy ? <ActivityIndicator color="#FFF" /> : (
+                <>
+                  <Ionicons name="git-compare" size={18} color="#FFF" />
+                  <Text style={styles.reportBtnTxt}>
+                    {offers.filter((o) => o.status === "done").length === 0
+                      ? "Confronto Offerte (carica almeno 1 offerta)"
+                      : "Confronto Offerte"}
+                  </Text>
+                </>
+              )}
+            </Pressable>
+            <Pressable
+              testID="master-cte-btn"
+              onPress={generateCTE}
+              disabled={cteBusy || totalDone < 2}
+              style={[styles.reportBtnRow, { backgroundColor: "#059669" }, (cteBusy || totalDone < 2) && { opacity: 0.5 }]}
+            >
+              {cteBusy ? <ActivityIndicator color="#FFF" /> : (
+                <>
+                  <Ionicons name="bar-chart" size={18} color="#FFF" />
+                  <Text style={styles.reportBtnTxt}>
+                    {totalDone < 2 ? "CTE comparativa (serve ≥ 2 fatture)" : "CTE comparativa multi-fattura"}
+                  </Text>
+                </>
+              )}
+            </Pressable>
+            <Text style={styles.reportHint}>
+              I report sono generati con AI (Claude Sonnet 5). Puoi personalizzare intestazione/logo dal pulsante ⚙️ in alto.
+            </Text>
+          </View>
+        ) : null}
       </ScrollView>
+
+      {/* V50.z76 — Preview HTML in WebView interna (senza uscire dall'app) */}
+      <Modal visible={!!previewHtml} animationType="slide" onRequestClose={() => setPreviewHtml(null)}>
+        {previewHtml && (
+          <InAppWebViewer
+            title={previewHtml.title}
+            url={`data:text/html;base64,${(() => { try { return btoa(unescape(encodeURIComponent(previewHtml.html))); } catch { return ""; } })()}`}
+            onClose={() => setPreviewHtml(null)}
+          />
+        )}
+      </Modal>
 
       {/* Params modal — mirrors BillsSection */}
       <Modal visible={!!pendingUpload} animationType="slide" transparent onRequestClose={cancelPendingUpload}>
@@ -1116,6 +1258,13 @@ function BillQuickScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.bg },
+  // V50.z76 — Master reports block
+  masterReportsBlock: { marginTop: 12, padding: 14, borderRadius: 14, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, gap: 10 },
+  masterReportsTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, marginBottom: 4 },
+  reportBtnRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10 },
+  reportBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
+  reportHint: { fontSize: 11, color: theme.color.muted, fontStyle: "italic", marginTop: 4 },
+
   header: {
     flexDirection: "row",
     alignItems: "center",

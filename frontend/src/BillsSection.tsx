@@ -1940,7 +1940,7 @@ function renderExtractedTable(ex: Record<string, any>, sectionColor = "#6366F1")
   return `${tableHtml}${chartHtml}${notesHtml}`;
 }
 
-function buildReportHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string; slogan?: string; contacts?: string }): string {
+export function buildReportHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string; slogan?: string; contacts?: string }): string {
   const c = rep?.contact || {};
   const name = contactName || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Cliente";
   const generated = new Date(rep?.generated_at || Date.now()).toLocaleString("it-IT");
@@ -2418,7 +2418,7 @@ function slideExecutive(es: any, cmp: any, name: string): string {
 function kvGridHtml(_rows: { k: string; v: any; hi?: boolean }[]): string { void _rows; return ""; }
 function comparisonMatrixHtml(_rows: { parametro?: string; attuale?: string; proposta?: string; delta?: string; vantaggio?: string }[]): string { void _rows; return ""; }
 
-function buildComparisonHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string; slogan?: string; contacts?: string }): string {
+export function buildComparisonHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string; slogan?: string; contacts?: string }): string {
   const c = rep?.contact || {};
   const name = contactName || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Cliente";
   const items = Array.isArray(rep?.items) ? rep.items : [];

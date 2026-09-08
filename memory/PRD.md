@@ -1,3 +1,33 @@
+## V50.z76 (Set 2026) — "Analizza fattura" Master: parity con versione cliente (PROMPT 12)
+
+### Richiesta utente
+"La sezione 'Analizza fattura' lato master è incompleta: mancano la reportistica, il confronto offerte e tutta la parte sotto al bottone Telco. Allinea la versione master a quella completa dell'area clienti, mantenendo tutte le stesse funzioni eccetto la logica delle scadenze contratti."
+
+### Backend — 3 nuovi endpoint paralleli su `bill_drafts`
+- `GET /api/bill-drafts-report` — usa la stessa `_llm_bill_suggestions` di `/contacts/{id}/bills/report`, ma sui drafts analizzati (`status=done`) del Master. Ritorna `{contact: null, grouped, ai_suggestions, generated_at}`.
+- `GET /api/bill-drafts-comparison` — analogo a `/contacts/{id}/bills/comparison`: se `draft_id+offer_id` specificati → confronto singolo; altrimenti raggruppa ultime draft/offer per bill_type comune. Riusa `_llm_compare_offers`.
+- `GET /api/bill-drafts-cte-report` — riusa `_build_cte_report_html` con un pseudo-contatto ("Analisi Master") per generare CTE multi-fattura sui drafts. Ritorna HTML base64 pronto da mostrare.
+- **Path con trattini** (non `/bill-drafts/report`) per evitare la collisione con `/bill-drafts/{draft_id}` che avrebbe intercettato le route statiche.
+
+### Frontend
+- **`/src/BillsSection.tsx`**: `buildReportHtml` e `buildComparisonHtml` esportate (erano funzioni private).
+- **`/app/bill-quick.tsx`**:
+  - Import di `buildReportHtml`, `buildComparisonHtml`, `InAppWebViewer`.
+  - Nuovi state: `reportBusy`, `comparisonBusy`, `cteBusy`, `previewHtml`, `branding`.
+  - `useEffect` carica il branding da `/settings/report-header` per intestare i PDF con logo/agenzia (come nella versione cliente).
+  - 3 funzioni: `generateReport`, `generateComparison`, `generateCTE` che chiamano i nuovi endpoint e mostrano il preview HTML in un `<InAppWebViewer>` (WebView interna con data URI base64).
+  - Nuovo blocco "Report & confronto" **sotto la sezione Telco**, visibile solo se `totalDone > 0`. Tre pulsanti disabilitati intelligentemente:
+    - Report → sempre disponibile con ≥ 1 draft `done`.
+    - Confronto Offerte → richiede ≥ 1 offer `done` (badge suggerisce di caricare offerta).
+    - CTE comparativa → richiede ≥ 2 draft `done`.
+- **Scadenze contratti esplicitamente NON incluse** come da PROMPT (`DeadlinesSection` resta scoped al singolo contatto).
+
+### Test
+- Endpoint riportano HTTP 400 con messaggio chiaro `"Nessuna fattura analizzata disponibile"` quando non ci sono drafts (test iniziale).
+- Screenshot pagina master conferma il rendering corretto: blocco "Report & confronto" appare/scompare in modo automatico in base a `totalDone`.
+- Lint clean, backend/frontend RUNNING.
+
+
 ## V50.z74 (Set 2026) — Navigazione web interna: link My Web in WebView (PROMPT 11)
 
 ### Richiesta utente
