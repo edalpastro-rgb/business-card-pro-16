@@ -1,3 +1,38 @@
+## V50.z77 (Set 2026) — Fix log e validazione GME/AI-Teach prefetch (PROMPT 13)
+
+### Richiesta utente
+"Nel job di prefetch delle URL sorgenti dati: 1) Quando un fetch fallisce per URL senza schema https o risposta HTTP 400 o superiore, salva un last_error con timestamp invece di ignorarlo silenziosamente. 2) Normalizza o rifiuta al salvataggio gli URL senza https://. 3) Nel log del job riporta separatamente il numero di sorgenti riuscite e fallite invece del messaggio generico che nasconde gli errori."
+
+### Backend `server.py`
+
+**Normalizzazione URL più stringente** (`POST /api/ai-teach/urls` e `PUT /api/ai-teach/urls/{url_id}`):
+- `esempio.com` → `https://esempio.com` (auto-prepend https://)
+- `http://esempio.com` → `https://esempio.com` (auto-upgrade da http a https)
+- `https://esempio.com` → invariato
+- L'utente non riceve più URL insicuri salvati e non deve conoscere HTTPS.
+
+**Validazione fetch stringente** in `_axon_refresh_teach_snapshot`:
+- Prima: accettava sia `http://` sia `https://`.
+- Ora: **solo `https://`** è considerato valido. Tre tipi di failure salvano `last_error` con timestamp:
+  - `empty_url` — URL vuoto.
+  - `invalid_scheme` — URL senza schema (es. `www.example.com`).
+  - `insecure_scheme` — URL con `http://` (messaggio: "Rimuovi lo schema http:// oppure salva l'URL con https://").
+- HTTP ≥ 400 e exception → `http_error` e `exception` (già presenti da V50.z19).
+
+**Log del prefetch job** `_run_teach_urls_prefetch_job`:
+- Prima: log generico su fallimento.
+- Ora: sempre due contatori separati `%d success, %d failed`, elenco compatto di max 5 errori con conteggio residuo `(+X altri)`.
+- Esempio: `[axon-prefetch] done: 8 success, 2 failed — errors: ARERA (invalid_scheme); GME (HTTP 503)`.
+
+### Test end-to-end (python script)
+- 3 casi injettati bypassando la normalizzazione (URL malformati direttamente in DB):
+  - `www.example.com` → `last_error.reason = "invalid_scheme"` + timestamp `at`.
+  - `http://example.com` → `last_error.reason = "insecure_scheme"` + timestamp.
+  - `""` → `last_error.reason = "empty_url"` + timestamp.
+- POST/PUT via curl verificano la normalizzazione: `www.arera.it` e `http://example.com` diventano rispettivamente `https://www.arera.it` e `https://example.com` come salvato in DB.
+- Refresh manuale su URL valido (`https://arera.it/new`) ritorna `{"ok": true, "summary_len": 2236}` — nessuna regressione.
+
+
 ## V50.z76 (Set 2026) — "Analizza fattura" Master: parity con versione cliente (PROMPT 12)
 
 ### Richiesta utente

@@ -11388,14 +11388,34 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
     """
     from urllib.parse import urljoin, urlparse
     url = (u_doc.get("url") or "").strip()
-    if not url or not url.startswith(("http://", "https://")):
-        # V50.z19 — Salva errore: URL senza schema (es. "www.mercatoelettrico.org/it")
+    # V50.z77 — Il fetch accetta SOLO https://. Se lo schema è mancante o `http://`,
+    # registra un errore descrittivo e non tenta la connessione.
+    if not url:
         try:
             await db.ai_teach_urls.update_one(
                 {"user_id": u_doc.get("user_id"), "url_id": u_doc.get("url_id")},
                 {"$set": {"last_error": {
-                    "reason": "invalid_scheme",
-                    "message": f"URL senza http:// o https:// (valore: '{url or '(vuoto)'}')",
+                    "reason": "empty_url",
+                    "message": "URL vuoto: impossibile eseguire il fetch",
+                    "at": utcnow(),
+                }}},
+            )
+        except Exception:
+            pass
+        return None
+    if not url.startswith("https://"):
+        reason = "insecure_scheme" if url.startswith("http://") else "invalid_scheme"
+        message = (
+            f"URL senza https:// (valore: '{url}'). Rimuovi lo schema http:// oppure salva l'URL con https://."
+            if reason == "insecure_scheme"
+            else f"URL senza schema http/https (valore: '{url}')."
+        )
+        try:
+            await db.ai_teach_urls.update_one(
+                {"user_id": u_doc.get("user_id"), "url_id": u_doc.get("url_id")},
+                {"$set": {"last_error": {
+                    "reason": reason,
+                    "message": message,
                     "at": utcnow(),
                 }}},
             )
@@ -11666,13 +11686,16 @@ async def _run_teach_urls_prefetch_job() -> None:
                 n_fail += 1
                 failures.append(f"{u.get('name') or u.get('url_id')}: {exc}")
                 logger.warning("[axon-prefetch] fail %s: %s", u.get("url"), exc)
-        # V50.z19 — Log dettagliato con successi/fallimenti separati (non più "N aggiornate")
+        # V50.z77 — Log dettagliato: sempre riporta ok/failed separati, elenca fino a 5 errori
         if n_fail == 0:
-            logger.info("[axon-prefetch] done: %d ok, 0 failed", n_ok)
+            logger.info("[axon-prefetch] done: %d success, %d failed (0 errors)", n_ok, n_fail)
         else:
             logger.warning(
-                "[axon-prefetch] done: %d ok, %d FAILED — %s",
-                n_ok, n_fail, "; ".join(failures[:5]),
+                "[axon-prefetch] done: %d success, %d failed — errors: %s%s",
+                n_ok,
+                n_fail,
+                "; ".join(failures[:5]),
+                (f" (+{len(failures) - 5} altri)" if len(failures) > 5 else ""),
             )
     except Exception as exc:
         logger.warning("[axon-prefetch] job failed: %s", exc)
@@ -17311,10 +17334,16 @@ async def ai_teach_create_url(body: AiTeachUrlIn, user=Depends(get_current_user)
     _require_master(user)
     tid = tenant_id(user)
     uid_ = f"aitu_{uuid.uuid4().hex[:12]}"
-    # V50.z19 — Normalizza URL: se non ha schema, prepende https://
+    # V50.z77 — Normalizzazione URL stringente: promuove sempre a https://
+    #  - `esempio.com`         → `https://esempio.com`
+    #  - `http://esempio.com`  → `https://esempio.com` (auto-upgrade)
+    #  - `https://esempio.com` → invariato
     raw_url = (body.url or "").strip()
-    if raw_url and not raw_url.startswith(("http://", "https://")):
-        raw_url = "https://" + raw_url.lstrip("/")
+    if raw_url:
+        if raw_url.startswith("http://"):
+            raw_url = "https://" + raw_url[len("http://"):]
+        elif not raw_url.startswith("https://"):
+            raw_url = "https://" + raw_url.lstrip("/")
     doc = {
         "url_id": uid_,
         "user_id": tid,
@@ -17466,9 +17495,12 @@ async def ai_teach_update_url(url_id: str, body: AiTeachUrlPatch, user=Depends(g
         v = getattr(body, field, None)
         if v is not None:
             val = (v.strip() if isinstance(v, str) else v) or None
-            # V50.z19 — Normalizza URL: se non ha schema, prepende https://
-            if field == "url" and isinstance(val, str) and val and not val.startswith(("http://", "https://")):
-                val = "https://" + val.lstrip("/")
+            # V50.z77 — Normalizzazione URL stringente: promuove sempre a https://
+            if field == "url" and isinstance(val, str) and val:
+                if val.startswith("http://"):
+                    val = "https://" + val[len("http://"):]
+                elif not val.startswith("https://"):
+                    val = "https://" + val.lstrip("/")
             patch[field] = val
     # V50.z19 — Se aggiorniamo l'URL, resettiamo last_error (nuovo tentativo)
     if "url" in patch:
