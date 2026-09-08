@@ -11,6 +11,7 @@ import { openGoogleCalendar, openOutlookCalendar, shareIcs } from "@/src/calenda
 import { ModuleErrorBoundary } from "@/src/shared";
 import { AppointmentShareActions } from "@/src/AppointmentShareActions";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { apptTypeColor } from "@/app/appointment/new";
 
 type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
 type Settings = { appointment_outcomes?: Outcome[] };
@@ -21,6 +22,7 @@ type Appointment = {
   outcome_ids?: string[]; rescheduled_to?: string;
   contact_id?: string;
   duration_min?: number;
+  appointment_type_tags?: string[];
   is_broadcast?: boolean;
   broadcast_notify_advance_min?: number;
   read_only?: boolean;
@@ -360,6 +362,19 @@ function AppointmentDetail() {
             <Text style={styles.metaTxt}>{new Date(a.start_at).toLocaleString("it-IT")}</Text>
             {a.is_phone && <><Ionicons name="call" size={14} color={color} /><Text style={[styles.metaTxt, { color }]}>Telefonico</Text></>}
           </View>
+          {(a.appointment_type_tags || []).length > 0 && (
+            <View style={[styles.metaRow, { flexWrap: "wrap", marginTop: 6 }]}>
+              {(a.appointment_type_tags || []).map((t) => {
+                const c = apptTypeColor(t);
+                return (
+                  <View key={t} testID={`ap-detail-type-${t}`} style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1, borderColor: c }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c }} />
+                    <Text style={[styles.metaTxt, { color: c, fontWeight: "700" }]}>{t}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
           {a.location ? (
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
               <Pressable testID="waze-btn" onPress={() => Linking.openURL(`https://www.waze.com/ul?q=${encodeURIComponent(a.location)}&navigate=yes`)} style={[styles.wazeBtn, { flex: 1 }]}>

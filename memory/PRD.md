@@ -5498,3 +5498,8 @@ else Linking.openURL(url).catch(() => {});
 
 **Non toccato altro** come richiesto.
 **Verifica**: Lint pulito · Frontend build OK.
+
+## Fix "Tipo appuntamento → Power Quality" (Giugno 2026)
+- Causa: "Power Quality" è l'etichetta personalizzata dell'area Energy (`settings.energy_title`); l'area era preselezionata e nel form mostrava la scritta fissa "Energia", mentre il dettaglio non mostrava affatto il tipo scelto.
+- `appointment/new.tsx`: le pill Area ora usano `energy_title` / `network_title` del tenant.
+- `appointment/[id].tsx`: il dettaglio mostra i chip dei tipi appuntamento (`appointment_type_tags`, testID `ap-detail-type-<tipo>`).

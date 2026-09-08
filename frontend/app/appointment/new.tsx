@@ -539,7 +539,7 @@ function NewAppointmentScreen() {
           <View style={styles.pillsRow}>
             {(["energy", "network"] as const).filter((a) => allowed.includes(a)).map((a) => (
               <Pressable key={a} testID={`ap-area-${a}`} onPress={() => setForm({ ...form, area: a })} style={[styles.pill, form.area === a && { backgroundColor: a === "energy" ? theme.color.energy : theme.color.network, borderColor: a === "energy" ? theme.color.energy : theme.color.network }]}>
-                <Text style={[styles.pillTxt, form.area === a && styles.pillTxtActive]}>{a === "energy" ? "Energia" : "Network"}</Text>
+                <Text style={[styles.pillTxt, form.area === a && styles.pillTxtActive]}>{a === "energy" ? (settings?.energy_title || "Energia") : (settings?.network_title || "Network")}</Text>
               </Pressable>
             ))}
           </View>
