@@ -9,6 +9,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme } from "@/src/theme";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { notify, confirmAsync } from "@/src/utils/notify";
+import { openInAppLink } from "@/src/utils/openInAppLink";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
@@ -304,7 +305,8 @@ function ImpostazioniScreen() {
   const openWebsite = (url: string) => {
     if (!url) return;
     const u = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-    Linking.openURL(u).catch(() => {});
+    // V50.z108 — WebView interna (mantiene bottom nav).
+    openInAppLink(router, u, { title: "Sito web" });
   };
 
   const saveAssistantMode = async (m: "text" | "voice" | "both") => {

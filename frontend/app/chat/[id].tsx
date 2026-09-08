@@ -13,6 +13,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { shareDataUri } from "@/src/share";
+import { openInAppLink } from "@/src/utils/openInAppLink";
 import { ModuleErrorBoundary } from "@/src/shared";
 
 type Message = {
@@ -249,7 +250,12 @@ function ChatDetailScreen() {
                     </Pressable>
                   )}
                   {item.kind === "link" && item.link_url && (
-                    <Pressable onPress={() => Linking.openURL(item.link_url!)} style={styles.linkBox}>
+                    <Pressable onPress={() => {
+                      // V50.z108 — WebView interna per link http/https, native per altri schemi.
+                      const u = item.link_url!;
+                      if (u.startsWith("http")) openInAppLink(router, u, { title: item.link_title });
+                      else Linking.openURL(u).catch(() => {});
+                    }} style={styles.linkBox}>
                       <Ionicons name="link" size={18} color={mine ? "#FFF" : theme.color.brandPrimary} />
                       <Text style={[mine ? styles.txtMine : styles.txtOther, { fontWeight: "700" }]} numberOfLines={2}>{item.link_title || item.link_url}</Text>
                     </Pressable>

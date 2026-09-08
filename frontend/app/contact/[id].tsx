@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Linking, Platform, Image, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect, router as expoRouter } from "expo-router";
 import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { notify } from "@/src/utils/notify";
+import { openInAppLink } from "@/src/utils/openInAppLink";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -1166,7 +1167,12 @@ function ContactDetail() {
                     </View>
                   )}
                   {n.kind === "link" && n.link_url && (
-                    <Pressable onPress={() => Linking.openURL(n.link_url!)} style={styles.linkBox}>
+                    <Pressable onPress={() => {
+                      // V50.z108 — WebView interna per link http/https.
+                      const u = n.link_url!;
+                      if (u.startsWith("http")) openInAppLink(router, u, { title: n.link_title, contactId: id as string });
+                      else Linking.openURL(u).catch(() => {});
+                    }} style={styles.linkBox}>
                       <Ionicons name="link" size={16} color={theme.color.brandPrimary} />
                       <Text style={styles.linkTxt} numberOfLines={2}>{n.link_title || n.link_url}</Text>
                     </Pressable>
@@ -1473,7 +1479,11 @@ function InfoRow({ icon, label, value, href }: { icon: any; label: string; value
   );
   if (clickable && href) {
     return (
-      <Pressable onPress={() => Linking.openURL(href)} testID={`info-open-${label.toLowerCase().replace(/\s/g, "-")}`}>
+      <Pressable onPress={() => {
+        // V50.z108 — WebView interna per URL http/https (mantiene bottom nav).
+        if (href.startsWith("http")) openInAppLink(expoRouter, href, { title: label });
+        else Linking.openURL(href).catch(() => {});
+      }} testID={`info-open-${label.toLowerCase().replace(/\s/g, "-")}`}>
         {content}
       </Pressable>
     );

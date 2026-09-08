@@ -15,6 +15,7 @@ import { WakeWordService } from "@/src/wakeword/WakeWordService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AssistantFAB } from "@/src/AssistantChat";
 import * as Linking from "expo-linking";
+import { openInAppLink } from "@/src/utils/openInAppLink";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
 import { SupportFab } from "@/src/SupportFab";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
@@ -151,7 +152,8 @@ function StackWithCallBar() {
         const url = data?.deeplink || data?.action_url;
         if (typeof url === "string" && url.length > 0) {
           if (url.startsWith("http")) {
-            try { Linking.openURL(url); } catch { /* ignore */ }
+            // V50.z108 — apri link http/https nella WebView interna (mantiene bottom nav).
+            try { openInAppLink(router, url); } catch { /* ignore */ }
           } else {
             router.push(url as any);
           }

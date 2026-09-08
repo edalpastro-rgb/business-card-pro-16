@@ -5410,3 +5410,33 @@ Schema: `{url_key, url, title, content, fetched_at}`. TTL logico = 24 ore (nuovo
 - Lint pulito ✅
 - Backend curl: kb save → `{kb_id, title, preview}` ✅ · contact save → nota inserita in contatto ✅ · instant → `{content: 186 char, title: "Example Domain"}` ✅
 - Verifica manuale UI raccomandata: apri qualsiasi link nell'InAppWebViewer, tap sul bottone "✨ Axon" nell'header, seleziona una delle 3 opzioni.
+
+---
+
+## V50.z108 — Migrazione Link Legacy a WebView Interna (P0 completata)
+
+**Data**: 2026-09-08
+
+**Obiettivo**: Sostituire `Linking.openURL(url)` con `openInAppLink(router, url)` per gli URL http/https, così i link web restano dentro l'app mantenendo la bottom navigation visibile.
+
+**File migrati** (solo URL http/https website):
+- `/app/frontend/app/_layout.tsx` (deep-link push notifications)
+- `/app/frontend/app/chat/[id].tsx` (allegati link nelle chat)
+- `/app/frontend/app/contact/[id].tsx` (note-link + campo Sito web + InfoRow via singleton `expoRouter`)
+- `/app/frontend/src/HomeTipsBanner.tsx` (video tutorial dai tips)
+- `/app/frontend/app/master.tsx` (WhatsApp Web / Telegram Web)
+- `/app/frontend/app/(tabs)/impostazioni.tsx` (`openWebsite` helper)
+
+**Deliberatamente NON migrati** (deep-link nativi):
+- `tel:`, `mailto:`, `sms:`, `wa.me/`, `t.me/`, `waze.com/ul?`, `google.com/maps/search`, `apps.apple.com`, `play.google.com`
+- `file://` / `data:` URIs (visualizzazione locale file)
+- `landing.tsx` e `adv-landing.tsx` (pagine pubbliche pre-login, il router `(tabs)/webviewer` richiede sessione)
+- Deep-link social (LinkedIn/Instagram/Facebook) — preferiscono le app native
+
+**Pattern applicato**:
+```typescript
+if (url.startsWith("http")) openInAppLink(router, url, { title });
+else Linking.openURL(url).catch(() => {});
+```
+
+**Verifica**: Lint pulito ✅ · App carica correttamente (screenshot verificato).

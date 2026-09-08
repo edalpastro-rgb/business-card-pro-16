@@ -4,8 +4,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { openInAppLink } from "@/src/utils/openInAppLink";
 
 type Tip = {
   tip_id: string;
@@ -18,6 +20,7 @@ type Tip = {
 };
 
 export function HomeTipsBanner() {
+  const router = useRouter();
   const [tips, setTips] = useState<Tip[]>([]);
   const [dismissing, setDismissing] = useState<string | null>(null);
 
@@ -75,7 +78,12 @@ export function HomeTipsBanner() {
       {tip.video_url ? (
         <Pressable
           style={styles.videoBtn}
-          onPress={() => Linking.openURL(tip.video_url)}
+          onPress={() => {
+            // V50.z108 — WebView interna per tutorial video.
+            const u = tip.video_url;
+            if (u.startsWith("http")) openInAppLink(router, u, { title: "Tutorial" });
+            else Linking.openURL(u).catch(() => {});
+          }}
           testID="tip-video-btn"
         >
           <Ionicons name="play-circle" size={16} color="#FFF" />

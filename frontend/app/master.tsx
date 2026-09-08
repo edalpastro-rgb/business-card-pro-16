@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { openInAppLink } from "@/src/utils/openInAppLink";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 import { MasterPromoteModal } from "@/src/MasterPromoteModal";
@@ -603,8 +604,8 @@ function MasterScreen() {
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>Chat Gruppo</Text>
             <PickerRow icon="chatbubbles" color="#0891B2" label="Chat interna" hint="Team collaborators" onPress={() => { setChatPickerOpen(false); router.push("/(tabs)/chat"); }} testID="chat-internal" />
-            <PickerRow icon="logo-whatsapp" color="#25D366" label="WhatsApp" hint="Apri gruppo esterno" onPress={() => Linking.openURL("https://web.whatsapp.com")} testID="chat-whatsapp" />
-            <PickerRow icon="paper-plane" color="#0088CC" label="Telegram" hint="Apri gruppo esterno" onPress={() => Linking.openURL("https://web.telegram.org")} testID="chat-telegram" />
+            <PickerRow icon="logo-whatsapp" color="#25D366" label="WhatsApp" hint="Apri gruppo esterno" onPress={() => openInAppLink(router, "https://web.whatsapp.com", { title: "WhatsApp Web" })} testID="chat-whatsapp" />
+            <PickerRow icon="paper-plane" color="#0088CC" label="Telegram" hint="Apri gruppo esterno" onPress={() => openInAppLink(router, "https://web.telegram.org", { title: "Telegram Web" })} testID="chat-telegram" />
             <Pressable onPress={() => setChatPickerOpen(false)} style={styles.sheetCancel}><Text style={styles.sheetCancelTxt}>Chiudi</Text></Pressable>
           </View>
         </Pressable>
