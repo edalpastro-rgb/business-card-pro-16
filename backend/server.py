@@ -9254,6 +9254,29 @@ async def delete_web_link(link_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 
+# V50.z73 — Update di un link My Web (Master modifica title/url/icon)
+@api_router.put("/web-links/{link_id}")
+async def update_web_link(link_id: str, body: WebLinkIn, user=Depends(get_current_user)):
+    upd: Dict[str, Any] = {}
+    if body.title:
+        upd["title"] = body.title.strip()[:120]
+    if body.url:
+        u = body.url.strip()
+        if u and not u.startswith("http://") and not u.startswith("https://"):
+            u = "https://" + u
+        upd["url"] = u
+    if body.icon:
+        upd["icon"] = body.icon
+    if not upd:
+        return {"ok": True, "unchanged": True}
+    upd["updated_at"] = utcnow()
+    r = await db.web_links.update_one({"user_id": user["user_id"], "link_id": link_id}, {"$set": upd})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Link non trovato")
+    out = await db.web_links.find_one({"user_id": user["user_id"], "link_id": link_id}, {"_id": 0})
+    return out
+
+
 # ---- V50.z58 — Company Web Links (Comunica con l'azienda → Link utili) ----
 # Tenant-scoped: il Master configura una volta, tutti gli agenti sotto quel
 # Master li vedono nel bottom sheet "Comunica con l'azienda". I link si

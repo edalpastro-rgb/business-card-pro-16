@@ -1,3 +1,25 @@
+## V50.z73 (Set 2026) — My Web: link modificabili con bottone su ogni card (PROMPT 10)
+
+### Richiesta utente
+"Nella sezione My Web i link già creati devono essere modificabili dopo la creazione, regola che vale per tutti i bottoni già creati e che verranno creati in futuro. Tutto deve essere modificabile da master, con un bottone di modifica visibile su ogni link."
+
+### Backend
+- Nuovo endpoint `PUT /api/web-links/{link_id}` che aggiorna titolo, url (con auto-prefix `https://`) e icona. Riusa `WebLinkIn` come schema (campi tutti opzionali via default vuoti gestiti lato model). Ritorna 404 se il link non appartiene al Master.
+
+### Frontend `/app/frontend/app/my-web.tsx`
+- Nuovo stato `editingId: string | null` che distingue modalità create vs edit.
+- **Bottone ✏️ visibile in alto a sinistra di ogni card** (`testID={\`link-edit-${lk.link_id}\`}`) — bianco su bordo grigio, non conflitta con il ❌ delete in alto a destra né con l'esistente "Aziende" in basso a destra.
+- `openEdit(lk)` popola i campi del modal con i valori del link (URL con `https://` strippato per edit più pulito; il backend lo ripristina).
+- `submit()` fa `PUT` quando `editingId` è settato, `POST` altrimenti.
+- Titolo modal dinamico: "Modifica link" vs "Nuovo link". Pulsante submit: "Salva modifiche" vs "Salva".
+- Chiusura modal resetta `editingId` per non lasciare stato inconsistente.
+- Retrocompatibilità: tutti i link esistenti creati prima di V50.z73 mostrano immediatamente il bottone ✏️ (persistono su `web_links` collection, endpoint universale).
+
+### Test end-to-end via curl
+- Create link → PUT con nuovo titolo/URL/icon → GET conferma i nuovi valori con `updated_at` popolato → cleanup.
+- Frontend compila lint-clean, screenshot pagina OK.
+
+
 ## V50.z72 (Set 2026) — Distanze in batch nella lista contatti
 
 ### Richiesta utente

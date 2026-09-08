@@ -22,6 +22,7 @@ export default function MyWebScreen() {
   const pagePad = usePageBottomPadding();
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [icon, setIcon] = useState("🔗");
@@ -64,10 +65,31 @@ export default function MyWebScreen() {
     if (!title.trim() || !url.trim()) { notify("Compila titolo e URL"); return; }
     try {
       setSaving(true);
-      await api("/web-links", { method: "POST", body: { title: title.trim(), url: url.trim(), icon } });
-      setAddOpen(false); setTitle(""); setUrl(""); setIcon("🔗");
+      if (editingId) {
+        // V50.z73 — Modifica link esistente
+        await api(`/web-links/${editingId}`, { method: "PUT", body: { title: title.trim(), url: url.trim(), icon } });
+      } else {
+        await api("/web-links", { method: "POST", body: { title: title.trim(), url: url.trim(), icon } });
+      }
+      setAddOpen(false); setEditingId(null); setTitle(""); setUrl(""); setIcon("🔗");
       await load();
     } catch (e: any) { notify("Errore", e?.message || ""); } finally { setSaving(false); }
+  };
+
+  // V50.z73 — Apre il modal in modalità "modifica" con i valori del link
+  const openEdit = (lk: Link) => {
+    setEditingId(lk.link_id);
+    setTitle(lk.title);
+    // Rimuovi il prefisso https:// per rendere l'edit più leggibile (verrà riaggiunto dal backend)
+    setUrl(lk.url.replace(/^https?:\/\//, ""));
+    setIcon(lk.icon || "🔗");
+    setAddOpen(true);
+  };
+
+  const openCreate = () => {
+    setEditingId(null);
+    setTitle(""); setUrl(""); setIcon("🔗");
+    setAddOpen(true);
   };
 
   const remove = (lk: Link) => notify("Elimina", `Rimuovere "${lk.title}"?`, [
@@ -93,7 +115,7 @@ export default function MyWebScreen() {
           <Ionicons name="globe-outline" size={48} color={theme.color.muted} />
           <Text style={styles.emptyTitle}>Nessun link salvato</Text>
           <Text style={styles.emptyTxt}>Salva qui i tuoi siti preferiti per accesso rapido.</Text>
-          <Pressable onPress={() => setAddOpen(true)} style={styles.emptyBtn}><Ionicons name="add" size={18} color="#FFF" /><Text style={styles.emptyBtnTxt}>Aggiungi link</Text></Pressable>
+          <Pressable onPress={openCreate} style={styles.emptyBtn}><Ionicons name="add" size={18} color="#FFF" /><Text style={styles.emptyBtnTxt}>Aggiungi link</Text></Pressable>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
@@ -108,7 +130,16 @@ export default function MyWebScreen() {
                     <Text style={styles.cardTitle} numberOfLines={2}>{lk.title}</Text>
                     <Text style={styles.cardUrl} numberOfLines={1}>{lk.url.replace(/^https?:\/\//, "")}</Text>
                   </Pressable>
-                  <Pressable onPress={() => remove(lk)} style={styles.deleteBtn}><Ionicons name="close-circle" size={20} color="#DC2626" /></Pressable>
+                  {/* V50.z73 — Bottone modifica visibile in alto a destra su ogni link */}
+                  <Pressable
+                    onPress={() => openEdit(lk)}
+                    style={styles.editBtn}
+                    testID={`link-edit-${lk.link_id}`}
+                    hitSlop={6}
+                  >
+                    <Ionicons name="create-outline" size={18} color={theme.color.brandPrimary} />
+                  </Pressable>
+                  <Pressable onPress={() => remove(lk)} style={styles.deleteBtn} testID={`link-delete-${lk.link_id}`}><Ionicons name="close-circle" size={20} color="#DC2626" /></Pressable>
                   {/* V50.z60 — Pulsante "Aggiungi a Comunica con l'azienda"
                       (solo Master). Il link viene copiato nella collection
                       tenant-scoped /company-web-links. */}
@@ -137,7 +168,7 @@ export default function MyWebScreen() {
           {/* V50.z64 — Bottone "Aggiungi link" spostato dall'header a fondo
               lista, ben visibile con testo e icona (non più solo icona +). */}
           <Pressable
-            onPress={() => setAddOpen(true)}
+            onPress={openCreate}
             style={styles.addBigBtn}
             testID="add-link-btn"
           >
@@ -147,7 +178,7 @@ export default function MyWebScreen() {
         </ScrollView>
       )}
 
-      <Modal transparent visible={addOpen} onRequestClose={() => setAddOpen(false)} animationType="slide">
+      <Modal transparent visible={addOpen} onRequestClose={() => { setAddOpen(false); setEditingId(null); }} animationType="slide">
         {/* V50.z62 — Bug fix (stesso di CompanyContactSheet):
             rimosso il backdrop <Pressable onPress={setAddOpen(false)}> che
             veniva ri-triggerato dal re-render causato dagli onChangeText,
@@ -157,9 +188,9 @@ export default function MyWebScreen() {
           <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeaderRow}>
-              <Text style={styles.sheetTitle}>Nuovo link</Text>
+              <Text style={styles.sheetTitle}>{editingId ? "Modifica link" : "Nuovo link"}</Text>
               <Pressable
-                onPress={() => setAddOpen(false)}
+                onPress={() => { setAddOpen(false); setEditingId(null); }}
                 hitSlop={10}
                 style={styles.sheetCloseBtn}
                 testID="link-modal-close"
@@ -180,7 +211,7 @@ export default function MyWebScreen() {
               ))}
             </View>
             <Pressable onPress={submit} disabled={saving} style={styles.submitBtn} testID="link-save-btn">
-              {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitTxt}>Salva</Text>}
+              {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitTxt}>{editingId ? "Salva modifiche" : "Salva"}</Text>}
             </Pressable>
           </View>
         </View>
@@ -213,6 +244,8 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
   cardUrl: { fontSize: 11, color: theme.color.muted, marginTop: 4 },
   deleteBtn: { position: "absolute", top: 6, right: 6, padding: 4 },
+  // V50.z73 — Bottone modifica su ogni link (top-left, complementare al delete top-right)
+  editBtn: { position: "absolute", top: 6, left: 6, padding: 4, backgroundColor: "#FFF", borderRadius: 999, borderWidth: 1, borderColor: theme.color.border },
   // V50.z60 — Pulsante "Aggiungi a Comunica con l'azienda"
   addToCompanyBtn: {
     position: "absolute", bottom: 8, right: 8,
