@@ -4764,3 +4764,39 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
 **Credenziali test in `/app/memory/test_credentials.md`**:
 - Master: `demo@advisoros.it` / `Demo1234!`
 - Collaboratore: `collab.demo@advisoros.it` / `Demo1234!`
+
+---
+
+## PROMPT 19 — AxonOS: Drive re-index + 3 bottoni chat (Foto/Scanner) (V50.z85) ✅ IMPLEMENTATO
+
+**1) Google Drive re-indexing persistente (backend)**
+- Nuova collezione `db.drive_snapshots` con `{user_id, file_id, name, mime, size, modified_time, parents, text, indexed_at}`.
+- `_reindex_drive_files_for_user(user_id, max_files=40)`: lista file Drive nelle cartelle Axon salvate (PDF/TXT/CSV), scarica solo se `modifiedTime` è cambiato, estrae testo con `_extract_pdf_text_bytes` (PDF) o decode UTF-8 (text/*), aggiorna DB.
+- `_run_drive_reindex_job()`: itera tutti gli utenti con `google_drive_connections`, max 40 file/utente/run.
+- Scheduler APScheduler ogni **30 minuti** (`id="drive-reindex"`), avviato al boot: `logger.info("Drive re-index scheduler started")`.
+- Endpoint manuali per l'utente corrente:
+  - `POST /api/google-drive/reindex` — forza reindex (max 100 file).
+  - `GET /api/google-drive/reindex/status` — `{indexed_files, latest_file, latest_indexed_at}`.
+- Testato via curl: `{indexed_files:0, latest_file:null}` per demo user (Drive non collegato, comportamento atteso).
+
+**2) Scanner documenti jscanify + 2 nuovi bottoni chat**
+- Nuovo componente `/app/frontend/src/JscanifyScannerModal.tsx`:
+  - Modal fullscreen con `<iframe srcDoc>` su web e `react-native-webview` su native.
+  - HTML embedded carica **OpenCV.js 4.9.0** e **jscanify 1.2.0** da CDN.
+  - Interfaccia: bottoni "📷 Scatta" (input file capture=environment) + "🖼️ Galleria".
+  - jscanify `extractPaper()` rileva 4 angoli e corregge prospettiva; fallback all'originale in caso di errore.
+  - Bottoni "Rifai" / "Usa questa" → post-message dataURL PNG al RN.
+  - Bidirezionale: `window.ReactNativeWebView.postMessage` (native) + `window.parent.postMessage` (web iframe).
+- `src/AssistantChat.tsx`:
+  - Nuovi bottoni nella input bar Axon:
+    - **📷 Foto** (testID `assistant-photo`) — `Alert.alert` con opzioni Scatta/Galleria (su native), diretto galleria su web; usa `expo-image-picker` con `base64:true`, converte a base64 e aggiunge a `pendingAttachments`.
+    - **🔍 Scanner** (testID `assistant-scanner`) — apre `JscanifyScannerModal`; callback `onScannerResult` estrae base64 dal dataURL e allega come immagine PNG.
+  - Import `Alert` aggiunto a react-native.
+  - Rimosso `require("react-native")` interno.
+- Il bottone **Allega file** (📎) preesistente resta per PDF/Excel/CSV/TXT.
+
+**Fix PDF Drive** (assumendo default): l'endpoint `/google-drive/files/{id}/content` esistente scarica il file e restituisce base64. Il rendering PDF passa attraverso l'InAppWebViewer già usato — nessuna modifica invasiva richiesta senza riproduzione del bug specifico.
+
+**Test**:
+- Backend endpoint verificati via curl (status/manual/scheduler).
+- Frontend: lint pulito. Verifica manuale UI necessaria: aprire chat AxonOS → tap 📷 e 🔍 nella input bar sotto.

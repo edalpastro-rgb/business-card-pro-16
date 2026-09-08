@@ -22149,6 +22149,123 @@ async def ha_toggle(payload: Dict[str, Any] = Body(...), user=Depends(get_curren
     return {"ok": True, "service": service, "new_state_hint": service}
 
 
+# V50.z85 — Drive re-indexing: cache testo dei file Drive per RAG in AxonOS
+async def _reindex_drive_files_for_user(user_id: str, max_files: int = 40) -> Dict[str, int]:
+    """Re-indicizza i file Drive dell'utente. Skippa file con modifiedTime <= last_indexed_at.
+    Estrae testo da PDF, TXT, CSV. Salva in `db.drive_snapshots`.
+    """
+    stats = {"scanned": 0, "updated": 0, "skipped": 0, "failed": 0}
+    try:
+        row = await db.google_drive_connections.find_one({"user_id": user_id})
+        if not row:
+            return stats
+        from googleapiclient.discovery import build  # type: ignore
+        from googleapiclient.http import MediaIoBaseDownload  # type: ignore
+        from io import BytesIO
+        creds = await _gd_get_credentials(user_id)
+        service = build("drive", "v3", credentials=creds, cache_discovery=False)
+        folder_ids = await _gd_user_folder_ids(user_id)
+        if not folder_ids:
+            return stats
+        parents_or = " or ".join([f"'{fid}' in parents" for fid in folder_ids])
+        q = f"trashed = false and ({parents_or}) and (mimeType='application/pdf' or mimeType='text/plain' or mimeType='text/csv' or mimeType contains 'text/')"
+        result = service.files().list(
+            q=q, pageSize=max_files,
+            orderBy="modifiedTime desc",
+            fields="files(id,name,mimeType,size,modifiedTime,parents)",
+        ).execute()
+        files = result.get("files", []) or []
+        for f in files:
+            stats["scanned"] += 1
+            fid = f["id"]
+            existing = await db.drive_snapshots.find_one({"user_id": user_id, "file_id": fid})
+            if existing and existing.get("modified_time") == f.get("modifiedTime"):
+                stats["skipped"] += 1
+                continue
+            try:
+                req = service.files().get_media(fileId=fid)
+                buf = BytesIO()
+                downloader = MediaIoBaseDownload(buf, req)
+                done = False
+                while not done:
+                    _st, done = downloader.next_chunk()
+                data = buf.getvalue()
+                text = ""
+                mt = f.get("mimeType", "")
+                if mt == "application/pdf":
+                    try: text = _extract_pdf_text_bytes(data) or ""
+                    except Exception: text = ""
+                elif mt.startswith("text/") or mt in ("application/json",):
+                    try: text = data.decode("utf-8", errors="ignore")
+                    except Exception: text = ""
+                text = re.sub(r"\s{3,}", " ", text or "").strip()[:100000]
+                doc = {
+                    "user_id": user_id,
+                    "file_id": fid,
+                    "name": f.get("name") or fid,
+                    "mime": mt,
+                    "size": int(f.get("size") or 0),
+                    "modified_time": f.get("modifiedTime"),
+                    "parents": f.get("parents") or [],
+                    "text": text,
+                    "indexed_at": utcnow(),
+                }
+                await db.drive_snapshots.update_one(
+                    {"user_id": user_id, "file_id": fid},
+                    {"$set": doc},
+                    upsert=True,
+                )
+                stats["updated"] += 1
+            except Exception as e:
+                stats["failed"] += 1
+                logger.debug(f"[drive-reindex] {fid} failed: {e}")
+    except Exception as e:
+        logger.warning(f"[drive-reindex] user {user_id} failed: {e}")
+    return stats
+
+
+async def _run_drive_reindex_job() -> None:
+    """Job periodico: reindicizza i file Drive per tutti gli utenti connessi."""
+    try:
+        cur = db.google_drive_connections.find({}, {"user_id": 1, "_id": 0})
+        n_users = 0
+        totals = {"scanned": 0, "updated": 0, "skipped": 0, "failed": 0}
+        async for row in cur:
+            uid = row.get("user_id")
+            if not uid:
+                continue
+            n_users += 1
+            s = await _reindex_drive_files_for_user(uid, max_files=40)
+            for k in totals: totals[k] += s.get(k, 0)
+        if n_users:
+            logger.info(f"[drive-reindex] users={n_users} scanned={totals['scanned']} updated={totals['updated']} skipped={totals['skipped']} failed={totals['failed']}")
+    except Exception as e:
+        logger.warning(f"[drive-reindex] job failed: {e}")
+
+
+@api_router.post("/google-drive/reindex")
+async def google_drive_manual_reindex(user=Depends(get_current_user)):
+    """Forza un reindex on-demand dei file Drive dell'utente corrente."""
+    stats = await _reindex_drive_files_for_user(user["user_id"], max_files=100)
+    return {"ok": True, **stats}
+
+
+@api_router.get("/google-drive/reindex/status")
+async def google_drive_reindex_status(user=Depends(get_current_user)):
+    """Restituisce quanti file sono indicizzati e quando è avvenuto l'ultimo update."""
+    cnt = await db.drive_snapshots.count_documents({"user_id": user["user_id"]})
+    latest = await db.drive_snapshots.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0, "name": 1, "indexed_at": 1, "modified_time": 1},
+        sort=[("indexed_at", -1)],
+    )
+    return {
+        "indexed_files": cnt,
+        "latest_file": (latest or {}).get("name"),
+        "latest_indexed_at": (latest or {}).get("indexed_at").isoformat() if latest and isinstance(latest.get("indexed_at"), datetime) else (latest or {}).get("indexed_at"),
+    }
+
+
 
 app.include_router(api_router)
 
@@ -22415,12 +22532,20 @@ async def _start_scheduler():
             _run_axon_memory_distillation_job, "cron", hour=4, minute=0,
             id="axon-memory-distillation", replace_existing=True,
         )
+        # V50.z85 — Drive re-indexing (ogni 30 min): scarica testo dei PDF/text
+        # dai file delle cartelle Drive salvate e li mette in cache locale
+        # per RAG istantaneo nelle chat AxonOS anche in nuove sessioni.
+        _birthday_scheduler.add_job(
+            _run_drive_reindex_job, "interval", minutes=30,
+            id="drive-reindex", replace_existing=True,
+        )
         _birthday_scheduler.start()
         logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
         logger.info("Rule-proposals scheduler started (daily 03:00 Europe/Rome)")
         logger.info("Teach-URLs prefetch scheduler started (every 30 minutes)")
         logger.info("Auto-CRM scheduler tick started (every 1 minute)")
         logger.info("Axon memory distillation scheduler started (daily 04:00 Europe/Rome)")
+        logger.info("Drive re-index scheduler started (every 30 minutes)")
     except Exception as e:
         logger.warning(f"birthday scheduler start failed: {e}")
 

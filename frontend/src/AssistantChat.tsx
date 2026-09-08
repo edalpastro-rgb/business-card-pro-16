@@ -14,6 +14,7 @@ import {
   Animated,
   Easing,
   Image,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 // V29.au — Import expo-audio per il pulsante microfono su native (APK Android/iOS).
@@ -32,6 +33,7 @@ import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
+import { JscanifyScannerModal } from "@/src/JscanifyScannerModal";
 import { DropboxPickerModal } from "@/src/DropboxPickerModal";
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { AxonOSLogo } from "@/src/BrandLogos";
@@ -168,6 +170,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // V28.l — Allegati caricati dall'utente per la prossima /assistant/chat
   const [pendingAttachments, setPendingAttachments] = useState<{ name: string; mime: string; data_base64: string }[]>([]);
   const [attaching, setAttaching] = useState(false);
+  // V50.z85 — Scanner jscanify (WebView cross-platform)
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [sending, setSending] = useState(false);
   // V29.n — Riferimento all'AbortController della chiamata in corso, per il pulsante "Stop".
   const abortRef = useRef<AbortController | null>(null);
@@ -358,6 +362,57 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       addPendingAttachment({ name: asset.name, mime: asset.mimeType || "application/octet-stream", base64: b64 });
     } finally { setAttaching(false); }
   };
+
+  // V50.z85 — Cattura foto (camera o galleria) come attachment
+  const attachPhoto = async (source: "camera" | "gallery") => {
+    if (attaching || sending) return;
+    setAttaching(true);
+    try {
+      const ImagePicker = await import("expo-image-picker");
+      if (source === "camera") {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { setAttaching(false); return; }
+        const r = await ImagePicker.launchCameraAsync({ quality: 0.85, base64: true });
+        if (r.canceled || !r.assets?.[0]) { setAttaching(false); return; }
+        const a = r.assets[0];
+        let b64 = a.base64 || "";
+        if (!b64 && a.uri) {
+          if (Platform.OS === "web") {
+            const resp = await fetch(a.uri); const blob = await resp.blob();
+            b64 = await new Promise<string>((res) => { const rd = new FileReader(); rd.onload = () => { const s = String(rd.result || ""); const c = s.indexOf(","); res(c >= 0 ? s.slice(c + 1) : s); }; rd.readAsDataURL(blob); });
+          } else {
+            b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 });
+          }
+        }
+        if (b64) addPendingAttachment({ name: a.fileName || `foto_${Date.now()}.jpg`, mime: a.mimeType || "image/jpeg", base64: b64 });
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { setAttaching(false); return; }
+        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.85, base64: true });
+        if (r.canceled || !r.assets?.[0]) { setAttaching(false); return; }
+        const a = r.assets[0];
+        let b64 = a.base64 || "";
+        if (!b64 && a.uri) {
+          if (Platform.OS === "web") {
+            const resp = await fetch(a.uri); const blob = await resp.blob();
+            b64 = await new Promise<string>((res) => { const rd = new FileReader(); rd.onload = () => { const s = String(rd.result || ""); const c = s.indexOf(","); res(c >= 0 ? s.slice(c + 1) : s); }; rd.readAsDataURL(blob); });
+          } else {
+            b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 });
+          }
+        }
+        if (b64) addPendingAttachment({ name: a.fileName || `img_${Date.now()}.jpg`, mime: a.mimeType || "image/jpeg", base64: b64 });
+      }
+    } catch (e) {
+      console.warn("attachPhoto err:", e);
+    } finally { setAttaching(false); }
+  };
+
+  // V50.z85 — Callback dal DocumentScanner (jscanify) → allega dataURL come immagine
+  const onScannerResult = useCallback((f: { name: string; dataUrl: string; mime: string }) => {
+    const comma = f.dataUrl.indexOf(",");
+    const b64 = comma > 0 ? f.dataUrl.slice(comma + 1) : f.dataUrl;
+    addPendingAttachment({ name: f.name, mime: f.mime || "image/png", base64: b64 });
+  }, [addPendingAttachment]);
 
   // V28.v — Drag-and-drop desktop: legge un DOM File come base64 e lo aggiunge come attachment.
   // Chiamato dagli event handler drop attaccati direttamente al DOM (solo su web).
@@ -1509,6 +1564,35 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                       <Ionicons name="attach" size={20} color={ASSISTANT_COLOR_DARK} />
                     )}
                   </Pressable>
+                  {/* V50.z85 — Bottone Foto: menu contestuale camera/galleria */}
+                  <Pressable
+                    onPress={() => {
+                      if (Platform.OS === "web") return attachPhoto("gallery");
+                      Alert.alert("Aggiungi foto", "Da dove?", [
+                        { text: "Scatta", onPress: () => attachPhoto("camera") },
+                        { text: "Galleria", onPress: () => attachPhoto("gallery") },
+                        { text: "Annulla", style: "cancel" },
+                      ]);
+                    }}
+                    disabled={sending || attaching}
+                    hitSlop={4}
+                    style={[styles.attachBtn, { backgroundColor: "#FDF2F8" }]}
+                    accessibilityLabel="Aggiungi foto"
+                    testID="assistant-photo"
+                  >
+                    <Ionicons name="camera" size={18} color="#DB2777" />
+                  </Pressable>
+                  {/* V50.z85 — Scanner documenti jscanify */}
+                  <Pressable
+                    onPress={() => setScannerOpen(true)}
+                    disabled={sending}
+                    hitSlop={4}
+                    style={[styles.attachBtn, { backgroundColor: "#FEF3C7" }]}
+                    accessibilityLabel="Scanner documento"
+                    testID="assistant-scanner"
+                  >
+                    <Ionicons name="scan" size={18} color="#B45309" />
+                  </Pressable>
                   {/* V28.w — Google Drive picker */}
                   <Pressable
                     onPress={() => setDrivePickerOpen(true)}
@@ -1587,6 +1671,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         visible={dropboxPickerOpen}
         onClose={() => setDropboxPickerOpen(false)}
         onFilePicked={(f) => addPendingAttachment({ name: f.name, mime: f.mime, base64: f.data_base64 })}
+      />
+      {/* V50.z85 — Scanner documenti jscanify */}
+      <JscanifyScannerModal
+        visible={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScanned={onScannerResult}
       />
       {/* V41 — Feedback 👎 reason modal */}
       <Modal
