@@ -4952,3 +4952,33 @@ Schema: `{url_key, url, title, content, fetched_at}`. TTL logico = 24 ore (nuovo
 | 4 | Stesso URL della call 3 (hit) | **1 ms** | ⊘ |
 
 → Speedup miss→hit: **256×** più veloce. ✅
+
+---
+
+## PROMPT 21 — Estrazione contenuti WebView + salvataggio target (V50.z92) ✅ TESTATO
+
+**Backend**:
+- Nuovo endpoint `POST /api/axon/webpage-save` (body: `{url, target: "kb"|"contact"|"instant", contact_id?, note?}`):
+  - Estrae contenuto pulito via `_tavily_extract_url()` (usa la cache DB V50.z91).
+  - **kb**: inserisce in `db.axon_kb` con `{kb_id, user_id (tenant), created_by, url, title, content, note, source: "webview", created_at}`.
+  - **contact**: aggiunge una nota strutturata (`🌐 Da WebView Axon · titolo · URL · nota utente · contenuto[:6000]`) al `contacts.notes[]` del `contact_id` fornito, con `source: "webview_axon"`.
+  - **instant**: nessun salvataggio, ritorna direttamente `{title, content}` per uso client-side.
+- Testato con `https://example.com` in tutti e 3 i target. ✅
+
+**Frontend `/app/frontend/src/InAppWebViewer.tsx`**:
+- Nuova prop opzionale `contactId?: string`.
+- Header WebViewer ora ha un bottone `✨ Axon` ambra a sinistra del bottone "Apri in browser".
+- Al tap: modal fluttuante "Dove salvo questi contenuti?" con:
+  - Campo nota opzionale (500 char)
+  - 3 opzioni cliccabili con icona + descrizione:
+    - 📚 Salva in Knowledge Base — accessibile ad Axon per tutte le prossime chat
+    - 👤 Salva nella scheda cliente attiva — disabilitata visivamente se `contactId` non fornito
+    - ⚡ Solo analisi istantanea — nessun salvataggio, testo pronto per la prossima domanda
+  - Bottone "Annulla"
+- Feedback via `notify` (successo/errore).
+- Loader inline per il target selezionato.
+
+**Test**:
+- Lint pulito ✅
+- Backend curl: kb save → `{kb_id, title, preview}` ✅ · contact save → nota inserita in contatto ✅ · instant → `{content: 186 char, title: "Example Domain"}` ✅
+- Verifica manuale UI raccomandata: apri qualsiasi link nell'InAppWebViewer, tap sul bottone "✨ Axon" nell'header, seleziona una delle 3 opzioni.

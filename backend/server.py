@@ -22507,6 +22507,81 @@ async def axon_tavily_status(user=Depends(get_current_user)):
     return {"configured": bool(key), "key_prefix": (key[:8] + "…") if key else None}
 
 
+# V50.z92 — Estrazione contenuti da WebView e salvataggio in KB / scheda cliente / analisi
+class WebpageSaveIn(BaseModel):
+    url: str = Field(min_length=8, max_length=2048)
+    target: Literal["kb", "contact", "instant"]
+    contact_id: Optional[str] = None
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+@api_router.post("/axon/webpage-save")
+async def axon_webpage_save(body: WebpageSaveIn, user=Depends(get_current_user)):
+    """Estrae contenuto pulito dalla URL via Tavily e lo salva in base al target.
+    - kb: inserisce in db.axon_kb (tenant-scoped, usato da RAG Axon).
+    - contact: aggiunge una nota alla scheda contatto.
+    - instant: restituisce il contenuto senza persisterlo (client lo passa alla chat).
+    """
+    tid = tenant_id(user)
+    url_norm = body.url.strip()
+    if not (url_norm.startswith("http://") or url_norm.startswith("https://")):
+        raise HTTPException(status_code=400, detail="URL deve iniziare con http:// o https://")
+
+    # Estrai contenuto (usa cache DB introdotta in V50.z91)
+    content = await _tavily_extract_url(url_norm)
+    if not content:
+        raise HTTPException(status_code=502, detail="Impossibile estrarre il contenuto della pagina")
+
+    # Ricava un titolo semplice dal contenuto (# heading in prima riga se presente)
+    title = url_norm
+    first_line = content.split("\n", 1)[0].strip()
+    if first_line.startswith("### "):
+        title = first_line[4:].strip() or url_norm
+
+    if body.target == "kb":
+        doc = {
+            "kb_id": f"kb_{uuid.uuid4().hex[:12]}",
+            "user_id": tid,
+            "created_by": user["user_id"],
+            "url": url_norm,
+            "title": title,
+            "content": content,
+            "note": (body.note or "").strip() or None,
+            "source": "webview",
+            "created_at": utcnow(),
+        }
+        await db.axon_kb.insert_one(doc)
+        return {"ok": True, "target": "kb", "kb_id": doc["kb_id"], "title": title, "preview": content[:400]}
+
+    if body.target == "contact":
+        if not body.contact_id:
+            raise HTTPException(status_code=400, detail="contact_id richiesto per target=contact")
+        c = await db.contacts.find_one({"user_id": tid, "contact_id": body.contact_id}, {"_id": 0, "contact_id": 1})
+        if not c:
+            raise HTTPException(status_code=404, detail="Contatto non trovato")
+        note_text = (
+            f"🌐 Da WebView Axon · {title}\n"
+            f"URL: {url_norm}\n\n"
+            + (f"Nota utente: {body.note.strip()}\n\n" if (body.note or "").strip() else "")
+            + content[:6000]
+        )
+        note_doc = {
+            "note_id": f"n_{uuid.uuid4().hex[:12]}",
+            "text": note_text,
+            "created_by": user["user_id"],
+            "source": "webview_axon",
+            "created_at": utcnow(),
+        }
+        await db.contacts.update_one(
+            {"user_id": tid, "contact_id": body.contact_id},
+            {"$push": {"notes": note_doc}},
+        )
+        return {"ok": True, "target": "contact", "contact_id": body.contact_id, "title": title, "preview": content[:400]}
+
+    # instant: non salvo, client userà `content` come contesto per la chat
+    return {"ok": True, "target": "instant", "title": title, "content": content, "preview": content[:400]}
+
+
 # V50.z91 — URL Extract cache admin
 @api_router.get("/axon/url-cache/status")
 async def axon_url_cache_status(user=Depends(get_current_user)):
