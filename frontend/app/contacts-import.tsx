@@ -13,6 +13,8 @@ import { notify } from "@/src/utils/notify";
  * Flusso: 1) Upload → 2) Mappatura colonne (auto-mapping + scelte custom/ignora)
  * → 3) Import → 4) Report finale.
  */
+type CFDef = { key: string; name: string; type: string; required: boolean };
+
 type Preview = {
   headers: string[];
   row_count: number;
@@ -20,6 +22,7 @@ type Preview = {
   auto_mapping: Record<string, string | null>;
   unmapped_columns: string[];
   standard_fields: string[];
+  custom_fields: CFDef[];
   rows: Record<string, string>[];
 };
 
@@ -167,6 +170,7 @@ export default function ContactsImportScreen() {
                     es: {preview.preview_rows[0]?.[col] || "—"}
                   </Text>
                   <View style={styles.chipRow}>
+                    {/* Ignora + custom generico + campi standard + campi personalizzati definiti dal Master */}
                     {["ignore", "custom", ...preview.standard_fields].map((opt) => (
                       <Pressable
                         key={opt}
@@ -178,6 +182,27 @@ export default function ContactsImportScreen() {
                         </Text>
                       </Pressable>
                     ))}
+                    {(preview.custom_fields || []).map((cf) => {
+                      const target = `cf:${cf.key}`;
+                      const active = cur === target;
+                      return (
+                        <Pressable
+                          key={target}
+                          onPress={() => setColTarget(col, target)}
+                          style={[styles.chip, styles.chipCf, active && styles.chipCfActive]}
+                          testID={`chip-cf-${cf.key}`}
+                        >
+                          <Ionicons
+                            name="options-outline"
+                            size={11}
+                            color={active ? "#FFF" : "#7C3AED"}
+                          />
+                          <Text style={[styles.chipTxt, active ? { color: "#FFF" } : { color: "#7C3AED" }]}>
+                            {cf.name}{cf.required ? " *" : ""}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
                   {isCustom ? (
                     <View style={styles.customBox}>
@@ -268,6 +293,8 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: "#F1F5F9" },
   chipActive: { backgroundColor: theme.color.brandPrimary },
   chipIgnore: { backgroundColor: "#E5E7EB" },
+  chipCf: { backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE", flexDirection: "row", alignItems: "center", gap: 4 },
+  chipCfActive: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
   chipTxt: { fontSize: 11, fontWeight: "700", color: theme.color.onSurface },
   chipTxtActive: { color: "#FFF" },
   customBox: { marginTop: 8, padding: 10, backgroundColor: "#F0F9FF", borderRadius: 8, borderWidth: 1, borderColor: "#7DD3FC" },

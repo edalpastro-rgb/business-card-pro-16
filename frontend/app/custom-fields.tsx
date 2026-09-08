@@ -23,6 +23,7 @@ type FieldDef = {
   type: FieldType;
   visibility: Visibility;
   order: number;
+  required?: boolean;
 };
 
 const TYPE_LABELS: Record<FieldType, string> = {
@@ -49,10 +50,11 @@ export default function CustomFieldsScreen() {
   const [editing, setEditing] = useState<FieldDef | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<{ name: string; type: FieldType; visibility: Visibility }>({
+  const [form, setForm] = useState<{ name: string; type: FieldType; visibility: Visibility; required: boolean }>({
     name: "",
     type: "text",
     visibility: "all",
+    required: false,
   });
 
   const load = useCallback(async () => {
@@ -73,13 +75,13 @@ export default function CustomFieldsScreen() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: "", type: "text", visibility: "all" });
+    setForm({ name: "", type: "text", visibility: "all", required: false });
     setModalOpen(true);
   };
 
   const openEdit = (f: FieldDef) => {
     setEditing(f);
-    setForm({ name: f.name, type: f.type, visibility: f.visibility });
+    setForm({ name: f.name, type: f.type, visibility: f.visibility, required: !!f.required });
     setModalOpen(true);
   };
 
@@ -94,12 +96,12 @@ export default function CustomFieldsScreen() {
       if (editing) {
         await api(`/contact-custom-fields/${editing.field_id}`, {
           method: "PUT",
-          body: { name: nm, type: form.type, visibility: form.visibility },
+          body: { name: nm, type: form.type, visibility: form.visibility, required: form.required },
         });
       } else {
         await api("/contact-custom-fields", {
           method: "POST",
-          body: { name: nm, type: form.type, visibility: form.visibility },
+          body: { name: nm, type: form.type, visibility: form.visibility, required: form.required },
         });
       }
       setModalOpen(false);
@@ -122,6 +124,24 @@ export default function CustomFieldsScreen() {
       await load();
     } catch (e: any) {
       notify("Errore", e?.message || "Eliminazione non riuscita");
+    }
+  };
+
+  const move = async (idx: number, direction: -1 | 1) => {
+    const target = idx + direction;
+    if (target < 0 || target >= items.length) return;
+    // Optimistic swap
+    const next = [...items];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setItems(next);
+    try {
+      await api("/contact-custom-fields/reorder", {
+        method: "POST",
+        body: { field_ids: next.map((f) => f.field_id) },
+      });
+    } catch (e: any) {
+      notify("Errore", e?.message || "Riordino non riuscito");
+      await load(); // rollback via refetch
     }
   };
 
@@ -186,13 +206,16 @@ export default function CustomFieldsScreen() {
             <Text style={styles.emptySub}>Tocca "+" in alto per aggiungerne uno.</Text>
           </View>
         ) : (
-          items.map((f) => (
+          items.map((f, idx) => (
             <View key={f.field_id} style={styles.card}>
               <View style={styles.cardIcon}>
                 <Ionicons name={TYPE_ICONS[f.type]} size={22} color={theme.color.brandPrimary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{f.name}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.cardTitle}>{f.name}</Text>
+                  {f.required ? <Text style={styles.reqStar}>*</Text> : null}
+                </View>
                 <View style={styles.tagRow}>
                   <View style={styles.tag}>
                     <Text style={styles.tagTxt}>{TYPE_LABELS[f.type]}</Text>
@@ -207,15 +230,41 @@ export default function CustomFieldsScreen() {
                       {f.visibility === "master" ? "Solo Master" : "Tutti"}
                     </Text>
                   </View>
+                  {f.required ? (
+                    <View style={[styles.tag, styles.tagRequired]}>
+                      <Ionicons name="alert-circle" size={11} color="#B45309" />
+                      <Text style={[styles.tagTxt, { color: "#B45309" }]}>Obbligatorio</Text>
+                    </View>
+                  ) : null}
                 </View>
                 <Text style={styles.cardKey}>chiave: {f.key}</Text>
               </View>
+              <View style={{ gap: 4 }}>
+                <Pressable
+                  onPress={() => move(idx, -1)}
+                  hitSlop={6}
+                  disabled={idx === 0}
+                  style={[styles.iconBtn, idx === 0 && { opacity: 0.3 }]}
+                  testID={`cf-up-${f.field_id}`}
+                >
+                  <Ionicons name="chevron-up" size={16} color={theme.color.onSurface} />
+                </Pressable>
+                <Pressable
+                  onPress={() => move(idx, 1)}
+                  hitSlop={6}
+                  disabled={idx === items.length - 1}
+                  style={[styles.iconBtn, idx === items.length - 1 && { opacity: 0.3 }]}
+                  testID={`cf-down-${f.field_id}`}
+                >
+                  <Ionicons name="chevron-down" size={16} color={theme.color.onSurface} />
+                </Pressable>
+              </View>
               <View style={{ gap: 6 }}>
                 <Pressable onPress={() => openEdit(f)} hitSlop={8} style={styles.iconBtn}>
-                  <Ionicons name="create-outline" size={20} color={theme.color.brandPrimary} />
+                  <Ionicons name="create-outline" size={18} color={theme.color.brandPrimary} />
                 </Pressable>
                 <Pressable onPress={() => remove(f)} hitSlop={8} style={styles.iconBtn}>
-                  <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                  <Ionicons name="trash-outline" size={18} color="#DC2626" />
                 </Pressable>
               </View>
             </View>
@@ -284,6 +333,31 @@ export default function CustomFieldsScreen() {
                     ? "Il campo sarà visibile solo agli utenti Master."
                     : "Il campo sarà visibile a tutti gli utenti autorizzati."}
                 </Text>
+              </View>
+
+              <View>
+                <Text style={styles.label}>Obbligatorio</Text>
+                <Pressable
+                  onPress={() => setForm({ ...form, required: !form.required })}
+                  style={[styles.toggleRow, form.required && styles.toggleRowOn]}
+                  testID="cf-required-toggle"
+                >
+                  <Ionicons
+                    name={form.required ? "checkmark-circle" : "ellipse-outline"}
+                    size={22}
+                    color={form.required ? "#B45309" : theme.color.muted}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.toggleTitle}>
+                      {form.required ? "Campo obbligatorio" : "Campo facoltativo"}
+                    </Text>
+                    <Text style={styles.toggleSub}>
+                      {form.required
+                        ? "Il contatto non potrà essere salvato senza questo campo compilato."
+                        : "Il campo può essere lasciato vuoto."}
+                    </Text>
+                  </View>
+                </Pressable>
               </View>
 
               <View style={{ flexDirection: "row", gap: 10, marginTop: 6 }}>
@@ -365,7 +439,9 @@ const styles = StyleSheet.create({
   },
   tagAll: { backgroundColor: "#D1FAE5" },
   tagMaster: { backgroundColor: "#FEE2E2" },
+  tagRequired: { backgroundColor: "#FEF3C7" },
   tagTxt: { fontSize: 10, fontWeight: "700", color: theme.color.onSurface },
+  reqStar: { fontSize: 16, fontWeight: "900", color: "#B45309" },
   iconBtn: {
     width: 34,
     height: 34,
@@ -407,6 +483,19 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
   chipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
   hint: { fontSize: 11, color: theme.color.muted, marginTop: 6, fontStyle: "italic" },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    backgroundColor: "#F8FAFC",
+  },
+  toggleRowOn: { backgroundColor: "#FEF3C7", borderColor: "#FBBF24" },
+  toggleTitle: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
+  toggleSub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
   btn: {
     flex: 1,
     flexDirection: "row",

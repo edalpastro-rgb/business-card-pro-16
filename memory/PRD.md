@@ -1,3 +1,40 @@
+## V50.z68 (Set 2026) — Custom Fields: required, reorder e import mapping
+
+Estensione del PROMPT 7 con 3 potenziamenti:
+
+### 1. Import CSV/Excel mappa anche i campi personalizzati
+- Backend `/api/contacts/import/preview`: aggiunge in risposta `custom_fields` (lista def con `key/name/type/required`) e arricchisce `auto_mapping` con match case-insensitive su nome/key delle def → produce `cf:<key>`.
+- Backend `/api/contacts/import/execute`: gestisce mapping `cf:<key>` con **type casting**:
+  - `number` → `float(v.replace(",","."))` (accetta `1.000,50` europeo? No, solo `,`→`.`)
+  - `checkbox` → true se v ∈ {1,true,yes,si,sì,y,vero}
+  - `text`/`date` → stringa trimmed
+- Frontend `contacts-import.tsx`: chip viola per i custom fields ("nome campo *"), riconoscibili a colpo d'occhio.
+
+### 2. Campi obbligatori
+- Schema: `required: bool` (default false) su `contact_custom_field_defs`.
+- Helper `_is_cf_value_empty` e `_validate_required_custom_fields` (raise 400 con lista nomi mancanti).
+- Enforcement:
+  - `POST /api/contacts` → valida sempre.
+  - `PUT /api/contacts/{id}` → valida solo se il payload contiene `custom_fields` (merge con esistenti prima della validazione).
+  - `/api/contacts/import/execute` → skip riga per riga con errore `"Campi obbligatori mancanti: X, Y"` (non abortisce l'intero import).
+- UI:
+  - Modal Create/Edit: toggle "Obbligatorio / Facoltativo" con hint contestuale.
+  - Lista campi: badge giallo "Obbligatorio" + asterisco `*` accanto al nome.
+  - Scheda contatto: asterisco `*` accanto al nome del campo required.
+
+### 3. Riordino campi (frecce ↑ ↓)
+- Backend: nuovo `POST /api/contact-custom-fields/reorder` → accetta `{field_ids: []}` e assegna `order` sequenziale, filtrando duplicati.
+- Frontend: pulsanti ↑ / ↓ per ogni riga (disabilitati agli estremi). Update ottimistico + rollback su errore. UX universale (funziona identico su web e mobile, senza dipendenze extra).
+
+### Test end-to-end via curl
+- CRUD def con `required=true` → auto-persistito.
+- Reorder `[F3,F1,F2]` → `LIST` ritorna `order=[0,1,2]` corretto.
+- `POST /contacts` senza campi required → 400 con nomi campi mancanti.
+- `POST /contacts` con required valorizzati → 200.
+- `PUT /contacts/{id}` con `custom_fields.citta=""` → 400.
+- Import CSV con `cf:citta` e `cf:fatturato_annuo`: 3 righe → 2 importati (1 skippato per città mancante), `Fatturato annuo` salvato come `float`.
+
+
 ## V50.z67 (Set 2026) — Campi personalizzati anagrafica contatti (PROMPT 7)
 
 ### Richiesta utente

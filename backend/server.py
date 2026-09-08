@@ -814,6 +814,8 @@ class ContactIn(BaseModel):
     # NB: la sync bidirezionale è gestita dagli endpoint dedicati; il campo qui esiste
     # solo per permettere set iniziale in fase di creazione (raro).
     reference_contact_ids: List[str] = Field(default_factory=list)
+    # V50.z67 — Campi personalizzati definiti dal Master
+    custom_fields: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ContactUpdate(BaseModel):
@@ -2003,6 +2005,7 @@ class ContactCustomFieldIn(BaseModel):
     type: str  # text | number | date | checkbox
     visibility: str = "all"  # master | all
     order: Optional[int] = None
+    required: bool = False
 
 
 class ContactCustomFieldUpdate(BaseModel):
@@ -2010,6 +2013,42 @@ class ContactCustomFieldUpdate(BaseModel):
     type: Optional[str] = None
     visibility: Optional[str] = None
     order: Optional[int] = None
+    required: Optional[bool] = None
+
+
+class ContactCustomFieldReorderIn(BaseModel):
+    field_ids: List[str]
+
+
+def _is_cf_value_empty(val: Any) -> bool:
+    """Return True if a custom-field value is considered empty/missing."""
+    if val is None:
+        return True
+    if isinstance(val, bool):
+        # checkbox: solo False è considerato "vuoto" se required? Interpretiamo required=deve essere True.
+        return val is False
+    if isinstance(val, str):
+        return val.strip() == ""
+    if isinstance(val, (list, dict)):
+        return len(val) == 0
+    return False
+
+
+async def _validate_required_custom_fields(user: dict, custom_fields: Optional[Dict[str, Any]]) -> None:
+    """Raise 400 if any required custom field def is missing/empty in custom_fields."""
+    tid = tenant_id(user)
+    required_defs = await db.contact_custom_field_defs.find(
+        {"user_id": tid, "required": True}, {"_id": 0, "key": 1, "name": 1, "type": 1}
+    ).to_list(200)
+    if not required_defs:
+        return
+    cf = custom_fields or {}
+    missing = [d["name"] for d in required_defs if _is_cf_value_empty(cf.get(d["key"]))]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Campi obbligatori mancanti: {', '.join(missing)}",
+        )
 
 
 @api_router.get("/contact-custom-fields")
@@ -2055,6 +2094,7 @@ async def create_contact_custom_field(body: ContactCustomFieldIn, user=Depends(g
         "name": name,
         "type": body.type,
         "visibility": body.visibility,
+        "required": bool(body.required),
         "order": order,
         "created_at": utcnow(),
         "updated_at": utcnow(),
@@ -2088,6 +2128,8 @@ async def update_contact_custom_field(field_id: str, body: ContactCustomFieldUpd
         upd["visibility"] = body.visibility
     if body.order is not None:
         upd["order"] = int(body.order)
+    if body.required is not None:
+        upd["required"] = bool(body.required)
     if not upd:
         return {"ok": True, "unchanged": True}
     upd["updated_at"] = utcnow()
@@ -2118,6 +2160,27 @@ async def delete_contact_custom_field(field_id: str, user=Depends(get_current_us
     return {"ok": True, "deleted_key": key}
 
 
+@api_router.post("/contact-custom-fields/reorder")
+async def reorder_contact_custom_fields(body: ContactCustomFieldReorderIn, user=Depends(get_current_user)):
+    """Reorder custom fields based on the provided list of field_ids (top-to-bottom)."""
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master può riordinare campi personalizzati")
+    tid = tenant_id(user)
+    seen: set = set()
+    order = 0
+    for fid in body.field_ids:
+        if not fid or fid in seen:
+            continue
+        seen.add(fid)
+        await db.contact_custom_field_defs.update_one(
+            {"field_id": fid, "user_id": tid},
+            {"$set": {"order": order, "updated_at": utcnow()}},
+        )
+        order += 1
+    return {"ok": True, "reordered": order}
+
+
+
 
 
 @api_router.post("/contacts/import/preview")
@@ -2139,12 +2202,35 @@ async def contacts_import_preview(file: UploadFile = File(...), user=Depends(get
         "telegram", "energy_ref_name", "energy_ref_phone", "energy_ref_email",
         "general_note", "tags", "contact_code",
     ])
-    auto_mapping = {h: _fuzzy_map_column(h) for h in headers}
+    # V50.z68 — Includi anche i campi personalizzati definiti dal Master (tenant)
+    tid = tenant_id(user)
+    cf_defs = await db.contact_custom_field_defs.find(
+        {"user_id": tid}, {"_id": 0, "key": 1, "name": 1, "type": 1, "required": 1}
+    ).sort("order", 1).to_list(200)
+    custom_fields_defs = [{"key": d["key"], "name": d["name"], "type": d.get("type") or "text", "required": bool(d.get("required"))} for d in cf_defs]
+    cf_by_name = {d["name"].strip().lower(): d for d in custom_fields_defs}
+
+    def _map_col(h: str) -> Optional[str]:
+        std = _fuzzy_map_column(h)
+        if std:
+            return std
+        # Prova match diretto sui custom fields (case-insensitive nome/key)
+        n = (h or "").strip().lower()
+        if n in cf_by_name:
+            return f"cf:{cf_by_name[n]['key']}"
+        for d in custom_fields_defs:
+            if n == d["key"].lower():
+                return f"cf:{d['key']}"
+        return None
+
+    auto_mapping = {h: _map_col(h) for h in headers}
     unmapped = [h for h, v in auto_mapping.items() if not v]
     return {
         "headers": headers, "row_count": len(rows), "preview_rows": rows[:5],
         "auto_mapping": auto_mapping, "unmapped_columns": unmapped,
-        "standard_fields": standard_fields, "rows": rows,
+        "standard_fields": standard_fields,
+        "custom_fields": custom_fields_defs,  # NEW
+        "rows": rows,
     }
 
 
@@ -2160,15 +2246,43 @@ async def contacts_import_execute(body: ContactsImportExecuteIn, user=Depends(ge
     errors: List[Dict[str, Any]] = []
     ignored_columns = [c for c, t in body.mapping.items() if t == "ignore"]
     custom_columns = [c for c, t in body.mapping.items() if t.startswith("custom:")]
+    cf_columns = [c for c, t in body.mapping.items() if t.startswith("cf:")]
+    # V50.z68 — Carica defs custom del tenant per casting per tipo + validazione required
+    tid = tenant_id(user)
+    cf_defs_list = await db.contact_custom_field_defs.find(
+        {"user_id": tid}, {"_id": 0, "key": 1, "name": 1, "type": 1, "required": 1}
+    ).to_list(200)
+    cf_defs_by_key = {d["key"]: d for d in cf_defs_list}
+    required_defs = [d for d in cf_defs_list if d.get("required")]
+
+    def _cast_cf(val: str, ftype: str) -> Any:
+        v = (val or "").strip()
+        if v == "":
+            return None
+        if ftype == "number":
+            try:
+                return float(v.replace(",", "."))
+            except Exception:
+                return None
+        if ftype == "checkbox":
+            return v.lower() in {"1", "true", "yes", "si", "sì", "y", "vero"}
+        return v  # text | date
+
     for idx, row in enumerate(body.rows):
         try:
             payload: Dict[str, Any] = {"area": body.default_area}
-            custom_fields: Dict[str, str] = {}
+            custom_fields: Dict[str, Any] = {}
             for col, val in row.items():
                 target = body.mapping.get(col, "ignore")
-                if target == "ignore" or not val:
+                if target == "ignore" or val is None or val == "":
                     continue
-                if target.startswith("custom:"):
+                if target.startswith("cf:"):
+                    key = target[len("cf:"):].strip()
+                    if key and key in cf_defs_by_key:
+                        casted = _cast_cf(val, cf_defs_by_key[key].get("type") or "text")
+                        if casted is not None:
+                            custom_fields[key] = casted
+                elif target.startswith("custom:"):
                     fname = target[len("custom:"):].strip()
                     if fname:
                         custom_fields[fname] = val
@@ -2179,6 +2293,11 @@ async def contacts_import_execute(body: ContactsImportExecuteIn, user=Depends(ge
             has_min = payload.get("first_name") or payload.get("last_name") or payload.get("phone") or payload.get("email")
             if not has_min:
                 errors.append({"row": idx + 2, "error": "Riga senza nome/telefono/email"})
+                continue
+            # V50.z68 — Validazione required su questa riga (fail-per-row, non abortire tutto)
+            missing_req = [d["name"] for d in required_defs if _is_cf_value_empty(custom_fields.get(d["key"]))]
+            if missing_req:
+                errors.append({"row": idx + 2, "error": f"Campi obbligatori mancanti: {', '.join(missing_req)}"})
                 continue
             if not payload.get("first_name"):
                 payload["first_name"] = payload.get("last_name") or payload.get("email") or "Contatto"
@@ -2198,7 +2317,7 @@ async def contacts_import_execute(body: ContactsImportExecuteIn, user=Depends(ge
             errors.append({"row": idx + 2, "error": str(e)[:120]})
     return {
         "ok": True, "imported": imported, "ignored_columns": ignored_columns,
-        "custom_columns": custom_columns, "errors": errors, "total_rows": len(body.rows),
+        "custom_columns": custom_columns + cf_columns, "errors": errors, "total_rows": len(body.rows),
     }
 
 
@@ -2208,6 +2327,8 @@ async def create_contact(body: ContactIn, user=Depends(get_current_user)):
     check_area_allowed(user, body.area)
     cid = f"c_{uuid.uuid4().hex[:12]}"
     payload = body.model_dump()
+    # V50.z68 — Validazione campi custom obbligatori
+    await _validate_required_custom_fields(user, payload.get("custom_fields"))
     # Auto-assign contact_code if not provided
     if not payload.get("contact_code"):
         payload["contact_code"] = await _next_contact_code(user, body.area)
@@ -2337,6 +2458,13 @@ async def update_contact(contact_id: str, body: ContactUpdate, user=Depends(get_
         raise HTTPException(status_code=403, detail="Solo il Master può modificare il codice cliente")
     if "contact_code" in upd:
         upd["contact_code"] = (upd["contact_code"] or "").strip() or None
+    # V50.z68 — Se sto aggiornando custom_fields, valida i required
+    if "custom_fields" in upd:
+        # Merge with existing to validate the final state (evita che update parziale rompa required già valorizzati)
+        existing = await db.contacts.find_one(scope_query(user, {"contact_id": contact_id}), {"_id": 0, "custom_fields": 1})
+        current_cf = (existing or {}).get("custom_fields") or {}
+        merged_cf = {**current_cf, **(upd["custom_fields"] or {})}
+        await _validate_required_custom_fields(user, merged_cf)
     upd["updated_at"] = utcnow()
     r = await db.contacts.update_one(scope_query(user, {"contact_id": contact_id}), {"$set": upd})
     if r.matched_count == 0:

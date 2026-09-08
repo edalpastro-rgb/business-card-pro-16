@@ -19,6 +19,7 @@ type FieldDef = {
   type: FieldType;
   visibility: Visibility;
   order: number;
+  required?: boolean;
 };
 
 const TYPE_ICONS: Record<FieldType, keyof typeof import("@expo/vector-icons/build/Ionicons").glyphMap> = {
@@ -107,7 +108,10 @@ export function ContactCustomFieldsSection({ contactId, initialValues, onSaved }
           <View key={d.field_id} style={styles.row}>
             <View style={styles.labelRow}>
               <Ionicons name={TYPE_ICONS[d.type]} size={14} color={theme.color.muted} />
-              <Text style={styles.label}>{d.name}</Text>
+              <Text style={styles.label}>
+                {d.name}
+                {d.required ? <Text style={styles.reqStar}> *</Text> : null}
+              </Text>
               {d.visibility === "master" ? (
                 <View style={styles.badge}>
                   <Ionicons name="lock-closed" size={9} color="#7C2D12" />
@@ -214,6 +218,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEE2E2",
   },
   badgeTxt: { fontSize: 9, fontWeight: "700", color: "#7C2D12" },
+  reqStar: { color: "#B45309", fontWeight: "900" },
   input: {
     borderWidth: 1,
     borderColor: theme.color.border,
