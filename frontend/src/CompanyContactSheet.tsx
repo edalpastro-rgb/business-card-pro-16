@@ -28,6 +28,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
@@ -735,6 +736,22 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                 <Text style={styles.companyName}>
                   {data.communica_azienda_name?.trim() || (loading ? "Caricamento…" : "Azienda")}
                 </Text>
+
+                {/* V50.z82 — Bottone rapido "Invia richiesta info" al Master */}
+                <Pressable
+                  testID="company-sheet-open-info-req"
+                  onPress={() => { onClose(); setTimeout(() => { try { router.push("/info-requests?mode=compose" as any); } catch { /* ignore */ } }, 100); }}
+                  style={infoReqStyles.row}
+                >
+                  <View style={[styles.rowIcon, { backgroundColor: "#FEF3C7" }]}>
+                    <Ionicons name="chatbubble-ellipses" size={18} color="#B45309" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={infoReqStyles.title}>Invia richiesta info</Text>
+                    <Text style={infoReqStyles.sub}>Fai una domanda al Master aziendale</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={C.muted} />
+                </Pressable>
 
                 {data.communica_azienda_email ? (
                   <Pressable
@@ -1608,4 +1625,11 @@ const styles = StyleSheet.create({
     borderRadius: 999, backgroundColor: "#F1F5F9",
   },
   alreadyBadgeTxt: { fontSize: 10, color: C.muted, fontWeight: "700" },
+});
+
+// V50.z82 — Stili bottone "Invia richiesta info"
+const infoReqStyles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: "#F59E0B33", backgroundColor: "#FFFBEB" },
+  title: { fontSize: 14, fontWeight: "800", color: C.navy },
+  sub: { fontSize: 11, color: C.muted, marginTop: 2 },
 });

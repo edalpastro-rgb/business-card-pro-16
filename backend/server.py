@@ -1568,8 +1568,8 @@ DASHBOARD_WIDGET_DEFAULTS = [
     {"id": "contacts_total",      "enabled": True,  "label": "Contatti totali",         "coming_soon": False},
     {"id": "appointments_today",  "enabled": True,  "label": "Appuntamenti di oggi",    "coming_soon": False},
     {"id": "deadlines_alerts",    "enabled": True,  "label": "Alert scadenze",          "coming_soon": False},
-    {"id": "pun",                 "enabled": False, "label": "PUN aggiornato",          "coming_soon": True},
-    {"id": "info_requests",       "enabled": False, "label": "Richieste info in attesa","coming_soon": True},
+    {"id": "pun",                 "enabled": True,  "label": "PUN aggiornato",          "coming_soon": False},
+    {"id": "info_requests",       "enabled": True,  "label": "Richieste info in attesa","coming_soon": False},
 ]
 
 
@@ -1643,6 +1643,151 @@ async def update_dashboard_widgets(body: DashboardWidgetsIn, user=Depends(get_cu
         {"$set": {"dashboard_widgets": clean}},
     )
     return {"widgets": _merge_dashboard_widgets(clean)}
+
+
+# =========================
+# V50.z82 — PUN GME (widget home)
+# =========================
+@api_router.get("/pun/latest")
+async def get_latest_pun(user=Depends(get_current_user)):
+    """Restituisce l'ultimo mese disponibile nella cache GME con fasce F1/F2/F3.
+    Se cache vuota, ritorna 204-equivalent (empty). Attiva un fetch in background
+    (best-effort) per popolare la cache al primo utilizzo.
+    """
+    doc = await db.gme_pun_cache.find_one(
+        {},
+        {"_id": 0},
+        sort=[("year", -1), ("month", -1)],
+    )
+    prev = None
+    if doc:
+        # Cerca mese precedente per calcolo variazione monorario
+        prev = await db.gme_pun_cache.find_one(
+            {"$or": [
+                {"year": doc["year"], "month": {"$lt": doc["month"]}},
+                {"year": {"$lt": doc["year"]}},
+            ]},
+            {"_id": 0, "monorario": 1, "month_key": 1},
+            sort=[("year", -1), ("month", -1)],
+        )
+    if not doc:
+        return {"available": False}
+    delta_pct = None
+    if prev and doc.get("monorario") and prev.get("monorario"):
+        try:
+            delta_pct = round(((doc["monorario"] - prev["monorario"]) / prev["monorario"]) * 100.0, 2)
+        except Exception:
+            delta_pct = None
+    return {
+        "available": True,
+        "month_key": doc.get("month_key"),
+        "month_name": doc.get("month_name"),
+        "year": doc.get("year"),
+        "F1": doc.get("F1"),
+        "F2": doc.get("F2"),
+        "F3": doc.get("F3"),
+        "monorario": doc.get("monorario"),
+        "unit": doc.get("unit") or "€/MWh",
+        "source_url": doc.get("source_url"),
+        "prev_month_key": (prev or {}).get("month_key"),
+        "delta_pct": delta_pct,
+    }
+
+
+# =========================
+# V50.z82 — Info Requests (richieste info dai collaboratori al Master)
+# =========================
+class InfoRequestIn(BaseModel):
+    subject: str = Field(min_length=2, max_length=200)
+    body: str = Field(min_length=2, max_length=4000)
+
+
+class InfoRequestUpdate(BaseModel):
+    status: Literal["pending", "resolved"]
+
+
+def _info_req_out(doc: dict) -> dict:
+    return {
+        "request_id": doc.get("request_id"),
+        "subject": doc.get("subject"),
+        "body": doc.get("body"),
+        "status": doc.get("status") or "pending",
+        "created_by": doc.get("created_by"),
+        "created_by_name": doc.get("created_by_name"),
+        "created_at": (doc.get("created_at").isoformat() if isinstance(doc.get("created_at"), datetime) else doc.get("created_at")),
+        "resolved_at": (doc.get("resolved_at").isoformat() if isinstance(doc.get("resolved_at"), datetime) else doc.get("resolved_at")),
+    }
+
+
+@api_router.post("/info-requests")
+async def create_info_request(body: InfoRequestIn, user=Depends(get_current_user)):
+    """Qualsiasi utente del tenant può inviare una richiesta info. Il Master la vede in home."""
+    tid = tenant_id(user)
+    doc = {
+        "request_id": f"ir_{uuid.uuid4().hex[:12]}",
+        "user_id": tid,
+        "created_by": user["user_id"],
+        "created_by_name": user.get("name") or user.get("email") or "",
+        "subject": body.subject.strip(),
+        "body": body.body.strip(),
+        "status": "pending",
+        "created_at": utcnow(),
+        "resolved_at": None,
+    }
+    await db.info_requests.insert_one(doc)
+    return _info_req_out(doc)
+
+
+@api_router.get("/info-requests")
+async def list_info_requests(status: Optional[str] = None, user=Depends(get_current_user)):
+    """Master vede tutte le richieste del tenant; sub-user vedono solo le proprie."""
+    tid = tenant_id(user)
+    q: Dict[str, Any] = {"user_id": tid}
+    if not is_owner(user):
+        q["created_by"] = user["user_id"]
+    if status in ("pending", "resolved"):
+        q["status"] = status
+    docs = await db.info_requests.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return {"items": [_info_req_out(d) for d in docs]}
+
+
+@api_router.get("/info-requests/count")
+async def count_info_requests(user=Depends(get_current_user)):
+    """Conta le richieste pending visibili all'utente."""
+    tid = tenant_id(user)
+    q: Dict[str, Any] = {"user_id": tid, "status": "pending"}
+    if not is_owner(user):
+        q["created_by"] = user["user_id"]
+    n = await db.info_requests.count_documents(q)
+    return {"pending": n}
+
+
+@api_router.put("/info-requests/{request_id}")
+async def update_info_request(request_id: str, body: InfoRequestUpdate, user=Depends(get_current_user)):
+    """Solo il Master può segnare come risolta."""
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master può aggiornare le richieste")
+    tid = tenant_id(user)
+    existing = await db.info_requests.find_one({"user_id": tid, "request_id": request_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Richiesta non trovata")
+    update = {"status": body.status, "resolved_at": utcnow() if body.status == "resolved" else None}
+    await db.info_requests.update_one({"request_id": request_id}, {"$set": update})
+    updated = await db.info_requests.find_one({"request_id": request_id}, {"_id": 0})
+    return _info_req_out(updated)
+
+
+@api_router.delete("/info-requests/{request_id}")
+async def delete_info_request(request_id: str, user=Depends(get_current_user)):
+    """Master può eliminare; il creatore può eliminare la propria richiesta."""
+    tid = tenant_id(user)
+    existing = await db.info_requests.find_one({"user_id": tid, "request_id": request_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Richiesta non trovata")
+    if not is_owner(user) and existing.get("created_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    await db.info_requests.delete_one({"request_id": request_id})
+    return {"ok": True}
 
 
 # =========================

@@ -4642,3 +4642,35 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
 **Test verificato**:
 - ✅ Backend: GET restituisce default + merge; PUT salva ordine/toggle; ID sconosciuti scartati.
 - ✅ Frontend: login demo → home mostra 4 widget default; entra in "/dashboard-config" → toggle Contatti totali OFF + sposta Alert scadenze in posizione 1 → salva → home aggiorna con ordine nuovo e Contatti totali nascosto.
+
+---
+
+## PROMPT 17.a — Widget PUN Live & Richieste Info (V50.z82) ✅ TESTATO
+
+**Backend (`server.py`)**:
+- Nuovo endpoint `GET /api/pun/latest`: legge il mese più recente da `db.gme_pun_cache` (popolata dal prefetch GME) e restituisce `{F1, F2, F3, monorario, unit, month_name, year, delta_pct}` (delta% vs mese precedente).
+- Nuova collezione `info_requests`:
+  - `POST /api/info-requests` — chiunque nel tenant crea una richiesta (subject + body, validazione min/max).
+  - `GET /api/info-requests?status=pending|resolved` — Master vede tutte, collaboratori solo le proprie.
+  - `GET /api/info-requests/count` — conta pending visibili all'utente (usato dal widget home).
+  - `PUT /api/info-requests/{id}` — solo Master, cambia status pending↔resolved.
+  - `DELETE /api/info-requests/{id}` — Master sempre, creatore per le proprie.
+- `DASHBOARD_WIDGET_DEFAULTS`: rimosso `coming_soon`, ora `pun` e `info_requests` sono attivi di default.
+
+**Frontend**:
+- `/app/frontend/src/DashboardWidgetsSection.tsx`:
+  - Fetch aggiuntivo `/pun/latest` + `/info-requests/count`.
+  - Nuovo componente `PunLiveCard`: mostra header "PUN · mese anno" con delta% pill (verde ↓ / rosso ↑) e riga con 3 fasce F1/F2/F3 in tre badge colorati (indigo/ambra/verde), unità €/MWh.
+  - Widget `info_requests` è una MiniStatCard cliccabile che porta a `/info-requests` con count in attesa (arancione se >0, verde se 0).
+  - Fallback empty state se PUN non disponibile.
+- Nuova pagina `/app/frontend/app/info-requests.tsx`:
+  - 3 tab: **In attesa** / **Risolte** / **Nuova** (compose).
+  - Master vede tutte le richieste tenant; sub-user solo le proprie.
+  - Card con oggetto, autore, timestamp, badge stato, bottone "Segna risolta"/"Riapri" (solo Master), bottone elimina (Master o creatore).
+  - Form compose con TextInput oggetto + textarea messaggio, validazione lato client, `KeyboardAwareScrollView`.
+- `/app/frontend/src/CompanyContactSheet.tsx`:
+  - Aggiunto shortcut "Invia richiesta info" in cima al pannello (view mode) che chiude il sheet e naviga a `/info-requests?mode=compose`.
+
+**Test verificato**:
+- ✅ Backend: PUN restituisce agosto 2026 (F1=174.52, F2=204.35, F3=171.72 €/MWh, delta +14.62% vs luglio); create/list/count/put/delete info-requests funzionano; ACL rispettati (sub-user vede solo le proprie).
+- ✅ Frontend: home mostra widget PUN con fasce e delta pill; widget "Richieste info in attesa" mostra count corretto; tap → apre pagina lista; tab "Nuova" invia richiesta e la lista aggiorna a "2 pending"; "Segna risolta" e delete funzionano.
