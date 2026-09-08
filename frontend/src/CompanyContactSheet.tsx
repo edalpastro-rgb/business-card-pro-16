@@ -517,19 +517,26 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                   draftPhones.map((p) => (
                     <View key={p.id} style={styles.phoneEditRow}>
                       <View style={{ flex: 1, gap: 6 }}>
+                        {/* V50.z57 — Nome del bottone: campo dedicato con
+                            label chiaro, maxLength 60 e multi-riga per far
+                            vedere al Master l'intero testo mentre digita. */}
+                        <Text style={styles.editSubLbl}>Nome del bottone</Text>
                         <TextInput
                           testID={`company-sheet-phone-label-${p.id}`}
                           value={p.label}
                           onChangeText={(t) => updateDraftPhone(p.id, "label", t)}
-                          placeholder="Etichetta (es. Assistenza Consulenti)"
+                          placeholder="Es. Assistenza tecnica consulenti"
                           placeholderTextColor={C.muted}
-                          style={[styles.input, { fontSize: 13 }]}
+                          maxLength={60}
+                          multiline
+                          style={[styles.input, styles.inputLabelMulti]}
                         />
+                        <Text style={styles.editSubLbl}>Numero</Text>
                         <TextInput
                           testID={`company-sheet-phone-number-${p.id}`}
                           value={p.number}
                           onChangeText={(t) => updateDraftPhone(p.id, "number", t)}
-                          placeholder="Numero (es. +39 02 1234 5678)"
+                          placeholder="Es. +39 02 1234 5678"
                           placeholderTextColor={C.muted}
                           keyboardType="phone-pad"
                           style={[styles.input, { fontSize: 13 }]}
@@ -619,7 +626,11 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                         <Ionicons name="call" size={18} color={C.green} />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.rowLabel} numberOfLines={1}>
+                        {/* V50.z57 — Nome bottone: rimosso `numberOfLines={1}`
+                            per permettere nomi più lunghi (fino a 2 righe).
+                            Il Master può inserire nomi descrittivi come
+                            "Assistenza tecnica consulenti energia". */}
+                        <Text style={styles.rowLabel} numberOfLines={2}>
                           {p.label || "Contatto"}
                         </Text>
                         <Text style={styles.rowValueBig} numberOfLines={1}>
@@ -931,6 +942,10 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 11, fontWeight: "700", color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 },
   rowValue: { fontSize: 14, fontWeight: "700", color: C.navy, marginTop: 2 },
   rowValueBig: { fontSize: 18, fontWeight: "900", color: C.navy, letterSpacing: -0.3, marginTop: 2 },
+  // V50.z57 — Sotto-label per ogni campo modificabile del bottone (edit-mode)
+  editSubLbl: { fontSize: 11, fontWeight: "700", color: C.muted, marginTop: 2, marginBottom: -2 },
+  // Multi-line input per il nome del bottone (fino a 3 righe visibili prima dello scroll interno)
+  inputLabelMulti: { fontSize: 13, minHeight: 42, textAlignVertical: "top" },
   callBadge: {
     width: 34,
     height: 34,
