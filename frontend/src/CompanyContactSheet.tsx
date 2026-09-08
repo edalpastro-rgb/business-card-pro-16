@@ -411,13 +411,35 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
 
   const importFromMyWeb = async () => {
     setLinkImporting(true);
+    // V50.z61 — Fix: messaggi chiari (distingue "My Web vuoto" da "già presenti"),
+    // reload garantito anche in errore, uso di `notify()` (compatibile web + APK)
+    // al posto di Alert.alert che su web react-native-web non sempre funziona.
     try {
-      const r = await api<{ added: number }>("/company-web-links/import-from-my-web", { method: "POST" });
-      await loadLinks();
-      Alert.alert("Import completato", r.added > 0 ? `Importati ${r.added} link da My Web.` : "Nessun nuovo link da importare (sono già presenti).");
+      const r = await api<{ added: number; skipped_duplicate: number; source_total: number }>(
+        "/company-web-links/import-from-my-web",
+        { method: "POST" },
+      );
+      if (r.source_total === 0) {
+        notify(
+          "Nessun link in My Web",
+          "Non hai ancora link salvati in My Web. Aggiungili prima dalla schermata My Web, poi torna qui e riprova.",
+        );
+      } else if (r.added === 0) {
+        notify(
+          "Tutti già presenti",
+          `I ${r.source_total} link della tua sezione My Web sono già stati importati.`,
+        );
+      } else {
+        notify(
+          "Import completato ✅",
+          `Importati ${r.added} link da My Web${r.skipped_duplicate ? ` (${r.skipped_duplicate} già presenti)` : ""}.`,
+        );
+      }
     } catch (e: any) {
-      Alert.alert("Errore", e?.message || "Import non riuscito.");
+      notify("Errore import", e?.message || "Import non riuscito. Riprova.");
     } finally {
+      // Reload SEMPRE, così anche in caso di errore la UI mostra lo stato aggiornato
+      await loadLinks();
       setLinkImporting(false);
     }
   };

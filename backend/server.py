@@ -8681,12 +8681,14 @@ async def import_from_my_web(user=Depends(get_current_user)):
     order_max = await db.company_web_links.find_one({"owner_user_id": owner}, sort=[("order", -1)])
     next_order = ((order_max or {}).get("order") or 0) + 1
     added = 0
+    skipped_duplicate = 0
     for lk in src:
         # Skip duplicati (stesso URL già presente)
         existing = await db.company_web_links.find_one(
             {"owner_user_id": owner, "url": lk.get("url")}, {"_id": 0}
         )
         if existing:
+            skipped_duplicate += 1
             continue
         doc = {
             "link_id": secrets.token_hex(8),
@@ -8701,7 +8703,12 @@ async def import_from_my_web(user=Depends(get_current_user)):
         await db.company_web_links.insert_one(doc)
         next_order += 1
         added += 1
-    return {"ok": True, "added": added}
+    return {
+        "ok": True,
+        "added": added,
+        "skipped_duplicate": skipped_duplicate,
+        "source_total": len(src),
+    }
 
 
 # ---- Audio Records (Master recorder) ----
