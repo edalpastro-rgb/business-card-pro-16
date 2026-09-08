@@ -18649,6 +18649,46 @@ async def mail_download_attachment(
     )
 
 
+@api_router.get("/mail/accounts/{account_id}/messages/{uid}/body")
+async def mail_get_message_body(
+    account_id: str, uid: str, user=Depends(get_current_user),
+):
+    """V50.z65 — Recupera il corpo completo (testo + HTML) di un singolo
+    messaggio dalla casella IMAP. Ritorna anche mittente/data/subject per
+    la vista dettaglio."""
+    a = await _mail_load_account(account_id, user["user_id"])
+    password = _mail_dec(a["password_enc"])
+    loop = asyncio.get_event_loop()
+
+    def _fetch_body():
+        with _imap_test_and_login_sync(a["imap_host"], a["imap_port"], a.get("imap_ssl", True), a["email"], password) as mb:
+            for m in mb.fetch(AND(uid=uid), limit=1, mark_seen=True):
+                return {
+                    "uid": str(m.uid),
+                    "subject": m.subject or "",
+                    "from_name": (m.from_values.name if m.from_values else "") or "",
+                    "from_email": (m.from_values.email if m.from_values else m.from_) or "",
+                    "to": [str(x) for x in (m.to or [])],
+                    "cc": [str(x) for x in (m.cc or [])],
+                    "date": m.date.isoformat() if m.date else None,
+                    "text": m.text or "",
+                    "html": m.html or "",
+                    "attachments": [{"filename": a.filename or "", "size": len(a.payload or b""), "content_type": a.content_type or ""} for a in (m.attachments or [])],
+                }
+        return None
+
+    try:
+        result = await asyncio.wait_for(loop.run_in_executor(None, _fetch_body), timeout=30)
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "Timeout durante il caricamento del messaggio")
+    except Exception as e:
+        raise HTTPException(400, f"Errore: {str(e)[:200]}")
+
+    if not result:
+        raise HTTPException(404, "Messaggio non trovato")
+    return result
+
+
 # =========================================================================
 # V50.z22 — AI AUTO-CRM DA MAIL
 # Riconosce clienti CRM dal from_email, aggancia mail, salva allegati e

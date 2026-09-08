@@ -12,6 +12,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
 import { api, getAuthHeader } from "@/src/api";
 import { theme } from "@/src/theme";
+import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Preset = { id: string; label: string; host?: string; port?: number; ssl?: boolean; note?: string };
@@ -270,6 +271,35 @@ function CombinedInbox() {
   // V50.z23 — Anteprima allegato IN-APP (no uscita da maschera app/web)
   const [previewSrc, setPreviewSrc] = useState<{ url: string; name: string; type: string } | null>(null);
 
+  // V50.z65 — Vista dettaglio messaggio (corpo completo)
+  type MailDetail = {
+    uid: string; subject: string; from_name: string; from_email: string;
+    to: string[]; cc: string[]; date: string | null;
+    text: string; html: string;
+    attachments: { filename: string; size: number; content_type: string }[];
+    account_id: string; account_label: string;
+  };
+  const [detail, setDetail] = useState<MailDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const openMessage = async (m: CombinedMessage) => {
+    setDetailLoading(true);
+    setDetail({
+      uid: m.uid, subject: m.subject, from_name: m.from_name || "",
+      from_email: m.from_email || "", to: [], cc: [], date: m.date,
+      text: m.preview || "", html: "", attachments: m.attachments || [],
+      account_id: m.account_id, account_label: m.account_label,
+    });
+    try {
+      const r = await api<MailDetail>(`/mail/accounts/${m.account_id}/messages/${encodeURIComponent(m.uid)}/body`);
+      setDetail({ ...r, account_id: m.account_id, account_label: m.account_label });
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile caricare il messaggio");
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const downloadAttachment = async (m: CombinedMessage, filename: string) => {
     try {
       const backend = process.env.EXPO_PUBLIC_BACKEND_URL || "";
@@ -358,11 +388,16 @@ function CombinedInbox() {
           ) : null}
         </View>
       ) : msgs.slice(0, displayCount).map((m) => (
-        <View key={`${m.account_id}-${m.uid}`} style={[
-          styles.msgCard,
-          !m.is_read && styles.msgUnread,
-          m.has_attachments && styles.msgHasAtt,
-        ]}>
+        <Pressable
+          key={`${m.account_id}-${m.uid}`}
+          onPress={() => openMessage(m)}
+          testID={`mail-open-${m.account_id}-${m.uid}`}
+          style={[
+            styles.msgCard,
+            !m.is_read && styles.msgUnread,
+            m.has_attachments && styles.msgHasAtt,
+          ]}
+        >
           {m.has_attachments ? (
             <View style={styles.attHeader}>
               <Ionicons name="attach" size={14} color="#FFF" />
@@ -401,7 +436,7 @@ function CombinedInbox() {
               ))}
             </View>
           ) : null}
-        </View>
+        </Pressable>
       ))}
       {/* V50.z21e — Bottone "Carica altre 20" quando ci sono più mail */}
       {msgs.length > displayCount ? (
@@ -419,6 +454,102 @@ function CombinedInbox() {
         if (Platform.OS === "web" && previewSrc.url.startsWith("blob:")) URL.revokeObjectURL(previewSrc.url);
         setPreviewSrc(null);
       }} /> : null}
+
+      {/* V50.z65 — Modal dettaglio messaggio email */}
+      {detail ? (
+        <Modal transparent visible={!!detail} onRequestClose={() => setDetail(null)} animationType="slide">
+          <View style={styles.detailBackdrop} pointerEvents="box-none">
+            <View style={styles.detailSheet}>
+              <View style={styles.detailHeader}>
+                <Pressable onPress={() => setDetail(null)} hitSlop={10} testID="mail-detail-close">
+                  <Ionicons name="chevron-back" size={24} color="#FFF" />
+                </Pressable>
+                <Text style={styles.detailHeaderTxt} numberOfLines={1}>Messaggio</Text>
+                <View style={{ width: 24 }} />
+              </View>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+                <View style={styles.detailAcctPill}>
+                  <Text style={styles.detailAcctPillTxt}>{detail.account_label}</Text>
+                </View>
+                <Text style={styles.detailSubject}>{detail.subject || "(senza oggetto)"}</Text>
+                <View style={styles.detailMetaRow}>
+                  <Text style={styles.detailMetaLbl}>Da:</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.detailMetaVal} numberOfLines={2}>
+                      {detail.from_name ? `${detail.from_name}  ` : ""}
+                      <Text style={{ color: "#64748B" }}>{detail.from_email ? `<${detail.from_email}>` : ""}</Text>
+                    </Text>
+                  </View>
+                </View>
+                {detail.to && detail.to.length > 0 ? (
+                  <View style={styles.detailMetaRow}>
+                    <Text style={styles.detailMetaLbl}>A:</Text>
+                    <Text style={[styles.detailMetaVal, { flex: 1 }]} numberOfLines={2}>{detail.to.join(", ")}</Text>
+                  </View>
+                ) : null}
+                {detail.cc && detail.cc.length > 0 ? (
+                  <View style={styles.detailMetaRow}>
+                    <Text style={styles.detailMetaLbl}>Cc:</Text>
+                    <Text style={[styles.detailMetaVal, { flex: 1 }]} numberOfLines={2}>{detail.cc.join(", ")}</Text>
+                  </View>
+                ) : null}
+                {detail.date ? (
+                  <View style={styles.detailMetaRow}>
+                    <Text style={styles.detailMetaLbl}>Data:</Text>
+                    <Text style={[styles.detailMetaVal, { flex: 1 }]}>
+                      {new Date(detail.date).toLocaleString("it-IT", { weekday: "short", day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {detail.attachments && detail.attachments.length > 0 ? (
+                  <View style={styles.detailAttSect}>
+                    <Text style={styles.detailAttTitle}>📎 Allegati ({detail.attachments.length})</Text>
+                    {detail.attachments.map((att) => (
+                      <Pressable
+                        key={att.filename}
+                        onPress={() => downloadAttachment({ account_id: detail.account_id, uid: detail.uid } as any, att.filename)}
+                        style={styles.detailAttChip}
+                      >
+                        <Ionicons name="download" size={16} color="#FFF" />
+                        <Text style={styles.detailAttChipTxt} numberOfLines={1}>
+                          {att.filename || "allegato"} · {formatSize(att.size)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+
+                <View style={styles.detailBodyBox}>
+                  {detailLoading && !detail.text && !detail.html ? (
+                    <View style={{ padding: 30, alignItems: "center" }}>
+                      <ActivityIndicator size="large" color="#0EA5E9" />
+                      <Text style={{ marginTop: 10, color: "#64748B" }}>Caricamento messaggio…</Text>
+                    </View>
+                  ) : detail.html ? (
+                    Platform.OS === "web" ? (
+                      // @ts-expect-error web only
+                      <iframe
+                        srcDoc={`<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;color:#0F172A;margin:0;padding:12px;line-height:1.5;}img{max-width:100%;height:auto;}a{color:#0EA5E9;}</style>${detail.html}`}
+                        style={{ width: "100%", minHeight: 380, border: "none", backgroundColor: "#FFF" }}
+                        title="Corpo email"
+                      />
+                    ) : (
+                      <Text style={styles.detailBodyText} selectable>
+                        {detail.text || detail.html.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim()}
+                      </Text>
+                    )
+                  ) : detail.text ? (
+                    <Text style={styles.detailBodyText} selectable>{detail.text}</Text>
+                  ) : (
+                    <Text style={{ color: "#94A3B8", fontStyle: "italic" }}>(nessun contenuto testuale)</Text>
+                  )}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </ScrollView>
   );
 }
@@ -1072,6 +1203,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, maxWidth: 220,
   },
   attTxt: { fontSize: 11, color: "#0369A1", fontWeight: "600" },
+
+  // V50.z65 — Modal dettaglio mail
+  detailBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+  detailSheet: { flex: 1, backgroundColor: "#F8FAFC", marginTop: 40, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: "hidden" },
+  detailHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#0F172A",
+  },
+  detailHeaderTxt: { color: "#FFF", fontSize: 15, fontWeight: "800", flex: 1, textAlign: "center" },
+  detailAcctPill: {
+    alignSelf: "flex-start", backgroundColor: "#0EA5E9",
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginBottom: 8,
+  },
+  detailAcctPillTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
+  detailSubject: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface, marginBottom: 12 },
+  detailMetaRow: { flexDirection: "row", gap: 6, marginBottom: 4 },
+  detailMetaLbl: { fontSize: 12, fontWeight: "800", color: theme.color.muted, width: 40 },
+  detailMetaVal: { fontSize: 12, color: theme.color.onSurface, fontWeight: "600" },
+  detailAttSect: { marginTop: 14, gap: 6 },
+  detailAttTitle: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface, marginBottom: 2 },
+  detailAttChip: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "#0EA5E9", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+  },
+  detailAttChipTxt: { color: "#FFF", fontSize: 12, fontWeight: "700", flex: 1 },
+  detailBodyBox: {
+    marginTop: 16, backgroundColor: "#FFF", borderRadius: 12,
+    borderWidth: 1, borderColor: theme.color.border, padding: 14,
+  },
+  detailBodyText: { fontSize: 14, color: theme.color.onSurface, lineHeight: 20 },
 });
 
 // V50.z23 — Stili modal anteprima allegato in-app
