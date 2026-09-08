@@ -1,3 +1,30 @@
+## V50.z70 (Set 2026) — Waze e Google Maps sotto ogni indirizzo (PROMPT 9)
+
+### Richiesta utente
+"Nell'anagrafica cliente, i bottoni Waze e Google Maps devono apparire sotto ogni singolo indirizzo presente nella scheda, non su uno solo. Ogni indirizzo deve avere i propri bottoni di navigazione indipendenti."
+
+### Problema riscontrato
+Nella scheda contatto, il rendering degli indirizzi era in un blocco monolitico con condizioni ternarie annidate. In particolare:
+- Se il contatto aveva **sia** `address_street/address_city` (strutturato) **sia** `address` (legacy string libera), quest'ultimo **non veniva mai mostrato** a causa del ternario mutualmente esclusivo (`? : `).
+- Utenti con dati migrati vedevano un indirizzo scomparire e i bottoni Waze/Maps di quello legacy non erano più accessibili.
+- Il codice era duplicato tre volte (indirizzo principale, work_address, residence_address), con testID diversi ma layout identico.
+
+### Fix (`/app/frontend/app/contact/[id].tsx`)
+- **Componente locale `AddressBlock`** riutilizzabile: prende `icon, label, addr, testIdPrefix` e renderizza sempre `InfoRow + bottoni Waze + Google Maps` inline.
+- Costruzione preliminare di `structuredAddr` (da campi normalizzati) e `legacyAddr` (`c.address`); il legacy viene mostrato solo se popolato **e** diverso dallo strutturato (evita duplicati).
+- Rendering ora produce fino a **4 blocchi indipendenti**:
+  1. Indirizzo strutturato (se `address_street` o `address_city`)
+  2. Indirizzo alternativo/legacy (se `c.address` è popolato e diverso dallo strutturato) — label si adatta: "Indirizzo" se è l'unico, "Indirizzo alternativo" se coesiste con lo strutturato.
+  3. Indirizzo di lavoro (`work_address`)
+  4. Indirizzo di residenza (`residence_address`)
+- Ogni blocco ha i propri `testID` (`address-*`, `address-legacy-*`, `work-address-*`, `residence-address-*`) → i test esistenti restano validi, il legacy ha un prefisso extra per non collidere.
+
+### Test
+- Contatto di test creato con tutti 4 gli indirizzi: strutturato, legacy diverso, lavoro, residenza → verificato tramite API che vengono tutti persistiti.
+- Il codice compila senza errori di lint.
+- Contatto test rimosso dopo la validazione.
+
+
 ## V50.z69 (Set 2026) — Ripristino messaggio WhatsApp negli Script (PROMPT 8)
 
 ### Richiesta utente

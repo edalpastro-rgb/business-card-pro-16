@@ -217,6 +217,44 @@ function ContactDetail() {
     Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`);
   };
 
+  // V50.z70 — Blocco riutilizzabile: mostra una riga indirizzo con i propri bottoni Waze/Maps.
+  // Ogni indirizzo del contatto (principale, legacy, lavoro, residenza) usa questo blocco.
+  const AddressBlock = ({ icon, label, addr, testIdPrefix }: { icon: any; label: string; addr: string; testIdPrefix: string }) => {
+    if (!addr || !addr.trim()) return null;
+    return (
+      <View>
+        <InfoRow icon={icon} label={label} value={addr} />
+        <View style={styles.navBtnRow}>
+          <Pressable
+            testID={`${testIdPrefix}-waze-btn`}
+            onPress={() => openWazeAddr(addr)}
+            style={styles.wazeInline}
+          >
+            <Ionicons name="navigate" size={14} color="#FFF" />
+            <Text style={styles.wazeInlineTxt}>Waze</Text>
+          </Pressable>
+          <Pressable
+            testID={`${testIdPrefix}-maps-btn`}
+            onPress={() => openGoogleMapsAddr(addr)}
+            style={[styles.wazeInline, { backgroundColor: "#4285F4" }]}
+          >
+            <Ionicons name="map" size={14} color="#FFF" />
+            <Text style={styles.wazeInlineTxt}>Google Maps</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  // V50.z70 — Costruisco la lista completa degli indirizzi da mostrare, evitando duplicati.
+  const structuredAddr = [c.address_street, [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province]
+    .filter(Boolean)
+    .join(", ")
+    .trim();
+  const legacyAddr = (c.address || "").trim();
+  // Mostro `address` (legacy) solo se non è già uguale a quello strutturato (evita duplicati per utenti migrati)
+  const showLegacyAddr = legacyAddr && legacyAddr !== structuredAddr;
+
   const addTextNote = async () => {
     if (!noteText.trim()) return;
     setBusy(true);
@@ -781,88 +819,21 @@ function ContactDetail() {
             <InfoRow icon="mail-outline" label="Email principale" value={c.email || "—"} />
             {c.email_alt ? <InfoRow icon="mail-outline" label="Email 2°" value={c.email_alt} /> : null}
             {(c.address_street || c.address_city) ? (
-              <View>
-                <InfoRow icon="location-outline" label="Indirizzo"
-                  value={[c.address_street, [c.address_zip, c.address_city].filter(Boolean).join(" "), c.address_province].filter(Boolean).join(", ")} />
-                <View style={styles.navBtnRow}>
-                  <Pressable
-                    testID="address-waze-btn"
-                    onPress={() => openWazeAddr([c.address_street, c.address_city, c.address_province].filter(Boolean).join(", "))}
-                    style={styles.wazeInline}
-                  >
-                    <Ionicons name="navigate" size={14} color="#FFF" />
-                    <Text style={styles.wazeInlineTxt}>Waze</Text>
-                  </Pressable>
-                  <Pressable
-                    testID="address-maps-btn"
-                    onPress={() => openGoogleMapsAddr([c.address_street, c.address_city, c.address_province].filter(Boolean).join(", "))}
-                    style={[styles.wazeInline, { backgroundColor: "#4285F4" }]}
-                  >
-                    <Ionicons name="map" size={14} color="#FFF" />
-                    <Text style={styles.wazeInlineTxt}>Google Maps</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : (c.address ? (
-              <View>
-                <InfoRow icon="location-outline" label="Indirizzo" value={c.address} />
-                <View style={styles.navBtnRow}>
-                  <Pressable testID="address-waze-btn" onPress={() => openWazeAddr(c.address)} style={styles.wazeInline}>
-                    <Ionicons name="navigate" size={14} color="#FFF" />
-                    <Text style={styles.wazeInlineTxt}>Waze</Text>
-                  </Pressable>
-                  <Pressable testID="address-maps-btn" onPress={() => openGoogleMapsAddr(c.address)} style={[styles.wazeInline, { backgroundColor: "#4285F4" }]}>
-                    <Ionicons name="map" size={14} color="#FFF" />
-                    <Text style={styles.wazeInlineTxt}>Google Maps</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : null)}
+              <AddressBlock icon="location-outline" label="Indirizzo" addr={structuredAddr} testIdPrefix="address" />
+            ) : null}
+            {showLegacyAddr ? (
+              <AddressBlock
+                icon="location-outline"
+                label={(c.address_street || c.address_city) ? "Indirizzo alternativo" : "Indirizzo"}
+                addr={legacyAddr}
+                testIdPrefix={(c.address_street || c.address_city) ? "address-legacy" : "address"}
+              />
+            ) : null}
             {c.work_address ? (
-              <View>
-                <InfoRow icon="briefcase-outline" label="Indirizzo di lavoro" value={c.work_address} />
-                <View style={styles.navBtnRow}>
-                  <Pressable
-                    testID="work-address-waze-btn"
-                    onPress={() => openWazeAddr(c.work_address || "")}
-                    style={styles.wazeInline}
-                  >
-                    <Ionicons name="navigate" size={14} color="#FFF" />
-                    <Text style={styles.wazeInlineTxt}>Waze</Text>
-                  </Pressable>
-                  <Pressable
-                    testID="work-address-maps-btn"
-                    onPress={() => openGoogleMapsAddr(c.work_address || "")}
-                    style={[styles.wazeInline, { backgroundColor: "#4285F4" }]}
-                  >
-                    <Ionicons name="map" size={14} color="#FFF" />
-                    <Text style={styles.wazeInlineTxt}>Google Maps</Text>
-                  </Pressable>
-                </View>
-              </View>
+              <AddressBlock icon="briefcase-outline" label="Indirizzo di lavoro" addr={c.work_address} testIdPrefix="work-address" />
             ) : null}
             {c.residence_address ? (
-              <View>
-                <InfoRow icon="home-outline" label="Indirizzo di residenza" value={c.residence_address} />
-                <View style={styles.navBtnRow}>
-                  <Pressable
-                    testID="residence-address-waze-btn"
-                    onPress={() => openWazeAddr(c.residence_address || "")}
-                    style={styles.wazeInline}
-                  >
-                    <Ionicons name="navigate" size={14} color="#FFF" />
-                    <Text style={styles.wazeInlineTxt}>Waze</Text>
-                  </Pressable>
-                  <Pressable
-                    testID="residence-address-maps-btn"
-                    onPress={() => openGoogleMapsAddr(c.residence_address || "")}
-                    style={[styles.wazeInline, { backgroundColor: "#4285F4" }]}
-                  >
-                    <Ionicons name="map" size={14} color="#FFF" />
-                    <Text style={styles.wazeInlineTxt}>Google Maps</Text>
-                  </Pressable>
-                </View>
-              </View>
+              <AddressBlock icon="home-outline" label="Indirizzo di residenza" addr={c.residence_address} testIdPrefix="residence-address" />
             ) : null}
             {c.birth_date ? <InfoRow icon="gift-outline" label="Data di nascita / Compleanno" value={c.birth_date} /> : null}
             {(c.anniversaries || []).map((ann: any, i: number) => (
