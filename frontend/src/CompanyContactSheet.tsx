@@ -1038,8 +1038,14 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
           animationType="slide"
           onRequestClose={() => setLinkEditor(null)}
         >
-          <Pressable style={styles.backdrop} onPress={() => setLinkEditor(null)}>
-            <View style={styles.linkSheet} onStartShouldSetResponder={() => true}>
+          {/* V50.z59 — Bug fix: rimosso il Pressable backdrop con onPress che
+              chiudeva il modal. Il re-render del componente causato da
+              onChangeText veniva interpretato come tap sulla backdrop dal
+              WebView (bug nested-Modal + react-native-keyboard-controller),
+              chiudendo il modal appena l'utente digitava un carattere.
+              L'utente chiude via Annulla o back Android (onRequestClose). */}
+          <View style={styles.backdrop} pointerEvents="box-none">
+            <View style={styles.linkSheet}>
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>
                 {linkEditor.mode === "edit" ? "Modifica link" : "Nuovo link"}
@@ -1104,7 +1110,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                 </Pressable>
               </View>
             </View>
-          </Pressable>
+          </View>
         </Modal>
       )}
 
