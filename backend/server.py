@@ -1700,13 +1700,31 @@ async def get_latest_pun(user=Depends(get_current_user)):
 class InfoRequestIn(BaseModel):
     subject: str = Field(min_length=2, max_length=200)
     body: str = Field(min_length=2, max_length=4000)
+    # V50.z83 — Richiesta collegabile a un contatto/cliente (cronologia in scheda)
+    contact_id: Optional[str] = None
 
 
 class InfoRequestUpdate(BaseModel):
     status: Literal["pending", "resolved"]
 
 
+class InfoRequestMessageIn(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+
+
 def _info_req_out(doc: dict) -> dict:
+    def _iso(v):
+        if isinstance(v, datetime): return v.isoformat()
+        return v
+    msgs = []
+    for m in (doc.get("messages") or []):
+        msgs.append({
+            "author_id": m.get("author_id"),
+            "author_name": m.get("author_name"),
+            "author_role": m.get("author_role"),
+            "text": m.get("text"),
+            "at": _iso(m.get("at")),
+        })
     return {
         "request_id": doc.get("request_id"),
         "subject": doc.get("subject"),
@@ -1714,15 +1732,49 @@ def _info_req_out(doc: dict) -> dict:
         "status": doc.get("status") or "pending",
         "created_by": doc.get("created_by"),
         "created_by_name": doc.get("created_by_name"),
-        "created_at": (doc.get("created_at").isoformat() if isinstance(doc.get("created_at"), datetime) else doc.get("created_at")),
-        "resolved_at": (doc.get("resolved_at").isoformat() if isinstance(doc.get("resolved_at"), datetime) else doc.get("resolved_at")),
+        "contact_id": doc.get("contact_id"),
+        "created_at": _iso(doc.get("created_at")),
+        "resolved_at": _iso(doc.get("resolved_at")),
+        "updated_at": _iso(doc.get("updated_at") or doc.get("created_at")),
+        "master_last_seen_at": _iso(doc.get("master_last_seen_at")),
+        "collaborator_last_seen_at": _iso(doc.get("collaborator_last_seen_at")),
+        "messages": msgs,
     }
+
+
+def _info_req_unread_for(doc: dict, user: dict) -> bool:
+    """Nuovo messaggio non ancora letto dall'utente corrente?"""
+    updated = doc.get("updated_at") or doc.get("created_at")
+    if not updated:
+        return False
+    if is_owner(user):
+        seen = doc.get("master_last_seen_at")
+    else:
+        # Solo il creatore vede come "unread"
+        if doc.get("created_by") != user["user_id"]:
+            return False
+        seen = doc.get("collaborator_last_seen_at")
+    if not seen:
+        # Master: unread se la richiesta NON è stata creata dal Master stesso
+        if is_owner(user) and doc.get("created_by") == user["user_id"]:
+            return False
+        return True
+    try:
+        return updated > seen
+    except Exception:
+        return False
 
 
 @api_router.post("/info-requests")
 async def create_info_request(body: InfoRequestIn, user=Depends(get_current_user)):
     """Qualsiasi utente del tenant può inviare una richiesta info. Il Master la vede in home."""
     tid = tenant_id(user)
+    # Verifica contact_id se presente
+    if body.contact_id:
+        c = await db.contacts.find_one({"user_id": tid, "contact_id": body.contact_id}, {"_id": 0, "contact_id": 1})
+        if not c:
+            raise HTTPException(status_code=404, detail="Contatto non trovato")
+    now = utcnow()
     doc = {
         "request_id": f"ir_{uuid.uuid4().hex[:12]}",
         "user_id": tid,
@@ -1730,16 +1782,21 @@ async def create_info_request(body: InfoRequestIn, user=Depends(get_current_user
         "created_by_name": user.get("name") or user.get("email") or "",
         "subject": body.subject.strip(),
         "body": body.body.strip(),
+        "contact_id": body.contact_id,
         "status": "pending",
-        "created_at": utcnow(),
+        "created_at": now,
+        "updated_at": now,
         "resolved_at": None,
+        "master_last_seen_at": now if is_owner(user) else None,
+        "collaborator_last_seen_at": now if not is_owner(user) else None,
+        "messages": [],
     }
     await db.info_requests.insert_one(doc)
     return _info_req_out(doc)
 
 
 @api_router.get("/info-requests")
-async def list_info_requests(status: Optional[str] = None, user=Depends(get_current_user)):
+async def list_info_requests(status: Optional[str] = None, contact_id: Optional[str] = None, user=Depends(get_current_user)):
     """Master vede tutte le richieste del tenant; sub-user vedono solo le proprie."""
     tid = tenant_id(user)
     q: Dict[str, Any] = {"user_id": tid}
@@ -1747,19 +1804,34 @@ async def list_info_requests(status: Optional[str] = None, user=Depends(get_curr
         q["created_by"] = user["user_id"]
     if status in ("pending", "resolved"):
         q["status"] = status
-    docs = await db.info_requests.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
-    return {"items": [_info_req_out(d) for d in docs]}
+    if contact_id:
+        q["contact_id"] = contact_id
+    docs = await db.info_requests.find(q, {"_id": 0}).sort("updated_at", -1).to_list(500)
+    return {"items": [{**_info_req_out(d), "unread": _info_req_unread_for(d, user)} for d in docs]}
 
 
 @api_router.get("/info-requests/count")
 async def count_info_requests(user=Depends(get_current_user)):
-    """Conta le richieste pending visibili all'utente."""
+    """Conta le richieste visibili + le non lette dall'utente corrente."""
     tid = tenant_id(user)
-    q: Dict[str, Any] = {"user_id": tid, "status": "pending"}
+    q: Dict[str, Any] = {"user_id": tid}
     if not is_owner(user):
         q["created_by"] = user["user_id"]
-    n = await db.info_requests.count_documents(q)
-    return {"pending": n}
+    all_docs = await db.info_requests.find(q, {"_id": 0}).to_list(1000)
+    pending = sum(1 for d in all_docs if (d.get("status") or "pending") == "pending")
+    unread = sum(1 for d in all_docs if _info_req_unread_for(d, user))
+    return {"pending": pending, "unread": unread}
+
+
+@api_router.get("/info-requests/{request_id}")
+async def get_info_request(request_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    d = await db.info_requests.find_one({"user_id": tid, "request_id": request_id}, {"_id": 0})
+    if not d:
+        raise HTTPException(status_code=404, detail="Richiesta non trovata")
+    if not is_owner(user) and d.get("created_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    return {**_info_req_out(d), "unread": _info_req_unread_for(d, user)}
 
 
 @api_router.put("/info-requests/{request_id}")
@@ -1771,7 +1843,8 @@ async def update_info_request(request_id: str, body: InfoRequestUpdate, user=Dep
     existing = await db.info_requests.find_one({"user_id": tid, "request_id": request_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Richiesta non trovata")
-    update = {"status": body.status, "resolved_at": utcnow() if body.status == "resolved" else None}
+    now = utcnow()
+    update = {"status": body.status, "resolved_at": now if body.status == "resolved" else None, "updated_at": now}
     await db.info_requests.update_one({"request_id": request_id}, {"$set": update})
     updated = await db.info_requests.find_one({"request_id": request_id}, {"_id": 0})
     return _info_req_out(updated)
@@ -1788,6 +1861,64 @@ async def delete_info_request(request_id: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Non autorizzato")
     await db.info_requests.delete_one({"request_id": request_id})
     return {"ok": True}
+
+
+@api_router.post("/info-requests/{request_id}/messages")
+async def reply_info_request(request_id: str, body: InfoRequestMessageIn, user=Depends(get_current_user)):
+    """Aggiunge un messaggio al thread. Sia Master che creatore possono rispondere."""
+    tid = tenant_id(user)
+    d = await db.info_requests.find_one({"user_id": tid, "request_id": request_id})
+    if not d:
+        raise HTTPException(status_code=404, detail="Richiesta non trovata")
+    if not is_owner(user) and d.get("created_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    now = utcnow()
+    msg = {
+        "author_id": user["user_id"],
+        "author_name": user.get("name") or user.get("email") or "",
+        "author_role": "master" if is_owner(user) else "collaborator",
+        "text": body.text.strip(),
+        "at": now,
+    }
+    seen_field = "master_last_seen_at" if is_owner(user) else "collaborator_last_seen_at"
+    await db.info_requests.update_one(
+        {"request_id": request_id},
+        {
+            "$push": {"messages": msg},
+            "$set": {"updated_at": now, seen_field: now},
+        },
+    )
+    updated = await db.info_requests.find_one({"request_id": request_id}, {"_id": 0})
+    return _info_req_out(updated)
+
+
+@api_router.post("/info-requests/{request_id}/seen")
+async def mark_info_request_seen(request_id: str, user=Depends(get_current_user)):
+    """Segna la richiesta come letta dall'utente corrente."""
+    tid = tenant_id(user)
+    d = await db.info_requests.find_one({"user_id": tid, "request_id": request_id})
+    if not d:
+        raise HTTPException(status_code=404, detail="Richiesta non trovata")
+    if not is_owner(user) and d.get("created_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    now = utcnow()
+    seen_field = "master_last_seen_at" if is_owner(user) else "collaborator_last_seen_at"
+    await db.info_requests.update_one({"request_id": request_id}, {"$set": {seen_field: now}})
+    return {"ok": True}
+
+
+@api_router.get("/contacts/{contact_id}/info-requests")
+async def list_info_requests_for_contact(contact_id: str, user=Depends(get_current_user)):
+    """Richieste info collegate a un contatto specifico (per la scheda cliente)."""
+    tid = tenant_id(user)
+    c = await db.contacts.find_one({"user_id": tid, "contact_id": contact_id}, {"_id": 0, "contact_id": 1})
+    if not c:
+        raise HTTPException(status_code=404, detail="Contatto non trovato")
+    q: Dict[str, Any] = {"user_id": tid, "contact_id": contact_id}
+    if not is_owner(user):
+        q["created_by"] = user["user_id"]
+    docs = await db.info_requests.find(q, {"_id": 0}).sort("updated_at", -1).to_list(200)
+    return {"items": [{**_info_req_out(d), "unread": _info_req_unread_for(d, user)} for d in docs]}
 
 
 # =========================

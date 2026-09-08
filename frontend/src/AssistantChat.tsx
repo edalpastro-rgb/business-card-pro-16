@@ -2011,9 +2011,12 @@ function TypingDots() {
  */
 export function AssistantFAB() {
   const { user } = useAuth();
+  const router = useRouter();
   const { present } = useFabStack();
   const [open, setOpen] = useState(false);
+  const [unreadInfoReq, setUnreadInfoReq] = useState(0);
   const pulse = useRef(new Animated.Value(1)).current;
+  const blink = useRef(new Animated.Value(1)).current;
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -2027,17 +2030,52 @@ export function AssistantFAB() {
     return () => loop.stop();
   }, [pulse]);
 
+  // V50.z83 — Poll info-requests: se ci sono richieste non lette, badge + blink veloce
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const fetchCount = async () => {
+      try {
+        const r = await api<{ pending: number; unread: number }>("/info-requests/count");
+        if (!cancelled) setUnreadInfoReq(r?.unread || 0);
+      } catch { /* ignore */ }
+    };
+    fetchCount();
+    const iv = setInterval(fetchCount, 30000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [user]);
+
+  // Blink loop attivo solo quando ci sono unread
+  useEffect(() => {
+    if (unreadInfoReq > 0) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(blink, { toValue: 0.35, duration: 500, useNativeDriver: true }),
+          Animated.timing(blink, { toValue: 1.0, duration: 500, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+      return () => { loop.stop(); blink.setValue(1); };
+    } else {
+      blink.setValue(1);
+    }
+  }, [unreadInfoReq, blink]);
+
   // Hide when not logged in
   if (!user) return null;
 
-  // Base bottom (above tab bar). Mirrors the tab bar height formula in
-  // (tabs)/_layout.tsx (60 + max(insets.bottom, 20)) plus a 12px gap, so the
-  // FAB clears the tab bar on devices with a tall gesture-bar inset instead
-  // of sinking into the "Profilo" tab column. If Calculator FAB is on the
-  // same screen, stack the Assistant FAB above it (calc FAB height 56 + 20px gap = 76).
   const tabBarHeight = 60 + Math.max(insets.bottom || 0, 20);
   const baseBottom = tabBarHeight + 12;
   const bottom = present.calculator ? baseBottom + 76 : baseBottom;
+
+  const handlePress = () => {
+    // Se ci sono richieste info non lette, apri prima quella pagina invece del chat modal
+    if (unreadInfoReq > 0) {
+      router.push("/info-requests" as any);
+      return;
+    }
+    setOpen(true);
+  };
 
   return (
     <>
@@ -2045,13 +2083,13 @@ export function AssistantFAB() {
         pointerEvents="box-none"
         style={[
           styles.fabWrap,
-          { bottom, transform: [{ scale: pulse }] },
+          { bottom, transform: [{ scale: pulse }], opacity: unreadInfoReq > 0 ? blink : 1 },
         ]}
       >
         <Pressable
-          onPress={() => setOpen(true)}
+          onPress={handlePress}
           style={styles.fab}
-          accessibilityLabel="Apri assistente AI"
+          accessibilityLabel={unreadInfoReq > 0 ? `Apri richieste info (${unreadInfoReq} nuove)` : "Apri assistente AI"}
           testID="assistant-fab"
         >
           <Image
@@ -2061,6 +2099,11 @@ export function AssistantFAB() {
             testID="assistant-fab-logo"
           />
           <View style={styles.fabDot} />
+          {unreadInfoReq > 0 ? (
+            <View style={styles.fabBadge} testID="assistant-fab-badge">
+              <Text style={styles.fabBadgeTxt}>{unreadInfoReq > 9 ? "9+" : String(unreadInfoReq)}</Text>
+            </View>
+          ) : null}
         </Pressable>
       </Animated.View>
       <AssistantChatModal visible={open} onClose={() => setOpen(false)} />
@@ -2102,6 +2145,22 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#FFF",
   },
+  // V50.z83 — Badge conteggio richieste info non lette
+  fabBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    backgroundColor: "#DC2626",
+    borderWidth: 2,
+    borderColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fabBadgeTxt: { color: "#FFF", fontSize: 11, fontWeight: "900" },
 
   // Modal
   backdrop: { flex: 1, backgroundColor: "rgba(15, 15, 25, 0.55)" },

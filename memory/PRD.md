@@ -4674,3 +4674,49 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
 **Test verificato**:
 - ✅ Backend: PUN restituisce agosto 2026 (F1=174.52, F2=204.35, F3=171.72 €/MWh, delta +14.62% vs luglio); create/list/count/put/delete info-requests funzionano; ACL rispettati (sub-user vede solo le proprie).
 - ✅ Frontend: home mostra widget PUN con fasce e delta pill; widget "Richieste info in attesa" mostra count corretto; tap → apre pagina lista; tab "Nuova" invia richiesta e la lista aggiorna a "2 pending"; "Segna risolta" e delete funzionano.
+
+---
+
+## PROMPT 17.b — Notifica Master via Axon + Chat Thread + Cronologia Cliente (V50.z83) ✅ TESTATO
+
+**Backend (`server.py`)** — estesi endpoint info-requests:
+- Modello `info_requests` esteso: `contact_id` (opz.), `messages[]`, `updated_at`, `master_last_seen_at`, `collaborator_last_seen_at`.
+- `POST /api/info-requests` ora accetta `contact_id` (validato contro `db.contacts`).
+- `GET /api/info-requests` restituisce `unread` per utente + filtro opzionale `?contact_id=`.
+- `GET /api/info-requests/count` → `{pending, unread}` (unread calcolato via `updated_at > last_seen`).
+- `GET /api/info-requests/{id}` — dettaglio con thread.
+- `POST /api/info-requests/{id}/messages` — reply (Master o creatore), aggiorna `updated_at` + last_seen del mittente.
+- `POST /api/info-requests/{id}/seen` — segna letto per l'utente corrente.
+- `GET /api/contacts/{contact_id}/info-requests` — richieste + thread collegate al cliente.
+
+**Frontend**:
+- **AssistantFAB (`src/AssistantChat.tsx`)**:
+  - Poll `/info-requests/count` ogni 30s.
+  - Se `unread > 0`: badge rosso col numero + animazione blink (opacity 0.35↔1.0 ogni 500ms) sopra al pulse standard.
+  - Al tap con `unread > 0` naviga a `/info-requests` invece del modal Axon.
+- **`app/info-request-chat.tsx`** (nuova pagina):
+  - Header con oggetto, autore, cliente collegato (se presente), pill stato + toggle Risolta (solo Master).
+  - Strip cliccabile "Apri scheda cliente" → naviga a `/contact/{id}`.
+  - Bolle chat stile messenger: "MESSAGGIO INIZIALE" (bordo ambra) per il body originale, poi le repliche colorate per author (arancione a destra = self, grigio a sinistra = altro).
+  - Input testo + Send con `KeyboardAwareScrollView`; auto-scroll ultimo msg.
+  - All'apertura chiama `/seen` per azzerare unread.
+- **`app/info-requests.tsx`** aggiornata:
+  - Card ora `Pressable` → apre `/info-request-chat?id=...`.
+  - Bordo rosso sinistro + puntino su card `unread`.
+  - Nel form Nuova: selettore contatto opzionale (bottom sheet con search) → salvato in `contact_id`.
+- **`src/ContactInfoRequestsSection.tsx`** (nuovo componente):
+  - Fetch `/contacts/{id}/info-requests`.
+  - Mostrato in `/contact/[id]` (tab Info/Note/File) sotto AxonProfileCard + AxonAnalysesSection.
+  - Card compatta: badge unread, oggetto, autore, count risposte, pill stato. Tap → chat thread.
+  - Espandibile "Mostra altre N" se > 2 richieste.
+
+**Test end-to-end verificato**:
+- Creato collaboratore `collab.demo@advisoros.it` / `Demo1234!` (sub-user del Master demo).
+- Collaboratore invia richiesta collegata a Giuseppe Verdi.
+- Master si logga, FAB Axon mostra badge rosso "1" e lampeggia, `count` = `{pending:1, unread:1}`.
+- Tap FAB → apre lista `/info-requests` con card bordata rossa "Dubbio su offerta Luce".
+- Tap card → apre chat con "MESSAGGIO INIZIALE" del collaboratore + strip "Apri scheda cliente".
+- Master risponde: nuova bolla arancione a destra, `/seen` chiamato → badge sparisce dopo refresh.
+- Nella scheda contatto Giuseppe Verdi, sezione "RICHIESTE INFO & CHAT · 1" con card "Dubbio su offerta Luce · 1 risposte · ATTESA".
+
+**Credenziali test aggiornate in `/app/memory/test_credentials.md`**.

@@ -23,9 +23,15 @@ type Req = {
   status: "pending" | "resolved";
   created_by: string;
   created_by_name?: string;
+  contact_id?: string | null;
   created_at: string;
   resolved_at?: string | null;
+  updated_at?: string;
+  unread?: boolean;
+  messages?: unknown[];
 };
+
+type ContactMini = { contact_id: string; first_name?: string; last_name?: string; phone?: string };
 
 export default function InfoRequestsScreen() {
   const router = useRouter();
@@ -44,6 +50,12 @@ export default function InfoRequestsScreen() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  // V50.z83 — contatto opzionale collegato
+  const [contactPickerOpen, setContactPickerOpen] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<ContactMini | null>(null);
+  const [contactSearch, setContactSearch] = useState("");
+  const [contactResults, setContactResults] = useState<ContactMini[]>([]);
+  const [contactLoading, setContactLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -55,6 +67,24 @@ export default function InfoRequestsScreen() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // Cerca contatti per il picker
+  useEffect(() => {
+    if (!contactPickerOpen) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setContactLoading(true);
+      try {
+        const q = contactSearch.trim();
+        const url = q ? `/contacts?search=${encodeURIComponent(q)}&limit=20` : `/contacts?limit=20`;
+        const res = await api<{ items?: ContactMini[] } | ContactMini[]>(url);
+        const list = Array.isArray(res) ? res : (res as any).items || [];
+        if (!cancelled) setContactResults(list);
+      } catch { /* ignore */ }
+      finally { if (!cancelled) setContactLoading(false); }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [contactPickerOpen, contactSearch]);
+
   const send = async () => {
     if (subject.trim().length < 2 || body.trim().length < 2) {
       notify("Compila", "Serve un oggetto e un messaggio");
@@ -62,9 +92,9 @@ export default function InfoRequestsScreen() {
     }
     setSending(true);
     try {
-      await api(`/info-requests`, { method: "POST", body: { subject: subject.trim(), body: body.trim() } });
+      await api(`/info-requests`, { method: "POST", body: { subject: subject.trim(), body: body.trim(), contact_id: selectedContact?.contact_id || null } });
       notify("Inviata", "La richiesta è stata trasmessa al Master");
-      setSubject(""); setBody("");
+      setSubject(""); setBody(""); setSelectedContact(null);
       setTab("pending");
       load();
     } catch (e: any) {
@@ -146,6 +176,23 @@ export default function InfoRequestsScreen() {
             maxLength={4000}
             testID="ireq-body"
           />
+
+          <Text style={styles.label}>Cliente collegato (opzionale)</Text>
+          {selectedContact ? (
+            <View style={styles.contactPill}>
+              <Ionicons name="person" size={14} color={theme.color.brandPrimary} />
+              <Text style={styles.contactPillTxt} numberOfLines={1}>{`${selectedContact.first_name || ""} ${selectedContact.last_name || ""}`.trim() || selectedContact.contact_id}</Text>
+              <Pressable onPress={() => setSelectedContact(null)} hitSlop={6}>
+                <Ionicons name="close-circle" size={16} color={theme.color.muted} />
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable onPress={() => setContactPickerOpen(true)} style={styles.pickerBtn} testID="ireq-pick-contact">
+              <Ionicons name="link" size={14} color={theme.color.brandPrimary} />
+              <Text style={styles.pickerBtnTxt}>Collega un cliente</Text>
+            </Pressable>
+          )}
+
           <Pressable onPress={send} disabled={sending} style={[styles.sendBtn, sending && { opacity: 0.6 }]} testID="ireq-send">
             {sending ? <ActivityIndicator color="#FFF" /> : (
               <>
@@ -171,35 +218,91 @@ export default function InfoRequestsScreen() {
             </View>
           ) : (
             filtered.map((r) => (
-              <View key={r.request_id} style={styles.card} testID={`ireq-card-${r.request_id}`}>
+              <Pressable
+                key={r.request_id}
+                onPress={() => router.push(`/info-request-chat?id=${r.request_id}` as any)}
+                style={[styles.card, r.unread && styles.cardUnread]}
+                testID={`ireq-card-${r.request_id}`}
+              >
                 <View style={styles.cardHead}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.cardSubject} numberOfLines={2}>{r.subject}</Text>
-                    <Text style={styles.cardMeta}>{r.created_by_name || r.created_by} · {formatDate(r.created_at)}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      {r.unread ? <View style={styles.unreadDot} /> : null}
+                      <Text style={styles.cardSubject} numberOfLines={2}>{r.subject}</Text>
+                    </View>
+                    <Text style={styles.cardMeta}>
+                      {r.created_by_name || r.created_by} · {formatDate(r.updated_at || r.created_at)}
+                      {r.messages && r.messages.length > 0 ? ` · ${r.messages.length} risposte` : ""}
+                    </Text>
                   </View>
                   <View style={[styles.statusPill, r.status === "pending" ? styles.pillPending : styles.pillResolved]}>
                     <Text style={styles.pillTxt}>{r.status === "pending" ? "In attesa" : "Risolta"}</Text>
                   </View>
                 </View>
-                <Text style={styles.cardBody}>{r.body}</Text>
+                <Text style={styles.cardBody} numberOfLines={3}>{r.body}</Text>
                 <View style={styles.actions}>
+                  <View style={styles.openHint}>
+                    <Ionicons name="chatbubbles" size={12} color={theme.color.brandPrimary} />
+                    <Text style={styles.openHintTxt}>Apri conversazione</Text>
+                  </View>
                   {isMaster ? (
-                    <Pressable onPress={() => toggleStatus(r)} style={[styles.actionBtn, r.status === "pending" ? styles.btnResolve : styles.btnReopen]} testID={`ireq-toggle-${r.request_id}`}>
+                    <Pressable onPress={(e) => { (e as any).stopPropagation?.(); toggleStatus(r); }} style={[styles.actionBtn, r.status === "pending" ? styles.btnResolve : styles.btnReopen]} testID={`ireq-toggle-${r.request_id}`}>
                       <Ionicons name={r.status === "pending" ? "checkmark-circle" : "refresh"} size={14} color="#FFF" />
-                      <Text style={styles.actionTxt}>{r.status === "pending" ? "Segna risolta" : "Riapri"}</Text>
+                      <Text style={styles.actionTxt}>{r.status === "pending" ? "Risolta" : "Riapri"}</Text>
                     </Pressable>
                   ) : null}
                   {(isMaster || r.created_by === user?.user_id) ? (
-                    <Pressable onPress={() => remove(r)} style={[styles.actionBtn, styles.btnDelete]} testID={`ireq-delete-${r.request_id}`}>
+                    <Pressable onPress={(e) => { (e as any).stopPropagation?.(); remove(r); }} style={[styles.actionBtn, styles.btnDelete]} testID={`ireq-delete-${r.request_id}`}>
                       <Ionicons name="trash" size={14} color="#DC2626" />
                     </Pressable>
                   ) : null}
                 </View>
-              </View>
+              </Pressable>
             ))
           )}
         </ScrollView>
       )}
+
+      {/* V50.z83 — Modal picker contatto */}
+      {contactPickerOpen ? (
+        <View style={styles.pickerOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setContactPickerOpen(false)} />
+          <View style={styles.pickerSheet}>
+            <View style={styles.pickerHead}>
+              <Text style={styles.pickerTitle}>Seleziona cliente</Text>
+              <Pressable onPress={() => setContactPickerOpen(false)} hitSlop={8}>
+                <Ionicons name="close" size={20} color={theme.color.muted} />
+              </Pressable>
+            </View>
+            <TextInput
+              value={contactSearch}
+              onChangeText={setContactSearch}
+              placeholder="Cerca nome, cognome…"
+              placeholderTextColor="#94A3B8"
+              style={[styles.input, { margin: 12 }]}
+              testID="ireq-contact-search"
+            />
+            <ScrollView style={{ maxHeight: 360 }}>
+              {contactLoading ? (
+                <ActivityIndicator style={{ marginVertical: 24 }} color={theme.color.brandPrimary} />
+              ) : contactResults.length === 0 ? (
+                <Text style={{ padding: 24, textAlign: "center", color: theme.color.muted, fontSize: 13 }}>Nessun contatto trovato</Text>
+              ) : (
+                contactResults.map((c) => (
+                  <Pressable
+                    key={c.contact_id}
+                    onPress={() => { setSelectedContact(c); setContactPickerOpen(false); }}
+                    style={styles.pickerRow}
+                  >
+                    <Ionicons name="person-circle" size={26} color={theme.color.brandPrimary} />
+                    <Text style={styles.pickerRowTxt}>{`${c.first_name || ""} ${c.last_name || ""}`.trim() || c.contact_id}</Text>
+                  </Pressable>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -229,6 +332,8 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", padding: 40, gap: 8 },
   emptyTxt: { fontSize: 13, color: theme.color.muted },
   card: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 12, padding: 12, marginBottom: 10, gap: 8 },
+  cardUnread: { borderColor: "#DC2626", borderLeftWidth: 4 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#DC2626" },
   cardHead: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   cardSubject: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
   cardMeta: { fontSize: 11, color: theme.color.muted, marginTop: 3 },
@@ -243,4 +348,16 @@ const styles = StyleSheet.create({
   btnResolve: { backgroundColor: "#16A34A" },
   btnReopen: { backgroundColor: "#F59E0B" },
   btnDelete: { backgroundColor: "#FEE2E2", paddingHorizontal: 10 },
+  openHint: { flex: 1, flexDirection: "row", alignItems: "center", gap: 4 },
+  openHintTxt: { fontSize: 11, fontWeight: "700", color: theme.color.brandPrimary },
+  contactPill: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: theme.color.brandPrimary + "18", borderRadius: 999, alignSelf: "flex-start" },
+  contactPillTxt: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary, maxWidth: 200 },
+  pickerBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", borderColor: theme.color.brandPrimary },
+  pickerBtnTxt: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary },
+  pickerOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end", zIndex: 100 },
+  pickerSheet: { backgroundColor: "#FFF", borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "80%" },
+  pickerHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  pickerTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
+  pickerRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  pickerRowTxt: { fontSize: 14, color: theme.color.onSurface },
 });

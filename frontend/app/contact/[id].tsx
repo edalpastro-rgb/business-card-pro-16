@@ -35,6 +35,7 @@ import { DeadlinesSection } from "@/src/DeadlinesSection";
 import { PromoteToAgentModal } from "@/src/PromoteToAgentModal";
 import { AxonAnalysesSection } from "@/src/AxonAnalysesSection";
 import { AxonProfileCard } from "@/src/AxonProfileCard";
+import { ContactInfoRequestsSection } from "@/src/ContactInfoRequestsSection";
 import { ContactMailAttachmentsSection } from "@/src/ContactMailAttachmentsSection";
 import { ContactCustomFieldsSection } from "@/src/ContactCustomFieldsSection";
 
@@ -1223,6 +1224,8 @@ function ContactDetail() {
           <>
             <AxonProfileCard contactId={id} />
             <AxonAnalysesSection contactId={id} />
+            {/* V50.z83 — Richieste info & chat collegate al cliente */}
+            <ContactInfoRequestsSection contactId={id as string} />
           </>
         )}
 
