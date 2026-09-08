@@ -2,7 +2,7 @@
 // Struttura i18n con IT default, EN/ES pronti per traduzioni.
 // Route: /adv-landing (accessibile senza login)
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Pressable,
   ScrollView,
   Linking,
+  Animated,
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -226,6 +227,10 @@ export default function AdvLandingPage() {
               <StoreButton kind="ios" label={t.hero.ctaApp} url={APP_STORE_URL} />
               <StoreButton kind="android" label={t.hero.ctaPlay} url={PLAY_STORE_URL} />
             </View>
+
+            {/* V50.z105.b — Mockup animato smartphone con carousel di screen */}
+            <HeroPhoneMockup isDesktop={isDesktop} />
+
             <View style={styles.slogansRow}>
               <SloganChip text={t.slogans[0]} />
               <SloganChip text={t.slogans[1]} />
@@ -404,6 +409,272 @@ function SloganChip({ text }: { text: string }) {
     </View>
   );
 }
+
+// V50.z105.b — Mockup smartphone animato con carousel di "screenshot" fake.
+// 4 schermate rappresentative dell'app che si alternano ogni 3.5s con fade + slide.
+type MockupScreen = {
+  headerColor: string;
+  headerIcon: any;
+  headerTitle: string;
+  content: React.ReactNode;
+};
+
+function HeroPhoneMockup({ isDesktop }: { isDesktop: boolean }) {
+  const [idx, setIdx] = useState(0);
+  const opacity = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  const screens: MockupScreen[] = useMemo(() => [
+    {
+      headerColor: C.blue,
+      headerIcon: "home",
+      headerTitle: "Home Dashboard",
+      content: (
+        <>
+          <View style={mock.widget}>
+            <View style={mock.widgetHead}>
+              <Text style={mock.widgetLbl}>📅 Oggi</Text>
+              <Text style={mock.widgetVal}>3 appt.</Text>
+            </View>
+            <Text style={mock.widgetTxt}>🕐 09:30 · Sig. Rossi</Text>
+            <Text style={mock.widgetTxt}>🕐 11:00 · Sig.ra Bianchi</Text>
+            <Text style={mock.widgetTxt}>🕐 15:30 · Sig. Verdi</Text>
+          </View>
+          <View style={[mock.widget, { borderColor: C.orange + "44" }]}>
+            <View style={mock.widgetHead}>
+              <Text style={mock.widgetLbl}>⚡ PUN Live</Text>
+              <Text style={[mock.widgetVal, { color: C.orange }]}>0,132 €</Text>
+            </View>
+            <Text style={mock.widgetTxt}>F1 +2.3% · F2 -0.8% · F3 +0.4%</Text>
+          </View>
+          <View style={mock.widget}>
+            <Text style={mock.widgetLbl}>📊 Contatti totali</Text>
+            <Text style={[mock.widgetVal, { fontSize: 22, marginTop: 4 }]}>247</Text>
+          </View>
+        </>
+      ),
+    },
+    {
+      headerColor: C.orange,
+      headerIcon: "sparkles",
+      headerTitle: "AxonOS · Briefing",
+      content: (
+        <>
+          <View style={mock.axonBubble}>
+            <Text style={mock.axonHint}>Prima dell&apos;appuntamento con Mario Rossi:</Text>
+            <Text style={mock.axonMsg}>✓ Bolletta gas in scadenza il 15/07</Text>
+            <Text style={mock.axonMsg}>✓ Ultimo contatto: 12 giorni fa</Text>
+            <Text style={mock.axonMsg}>✓ Interessato a fotovoltaico</Text>
+          </View>
+          <View style={mock.userBubble}>
+            <Text style={mock.userMsg}>Suggerisci proposta</Text>
+          </View>
+          <View style={[mock.axonBubble, { marginTop: 8 }]}>
+            <Text style={mock.axonMsg}>💡 Pacchetto Luce + FV 3kW con batteria: risparmio stimato 40% annuo.</Text>
+          </View>
+        </>
+      ),
+    },
+    {
+      headerColor: C.blue,
+      headerIcon: "flash",
+      headerTitle: "Analisi Bolletta",
+      content: (
+        <>
+          <View style={mock.billHead}>
+            <Text style={mock.billOldPrice}>€ 187,40</Text>
+            <Text style={mock.billLbl}>Attuale</Text>
+          </View>
+          <View style={mock.billOffer}>
+            <Text style={mock.offerLbl}>🥇 Migliore offerta trovata</Text>
+            <Text style={mock.offerName}>Enel Energia Fissa 24</Text>
+            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
+              <Text style={mock.offerPrice}>€ 128,90</Text>
+              <Text style={mock.offerSave}>-31%</Text>
+            </View>
+          </View>
+          <View style={[mock.billOffer, { backgroundColor: C.blue + "18", borderColor: C.blue + "55" }]}>
+            <Text style={[mock.offerLbl, { color: C.blue }]}>🥈 Alternativa</Text>
+            <Text style={mock.offerName}>Optima Casa Plus</Text>
+            <Text style={mock.offerPrice}>€ 134,20</Text>
+          </View>
+        </>
+      ),
+    },
+    {
+      headerColor: C.orange,
+      headerIcon: "star",
+      headerTitle: "Recensioni Cliente",
+      content: (
+        <>
+          <View style={mock.reviewStars}>
+            {[1,2,3,4,5].map(i => <Text key={i} style={{ fontSize: 22 }}>⭐</Text>)}
+          </View>
+          <Text style={mock.reviewAvg}>4.9 · 87 recensioni</Text>
+          <View style={mock.reviewCard}>
+            <Text style={mock.reviewTxt}>&ldquo;Consulente eccezionale, mi ha fatto risparmiare 40€ al mese sulla bolletta!&rdquo;</Text>
+            <Text style={mock.reviewAuthor}>— Luigi B.</Text>
+          </View>
+          <View style={mock.reviewCard}>
+            <Text style={mock.reviewTxt}>&ldquo;Servizio impeccabile, sempre disponibile.&rdquo;</Text>
+            <Text style={mock.reviewAuthor}>— Anna V.</Text>
+          </View>
+        </>
+      ),
+    },
+  ], []);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      // fade out + slide up
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 0, duration: 260, useNativeDriver: true }),
+        Animated.timing(translateY, { toValue: -12, duration: 260, useNativeDriver: true }),
+      ]).start(() => {
+        setIdx(i => (i + 1) % screens.length);
+        translateY.setValue(12);
+        Animated.parallel([
+          Animated.timing(opacity, { toValue: 1, duration: 320, useNativeDriver: true }),
+          Animated.timing(translateY, { toValue: 0, duration: 320, useNativeDriver: true }),
+        ]).start();
+      });
+    }, 3800);
+    return () => clearInterval(iv);
+  }, [screens.length, opacity, translateY]);
+
+  const cur = screens[idx];
+  const phoneScale = isDesktop ? 1 : 0.82;
+
+  return (
+    <View style={[mock.wrap, isDesktop && { marginTop: 40 }]} testID="hero-phone-mockup">
+      <View style={[mock.glow, { backgroundColor: cur.headerColor + "22" }]} />
+      <View style={[mock.phone, { transform: [{ scale: phoneScale }] }]}>
+        <View style={mock.notch} />
+        <View style={mock.screen}>
+          <View style={[mock.screenHeader, { backgroundColor: cur.headerColor + "22", borderBottomColor: cur.headerColor + "44" }]}>
+            <View style={[mock.screenHeaderIcon, { backgroundColor: cur.headerColor }]}>
+              <Text style={{ fontSize: 12 }}>{cur.headerIcon === "home" ? "🏠" : cur.headerIcon === "sparkles" ? "✨" : cur.headerIcon === "flash" ? "⚡" : "⭐"}</Text>
+            </View>
+            <Text style={[mock.screenHeaderTxt, { color: cur.headerColor }]}>{cur.headerTitle}</Text>
+          </View>
+          <Animated.View style={{ opacity, transform: [{ translateY }], padding: 12, gap: 8, flex: 1 }}>
+            {cur.content}
+          </Animated.View>
+        </View>
+        {/* Dots */}
+        <View style={mock.dots}>
+          {screens.map((_, i) => (
+            <View
+              key={i}
+              style={[mock.dot, i === idx && { backgroundColor: cur.headerColor, width: 18 }]}
+            />
+          ))}
+        </View>
+      </View>
+      <Text style={mock.mockupCaption}>Demo interattiva — screen reali dell&apos;app</Text>
+    </View>
+  );
+}
+
+const mock = StyleSheet.create({
+  wrap: { alignItems: "center", marginTop: 28, position: "relative" },
+  glow: {
+    position: "absolute", top: 20, left: "10%", right: "10%",
+    height: 260, borderRadius: 200, filter: "blur(40px)" as any,
+    opacity: 0.6,
+  },
+  phone: {
+    width: 260, height: 520,
+    borderRadius: 42,
+    backgroundColor: "#0F1729",
+    borderWidth: 8,
+    borderColor: "#1E2740",
+    padding: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 20 },
+    elevation: 10,
+    overflow: "hidden",
+  },
+  notch: {
+    position: "absolute", top: 6, left: "50%",
+    marginLeft: -60,
+    width: 120, height: 24,
+    borderBottomLeftRadius: 14, borderBottomRightRadius: 14,
+    backgroundColor: "#0A0F1E",
+    zIndex: 2,
+  },
+  screen: {
+    flex: 1,
+    borderRadius: 34,
+    backgroundColor: C.bg,
+    overflow: "hidden",
+  },
+  screenHeader: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 14, paddingTop: 34, paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  screenHeaderIcon: {
+    width: 22, height: 22, borderRadius: 6,
+    alignItems: "center", justifyContent: "center",
+  },
+  screenHeaderTxt: { fontSize: 12, fontWeight: "800" },
+  dots: {
+    position: "absolute", bottom: 14, left: 0, right: 0,
+    flexDirection: "row", justifyContent: "center", gap: 4,
+    zIndex: 2,
+  },
+  dot: {
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: "#26314B",
+  },
+  mockupCaption: { color: C.textFaint, fontSize: 11, marginTop: 16, fontStyle: "italic" },
+  // Widget mockup styles
+  widget: {
+    backgroundColor: C.card, padding: 10, borderRadius: 8,
+    borderWidth: 1, borderColor: C.blue + "33",
+  },
+  widgetHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  widgetLbl: { color: C.textMuted, fontSize: 10, fontWeight: "700" },
+  widgetVal: { color: C.blue, fontSize: 13, fontWeight: "900" },
+  widgetTxt: { color: C.text, fontSize: 10, marginTop: 2 },
+  // Axon chat mockup
+  axonBubble: {
+    backgroundColor: C.blue + "22", padding: 10, borderRadius: 10,
+    borderTopLeftRadius: 2, maxWidth: "85%",
+  },
+  axonHint: { color: C.textFaint, fontSize: 9, fontWeight: "700", marginBottom: 4 },
+  axonMsg: { color: C.text, fontSize: 10.5, lineHeight: 15, marginTop: 2 },
+  userBubble: {
+    backgroundColor: C.orange, padding: 8, borderRadius: 10,
+    borderTopRightRadius: 2, maxWidth: "70%",
+    alignSelf: "flex-end",
+  },
+  userMsg: { color: "#FFF", fontSize: 10.5, fontWeight: "700" },
+  // Bill analysis mockup
+  billHead: { alignItems: "center", paddingVertical: 4 },
+  billOldPrice: { color: C.danger, fontSize: 20, fontWeight: "900", textDecorationLine: "line-through" },
+  billLbl: { color: C.textMuted, fontSize: 9, marginTop: 2 },
+  billOffer: {
+    backgroundColor: C.success + "18", padding: 10, borderRadius: 8,
+    borderWidth: 1, borderColor: C.success + "55",
+  },
+  offerLbl: { color: C.success, fontSize: 10, fontWeight: "800", marginBottom: 4 },
+  offerName: { color: C.text, fontSize: 11, fontWeight: "700" },
+  offerPrice: { color: C.success, fontSize: 16, fontWeight: "900", marginTop: 4 },
+  offerSave: { color: C.success, fontSize: 11, fontWeight: "800" },
+  // Reviews mockup
+  reviewStars: { flexDirection: "row", justifyContent: "center", gap: 2 },
+  reviewAvg: { color: C.orange, fontSize: 12, fontWeight: "800", textAlign: "center", marginVertical: 4 },
+  reviewCard: {
+    backgroundColor: C.card, padding: 8, borderRadius: 8,
+    borderWidth: 1, borderColor: C.border,
+  },
+  reviewTxt: { color: C.text, fontSize: 10, fontStyle: "italic", lineHeight: 14 },
+  reviewAuthor: { color: C.textMuted, fontSize: 9, marginTop: 4, textAlign: "right" },
+});
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },

@@ -1,3 +1,32 @@
+## V50.z105.b (Giu 2026) — Landing: Video Demo Hero (Mockup Animato)
+
+### Componente `HeroPhoneMockup`
+- Phone frame stilizzato (260×520 px, borderRadius 42) con notch top e dot indicator bottom
+- Screen interno cicla **4 schermate rappresentative** ogni 3.8s:
+  1. **Home Dashboard** (blu) — widget "3 appuntamenti oggi", PUN Live 0.132€ con delta F1/F2/F3, Contatti totali 247
+  2. **AxonOS Briefing** (arancione) — chat bubble con analisi cliente (3 punti pre-appuntamento) + suggerimento AI ("Pacchetto Luce + FV: -40% annuo")
+  3. **Analisi Bolletta** (blu) — prezzo attuale barrato, offerta migliore Enel -31%, alternativa Optima
+  4. **Recensioni Cliente** (arancione) — 5⭐, media 4.9, 87 review con 2 testimonial
+- **Animazione fade + slide-up** al cambio schermata (React Native `Animated`, useNativeDriver true)
+- Dot indicator in basso: dot attivo si allunga (18px) e prende il colore del theme della schermata
+- Glow decorativo dietro al phone che cambia colore in sync con la schermata attiva
+- Scale 0.82 su mobile, 1.0 su desktop
+- Caption sotto: "Demo interattiva — screen reali dell'app"
+
+### Integrazione
+- Inserito nel Hero, subito **sotto i pulsanti App Store/Google Play** e **prima degli slogan chips**
+- Nessuna dipendenza extra: usa solo `Animated` built-in di React Native
+- No performance impact: solo 1 timer 3.8s + 2 Animated.timing brevi per transizione
+
+### Testing manuale
+- ✅ Screenshot mobile @390px: 3 screenshot in sequenza confermano la rotazione (Bolletta → Dashboard → Recensioni)
+- ✅ Transizioni fluide fade+slide visibili
+- ✅ Frame phone renderizzato correttamente con notch e dots
+- ✅ Frontend lint pulito
+
+---
+
+
 ## V50.z105 (Giu 2026) — PROMPT 28: Landing Page AdvisorOS
 
 ### Route
