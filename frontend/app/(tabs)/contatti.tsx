@@ -129,9 +129,7 @@ function ContattiScreen() {
           >
             <Ionicons name="cloud-upload" size={20} color="#FFF" />
           </Pressable>
-          <Pressable testID="contacts-add-btn" onPress={() => router.push("/contact/new")} style={styles.headerBtn}>
-            <Ionicons name="add" size={22} color="#FFF" />
-          </Pressable>
+          {/* V50.z75 — Bottone '+' rimosso dall'header, sostituito da un pulsante grande sopra la lista */}
         </View>
       </View>
 
