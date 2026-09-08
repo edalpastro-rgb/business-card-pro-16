@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Modal, Pressable, Platform, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
@@ -34,6 +34,44 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
   const isImg = mime.toLowerCase().startsWith("image/");
   const isHtml = mime.toLowerCase().includes("html");
   const dataUri = useMemo(() => `data:${mime};base64,${dataBase64}`, [mime, dataBase64]);
+
+  /**
+   * V50.z56 — Web: convert base64 → Blob URL for PDFs and large files.
+   * Reasons:
+   *   1. `<iframe srcDoc>` (previous approach) required loading pdf.js from
+   *      the CDN with `about:srcdoc` origin — blocked by many CSPs, adblock,
+   *      corporate proxies → resulted in a BLACK SCREEN.
+   *   2. `data:application/pdf;base64,...` URIs are limited to ~2MB in Chrome
+   *      and are slower to parse.
+   *   3. A Blob URL served by the browser (`blob:https://...`) is opened by
+   *      the built-in Chrome/Firefox/Safari PDF viewer natively — no external
+   *      dependency, no CDN, no black screen, full controls (zoom, page, search).
+   */
+  const [webBlobUrl, setWebBlobUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    if (!visible || !dataBase64) {
+      setWebBlobUrl(null);
+      return;
+    }
+    let revokedUrl: string | null = null;
+    try {
+      const bin = (globalThis as any).atob(dataBase64) as string;
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i) & 0xff;
+      const blob = new Blob([bytes], { type: mime || "application/octet-stream" });
+      revokedUrl = URL.createObjectURL(blob);
+      setWebBlobUrl(revokedUrl);
+    } catch {
+      // Fallback su dataUri se atob fallisce (browser esotico)
+      setWebBlobUrl(null);
+    }
+    return () => {
+      if (revokedUrl) {
+        try { URL.revokeObjectURL(revokedUrl); } catch { /* ignore */ }
+      }
+    };
+  }, [visible, dataBase64, mime]);
 
   /**
    * V38Z' — Decode a base64-encoded HTML payload as **UTF-8**.
@@ -96,6 +134,9 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
   #pageBox { padding:12px; display:flex; flex-direction:column; gap:12px; align-items:center; }
   canvas { max-width:100%; height:auto; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,0.5); border-radius:4px; }
   #err { padding:20px; color:#F87171; text-align:center; }
+  #loader { padding:30px; text-align:center; color:#9CA3AF; font-size:13px; }
+  .spinner { display:inline-block; width:32px; height:32px; border:3px solid #4B5563; border-top-color:#60A5FA; border-radius:50%; animation:spin 0.8s linear infinite; margin-bottom:12px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -106,16 +147,36 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
     <button id="zoomOut">−</button>
     <button id="zoomIn">+</button>
   </div>
-  <div id="pageBox"></div>
+  <div id="pageBox">
+    <div id="loader"><div class="spinner"></div><br/>Caricamento visualizzatore PDF…</div>
+  </div>
   <div id="err" style="display:none"></div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // V50.z56 — Timeout esplicito su pdf.js: se il CDN non risponde entro
+    // 8 secondi mostra un messaggio invece di lasciare lo schermo nero.
+    var cdnLoaded = false;
+    var cdnTimeout = setTimeout(function(){
+      if (!cdnLoaded && !window['pdfjsLib']) {
+        var l = document.getElementById('loader'); if (l) l.style.display='none';
+        var e = document.getElementById('err');
+        e.style.display='block';
+        e.innerHTML = 'Impossibile caricare il visualizzatore PDF (CDN irraggiungibile).<br/>' +
+                      'Controlla la connessione oppure usa <b>Condividi</b> per aprire il PDF esternamente.';
+      }
+    }, 8000);
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" onload="cdnLoaded=true"></script>
   <script>
     (function(){
       if (!window['pdfjsLib']) {
-        document.getElementById('err').style.display='block';
-        document.getElementById('err').innerText = 'Impossibile caricare il visualizzatore PDF (rete assente).';
+        clearTimeout(cdnTimeout);
+        var l = document.getElementById('loader'); if (l) l.style.display='none';
+        var e = document.getElementById('err');
+        e.style.display='block';
+        e.innerText = 'Impossibile caricare il visualizzatore PDF (rete assente).';
         return;
       }
+      clearTimeout(cdnTimeout);
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       var b64 = ${JSON.stringify(dataBase64)};
       // Convert base64 -> Uint8Array
@@ -147,6 +208,7 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
         current = 1;
         renderPage(1);
       }).catch(function(err){
+        var l = document.getElementById('loader'); if (l) l.style.display='none';
         document.getElementById('err').style.display='block';
         document.getElementById('err').innerText = 'Errore lettura PDF: ' + err.message;
       });
@@ -168,7 +230,39 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
             <Ionicons name="chevron-back" size={24} color="#FFF" />
           </Pressable>
           <Text style={styles.title} numberOfLines={1}>{fileName}</Text>
-          {onShare ? (
+          {/* V50.z56 — Web: pulsanti "Apri in nuova scheda" + "Scarica" per
+              garantire fallback nel raro caso in cui il browser non abbia un
+              PDF viewer built-in (Chromium headless, mobile Safari old). */}
+          {Platform.OS === "web" && isPdf && webBlobUrl ? (
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <Pressable
+                testID="fileviewer-open-tab"
+                hitSlop={8}
+                onPress={() => {
+                  try { (globalThis as any).open?.(webBlobUrl, "_blank"); } catch { /* ignore */ }
+                }}
+              >
+                <Ionicons name="open-outline" size={22} color="#FFF" />
+              </Pressable>
+              <Pressable
+                testID="fileviewer-download"
+                hitSlop={8}
+                onPress={() => {
+                  try {
+                    const a = (globalThis as any).document?.createElement?.("a");
+                    if (a) { a.href = webBlobUrl; a.download = fileName || "documento.pdf"; a.click(); }
+                  } catch { /* ignore */ }
+                }}
+              >
+                <Ionicons name="download-outline" size={22} color="#FFF" />
+              </Pressable>
+              {onShare ? (
+                <Pressable onPress={onShare} hitSlop={8} testID="fileviewer-share">
+                  <Ionicons name="share-social" size={22} color="#FFF" />
+                </Pressable>
+              ) : null}
+            </View>
+          ) : onShare ? (
             <Pressable onPress={onShare} hitSlop={8} testID="fileviewer-share">
               <Ionicons name="share-social" size={22} color="#FFF" />
             </Pressable>
@@ -186,10 +280,19 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
           ) : Platform.OS === "web" ? (
             isImg ? (
               // @ts-expect-error web only
-              <img src={dataUri} alt={fileName} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+              <img src={webBlobUrl || dataUri} alt={fileName} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
             ) : isPdf ? (
-              // @ts-expect-error web only
-              <iframe srcDoc={pdfJsHtml} title={fileName} style={{ width: "100%", height: "100%", border: "none", backgroundColor: "#1a1a1a" }} />
+              // V50.z56 — Web: usa il viewer PDF nativo del browser (Chrome/Firefox/Safari).
+              // Zero dipendenze CDN → niente "schermo nero" quando pdf.js è bloccato.
+              webBlobUrl ? (
+                // @ts-expect-error web only
+                <iframe src={webBlobUrl} title={fileName} style={{ width: "100%", height: "100%", border: "none", backgroundColor: "#FFF" }} />
+              ) : (
+                <View style={styles.loading}>
+                  <ActivityIndicator size="large" color="#FFF" />
+                  <Text style={styles.loadingTxt}>Preparazione documento…</Text>
+                </View>
+              )
             ) : isHtml ? (
               // @ts-expect-error web only
               <iframe srcDoc={htmlDecoded} title={fileName} style={{ width: "100%", height: "100%", border: "none", backgroundColor: "#FFF" }} />
