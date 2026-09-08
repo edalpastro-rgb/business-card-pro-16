@@ -34,6 +34,7 @@ import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { FileViewer } from "@/src/FileViewer";
 import { WebView } from "react-native-webview";
+import { notify } from "@/src/utils/notify";
 import * as FileSystem from "expo-file-system/legacy";
 
 type Phone = { id: string; label: string; number: string };
