@@ -11935,13 +11935,11 @@ async def _prepare_assistant_prompt(
         ).to_list(30)
         _dropbox_ok = await db.dropbox_credentials.find_one({"user_id": user["user_id"]}) is not None
         _drive_ok = await db.google_drive_connections.find_one({"user_id": user["user_id"]}) is not None
-        # V50.z32 — Sessione scaduta detection
+        # V50.z54 — Sessione scaduta detection: attiva SOLO se ci sono cartelle
+        # in `google_drive_folders`. Rimosso il proxy su `ai_teach_urls` che
+        # causava falsi positivi "sessione scaduta" quando l'utente aveva mai
+        # aggiunto un link drive.google.com a "Insegna ad Axon".
         _drive_had_before = (not _drive_ok) and (len(_drive_folders) > 0)
-        if not _drive_ok and not _drive_had_before:
-            _teach_drive = await db.ai_teach_urls.count_documents(
-                {"user_id": tenant_id(user), "url": {"$regex": "drive.google.com", "$options": "i"}}
-            )
-            _drive_had_before = _teach_drive > 0
         lines = ["\n\nCLOUD & DRIVE COLLEGATI AL MASTER (usa queste info se l'utente chiede 'a cosa hai accesso'):"]
         if _drive_ok:
             if _drive_folders:
@@ -12341,13 +12339,11 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         ).to_list(30)
         _dropbox_ok = await db.dropbox_credentials.find_one({"user_id": user["user_id"]}) is not None
         _drive_ok = await db.google_drive_connections.find_one({"user_id": user["user_id"]}) is not None
-        # V50.z32 — Sessione scaduta detection
+        # V50.z54 — Sessione scaduta detection: attiva SOLO se ci sono cartelle
+        # in `google_drive_folders`. Rimosso il proxy su `ai_teach_urls` che
+        # causava falsi positivi "sessione scaduta" quando l'utente aveva mai
+        # aggiunto un link drive.google.com a "Insegna ad Axon".
         _drive_had_before = (not _drive_ok) and (len(_drive_folders) > 0)
-        if not _drive_ok and not _drive_had_before:
-            _teach_drive = await db.ai_teach_urls.count_documents(
-                {"user_id": tenant_id(user), "url": {"$regex": "drive.google.com", "$options": "i"}}
-            )
-            _drive_had_before = _teach_drive > 0
         lines = ["\n\nCLOUD & DRIVE COLLEGATI AL MASTER (usa queste info se l'utente chiede 'a cosa hai accesso'):"]
         if _drive_ok:
             if _drive_folders:
