@@ -4607,3 +4607,38 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
 - ✅ Backend: login demo → creazione appt → GET share-preview → PUT reminder → cleanup
 - ✅ Frontend: login → tab Calendario → click share → modal si apre con messaggio in italiano corretto ("martedì 08 settembre 2026 alle 17:00")
 - ✅ Chip preset ore + canali funzionano
+
+---
+
+## PROMPT 17 — Dashboard home configurabile (V50.z81) ✅ TESTATO
+
+**Backend (`server.py`)**:
+- Nuovo endpoint `GET /api/settings/dashboard-widgets` — restituisce widget list per l'utente corrente, mergiando i default (weather, contacts_total, appointments_today, deadlines_alerts, pun, info_requests) con la config salvata.
+- Nuovo endpoint `PUT /api/settings/dashboard-widgets` — salva `dashboard_widgets: [{id, enabled, order}]` su `db.users` per utente.
+- `_merge_dashboard_widgets()` mantiene ordine/toggle salvati, aggiunge nuovi widget di default in coda e filtra ID sconosciuti.
+
+**Frontend**:
+- Nuovo `/app/frontend/src/DashboardWidgetsSection.tsx`:
+  - Fetch config + counts (contatti totali, appuntamenti oggi via `/appointments/stats?days=1`, alert scadenze via `/deadlines/upcoming`).
+  - Renderizza in ordine i widget attivi. `weather` = `<WeatherAlertsCard />` full-width; contacts_total/appointments_today/deadlines_alerts = mini card cliccabili (con navigazione ai rispettivi tab); pun/info_requests = card placeholder "Prossimamente".
+  - Ricarica su `useFocusEffect` per aggiornare dopo modifiche.
+- Nuovo `/app/frontend/app/dashboard-config.tsx`:
+  - Lista widget con Switch on/off + frecce ↑↓ per riordinare (drag manuale via chevron).
+  - Bottone "Ripristina" per tornare ai default; "Salva configurazione" persiste via PUT.
+  - Footer sticky sopra tab bar (safe-area insets aware, gestito per web preview).
+- `/app/frontend/app/(tabs)/home.tsx`:
+  - Sostituito `<WeatherAlertsCard />` con `<DashboardWidgetsSection />` (rimosso import diretto).
+- `/app/frontend/app/(tabs)/impostazioni.tsx`:
+  - Aggiunto pulsante "Personalizza Home" nella card CRM (visibile solo al master, `!parent_user_id`) che apre `/dashboard-config`.
+
+**Widget configurabili**:
+1. `weather` — Meteo & Allerte (attivo default)
+2. `contacts_total` — Contatti totali (attivo default)
+3. `appointments_today` — Appuntamenti di oggi (attivo default)
+4. `deadlines_alerts` — Alert scadenze (attivo default)
+5. `pun` — PUN aggiornato (placeholder "Prossimamente", disattivo default)
+6. `info_requests` — Richieste info in attesa (placeholder "Prossimamente", disattivo default)
+
+**Test verificato**:
+- ✅ Backend: GET restituisce default + merge; PUT salva ordine/toggle; ID sconosciuti scartati.
+- ✅ Frontend: login demo → home mostra 4 widget default; entra in "/dashboard-config" → toggle Contatti totali OFF + sposta Alert scadenze in posizione 1 → salva → home aggiorna con ordine nuovo e Contatti totali nascosto.

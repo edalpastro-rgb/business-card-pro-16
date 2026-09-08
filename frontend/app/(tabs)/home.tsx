@@ -13,7 +13,7 @@ import { CompanyContactSheet } from "@/src/CompanyContactSheet";
 import { HomeEventBanner } from "@/src/HomeEventBanner";
 import { AlarmHomeWidget } from "@/src/AlarmHomeWidget";
 import { DrawerMenu } from "@/src/DrawerMenu";
-import { WeatherAlertsCard } from "@/src/WeatherAlertsCard";
+import { DashboardWidgetsSection } from "@/src/DashboardWidgetsSection";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 // V29.aq — Header dashboard image (loaded as local bundled asset so it works
@@ -386,8 +386,9 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.primary} />}
       >
-        {/* V50.z79 — Allerte meteo (Protezione Civile / Open-Meteo) — solo se attive */}
-        <WeatherAlertsCard />
+        {/* V50.z81 — Sezione widget dashboard configurabili (weather, contatti totali,
+             appuntamenti oggi, scadenze, PUN, richieste info) — ordine + toggle salvato per utente */}
+        <DashboardWidgetsSection />
         {/* ── Trial banners ── */}
         {subscription?.status === "trial" && (subscription.days_left ?? 999) <= 7 && (
           <View style={[styles.banner, { backgroundColor: (subscription.days_left ?? 0) <= 3 ? C.dangerSoft : C.warningSoft, borderColor: (subscription.days_left ?? 0) <= 3 ? C.danger : C.warning }]}>

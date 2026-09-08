@@ -1561,6 +1561,91 @@ async def update_settings(body: SettingsModel, user=Depends(get_current_user)):
 
 
 # =========================
+# V50.z81 — Dashboard Home widgets (per-user)
+# =========================
+DASHBOARD_WIDGET_DEFAULTS = [
+    {"id": "weather",             "enabled": True,  "label": "Meteo & Allerte",         "coming_soon": False},
+    {"id": "contacts_total",      "enabled": True,  "label": "Contatti totali",         "coming_soon": False},
+    {"id": "appointments_today",  "enabled": True,  "label": "Appuntamenti di oggi",    "coming_soon": False},
+    {"id": "deadlines_alerts",    "enabled": True,  "label": "Alert scadenze",          "coming_soon": False},
+    {"id": "pun",                 "enabled": False, "label": "PUN aggiornato",          "coming_soon": True},
+    {"id": "info_requests",       "enabled": False, "label": "Richieste info in attesa","coming_soon": True},
+]
+
+
+class DashboardWidgetItem(BaseModel):
+    id: str
+    enabled: bool = True
+    order: int = 0
+
+
+class DashboardWidgetsIn(BaseModel):
+    widgets: List[DashboardWidgetItem]
+
+
+def _merge_dashboard_widgets(saved: Optional[List[dict]]) -> List[dict]:
+    """Merge saved widgets with defaults: preserve saved order+enabled, append new defaults at end."""
+    saved = saved or []
+    by_id = {w.get("id"): w for w in saved if isinstance(w, dict) and w.get("id")}
+    result: List[dict] = []
+    for i, s in enumerate(saved):
+        if not isinstance(s, dict) or not s.get("id"):
+            continue
+        # find default meta
+        meta = next((d for d in DASHBOARD_WIDGET_DEFAULTS if d["id"] == s.get("id")), None)
+        if not meta:
+            continue  # skip removed widget ids
+        result.append({
+            "id": s["id"],
+            "enabled": bool(s.get("enabled", meta["enabled"])),
+            "order": int(s.get("order", i)),
+            "label": meta["label"],
+            "coming_soon": meta["coming_soon"],
+        })
+    # append missing defaults at end
+    for i, d in enumerate(DASHBOARD_WIDGET_DEFAULTS):
+        if d["id"] not in by_id:
+            result.append({
+                "id": d["id"],
+                "enabled": d["enabled"],
+                "order": len(result),
+                "label": d["label"],
+                "coming_soon": d["coming_soon"],
+            })
+    # re-normalize order
+    result.sort(key=lambda x: x["order"])
+    for i, w in enumerate(result):
+        w["order"] = i
+    return result
+
+
+@api_router.get("/settings/dashboard-widgets")
+async def get_dashboard_widgets(user=Depends(get_current_user)):
+    """Return current user's dashboard widget config (per-user, merged with defaults)."""
+    doc = await db.users.find_one({"user_id": user["user_id"]}, {"dashboard_widgets": 1, "_id": 0})
+    saved = (doc or {}).get("dashboard_widgets")
+    return {"widgets": _merge_dashboard_widgets(saved)}
+
+
+@api_router.put("/settings/dashboard-widgets")
+async def update_dashboard_widgets(body: DashboardWidgetsIn, user=Depends(get_current_user)):
+    """Save per-user dashboard widget order/visibility. Only known widget ids are persisted."""
+    known_ids = {d["id"] for d in DASHBOARD_WIDGET_DEFAULTS}
+    clean: List[dict] = []
+    seen: set = set()
+    for i, w in enumerate(body.widgets):
+        if w.id not in known_ids or w.id in seen:
+            continue
+        seen.add(w.id)
+        clean.append({"id": w.id, "enabled": bool(w.enabled), "order": i})
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"dashboard_widgets": clean}},
+    )
+    return {"widgets": _merge_dashboard_widgets(clean)}
+
+
+# =========================
 # Team (multi-user)
 # =========================
 @api_router.get("/team")

@@ -721,6 +721,22 @@ function ImpostazioniScreen() {
         <View style={styles.card}>
           <CatHeader color="#0EA5E9" label="CRM · Personalizza aree" icon="briefcase" />
 
+          {/* V50.z81 — Link a "Personalizza Home" (widget dashboard configurabili) */}
+          <Pressable
+            testID="open-dashboard-config"
+            onPress={() => router.push("/dashboard-config" as any)}
+            style={dashLinkStyles.row}
+          >
+            <View style={dashLinkStyles.iconBox}>
+              <Ionicons name="grid" size={16} color={theme.color.brandPrimary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={dashLinkStyles.title}>Personalizza Home</Text>
+              <Text style={dashLinkStyles.sub}>Widget dashboard: mostra/nascondi e riordina</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+          </Pressable>
+
           <Text style={styles.label}>Nome App</Text>
           <TextInput
             testID="settings-app-name"
@@ -1027,4 +1043,12 @@ const styles = StyleSheet.create({
   masterBtnPrimaryTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
   masterBtnGhost: { backgroundColor: theme.color.brandTertiary, borderWidth: 1, borderColor: theme.color.border },
   masterBtnGhostTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
+});
+
+// V50.z81 — Stili link "Personalizza Home"
+const dashLinkStyles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 12, marginBottom: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#F8FAFC" },
+  iconBox: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.brandPrimary + "22" },
+  title: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
+  sub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
 });
