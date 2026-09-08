@@ -5478,3 +5478,23 @@ else Linking.openURL(url).catch(() => {});
 - ✅ Lint pulito (3 file frontend)
 - ✅ Backend syntax OK, restart OK
 - ✅ Frontend build OK (screenshot verificato)
+
+---
+
+## V50.z110 — Bug orario appuntamento: 08:15 diventa 06:13 (P0 fix)
+
+**Data**: 2026-09-08
+
+**Root cause** (2 bug concomitanti in `/app/frontend/app/appointment/[id].tsx`):
+
+1. **Web input reschedule ignorava l'ora**: l'`onChange` dell'`<input type="datetime-local">` passava sempre `mode="date"` a `rescheduleTo(...)`. Risultato: quando l'utente cambiava data+ora dall'input web, veniva applicata SOLO la data; l'ora restava quella vecchia. In casi di stato transitorio (default `Date.now() + 60min` inizializzato al mount, poi utente ci lavora sopra) il salvataggio finale poteva mantenere un'ora "sporca" derivante dal Date.now() iniziale (con secondi/millisecondi del momento della creazione).
+
+2. **`setHours` non azzerava secondi/millisecondi**: sia `rescheduleTo` sia il modal "Rinvia/Programma ricontatto" chiamavano `next.setHours(d.getHours(), d.getMinutes())` senza reset di secondi e ms. I secondi residui (fino a 59) sommati alle conversioni ripetute UTC↔local causavano drift visibile nell'input datetime-local (che tronca ai minuti) e occasionalmente sull'orario visualizzato dopo il round-trip via `toISOString()`.
+
+**Fix**:
+- Nuovo mode `"datetime"` in `rescheduleTo` che applica ATOMICAMENTE data + ora (con reset di secondi/ms).
+- Web `<input type="datetime-local">` ora chiama `rescheduleTo(new Date(v), "datetime")`.
+- Native `setHours` (2 punti) ora resetta esplicitamente secondi e millisecondi (`.setHours(h, m, 0, 0)`).
+
+**Non toccato altro** come richiesto.
+**Verifica**: Lint pulito · Frontend build OK.

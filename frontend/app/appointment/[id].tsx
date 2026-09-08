@@ -300,10 +300,20 @@ function AppointmentDetail() {
     }
   };
 
-  const rescheduleTo = async (d: Date, mode: "date" | "time") => {
+  const rescheduleTo = async (d: Date, mode: "date" | "time" | "datetime") => {
     const next = new Date(a.start_at);
-    if (mode === "date") next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-    else next.setHours(d.getHours(), d.getMinutes());
+    if (mode === "date") {
+      next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+    } else if (mode === "time") {
+      // V50.z110 — Reset esplicito di secondi e millisecondi per evitare drift
+      // (es. seconds ereditati da un salvataggio precedente che, ri-serializzati,
+      // possono spostare il minuto visualizzato).
+      next.setHours(d.getHours(), d.getMinutes(), 0, 0);
+    } else {
+      // datetime: sostituisci sia data sia ora (usato dall'input web datetime-local).
+      next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+      next.setHours(d.getHours(), d.getMinutes(), 0, 0);
+    }
     await savePartial({ start_at: next.toISOString() });
   };
 
@@ -473,7 +483,15 @@ function AppointmentDetail() {
                   .toISOString()
                   .slice(0, 16)
               }
-              onChange={(e: any) => rescheduleTo(new Date(e.target.value), "date")}
+              onChange={(e: any) => {
+                // V50.z110 — datetime-local restituisce "YYYY-MM-DDTHH:MM" senza timezone.
+                // I browser lo interpretano come ORA LOCALE (spec HTML5). Passiamo mode
+                // "datetime" così sia data sia ora vengono salvate (prima solo la data
+                // veniva applicata → cambio d'orario dal web silenziosamente ignorato).
+                const v = e?.target?.value;
+                if (!v) return;
+                rescheduleTo(new Date(v), "datetime");
+              }}
               style={{
                 width: "100%",
                 backgroundColor: theme.color.surface,
@@ -703,7 +721,7 @@ function AppointmentDetail() {
                         if (!d) return { ...m, showPicker: null };
                         const nd = new Date(m.date);
                         if (m.showPicker === "date") nd.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-                        else nd.setHours(d.getHours(), d.getMinutes());
+                        else nd.setHours(d.getHours(), d.getMinutes(), 0, 0);
                         return { ...m, date: nd, showPicker: null };
                       });
                     }}
