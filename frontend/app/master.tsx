@@ -52,6 +52,18 @@ function MasterScreen() {
   //        rimossi in V49 — spostati nel pannello "Comunica con l'azienda" della Home.)
   const [reorderMode, setReorderMode] = useState<boolean>(false);
   const [buttonOrder, setButtonOrder] = useState<string[] | null>(null);
+  // V50.z104 — Super-admin gate per la nuova sezione "Gestione Clienti AdvisorOS"
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api<{ super_admin: boolean }>("/admin/me");
+        if (!cancelled) setIsSuperAdmin(!!r?.super_admin);
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Load saved button order on mount
   useEffect(() => {
@@ -511,6 +523,7 @@ function MasterScreen() {
             resta invariato per retro-compatibilità. */}
         <SettingsHubSection
           isOwner={!user?.parent_user_id}
+          isSuperAdmin={isSuperAdmin}
           onGoto={goto}
           onLogout={async () => {
             await logout();
@@ -809,6 +822,7 @@ type HubItem = {
   hint?: string;
   onPress: () => void;
   ownerOnly?: boolean;
+  superAdminOnly?: boolean;
   testID?: string;
 };
 type HubGroup = {
@@ -820,10 +834,12 @@ type HubGroup = {
 
 function SettingsHubSection({
   isOwner,
+  isSuperAdmin,
   onGoto,
   onLogout,
 }: {
   isOwner: boolean;
+  isSuperAdmin: boolean;
   onGoto: (path: string) => void;
   onLogout: () => Promise<void>;
 }) {
@@ -875,6 +891,12 @@ function SettingsHubSection({
       ],
     },
     {
+      color: "#8B5CF6", label: "Gestione Clienti AdvisorOS", icon: "shield-checkmark",
+      items: [
+        { icon: "people-outline", label: "Elenco Clienti + Tier", hint: "Paganti/Test/AxonOS + storico utilizzo + broadcast", onPress: () => onGoto("/admin/customers"), superAdminOnly: true, testID: "hub-admin-customers" },
+      ],
+    },
+    {
       color: "#475569", label: "Amministrazione", icon: "options",
       items: [
         { icon: "color-palette", label: "Setting App", hint: "Cambia tema e colori", onPress: () => onGoto("/settings-app"), testID: "hub-settings-app" },
@@ -913,7 +935,7 @@ function SettingsHubSection({
       </View>
 
       {groups.map((g) => {
-        const items = g.items.filter((it) => !it.ownerOnly || isOwner);
+        const items = g.items.filter((it) => (!it.ownerOnly || isOwner) && (!it.superAdminOnly || isSuperAdmin));
         if (items.length === 0) return null;
         return (
           <View key={g.label} style={masterExtraStyles.hubGroup} testID={`hub-group-${g.label}`}>

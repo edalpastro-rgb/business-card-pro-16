@@ -1,3 +1,71 @@
+## V50.z104 (Giu 2026) — PROMPT 27: Gestione Clienti AdvisorOS
+
+### Concept
+Super-admin globale (flag `super_admin` su user o via env `ADVISOR_SUPER_ADMIN_EMAILS`) gestisce tutti gli utenti AdvisorOS, mentre ogni Master mantiene la vista locale dei collaboratori via team-insights esistente. Sistema di auto-consigli AxonOS + broadcast multi-canale.
+
+### Backend
+- **5 tier** (`ADVISOR_TIERS`): `paying_business` 🟢, `paying_private` 🟩, `test` ⚪, `axonos_business` 🟣, `axonos_private` 💜
+- **7 feature tracciate** (`ADVISOR_FEATURES`): contacts (14gg), bills (21gg), appointments (14gg), reviews (30gg), leads (30gg), axon_chat (7gg), collaborators (30gg) — ognuna con label + soglia + video_url tutorial
+- **Nuovo campo user** `advisor_tier` (default "test") + `super_admin` (bool)
+- **Helper `is_super_admin(user)`** con doppio check (flag DB + env `ADVISOR_SUPER_ADMIN_EMAILS`)
+- **`_compute_user_usage(uid)`** aggrega da collezioni esistenti (contacts/bills/appointments/review_requests/public_leads/axon_messages/users) → `{counts, last_used_at}`. Best-effort con try/except per ogni collezione.
+- **12 endpoint**:
+  - `GET /admin/me` — check super_admin (per frontend gate)
+  - `GET /admin/tiers-meta` — tiers + features config
+  - `GET /admin/customers?tier=` — lista utenti (default tier=test se mancante)
+  - `GET /admin/customers/counts` — conteggio per tier
+  - `GET /admin/customers/{id}` — dettaglio + usage
+  - `PATCH /admin/customers/{id}/tier` — cambia tier
+  - `POST /admin/customers/{id}/tier-suggest` — AI Claude Sonnet 5 suggerisce tier con motivo, fallback euristico (>100 azioni → business; >20 → private; else → test)
+  - `POST /admin/broadcasts` — invia broadcast (target_tier | "all", channels: in_app/email/whatsapp)
+  - `GET /admin/broadcasts` — history
+  - `GET /tips/home` — tips non-dismissed per utente corrente
+  - `POST /tips/{id}/dismiss` — dismiss
+- **Auto-tips job** (`_run_advisor_tips_job`, ogni 12h): per ogni user attivo (last_login o created_at ultimi 60gg), scansiona feature con counts=0 e crea `admin_tips` idempotente (skip se esiste già non-dismissed). Testo generato da Claude Sonnet 5 nel formato: `CONSIGLI UTILIZZO - Ciao, vedo che non utilizzi mai l'area [X]. Potrebbe aiutarti a ottenere [beneficio] perché [spiegazione]. Guarda come funziona: [link video]`. Fallback statico se manca chiave LLM.
+- **Broadcast delivery**:
+  - `in_app`: crea entry `admin_tips` per ogni destinatario (kind="broadcast")
+  - `email`: SMTP del super-admin (`smtp_configs` per user_id super-admin) invia HTML con oggetto + body + video link
+  - `whatsapp`: costruisce `wa.me/{phone}?text=...` per ogni user con telefono → ritorna `wa_targets` al frontend (Master apre WA con un tap)
+- **Storico**: collezione `admin_broadcasts` con `{broadcast_id, sent_by, target_tier, channels, subject, body, video_url, targets_count, delivered, created_at}`
+
+### Frontend
+- **`app/admin/customers.tsx`** (super-admin only, gate via `/admin/me`):
+  - Header: back + megaphone (broadcast)
+  - Chip filtro orizzontali per tier con conteggi (colorati)
+  - Lista card utenti: nome+email, tier badge, ruolo, last_login
+  - **Modal dettaglio**: sezione tier con 5 pulsanti colorati (active-fill), "Suggerisci tier con AI" (Claude), box suggerimento con reason + "Applica"; sezione storico utilizzo con 7 righe feature (counts + "ultimo Xgg fa" + badge Attivo/Inattivo Xgg/Non usato)
+  - **Modal broadcast**: chip target tier, 3 checkbox canali con icone brand, oggetto + textarea messaggio + video URL, "Invia", sezione post-invio con lista wa_targets clickable (apre WhatsApp con testo precompilato)
+- **`src/HomeTipsBanner.tsx`** (mostrato in home per TUTTI gli utenti):
+  - Poll `/tips/home` ogni 60s
+  - Card gialla arancione con icona lampadina (auto) o megafono (broadcast)
+  - Header: "CONSIGLI UTILIZZO" o "AGGIORNAMENTO" + count
+  - Subject (solo broadcast) + message + "Guarda tutorial" button se video_url
+  - Dismiss button (X in alto a destra) → POST `/tips/{id}/dismiss`
+  - Mostra il primo tip; auto-refresh alla dismissal
+- **`app/(tabs)/home.tsx`**: banner integrato dopo `DashboardWidgetsSection`
+- **`app/master.tsx`**: nuova sezione "Gestione Clienti AdvisorOS" (🟣 shield-checkmark) nel hub con voce "Elenco Clienti + Tier" (superAdminOnly)
+  - Nuovo state `isSuperAdmin` caricato via `/admin/me`
+  - Nuovo flag `superAdminOnly` sull'HubItem type
+  - Filter items: `!ownerOnly || isOwner) && (!superAdminOnly || isSuperAdmin`
+
+### Testing manuale
+- ✅ Set user_a1fccc0121dc a `super_admin=true`
+- ✅ GET /admin/me → `{super_admin: true, email: test@dalpastro.it}`
+- ✅ GET /admin/tiers-meta → 5 tiers + 7 features
+- ✅ GET /admin/customers/counts → 12 utenti in "test"
+- ✅ GET /admin/customers/{id} → usage `{contacts:41, appointments:11, axon_chat:72, bills:0, reviews:0, leads:0, collaborators:0}` + last_used_at per feature
+- ✅ POST /admin/customers/{id}/tier-suggest → "paying_business" (heuristic 124 azioni totali)
+- ✅ PATCH /admin/customers/{id}/tier → tier salvato
+- ✅ POST /admin/broadcasts → 12/12 in-app delivered
+- ✅ GET /tips/home → 1 tip broadcast visibile
+- ✅ POST /tips/{id}/dismiss → dismissed
+- ✅ `_run_advisor_tips_job` → 4 auto-tips generati con testi AI reali in italiano (formato CONSIGLI UTILIZZO conforme al prompt)
+- ✅ Pagina `/admin/customers` renderizzata correttamente (header, filter chip, empty state)
+- ✅ Frontend lint pulito su nuovi file
+
+---
+
+
 ## V50.z103.b (Giu 2026) — Configurazione esigenze Lead
 
 ### Backend
