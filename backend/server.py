@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, Header, status, BackgroundTasks, Request, Body
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Header, status, BackgroundTasks, Request, Body, UploadFile, File, Form
 from fastapi.responses import PlainTextResponse, HTMLResponse, Response
 from urllib.parse import quote_plus as _quote_plus_std
 from dotenv import load_dotenv
@@ -1878,6 +1878,184 @@ async def _next_contact_code(user: dict, area: str) -> str:
     else:
         n = 0
     return f"{prefix}-{n + 1:04d}"
+
+
+
+# ============================================================================
+# V50.z66 — Import CSV / Excel contatti con mappatura colonne
+# ============================================================================
+CONTACT_FIELD_ALIASES: Dict[str, List[str]] = {
+    "first_name": ["nome", "first name", "firstname", "given name", "given_name"],
+    "last_name": ["cognome", "last name", "lastname", "surname", "family name", "family_name"],
+    "phone": ["telefono", "cellulare", "mobile", "phone", "phone number", "tel"],
+    "phone_alt": ["telefono 2", "phone 2", "phone alt", "altro telefono", "secondo telefono"],
+    "whatsapp": ["whatsapp", "wa", "whats app"],
+    "email": ["email", "mail", "e-mail", "posta", "e mail"],
+    "email_alt": ["email 2", "email alt", "altro email", "seconda email"],
+    "address": ["indirizzo", "address"],
+    "address_street": ["via", "strada", "street"],
+    "address_number": ["civico", "numero civico", "number"],
+    "address_zip": ["cap", "zip", "postal code", "codice postale"],
+    "address_city": ["citta", "citta'", "city", "comune"],
+    "address_province": ["provincia", "province", "prov"],
+    "birth_date": ["data di nascita", "nato il", "birth date", "birthdate", "compleanno", "birthday"],
+    "fiscal_code": ["codice fiscale", "cf", "fiscal code"],
+    "vat_number": ["partita iva", "p iva", "piva", "vat", "vat number"],
+    "website": ["sito", "sito web", "website", "web"],
+    "linkedin": ["linkedin", "in"],
+    "instagram": ["instagram", "ig"],
+    "facebook": ["facebook", "fb"],
+    "telegram": ["telegram", "tg"],
+    "energy_ref_name": ["referente energia", "referente"],
+    "energy_ref_phone": ["telefono referente", "referente telefono"],
+    "energy_ref_email": ["email referente", "referente email"],
+    "general_note": ["note", "note generali", "notes", "nota", "descrizione"],
+    "tags": ["tag", "tags", "etichette"],
+    "contact_code": ["codice", "codice contatto"],
+}
+
+
+def _fuzzy_map_column(col_name: str) -> Optional[str]:
+    n = (col_name or "").strip().lower().replace("_", " ").replace(".", " ")
+    n = re.sub(r"\s+", " ", n)
+    if not n:
+        return None
+    for canonical, aliases in CONTACT_FIELD_ALIASES.items():
+        if n == canonical.replace("_", " "):
+            return canonical
+        for a in aliases:
+            if n == a.lower():
+                return canonical
+    return None
+
+
+def _parse_import_file(filename: str, content: bytes) -> Tuple[List[str], List[Dict[str, str]]]:
+    """Parse CSV o Excel → (headers, rows). Max 500 righe."""
+    fn = (filename or "").lower()
+    if fn.endswith(".xlsx") or fn.endswith(".xls"):
+        from openpyxl import load_workbook
+        import io as _io
+        wb = load_workbook(_io.BytesIO(content), data_only=True, read_only=True)
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+        if not all_rows:
+            return [], []
+        headers = [str(h or "").strip() for h in all_rows[0]]
+        rows = []
+        for r in all_rows[1:501]:
+            d = {}
+            for i, v in enumerate(r):
+                if i < len(headers) and headers[i]:
+                    d[headers[i]] = "" if v is None else str(v).strip()
+            if any(d.values()):
+                rows.append(d)
+        return headers, rows
+    else:
+        for enc in ("utf-8-sig", "utf-8", "latin-1"):
+            try:
+                text = content.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            raise HTTPException(400, "Encoding CSV non riconosciuto")
+        first_line = text.split("\n", 1)[0]
+        delim = ";" if first_line.count(";") > first_line.count(",") else ","
+        import csv as _csv
+        from io import StringIO
+        reader = _csv.DictReader(StringIO(text), delimiter=delim)
+        headers = [h.strip() for h in (reader.fieldnames or [])]
+        rows = []
+        for i, r in enumerate(reader):
+            if i >= 500:
+                break
+            d = {h: (r.get(h) or "").strip() for h in headers}
+            if any(d.values()):
+                rows.append(d)
+        return headers, rows
+
+
+@api_router.post("/contacts/import/preview")
+async def contacts_import_preview(file: UploadFile = File(...), user=Depends(get_current_user)):
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(413, "File troppo grande (max 5MB)")
+    try:
+        headers, rows = _parse_import_file(file.filename or "", content)
+    except Exception as e:
+        raise HTTPException(400, f"Errore lettura file: {str(e)[:200]}")
+    if not headers or not rows:
+        raise HTTPException(400, "File vuoto o senza intestazioni")
+    standard_fields = sorted([
+        "first_name", "last_name", "phone", "phone_alt", "whatsapp", "email", "email_alt",
+        "address", "address_street", "address_number", "address_zip", "address_city",
+        "address_province", "work_address", "residence_address", "birth_date",
+        "fiscal_code", "vat_number", "website", "linkedin", "instagram", "facebook",
+        "telegram", "energy_ref_name", "energy_ref_phone", "energy_ref_email",
+        "general_note", "tags", "contact_code",
+    ])
+    auto_mapping = {h: _fuzzy_map_column(h) for h in headers}
+    unmapped = [h for h, v in auto_mapping.items() if not v]
+    return {
+        "headers": headers, "row_count": len(rows), "preview_rows": rows[:5],
+        "auto_mapping": auto_mapping, "unmapped_columns": unmapped,
+        "standard_fields": standard_fields, "rows": rows,
+    }
+
+
+class ContactsImportExecuteIn(BaseModel):
+    rows: List[Dict[str, str]]
+    mapping: Dict[str, str]
+    default_area: str = "energy"
+
+
+@api_router.post("/contacts/import/execute")
+async def contacts_import_execute(body: ContactsImportExecuteIn, user=Depends(get_current_user)):
+    imported = 0
+    errors: List[Dict[str, Any]] = []
+    ignored_columns = [c for c, t in body.mapping.items() if t == "ignore"]
+    custom_columns = [c for c, t in body.mapping.items() if t.startswith("custom:")]
+    for idx, row in enumerate(body.rows):
+        try:
+            payload: Dict[str, Any] = {"area": body.default_area}
+            custom_fields: Dict[str, str] = {}
+            for col, val in row.items():
+                target = body.mapping.get(col, "ignore")
+                if target == "ignore" or not val:
+                    continue
+                if target.startswith("custom:"):
+                    fname = target[len("custom:"):].strip()
+                    if fname:
+                        custom_fields[fname] = val
+                elif target == "tags":
+                    payload["tags"] = [t.strip() for t in re.split(r"[,;]", val) if t.strip()]
+                else:
+                    payload[target] = val
+            has_min = payload.get("first_name") or payload.get("last_name") or payload.get("phone") or payload.get("email")
+            if not has_min:
+                errors.append({"row": idx + 2, "error": "Riga senza nome/telefono/email"})
+                continue
+            if not payload.get("first_name"):
+                payload["first_name"] = payload.get("last_name") or payload.get("email") or "Contatto"
+            cid = f"c_{uuid.uuid4().hex[:12]}"
+            doc = {
+                "contact_id": cid, "user_id": tenant_id(user),
+                "created_by": user["user_id"],
+                "assigned_to_user_id": user["user_id"],
+                **payload, "custom_fields": custom_fields,
+                "notes": [], "files": [],
+                "imported_at": utcnow(), "created_at": utcnow(), "updated_at": utcnow(),
+            }
+            doc["contact_code"] = doc.get("contact_code") or await _next_contact_code(user, body.default_area)
+            await db.contacts.insert_one(doc)
+            imported += 1
+        except Exception as e:
+            errors.append({"row": idx + 2, "error": str(e)[:120]})
+    return {
+        "ok": True, "imported": imported, "ignored_columns": ignored_columns,
+        "custom_columns": custom_columns, "errors": errors, "total_rows": len(body.rows),
+    }
+
 
 
 @api_router.post("/contacts")

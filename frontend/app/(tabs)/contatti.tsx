@@ -66,9 +66,19 @@ function ContattiScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Contatti</Text>
-        <Pressable testID="contacts-add-btn" onPress={() => router.push("/contact/new")} style={styles.headerBtn}>
-          <Ionicons name="add" size={22} color="#FFF" />
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {/* V50.z66 — Pulsante Import CSV/Excel */}
+          <Pressable
+            testID="contacts-import-btn"
+            onPress={() => router.push("/contacts-import" as any)}
+            style={[styles.headerBtn, { backgroundColor: "#7C3AED" }]}
+          >
+            <Ionicons name="cloud-upload" size={20} color="#FFF" />
+          </Pressable>
+          <Pressable testID="contacts-add-btn" onPress={() => router.push("/contact/new")} style={styles.headerBtn}>
+            <Ionicons name="add" size={22} color="#FFF" />
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.search}>

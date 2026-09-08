@@ -1,3 +1,29 @@
+## V50.z66 (Set 2026) — Import Contatti da CSV/Excel con mapping intelligente
+
+### Richiesta utente (PROMPT 6)
+Aggiungere una funzione per importare contatti da file CSV o Excel, con mapping automatico delle colonne, gestione dei campi non riconosciuti (custom fields o ignora) e report finale.
+
+### Backend (`server.py`)
+- Aggiunti `UploadFile, File, Form` agli import FastAPI (fix `NameError: File is not defined` che bloccava il boot del backend).
+- `openpyxl==3.1.5` installato e salvato in `requirements.txt`.
+- Nuove funzioni utility:
+  - `_fuzzy_map_column(col_name)` → mappa colonne su campi standard (Nome→first_name, Telefono→phone, ecc.) usando `CONTACT_FIELD_ALIASES`.
+  - `_parse_import_file(filename, content)` → legge CSV (utf-8/latin-1, delimitatori `;`/`,`) e Excel (`openpyxl` read_only). Max 500 righe.
+- Endpoint `POST /api/contacts/import/preview` (multipart): ritorna `headers`, `row_count`, `preview_rows`, `auto_mapping`, `unmapped_columns`, `standard_fields`, `rows`. Limite 5 MB.
+- Endpoint `POST /api/contacts/import/execute` (JSON): riceve `rows`, `mapping`, `default_area`. Costruisce `custom_fields` per i target `custom:<name>`, gestisce `tags` con split su `,;`, richiede almeno first_name/last_name/phone/email. Assegna `contact_code` progressivo. **Fix multi-tenancy**: `user_id = tenant_id(user)` (non user_id diretto) + `created_by`.
+
+### Frontend (`/app/frontend/app/contacts-import.tsx`)
+Wizard a 3 step (File → Mappatura → Report):
+- **Upload**: `expo-document-picker`, upload multipart, feedback loading.
+- **Mappatura**: chip selettori per ogni colonna (Ignora / Campo personalizzato / campi standard). Colonne non riconosciute evidenziate in giallo con ⚠️. Anteprima del primo valore.
+- **Report**: numero contatti importati, colonne ignorate, campi custom creati, errori con numero riga.
+- Ingresso dalla schermata Contatti (`testID="contacts-import-btn"`).
+
+### Test end-to-end (curl)
+- Login `demo@advisoros.it` → `preview` su CSV con 4 righe → auto_mapping riconosce 5/6 colonne (Città marcata come unmapped) → `execute` con mapping custom `citta` → 3 contatti importati, `custom_fields.citta` valorizzato, tenant scoping OK.
+- Verifica GET `/api/contacts` mostra i nuovi contatti con custom fields.
+
+
 ## V50.z52 (Sept 2026) — Master avatar menu snellito + Profilo de-duplicato
 
 ### Richiesta utente
