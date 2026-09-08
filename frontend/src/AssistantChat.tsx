@@ -2200,10 +2200,12 @@ export function AssistantFAB() {
         const maxUpOffset = -(win.height - anchorBottom - FAB_SIZE - Math.max(insets.top || 0, 20));
         const clampedY = Math.min(0, Math.max(maxUpOffset, curY));
 
-        Animated.parallel([
-          Animated.spring(pan.x, { toValue: targetOffsetX, useNativeDriver: false, friction: 7, tension: 60 }),
-          Animated.spring(pan.y, { toValue: clampedY, useNativeDriver: false, friction: 7, tension: 60 }),
-        ]).start();
+        try {
+          Animated.parallel([
+            Animated.spring(pan.x, { toValue: targetOffsetX, useNativeDriver: false, friction: 7, tension: 60 }),
+            Animated.spring(pan.y, { toValue: clampedY, useNativeDriver: false, friction: 7, tension: 60 }),
+          ]).start();
+        } catch { /* non bloccare il tap se l'animazione fallisce */ }
 
         panOffset.current = { x: targetOffsetX, y: clampedY };
         try {
@@ -2287,16 +2289,24 @@ export function AssistantFAB() {
           styles.fabWrap,
           {
             bottom,
-            opacity: unreadInfoReq > 0 ? blink : 1,
+            // NOTA: qui SOLO valori JS-driven (pan). Se si mescolano con valori
+            // useNativeDriver:true (pulse/blink) l'intero transform diventa
+            // "native" e la spring del rilascio lancia un'eccezione → il tap
+            // non viene mai gestito su Android/iOS.
             transform: [
               { translateX: pan.x },
               { translateY: pan.y },
-              { scale: pulse },
             ],
           },
         ]}
         {...panResponder.panHandlers}
       >
+        <Animated.View
+          style={{
+            opacity: unreadInfoReq > 0 ? blink : 1,
+            transform: [{ scale: pulse }],
+          }}
+        >
         <View
           style={styles.fab}
           accessibilityLabel={unreadInfoReq > 0 ? `Apri richieste info (${unreadInfoReq} nuove) — trascina per spostare` : "Apri assistente AI — trascina per spostare"}
@@ -2315,6 +2325,7 @@ export function AssistantFAB() {
             </View>
           ) : null}
         </View>
+        </Animated.View>
       </Animated.View>
       <AssistantChatModal visible={open} onClose={() => setOpen(false)} />
     </>

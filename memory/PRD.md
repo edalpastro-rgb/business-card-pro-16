@@ -5506,3 +5506,7 @@ else Linking.openURL(url).catch(() => {});
 
 ## Fix "Scadenze → Unmatched Route" (Giugno 2026)
 - Il menu laterale puntava a `/deadlines` ma la pagina non esisteva. Creata `app/deadlines.tsx`: lista completa contratti in scadenza (`GET /api/deadlines/upcoming?days=`), chip finestra 30/60/90/180gg (persistita in `user-settings.deadlines_window_days`), tap → scheda contatto tab bollette, pull-to-refresh.
+
+## Fix FAB AxonOS non risponde al tap (Android) (Giugno 2026)
+- Causa: in `AssistantFAB` il transform mescolava valori JS-driven (pan drag) e native-driven (`pulse` scale, `blink` opacity). Su nativo il nodo diventava "native" e la `Animated.spring` del rilascio lanciava un'eccezione dentro `onPanResponderRelease` (async → silente), impedendo la chiamata a `handlePress`.
+- Fix: pulse/blink spostati su un `Animated.View` interno; il wrapper esterno con i panHandlers usa solo pan.x/pan.y. Spring protetta da try/catch.
