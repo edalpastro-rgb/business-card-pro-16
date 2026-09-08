@@ -14,37 +14,25 @@ import { WeatherAlertsCard } from "@/src/WeatherAlertsCard";
  */
 
 type Widget = { id: string; enabled: boolean; order: number; label: string; coming_soon: boolean };
-type PunLatest = { available: boolean; month_name?: string; year?: number; F1?: number; F2?: number; F3?: number; monorario?: number; unit?: string; source_url?: string; delta_pct?: number | null };
+type PunLatest = { available: boolean; month_name?: string; month_short?: string; year?: number; F1?: number; F2?: number; F3?: number; monorario?: number; unit?: string; source_url?: string; delta_pct?: number | null; delta_f1_pct?: number | null; delta_f2_pct?: number | null; delta_f3_pct?: number | null };
 
 export function DashboardWidgetsSection() {
   const router = useRouter();
   const [widgets, setWidgets] = useState<Widget[]>([]);
-  const [counts, setCounts] = useState<{ contacts?: number; apptToday?: number; deadlines?: number; infoPending?: number }>({});
+  const [counts, setCounts] = useState<{ apptToday?: number }>({});
   const [pun, setPun] = useState<PunLatest | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const [cfg, apptStats, dlRes, contactsRes, punRes, infoCnt] = await Promise.allSettled([
+      const [cfg, apptStats, punRes] = await Promise.allSettled([
         api<{ widgets: Widget[] }>(`/settings/dashboard-widgets`),
         api<{ mine: { total: number; done: number; undone: number } }>(`/appointments/stats?days=1`),
-        api<{ items: unknown[]; counts: { expired: number; critical: number; warning: number; ok: number } }>(`/deadlines/upcoming`),
-        api<{ items?: unknown[]; total?: number }>(`/contacts?limit=1`),
         api<PunLatest>(`/pun/latest`),
-        api<{ pending: number }>(`/info-requests/count`),
       ]);
       if (cfg.status === "fulfilled") setWidgets(cfg.value.widgets || []);
       const next: typeof counts = {};
       if (apptStats.status === "fulfilled") next.apptToday = apptStats.value?.mine?.total || 0;
-      if (dlRes.status === "fulfilled") {
-        const c = dlRes.value?.counts || { expired: 0, critical: 0, warning: 0, ok: 0 };
-        next.deadlines = (c.expired || 0) + (c.critical || 0) + (c.warning || 0);
-      }
-      if (contactsRes.status === "fulfilled") {
-        const r: any = contactsRes.value;
-        next.contacts = (typeof r?.total === "number" ? r.total : Array.isArray(r?.items) ? r.items.length : Array.isArray(r) ? r.length : 0);
-      }
-      if (infoCnt.status === "fulfilled") next.infoPending = infoCnt.value?.pending || 0;
       if (punRes.status === "fulfilled") setPun(punRes.value);
       setCounts(next);
     } catch { /* ignore */ }
@@ -65,22 +53,11 @@ export function DashboardWidgetsSection() {
     <View style={styles.wrap} testID="home-dashboard-widgets">
       {active.map((w) => {
         if (w.id === "weather") return <WeatherAlertsCard key="weather" />;
-        if (w.id === "contacts_total") {
-          return <MiniStatCard key="contacts_total" testID="widget-contacts" icon="people" label="Contatti totali" value={counts.contacts ?? "…"} color="#0EA5E9" onPress={() => router.push("/(tabs)/contatti" as any)} />;
-        }
         if (w.id === "appointments_today") {
           return <MiniStatCard key="appointments_today" testID="widget-appt-today" icon="calendar" label="Appuntamenti di oggi" value={counts.apptToday ?? "…"} color="#7C3AED" onPress={() => router.push("/(tabs)/calendario" as any)} />;
         }
-        if (w.id === "deadlines_alerts") {
-          const n = counts.deadlines ?? 0;
-          return <MiniStatCard key="deadlines_alerts" testID="widget-deadlines" icon="warning" label="Alert scadenze" value={n} color={n > 0 ? "#DC2626" : "#16A34A"} onPress={() => router.push("/(tabs)/report" as any)} />;
-        }
         if (w.id === "pun") {
           return <PunLiveCard key="pun" data={pun} />;
-        }
-        if (w.id === "info_requests") {
-          const n = counts.infoPending ?? 0;
-          return <MiniStatCard key="info_requests" testID="widget-info-req" icon="help-circle" label={`Richieste info in attesa`} value={n} color={n > 0 ? "#F59E0B" : "#16A34A"} onPress={() => router.push("/info-requests" as any)} />;
         }
         if (w.coming_soon) return <ComingSoonCard key={w.id} label={w.label} icon={pickIcon(w.id)} />;
         return null;
@@ -141,39 +118,28 @@ function PunLiveCard({ data }: { data: PunLatest | null }) {
       </View>
     );
   }
-  const delta = data.delta_pct;
+  const unit = data.unit || "€/MWh";
   return (
-    <View style={styles.punCard} testID="widget-pun">
-      <View style={styles.punHead}>
-        <View style={[styles.iconBadge, { backgroundColor: "#FEF3C7" }]}>
-          <Ionicons name="flash" size={16} color="#F59E0B" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.punTitle} numberOfLines={1}>PUN · {data.month_name} {data.year}</Text>
-          <Text style={styles.label} numberOfLines={1}>Prezzo Unico Nazionale — GME</Text>
-        </View>
-        {delta != null ? (
-          <View style={[styles.deltaPill, { backgroundColor: delta >= 0 ? "#FEE2E2" : "#DCFCE7" }]}>
-            <Ionicons name={delta >= 0 ? "trending-up" : "trending-down"} size={11} color={delta >= 0 ? "#DC2626" : "#16A34A"} />
-            <Text style={[styles.deltaTxt, { color: delta >= 0 ? "#DC2626" : "#16A34A" }]}>{delta >= 0 ? "+" : ""}{delta}%</Text>
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.punFasce}>
-        <PunFascia label="F1" value={data.F1} unit={data.unit || "€/MWh"} bg="#EEF2FF" fg="#4338CA" />
-        <PunFascia label="F2" value={data.F2} unit={data.unit || "€/MWh"} bg="#FEF3C7" fg="#B45309" />
-        <PunFascia label="F3" value={data.F3} unit={data.unit || "€/MWh"} bg="#DCFCE7" fg="#15803D" />
-      </View>
+    <View style={styles.punCardCompact} testID="widget-pun">
+      <PunFascia label="F1" value={data.F1} delta={data.delta_f1_pct} monthTag={data.month_short} unit={unit} bg="#EEF2FF" fg="#4338CA" />
+      <PunFascia label="F2" value={data.F2} delta={data.delta_f2_pct} unit={unit} bg="#FEF3C7" fg="#B45309" />
+      <PunFascia label="F3" value={data.F3} delta={data.delta_f3_pct} unit={unit} bg="#DCFCE7" fg="#15803D" />
     </View>
   );
 }
 
-function PunFascia({ label, value, unit, bg, fg }: { label: string; value?: number; unit: string; bg: string; fg: string }) {
+function PunFascia({ label, value, delta, monthTag, unit, bg, fg }: { label: string; value?: number; delta?: number | null; monthTag?: string; unit: string; bg: string; fg: string }) {
+  const dTxt = typeof delta === "number" ? `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%` : null;
+  const dColor = typeof delta === "number" ? (delta >= 0 ? "#DC2626" : "#16A34A") : fg;
   return (
     <View style={[styles.fasciaBox, { backgroundColor: bg }]}>
-      <Text style={[styles.fasciaLabel, { color: fg }]}>{label}</Text>
+      <View style={styles.fasciaTopRow}>
+        <Text style={[styles.fasciaLabel, { color: fg }]}>{label}</Text>
+        {monthTag ? <Text style={[styles.fasciaMonth, { color: fg }]}>{monthTag}</Text> : null}
+      </View>
       <Text style={[styles.fasciaVal, { color: fg }]}>{typeof value === "number" ? value.toFixed(1) : "—"}</Text>
       <Text style={[styles.fasciaUnit, { color: fg }]}>{unit}</Text>
+      {dTxt ? <Text style={[styles.fasciaDelta, { color: dColor }]}>{dTxt}</Text> : null}
     </View>
   );
 }
@@ -188,13 +154,18 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: "#E2E8F0" },
   badgeTxt: { fontSize: 10, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5 },
   punCard: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 14, padding: 12, gap: 10 },
+  // V50.z87 — Compatto: no header, solo 3 fasce (altezza ridotta)
+  punCardCompact: { flexDirection: "row", gap: 6, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 14, padding: 6 },
   punHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   punTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
   deltaPill: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   deltaTxt: { fontSize: 11, fontWeight: "800" },
   punFasce: { flexDirection: "row", gap: 6 },
-  fasciaBox: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 10 },
+  fasciaBox: { flex: 1, alignItems: "center", paddingVertical: 6, paddingHorizontal: 4, borderRadius: 10 },
+  fasciaTopRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   fasciaLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-  fasciaVal: { fontSize: 15, fontWeight: "900", marginTop: 2 },
-  fasciaUnit: { fontSize: 9, fontWeight: "700", opacity: 0.75, marginTop: 1 },
+  fasciaMonth: { fontSize: 8, fontWeight: "800", letterSpacing: 0.6, opacity: 0.75 },
+  fasciaVal: { fontSize: 14, fontWeight: "900", marginTop: 1 },
+  fasciaUnit: { fontSize: 8, fontWeight: "700", opacity: 0.7 },
+  fasciaDelta: { fontSize: 10, fontWeight: "800", marginTop: 2 },
 });

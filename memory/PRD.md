@@ -4832,3 +4832,26 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
 - Lint pulito ✅.
 - jsPDF CDN accessibile ✅.
 - Verifica manuale UI (raccomandata): aprire chat Axon → tap 🔍 Scanner → scattare/caricare pagina 1 → "+ Aggiungi pagina" → pagina 2 → "Termina e usa" → verificare che appaia in chat un allegato `.pdf` con 2 pagine.
+
+---
+
+## PROMPT 20 — Home compatta + PUN riorganizzato (V50.z87) ✅ TESTATO
+
+**Backend (`server.py`)**:
+- `DASHBOARD_WIDGET_DEFAULTS` semplificato: rimossi `contacts_total`, `deadlines_alerts`, `info_requests`. Restano solo `weather`, `appointments_today`, `pun`. Le config utente salvate con ID rimossi vengono automaticamente filtrate da `_merge_dashboard_widgets`.
+- `GET /api/pun/latest` esteso:
+  - Calcola `delta_f1_pct`, `delta_f2_pct`, `delta_f3_pct` (variazione % vs mese precedente per ogni fascia).
+  - Nuovo campo `month_short` = abbreviazione italiana 3 lettere in maiuscolo (GEN/FEB/…/AGO/…/DIC).
+  - Test: agosto 2026 → F1 174.52 (+13.18%), F2 204.35 (+20.65%), F3 171.72 (+12.78%), `month_short: "AGO"`.
+
+**Frontend (`DashboardWidgetsSection.tsx`)**:
+- Rimossi i case `contacts_total`, `deadlines_alerts`, `info_requests` (widget scomparsi dalla home).
+- Fetch API ridotto: solo `/settings/dashboard-widgets`, `/appointments/stats?days=1`, `/pun/latest`.
+- Ordine widget default: **Meteo & Allerte → Appuntamenti di oggi → PUN** (Appuntamenti ora sopra le statistiche, richiesta punto 4).
+- `PunLiveCard` compattato:
+  - **Rimossa** intera intestazione (icona flash, "PUN · agosto 2026", "Prezzo Unico Nazionale — GME", delta pill).
+  - Card ora è solo la fila di 3 badge F1/F2/F3, altezza ridotta (~60px vs 130px precedenti).
+  - **F1** ha "AGO" (mese corrente in italiano) accanto all'etichetta "F1".
+  - Ogni fascia mostra valore + unità + `delta_pct` colorata (verde ↓, rosso ↑).
+
+**Verifica visiva**: home mostra `Appuntamenti di oggi (0)` → widget PUN `F1 AGO 174.5 €/MWh +13.2%` · `F2 204.3 €/MWh +20.6%` · `F3 171.7 €/MWh +12.8%`. Nessuna riga "Contatti totali/Alert scadenze/Richieste info in attesa" nella sezione widget.

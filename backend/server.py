@@ -1565,11 +1565,8 @@ async def update_settings(body: SettingsModel, user=Depends(get_current_user)):
 # =========================
 DASHBOARD_WIDGET_DEFAULTS = [
     {"id": "weather",             "enabled": True,  "label": "Meteo & Allerte",         "coming_soon": False},
-    {"id": "contacts_total",      "enabled": True,  "label": "Contatti totali",         "coming_soon": False},
     {"id": "appointments_today",  "enabled": True,  "label": "Appuntamenti di oggi",    "coming_soon": False},
-    {"id": "deadlines_alerts",    "enabled": True,  "label": "Alert scadenze",          "coming_soon": False},
     {"id": "pun",                 "enabled": True,  "label": "PUN aggiornato",          "coming_soon": False},
-    {"id": "info_requests",       "enabled": True,  "label": "Richieste info in attesa","coming_soon": False},
 ]
 
 
@@ -1651,8 +1648,8 @@ async def update_dashboard_widgets(body: DashboardWidgetsIn, user=Depends(get_cu
 @api_router.get("/pun/latest")
 async def get_latest_pun(user=Depends(get_current_user)):
     """Restituisce l'ultimo mese disponibile nella cache GME con fasce F1/F2/F3.
-    Se cache vuota, ritorna 204-equivalent (empty). Attiva un fetch in background
-    (best-effort) per popolare la cache al primo utilizzo.
+    Include delta% per ciascuna fascia (F1, F2, F3) rispetto al mese precedente
+    + `month_short` in italiano (es. "AGO") da mostrare dentro il badge F1.
     """
     doc = await db.gme_pun_cache.find_one(
         {},
@@ -1661,27 +1658,35 @@ async def get_latest_pun(user=Depends(get_current_user)):
     )
     prev = None
     if doc:
-        # Cerca mese precedente per calcolo variazione monorario
         prev = await db.gme_pun_cache.find_one(
             {"$or": [
                 {"year": doc["year"], "month": {"$lt": doc["month"]}},
                 {"year": {"$lt": doc["year"]}},
             ]},
-            {"_id": 0, "monorario": 1, "month_key": 1},
+            {"_id": 0, "monorario": 1, "F1": 1, "F2": 1, "F3": 1, "month_key": 1},
             sort=[("year", -1), ("month", -1)],
         )
     if not doc:
         return {"available": False}
-    delta_pct = None
-    if prev and doc.get("monorario") and prev.get("monorario"):
+    def _delta(cur, old):
         try:
-            delta_pct = round(((doc["monorario"] - prev["monorario"]) / prev["monorario"]) * 100.0, 2)
+            if cur is None or old is None or old == 0: return None
+            return round(((cur - old) / old) * 100.0, 2)
         except Exception:
-            delta_pct = None
+            return None
+    delta_pct = _delta(doc.get("monorario"), (prev or {}).get("monorario"))
+    delta_f1 = _delta(doc.get("F1"), (prev or {}).get("F1"))
+    delta_f2 = _delta(doc.get("F2"), (prev or {}).get("F2"))
+    delta_f3 = _delta(doc.get("F3"), (prev or {}).get("F3"))
+    # Nome mese abbreviato in italiano
+    _IT_SHORT = ["GEN", "FEB", "MAR", "APR", "MAG", "GIU", "LUG", "AGO", "SET", "OTT", "NOV", "DIC"]
+    m = int(doc.get("month") or 0)
+    month_short = _IT_SHORT[m - 1] if 1 <= m <= 12 else ""
     return {
         "available": True,
         "month_key": doc.get("month_key"),
         "month_name": doc.get("month_name"),
+        "month_short": month_short,
         "year": doc.get("year"),
         "F1": doc.get("F1"),
         "F2": doc.get("F2"),
@@ -1691,6 +1696,9 @@ async def get_latest_pun(user=Depends(get_current_user)):
         "source_url": doc.get("source_url"),
         "prev_month_key": (prev or {}).get("month_key"),
         "delta_pct": delta_pct,
+        "delta_f1_pct": delta_f1,
+        "delta_f2_pct": delta_f2,
+        "delta_f3_pct": delta_f3,
     }
 
 
