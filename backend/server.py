@@ -23002,6 +23002,110 @@ async def delete_review(review_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 
+@api_router.get("/reviews/analytics")
+async def reviews_analytics(user=Depends(get_current_user)):
+    """V50.z102 — Dashboard: media stelle, trend mensile 12 mesi, top clienti,
+    distribuzione stelle, tasso risposta."""
+    tid = tenant_id(user)
+    # Fetch tutte le review approvate + pending + rejected (con data)
+    all_reviews = await db.reviews.find(
+        {"user_id": tid},
+        {"_id": 0, "review_id": 1, "rating": 1, "approved": 1, "text": 1,
+         "contact_id": 1, "contact_name": 1, "submitted_at": 1, "consent_publish": 1}
+    ).to_list(5000)
+
+    approved = [r for r in all_reviews if r.get("approved") is True]
+    pending = [r for r in all_reviews if r.get("approved") is None]
+    rejected = [r for r in all_reviews if r.get("approved") is False]
+
+    avg = None
+    if approved:
+        avg = round(sum(int(r.get("rating") or 0) for r in approved) / len(approved), 2)
+
+    # Distribuzione stelle (solo approvate)
+    distribution = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
+    for r in approved:
+        rate = str(int(r.get("rating") or 0))
+        if rate in distribution:
+            distribution[rate] += 1
+
+    # Trend mensile 12 mesi (approvate + pending — tutto quello che ha submitted_at)
+    from collections import defaultdict as _dd
+    now = utcnow()
+    months = []
+    for i in range(11, -1, -1):
+        y = now.year
+        m = now.month - i
+        while m <= 0:
+            m += 12
+            y -= 1
+        months.append(f"{y}-{m:02d}")
+    monthly_counts: dict = _dd(lambda: {"count": 0, "total": 0, "approved": 0})
+    for r in all_reviews:
+        sub = r.get("submitted_at")
+        if not sub:
+            continue
+        try:
+            key = f"{sub.year}-{sub.month:02d}"
+        except Exception:
+            continue
+        if key not in monthly_counts and key not in months:
+            continue
+        monthly_counts[key]["count"] += 1
+        monthly_counts[key]["total"] += int(r.get("rating") or 0)
+        if r.get("approved") is True:
+            monthly_counts[key]["approved"] += 1
+    monthly_trend = []
+    for mk in months:
+        agg = monthly_counts.get(mk, {"count": 0, "total": 0, "approved": 0})
+        cnt = agg["count"]
+        monthly_trend.append({
+            "month": mk,
+            "count": cnt,
+            "approved": agg["approved"],
+            "avg": round(agg["total"] / cnt, 2) if cnt else 0,
+        })
+
+    # Top clienti (approvate, rating desc, poi date desc). Max 6.
+    top = sorted(approved, key=lambda r: (int(r.get("rating") or 0), r.get("submitted_at") or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)[:6]
+    top_clients = []
+    for r in top:
+        text = (r.get("text") or "").strip()
+        top_clients.append({
+            "contact_id": r.get("contact_id"),
+            "contact_name": r.get("contact_name") or "Cliente",
+            "rating": int(r.get("rating") or 0),
+            "excerpt": (text[:180] + ("…" if len(text) > 180 else "")) if text else "",
+            "submitted_at": (r.get("submitted_at").isoformat() if r.get("submitted_at") else None),
+        })
+
+    # Tasso risposta: recensioni ricevute / richieste totali (non cancelled)
+    total_requests = await db.review_requests.count_documents({"user_id": tid, "status": {"$ne": "cancelled"}})
+    response_rate = None
+    if total_requests > 0:
+        response_rate = round(len(all_reviews) / total_requests * 100, 1)
+
+    # Requests aggregati per stato
+    req_by_status: dict = {"pending": 0, "ready_to_send": 0, "sent": 0, "responded": 0, "cancelled": 0}
+    async for r in db.review_requests.find({"user_id": tid}, {"_id": 0, "status": 1}):
+        s = r.get("status") or "pending"
+        req_by_status[s] = req_by_status.get(s, 0) + 1
+
+    return {
+        "average_rating": avg,
+        "total_reviews": len(all_reviews),
+        "total_approved": len(approved),
+        "total_pending": len(pending),
+        "total_rejected": len(rejected),
+        "distribution": distribution,
+        "monthly_trend": monthly_trend,
+        "top_clients": top_clients,
+        "response_rate_pct": response_rate,
+        "total_requests": total_requests,
+        "requests_by_status": req_by_status,
+    }
+
+
 @api_router.post("/reviews/public-link")
 async def get_public_reviews_link(body: ReviewPublicLinkIn, request: Request, user=Depends(get_current_user)):
     """Ritorna (e se necessario crea) lo slug pubblico permanente per la pagina recensioni del tenant."""
@@ -23066,8 +23170,9 @@ async def public_reviews_list(slug: str):
 
 
 # -------- Sending helpers ----------
-async def _send_review_email_request(req_doc: dict) -> bool:
-    """Invia email di richiesta recensione via SMTP del tenant, se configurato."""
+async def _send_review_email_request(req_doc: dict, is_followup: bool = False) -> bool:
+    """Invia email di richiesta recensione via SMTP del tenant, se configurato.
+    Se is_followup=True usa un tono più cortese/promemoria."""
     tid = req_doc.get("user_id")
     to_email = (req_doc.get("contact_email") or "").strip()
     if not to_email:
@@ -23075,8 +23180,18 @@ async def _send_review_email_request(req_doc: dict) -> bool:
     cfg = await db.smtp_configs.find_one({"user_id": tid}, {"_id": 0})
     if not cfg or not cfg.get("host"):
         return False
-    subject = f"Un secondo per una recensione? — {req_doc.get('contact_name') or ''}".strip(" —")
-    body_text = req_doc.get("custom_message") or ""
+    if is_followup:
+        subject = f"Piccolo promemoria — grazie in anticipo {req_doc.get('contact_name') or ''}".strip(" —")
+        body_text = (
+            f"Ciao {(req_doc.get('contact_name') or '').split(' ')[0] or ''} 👋\n"
+            f"Ti ho scritto qualche giorno fa per chiederti una veloce recensione.\n"
+            f"Se hai un minuto (davvero, bastano 30 secondi) puoi farlo qui:\n\n"
+            f"👉 {req_doc.get('form_url', '')}\n\n"
+            f"Se non ti va, nessun problema — non ti disturberò più. Grazie ancora!"
+        )
+    else:
+        subject = f"Un secondo per una recensione? — {req_doc.get('contact_name') or ''}".strip(" —")
+        body_text = req_doc.get("custom_message") or ""
     form_url = req_doc.get("form_url") or ""
     body_html = f"""<html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#111;max-width:560px;margin:0 auto;padding:24px">
 <p style="font-size:16px;line-height:1.5;white-space:pre-wrap">{body_text}</p>
@@ -23128,6 +23243,59 @@ async def _run_review_requests_dispatch_job() -> None:
                 logger.warning(f"[review-dispatch] {r.get('req_id')} failed: {exc}")
     except Exception as exc:
         logger.warning(f"[review-dispatch-job] failed: {exc}")
+
+
+async def _run_review_followup_job() -> None:
+    """V50.z102 — Ogni ora: se una richiesta è stata inviata ≥3 giorni fa e il
+    cliente non ha ancora risposto (nessuna review associata), invia un secondo
+    sollecito educato.
+    - Email: seconda email tono cortese (auto)
+    - WA/SMS/Telegram: nuova entry status=ready_to_send (Master la vedrà con badge sollecito)
+    - Solo un sollecito per richiesta (follow_up_sent=True).
+    """
+    try:
+        cutoff = utcnow() - timedelta(days=3)
+        candidates = await db.review_requests.find({
+            "status": {"$in": ["sent", "ready_to_send"]},
+            "sent_at": {"$lte": cutoff, "$ne": None},
+            "$or": [{"follow_up_sent": {"$exists": False}}, {"follow_up_sent": False}],
+        }).to_list(500)
+        for r in candidates:
+            req_id = r.get("req_id")
+            # Se c'è già una review, skip
+            existing_rev = await db.reviews.find_one({"req_id": req_id}, {"_id": 0, "review_id": 1})
+            if existing_rev:
+                await db.review_requests.update_one(
+                    {"req_id": req_id}, {"$set": {"follow_up_sent": True, "follow_up_at": utcnow()}}
+                )
+                continue
+            ch = r.get("channel")
+            try:
+                if ch == "email":
+                    sent_ok = await _send_review_email_request(r, is_followup=True)
+                    await db.review_requests.update_one(
+                        {"req_id": req_id},
+                        {"$set": {
+                            "follow_up_sent": True,
+                            "follow_up_at": utcnow(),
+                            # Se non c'è SMTP, forziamo ready_to_send per il fallback manuale
+                            **({} if sent_ok else {"status": "ready_to_send", "follow_up_manual": True}),
+                        }}
+                    )
+                else:
+                    # Riporta a ready_to_send per far vedere al Master il "Sollecita ora"
+                    await db.review_requests.update_one(
+                        {"req_id": req_id},
+                        {"$set": {
+                            "status": "ready_to_send",
+                            "follow_up_sent": True,
+                            "follow_up_at": utcnow(),
+                        }}
+                    )
+            except Exception as exc:
+                logger.warning(f"[review-followup] {req_id} failed: {exc}")
+    except Exception as exc:
+        logger.warning(f"[review-followup-job] failed: {exc}")
 
 
 app.include_router(api_router)
@@ -23417,6 +23585,11 @@ async def _start_scheduler():
             _run_review_requests_dispatch_job, "interval", minutes=5,
             id="review-requests-dispatch", replace_existing=True,
         )
+        # V50.z102 — Follow-up automatico recensioni (ogni ora, sollecito dopo 3 giorni)
+        _birthday_scheduler.add_job(
+            _run_review_followup_job, "interval", hours=1,
+            id="review-followup", replace_existing=True,
+        )
         _birthday_scheduler.start()
         logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
         logger.info("Rule-proposals scheduler started (daily 03:00 Europe/Rome)")
@@ -23425,6 +23598,7 @@ async def _start_scheduler():
         logger.info("Axon memory distillation scheduler started (daily 04:00 Europe/Rome)")
         logger.info("Drive re-index scheduler started (every 30 minutes)")
         logger.info("Review requests dispatch scheduler started (every 5 minutes)")
+        logger.info("Review auto-follow-up scheduler started (every 1 hour)")
     except Exception as e:
         logger.warning(f"birthday scheduler start failed: {e}")
 

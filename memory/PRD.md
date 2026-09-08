@@ -1,3 +1,40 @@
+## V50.z102 (Giu 2026) — Recensioni Analytics + Auto-Follow-Up
+
+### Backend
+- **`GET /api/reviews/analytics`** (nuovo endpoint) — ritorna:
+  - `average_rating` (solo approvate), `total_reviews/approved/pending/rejected`
+  - `distribution: {1..5: count}` (solo approvate)
+  - `monthly_trend`: array 12 mesi `[{month, count, approved, avg}]` (submitted_at)
+  - `top_clients`: top 6 per rating desc + submitted_at desc (con excerpt 180 char)
+  - `response_rate_pct` = (recensioni totali / richieste non-cancelled) × 100
+  - `total_requests`, `requests_by_status: {pending, ready_to_send, sent, responded, cancelled}`
+- **Auto-Follow-Up job (`_run_review_followup_job`)** — APScheduler ogni ora:
+  - Trova `review_requests` con `status ∈ [sent, ready_to_send]`, `sent_at ≤ now-3d`, `follow_up_sent ≠ True`
+  - Se esiste già review associata → skip (marca solo `follow_up_sent=True`)
+  - Canale `email` → invia seconda email SMTP con tono cortese "Piccolo promemoria — grazie in anticipo" (nuovo path `_send_review_email_request(is_followup=True)`)
+  - Canali WA/SMS/Telegram → riporta `status=ready_to_send` per mostrare al Master pulsante "Sollecita ora"
+  - Set `follow_up_sent=True`, `follow_up_at=now`
+- `_send_review_email_request(req, is_followup=False)` — signature estesa: se `is_followup=True` usa subject/body di sollecito educato invece del messaggio custom originale.
+
+### Frontend
+- **`/app/frontend/app/reviews-analytics.tsx`** — Nuova schermata dashboard:
+  - Header con back + refresh
+  - 6 KPI card (media stelle, approvate, da approvare, tasso risposta, richieste totali, respinte)
+  - Distribuzione stelle: 5 barre orizzontali con `%` proporzionale al max
+  - Trend mensile 12 mesi: **grafico SVG a barre** con `react-native-svg` — media stelle sopra la barra (formato "4.2★"), etichette mese ("gen", "feb"...)
+  - Top clienti: 6 card cliccabili (nav a `/contact/{id}`), rank #1..#6 in badge blu, excerpt tra virgolette, stelle rating
+  - Stato richieste: 4 chip colorati (in attesa/da inviare/inviate/risposte)
+- **`ContactReviewsSection.tsx`**: aggiunto bottone "Dashboard analytics recensioni" (arancione) sotto "Copia link pagina pubblica"; `useRouter().push("/reviews-analytics")`.
+
+### Testing manuale
+- ✅ Inseriti 6 review demo con date variate → GET /reviews/analytics ritorna: media 4.33, distribuzione {3:1, 4:2, 5:3}, trend 12 mesi con conteggi mensili corretti, top 6 clienti ordinati per rating+data
+- ✅ `_run_review_followup_job` testato: richiesta WA sent 5 giorni fa → dopo job `status=ready_to_send`, `follow_up_sent=True`, `follow_up_at=now`
+- ✅ Pagina `/reviews-analytics` renderizza correttamente lo stato "Not authenticated" quando non c'è sessione (conferma routing e API call funzionanti)
+- ✅ Frontend lint pulito
+
+---
+
+
 ## V50.z101.b (Giu 2026) — PROMPT 24: Sondaggio qualità post-conversione
 
 ### Flusso completo

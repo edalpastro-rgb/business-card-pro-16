@@ -15,6 +15,7 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
@@ -106,6 +107,7 @@ export function ContactReviewsSection({
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const router = useRouter();
 
   // New request form
   const [channel, setChannel] = useState<Channel>("whatsapp");
@@ -303,6 +305,15 @@ export function ContactReviewsSection({
         <Pressable style={styles.publicLinkBtn} onPress={openPublicPage} testID="btn-public-reviews-link">
           <Ionicons name="link" size={16} color={theme.color.brandPrimary} />
           <Text style={styles.publicLinkTxt}>Copia link pagina pubblica recensioni</Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.publicLinkBtn, { backgroundColor: "#F59E0B15", marginTop: 6 }]}
+          onPress={() => router.push("/reviews-analytics" as any)}
+          testID="btn-open-analytics"
+        >
+          <Ionicons name="stats-chart" size={16} color="#F59E0B" />
+          <Text style={[styles.publicLinkTxt, { color: "#F59E0B" }]}>Dashboard analytics recensioni</Text>
         </Pressable>
 
         {loading ? (
