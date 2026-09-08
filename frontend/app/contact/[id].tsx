@@ -38,6 +38,7 @@ import { AxonProfileCard } from "@/src/AxonProfileCard";
 import { ContactInfoRequestsSection } from "@/src/ContactInfoRequestsSection";
 import { ContactMailAttachmentsSection } from "@/src/ContactMailAttachmentsSection";
 import { ContactCustomFieldsSection } from "@/src/ContactCustomFieldsSection";
+import { ContactReviewsSection } from "@/src/ContactReviewsSection";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -77,7 +78,13 @@ function ContactDetail() {
   const { id, refs: refsParam } = useLocalSearchParams<{ id: string; refs?: string }>();
   const router = useRouter();
   const [c, setC] = useState<Contact | null>(null);
-  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio" | "calls" | "appts" | "refs">("info");
+  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio" | "calls" | "appts" | "refs" | "reviews">("info");
+  // V50.z101 — Popup "Vuoi programmare la richiesta recensione?" quando lo status
+  // del contatto transita a "client". Compariamo lo stato precedente conservato
+  // in una ref, e apriamo la modale review-request se la transizione avviene.
+  const prevStatusRef = useRef<string | null>(null);
+  const [reviewPromptOpen, setReviewPromptOpen] = useState(false);
+  const [reviewsAutoOpen, setReviewsAutoOpen] = useState(false);
 
   // V27 — Deep-link to Referenze tab via ?refs=1 (used by chain flow after saving an appointment)
   useEffect(() => {
@@ -116,6 +123,17 @@ function ContactDetail() {
     }
     prevActiveRef.current = isActive;
   }, [activeCall.active]);
+
+  // V50.z101 — Rileva transizione status → "client" e mostra popup opzionale
+  // "Vuoi programmare la richiesta di recensione?".
+  useEffect(() => {
+    if (!c?.status) return;
+    const prev = prevStatusRef.current;
+    if (prev !== null && prev !== "client" && c.status === "client") {
+      setReviewPromptOpen(true);
+    }
+    prevStatusRef.current = c.status;
+  }, [c?.status]);
 
   // V50.z71 — Al primo caricamento delle settings, popola l'origine di default con l'ufficio
   useEffect(() => {
@@ -685,7 +703,7 @@ function ContactDetail() {
       </View>
 
       <View style={styles.tabs}>
-        {(["info", "notes", "files", "bills", "audio", "calls", "appts", "refs"] as const).map((t) => {
+        {(["info", "notes", "files", "bills", "audio", "calls", "appts", "refs", "reviews"] as const).map((t) => {
           const iconName: any = t === "info" ? "person"
             : t === "notes" ? "create"
             : t === "files" ? "folder"
@@ -693,12 +711,13 @@ function ContactDetail() {
             : t === "audio" ? "mic"
             : t === "calls" ? "chatbubbles"
             : t === "refs" ? "share-social"
+            : t === "reviews" ? "star"
             : "calendar";
-          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Comunicazioni" : t === "refs" ? "Referenze" : "Appuntamenti";
+          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Comunicazioni" : t === "refs" ? "Referenze" : t === "reviews" ? "Recensioni" : "Appuntamenti";
           const active = tab === t;
           // V38E: All non-selected tabs are neutral grey; only the active tab is colored.
           // Fatture tab keeps a distinctive orange when active (still the most important section).
-          const activeColor = t === "bills" ? "#EA580C" : theme.color.brandPrimary;
+          const activeColor = t === "bills" ? "#EA580C" : t === "reviews" ? "#F59E0B" : theme.color.brandPrimary;
           const iconColor = active ? activeColor : theme.color.muted;
           return (
             <Pressable
@@ -756,6 +775,17 @@ function ContactDetail() {
           contactId={id}
           contactName={`${c.first_name} ${c.last_name}`.trim()}
           contactPhone={c.phone}
+        />
+      ) : tab === "reviews" ? (
+        <ContactReviewsSection
+          contactId={id}
+          contactName={`${c.first_name} ${c.last_name}`.trim()}
+          contactPhone={c.phone}
+          contactWhatsapp={c.whatsapp}
+          contactEmail={c.email}
+          contactTelegram={c.telegram}
+          autoOpenNew={reviewsAutoOpen}
+          onAutoOpenHandled={() => setReviewsAutoOpen(false)}
         />
       ) : (
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
@@ -1338,6 +1368,42 @@ function ContactDetail() {
         onPromoted={load}
       />
 
+      {/* V50.z101 — Popup opzionale: contatto diventato "Cliente" → programma recensione */}
+      <Modal visible={reviewPromptOpen} transparent animationType="fade" onRequestClose={() => setReviewPromptOpen(false)}>
+        <View style={styles.reviewPromptBackdrop} pointerEvents="box-none">
+          <View style={styles.reviewPromptSheet}>
+            <View style={styles.reviewPromptIcon}>
+              <Ionicons name="star" size={28} color="#F59E0B" />
+            </View>
+            <Text style={styles.reviewPromptTitle}>Nuovo cliente 🎉</Text>
+            <Text style={styles.reviewPromptSub}>
+              {(c?.first_name || "Il contatto")} è ora un cliente. Vuoi programmare l&apos;invio della richiesta di recensione?
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
+              <Pressable
+                style={[styles.reviewPromptBtn, { backgroundColor: theme.color.surfaceTertiary }]}
+                onPress={() => setReviewPromptOpen(false)}
+                testID="review-prompt-later"
+              >
+                <Text style={[styles.reviewPromptBtnTxt, { color: theme.color.onSurface }]}>Più tardi</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.reviewPromptBtn, { backgroundColor: "#F59E0B" }]}
+                onPress={() => {
+                  setReviewPromptOpen(false);
+                  setTab("reviews");
+                  setReviewsAutoOpen(true);
+                }}
+                testID="review-prompt-open"
+              >
+                <Ionicons name="calendar" size={16} color="#FFF" />
+                <Text style={[styles.reviewPromptBtnTxt, { color: "#FFF" }]}>Programma richiesta</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* V50.z71 — Modal per impostare/cambiare l'indirizzo di partenza per calcolo distanze */}
       <Modal visible={originOverrideOpen} transparent animationType="fade" onRequestClose={() => setOriginOverrideOpen(false)}>
         <View style={styles.originModalBackdrop} pointerEvents="box-none">
@@ -1498,6 +1564,14 @@ const styles = StyleSheet.create({
   originModalBtnGhost: { backgroundColor: "#F1F5F9" },
   originModalBtnGhostTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 13 },
   originModalBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
+  // V50.z101 — Popup transizione a "Cliente" → richiesta recensione
+  reviewPromptBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
+  reviewPromptSheet: { backgroundColor: "#FFF", borderRadius: 16, padding: 22, alignItems: "center" },
+  reviewPromptIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: "#FEF3C7", alignItems: "center", justifyContent: "center", marginBottom: 10 },
+  reviewPromptTitle: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
+  reviewPromptSub: { fontSize: 13, color: theme.color.muted, textAlign: "center", marginTop: 6, lineHeight: 18 },
+  reviewPromptBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 10 },
+  reviewPromptBtnTxt: { fontSize: 13, fontWeight: "800" },
   commSectionTitle: { fontSize: 13, fontWeight: "700", color: theme.color.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
   // V29.av — Codice cliente compatto (elemento secondario in fondo pagina)
   codeCompactRow: {

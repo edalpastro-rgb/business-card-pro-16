@@ -22699,6 +22699,436 @@ async def axon_url_cache_purge(user=Depends(get_current_user), older_than_hours:
     return {"deleted": result.deleted_count}
 
 
+# =====================================================================
+# V50.z101 — PROMPT 24: Sondaggio qualità post-conversione (Review Requests)
+# =====================================================================
+# Flusso:
+#  1. Master programma una richiesta recensione: canale (whatsapp/email/sms/telegram),
+#     data/ora invio, testo personalizzabile.
+#  2. Al momento programmato:
+#     - Email → invio automatico via SMTP (se configurato).
+#     - WhatsApp/SMS/Telegram → status="ready_to_send", il Master apre l'app,
+#       clicca deep-link e viene aperto WA/SMS/Telegram con testo precompilato.
+#  3. Il cliente riceve URL → apre form pubblico (JWT firmato, valido 30 giorni)
+#     → invia stelle + testo + consenso liberatoria.
+#  4. Il Master vede la review nella scheda cliente, la approva → visibile
+#     nella pagina pubblica shareable dell'agente.
+
+_REVIEW_CHANNELS = ("whatsapp", "email", "sms", "telegram")
+
+class ReviewRequestCreateIn(BaseModel):
+    channel: Literal["whatsapp", "email", "sms", "telegram"]
+    scheduled_at: str  # ISO 8601
+    custom_message: Optional[str] = None
+    # Se True: preview immediato senza schedulare (usato per link "invia adesso")
+    send_immediately: bool = False
+
+
+class ReviewSubmitIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    text: str = ""
+    consent_publish: bool = False
+
+
+class ReviewApproveIn(BaseModel):
+    approved: bool
+    admin_note: Optional[str] = None
+
+
+class ReviewPublicLinkIn(BaseModel):
+    # Placeholder per future opzioni (es. filtro categoria); non richiede body.
+    force_regenerate: bool = False
+
+
+def _build_public_base_url(request: Request) -> str:
+    fwd_proto = request.headers.get("x-forwarded-proto")
+    fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    if fwd_proto and fwd_host:
+        return f"{fwd_proto}://{fwd_host}".rstrip("/")
+    return str(request.base_url).rstrip("/")
+
+
+def _review_default_message(contact_first_name: str, master_name: str, form_url: str) -> str:
+    fn = contact_first_name or "Ciao"
+    mn = master_name or "il tuo consulente"
+    return (
+        f"Ciao {fn}! 👋\n"
+        f"Sono {mn}. Ti ringrazio per la fiducia.\n"
+        f"Vorrei chiederti pochi secondi per lasciarmi una recensione — "
+        f"il tuo feedback è prezioso.\n\n"
+        f"👉 {form_url}\n\n"
+        f"Grazie di cuore! 🙏"
+    )
+
+
+def _review_token_encode(req_id: str, user_id: str, ttl_days: int = 30) -> str:
+    exp_dt = utcnow() + timedelta(days=ttl_days)
+    return jwt.encode({
+        "kind": "review_form",
+        "req_id": req_id,
+        "user_id": user_id,
+        "exp": int(exp_dt.timestamp()),
+    }, JWT_SECRET, algorithm=JWT_ALG)
+
+
+def _review_token_decode(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=410, detail="Link scaduto")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Link non valido")
+    if payload.get("kind") != "review_form":
+        raise HTTPException(status_code=400, detail="Token non compatibile")
+    return payload
+
+
+@api_router.post("/contacts/{contact_id}/review-request")
+async def create_review_request(contact_id: str, body: ReviewRequestCreateIn,
+                                request: Request, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    c = await db.contacts.find_one({"user_id": tid, "contact_id": contact_id}, {"_id": 0})
+    if not c:
+        raise HTTPException(status_code=404, detail="Contatto non trovato")
+
+    # Parse scheduled_at
+    try:
+        sched_dt = datetime.fromisoformat(body.scheduled_at.replace("Z", "+00:00"))
+        if sched_dt.tzinfo is None:
+            sched_dt = sched_dt.replace(tzinfo=timezone.utc)
+        else:
+            sched_dt = sched_dt.astimezone(timezone.utc)
+    except Exception:
+        raise HTTPException(status_code=422, detail="scheduled_at deve essere ISO 8601 (es. 2026-07-15T09:00:00Z)")
+
+    # Se send_immediately → schedule now
+    if body.send_immediately:
+        sched_dt = utcnow()
+
+    req_id = f"revq_{uuid.uuid4().hex[:12]}"
+    token = _review_token_encode(req_id, tid, ttl_days=30)
+    base = _build_public_base_url(request)
+    # Frontend page (Expo Router serve /public-review/[token])
+    form_url = f"{base}/public-review/{token}"
+    api_url = f"{base}/api/public/review-form/{token}"
+
+    contact_name = " ".join([c.get("first_name") or "", c.get("last_name") or ""]).strip() or "il cliente"
+    master_doc = await db.users.find_one({"user_id": tid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+    master_name = " ".join([(master_doc or {}).get("first_name") or "", (master_doc or {}).get("last_name") or ""]).strip() or ((master_doc or {}).get("email") or "il tuo consulente")
+
+    default_msg = _review_default_message(c.get("first_name") or "", master_name, form_url)
+    message_body = (body.custom_message.strip() if body.custom_message and body.custom_message.strip() else default_msg)
+    # Auto-inject link se il messaggio custom non lo contiene già
+    if form_url not in message_body:
+        message_body = f"{message_body}\n\n👉 {form_url}"
+
+    doc = {
+        "req_id": req_id,
+        "user_id": tid,
+        "contact_id": contact_id,
+        "contact_name": contact_name,
+        "contact_phone": c.get("whatsapp") or c.get("phone") or "",
+        "contact_email": c.get("email") or "",
+        "contact_telegram": c.get("telegram") or "",
+        "channel": body.channel,
+        "scheduled_at": sched_dt,
+        "custom_message": message_body,
+        "form_url": form_url,
+        "api_url": api_url,
+        "token": token,
+        "status": "pending",
+        "created_by": user["user_id"],
+        "created_at": utcnow(),
+        "sent_at": None,
+        "responded_at": None,
+    }
+    await db.review_requests.insert_one(doc)
+
+    # Se già in passato e canale email → prova a inviare subito
+    if body.send_immediately and body.channel == "email":
+        try:
+            await _send_review_email_request(doc)
+        except Exception as exc:
+            logger.warning(f"[review-request] immediate email failed: {exc}")
+
+    resp = {k: v for k, v in doc.items() if k != "_id"}
+    return resp
+
+
+@api_router.get("/contacts/{contact_id}/review-requests")
+async def list_review_requests_by_contact(contact_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    docs = await db.review_requests.find(
+        {"user_id": tid, "contact_id": contact_id},
+        {"_id": 0}
+    ).sort("scheduled_at", -1).to_list(200)
+    return {"items": docs}
+
+
+@api_router.delete("/review-requests/{req_id}")
+async def cancel_review_request(req_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    r = await db.review_requests.find_one({"req_id": req_id, "user_id": tid}, {"_id": 0, "status": 1})
+    if not r:
+        raise HTTPException(status_code=404, detail="Richiesta non trovata")
+    if r.get("status") in ("responded",):
+        raise HTTPException(status_code=400, detail="Impossibile cancellare: già risposta")
+    await db.review_requests.update_one({"req_id": req_id}, {"$set": {"status": "cancelled"}})
+    return {"ok": True}
+
+
+@api_router.post("/review-requests/{req_id}/mark-sent")
+async def mark_review_request_sent(req_id: str, user=Depends(get_current_user)):
+    """Chiamato dal frontend dopo che il Master ha cliccato il deep-link WA/SMS/Telegram."""
+    tid = tenant_id(user)
+    r = await db.review_requests.update_one(
+        {"req_id": req_id, "user_id": tid, "status": {"$in": ["pending", "ready_to_send"]}},
+        {"$set": {"status": "sent", "sent_at": utcnow()}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Richiesta non trovabile o già inviata")
+    return {"ok": True}
+
+
+@api_router.get("/public/review-form/{token}")
+async def public_review_form_info(token: str):
+    """Ritorna metadati per il form pubblico (contact/master name, canale, status)."""
+    payload = _review_token_decode(token)
+    req_id = payload["req_id"]
+    r = await db.review_requests.find_one({"req_id": req_id}, {"_id": 0})
+    if not r:
+        raise HTTPException(status_code=404, detail="Richiesta non trovata")
+    if r.get("status") == "cancelled":
+        raise HTTPException(status_code=410, detail="Richiesta cancellata dal consulente")
+    # Se già risposta → mostra thank-you
+    already_responded = r.get("status") == "responded"
+    return {
+        "req_id": req_id,
+        "contact_name": r.get("contact_name") or "",
+        "channel": r.get("channel"),
+        "status": r.get("status"),
+        "already_responded": already_responded,
+    }
+
+
+@api_router.post("/public/review-form/{token}")
+async def public_review_submit(token: str, body: ReviewSubmitIn):
+    payload = _review_token_decode(token)
+    req_id = payload["req_id"]
+    user_id = payload["user_id"]
+    r = await db.review_requests.find_one({"req_id": req_id, "user_id": user_id}, {"_id": 0})
+    if not r:
+        raise HTTPException(status_code=404, detail="Richiesta non trovata")
+    if r.get("status") == "cancelled":
+        raise HTTPException(status_code=410, detail="Richiesta cancellata")
+    # Non permettiamo doppia risposta
+    existing = await db.reviews.find_one({"req_id": req_id}, {"_id": 0, "review_id": 1})
+    if existing:
+        raise HTTPException(status_code=409, detail="Recensione già inviata per questa richiesta")
+
+    review_id = f"rev_{uuid.uuid4().hex[:12]}"
+    review = {
+        "review_id": review_id,
+        "req_id": req_id,
+        "user_id": user_id,
+        "contact_id": r.get("contact_id"),
+        "contact_name": r.get("contact_name") or "",
+        "rating": int(body.rating),
+        "text": (body.text or "").strip(),
+        "consent_publish": bool(body.consent_publish),
+        "submitted_at": utcnow(),
+        "approved": None,
+        "approved_at": None,
+        "approved_by": None,
+        "admin_note": None,
+    }
+    await db.reviews.insert_one(review)
+    await db.review_requests.update_one(
+        {"req_id": req_id},
+        {"$set": {"status": "responded", "responded_at": utcnow()}},
+    )
+    return {"ok": True, "review_id": review_id}
+
+
+@api_router.get("/contacts/{contact_id}/reviews")
+async def list_reviews_by_contact(contact_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    docs = await db.reviews.find(
+        {"user_id": tid, "contact_id": contact_id},
+        {"_id": 0}
+    ).sort("submitted_at", -1).to_list(200)
+    return {"items": docs}
+
+
+@api_router.get("/reviews")
+async def list_reviews(status: str = "all", user=Depends(get_current_user)):
+    """Lista tutte le review del tenant. status: all|pending|approved|rejected."""
+    tid = tenant_id(user)
+    q: Dict[str, Any] = {"user_id": tid}
+    if status == "pending":
+        q["approved"] = None
+    elif status == "approved":
+        q["approved"] = True
+    elif status == "rejected":
+        q["approved"] = False
+    docs = await db.reviews.find(q, {"_id": 0}).sort("submitted_at", -1).to_list(500)
+    return {"items": docs}
+
+
+@api_router.patch("/reviews/{review_id}/approve")
+async def approve_review(review_id: str, body: ReviewApproveIn, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    r = await db.reviews.find_one({"user_id": tid, "review_id": review_id}, {"_id": 0, "review_id": 1})
+    if not r:
+        raise HTTPException(status_code=404, detail="Recensione non trovata")
+    await db.reviews.update_one(
+        {"review_id": review_id},
+        {"$set": {
+            "approved": bool(body.approved),
+            "approved_at": utcnow(),
+            "approved_by": user["user_id"],
+            "admin_note": (body.admin_note or None),
+        }},
+    )
+    return {"ok": True, "approved": bool(body.approved)}
+
+
+@api_router.delete("/reviews/{review_id}")
+async def delete_review(review_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    r = await db.reviews.delete_one({"user_id": tid, "review_id": review_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Recensione non trovata")
+    return {"ok": True}
+
+
+@api_router.post("/reviews/public-link")
+async def get_public_reviews_link(body: ReviewPublicLinkIn, request: Request, user=Depends(get_current_user)):
+    """Ritorna (e se necessario crea) lo slug pubblico permanente per la pagina recensioni del tenant."""
+    tid = tenant_id(user)
+    settings = await db.user_settings.find_one({"user_id": tid}, {"_id": 0, "reviews_public_slug": 1}) or {}
+    slug = settings.get("reviews_public_slug")
+    if not slug or body.force_regenerate:
+        slug = f"rev-{uuid.uuid4().hex[:16]}"
+        await db.user_settings.update_one(
+            {"user_id": tid},
+            {"$set": {"reviews_public_slug": slug, "user_id": tid}},
+            upsert=True,
+        )
+    base = _build_public_base_url(request)
+    return {
+        "slug": slug,
+        "public_url": f"{base}/public-reviews/{slug}",
+        "api_url": f"{base}/api/public/reviews/{slug}",
+    }
+
+
+@api_router.get("/public/reviews/{slug}")
+async def public_reviews_list(slug: str):
+    """Pagina pubblica: elenca le recensioni approvate del tenant con consent_publish=True."""
+    st = await db.user_settings.find_one({"reviews_public_slug": slug}, {"_id": 0, "user_id": 1})
+    if not st:
+        raise HTTPException(status_code=404, detail="Pagina non trovata")
+    tid = st.get("user_id")
+    master = await db.users.find_one({"user_id": tid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+    master_name = " ".join([(master or {}).get("first_name") or "", (master or {}).get("last_name") or ""]).strip() or ((master or {}).get("email") or "Consulente")
+    reviews = await db.reviews.find(
+        {"user_id": tid, "approved": True, "consent_publish": True},
+        {"_id": 0, "rating": 1, "text": 1, "submitted_at": 1, "contact_name": 1}
+    ).sort("submitted_at", -1).to_list(200)
+
+    # Anonymizza: solo primo nome + iniziale cognome
+    def _short(name: str) -> str:
+        parts = (name or "").strip().split()
+        if not parts:
+            return "Cliente"
+        first = parts[0]
+        last_i = (parts[1][0] + ".") if len(parts) >= 2 and parts[1] else ""
+        return (first + " " + last_i).strip()
+
+    out = []
+    total_rating = 0
+    for r in reviews:
+        total_rating += int(r.get("rating") or 0)
+        out.append({
+            "rating": int(r.get("rating") or 0),
+            "text": r.get("text") or "",
+            "date": (r.get("submitted_at").isoformat() if r.get("submitted_at") else None),
+            "author": _short(r.get("contact_name") or ""),
+        })
+    avg = round(total_rating / len(out), 2) if out else None
+    return {
+        "master_name": master_name,
+        "reviews": out,
+        "count": len(out),
+        "average_rating": avg,
+    }
+
+
+# -------- Sending helpers ----------
+async def _send_review_email_request(req_doc: dict) -> bool:
+    """Invia email di richiesta recensione via SMTP del tenant, se configurato."""
+    tid = req_doc.get("user_id")
+    to_email = (req_doc.get("contact_email") or "").strip()
+    if not to_email:
+        return False
+    cfg = await db.smtp_configs.find_one({"user_id": tid}, {"_id": 0})
+    if not cfg or not cfg.get("host"):
+        return False
+    subject = f"Un secondo per una recensione? — {req_doc.get('contact_name') or ''}".strip(" —")
+    body_text = req_doc.get("custom_message") or ""
+    form_url = req_doc.get("form_url") or ""
+    body_html = f"""<html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#111;max-width:560px;margin:0 auto;padding:24px">
+<p style="font-size:16px;line-height:1.5;white-space:pre-wrap">{body_text}</p>
+<p style="margin-top:24px"><a href="{form_url}" style="background:#8B5CF6;color:#fff;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600">Lascia la recensione</a></p>
+<p style="color:#888;font-size:12px;margin-top:32px">Se il pulsante non funziona, apri questo link:<br/><a href="{form_url}">{form_url}</a></p>
+</body></html>"""
+    try:
+        await asyncio.to_thread(_send_smtp_email, cfg, to_email, subject, body_text, body_html)
+        return True
+    except Exception as exc:
+        logger.warning(f"[review-request] email send failed for req {req_doc.get('req_id')}: {exc}")
+        return False
+
+
+async def _run_review_requests_dispatch_job() -> None:
+    """Ogni 5 min: processa review_requests con scheduled_at scaduto.
+    - channel=email → invia via SMTP e status=sent.
+    - channel=whatsapp|sms|telegram → status=ready_to_send (il Master vedrà pulsante deep-link).
+    """
+    try:
+        cutoff = utcnow()
+        pending = await db.review_requests.find({
+            "status": "pending",
+            "scheduled_at": {"$lte": cutoff},
+        }).to_list(500)
+        for r in pending:
+            ch = r.get("channel")
+            try:
+                if ch == "email":
+                    sent = await _send_review_email_request(r)
+                    if sent:
+                        await db.review_requests.update_one(
+                            {"req_id": r["req_id"]},
+                            {"$set": {"status": "sent", "sent_at": utcnow()}},
+                        )
+                    else:
+                        # Nessun SMTP → fallback a ready_to_send perché il Master possa
+                        # aprire il client mail manualmente (mailto:) o riprogrammare.
+                        await db.review_requests.update_one(
+                            {"req_id": r["req_id"]},
+                            {"$set": {"status": "ready_to_send"}},
+                        )
+                else:
+                    await db.review_requests.update_one(
+                        {"req_id": r["req_id"]},
+                        {"$set": {"status": "ready_to_send"}},
+                    )
+            except Exception as exc:
+                logger.warning(f"[review-dispatch] {r.get('req_id')} failed: {exc}")
+    except Exception as exc:
+        logger.warning(f"[review-dispatch-job] failed: {exc}")
+
 
 app.include_router(api_router)
 
@@ -22766,6 +23196,16 @@ async def _startup():
         pass
     # V29.ag — Cache azioni rapide Axon (una entry per (user, label))
     await db.axon_qa_cache.create_index([("user_id", 1), ("label", 1)], unique=True)
+    # V50.z101 — Review requests + reviews (PROMPT 24 sondaggio qualità post-conversione)
+    try:
+        await db.review_requests.create_index("req_id", unique=True)
+        await db.review_requests.create_index([("user_id", 1), ("contact_id", 1)])
+        await db.review_requests.create_index([("status", 1), ("scheduled_at", 1)])
+        await db.reviews.create_index("review_id", unique=True)
+        await db.reviews.create_index([("user_id", 1), ("contact_id", 1)])
+        await db.reviews.create_index([("user_id", 1), ("approved", 1), ("submitted_at", -1)])
+    except Exception:
+        pass
     # V40 — Semantic cache for Axon assistant (global). Note: we intentionally
     # do NOT use a MongoDB TTL index to hard-delete records at startup — the
     # `_semantic_cache_lookup` function already filters `expires_at > now` at
@@ -22972,6 +23412,11 @@ async def _start_scheduler():
             _run_drive_reindex_job, "interval", minutes=30,
             id="drive-reindex", replace_existing=True,
         )
+        # V50.z101 — Dispatch review requests programmate (ogni 5 min)
+        _birthday_scheduler.add_job(
+            _run_review_requests_dispatch_job, "interval", minutes=5,
+            id="review-requests-dispatch", replace_existing=True,
+        )
         _birthday_scheduler.start()
         logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
         logger.info("Rule-proposals scheduler started (daily 03:00 Europe/Rome)")
@@ -22979,6 +23424,7 @@ async def _start_scheduler():
         logger.info("Auto-CRM scheduler tick started (every 1 minute)")
         logger.info("Axon memory distillation scheduler started (daily 04:00 Europe/Rome)")
         logger.info("Drive re-index scheduler started (every 30 minutes)")
+        logger.info("Review requests dispatch scheduler started (every 5 minutes)")
     except Exception as e:
         logger.warning(f"birthday scheduler start failed: {e}")
 

@@ -1,3 +1,67 @@
+## V50.z101.b (Giu 2026) — PROMPT 24: Sondaggio qualità post-conversione
+
+### Flusso completo
+1. Master programma richiesta recensione (canale + data/ora + messaggio custom).
+2. Al momento programmato: email→SMTP auto; WA/SMS/Telegram→status `ready_to_send`.
+3. Cliente apre link firmato JWT (30 giorni), compila form pubblico (stelle, testo, checkbox consenso).
+4. Master vede la recensione, approva/rifiuta.
+5. Recensioni approvate + consent_publish=true finiscono nella pagina pubblica shareable del consulente.
+
+### Backend (`server.py`)
+- 2 nuove collezioni:
+  - `review_requests`: `{req_id, user_id (tenant), contact_id, channel, scheduled_at, custom_message, form_url, token, status ('pending'|'ready_to_send'|'sent'|'responded'|'cancelled'), sent_at, responded_at, ...}`
+  - `reviews`: `{review_id, req_id, user_id, contact_id, rating (1-5), text, consent_publish, submitted_at, approved (bool|None), approved_by, approved_at, admin_note}`
+- Indici: `req_id unique`, `(user_id, contact_id)`, `(status, scheduled_at)`, `review_id unique`, `(user_id, approved, submitted_at desc)`
+- **10 endpoint**:
+  - `POST /api/contacts/{cid}/review-request` — crea richiesta (channel/scheduled_at/custom_message/send_immediately)
+  - `GET /api/contacts/{cid}/review-requests` — lista per contatto
+  - `DELETE /api/review-requests/{req_id}` — annulla richiesta pendente
+  - `POST /api/review-requests/{req_id}/mark-sent` — marca "inviata" dopo deep-link WA/SMS/Telegram
+  - `GET /api/public/review-form/{token}` — meta form (no auth, JWT firmato)
+  - `POST /api/public/review-form/{token}` — invio recensione dal cliente (no auth)
+  - `GET /api/contacts/{cid}/reviews` — lista recensioni per contatto
+  - `GET /api/reviews?status=all|pending|approved|rejected` — dashboard recensioni
+  - `PATCH /api/reviews/{review_id}/approve` — approva/rifiuta
+  - `DELETE /api/reviews/{review_id}` — elimina
+  - `POST /api/reviews/public-link` — genera/recupera slug pubblico permanente
+  - `GET /api/public/reviews/{slug}` — pagina pubblica recensioni (no auth)
+- **APScheduler**: `_run_review_requests_dispatch_job` ogni 5 minuti — dispatcha `pending` scaduti (email→SMTP auto, altri→status `ready_to_send`).
+- **Helpers**:
+  - `_review_default_message(name, master, url)` — testo predefinito personalizzato
+  - `_review_token_encode/decode` (JWT 30 giorni con `kind=review_form`)
+  - `_build_public_base_url(request)` — usa X-Forwarded-Proto/Host per proxy Kubernetes
+  - `_send_review_email_request(req_doc)` — SMTP con HTML button + fallback text
+- Anonimizzazione lista pubblica: `Mario Rossi` → `Mario R.` (privacy).
+
+### Frontend
+- **Nuovo tab "reviews" (stella arancione)** in scheda contatto (`app/contact/[id].tsx`).
+- **Componente `src/ContactReviewsSection.tsx`**:
+  - Header con conteggio + media star
+  - Bottone "Richiedi recensione" apre modal con: 4 canali (WA/Email/SMS/Telegram con icone brand), datetime-local input (web nativo), textarea messaggio custom, 2 azioni (Programma / Invia adesso)
+  - Lista richieste inviate con badge status colorati + azioni per stato:
+    - `pending`/`ready_to_send` → "Invia ora" apre `wa.me`, `sms:`, `t.me/...`, o `mailto:` con testo precompilato → poi POST `/mark-sent`
+    - Sempre visibili: "Copia link form", "Annulla"
+  - Lista recensioni ricevute: stelle rendering, badge "In attesa/Approvata/Respinta", box consenso pubblicazione, azioni Approva/Rifiuta/Elimina
+  - Bottone "Copia link pagina pubblica recensioni" (genera slug + clipboard)
+- **Popup transizione status → "client"** in `app/contact/[id].tsx`:
+  - `useEffect` compara `prevStatusRef` con `c.status`; se transizione a `"client"` mostra modal "Nuovo cliente 🎉 — Vuoi programmare la richiesta di recensione?" con azioni "Più tardi"/"Programma richiesta" (che apre tab Reviews con modal auto-aperto).
+- **`app/public-review/[token].tsx`** (no auth): form cliente con 5 stelle interactive + rating label ("😕 Da migliorare"…"🤩 Eccellente!"), textarea, checkbox liberatoria, invio via `fetch` (bypassa `api.ts` per non richiedere auth). Success screen con checkmark verde.
+- **`app/public-reviews/[slug].tsx`** (no auth): hero card con nome master + media stelle grande + conteggio, lista card recensioni con stelle piccole/data/testo/autore abbreviato.
+
+### Testing manuale eseguito
+- ✅ POST create request → status pending
+- ✅ GET public form info → dati corretti
+- ✅ POST submit review → 200 + review_id
+- ✅ Doppio submit → 409 idempotente
+- ✅ PATCH approve → approved=true
+- ✅ POST public-link → slug generato in user_settings
+- ✅ GET public/reviews/{slug} → media 5.0, 1 recensione autore anonimizzato
+- ✅ Pagina pubblica /public-review/{token} → form renderizzato con stelle
+- ✅ Pagina pubblica /public-reviews/{slug} → 3 demo reviews con media 4.7
+
+---
+
+
 ## V50.z100 (Giu 2026) — KB Auto-Search + FAB Axon trascinabile
 
 ### Richieste utente
