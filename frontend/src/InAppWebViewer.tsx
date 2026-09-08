@@ -84,7 +84,17 @@ export function InAppWebViewer({
             onLoadEnd={() => setLoading(false)}
             onError={(e: any) => {
               setLoading(false);
-              setErrMsg(e?.nativeEvent?.description || "Impossibile caricare la pagina");
+              // Rileva blocco WebView (X-Frame-Options, CSP frame-ancestors, ecc.)
+              const desc = e?.nativeEvent?.description || "";
+              const blocked = /x-frame|frame-ancestors|refused|blocked|denied/i.test(desc);
+              setErrMsg(blocked ? "Sito non accessibile in modalità interna" : (desc || "Sito non accessibile in modalità interna"));
+            }}
+            onHttpError={(e: any) => {
+              const code = e?.nativeEvent?.statusCode;
+              if (code && code >= 400) {
+                setLoading(false);
+                setErrMsg("Sito non accessibile in modalità interna");
+              }
             }}
             javaScriptEnabled
             domStorageEnabled
@@ -99,10 +109,12 @@ export function InAppWebViewer({
         ) : null}
         {errMsg ? (
           <View style={styles.errBox}>
-            <Ionicons name="warning" size={22} color="#DC2626" />
+            <Ionicons name="warning" size={30} color="#DC2626" />
+            <Text style={styles.errTitle}>Sito non accessibile in modalità interna</Text>
             <Text style={styles.errTxt}>{errMsg}</Text>
-            <Pressable onPress={openExternal} style={styles.errBtn}>
-              <Text style={styles.errBtnTxt}>Apri nel browser</Text>
+            <Pressable onPress={openExternal} style={styles.errBtn} testID="inapp-webview-open-external-fallback">
+              <Ionicons name="open-outline" size={16} color="#FFF" />
+              <Text style={styles.errBtnTxt}>Apri nel browser esterno</Text>
             </Pressable>
           </View>
         ) : null}
@@ -175,9 +187,10 @@ const styles = StyleSheet.create({
   axonBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: "#F59E0B55" },
   axonBtnTxt: { color: "#F59E0B", fontWeight: "800", fontSize: 12 },
   loader: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.6)" },
-  errBox: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", gap: 10, padding: 24, backgroundColor: "#FFF" },
-  errTxt: { color: "#DC2626", fontSize: 13, textAlign: "center" },
-  errBtn: { backgroundColor: "#0EA5E9", paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },
+  errBox: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", gap: 8, padding: 24, backgroundColor: "#FFF" },
+  errTitle: { color: "#111820", fontSize: 16, fontWeight: "800", textAlign: "center", marginTop: 8 },
+  errTxt: { color: "#6B7280", fontSize: 12, textAlign: "center" },
+  errBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#0EA5E9", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10, marginTop: 8 },
   errBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   askBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: 20 },
   askCard: { width: "100%", maxWidth: 380, backgroundColor: "#FFF", borderRadius: 16, padding: 16 },

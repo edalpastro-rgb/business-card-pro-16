@@ -1,3 +1,34 @@
+## V50.z107 (Giu 2026) — Link app-wide in WebView interna con tab bar visibile
+
+### Route dedicata `(tabs)/webviewer`
+- Nuovo file **`/app/frontend/app/(tabs)/webviewer.tsx`** — wrapper attorno a `<InAppWebViewer>` che riceve `url`, `title`, `contactId` da query string. Essendo dentro `(tabs)`, la bottom nav resta visibile durante la navigazione web (dietro la WebView).
+- `_layout.tsx` di `(tabs)`: registrata `<Tabs.Screen name="webviewer" options={{ href: null }} />` — nascosta dalla tab bar, raggiungibile solo via `router.push()`.
+
+### Helper globale `openInAppLink`
+- **`/app/frontend/src/utils/openInAppLink.ts`** — utility usabile in tutta l'app:
+  ```ts
+  openInAppLink(router, url, { title, contactId })
+  ```
+  Sostituisce le vecchie `setModalUrl(...)` / `Linking.openURL(...)` con `router.push("/(tabs)/webviewer?url=...&title=...")`.
+
+### Aggiornamento InAppWebViewer
+- **Messaggio errore aggiornato** al testo richiesto: **"Sito non accessibile in modalità interna"** come titolo bold, con description dettagliata sotto e bottone "Apri nel browser esterno" con icona.
+- **Rilevamento blocco WebView migliorato**:
+  - `onError` intercetta X-Frame-Options / frame-ancestors / refused / blocked / denied
+  - `onHttpError` intercetta status ≥ 400
+  - In entrambi i casi mostra il fallback esterno
+
+### My Web
+- **`app/my-web.tsx`**: `openLink()` ora chiama `openInAppLink(router, url, { title })` invece di aprire il modal inline. La tab bar resta visibile durante la navigazione, l'utente vede sempre Home/Contatti/etc.
+- Il modal `InAppWebViewer` inline è ancora presente come fallback (già usato da bill-quick, contatti/[id], ecc.); nulla è rimosso.
+
+### Testing
+- ✅ Route `/(tabs)/webviewer` risponde e richiede autenticazione (redirect a login se non loggato — conferma routing corretto)
+- ✅ Lint pulito su tutti i file toccati (my-web.tsx, InAppWebViewer.tsx, webviewer.tsx, openInAppLink.ts, (tabs)/_layout.tsx)
+
+---
+
+
 ## V50.z106 (Giu 2026) — PROMPT 29: Schermata Sicurezza AdvisorOS (informativa)
 
 ### Nuova pagina `/app/frontend/app/security-info.tsx`

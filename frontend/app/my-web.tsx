@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, Activi
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
+import { openInAppLink } from "@/src/utils/openInAppLink";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
@@ -41,9 +42,13 @@ export default function MyWebScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // V50.z74 — I link si aprono in WebView interna (mai fuori dall'app)
+  // V50.z107 — I link si aprono nella route (tabs)/webviewer così la bottom nav
+  // resta visibile durante la navigazione web. Il modal InAppWebViewer resta
+  // come fallback per contesti dove la tab bar non serve.
   const [webView, setWebView] = useState<{ title: string; url: string } | null>(null);
-  const openLink = (u: string, t?: string) => setWebView({ title: t || "", url: u });
+  const openLink = (u: string, t?: string) => {
+    openInAppLink(router, u, { title: t || "Link" });
+  };
 
   // V50.z60 — Aggiunge un link personale di My Web alla scheda "Comunica con
   // l'azienda" (endpoint tenant-scoped /company-web-links, solo Master).

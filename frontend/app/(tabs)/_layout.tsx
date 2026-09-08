@@ -117,6 +117,12 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/* V50.z107 — WebViewer accessibile via push URL, nascosto dalla tab bar
+           (ma tab bar rimane visibile durante la navigazione web) */}
+      <Tabs.Screen
+        name="webviewer"
+        options={{ href: null }}
+      />
     </Tabs>
   );
 }
