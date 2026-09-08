@@ -20800,6 +20800,12 @@ async def create_axon_alarm(payload: Dict[str, Any] = Body(...), user=Depends(ge
         note = note[:500]
     sound_ref = (payload.get("sound_ref") or "default").strip() or "default"
     vibrate = bool(payload.get("vibrate", True))
+    # V50.z78 — Volume 0-100 (default 100 = massimo). Applicato al player al trigger.
+    try:
+        volume = int(payload.get("volume", 100))
+    except Exception:
+        volume = 100
+    volume = max(0, min(100, volume))
     now_utc = utcnow()
 
     doc: Dict[str, Any] = {
@@ -20811,6 +20817,7 @@ async def create_axon_alarm(payload: Dict[str, Any] = Body(...), user=Depends(ge
         "enabled": bool(payload.get("enabled", True)),
         "sound_ref": sound_ref,
         "vibrate": vibrate,
+        "volume": volume,
         "created_at": now_utc.isoformat(),
         "updated_at": now_utc.isoformat(),
         "last_triggered_at": None,
@@ -20872,6 +20879,13 @@ async def update_axon_alarm(alarm_id: str, payload: Dict[str, Any] = Body(...), 
         updates["sound_ref"] = (payload.get("sound_ref") or "default").strip() or "default"
     if "vibrate" in payload:
         updates["vibrate"] = bool(payload["vibrate"])
+    # V50.z78 — Volume 0-100
+    if "volume" in payload:
+        try:
+            vol = int(payload["volume"])
+        except Exception:
+            vol = 100
+        updates["volume"] = max(0, min(100, vol))
 
     kind = existing["kind"]
     if kind == "timer" and "duration_seconds" in payload:

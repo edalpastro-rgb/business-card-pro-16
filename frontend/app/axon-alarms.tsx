@@ -16,6 +16,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Notifications from "expo-notifications";
 import { createAudioPlayer, AudioModule } from "expo-audio";
+import Slider from "@react-native-community/slider";
 import { api } from "@/src/api";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { syncAlarmNotifs, removeAlarmNotifs, syncAllAlarms, getCustomSoundUri, type Alarm, type AlarmKind } from "@/src/alarmNotifs";
@@ -23,6 +24,19 @@ import { useTimeFormat, formatHHMM, formatDateTime, formatHM } from "@/src/utils
 
 type Tab = "timer" | "alarm" | "reminder";
 type Sound = { id: string; name: string; mime: string; size_bytes?: number; created_at: string };
+
+// V50.z78 — Preset sound list: audio pubblici (Pixabay CDN — royalty free).
+// Il player fetcha l'URL una sola volta e lo cachea. Volume applicato dal player.
+type PresetSound = { id: string; name: string; icon: keyof typeof Ionicons.glyphMap; url: string };
+const PRESET_SOUNDS: PresetSound[] = [
+  { id: "preset:default", name: "Predefinito (sistema)", icon: "notifications-outline", url: "" },
+  { id: "preset:classic", name: "Sveglia classica", icon: "alarm-outline", url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_1abb4e1e05.mp3" },
+  { id: "preset:gentle", name: "Melodia delicata", icon: "musical-notes-outline", url: "https://cdn.pixabay.com/download/audio/2022/10/25/audio_775a10b0d1.mp3" },
+  { id: "preset:energic", name: "Energico", icon: "flash-outline", url: "https://cdn.pixabay.com/download/audio/2023/03/06/audio_b8a41b4a04.mp3" },
+  { id: "preset:chirp", name: "Cinguettio", icon: "leaf-outline", url: "https://cdn.pixabay.com/download/audio/2022/03/24/audio_c8d3ed4d95.mp3" },
+  { id: "preset:beep", name: "Beep digitale", icon: "radio-outline", url: "https://cdn.pixabay.com/download/audio/2023/09/29/audio_69a61cd6d6.mp3" },
+];
+const PRESET_BY_ID: Record<string, PresetSound> = Object.fromEntries(PRESET_SOUNDS.map((p) => [p.id, p]));
 
 const TABS: { id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: "timer", label: "Timer", icon: "timer-outline" },
@@ -294,6 +308,8 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [vibrate, setVibrate] = useState(initial?.vibrate ?? true);
   const [soundRef, setSoundRef] = useState(initial?.sound_ref || "default");
+  // V50.z78 — Volume 0-100 per sveglia/timer/promemoria (default 100 = massimo)
+  const [volume, setVolume] = useState<number>(typeof initial?.volume === "number" ? initial.volume : 100);
   const [saving, setSaving] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -341,14 +357,41 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
 
   const soundLabel = useMemo(() => {
     if (soundRef === "default") return "Suono predefinito";
+    if (soundRef.startsWith("preset:")) {
+      const p = PRESET_BY_ID[soundRef];
+      return p ? p.name : "Suono predefinito";
+    }
     const s = sounds.find((x) => x.id === soundRef);
     return s ? s.name : "Suono personalizzato";
   }, [soundRef, sounds]);
 
   // V50.z13 — Anteprima suono: default → schedula notifica istantanea (usa
   // system sound). Custom → suona con expo-audio dal file mp3 in cache.
+  // V50.z78 — Preset sounds: URL Pixabay riprodotto con volume corrente.
   const previewSound = async (id: string) => {
     try {
+      // Preset built-in
+      if (id.startsWith("preset:")) {
+        const preset = PRESET_BY_ID[id];
+        if (!preset || !preset.url) {
+          // preset:default → usa notifica di sistema
+          await Notifications.scheduleNotificationAsync({
+            content: { title: "Anteprima suono", body: "Suono predefinito", sound: "default", data: { tag: "preview_default" } },
+            trigger: null,
+          });
+          return;
+        }
+        try {
+          await AudioModule.setAudioModeAsync({ playsInSilentMode: true });
+        } catch { /* ignore */ }
+        const player = createAudioPlayer({ uri: preset.url });
+        try { (player as any).volume = Math.max(0, Math.min(1, volume / 100)); } catch { /* ignore */ }
+        player.play();
+        setTimeout(() => {
+          try { player.pause(); player.remove(); } catch { /* ignore */ }
+        }, 5000);
+        return;
+      }
       if (id === "default") {
         // Trigger notifica immediata (foreground handler la mostra + suono)
         await Notifications.scheduleNotificationAsync({
@@ -370,6 +413,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
           await AudioModule.setAudioModeAsync({ playsInSilentMode: true });
         } catch { /* ignore */ }
         const player = createAudioPlayer({ uri });
+        try { (player as any).volume = Math.max(0, Math.min(1, volume / 100)); } catch { /* ignore */ }
         player.play();
         // Auto-stop dopo 5s per non lasciarlo aperto
         setTimeout(() => {
@@ -402,6 +446,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
         enabled,
         sound_ref: soundRef,
         vibrate,
+        volume: Math.max(0, Math.min(100, Math.round(volume))),
       };
       if (kind === "timer") payload.duration_seconds = totalDurationSeconds;
       if (kind === "alarm") {
@@ -678,12 +723,32 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                 <Text style={styles.timeTxt}>{soundLabel}</Text>
                 <Ionicons name="chevron-forward" size={20} color="#64748B" />
               </Pressable>
-              {Platform.OS === "ios" && soundRef !== "default" ? (
+              {Platform.OS === "ios" && soundRef !== "default" && !soundRef.startsWith("preset:") ? (
                 <Text style={[styles.hint, { color: "#F59E0B" }]}>
                   ⚠️ iOS usa il suono di default per le notifiche in background. Il suono
                   custom si sente quando l&apos;app è aperta.
                 </Text>
               ) : null}
+            </Field>
+
+            {/* V50.z78 — Volume slider */}
+            <Field label={`Volume · ${Math.round(volume)}%`}>
+              <View style={styles.volRow}>
+                <Ionicons name="volume-low" size={18} color="#94A3B8" />
+                <Slider
+                  style={{ flex: 1 }}
+                  minimumValue={0}
+                  maximumValue={100}
+                  step={5}
+                  value={volume}
+                  onValueChange={setVolume}
+                  minimumTrackTintColor="#FBBF24"
+                  maximumTrackTintColor="rgba(255,255,255,0.15)"
+                  thumbTintColor="#FBBF24"
+                  testID="volume-slider"
+                />
+                <Ionicons name="volume-high" size={18} color="#FBBF24" />
+              </View>
             </Field>
 
             {/* Note */}
@@ -754,6 +819,23 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                 </Pressable>
                 {soundRef === "default" ? <Ionicons name="checkmark" size={20} color="#22C55E" /> : null}
               </Pressable>
+              {/* V50.z78 — Preset sounds (built-in) */}
+              {PRESET_SOUNDS.filter((p) => p.id !== "preset:default").map((p) => (
+                <View key={p.id} style={styles.soundRow}>
+                  <Pressable
+                    onPress={() => { setSoundRef(p.id); setShowSoundPicker(false); }}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}
+                  >
+                    <Ionicons name={p.icon} size={22} color="#FBBF24" />
+                    <Text style={styles.soundRowTxt} numberOfLines={1}>{p.name}</Text>
+                    {soundRef === p.id ? <Ionicons name="checkmark" size={20} color="#22C55E" /> : null}
+                  </Pressable>
+                  <Pressable onPress={() => previewSound(p.id)} hitSlop={8} style={styles.previewBtn} testID={`preview-${p.id}`}>
+                    <Ionicons name="play-circle" size={22} color="#22C55E" />
+                  </Pressable>
+                </View>
+              ))}
+              {sounds.length > 0 ? <Text style={styles.spSectionLbl}>Suoni personalizzati</Text> : null}
               {sounds.map((s) => (
                 <View key={s.id} style={styles.soundRow}>
                   <Pressable
@@ -850,17 +932,20 @@ function defaultLabel(kind: AlarmKind): string {
 }
 
 function parseTime(t: string | undefined | null, useNowPlus5: boolean = false): { h: number; m: number } {
+  // V50.z16 / V50.z78 — Non torniamo MAI al fixed 07:30. Se manca `time`,
+  // usiamo sempre "ora corrente + 5 min" così l'utente non vede il classico
+  // reset a 07:30 mai (il fallback storico era la causa del bug).
   if (!t) {
-    if (useNowPlus5) {
-      // V50.z16 — Default sensibile per nuove sveglie: ora attuale + 5 min,
-      // così l'utente non vede il classico 07:30 hardcoded.
-      const d = new Date(Date.now() + 5 * 60 * 1000);
-      return { h: d.getHours(), m: d.getMinutes() };
-    }
-    return { h: 7, m: 30 };
+    const d = new Date(Date.now() + 5 * 60 * 1000);
+    return { h: d.getHours(), m: d.getMinutes() };
   }
   const [h, m] = t.split(":").map((x) => parseInt(x, 10));
-  return { h: isNaN(h) ? 7 : h, m: isNaN(m) ? 30 : m };
+  // Se il parsing produce NaN (input corrotto), usa now+5 (mai 07:30)
+  if (isNaN(h) || isNaN(m)) {
+    const d = new Date(Date.now() + 5 * 60 * 1000);
+    return { h: d.getHours(), m: d.getMinutes() };
+  }
+  return { h, m };
 }
 
 function fmtHHMM24(d: Date): string {
@@ -984,6 +1069,9 @@ const styles = StyleSheet.create({
   spSheet: { backgroundColor: "#0F2438", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 28 },
   dragHandle: { alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "#334155", marginBottom: 8 },
   spTitle: { color: "#FFF", fontSize: 16, fontWeight: "800", marginBottom: 12 },
+  spSectionLbl: { color: "#94A3B8", fontSize: 11, fontWeight: "700", textTransform: "uppercase", marginTop: 10, marginBottom: 4, letterSpacing: 0.5 },
+  // V50.z78 — Volume slider row
+  volRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 10 },
   soundRow: {
     flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",

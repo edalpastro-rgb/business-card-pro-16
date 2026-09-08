@@ -53,8 +53,9 @@ export type Alarm = {
   label: string;
   note?: string | null;
   enabled: boolean;
-  sound_ref: string; // "default" | sound_id
+  sound_ref: string; // "default" | sound_id | preset:<name>
   vibrate: boolean;
+  volume?: number; // 0-100, default 100
   duration_seconds?: number;
   time?: string; // "HH:MM"
   weekdays?: number[]; // 0=Dom ... 6=Sab

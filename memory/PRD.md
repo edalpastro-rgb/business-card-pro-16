@@ -1,3 +1,37 @@
+## V50.z78 (Set 2026) — Sveglia: volume, preset sounds, fix reset 07:30 (PROMPT 14)
+
+### Richieste utente
+1. Fix del bug "si resetta sempre alle 7:30 ogni volta che si riapre l'app".
+2. Scegliere il suono della sveglia tra una lista di opzioni.
+3. Regolare il volume direttamente nelle impostazioni sveglia.
+
+### Backend `server.py`
+- **`volume`** aggiunto a `axon_alarms` (0-100, default 100). Sia `POST /api/axon/alarms` sia `PUT /api/axon/alarms/{id}` accettano il campo, clampato a 0-100.
+- Nessun'altra modifica: `time` era già persistito correttamente in DB (il bug era esclusivamente client-side sul fallback della funzione `parseTime`).
+
+### Frontend `/app/axon-alarms.tsx`
+- **Fix bug reset 07:30**: rimosso definitivamente il fallback `{h:7, m:30}` da `parseTime`. Ora se `time` manca o è corrotto → `now + 5min` (nessun valore hardcoded).
+- **Preset sounds built-in** (6 opzioni royalty-free da Pixabay CDN):
+  - Predefinito (sistema), Sveglia classica, Melodia delicata, Energico, Cinguettio, Beep digitale.
+  - Ogni preset mostrato nel sound picker con icona dedicata e pulsante ▶ preview.
+  - Il player usa il volume corrente per l'anteprima (feedback immediato).
+- **Slider volume** (`@react-native-community/slider@5.0.1` installato):
+  - Range 0-100 con step 5, label live `Volume · X%`.
+  - Salvato nel payload di create/update.
+  - Applicato automaticamente all'anteprima e al player al trigger.
+- **Fix percettivo**: il warning iOS "usa suono default in background" ora esclude anche i preset (che sono URL remoti come le custom).
+
+### `alarmNotifs.ts`
+- Type `Alarm` esteso con `volume?: number`.
+- `sound_ref` documentato come `"default" | sound_id | preset:<name>`.
+
+### Test backend via curl
+- Create sveglia con `time=15:45`, `sound_ref=preset:classic`, `volume=70`, `weekdays=[1..5]` → tutti i campi persistiti.
+- GET conferma persistenza (simulazione riapertura app).
+- PUT volume=30 → aggiornamento OK.
+- Nessuna sveglia mostra più `time=07:30` di default.
+
+
 ## V50.z77 (Set 2026) — Fix log e validazione GME/AI-Teach prefetch (PROMPT 13)
 
 ### Richiesta utente
