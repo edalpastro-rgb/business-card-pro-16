@@ -36,6 +36,7 @@ import { PromoteToAgentModal } from "@/src/PromoteToAgentModal";
 import { AxonAnalysesSection } from "@/src/AxonAnalysesSection";
 import { AxonProfileCard } from "@/src/AxonProfileCard";
 import { ContactMailAttachmentsSection } from "@/src/ContactMailAttachmentsSection";
+import { ContactCustomFieldsSection } from "@/src/ContactCustomFieldsSection";
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -53,6 +54,7 @@ type Contact = {
   contact_code?: string;
   status?: "prospect" | "collaborator" | "client";
   linked_user_id?: string;
+  custom_fields?: Record<string, any> | null;
 };
 
 const STATUS_META: Record<string, { label: string; color: string; icon: any }> = {
@@ -1110,6 +1112,15 @@ function ContactDetail() {
             <AxonProfileCard contactId={id} />
             <AxonAnalysesSection contactId={id} />
           </>
+        )}
+
+        {/* V50.z67 — Sezione Campi Personalizzati (visibili solo se definiti dal Master) */}
+        {tab === "info" && (
+          <ContactCustomFieldsSection
+            contactId={id as string}
+            initialValues={c.custom_fields || {}}
+            onSaved={load}
+          />
         )}
 
         {/* V29.av — Codice Cliente: riga compatta inline (etichetta + valore),

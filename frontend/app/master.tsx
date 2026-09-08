@@ -838,6 +838,7 @@ function SettingsHubSection({
         { icon: "business", label: "New Corporate", hint: "Crea nuova area business", onPress: () => onGoto("/corporate/new"), ownerOnly: true, testID: "hub-corporate" },
         { icon: "gift", label: "Invita Cliente", hint: "Trial gratuito con link estensibile", onPress: () => onGoto("/invitati"), ownerOnly: true, testID: "hub-invite-client" },
         { icon: "settings", label: "Aree & Categorie CRM", hint: "Aree contatto, appuntamenti, prodotti (nel Profilo)", onPress: () => onGoto("/(tabs)/impostazioni"), ownerOnly: true, testID: "hub-crm-settings" },
+        { icon: "options-outline", label: "Campi Personalizzati Anagrafica", hint: "Aggiungi campi custom alla scheda cliente", onPress: () => onGoto("/custom-fields"), ownerOnly: true, testID: "hub-custom-fields" },
       ],
     },
     {

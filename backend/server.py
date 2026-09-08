@@ -872,6 +872,8 @@ class ContactUpdate(BaseModel):
     customer_types: Optional[Dict[str, str]] = None
     # V28.q — Bidirectional peer references (opzionale: normalmente si usa endpoint dedicato)
     reference_contact_ids: Optional[List[str]] = None
+    # V50.z67 — Campi personalizzati anagrafica (chiavi definite dal master)
+    custom_fields: Optional[Dict[str, Any]] = None
 
 
 class ProfileUpdate(BaseModel):
@@ -1973,6 +1975,149 @@ def _parse_import_file(filename: str, content: bytes) -> Tuple[List[str], List[D
             if any(d.values()):
                 rows.append(d)
         return headers, rows
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# V50.z67 — Campi personalizzati anagrafica contatti
+# Il Master (owner) può definire campi custom da aggiungere alla scheda cliente.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_ALLOWED_CF_TYPES = {"text", "number", "date", "checkbox"}
+_ALLOWED_CF_VISIBILITY = {"master", "all"}
+
+
+def _slugify_cf_key(name: str) -> str:
+    s = (name or "").strip().lower()
+    s = re.sub(r"[àáâãä]", "a", s)
+    s = re.sub(r"[èéêë]", "e", s)
+    s = re.sub(r"[ìíîï]", "i", s)
+    s = re.sub(r"[òóôõö]", "o", s)
+    s = re.sub(r"[ùúûü]", "u", s)
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    s = s.strip("_")
+    return s or "campo"
+
+
+class ContactCustomFieldIn(BaseModel):
+    name: str
+    type: str  # text | number | date | checkbox
+    visibility: str = "all"  # master | all
+    order: Optional[int] = None
+
+
+class ContactCustomFieldUpdate(BaseModel):
+    name: Optional[str] = None
+    type: Optional[str] = None
+    visibility: Optional[str] = None
+    order: Optional[int] = None
+
+
+@api_router.get("/contact-custom-fields")
+async def list_contact_custom_fields(user=Depends(get_current_user)):
+    """List custom field definitions per tenant. Non-master users only see visibility=='all'."""
+    q: Dict[str, Any] = {"user_id": tenant_id(user)}
+    if not is_admin_or_owner(user):
+        q["visibility"] = "all"
+    items = await db.contact_custom_field_defs.find(q, {"_id": 0}).sort("order", 1).to_list(200)
+    return items
+
+
+@api_router.post("/contact-custom-fields")
+async def create_contact_custom_field(body: ContactCustomFieldIn, user=Depends(get_current_user)):
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master può creare campi personalizzati")
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Nome campo obbligatorio")
+    if body.type not in _ALLOWED_CF_TYPES:
+        raise HTTPException(status_code=400, detail=f"Tipo non valido (uno tra {sorted(_ALLOWED_CF_TYPES)})")
+    if body.visibility not in _ALLOWED_CF_VISIBILITY:
+        raise HTTPException(status_code=400, detail=f"Visibilità non valida (uno tra {sorted(_ALLOWED_CF_VISIBILITY)})")
+    tid = tenant_id(user)
+    base_key = _slugify_cf_key(name)
+    # unique key per tenant
+    key = base_key
+    n = 1
+    while await db.contact_custom_field_defs.find_one({"user_id": tid, "key": key}):
+        n += 1
+        key = f"{base_key}_{n}"
+    # order: default = last
+    if body.order is None:
+        count = await db.contact_custom_field_defs.count_documents({"user_id": tid})
+        order = count
+    else:
+        order = int(body.order)
+    doc = {
+        "field_id": f"fcf_{uuid.uuid4().hex[:12]}",
+        "user_id": tid,
+        "created_by": user["user_id"],
+        "key": key,
+        "name": name,
+        "type": body.type,
+        "visibility": body.visibility,
+        "order": order,
+        "created_at": utcnow(),
+        "updated_at": utcnow(),
+    }
+    await db.contact_custom_field_defs.insert_one(doc)
+    strip_id(doc)
+    return doc
+
+
+@api_router.put("/contact-custom-fields/{field_id}")
+async def update_contact_custom_field(field_id: str, body: ContactCustomFieldUpdate, user=Depends(get_current_user)):
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master può modificare campi personalizzati")
+    tid = tenant_id(user)
+    existing = await db.contact_custom_field_defs.find_one({"field_id": field_id, "user_id": tid})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Campo non trovato")
+    upd: Dict[str, Any] = {}
+    if body.name is not None:
+        n = body.name.strip()
+        if not n:
+            raise HTTPException(status_code=400, detail="Nome campo non può essere vuoto")
+        upd["name"] = n
+    if body.type is not None:
+        if body.type not in _ALLOWED_CF_TYPES:
+            raise HTTPException(status_code=400, detail="Tipo non valido")
+        upd["type"] = body.type
+    if body.visibility is not None:
+        if body.visibility not in _ALLOWED_CF_VISIBILITY:
+            raise HTTPException(status_code=400, detail="Visibilità non valida")
+        upd["visibility"] = body.visibility
+    if body.order is not None:
+        upd["order"] = int(body.order)
+    if not upd:
+        return {"ok": True, "unchanged": True}
+    upd["updated_at"] = utcnow()
+    await db.contact_custom_field_defs.update_one({"field_id": field_id, "user_id": tid}, {"$set": upd})
+    out = await db.contact_custom_field_defs.find_one({"field_id": field_id}, {"_id": 0})
+    return out
+
+
+@api_router.delete("/contact-custom-fields/{field_id}")
+async def delete_contact_custom_field(field_id: str, user=Depends(get_current_user)):
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master può eliminare campi personalizzati")
+    tid = tenant_id(user)
+    existing = await db.contact_custom_field_defs.find_one({"field_id": field_id, "user_id": tid})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Campo non trovato")
+    key = existing.get("key")
+    await db.contact_custom_field_defs.delete_one({"field_id": field_id, "user_id": tid})
+    # Cleanup: rimuovi la key dai contatti del tenant
+    if key:
+        try:
+            await db.contacts.update_many(
+                scope_query(user, {}),
+                {"$unset": {f"custom_fields.{key}": ""}},
+            )
+        except Exception:
+            pass
+    return {"ok": True, "deleted_key": key}
+
+
 
 
 @api_router.post("/contacts/import/preview")

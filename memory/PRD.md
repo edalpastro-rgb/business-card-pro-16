@@ -1,3 +1,40 @@
+## V50.z67 (Set 2026) — Campi personalizzati anagrafica contatti (PROMPT 7)
+
+### Richiesta utente
+"Nell'anagrafica cliente aggiungi la possibilità per il master di creare campi personalizzati non presenti di default. Per ogni campo il master può definire: nome del campo, tipo di dato (testo, numero, data, checkbox), visibilità (solo master o tutti gli utenti). I campi personalizzati appaiono nella scheda cliente in una sezione dedicata."
+
+### Backend (`server.py`)
+- Nuova collection `contact_custom_field_defs`: `{field_id, user_id (tenant), key (slug), name, type, visibility, order, created_by, created_at, updated_at}`.
+- Utility `_slugify_cf_key(name)` → slug lowercase con normalizzazione accenti (Codice Fiscale → codice_fiscale). Autoincrementa suffisso `_2` in caso di duplicati per stesso tenant.
+- Endpoint (owner/admin only per write):
+  - `GET /api/contact-custom-fields` → lista ordinata per `order`, filtra `visibility=='all'` per non-master.
+  - `POST /api/contact-custom-fields` → valida `type ∈ {text,number,date,checkbox}` e `visibility ∈ {master,all}`.
+  - `PUT /api/contact-custom-fields/{field_id}` → aggiorna name/type/visibility/order.
+  - `DELETE /api/contact-custom-fields/{field_id}` → cascade cleanup: `$unset custom_fields.<key>` su tutti i contatti del tenant.
+- `ContactUpdate` esteso con `custom_fields: Optional[Dict[str, Any]]` (già scritto correttamente su `db.contacts.update_one`).
+
+### Frontend
+- **`/app/frontend/app/custom-fields.tsx`** — pagina gestione Master:
+  - Lista campi con badge tipo + visibilità (Tutti verde, Master rosso).
+  - FAB "+" in header, modal Crea/Modifica con `KeyboardAwareScrollView` (fix keyboard globale già presente in `_layout`), chip selector per tipo/visibilità.
+  - Delete con `window.confirm` (avvisa che i valori nei contatti verranno rimossi).
+  - Gate `!isMaster` → messaggio "Accesso riservato al Master" solo dopo `authLoading===false` (evita flash su boot).
+- **`/app/frontend/src/ContactCustomFieldsSection.tsx`** — componente riutilizzabile nella scheda contatto:
+  - Fetch defs, filtra automaticamente in base al ruolo (backend fa già il filtro).
+  - Rendering condizionato per tipo: text/number/date → `TextInput` con save `onBlur`; checkbox → toggle immediato.
+  - Merge sicuro: PUT `custom_fields = {...values, [key]: val}` per non sovrascrivere altre chiavi.
+  - Non renderizza nulla se non ci sono def (nessun "rumore" nella UI).
+- **Master Hub `/app/master.tsx`** → aggiunta voce "Campi Personalizzati Anagrafica" nel gruppo CRM Core (ownerOnly).
+- **`/app/contact/[id].tsx`** → sezione inserita nella tab Info sopra il "Codice cliente"; tipo `Contact` esteso con `custom_fields?: Record<string, any> | null`.
+
+### Test (curl backend)
+- CREATE 3 campi diversi (text/number/date) con visibility mix → tutti creati, `key` normalizzato.
+- LIST → ritorno ordinato per `order`.
+- UPDATE visibility → OK.
+- DELETE → 200 con `deleted_key`.
+- PUT `/contacts/{id}` con `custom_fields` → persistenza confermata (GET riporta i valori). Test defs e valori puliti dal DB dopo verifica.
+
+
 ## V50.z66 (Set 2026) — Import Contatti da CSV/Excel con mapping intelligente
 
 ### Richiesta utente (PROMPT 6)
