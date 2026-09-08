@@ -98,6 +98,12 @@ async def _oauth_callback_bridge(request: Request):
     code = qp.get("code")
     state = qp.get("state")
     err = qp.get("error")
+    # V50.z54 — Rileva se il caller è un browser desktop web (non mobile app):
+    # in quel caso il deep-link `frontend://` non funziona; usiamo un redirect
+    # HTTPS al frontend web configurato invece.
+    _ua = (request.headers.get("user-agent") or "").lower()
+    _is_web = not any(k in _ua for k in ("expo", "advisoros-app", "okhttp", "cfnetwork/", "darwin", "android;"))
+    _web_ret = _GD_FRONTEND_URL or "https://advisoros.it/"
 
     async def _try_exchange_and_page(ok: bool, message: str, detail: str = "") -> HTMLResponse:
         # HTML minimalista, brand navy + arancione, self-close-friendly
@@ -109,7 +115,14 @@ async def _oauth_callback_bridge(request: Request):
         # automaticamente al deep-link. Fallback: window.close() dopo 4s.
         color = "#16A34A" if ok else "#DC2626"
         icon = "✓" if ok else "✗"
-        deep_link = "frontend://impostazioni?oauth=google&status=" + ("ok" if ok else "err")
+        # V50.z54 — Web: redirect a URL HTTPS del frontend web (con query
+        # ?oauth=google&status=ok/err) invece di deep-link mobile che non
+        # funziona sui browser desktop.
+        if _is_web:
+            _sep = "&" if "?" in _web_ret else "?"
+            deep_link = f"{_web_ret}{_sep}oauth=google&status=" + ("ok" if ok else "err")
+        else:
+            deep_link = "frontend://impostazioni?oauth=google&status=" + ("ok" if ok else "err")
         html = f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AdvisorOS · Google Drive</title>
@@ -158,6 +171,19 @@ setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
                                                 "Contatta l'amministratore del server")
         s = await db.google_oauth_states.find_one_and_delete({"_id": state})
         if not s:
+            # V50.z54 — La callback può essere invocata DUE VOLTE (browser
+            # preload di Chrome, back-button, refresh accidentale). Al primo
+            # hit consumiamo lo state e salviamo la connessione. Al secondo
+            # hit lo state non c'è più: se però l'utente è già collegato
+            # (updated_at negli ultimi 5 minuti), NON dobbiamo mostrare
+            # "sessione scaduta" perché la connessione È andata a buon fine.
+            recent = await db.google_drive_connections.find_one(
+                {"updated_at": {"$gte": utcnow() - timedelta(minutes=5)}},
+                sort=[("updated_at", -1)],
+            )
+            if recent:
+                return await _try_exchange_and_page(True, "Google Drive già collegato",
+                                                    f"Account: {recent.get('google_email') or ''}")
             return await _try_exchange_and_page(False, "Sessione scaduta",
                                                 "Riprova dalla schermata Google Drive")
         from google_auth_oauthlib.flow import Flow  # type: ignore
@@ -11908,7 +11934,7 @@ async def _prepare_assistant_prompt(
             {"user_id": user["user_id"]}, {"_id": 0, "name": 1, "folder_id": 1}
         ).to_list(30)
         _dropbox_ok = await db.dropbox_credentials.find_one({"user_id": user["user_id"]}) is not None
-        _drive_ok = await db.google_drive_credentials.find_one({"user_id": user["user_id"]}) is not None
+        _drive_ok = await db.google_drive_connections.find_one({"user_id": user["user_id"]}) is not None
         # V50.z32 — Sessione scaduta detection
         _drive_had_before = (not _drive_ok) and (len(_drive_folders) > 0)
         if not _drive_ok and not _drive_had_before:
@@ -12314,7 +12340,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
             {"user_id": user["user_id"]}, {"_id": 0, "name": 1, "folder_id": 1}
         ).to_list(30)
         _dropbox_ok = await db.dropbox_credentials.find_one({"user_id": user["user_id"]}) is not None
-        _drive_ok = await db.google_drive_credentials.find_one({"user_id": user["user_id"]}) is not None
+        _drive_ok = await db.google_drive_connections.find_one({"user_id": user["user_id"]}) is not None
         # V50.z32 — Sessione scaduta detection
         _drive_had_before = (not _drive_ok) and (len(_drive_folders) > 0)
         if not _drive_ok and not _drive_had_before:
@@ -16936,8 +16962,12 @@ async def google_drive_oauth_start(user=Depends(get_current_user)):
         "created_at": utcnow(),
     })
     # Creiamo indice TTL una volta sola (idempotent)
+    # V50.z54 — TTL portato da 600s (10min) a 1800s (30min): il flusso OAuth
+    # Google può richiedere più di 10min quando l'utente ha 2FA con codice via
+    # SMS, aggiunge un account, o rinegozia i permessi. TTL più lungo elimina
+    # falsi "Sessione scaduta" nel callback.
     try:
-        await db.google_oauth_states.create_index("created_at", expireAfterSeconds=600)
+        await db.google_oauth_states.create_index("created_at", expireAfterSeconds=1800)
     except Exception:
         pass
     logger.info(
