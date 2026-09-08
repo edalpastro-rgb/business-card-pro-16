@@ -33,9 +33,13 @@ import { useAuth } from "@/src/auth";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { FileViewer } from "@/src/FileViewer";
+import { WebView } from "react-native-webview";
 import * as FileSystem from "expo-file-system/legacy";
 
 type Phone = { id: string; label: string; number: string };
+
+// V50.z58 — Company Web Links ("Link utili" in Comunica con l'azienda)
+type CompanyLink = { link_id: string; title: string; url: string; icon: string; order?: number };
 
 type CompanyContactData = {
   communica_azienda_name?: string;
@@ -100,6 +104,26 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [extractResult, setExtractResult] = useState<{ docName: string; items: ExtractedContact[] } | null>(null);
 
+  // V50.z58 — Link utili (tenant-scoped, gestibili solo dal Master)
+  const [links, setLinks] = useState<CompanyLink[]>([]);
+  const [linksLoading, setLinksLoading] = useState(false);
+  const [linkEditor, setLinkEditor] = useState<{ mode: "add" | "edit"; link_id?: string; title: string; url: string; icon: string } | null>(null);
+  const [linkSaving, setLinkSaving] = useState(false);
+  const [webView, setWebView] = useState<{ title: string; url: string } | null>(null);
+  const [linkImporting, setLinkImporting] = useState(false);
+
+  const loadLinks = useCallback(async () => {
+    setLinksLoading(true);
+    try {
+      const r = await api<{ items: CompanyLink[] }>("/company-web-links");
+      setLinks(Array.isArray(r.items) ? r.items : []);
+    } catch (e) {
+      console.warn("company-web-links load", e);
+    } finally {
+      setLinksLoading(false);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -135,8 +159,9 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
       setEditMode(false);
       load();
       loadDocs();
+      loadLinks();
     }
-  }, [visible, load, loadDocs]);
+  }, [visible, load, loadDocs, loadLinks]);
 
   // Sync draft when entering edit mode
   useEffect(() => {
@@ -323,6 +348,77 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
       Alert.alert("Errore Axon", e?.message || "Estrazione non riuscita.");
     } finally {
       setExtractingId(null);
+    }
+  };
+
+  // V50.z58 — CRUD Link utili
+  const openLinkEditor = (link?: CompanyLink) => {
+    if (link) {
+      setLinkEditor({ mode: "edit", link_id: link.link_id, title: link.title, url: link.url, icon: link.icon || "🔗" });
+    } else {
+      setLinkEditor({ mode: "add", title: "", url: "", icon: "🔗" });
+    }
+  };
+
+  const saveLinkEditor = async () => {
+    if (!linkEditor) return;
+    const title = linkEditor.title.trim();
+    const url = linkEditor.url.trim();
+    if (!title || !url) {
+      Alert.alert("Campi mancanti", "Inserisci titolo e URL.");
+      return;
+    }
+    setLinkSaving(true);
+    try {
+      if (linkEditor.mode === "edit" && linkEditor.link_id) {
+        await api(`/company-web-links/${linkEditor.link_id}`, {
+          method: "PUT",
+          body: { title, url, icon: linkEditor.icon },
+        });
+      } else {
+        await api("/company-web-links", {
+          method: "POST",
+          body: { title, url, icon: linkEditor.icon },
+        });
+      }
+      setLinkEditor(null);
+      await loadLinks();
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || "Salvataggio non riuscito.");
+    } finally {
+      setLinkSaving(false);
+    }
+  };
+
+  const removeLink = (lk: CompanyLink) => {
+    const doDelete = async () => {
+      try {
+        await api(`/company-web-links/${lk.link_id}`, { method: "DELETE" });
+        await loadLinks();
+      } catch (e: any) {
+        Alert.alert("Errore", e?.message || "Eliminazione non riuscita.");
+      }
+    };
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`Eliminare "${lk.title}"?`)) void doDelete();
+    } else {
+      Alert.alert("Elimina link", `Vuoi davvero eliminare "${lk.title}"?`, [
+        { text: "Annulla", style: "cancel" },
+        { text: "Elimina", style: "destructive", onPress: doDelete },
+      ]);
+    }
+  };
+
+  const importFromMyWeb = async () => {
+    setLinkImporting(true);
+    try {
+      const r = await api<{ added: number }>("/company-web-links/import-from-my-web", { method: "POST" });
+      await loadLinks();
+      Alert.alert("Import completato", r.added > 0 ? `Importati ${r.added} link da My Web.` : "Nessun nuovo link da importare (sono già presenti).");
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || "Import non riuscito.");
+    } finally {
+      setLinkImporting(false);
     }
   };
 
@@ -748,6 +844,95 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                     </View>
                   ))
                 )}
+
+                {/* V50.z58 — Link utili (aziendali, gestibili dal Master).
+                    Ogni link si apre in WebView interna (Modal) senza uscire
+                    dall'app. Il Master aggiunge/modifica/elimina; gli agenti
+                    li vedono in sola lettura. */}
+                <View style={styles.docsHdrRow}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+                    <Ionicons name="link" size={16} color={C.navy} />
+                    <Text style={styles.sectionTitle}>Link utili</Text>
+                  </View>
+                  {isMaster && (
+                    <View style={{ flexDirection: "row", gap: 6 }}>
+                      <Pressable
+                        onPress={importFromMyWeb}
+                        disabled={linkImporting}
+                        style={[styles.addBtn, { backgroundColor: "#7C3AED" }, linkImporting && { opacity: 0.6 }]}
+                        testID="company-sheet-import-my-web"
+                      >
+                        {linkImporting ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <>
+                            <Ionicons name="download" size={14} color="#FFF" />
+                            <Text style={styles.addBtnTxt}>Da My Web</Text>
+                          </>
+                        )}
+                      </Pressable>
+                      <Pressable
+                        onPress={() => openLinkEditor()}
+                        style={styles.addBtn}
+                        testID="company-sheet-add-link"
+                      >
+                        <Ionicons name="add" size={14} color="#FFF" />
+                        <Text style={styles.addBtnTxt}>Aggiungi</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
+
+                {linksLoading ? (
+                  <ActivityIndicator color={C.navy} style={{ marginVertical: 8 }} />
+                ) : links.length === 0 ? (
+                  <View style={styles.emptyBox}>
+                    <Text style={styles.emptyTxt}>
+                      {isMaster
+                        ? "Nessun link. Tocca \"Aggiungi\" o importa quelli della tua sezione My Web."
+                        : "Il tuo Master non ha ancora configurato i link utili."}
+                    </Text>
+                  </View>
+                ) : (
+                  links.map((lk) => (
+                    <View key={lk.link_id} style={styles.linkRow}>
+                      <Pressable
+                        onPress={() => setWebView({ title: lk.title, url: lk.url })}
+                        style={styles.linkRowInner}
+                        testID={`company-sheet-open-link-${lk.link_id}`}
+                      >
+                        <Text style={styles.linkIcon}>{lk.icon || "🔗"}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.linkTitle} numberOfLines={2}>{lk.title}</Text>
+                          <Text style={styles.linkUrl} numberOfLines={1}>
+                            {(lk.url || "").replace(/^https?:\/\//, "")}
+                          </Text>
+                        </View>
+                        <Ionicons name="open-outline" size={18} color={C.muted} />
+                      </Pressable>
+                      {isMaster && (
+                        <View style={styles.linkActions}>
+                          <Pressable
+                            onPress={() => openLinkEditor(lk)}
+                            hitSlop={6}
+                            style={styles.linkActionBtn}
+                            testID={`company-sheet-edit-link-${lk.link_id}`}
+                          >
+                            <Ionicons name="pencil" size={14} color={C.navy} />
+                          </Pressable>
+                          <Pressable
+                            onPress={() => removeLink(lk)}
+                            hitSlop={6}
+                            style={styles.linkActionBtn}
+                            testID={`company-sheet-delete-link-${lk.link_id}`}
+                          >
+                            <Ionicons name="trash" size={14} color="#DC2626" />
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
+                  ))
+                )}
               </>
             )}
           </ScrollView>
@@ -844,9 +1029,180 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
           </View>
         </View>
       </Modal>
+
+      {/* V50.z58 — Link editor (add/edit): Master-only */}
+      {linkEditor && (
+        <Modal
+          transparent
+          visible={!!linkEditor}
+          animationType="slide"
+          onRequestClose={() => setLinkEditor(null)}
+        >
+          <Pressable style={styles.backdrop} onPress={() => setLinkEditor(null)}>
+            <View style={styles.linkSheet} onStartShouldSetResponder={() => true}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>
+                {linkEditor.mode === "edit" ? "Modifica link" : "Nuovo link"}
+              </Text>
+              <Text style={styles.fieldLbl}>Nome (titolo del bottone)</Text>
+              <TextInput
+                value={linkEditor.title}
+                onChangeText={(t) => setLinkEditor({ ...linkEditor, title: t })}
+                placeholder="Es. Portale ENEL Consulenti"
+                placeholderTextColor={C.muted}
+                maxLength={80}
+                style={styles.input}
+                testID="company-sheet-link-title"
+              />
+              <Text style={[styles.fieldLbl, { marginTop: 8 }]}>URL</Text>
+              <TextInput
+                value={linkEditor.url}
+                onChangeText={(t) => setLinkEditor({ ...linkEditor, url: t })}
+                placeholder="www.esempio.com"
+                placeholderTextColor={C.muted}
+                autoCapitalize="none"
+                keyboardType="url"
+                style={styles.input}
+                testID="company-sheet-link-url"
+              />
+              <Text style={[styles.fieldLbl, { marginTop: 8 }]}>Icona</Text>
+              <View style={styles.iconRow}>
+                {LINK_ICONS.map((emo) => (
+                  <Pressable
+                    key={emo}
+                    onPress={() => setLinkEditor({ ...linkEditor, icon: emo })}
+                    style={[styles.iconOpt, linkEditor.icon === emo && styles.iconOptActive]}
+                    testID={`company-sheet-link-icon-${emo}`}
+                  >
+                    <Text style={{ fontSize: 20 }}>{emo}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={styles.actionsRow}>
+                <Pressable
+                  onPress={() => setLinkEditor(null)}
+                  style={styles.btnGhost}
+                  disabled={linkSaving}
+                  testID="company-sheet-link-cancel"
+                >
+                  <Text style={styles.btnGhostTxt}>Annulla</Text>
+                </Pressable>
+                <Pressable
+                  onPress={saveLinkEditor}
+                  style={[styles.btnSave, linkSaving && { opacity: 0.6 }]}
+                  disabled={linkSaving}
+                  testID="company-sheet-link-save"
+                >
+                  {linkSaving ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="save" size={16} color="#FFF" />
+                      <Text style={styles.btnSaveTxt}>Salva</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* V50.z58 — WebView interna: apre l'URL dentro l'app.
+          Riusa FileViewer che embed WebView + header con back + share. */}
+      {webView && (
+        <Modal visible={!!webView} animationType="slide" onRequestClose={() => setWebView(null)}>
+          <InAppWebViewer
+            title={webView.title}
+            url={webView.url}
+            onClose={() => setWebView(null)}
+          />
+        </Modal>
+      )}
     </Modal>
   );
 }
+
+// V50.z58 — Icone disponibili per i Link utili
+const LINK_ICONS = ["🔗","⚡","🔥","📊","📰","🏦","💼","📞","🌐","📈","🛒","💰","🎯","🔧","📱","📧","📅","🎓","⭐","🚀"];
+
+// V50.z58 — In-app WebView per aprire i Link utili senza uscire dall'app.
+// Componente separato per usare i hook.
+function InAppWebViewer({ title, url, onClose }: { title: string; url: string; onClose: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  const openExternal = () => {
+    Linking.openURL(url).catch(() => Alert.alert("Errore", "Impossibile aprire il link nel browser"));
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
+      <View style={inAppWebStyles.header}>
+        <Pressable onPress={onClose} hitSlop={8} testID="inapp-webview-close">
+          <Ionicons name="chevron-back" size={24} color="#FFF" />
+        </Pressable>
+        <Text style={inAppWebStyles.title} numberOfLines={1}>{title || "Link"}</Text>
+        <Pressable onPress={openExternal} hitSlop={8} testID="inapp-webview-external">
+          <Ionicons name="open-outline" size={22} color="#FFF" />
+        </Pressable>
+      </View>
+      <View style={{ flex: 1, backgroundColor: "#FFF" }}>
+        {Platform.OS === "web" ? (
+          // @ts-expect-error web only
+          <iframe src={url} title={title} style={{ width: "100%", height: "100%", border: "none" }} />
+        ) : (
+          <WebView
+            source={{ uri: url }}
+            style={{ flex: 1 }}
+            onLoadStart={() => setLoading(true)}
+            onLoadEnd={() => setLoading(false)}
+            onError={(e: any) => {
+              setLoading(false);
+              setErrMsg(e?.nativeEvent?.description || "Impossibile caricare la pagina");
+            }}
+            javaScriptEnabled
+            domStorageEnabled
+            startInLoadingState
+            originWhitelist={["*"]}
+          />
+        )}
+        {loading && Platform.OS !== "web" ? (
+          <View style={inAppWebStyles.loader} pointerEvents="none">
+            <ActivityIndicator size="large" color="#0EA5E9" />
+          </View>
+        ) : null}
+        {errMsg ? (
+          <View style={inAppWebStyles.errBox}>
+            <Ionicons name="warning" size={22} color="#DC2626" />
+            <Text style={inAppWebStyles.errTxt}>{errMsg}</Text>
+            <Pressable onPress={openExternal} style={inAppWebStyles.errBtn}>
+              <Text style={inAppWebStyles.errBtnTxt}>Apri nel browser</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const inAppWebStyles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingTop: Platform.OS === "ios" ? 44 : 12,
+    paddingBottom: 10,
+    backgroundColor: "#0F172A",
+  },
+  title: { color: "#FFF", fontSize: 15, fontWeight: "700", flex: 1, marginHorizontal: 12, textAlign: "center" },
+  loader: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.6)" },
+  errBox: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", gap: 10, padding: 24, backgroundColor: "#FFF" },
+  errTxt: { color: "#DC2626", fontSize: 13, textAlign: "center" },
+  errBtn: { backgroundColor: "#0EA5E9", paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },
+  errBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
+});
 
 const styles = StyleSheet.create({
   backdrop: {
@@ -1100,4 +1456,40 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   extractLine: { fontSize: 12, color: "#334155", marginTop: 2, fontWeight: "600" },
+
+  // V50.z58 — Link utili
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 8,
+  },
+  linkRowInner: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  linkIcon: { fontSize: 26 },
+  linkTitle: { fontSize: 14, fontWeight: "800", color: C.navy },
+  linkUrl: { fontSize: 11, color: C.muted, marginTop: 2 },
+  linkActions: { flexDirection: "row", gap: 6 },
+  linkActionBtn: {
+    width: 30, height: 30, borderRadius: 8,
+    backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center",
+  },
+  // Editor link modal
+  linkSheet: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    padding: 16, paddingBottom: 30,
+  },
+  sheetHandle: {
+    alignSelf: "center", width: 40, height: 4, borderRadius: 2,
+    backgroundColor: "#CBD5E1", marginBottom: 12,
+  },
+  sheetTitle: { fontSize: 16, fontWeight: "800", color: C.navy, marginBottom: 10 },
+  iconRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  iconOpt: { padding: 8, borderRadius: 10, backgroundColor: "#F1F5F9" },
+  iconOptActive: { backgroundColor: "#DBEAFE", borderWidth: 2, borderColor: C.primary },
 });

@@ -8585,6 +8585,125 @@ async def delete_web_link(link_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 
+# ---- V50.z58 — Company Web Links (Comunica con l'azienda → Link utili) ----
+# Tenant-scoped: il Master configura una volta, tutti gli agenti sotto quel
+# Master li vedono nel bottom sheet "Comunica con l'azienda". I link si
+# aprono in WebView interna nell'app (non Linking esterno).
+
+class CompanyWebLinkIn(BaseModel):
+    title: str
+    url: str
+    icon: Optional[str] = None
+    link_id: Optional[str] = None  # per PUT/DELETE
+
+
+def _tenant_owner_id(user: Dict[str, Any]) -> str:
+    """Il proprietario del tenant (Master). Gli agenti hanno parent_user_id
+    valorizzato; i Master lo hanno None e sono loro stessi."""
+    return user.get("parent_user_id") or user["user_id"]
+
+
+@api_router.get("/company-web-links")
+async def list_company_web_links(user=Depends(get_current_user)):
+    owner = _tenant_owner_id(user)
+    items = await db.company_web_links.find(
+        {"owner_user_id": owner}, {"_id": 0}
+    ).sort("order", 1).to_list(200)
+    return {"items": items}
+
+
+@api_router.post("/company-web-links")
+async def create_company_web_link(body: CompanyWebLinkIn, user=Depends(get_current_user)):
+    # Solo il Master può modificare
+    if user.get("parent_user_id"):
+        raise HTTPException(status_code=403, detail="Solo il Master può gestire i Link utili")
+    owner = user["user_id"]
+    order_max = await db.company_web_links.find_one({"owner_user_id": owner}, sort=[("order", -1)])
+    next_order = ((order_max or {}).get("order") or 0) + 1
+    u = (body.url or "").strip()
+    if u and not re.match(r"^https?://", u, re.I):
+        u = "https://" + u
+    doc = {
+        "link_id": secrets.token_hex(8),
+        "owner_user_id": owner,
+        "title": (body.title or "").strip()[:80] or "Link",
+        "url": u,
+        "icon": (body.icon or "🔗").strip()[:8],
+        "order": next_order,
+        "created_at": utcnow(),
+        "updated_at": utcnow(),
+    }
+    await db.company_web_links.insert_one(doc)
+    return {"ok": True, "link": {k: v for k, v in doc.items() if k != "_id"}}
+
+
+@api_router.put("/company-web-links/{link_id}")
+async def update_company_web_link(link_id: str, body: CompanyWebLinkIn, user=Depends(get_current_user)):
+    if user.get("parent_user_id"):
+        raise HTTPException(status_code=403, detail="Solo il Master può gestire i Link utili")
+    u = (body.url or "").strip()
+    if u and not re.match(r"^https?://", u, re.I):
+        u = "https://" + u
+    r = await db.company_web_links.update_one(
+        {"owner_user_id": user["user_id"], "link_id": link_id},
+        {"$set": {
+            "title": (body.title or "").strip()[:80] or "Link",
+            "url": u,
+            "icon": (body.icon or "🔗").strip()[:8],
+            "updated_at": utcnow(),
+        }},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Link non trovato")
+    return {"ok": True}
+
+
+@api_router.delete("/company-web-links/{link_id}")
+async def delete_company_web_link(link_id: str, user=Depends(get_current_user)):
+    if user.get("parent_user_id"):
+        raise HTTPException(status_code=403, detail="Solo il Master può gestire i Link utili")
+    r = await db.company_web_links.delete_one(
+        {"owner_user_id": user["user_id"], "link_id": link_id}
+    )
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Link non trovato")
+    return {"ok": True}
+
+
+@api_router.post("/company-web-links/import-from-my-web")
+async def import_from_my_web(user=Depends(get_current_user)):
+    """V50.z58 — Import "one shot" dei link personali del Master (/web-links)
+    verso i Link utili aziendali. Utile per ridurre la duplicazione manuale."""
+    if user.get("parent_user_id"):
+        raise HTTPException(status_code=403, detail="Solo il Master può importare i Link utili")
+    owner = user["user_id"]
+    src = await db.web_links.find({"user_id": owner}, {"_id": 0}).sort("order", 1).to_list(200)
+    order_max = await db.company_web_links.find_one({"owner_user_id": owner}, sort=[("order", -1)])
+    next_order = ((order_max or {}).get("order") or 0) + 1
+    added = 0
+    for lk in src:
+        # Skip duplicati (stesso URL già presente)
+        existing = await db.company_web_links.find_one(
+            {"owner_user_id": owner, "url": lk.get("url")}, {"_id": 0}
+        )
+        if existing:
+            continue
+        doc = {
+            "link_id": secrets.token_hex(8),
+            "owner_user_id": owner,
+            "title": (lk.get("title") or "Link")[:80],
+            "url": lk.get("url") or "",
+            "icon": (lk.get("icon") or "🔗")[:8],
+            "order": next_order,
+            "created_at": utcnow(),
+            "updated_at": utcnow(),
+        }
+        await db.company_web_links.insert_one(doc)
+        next_order += 1
+        added += 1
+    return {"ok": True, "added": added}
+
+
 # ---- Audio Records (Master recorder) ----
 ALLOWED_TARGETS = ("personal", "contact", "group")
 
@@ -20278,6 +20397,12 @@ async def _startup():
     # V50.z53 — Cache GME PUN per mese (persistente, senza scadenza).
     try:
         await db.gme_pun_cache.create_index("month_key", unique=True)
+    except Exception:
+        pass
+    # V50.z58 — Company Web Links (tenant-scoped)
+    try:
+        await db.company_web_links.create_index([("owner_user_id", 1), ("order", 1)])
+        await db.company_web_links.create_index([("owner_user_id", 1), ("link_id", 1)], unique=True)
     except Exception:
         pass
     # V29.ag — Cache azioni rapide Axon (una entry per (user, label))
