@@ -6,6 +6,7 @@ import React, { useEffect } from "react";
 import { LogBox, Platform, View, AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth, isAppLockEnabled, isTrustStillValid } from "@/src/auth";
@@ -212,10 +213,18 @@ export default function RootLayout() {
     <GlobalErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          <AuthProvider>
-            <LockGate />
-            <AnimatedSplash />
-          </AuthProvider>
+          {/* V50.z55 — Tastiera globale: `KeyboardProvider` di
+              `react-native-keyboard-controller` abilita in tutte le pagine
+              il comportamento nativo che porta il TextInput focalizzato sopra
+              la tastiera (scroll automatico, adjustResize su Android,
+              scroll-into-view su iOS). Copertura globale senza modifiche
+              per singola pagina. */}
+          <KeyboardProvider>
+            <AuthProvider>
+              <LockGate />
+              <AnimatedSplash />
+            </AuthProvider>
+          </KeyboardProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </GlobalErrorBoundary>
