@@ -529,10 +529,14 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      {/* V50.z59-fix2 — Rimosso il backdrop <Pressable onPress={onClose}>: il
+          re-render causato dagli input di editing (phone label, ecc.) scatenava
+          un tap event sintetico sul backdrop, chiudendo il sheet appena
+          l'utente digitava. Ora il sheet si chiude via bottone X (già in header),
+          bottone Annulla (edit-mode), o back Android (onRequestClose). */}
+      <View style={styles.backdrop} pointerEvents="box-none">
         <View
           style={[styles.sheet, { paddingBottom: bottomPad + 12 }]}
-          onStartShouldSetResponder={() => true}
         >
           <View style={styles.handle} />
           <View style={styles.hdrRow}>
@@ -613,9 +617,12 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                   draftPhones.map((p) => (
                     <View key={p.id} style={styles.phoneEditRow}>
                       <View style={{ flex: 1, gap: 6 }}>
-                        {/* V50.z57 — Nome del bottone: campo dedicato con
-                            label chiaro, maxLength 60 e multi-riga per far
-                            vedere al Master l'intero testo mentre digita. */}
+                        {/* V50.z59-fix2 — Rimosso `multiline` che causava
+                            reflow ad ogni carattere → il sheet padre
+                            (Pressable backdrop) intercettava un tap sintetico
+                            e chiudeva il modal. Il campo resta single-line con
+                            maxLength 60 → i nomi lunghi vengono comunque
+                            salvati e mostrati su 2 righe in view-mode. */}
                         <Text style={styles.editSubLbl}>Nome del bottone</Text>
                         <TextInput
                           testID={`company-sheet-phone-label-${p.id}`}
@@ -624,8 +631,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                           placeholder="Es. Assistenza tecnica consulenti"
                           placeholderTextColor={C.muted}
                           maxLength={60}
-                          multiline
-                          style={[styles.input, styles.inputLabelMulti]}
+                          style={[styles.input, { fontSize: 13 }]}
                         />
                         <Text style={styles.editSubLbl}>Numero</Text>
                         <TextInput
@@ -937,7 +943,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
             )}
           </ScrollView>
         </View>
-      </Pressable>
+      </View>
 
       {/* V49 — In-app PDF viewer */}
       {viewer && (
