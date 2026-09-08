@@ -4924,3 +4924,31 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
 - ✅ Riassunto: file `bigcontract.txt` da 15,500 char → riepilogo Claude Haiku strutturato in tre sezioni italiane, richiesta HTTP a Tavily+Anthropic andata a buon fine.
 
 **Nota grafici Excel**: la generazione di chart in-chat richiede rendering Vega-Lite/Mermaid o tool-call dedicato, non incluso in questo turno per contenere lo scope. Il riassunto Claude ora però evidenzia numeri chiave del CSV/XLSX pronti per essere trasformati in grafico manualmente o in un secondo step.
+
+---
+
+## PROMPT 20.c — Cache DB per URL Extract Tavily (V50.z91) ✅ TESTATO
+
+**Collezione nuova**: `db.url_extract_cache`.
+Schema: `{url_key, url, title, content, fetched_at}`. TTL logico = 24 ore (nuovo fetch se più vecchio).
+
+**Modifiche a `_tavily_extract_url()`**:
+- Normalizzazione URL prima del hashing: `strip → rstrip('/') → lower`.
+- `url_key = sha256(url_norm).hexdigest()` → chiave univoca.
+- Cache read: se hit e età < 24h ritorna direttamente il contenuto (skip HTTP).
+- Cache write: salvato dopo ogni fetch riuscito (upsert).
+- Fix TZ-aware: motor legge datetime da Mongo come naive → `.replace(tzinfo=timezone.utc)` prima del confronto.
+
+**Nuovi endpoint admin (solo Master)**:
+- `GET /api/axon/url-cache/status` → `{cached_urls, latest_url, latest_title, latest_fetched_at}`.
+- `DELETE /api/axon/url-cache?older_than_hours=N` → svuota o purga entry vecchie.
+
+**Test locale**:
+| Call | Descrizione | Latenza | HTTP Tavily |
+|------|-------------|---------|-------------|
+| 1 | `https://example.com` (già in cache) | **4 ms** | ⊘ |
+| 2 | `HTTPS://Example.com/` (normalizzazione hit) | **<1 ms** | ⊘ |
+| 3 | `https://www.iana.org/domains/reserved` (miss) | 256 ms | 1× POST |
+| 4 | Stesso URL della call 3 (hit) | **1 ms** | ⊘ |
+
+→ Speedup miss→hit: **256×** più veloce. ✅

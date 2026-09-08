@@ -11417,10 +11417,33 @@ _URL_RE = re.compile(r'https?://[^\s<>"\'`\)\]]+', re.IGNORECASE)
 
 
 async def _tavily_extract_url(url: str) -> Optional[str]:
-    """Estrae il testo pulito di una URL via Tavily Extract API. None se fallisce."""
+    """Estrae il testo pulito di una URL via Tavily Extract API con cache DB (TTL 24h).
+    None se fallisce."""
     key = os.environ.get("TAVILY_API_KEY")
     if not key:
         return None
+    # V50.z91 — Cache DB per non richiamare Tavily se lo stesso link torna
+    import hashlib
+    url_norm = url.strip().rstrip('/').lower()
+    url_key = hashlib.sha256(url_norm.encode("utf-8")).hexdigest()
+    _CACHE_TTL_HOURS = 24
+    try:
+        cached = await db.url_extract_cache.find_one({"url_key": url_key}, {"_id": 0})
+        if cached and cached.get("fetched_at"):
+            fetched = cached["fetched_at"]
+            # Motor legge datetime come TZ-naive → forza UTC-aware per il confronto
+            if isinstance(fetched, datetime):
+                if fetched.tzinfo is None:
+                    fetched = fetched.replace(tzinfo=timezone.utc)
+                age_h = (utcnow() - fetched).total_seconds() / 3600.0
+                if age_h < _CACHE_TTL_HOURS:
+                    logger.debug(f"[axon-url-extract] cache HIT for {url_norm} (age {age_h:.1f}h)")
+                    title = cached.get("title") or ""
+                    content = cached.get("content") or ""
+                    return f"### {title}\n{content}" if title else content
+    except Exception as exc:
+        logger.debug(f"[axon-url-extract] cache read failed: {exc}")
+
     try:
         async with _httpx.AsyncClient(timeout=20.0) as client:
             resp = await client.post(
@@ -11441,6 +11464,21 @@ async def _tavily_extract_url(url: str) -> Optional[str]:
                 return None
             if len(content) > 8000:
                 content = content[:8000] + "\n\n[... contenuto troncato ...]"
+            # Salva cache
+            try:
+                await db.url_extract_cache.update_one(
+                    {"url_key": url_key},
+                    {"$set": {
+                        "url_key": url_key,
+                        "url": url_norm,
+                        "title": title,
+                        "content": content,
+                        "fetched_at": utcnow(),
+                    }},
+                    upsert=True,
+                )
+            except Exception as exc:
+                logger.debug(f"[axon-url-extract] cache write failed: {exc}")
             return f"### {title}\n{content}" if title else content
     except Exception as exc:
         logger.debug(f"[axon-url-extract] {url} failed: {exc}")
@@ -22467,6 +22505,38 @@ async def axon_tavily_status(user=Depends(get_current_user)):
     """Diagnostica: verifica che Tavily sia configurato e raggiungibile."""
     key = os.environ.get("TAVILY_API_KEY")
     return {"configured": bool(key), "key_prefix": (key[:8] + "…") if key else None}
+
+
+# V50.z91 — URL Extract cache admin
+@api_router.get("/axon/url-cache/status")
+async def axon_url_cache_status(user=Depends(get_current_user)):
+    """Diagnostica: conteggio URL in cache + più recente."""
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master può leggere lo stato cache")
+    n = await db.url_extract_cache.count_documents({})
+    latest = await db.url_extract_cache.find_one(
+        {}, {"_id": 0, "url": 1, "title": 1, "fetched_at": 1},
+        sort=[("fetched_at", -1)],
+    )
+    return {
+        "cached_urls": n,
+        "latest_url": (latest or {}).get("url"),
+        "latest_title": (latest or {}).get("title"),
+        "latest_fetched_at": (latest or {}).get("fetched_at").isoformat() if latest and isinstance(latest.get("fetched_at"), datetime) else (latest or {}).get("fetched_at"),
+    }
+
+
+@api_router.delete("/axon/url-cache")
+async def axon_url_cache_purge(user=Depends(get_current_user), older_than_hours: Optional[int] = None):
+    """Svuota la cache URL. Se `older_than_hours` fornito, elimina solo entry più vecchie."""
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master può svuotare la cache")
+    q: Dict[str, Any] = {}
+    if older_than_hours and older_than_hours > 0:
+        cutoff = utcnow() - timedelta(hours=older_than_hours)
+        q["fetched_at"] = {"$lt": cutoff}
+    result = await db.url_extract_cache.delete_many(q)
+    return {"deleted": result.deleted_count}
 
 
 
