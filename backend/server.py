@@ -11514,6 +11514,72 @@ async def _summarize_long_text(text: str, source_name: str) -> str:
         return text[:8000] + "\n\n[... contenuto troncato — riassunto non disponibile ...]"
 
 
+async def _search_axon_kb(user_id: str, query: str, top_k: int = 3) -> List[dict]:
+    """Ricerca keyword-based nella KB del tenant.
+    Score = title×5 + note×3 + content×1 (cap 5). Ritorna top_k con score>0."""
+    if not user_id or not query:
+        return []
+    _STOP = {"come", "cosa", "dove", "quando", "perché", "quale", "quali", "sono", "questo", "questa", "quello", "quella", "molto", "poco", "bene", "male", "prendi", "cerca", "puoi", "voglio", "vorrei", "posso"}
+    words = [w.lower() for w in re.findall(r"[A-Za-zÀ-ÿ0-9]{4,}", query or "") if w.lower() not in _STOP][:8]
+    if not words:
+        return []
+    docs = await db.axon_kb.find(
+        {"user_id": user_id},
+        {"_id": 0, "kb_id": 1, "url": 1, "title": 1, "content": 1, "note": 1, "created_at": 1},
+    ).sort("created_at", -1).to_list(500)
+    scored: List[dict] = []
+    for d in docs:
+        title = (d.get("title") or "").lower()
+        note = (d.get("note") or "").lower()
+        content = (d.get("content") or "").lower()
+        score = 0
+        matched: List[str] = []
+        for w in words:
+            ht = title.count(w); hn = note.count(w); hc = content.count(w)
+            if ht or hn or hc:
+                score += ht * 5 + hn * 3 + min(hc, 5)
+                matched.append(w)
+        if score > 0:
+            d["_score"] = score
+            d["_matched"] = matched
+            scored.append(d)
+    scored.sort(key=lambda x: x["_score"], reverse=True)
+    return scored[:top_k]
+
+
+async def _build_kb_section(user_id: str, msg: str) -> str:
+    """Costruisce una sezione RAG con fonti KB rilevanti per la domanda."""
+    results = await _search_axon_kb(user_id, msg, top_k=3)
+    if not results:
+        return ""
+    parts: List[str] = []
+    for r in results:
+        title = r.get("title") or r.get("url") or "Fonte"
+        url = r.get("url") or ""
+        note = (r.get("note") or "").strip()
+        content = r.get("content") or ""
+        excerpt = content[:1800]
+        if r.get("_matched"):
+            first_term = r["_matched"][0]
+            idx = content.lower().find(first_term)
+            if idx >= 0:
+                start = max(0, idx - 200)
+                excerpt = content[start:start + 1800]
+        parts.append(
+            f"--- 📚 KB: {title} ---\n"
+            f"URL: {url}\n"
+            + (f"Nota: {note}\n" if note else "")
+            + f"Rilevanza: {r['_score']} · Match: {', '.join(r.get('_matched', []))}\n\n"
+            + excerpt
+        )
+    return (
+        "\n\nFONTI KB RILEVANTI (pagine web salvate in precedenza dall'utente in Knowledge Base — "
+        "usale come contesto autorevole; quando citi dati specifici, menziona il titolo della fonte):\n"
+        + "\n\n".join(parts)
+        + "\n\n"
+    )
+
+
 async def _build_attachments_section_advanced(msg: str, attachments: List) -> str:
     """Costruisce la sezione ALLEGATI arricchita:
     - Auto-fetch URL trovate nel messaggio
@@ -13743,7 +13809,15 @@ async def _prepare_assistant_prompt(
         except Exception:
             return None
 
-    context, weather_ctx, _prefetch_rag_chunks, memories, attachments_section, axon_teach_section, web_search_ctx = await asyncio.gather(
+    # V50.kb — Ricerca automatica nella Knowledge Base personale (pagine web salvate dall'utente).
+    async def _safe_kb():
+        try:
+            return await _build_kb_section(_tenant_id_val, msg)
+        except Exception as exc:
+            logger.debug("[axon-kb] section build failed: %s", exc)
+            return ""
+
+    context, weather_ctx, _prefetch_rag_chunks, memories, attachments_section, axon_teach_section, web_search_ctx, kb_section = await asyncio.gather(
         _safe_context(),
         _safe_weather(),
         _safe_rag_prefetch(),
@@ -13751,6 +13825,7 @@ async def _prepare_assistant_prompt(
         _safe_attachments(),
         _safe_teach_section(),
         _safe_tavily(),
+        _safe_kb(),
     )
 
     # V50.z51 — PINNED rules + tenant memory (rewrite architettura memoria).
@@ -13970,6 +14045,7 @@ async def _prepare_assistant_prompt(
         f"{weather_section}"
         f"{axon_teach_section}"
         f"{rag_section}"
+        f"{kb_section}"
         f"{memory_section}"
         f"{web_section}"
         f"{few_shot_section}"
@@ -14161,6 +14237,14 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception as exc:
         logger.warning("[axon-teach] section build failed: %s", exc)
         axon_teach_section = ""
+
+    # V50.kb — Knowledge Base personale (pagine WebView salvate).
+    kb_section = ""
+    try:
+        kb_section = await _build_kb_section(tenant_id(user), msg)
+    except Exception as exc:
+        logger.debug("[axon-kb] section build failed: %s", exc)
+        kb_section = ""
 
     # V42 — RAG on Master documents (per-tenant knowledge base)
     rag_section = ""
@@ -14359,6 +14443,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         f"{weather_section}"
         f"{axon_teach_section}"
         f"{rag_section}"
+        f"{kb_section}"
         f"{memory_section}"
         f"{web_section}"
         f"{few_shot_section}"

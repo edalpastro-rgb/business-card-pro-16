@@ -15,6 +15,8 @@ import {
   Easing,
   Image,
   Alert,
+  PanResponder,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 // V29.au — Import expo-audio per il pulsante microfono su native (APK Android/iOS).
@@ -2109,6 +2111,111 @@ export function AssistantFAB() {
   const blink = useRef(new Animated.Value(1)).current;
   const insets = useSafeAreaInsets();
 
+  // V50.z100 — FAB trascinabile con snap agli edge e persistenza posizione.
+  const FAB_SIZE = 56;
+  const EDGE_MARGIN = 16;
+  const winRef = useRef(Dimensions.get("window"));
+  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const panOffset = useRef({ x: 0, y: 0 });
+  const didDrag = useRef(false);
+  const dragStartTs = useRef(0);
+  const [posReady, setPosReady] = useState(false);
+  // Base bottom (senza offset drag) — ricalcolato per render.
+  const tabBarHeight = 60 + Math.max(insets.bottom || 0, 20);
+  const baseBottom = tabBarHeight + 12;
+  const bottom = present.calculator ? baseBottom + 76 : baseBottom;
+
+  // Carica posizione salvata (solo una volta).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem("axon_fab_pos_v1");
+        if (raw && !cancelled) {
+          const p = JSON.parse(raw);
+          if (typeof p?.x === "number" && typeof p?.y === "number") {
+            pan.setValue({ x: p.x, y: p.y });
+            panOffset.current = { x: p.x, y: p.y };
+          }
+        }
+      } catch { /* ignore */ }
+      if (!cancelled) setPosReady(true);
+    })();
+    return () => { cancelled = true; };
+  }, [pan]);
+
+  // Aggiorna larghezza schermo su rotate.
+  useEffect(() => {
+    const sub = Dimensions.addEventListener("change", ({ window }) => {
+      winRef.current = window;
+    });
+    return () => { try { (sub as any)?.remove?.(); } catch {} };
+  }, []);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 3 || Math.abs(g.dy) > 3,
+      onPanResponderGrant: () => {
+        didDrag.current = false;
+        dragStartTs.current = Date.now();
+        pan.setOffset({ x: panOffset.current.x, y: panOffset.current.y });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: (e, g) => {
+        if (Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4) didDrag.current = true;
+        Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false })(e, g);
+      },
+      onPanResponderRelease: async (_e, g) => {
+        pan.flattenOffset();
+        const win = winRef.current;
+        // Coordinate correnti (offset dal punto di ancoraggio bottom-right).
+        // Ancoraggio: right = EDGE_MARGIN, bottom = `bottom`
+        // dx > 0 sposta a destra; dy > 0 sposta in giù.
+        const anchorRight = EDGE_MARGIN;
+        const anchorBottom = bottom;
+
+        // Ricava x/y attuali (dai valori .__getValue()).
+        const curX = (pan.x as any).__getValue();
+        const curY = (pan.y as any).__getValue();
+
+        // Snap orizzontale al bordo più vicino.
+        // fabLeftPos in coordinate schermo:
+        const fabLeftPos = win.width - anchorRight - FAB_SIZE + curX;
+        const centerX = fabLeftPos + FAB_SIZE / 2;
+        const snapLeft = centerX < win.width / 2;
+        // offsetX target per stare a: sinistra → win.width - anchorRight - FAB_SIZE - EDGE_MARGIN
+        //                             destra    → 0
+        const targetOffsetX = snapLeft
+          ? -(win.width - anchorRight - FAB_SIZE - EDGE_MARGIN * 2)
+          : 0;
+
+        // Clamp verticale: non uscire sopra la status bar né sotto il tab bar.
+        const maxUpOffset = -(win.height - anchorBottom - FAB_SIZE - Math.max(insets.top || 0, 20));
+        const clampedY = Math.min(0, Math.max(maxUpOffset, curY));
+
+        Animated.parallel([
+          Animated.spring(pan.x, { toValue: targetOffsetX, useNativeDriver: false, friction: 7, tension: 60 }),
+          Animated.spring(pan.y, { toValue: clampedY, useNativeDriver: false, friction: 7, tension: 60 }),
+        ]).start();
+
+        panOffset.current = { x: targetOffsetX, y: clampedY };
+        try {
+          await AsyncStorage.setItem(
+            "axon_fab_pos_v1",
+            JSON.stringify({ x: targetOffsetX, y: clampedY })
+          );
+        } catch { /* ignore */ }
+
+        // Se non c'è stato drag significativo → tratta come tap.
+        if (!didDrag.current && Math.abs(g.dx) < 6 && Math.abs(g.dy) < 6 && (Date.now() - dragStartTs.current) < 500) {
+          handlePressRef.current?.();
+        }
+      },
+      onPanResponderTerminationRequest: () => false,
+    })
+  ).current;
+
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
@@ -2151,13 +2258,7 @@ export function AssistantFAB() {
     }
   }, [unreadInfoReq, blink]);
 
-  // Hide when not logged in
-  if (!user) return null;
-
-  const tabBarHeight = 60 + Math.max(insets.bottom || 0, 20);
-  const baseBottom = tabBarHeight + 12;
-  const bottom = present.calculator ? baseBottom + 76 : baseBottom;
-
+  // Handler tap FAB (usa ref per evitare closure stale nel PanResponder).
   const handlePress = () => {
     // Se ci sono richieste info non lette, apri prima quella pagina invece del chat modal
     if (unreadInfoReq > 0) {
@@ -2166,20 +2267,33 @@ export function AssistantFAB() {
     }
     setOpen(true);
   };
+  const handlePressRef = useRef(handlePress);
+  useEffect(() => { handlePressRef.current = handlePress; });
+
+  // Hide when not logged in
+  if (!user) return null;
 
   return (
     <>
       <Animated.View
-        pointerEvents="box-none"
+        pointerEvents={posReady ? "box-none" : "none"}
         style={[
           styles.fabWrap,
-          { bottom, transform: [{ scale: pulse }], opacity: unreadInfoReq > 0 ? blink : 1 },
+          {
+            bottom,
+            opacity: unreadInfoReq > 0 ? blink : 1,
+            transform: [
+              { translateX: pan.x },
+              { translateY: pan.y },
+              { scale: pulse },
+            ],
+          },
         ]}
+        {...panResponder.panHandlers}
       >
-        <Pressable
-          onPress={handlePress}
+        <View
           style={styles.fab}
-          accessibilityLabel={unreadInfoReq > 0 ? `Apri richieste info (${unreadInfoReq} nuove)` : "Apri assistente AI"}
+          accessibilityLabel={unreadInfoReq > 0 ? `Apri richieste info (${unreadInfoReq} nuove) — trascina per spostare` : "Apri assistente AI — trascina per spostare"}
           testID="assistant-fab"
         >
           <Image
@@ -2194,7 +2308,7 @@ export function AssistantFAB() {
               <Text style={styles.fabBadgeTxt}>{unreadInfoReq > 9 ? "9+" : String(unreadInfoReq)}</Text>
             </View>
           ) : null}
-        </Pressable>
+        </View>
       </Animated.View>
       <AssistantChatModal visible={open} onClose={() => setOpen(false)} />
     </>

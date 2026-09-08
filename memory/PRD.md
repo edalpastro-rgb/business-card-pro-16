@@ -1,3 +1,39 @@
+## V50.z100 (Giu 2026) — KB Auto-Search + FAB Axon trascinabile
+
+### Richieste utente
+1. La ricerca automatica in Knowledge Base (pagine salvate da WebView) deve essere iniettata come contesto durante le chat Axon senza che l'utente debba menzionarla esplicitamente.
+2. Il FAB Axon deve essere trascinabile e non deve più occludere elementi in basso.
+
+### Backend
+- **`_search_axon_kb(user_id, query, top_k=3)`** e **`_build_kb_section(user_id, msg)`** (già presenti in `server.py`): keyword scoring `title×5 + note×3 + content(cap 5)`, stop-word italiane escluse. Ritorna sezione `FONTI KB RILEVANTI` con URL, titolo, nota utente, snippet 1800 char centrato sul primo match.
+- **Integrazione principale** in `POST /api/assistant/chat` (endpoint streamed): `_safe_kb()` aggiunta a `asyncio.gather` insieme a context/weather/rag/memories/attachments/teach/tavily. Usa `tenant_id(user)` per coerenza con come `POST /api/axon/webpage-save` salva (`user_id: tid`).
+- **Integrazione legacy** in `POST /api/assistant/chat` (endpoint non-stream, riga ~14229): `kb_section` calcolato con try/except, iniettato tra `rag_section` e `memory_section` nel prompt finale.
+- Testato con inserimento manuale in `axon_kb`: query "fasce F1" → 1 risultato score=7, "PUN prezzo" → score=1, "ARERA GME" → score=6, "meteo Roma" → 0 (correttamente niente).
+
+### Frontend — FAB trascinabile (`src/AssistantChat.tsx`)
+- Aggiunti imports `PanResponder`, `Dimensions`.
+- `AssistantFAB()` ora usa `Animated.ValueXY` (`pan`) + `panOffset` ref per accumulare drag.
+- **PanResponder**:
+  - `onStartShouldSetPanResponder: () => true`, `onMoveShouldSetPanResponder: (>3px)` → cattura solo se c'è movimento reale, il tap semplice passa attraverso.
+  - `onPanResponderMove`: aggiorna pan.x/y via `Animated.event`.
+  - `onPanResponderRelease`:
+    - Snap orizzontale: se il centro del FAB è nella metà sinistra dello schermo → sposta a `left = EDGE_MARGIN`; altrimenti mantiene destra.
+    - Clamp verticale: non uscire sopra la status bar (`insets.top + 20px`) né sotto la posizione di ancoraggio bottom.
+    - Salva `{x, y}` in `AsyncStorage['axon_fab_pos_v1']`.
+    - Se drag < 6px e durata < 500ms → tratta come tap (`handlePressRef.current()`).
+- **Persistenza**: al mount carica `axon_fab_pos_v1` e applica come offset iniziale (`posReady` flag → `pointerEvents='none'` finché il valore non è caricato per evitare tap accidentale in posizione errata).
+- **Ref pattern per handlePress**: `handlePressRef` evita closure stale nel PanResponder che verrebbe creato solo una volta con `useRef(PanResponder.create(...))` — usa sempre l'ultimo `unreadInfoReq` per decidere se aprire chat o pagina info-requests.
+- Il `Pressable` interno è stato sostituito da `View` (l'evento tap è ora derivato dal PanResponder).
+- **Rotazione schermo**: `Dimensions.addEventListener('change')` aggiorna `winRef` per ricalcolare correttamente lo snap edge.
+
+### Testing
+- Backend riavviato via supervisorctl. Test `python -c` positivo: `_build_kb_section` produce sezione da 574 char con 1 risultato per query "come funzionano le fasce F1 F2 F3?".
+- Frontend lint: 3 warning pre-esistenti (nessun nuovo problema).
+- Test visivo screenshot: FAB Axon visibile in bottom-right con logo bianco, badge unread visibile quando presente.
+
+---
+
+
 ## V50.z79 (Set 2026) — Meteo Open-Meteo + allerte Protezione Civile-like (PROMPT 15)
 
 ### Richieste utente
