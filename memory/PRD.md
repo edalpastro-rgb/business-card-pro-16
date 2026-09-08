@@ -5510,3 +5510,9 @@ else Linking.openURL(url).catch(() => {});
 ## Fix FAB AxonOS non risponde al tap (Android) (Giugno 2026)
 - Causa: in `AssistantFAB` il transform mescolava valori JS-driven (pan drag) e native-driven (`pulse` scale, `blink` opacity). Su nativo il nodo diventava "native" e la `Animated.spring` del rilascio lanciava un'eccezione dentro `onPanResponderRelease` (async → silente), impedendo la chiamata a `handlePress`.
 - Fix: pulse/blink spostati su un `Animated.View` interno; il wrapper esterno con i panHandlers usa solo pan.x/pan.y. Spring protetta da try/catch.
+
+## Miglioramenti UI appuntamenti/contatti (Giugno 2026)
+- Contatti: pulsante Import CSV/Excel spostato dall'header a una barra "Importa contatti da CSV / Excel" sopra la lista (testID `contacts-import-btn`).
+- Dettaglio appuntamento (`appointment/[id].tsx`): pulsante "Modifica appuntamento" (→ `/appointment/new?edit=<id>`), pulsante "Vai alla scheda cliente", card "Note e allegati" (note testuali, foto con anteprima fullscreen, audio riproducibile, file apribile/condivisibile).
+- `appointment/new.tsx`: modalità modifica via `?edit=<id>` (precompila form + allegati, salva con PUT, riprogramma il promemoria, torna al dettaglio). Sezione broadcast nascosta in modifica.
+- Calendario: puntini della vista Settimana colorati per tipo appuntamento (max 3, come vista Mese); corretto anche il pallino della lista "Da recuperare" (era sempre arancione).

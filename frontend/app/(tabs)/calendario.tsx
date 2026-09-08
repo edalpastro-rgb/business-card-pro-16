@@ -345,7 +345,7 @@ function CalendarioScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.daysRow}>
           {days.map((d) => {
             const selected = sameDay(d, selectedDate);
-            const hasEvents = filteredItems.some((it) => sameDay(it.start_at, d));
+            const dayDots = Array.from(new Set(filteredItems.filter((it) => sameDay(it.start_at, d)).map((it) => eventColor(it)))).slice(0, 3);
             return (
               <Pressable
                 key={d.toISOString()}
@@ -355,7 +355,11 @@ function CalendarioScreen() {
               >
                 <Text style={[styles.dayDow, selected && styles.dayDowActive]}>{d.toLocaleDateString("it-IT", { weekday: "short" }).replace(".", "")}</Text>
                 <Text style={[styles.dayNum, selected && styles.dayNumActive]}>{d.getDate()}</Text>
-                {hasEvents && <View style={[styles.dayDot, selected && { backgroundColor: "#FFF" }]} />}
+                {dayDots.length > 0 && (
+                  <View style={styles.dayDotsRow}>
+                    {dayDots.map((c, i) => <View key={i} style={[styles.dayDot, { backgroundColor: selected ? "#FFF" : c }]} />)}
+                  </View>
+                )}
               </Pressable>
             );
           })}
@@ -606,7 +610,7 @@ function CalendarioScreen() {
                     onPress={() => router.push(`/appointment/${item.id}` as any)}
                     style={[styles.backlogItem, isPast && styles.backlogItemPast]}
                   >
-                    <View style={[styles.backlogDot, { backgroundColor: colorFor(item) }]} />
+                    <View style={[styles.backlogDot, { backgroundColor: eventColor(item) }]} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.backlogItemTitle} numberOfLines={1}>{item.title}</Text>
                       <Text style={styles.backlogItemMeta}>
@@ -690,7 +694,8 @@ const styles = StyleSheet.create({
   dayDowActive: { color: "#CFE1EE" },
   dayNum: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface, marginTop: 2 },
   dayNumActive: { color: "#FFF" },
-  dayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: theme.color.brandPrimary, marginTop: 3 },
+  dayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: theme.color.brandPrimary },
+  dayDotsRow: { flexDirection: "row", gap: 3, marginTop: 3 },
   dateHeader: { paddingHorizontal: 20, paddingVertical: 12 },
   dateTxt: { fontSize: 17, fontWeight: "700", color: theme.color.onSurface, textTransform: "capitalize" },
   dateSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },

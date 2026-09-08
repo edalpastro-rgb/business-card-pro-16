@@ -10,7 +10,7 @@ import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
-import { scheduleAppointmentReminder } from "@/src/notifications";
+import { scheduleAppointmentReminder, cancelAppointmentReminder } from "@/src/notifications";
 import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
 import { notify } from "@/src/utils/notify";
 import { WheelPickerModal, WheelItem } from "@/src/WheelPicker";
@@ -118,10 +118,13 @@ function NewAppointmentScreen() {
   const { user } = useAuth();
   const safeBottom = useSafeBottom(); // V29.ar — sticky footer safe-area
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
-  const { contactId, reschedule_from, title: prefTitle, area: prefArea, location: prefLoc, notes: prefNotes, contact_id: prefContact, is_phone: prefPhone, chain, back_to } = useLocalSearchParams<{
+  const { contactId, reschedule_from, title: prefTitle, area: prefArea, location: prefLoc, notes: prefNotes, contact_id: prefContact, is_phone: prefPhone, chain, back_to, edit: editId } = useLocalSearchParams<{
     contactId?: string; reschedule_from?: string; title?: string; area?: string; location?: string; notes?: string; contact_id?: string; is_phone?: string;
-    chain?: string; back_to?: string;
+    chain?: string; back_to?: string; edit?: string;
   }>();
+  // Modalità modifica: `?edit=<appointment_id>` carica l'appuntamento e salva con PUT
+  const isEdit = !!editId;
+  const [editLoading, setEditLoading] = useState(isEdit);
   // V27 — Chain referral flow: after saving, go back to the referrer's Referenze tab
   const chainMode = chain === "1";
   const chainBackTo = back_to || null;
@@ -314,6 +317,49 @@ function NewAppointmentScreen() {
     api<Settings>("/settings").then(setSettings).catch(() => {});
   }, []);
 
+  // Modalità modifica: precompila form + allegati dall'appuntamento esistente
+  useEffect(() => {
+    if (!editId) return;
+    (async () => {
+      try {
+        const a = await api<any>(`/appointments/${editId}`);
+        setForm((f) => ({
+          ...f,
+          title: a.title || "",
+          contact_id: a.contact_id || "",
+          participant_contact_ids: a.participant_contact_ids || [],
+          area: a.area === "network" ? "network" : "energy",
+          start_at: a.start_at ? new Date(a.start_at) : f.start_at,
+          duration_min: a.duration_min || 60,
+          reminder_minutes: typeof a.reminder_minutes === "number" ? a.reminder_minutes : 15,
+          recurrence: a.recurrence || "none",
+          is_phone: !!a.is_phone,
+          phone_mobile: a.phone_mobile || "",
+          phone_work: a.phone_work || "",
+          phone_target: a.phone_target || "",
+          email: a.email || "",
+          location: a.location || "",
+          map_address: a.map_address || "",
+          full_address: a.full_address || "",
+          address_street: a.address_street || "",
+          address_number: a.address_number || "",
+          address_city: a.address_city || "",
+          address_zip: a.address_zip || "",
+          address_province: a.address_province || "",
+          notes: a.notes || "",
+          value_amount: a.value_amount ? String(a.value_amount) : "",
+          appointment_type_tags: a.appointment_type_tags || [],
+          product_categories: a.product_categories || [],
+        }));
+        setAttachments(Array.isArray(a.note_attachments) ? a.note_attachments : []);
+      } catch {
+        notify("Errore", "Impossibile caricare l'appuntamento");
+      } finally {
+        setEditLoading(false);
+      }
+    })();
+  }, [editId]);
+
   useEffect(() => {
     const cidParam = contactId || prefContact;
     if (cidParam && contacts.length) {
@@ -363,6 +409,19 @@ function NewAppointmentScreen() {
         broadcast_notify_advance_min: broadcast.notify_min,
       };
       delete payload.value_amount_str;
+      if (isEdit && editId) {
+        // Modifica: PUT sui campi editabili, poi torna al dettaglio
+        delete payload.is_broadcast;
+        delete payload.broadcast_scope;
+        delete payload.broadcast_to_user_ids;
+        await api(`/appointments/${editId}`, { method: "PUT", body: payload });
+        try {
+          await cancelAppointmentReminder(editId);
+          if (form.reminder_minutes > 0) await scheduleAppointmentReminder(editId, form.title, form.start_at);
+        } catch { /* ignore */ }
+        if (router.canGoBack()) router.back(); else router.replace(`/appointment/${editId}` as any);
+        return;
+      }
       const created = await api<{ appointment_id: string }>("/appointments", { method: "POST", body: payload });
       if (form.reminder_minutes > 0) {
         await scheduleAppointmentReminder(created.appointment_id, form.title, form.start_at);
@@ -526,7 +585,7 @@ function NewAppointmentScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
-        <Text style={styles.title}>Nuovo appuntamento</Text>
+        <Text style={styles.title}>{isEdit ? "Modifica appuntamento" : "Nuovo appuntamento"}</Text>
         <View style={{ width: 26 }} />
       </View>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -944,7 +1003,7 @@ function NewAppointmentScreen() {
           </View>
         </View>
 
-        {canBroadcast && (
+        {canBroadcast && !isEdit && (
           <View style={styles.card}>
             <View style={styles.rowBetween}>
               <View style={{ flex: 1 }}>
@@ -1052,15 +1111,15 @@ function NewAppointmentScreen() {
         <Pressable
           testID="ap-save"
           onPress={submit}
-          style={[styles.saveBtn, (busy || !form.title.trim()) && { opacity: 0.55 }]}
-          disabled={busy || !form.title.trim()}
+          style={[styles.saveBtn, (busy || editLoading || !form.title.trim()) && { opacity: 0.55 }]}
+          disabled={busy || editLoading || !form.title.trim()}
         >
           {busy ? (
             <ActivityIndicator color="#FFF" />
           ) : (
             <>
               <Ionicons name="checkmark-circle" size={18} color="#FFF" style={{ marginRight: 6 }} />
-              <Text style={styles.saveBtnTxt}>Salva appuntamento</Text>
+              <Text style={styles.saveBtnTxt}>{isEdit ? "Salva modifiche" : "Salva appuntamento"}</Text>
             </>
           )}
         </Pressable>

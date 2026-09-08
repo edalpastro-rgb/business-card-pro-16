@@ -120,17 +120,7 @@ function ContattiScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Contatti</Text>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {/* V50.z66 — Pulsante Import CSV/Excel */}
-          <Pressable
-            testID="contacts-import-btn"
-            onPress={() => router.push("/contacts-import" as any)}
-            style={[styles.headerBtn, { backgroundColor: "#7C3AED" }]}
-          >
-            <Ionicons name="cloud-upload" size={20} color="#FFF" />
-          </Pressable>
-          {/* V50.z75 — Bottone '+' rimosso dall'header, sostituito da un pulsante grande sopra la lista */}
-        </View>
+        <View style={{ flexDirection: "row", gap: 8 }} />
       </View>
 
       <View style={styles.search}>
@@ -227,6 +217,19 @@ function ContattiScreen() {
           />
         </View>
       )}
+
+      {/* Barra import CSV/Excel sopra la lista (spostata dall'header) */}
+      <View style={styles.importBar}>
+        <Pressable
+          testID="contacts-import-btn"
+          onPress={() => router.push("/contacts-import" as any)}
+          style={styles.importBtn}
+        >
+          <Ionicons name="cloud-upload-outline" size={16} color="#7C3AED" />
+          <Text style={styles.importBtnTxt}>Importa contatti da CSV / Excel</Text>
+          <Ionicons name="chevron-forward" size={14} color="#7C3AED" />
+        </Pressable>
+      </View>
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
@@ -399,6 +402,9 @@ const styles = StyleSheet.create({
   groupDot: { width: 8, height: 8, borderRadius: 4 },
   // V50.z72 — Distanze in batch UI
   distBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingBottom: 6, flexWrap: "wrap" },
+  importBar: { paddingHorizontal: 16, paddingBottom: 8 },
+  importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE", minHeight: 44 },
+  importBtnTxt: { flex: 1, fontSize: 13, fontWeight: "700", color: "#7C3AED" },
   sortChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.brandPrimary },
   sortChipOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
   sortChipTxt: { fontSize: 11, fontWeight: "700", color: theme.color.brandPrimary },

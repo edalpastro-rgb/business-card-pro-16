@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, Linking, Alert, Modal } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, Linking, Alert, Modal, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useAudioPlayer } from "expo-audio";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { shareDataUri } from "@/src/share";
 import { scheduleAppointmentReminder, cancelAppointmentReminder, scheduleCallbackReminder } from "@/src/notifications";
 import { openGoogleCalendar, openOutlookCalendar, shareIcs } from "@/src/calendar-export";
 import { ModuleErrorBoundary } from "@/src/shared";
@@ -14,6 +16,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { apptTypeColor } from "@/app/appointment/new";
 
 type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
+type NoteAttachment = { id: string; kind: "photo" | "audio" | "file"; photo_base64?: string; audio_base64?: string; audio_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number };
 type Settings = { appointment_outcomes?: Outcome[] };
 type Appointment = {
   appointment_id: string; title: string; area: "energy" | "network"; start_at: string;
@@ -23,6 +26,7 @@ type Appointment = {
   contact_id?: string;
   duration_min?: number;
   appointment_type_tags?: string[];
+  note_attachments?: NoteAttachment[];
   is_broadcast?: boolean;
   broadcast_notify_advance_min?: number;
   read_only?: boolean;
@@ -92,6 +96,21 @@ function AppointmentDetail() {
   const [linkContacts, setLinkContacts] = useState<ContactSearchResult[]>([]);
   const [linkLoading, setLinkLoading] = useState(false);
   const [linking, setLinking] = useState<string | null>(null);
+  // Allegati: anteprima foto fullscreen + player audio
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [playingUri, setPlayingUri] = useState<string | null>(null);
+  const player = useAudioPlayer(playingUri);
+  const playAttachment = (att: NoteAttachment) => {
+    if (!att.audio_base64) return;
+    const uri = att.audio_base64.startsWith("data:") ? att.audio_base64 : `data:${att.audio_mime || "audio/m4a"};base64,${att.audio_base64}`;
+    setPlayingUri(uri);
+    setTimeout(() => { try { player.play(); } catch {} }, 100);
+  };
+  const openFileAttachment = (att: NoteAttachment) => {
+    if (!att.file_base64) return;
+    const uri = att.file_base64.startsWith("data:") ? att.file_base64 : `data:${att.file_mime || "application/octet-stream"};base64,${att.file_base64}`;
+    shareDataUri(uri, att.file_name || "allegato", att.file_mime || "application/octet-stream").catch(() => {});
+  };
 
   const load = useCallback(async () => {
     const [ap, s] = await Promise.all([
@@ -388,7 +407,61 @@ function AppointmentDetail() {
             </View>
           ) : null}
           {a.location ? <Text style={styles.addrTxt}>{a.location}</Text> : null}
+          {!a.read_only && (
+            <Pressable
+              testID="edit-appt"
+              onPress={() => router.push(`/appointment/new?edit=${a.appointment_id}` as any)}
+              style={[styles.gotoContactBtn, { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}
+            >
+              <Ionicons name="create-outline" size={18} color="#FFF" />
+              <Text style={[styles.gotoContactTxt, { color: "#FFF" }]}>Modifica appuntamento</Text>
+              <Ionicons name="chevron-forward" size={16} color="#FFF" />
+            </Pressable>
+          )}
+          {contact && (
+            <Pressable
+              testID="goto-contact-btn"
+              onPress={() => router.push(`/contact/${contact.contact_id}` as any)}
+              style={styles.gotoContactBtn}
+            >
+              <Ionicons name="person-circle-outline" size={18} color={theme.color.brandPrimary} />
+              <Text style={styles.gotoContactTxt} numberOfLines={1}>Vai alla scheda cliente · {contact.first_name} {contact.last_name}</Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.color.brandPrimary} />
+            </Pressable>
+          )}
         </View>
+
+        {/* Note e allegati salvati con l'appuntamento */}
+        {(!!a.notes?.trim() || (a.note_attachments || []).length > 0) && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Note e allegati</Text>
+            {!!a.notes?.trim() && <Text style={styles.notesTxt} testID="appt-notes">{a.notes}</Text>}
+            {(a.note_attachments || []).length > 0 && (
+              <View style={styles.attRow}>
+                {(a.note_attachments || []).map((att, i) => {
+                  const key = att.id || String(i);
+                  if (att.kind === "photo" && att.photo_base64) {
+                    return (
+                      <Pressable key={key} testID={`appt-att-${key}`} onPress={() => setPhotoPreview(att.photo_base64!)} style={styles.attChip}>
+                        <Image source={{ uri: att.photo_base64 }} style={styles.attThumb} />
+                        <Text style={styles.attLabel} numberOfLines={1}>Foto</Text>
+                      </Pressable>
+                    );
+                  }
+                  const isAudio = att.kind === "audio";
+                  return (
+                    <Pressable key={key} testID={`appt-att-${key}`} onPress={() => (isAudio ? playAttachment(att) : openFileAttachment(att))} style={styles.attChip}>
+                      <View style={[styles.attThumb, { alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surfaceTertiary }]}>
+                        <Ionicons name={isAudio ? "play-circle" : "document-text"} size={26} color={theme.color.brandPrimary} />
+                      </View>
+                      <Text style={styles.attLabel} numberOfLines={1}>{isAudio ? "Audio" : (att.file_name || "File")}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
 
         <Pressable testID="done-btn" onPress={() => savePartial({ done: !a.done })} style={[styles.doneBtn, a.done && { backgroundColor: theme.color.success }]}>
           <Ionicons name={a.done ? "checkmark-circle" : "ellipse-outline"} size={22} color="#FFF" />
@@ -847,6 +920,14 @@ function AppointmentDetail() {
         </View>
       </Modal>
 
+      {/* Anteprima foto allegata a schermo intero */}
+      <Modal visible={!!photoPreview} transparent animationType="fade" onRequestClose={() => setPhotoPreview(null)}>
+        <Pressable testID="photo-preview-close" onPress={() => setPhotoPreview(null)} style={styles.photoPreviewBack}>
+          {photoPreview ? <Image source={{ uri: photoPreview }} style={styles.photoPreviewImg} resizeMode="contain" /> : null}
+          <View style={styles.photoPreviewClose}><Ionicons name="close" size={26} color="#FFF" /></View>
+        </Pressable>
+      </Modal>
+
       {/* V38W — Link Contact modal */}
       <Modal transparent visible={linkModal} animationType="fade" onRequestClose={() => setLinkModal(false)}>
         <View style={omstyles.back}>
@@ -976,6 +1057,16 @@ const styles = StyleSheet.create({
   linkContactRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   linkContactBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.brandPrimary, paddingVertical: 12, borderRadius: 10 },
   linkContactBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
+  gotoContactBtn: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, paddingVertical: 11, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: theme.color.brandPrimary, backgroundColor: theme.color.surface, minHeight: 44 },
+  gotoContactTxt: { flex: 1, color: theme.color.brandPrimary, fontWeight: "800", fontSize: 13 },
+  notesTxt: { fontSize: 14, color: theme.color.onSurface, lineHeight: 20 },
+  attRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
+  attChip: { width: 84, alignItems: "center" },
+  attThumb: { width: 84, height: 84, borderRadius: 10, backgroundColor: theme.color.surfaceTertiary },
+  attLabel: { fontSize: 11, color: theme.color.muted, marginTop: 4, maxWidth: 84 },
+  photoPreviewBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" },
+  photoPreviewImg: { width: "100%", height: "85%" },
+  photoPreviewClose: { position: "absolute", top: 48, right: 20, width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
   linkedContactRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: "#F1F5F9", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
   linkedContactTxt: { flex: 1, fontSize: 12, color: theme.color.onSurface },
   linkChangeTxt: { fontSize: 12, color: theme.color.brandPrimary, fontWeight: "700" },
