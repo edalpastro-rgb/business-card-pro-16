@@ -23298,6 +23298,393 @@ async def _run_review_followup_job() -> None:
         logger.warning(f"[review-followup-job] failed: {exc}")
 
 
+# =====================================================================
+# V50.z103 — PROMPT 25: Modulo Lead pubblico con AxonOS
+# =====================================================================
+# Flusso:
+#  1. Master ottiene link pubblico (slug permanente) da condividere.
+#  2. Chiunque compila il form pubblico (nome, email, tel, checkbox esigenze,
+#     testo libero, privacy).
+#  3. Al submit AxonOS (Claude Sonnet 5) genera una risposta personalizzata
+#     con le "soluzioni AdvisorOS" più adatte.
+#  4. Master riceve notifica push, vede il lead, può regenerare/modificare
+#     la risposta e inviarla via email o WhatsApp/SMS/Telegram (deep-link).
+
+LEAD_NEEDS_FIXED = [
+    {"id": "luce", "label": "Fornitura Luce", "emoji": "💡"},
+    {"id": "gas", "label": "Fornitura Gas", "emoji": "🔥"},
+    {"id": "fibra", "label": "Fibra / Internet", "emoji": "📶"},
+    {"id": "fotovoltaico", "label": "Fotovoltaico / Batterie", "emoji": "☀️"},
+    {"id": "networker", "label": "Consulenza / Collaborazione rete", "emoji": "🤝"},
+]
+
+_LEAD_NEED_IDS = {n["id"] for n in LEAD_NEEDS_FIXED}
+
+
+class LeadSubmitIn(BaseModel):
+    full_name: str = Field(min_length=2, max_length=120)
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    needs: List[str] = Field(default_factory=list)
+    free_text: str = ""
+    consent_privacy: bool
+
+
+class LeadReplyIn(BaseModel):
+    channel: Literal["email", "whatsapp", "sms", "telegram"]
+    text: Optional[str] = None  # Se None usa axon_reply_text
+
+
+class LeadRegenerateIn(BaseModel):
+    style: Optional[str] = None  # "friendly" | "professional" | "short"
+
+
+class LeadStatusIn(BaseModel):
+    status: Literal["new", "analyzed", "approved", "replied", "archived"]
+
+
+def _lead_labels_for_needs(needs: List[str]) -> List[str]:
+    return [n["label"] for n in LEAD_NEEDS_FIXED if n["id"] in (needs or [])]
+
+
+async def _generate_axon_lead_reply(lead: dict, master_name: str, style: str = "friendly") -> str:
+    """Genera una risposta personalizzata via Claude Sonnet 5 con `emergentintegrations`.
+    Ritorna il testo (max ~800 caratteri) pronto da inviare via email/WhatsApp."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        # Fallback statico se manca la chiave
+        return _lead_fallback_reply(lead, master_name)
+
+    need_labels = _lead_labels_for_needs(lead.get("needs") or [])
+    needs_txt = ", ".join(need_labels) if need_labels else "non specificate"
+    free_text = (lead.get("free_text") or "").strip() or "(nessun messaggio aggiuntivo)"
+    first_name = ((lead.get("full_name") or "").split(" ")[0]) or "amico"
+
+    style_txt = "amichevole ma professionale"
+    if style == "professional":
+        style_txt = "professionale e formale (Lei/formale)"
+    elif style == "short":
+        style_txt = "amichevole, MOLTO breve (max 4 righe)"
+
+    system = (
+        "Sei AxonOS, l'assistente AI di un consulente italiano (energia + networker AdvisorOS). "
+        "Ricevi la richiesta di un potenziale cliente arrivata da un form pubblico. "
+        f"Scrivi una risposta IN ITALIANO, tono {style_txt}, che:\n"
+        "1) Ringrazi per la richiesta e usi il nome del lead.\n"
+        "2) Mostri comprensione delle esigenze indicate (max 2 frasi).\n"
+        "3) Proponga la soluzione AdvisorOS più adatta per ogni esigenza (bullet compatti). "
+        "Le nostre soluzioni tipiche sono: analisi bolletta gratuita, migliori tariffe Luce/Gas "
+        "in convenzione, fibra domestica business/consumer, impianti fotovoltaici chiavi in mano "
+        "con batteria, collaborazione come networker con formazione e supporto costante.\n"
+        "4) Proponga un breve appuntamento (call/WhatsApp/incontro).\n"
+        "5) Firma con il nome del consulente.\n"
+        "Non inventare prezzi specifici, non promettere risparmi numerici certi. Max 1400 caratteri. "
+        "Formato piatto adatto sia a email sia a WhatsApp (niente markdown)."
+    )
+    user_msg = (
+        f"NOME CONSULENTE: {master_name}\n"
+        f"LEAD: {lead.get('full_name')}\n"
+        f"EMAIL: {lead.get('email') or 'n/d'}\n"
+        f"TELEFONO: {lead.get('phone') or 'n/d'}\n"
+        f"ESIGENZE INDICATE: {needs_txt}\n"
+        f"MESSAGGIO LIBERO:\n{free_text}\n\n"
+        f"Scrivi la risposta pronta da inviare (senza intestazioni tipo 'Oggetto:' o 'A:')."
+    )
+    try:
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"lead-reply-{uuid.uuid4().hex[:8]}",
+            system_message=system,
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        resp = await chat.send_message(UserMessage(text=user_msg))
+        text = (str(resp) or "").strip()
+        # Cap dimensione per sicurezza
+        if len(text) > 1600:
+            text = text[:1600].rstrip() + "…"
+        return text or _lead_fallback_reply(lead, master_name)
+    except Exception as exc:
+        logger.warning(f"[axon-lead-reply] LLM failed: {exc}")
+        return _lead_fallback_reply(lead, master_name)
+
+
+def _lead_fallback_reply(lead: dict, master_name: str) -> str:
+    first_name = ((lead.get("full_name") or "").split(" ")[0]) or "Ciao"
+    need_labels = _lead_labels_for_needs(lead.get("needs") or [])
+    needs_line = (
+        "Ho visto che ti interessano: " + ", ".join(need_labels).lower() + ".\n"
+        if need_labels else ""
+    )
+    return (
+        f"Ciao {first_name}, grazie per la tua richiesta!\n\n"
+        f"{needs_line}"
+        "Ti propongo di sentirci per capire meglio la tua situazione e darti un preventivo/consulenza "
+        "gratuita. Se preferisci, possiamo fissare una call oppure scambiarci qualche messaggio su WhatsApp — "
+        "come ti è più comodo.\n\n"
+        f"A presto,\n{master_name}"
+    )
+
+
+@api_router.post("/leads/public-link")
+async def get_lead_public_link(request: Request, user=Depends(get_current_user)):
+    """Ritorna (creando se manca) lo slug pubblico permanente per il form lead del tenant."""
+    tid = tenant_id(user)
+    settings = await db.user_settings.find_one({"user_id": tid}, {"_id": 0, "lead_public_slug": 1}) or {}
+    slug = settings.get("lead_public_slug")
+    if not slug:
+        slug = f"lead-{uuid.uuid4().hex[:16]}"
+        await db.user_settings.update_one(
+            {"user_id": tid},
+            {"$set": {"lead_public_slug": slug, "user_id": tid}},
+            upsert=True,
+        )
+    base = _build_public_base_url(request)
+    return {
+        "slug": slug,
+        "public_url": f"{base}/public-lead/{slug}",
+        "api_url": f"{base}/api/public/lead-form/{slug}",
+    }
+
+
+@api_router.get("/public/lead-form/{slug}")
+async def public_lead_form_meta(slug: str):
+    """Ritorna nome master + esigenze da mostrare nel form pubblico. Nessun auth."""
+    st = await db.user_settings.find_one({"lead_public_slug": slug}, {"_id": 0, "user_id": 1})
+    if not st:
+        raise HTTPException(status_code=404, detail="Pagina non trovata")
+    tid = st.get("user_id")
+    master = await db.users.find_one({"user_id": tid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+    master_name = " ".join([(master or {}).get("first_name") or "", (master or {}).get("last_name") or ""]).strip() or ((master or {}).get("email") or "Consulente")
+    return {
+        "master_name": master_name,
+        "needs": LEAD_NEEDS_FIXED,
+    }
+
+
+@api_router.post("/public/lead-form/{slug}")
+async def public_lead_submit(slug: str, body: LeadSubmitIn):
+    """Riceve un lead pubblico, salva su DB, genera risposta AxonOS in background."""
+    if not body.consent_privacy:
+        raise HTTPException(status_code=400, detail="Devi accettare l'informativa privacy")
+    st = await db.user_settings.find_one({"lead_public_slug": slug}, {"_id": 0, "user_id": 1})
+    if not st:
+        raise HTTPException(status_code=404, detail="Pagina non trovata")
+    tid = st.get("user_id")
+
+    # Filtra needs solo su ID validi
+    valid_needs = [n for n in (body.needs or []) if n in _LEAD_NEED_IDS]
+
+    lead_id = f"lead_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "lead_id": lead_id,
+        "user_id": tid,
+        "full_name": body.full_name.strip(),
+        "email": (body.email or "").strip().lower() or None,
+        "phone": (body.phone or "").strip() or None,
+        "needs": valid_needs,
+        "free_text": (body.free_text or "").strip(),
+        "consent_privacy": True,
+        "created_at": utcnow(),
+        "status": "new",
+        "axon_reply_text": None,
+        "axon_generated_at": None,
+        "master_reply_text": None,
+        "master_reply_channel": None,
+        "master_replied_at": None,
+    }
+    await db.public_leads.insert_one(doc)
+
+    # Genera reply Axon (best-effort, se fallisce lo status resta 'new')
+    try:
+        master = await db.users.find_one({"user_id": tid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+        master_name = " ".join([(master or {}).get("first_name") or "", (master or {}).get("last_name") or ""]).strip() or ((master or {}).get("email") or "il tuo consulente")
+        reply_text = await _generate_axon_lead_reply(doc, master_name, style="friendly")
+        await db.public_leads.update_one(
+            {"lead_id": lead_id},
+            {"$set": {"axon_reply_text": reply_text, "axon_generated_at": utcnow(), "status": "analyzed"}},
+        )
+    except Exception as exc:
+        logger.warning(f"[lead-submit] axon reply failed for {lead_id}: {exc}")
+
+    # Push notification al master (best-effort, riutilizza infrastruttura esistente)
+    try:
+        await _send_lead_push_notification(tid, doc)
+    except Exception as exc:
+        logger.debug(f"[lead-submit] push failed: {exc}")
+
+    return {"ok": True, "lead_id": lead_id}
+
+
+async def _send_lead_push_notification(tid: str, lead: dict) -> None:
+    """Invia notifica push al master per nuovo lead. Best-effort."""
+    try:
+        tokens = await db.push_tokens.find({"user_id": tid}, {"_id": 0, "token": 1}).to_list(20)
+    except Exception:
+        tokens = []
+    if not tokens:
+        return
+    try:
+        from emergent_push import send_push  # potrebbe non esistere in questa env
+    except Exception:
+        # Fallback: usa Expo push HTTP diretto (già usato altrove nel codebase)
+        try:
+            body_text = (lead.get("full_name") or "Nuovo lead") + (
+                " · " + ", ".join(_lead_labels_for_needs(lead.get("needs") or [])[:2])
+                if lead.get("needs") else ""
+            )
+            payload = {
+                "to": [t["token"] for t in tokens if t.get("token")],
+                "title": "🆕 Nuova richiesta info",
+                "body": body_text[:120],
+                "data": {"deeplink": f"/leads/{lead.get('lead_id')}", "tag": "lead_new"},
+                "sound": "default",
+                "priority": "high",
+            }
+            async with httpx.AsyncClient(timeout=8) as c:
+                await c.post("https://exp.host/--/api/v2/push/send", json=payload)
+        except Exception:
+            pass
+
+
+@api_router.get("/leads")
+async def list_leads(status: str = "all", user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    q: Dict[str, Any] = {"user_id": tid}
+    if status and status != "all":
+        q["status"] = status
+    docs = await db.public_leads.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return {"items": docs}
+
+
+@api_router.get("/leads/count")
+async def leads_count(user=Depends(get_current_user)):
+    """Conteggi per badge navigation."""
+    tid = tenant_id(user)
+    total = await db.public_leads.count_documents({"user_id": tid})
+    new_or_analyzed = await db.public_leads.count_documents({"user_id": tid, "status": {"$in": ["new", "analyzed"]}})
+    return {"total": total, "unread": new_or_analyzed}
+
+
+@api_router.get("/leads/{lead_id}")
+async def get_lead(lead_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    doc = await db.public_leads.find_one({"user_id": tid, "lead_id": lead_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Lead non trovato")
+    return doc
+
+
+@api_router.post("/leads/{lead_id}/regenerate-axon")
+async def regenerate_lead_reply(lead_id: str, body: LeadRegenerateIn, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    lead = await db.public_leads.find_one({"user_id": tid, "lead_id": lead_id}, {"_id": 0})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead non trovato")
+    master = await db.users.find_one({"user_id": tid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+    master_name = " ".join([(master or {}).get("first_name") or "", (master or {}).get("last_name") or ""]).strip() or ((master or {}).get("email") or "il tuo consulente")
+    style = (body.style or "friendly")
+    if style not in ("friendly", "professional", "short"):
+        style = "friendly"
+    reply_text = await _generate_axon_lead_reply(lead, master_name, style=style)
+    await db.public_leads.update_one(
+        {"lead_id": lead_id},
+        {"$set": {"axon_reply_text": reply_text, "axon_generated_at": utcnow(), "status": "analyzed"}},
+    )
+    return {"ok": True, "axon_reply_text": reply_text}
+
+
+class LeadAxonEditIn(BaseModel):
+    axon_reply_text: str
+
+
+@api_router.patch("/leads/{lead_id}/axon-reply")
+async def edit_lead_axon_reply(lead_id: str, body: LeadAxonEditIn, user=Depends(get_current_user)):
+    """Master modifica manualmente la bozza AxonOS prima di approvarla."""
+    tid = tenant_id(user)
+    r = await db.public_leads.update_one(
+        {"user_id": tid, "lead_id": lead_id},
+        {"$set": {"axon_reply_text": (body.axon_reply_text or "").strip(), "status": "analyzed"}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Lead non trovato")
+    return {"ok": True}
+
+
+@api_router.patch("/leads/{lead_id}/approve")
+async def approve_lead_reply(lead_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    r = await db.public_leads.update_one(
+        {"user_id": tid, "lead_id": lead_id},
+        {"$set": {"status": "approved", "approved_at": utcnow(), "approved_by": user["user_id"]}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Lead non trovato")
+    return {"ok": True}
+
+
+@api_router.post("/leads/{lead_id}/reply")
+async def send_lead_reply(lead_id: str, body: LeadReplyIn, user=Depends(get_current_user)):
+    """Invia la risposta al lead. Per email → SMTP auto. Per WA/SMS/Telegram → il
+    frontend gestirà il deep-link, ma qui registriamo l'invio ai fini della history."""
+    tid = tenant_id(user)
+    lead = await db.public_leads.find_one({"user_id": tid, "lead_id": lead_id}, {"_id": 0})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead non trovato")
+    text = (body.text or "").strip() or lead.get("axon_reply_text") or ""
+    if not text:
+        raise HTTPException(status_code=400, detail="Nessun testo da inviare")
+
+    sent_via_backend = False
+    if body.channel == "email":
+        to_email = (lead.get("email") or "").strip()
+        if not to_email:
+            raise HTTPException(status_code=400, detail="Lead senza email")
+        cfg = await db.smtp_configs.find_one({"user_id": tid}, {"_id": 0})
+        if cfg and cfg.get("host"):
+            try:
+                master = await db.users.find_one({"user_id": tid}, {"_id": 0, "first_name": 1, "last_name": 1})
+                master_name = " ".join([(master or {}).get("first_name") or "", (master or {}).get("last_name") or ""]).strip() or "AdvisorOS"
+                subject = f"Risposta alla tua richiesta — {master_name}"
+                body_html = f"""<html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#111;max-width:560px;margin:0 auto;padding:24px"><p style="font-size:15px;line-height:1.6;white-space:pre-wrap">{text}</p></body></html>"""
+                await asyncio.to_thread(_send_smtp_email, cfg, to_email, subject, text, body_html)
+                sent_via_backend = True
+            except Exception as exc:
+                logger.warning(f"[lead-reply-email] {lead_id} failed: {exc}")
+
+    await db.public_leads.update_one(
+        {"lead_id": lead_id},
+        {"$set": {
+            "status": "replied",
+            "master_reply_text": text,
+            "master_reply_channel": body.channel,
+            "master_replied_at": utcnow(),
+            "master_reply_sent_via_backend": sent_via_backend,
+        }},
+    )
+    return {"ok": True, "sent_via_backend": sent_via_backend, "channel": body.channel}
+
+
+@api_router.patch("/leads/{lead_id}/status")
+async def set_lead_status(lead_id: str, body: LeadStatusIn, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    r = await db.public_leads.update_one(
+        {"user_id": tid, "lead_id": lead_id},
+        {"$set": {"status": body.status}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Lead non trovato")
+    return {"ok": True}
+
+
+@api_router.delete("/leads/{lead_id}")
+async def delete_lead(lead_id: str, user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    r = await db.public_leads.delete_one({"user_id": tid, "lead_id": lead_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Lead non trovato")
+    return {"ok": True}
+
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -23372,6 +23759,12 @@ async def _startup():
         await db.reviews.create_index("review_id", unique=True)
         await db.reviews.create_index([("user_id", 1), ("contact_id", 1)])
         await db.reviews.create_index([("user_id", 1), ("approved", 1), ("submitted_at", -1)])
+    except Exception:
+        pass
+    # V50.z103 — Public leads (PROMPT 25: modulo lead con AxonOS)
+    try:
+        await db.public_leads.create_index("lead_id", unique=True)
+        await db.public_leads.create_index([("user_id", 1), ("status", 1), ("created_at", -1)])
     except Exception:
         pass
     # V40 — Semantic cache for Axon assistant (global). Note: we intentionally

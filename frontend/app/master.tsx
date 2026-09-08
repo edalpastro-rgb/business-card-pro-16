@@ -871,6 +871,7 @@ function SettingsHubSection({
       items: [
         { icon: "analytics", label: "Team Insights", hint: "Metriche + profilo AI dei collaboratori", onPress: () => onGoto("/team-insights"), ownerOnly: true, testID: "hub-insights" },
         { icon: "person-add", label: "Invita Collaboratore", hint: "Genera link / QR con ruolo", onPress: () => onGoto("/invite-collaborator"), ownerOnly: true, testID: "hub-invite-collab" },
+        { icon: "mail-unread", label: "Richieste Info (Lead)", hint: "Lead pubblici con risposte AxonOS", onPress: () => onGoto("/leads"), testID: "hub-leads" },
       ],
     },
     {

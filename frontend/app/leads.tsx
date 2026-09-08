@@ -1,0 +1,572 @@
+// V50.z103 — Pagina master: gestione lead pubblici + risposte AxonOS.
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+  Modal,
+  TextInput,
+  Linking,
+  Platform,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import * as Clipboard from "expo-clipboard";
+import { api } from "@/src/api";
+import { theme } from "@/src/theme";
+import { notify } from "@/src/utils/notify";
+
+type Lead = {
+  lead_id: string;
+  full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  needs: string[];
+  free_text: string;
+  created_at: string;
+  status: "new" | "analyzed" | "approved" | "replied" | "archived";
+  axon_reply_text?: string | null;
+  axon_generated_at?: string | null;
+  master_reply_text?: string | null;
+  master_reply_channel?: string | null;
+  master_replied_at?: string | null;
+};
+
+const NEED_META: Record<string, { label: string; emoji: string }> = {
+  luce: { label: "Luce", emoji: "💡" },
+  gas: { label: "Gas", emoji: "🔥" },
+  fibra: { label: "Fibra", emoji: "📶" },
+  fotovoltaico: { label: "Fotovoltaico", emoji: "☀️" },
+  networker: { label: "Networker", emoji: "🤝" },
+};
+
+const STATUS_META: Record<Lead["status"], { label: string; color: string; icon: any }> = {
+  new: { label: "Nuovo", color: "#EA580C", icon: "sparkles" },
+  analyzed: { label: "Analizzato", color: "#8B5CF6", icon: "flash" },
+  approved: { label: "Approvato", color: theme.color.success, icon: "checkmark-circle" },
+  replied: { label: "Risposto", color: theme.color.info, icon: "send" },
+  archived: { label: "Archiviato", color: theme.color.muted, icon: "archive" },
+};
+
+const CHANNEL_META: Record<string, { label: string; icon: any; color: string }> = {
+  whatsapp: { label: "WhatsApp", icon: "logo-whatsapp", color: "#25D366" },
+  email:    { label: "Email",    icon: "mail",           color: "#DC2626" },
+  sms:      { label: "SMS",      icon: "chatbubble",     color: "#2563EB" },
+  telegram: { label: "Telegram", icon: "paper-plane",    color: "#0088CC" },
+};
+
+function fmt(iso: string | null | undefined): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("it-IT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch { return ""; }
+}
+
+export default function LeadsPage() {
+  const router = useRouter();
+  const [items, setItems] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState<"all" | Lead["status"]>("all");
+  const [detail, setDetail] = useState<Lead | null>(null);
+  const [editText, setEditText] = useState<string>("");
+  const [regenerating, setRegenerating] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [publicUrl, setPublicUrl] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api<{ items: Lead[] }>(`/leads?status=${filter}`);
+      setItems(r?.items || []);
+    } catch {} finally {
+      setLoading(false);
+    }
+  }, [filter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openDetail = async (lead: Lead) => {
+    // fetch fresh in case status changed
+    try {
+      const fresh = await api<Lead>(`/leads/${lead.lead_id}`);
+      setDetail(fresh);
+      setEditText(fresh.axon_reply_text || "");
+    } catch {
+      setDetail(lead);
+      setEditText(lead.axon_reply_text || "");
+    }
+  };
+
+  const regenerate = async (style: "friendly" | "professional" | "short") => {
+    if (!detail) return;
+    setRegenerating(true);
+    try {
+      const r = await api<{ axon_reply_text: string }>(`/leads/${detail.lead_id}/regenerate-axon`, {
+        method: "POST", body: { style },
+      });
+      setEditText(r.axon_reply_text);
+      setDetail({ ...detail, axon_reply_text: r.axon_reply_text, status: "analyzed" });
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile rigenerare");
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const saveEdit = async () => {
+    if (!detail) return;
+    setSavingEdit(true);
+    try {
+      await api(`/leads/${detail.lead_id}/axon-reply`, {
+        method: "PATCH", body: { axon_reply_text: editText },
+      });
+      setDetail({ ...detail, axon_reply_text: editText });
+      notify("Salvato", "Bozza aggiornata");
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const approve = async () => {
+    if (!detail) return;
+    try {
+      await api(`/leads/${detail.lead_id}/approve`, { method: "PATCH" });
+      setDetail({ ...detail, status: "approved" });
+      load();
+      notify("Approvata", "Ora puoi inviare la risposta al lead");
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    }
+  };
+
+  const sendReply = async (channel: "email" | "whatsapp" | "sms" | "telegram") => {
+    if (!detail) return;
+    const text = editText || detail.axon_reply_text || "";
+    if (!text) { notify("Testo mancante", "Genera prima una risposta"); return; }
+
+    // Per email → SMTP diretto lato server. Per altri → deep-link + registra invio.
+    try {
+      const r = await api<{ ok: boolean; sent_via_backend: boolean }>(
+        `/leads/${detail.lead_id}/reply`,
+        { method: "POST", body: { channel, text } }
+      );
+      if (channel === "email" && r.sent_via_backend) {
+        notify("Email inviata", "Il lead ha ricevuto la risposta");
+      } else if (channel !== "email") {
+        // Apri deep-link
+        let url = "";
+        if (channel === "whatsapp") {
+          const phone = (detail.phone || "").replace(/[^0-9]/g, "");
+          if (!phone) { notify("Manca telefono", "Il lead non ha telefono"); return; }
+          url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+        } else if (channel === "sms") {
+          const phone = (detail.phone || "").replace(/[^0-9+]/g, "");
+          if (!phone) { notify("Manca telefono", "Il lead non ha telefono"); return; }
+          url = `sms:${phone}${Platform.OS === "ios" ? "&" : "?"}body=${encodeURIComponent(text)}`;
+        } else if (channel === "telegram") {
+          url = `https://t.me/share/url?url=${encodeURIComponent("")}&text=${encodeURIComponent(text)}`;
+        }
+        if (url) await Linking.openURL(url);
+      } else if (channel === "email" && !r.sent_via_backend) {
+        // SMTP non configurato → mailto: fallback
+        if (detail.email) {
+          const url = `mailto:${detail.email}?subject=${encodeURIComponent("Risposta alla tua richiesta")}&body=${encodeURIComponent(text)}`;
+          await Linking.openURL(url);
+        }
+      }
+      setDetail({ ...detail, status: "replied", master_reply_channel: channel });
+      load();
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    }
+  };
+
+  const remove = async () => {
+    if (!detail) return;
+    try {
+      await api(`/leads/${detail.lead_id}`, { method: "DELETE" });
+      setDetail(null);
+      load();
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    }
+  };
+
+  const copyPublicLink = async () => {
+    try {
+      const r = await api<{ public_url: string }>("/leads/public-link", { method: "POST", body: {} });
+      if (r?.public_url) {
+        setPublicUrl(r.public_url);
+        await Clipboard.setStringAsync(r.public_url);
+        notify("Link copiato", "Condividilo per raccogliere lead");
+      }
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    }
+  };
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: items.length, new: 0, analyzed: 0, approved: 0, replied: 0, archived: 0 };
+    for (const l of items) c[l.status] = (c[l.status] || 0) + 1;
+    return c;
+  }, [items]);
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.iconBtn} testID="leads-back">
+          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+        </Pressable>
+        <Text style={styles.title}>Richieste Info</Text>
+        <Pressable onPress={copyPublicLink} style={styles.iconBtn} testID="leads-copy-link">
+          <Ionicons name="share-social" size={22} color={theme.color.brandPrimary} />
+        </Pressable>
+      </View>
+
+      {publicUrl ? (
+        <View style={styles.linkBar}>
+          <Ionicons name="link" size={14} color={theme.color.brandPrimary} />
+          <Text style={styles.linkTxt} numberOfLines={1}>{publicUrl}</Text>
+        </View>
+      ) : null}
+
+      {/* Filter tabs */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        {(["all", "new", "analyzed", "approved", "replied", "archived"] as const).map((s) => {
+          const label = s === "all" ? "Tutti" : STATUS_META[s as Lead["status"]]?.label || s;
+          const active = filter === s;
+          return (
+            <Pressable
+              key={s}
+              onPress={() => setFilter(s)}
+              style={[styles.filterChip, active && styles.filterChipActive]}
+              testID={`filter-${s}`}
+            >
+              <Text style={[styles.filterTxt, active && styles.filterTxtActive]}>{label}</Text>
+              {counts[s] ? <Text style={[styles.filterCount, active && { color: "#FFF" }]}>{counts[s]}</Text> : null}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {loading ? (
+        <View style={styles.centered}><ActivityIndicator size="large" color={theme.color.brandPrimary} /></View>
+      ) : items.length === 0 ? (
+        <View style={styles.centered}>
+          <Ionicons name="mail-open-outline" size={48} color={theme.color.muted} />
+          <Text style={styles.emptyTxt}>Nessuna richiesta al momento.</Text>
+          <Pressable style={styles.emptyBtn} onPress={copyPublicLink}>
+            <Ionicons name="share-social" size={16} color="#FFF" />
+            <Text style={styles.emptyBtnTxt}>Condividi link form</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 100 }}>
+          {items.map((l) => {
+            const stMeta = STATUS_META[l.status] || STATUS_META.new;
+            return (
+              <Pressable
+                key={l.lead_id}
+                style={styles.card}
+                onPress={() => openDetail(l)}
+                testID={`lead-card-${l.lead_id}`}
+              >
+                <View style={styles.cardHead}>
+                  <Text style={styles.cardName}>{l.full_name}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: stMeta.color + "22" }]}>
+                    <Ionicons name={stMeta.icon} size={12} color={stMeta.color} />
+                    <Text style={[styles.statusBadgeTxt, { color: stMeta.color }]}>{stMeta.label}</Text>
+                  </View>
+                </View>
+                <Text style={styles.cardDate}>{fmt(l.created_at)}</Text>
+                <View style={styles.needsRow}>
+                  {(l.needs || []).map(n => {
+                    const nm = NEED_META[n];
+                    return nm ? (
+                      <Text key={n} style={styles.needTiny}>{nm.emoji} {nm.label}</Text>
+                    ) : null;
+                  })}
+                </View>
+                {l.free_text ? (
+                  <Text style={styles.freeTextPrev} numberOfLines={2}>“{l.free_text}”</Text>
+                ) : null}
+                <View style={styles.contactMini}>
+                  {l.email ? <Text style={styles.contactMiniTxt}>✉️ {l.email}</Text> : null}
+                  {l.phone ? <Text style={styles.contactMiniTxt}>📞 {l.phone}</Text> : null}
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {/* Detail Modal */}
+      <Modal visible={!!detail} animationType="slide" transparent onRequestClose={() => setDetail(null)}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetTitle} numberOfLines={1}>{detail?.full_name || ""}</Text>
+                {detail?.status ? (
+                  <Text style={{ color: STATUS_META[detail.status].color, fontSize: 12, fontWeight: "700" }}>
+                    {STATUS_META[detail.status].label}
+                  </Text>
+                ) : null}
+              </View>
+              <Pressable onPress={() => setDetail(null)} testID="lead-detail-close">
+                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16 }}>
+              {detail ? (
+                <>
+                  <View style={styles.detailBox}>
+                    <Text style={styles.detailKv}>📅 {fmt(detail.created_at)}</Text>
+                    {detail.email ? <Text style={styles.detailKv}>✉️ {detail.email}</Text> : null}
+                    {detail.phone ? <Text style={styles.detailKv}>📞 {detail.phone}</Text> : null}
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                      {(detail.needs || []).map(n => {
+                        const nm = NEED_META[n];
+                        return nm ? (
+                          <View key={n} style={styles.needPill}>
+                            <Text style={styles.needPillTxt}>{nm.emoji} {nm.label}</Text>
+                          </View>
+                        ) : null;
+                      })}
+                    </View>
+                    {detail.free_text ? (
+                      <View style={{ marginTop: 10, padding: 10, backgroundColor: theme.color.surfaceTertiary, borderRadius: 8 }}>
+                        <Text style={{ fontSize: 12, color: theme.color.muted, marginBottom: 4, fontWeight: "700" }}>Messaggio:</Text>
+                        <Text style={{ color: theme.color.onSurface, fontSize: 13, lineHeight: 18, fontStyle: "italic" }}>“{detail.free_text}”</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.axonBox}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                      <Ionicons name="sparkles" size={16} color="#8B5CF6" />
+                      <Text style={styles.axonTitle}>Bozza AxonOS</Text>
+                      {regenerating ? <ActivityIndicator size="small" color="#8B5CF6" /> : null}
+                    </View>
+                    <TextInput
+                      style={styles.axonInput}
+                      value={editText}
+                      onChangeText={setEditText}
+                      multiline
+                      numberOfLines={10}
+                      placeholder="Nessuna risposta generata ancora. Tocca 'Rigenera' qui sotto."
+                      placeholderTextColor={theme.color.muted}
+                      testID="lead-axon-input"
+                    />
+                    <View style={styles.axonActions}>
+                      <Pressable style={styles.axonBtn} onPress={() => regenerate("friendly")} testID="lead-regen-friendly">
+                        <Ionicons name="happy" size={14} color="#8B5CF6" />
+                        <Text style={styles.axonBtnTxt}>Amichevole</Text>
+                      </Pressable>
+                      <Pressable style={styles.axonBtn} onPress={() => regenerate("professional")} testID="lead-regen-pro">
+                        <Ionicons name="briefcase" size={14} color="#8B5CF6" />
+                        <Text style={styles.axonBtnTxt}>Formale</Text>
+                      </Pressable>
+                      <Pressable style={styles.axonBtn} onPress={() => regenerate("short")} testID="lead-regen-short">
+                        <Ionicons name="flash" size={14} color="#8B5CF6" />
+                        <Text style={styles.axonBtnTxt}>Breve</Text>
+                      </Pressable>
+                    </View>
+                    <Pressable
+                      style={[styles.saveEditBtn, savingEdit && { opacity: 0.6 }]}
+                      onPress={saveEdit}
+                      disabled={savingEdit}
+                      testID="lead-save-edit"
+                    >
+                      <Ionicons name="save" size={14} color="#FFF" />
+                      <Text style={styles.saveEditTxt}>Salva modifiche</Text>
+                    </Pressable>
+                  </View>
+
+                  {detail.status !== "approved" && detail.status !== "replied" ? (
+                    <Pressable style={styles.approveBtn} onPress={approve} testID="lead-approve">
+                      <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+                      <Text style={styles.approveTxt}>Approva risposta</Text>
+                    </Pressable>
+                  ) : null}
+
+                  <Text style={styles.sendLbl}>Invia al lead tramite:</Text>
+                  <View style={styles.sendChannels}>
+                    {(["whatsapp", "email", "sms", "telegram"] as const).map((ch) => {
+                      const meta = CHANNEL_META[ch];
+                      const disabled = (ch === "email" && !detail.email) || (["whatsapp","sms"].includes(ch) && !detail.phone);
+                      return (
+                        <Pressable
+                          key={ch}
+                          style={[styles.sendChBtn, { backgroundColor: meta.color }, disabled && { opacity: 0.4 }]}
+                          onPress={() => !disabled && sendReply(ch)}
+                          disabled={disabled}
+                          testID={`send-${ch}`}
+                        >
+                          <Ionicons name={meta.icon} size={16} color="#FFF" />
+                          <Text style={styles.sendChTxt}>{meta.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  {detail.master_replied_at ? (
+                    <View style={styles.repliedBox}>
+                      <Ionicons name="checkmark-done" size={16} color={theme.color.success} />
+                      <Text style={styles.repliedTxt}>
+                        Risposto {detail.master_reply_channel ? `via ${CHANNEL_META[detail.master_reply_channel]?.label || detail.master_reply_channel}` : ""} il {fmt(detail.master_replied_at)}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  <Pressable style={styles.deleteBtn} onPress={remove} testID="lead-delete">
+                    <Ionicons name="trash" size={14} color={theme.color.error} />
+                    <Text style={styles.deleteTxt}>Elimina lead</Text>
+                  </Pressable>
+                </>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.color.surface },
+  header: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: theme.color.divider,
+    backgroundColor: theme.color.surfaceSecondary,
+  },
+  iconBtn: { padding: 8 },
+  title: { flex: 1, fontSize: 17, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
+  linkBar: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: theme.color.brandPrimary + "10",
+  },
+  linkTxt: { flex: 1, fontSize: 12, color: theme.color.brandPrimary, fontWeight: "600" },
+  filterRow: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  filterChip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 20, borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: theme.color.surfaceSecondary,
+  },
+  filterChipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
+  filterTxt: { fontSize: 12, color: theme.color.onSurface, fontWeight: "600" },
+  filterTxtActive: { color: "#FFF" },
+  filterCount: { fontSize: 10, color: theme.color.muted, fontWeight: "700" },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40 },
+  emptyTxt: { color: theme.color.muted, marginTop: 12, fontSize: 14, textAlign: "center" },
+  emptyBtn: {
+    marginTop: 20, flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
+    backgroundColor: theme.color.brandPrimary,
+  },
+  emptyBtnTxt: { color: "#FFF", fontWeight: "700" },
+  card: {
+    padding: 14, borderRadius: 12,
+    backgroundColor: theme.color.surfaceSecondary,
+    marginBottom: 10,
+    borderWidth: 1, borderColor: theme.color.divider,
+  },
+  cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  cardName: { flex: 1, fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
+  statusBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+  },
+  statusBadgeTxt: { fontSize: 11, fontWeight: "700" },
+  cardDate: { color: theme.color.muted, fontSize: 11 },
+  needsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
+  needTiny: {
+    fontSize: 11, color: theme.color.onSurface,
+    paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: theme.color.surfaceTertiary,
+    borderRadius: 6, fontWeight: "600",
+  },
+  freeTextPrev: { color: theme.color.muted, fontStyle: "italic", fontSize: 12, marginTop: 6, lineHeight: 16 },
+  contactMini: { flexDirection: "row", gap: 10, marginTop: 8, flexWrap: "wrap" },
+  contactMiniTxt: { fontSize: 11, color: theme.color.brandPrimary, fontWeight: "600" },
+  // Modal
+  backdrop: { flex: 1, backgroundColor: "rgba(15,15,25,0.55)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: theme.color.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "94%" },
+  sheetHead: {
+    flexDirection: "row", alignItems: "center", padding: 16,
+    borderBottomWidth: 1, borderBottomColor: theme.color.divider,
+  },
+  sheetTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
+  detailBox: {
+    padding: 12, borderRadius: 12,
+    backgroundColor: theme.color.surfaceSecondary,
+    borderWidth: 1, borderColor: theme.color.divider,
+    marginBottom: 12,
+  },
+  detailKv: { fontSize: 13, color: theme.color.onSurface, marginBottom: 3 },
+  needPill: {
+    paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: theme.color.brandPrimary + "18", borderRadius: 6,
+  },
+  needPillTxt: { fontSize: 11, color: theme.color.brandPrimary, fontWeight: "700" },
+  axonBox: {
+    padding: 12, borderRadius: 12,
+    backgroundColor: "#8B5CF60A",
+    borderWidth: 1, borderColor: "#8B5CF633",
+    marginBottom: 12,
+  },
+  axonTitle: { fontSize: 13, fontWeight: "800", color: "#8B5CF6", flex: 1 },
+  axonInput: {
+    borderWidth: 1, borderColor: theme.color.border, borderRadius: 8,
+    padding: 12, backgroundColor: theme.color.surfaceSecondary,
+    color: theme.color.onSurface, fontSize: 13, minHeight: 200,
+    textAlignVertical: "top",
+  },
+  axonActions: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
+  axonBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6,
+    borderWidth: 1, borderColor: "#8B5CF6",
+  },
+  axonBtnTxt: { fontSize: 11, color: "#8B5CF6", fontWeight: "700" },
+  saveEditBtn: {
+    marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 8, borderRadius: 8, backgroundColor: "#8B5CF6",
+  },
+  saveEditTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
+  approveBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 12, borderRadius: 10,
+    backgroundColor: theme.color.success, marginBottom: 12,
+  },
+  approveTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
+  sendLbl: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginBottom: 6 },
+  sendChannels: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  sendChBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 12, borderRadius: 10, minWidth: 120,
+  },
+  sendChTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
+  repliedBox: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    padding: 10, borderRadius: 8,
+    backgroundColor: theme.color.success + "15", marginTop: 12,
+  },
+  repliedTxt: { fontSize: 12, color: theme.color.success, fontWeight: "600" },
+  deleteBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    marginTop: 20, paddingVertical: 10,
+  },
+  deleteTxt: { color: theme.color.error, fontWeight: "700" },
+});

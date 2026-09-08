@@ -1,3 +1,55 @@
+## V50.z103 (Giu 2026) — PROMPT 25: Modulo Lead + AxonOS
+
+### Flusso completo
+1. Master ottiene link pubblico permanente (slug in `user_settings.lead_public_slug`) e lo condivide su Instagram/LinkedIn/QR/firma email.
+2. Chiunque compila il form: nome, email, telefono, 5 checkbox esigenze fisse, testo libero, checkbox privacy.
+3. Al submit AxonOS genera una risposta personalizzata via **Claude Sonnet 5** che tiene conto di esigenze + messaggio libero.
+4. Master riceve push notification (`emergent_push`/Expo push HTTP), apre `/leads`, vede la card.
+5. Master può: rigenerare (Amichevole/Formale/Breve), modificare, salvare, approvare, inviare via Email SMTP diretto oppure WA/SMS/Telegram deep-link.
+
+### Backend (`server.py`)
+- **Collezione `public_leads`**: `{lead_id, user_id, full_name, email, phone, needs, free_text, consent_privacy, created_at, status ('new'|'analyzed'|'approved'|'replied'|'archived'), axon_reply_text, axon_generated_at, master_reply_text, master_reply_channel, master_replied_at, ...}`
+- **5 esigenze fisse** (`LEAD_NEEDS_FIXED`): luce 💡, gas 🔥, fibra 📶, fotovoltaico ☀️, networker 🤝.
+- **13 endpoint**:
+  - `POST /api/leads/public-link` — recupera/crea slug permanente
+  - `GET /api/public/lead-form/{slug}` — meta form (master_name + 5 needs)
+  - `POST /api/public/lead-form/{slug}` — submit lead (valida consent_privacy)
+  - `GET /api/leads?status=` — lista con filtro (all/new/analyzed/approved/replied/archived)
+  - `GET /api/leads/count` — {total, unread} per badge
+  - `GET /api/leads/{id}` — dettaglio
+  - `POST /api/leads/{id}/regenerate-axon` — rigenera con style (friendly/professional/short)
+  - `PATCH /api/leads/{id}/axon-reply` — Master modifica manualmente bozza
+  - `PATCH /api/leads/{id}/approve` — approva
+  - `POST /api/leads/{id}/reply` — invia (email→SMTP auto; altri→registra + frontend fa deep-link)
+  - `PATCH /api/leads/{id}/status` — cambia stato
+  - `DELETE /api/leads/{id}` — elimina
+- **`_generate_axon_lead_reply(lead, master_name, style)`**: usa `emergentintegrations.LlmChat` con Claude Sonnet 5 (`claude-sonnet-4-5-20250929`), system prompt strutturato in 5 punti (grazie/comprensione/soluzioni AdvisorOS/appuntamento/firma), cap 1600 char. Fallback statico `_lead_fallback_reply` se manca chiave.
+- **Push notification** al Master via Expo push HTTP con `deeplink=/leads/{id}`, `tag=lead_new`.
+
+### Frontend
+- **`app/public-lead/[slug].tsx`** (pubblica): form con 5 chip esigenze toggleable + emoji, validazione (nome obbligatorio + almeno email/telefono + consenso), success screen con icona verde.
+- **`app/leads.tsx`** (autenticata master):
+  - Header con back + share (copia link pubblico)
+  - Chip filtro orizzontali (Tutti/Nuovo/Analizzato/Approvato/Risposto/Archiviato) con conteggi
+  - Card lista: nome, badge status colorato, data, chip esigenze, preview testo libero, contatti
+  - **Modal dettaglio**: contatti + esigenze + testo originale, box AxonOS con textarea editabile, 3 pulsanti rigenerazione stile, "Salva modifiche", "Approva risposta", 4 canali invio (WA/Email/SMS/Telegram) con auto-disable se manca campo, badge "Risposto via X il DATA", pulsante elimina.
+- **Master hub**: aggiunta voce "Richieste Info (Lead)" nella sezione Team & Insights (icon `mail-unread`).
+
+### Testing manuale
+- ✅ POST /leads/public-link → slug generato
+- ✅ GET /public/lead-form/{slug} → 5 needs con emoji
+- ✅ POST submit → lead_id, status="new"
+- ✅ Attesa 6s → status="analyzed", axon_reply_text popolato (Claude Sonnet 5, 1400 char, in italiano perfetto, con 3 bullet soluzioni per Luce+Gas+Fibra)
+- ✅ POST regenerate-axon style=short → risposta più concisa
+- ✅ PATCH approve → status=approved
+- ✅ POST reply channel=whatsapp → status=replied, master_reply_channel=whatsapp
+- ✅ GET /leads?status=replied → 1 item
+- ✅ Pagina pubblica renderizzata correttamente: header, form completo, 5 chip esigenze, checkbox privacy, pulsante Invia
+- ✅ Lint frontend pulito
+
+---
+
+
 ## V50.z102 (Giu 2026) — Recensioni Analytics + Auto-Follow-Up
 
 ### Backend
