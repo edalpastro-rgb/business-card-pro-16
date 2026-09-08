@@ -902,6 +902,7 @@ function SettingsHubSection({
         { icon: "color-palette", label: "Setting App", hint: "Cambia tema e colori", onPress: () => onGoto("/settings-app"), testID: "hub-settings-app" },
         { icon: "ribbon", label: "Branding aziendale", hint: "Logo e nome sui PDF (report, comparazioni)", onPress: () => onGoto("/(tabs)/impostazioni"), ownerOnly: true, testID: "hub-branding" },
         { icon: "shield-checkmark", label: "Sicurezza & 2FA", hint: "Autenticazione a due fattori, PIN e biometria", onPress: () => onGoto("/security"), testID: "hub-security" },
+        { icon: "shield-half", label: "Sicurezza AdvisorOS", hint: "Come proteggiamo i tuoi dati e come usarli in sicurezza", onPress: () => onGoto("/security-info"), testID: "hub-security-info" },
         { icon: "book", label: "Libretto Informativo", hint: "Guida operativa completa · PDF", onPress: () => onGoto("/libretto"), testID: "hub-libretto" },
         {
           icon: "sparkles",

@@ -1,3 +1,27 @@
+## V50.z106 (Giu 2026) — PROMPT 29: Schermata Sicurezza AdvisorOS (informativa)
+
+### Nuova pagina `/app/frontend/app/security-info.tsx`
+Route dedicata **`/security-info`** — distinta dalla `/security` esistente (2FA/PIN/biometria).
+
+**Layout**:
+- Header con back + shield icon + "Sicurezza AdvisorOS"
+- Hero card blu con icona shield 36px + titolo bold "La tua sicurezza, la nostra priorità." + subtitle
+- **Sezione 1 blu "Come proteggiamo i tuoi dati"** — 6 card con icona colorata (Connessione HTTPS, AES-256, Backup automatici + recovery 7gg, Credenziali con KMS, Server aggiornato, Avvio verificato)
+- **Sezione 2 arancione "Come usare AdvisorOS in sicurezza"** — 5 card best practice (Password robusta, Non condividere master, Attenzione documenti terzi in AxonOS, Logout dispositivi condivisi, Segnala anomalie)
+- Footer note grigia con link mentale al bottone Assistenza
+
+### Integrazioni
+- **Master hub**: aggiunta voce "Sicurezza AdvisorOS" (icona `shield-half`) sotto "Sicurezza & 2FA" nel gruppo Amministrazione. Hint: "Come proteggiamo i tuoi dati e come usarli in sicurezza".
+- **Onboarding tour** (`app/libretto.tsx`): in modalità `isOnboarding`, aggiunto pulsante blu "🔒 Leggi la Sicurezza AdvisorOS" sopra il "Ho capito · Iniziamo!" — porta a `/security-info`. Dopo il primo accesso la voce resta accessibile sempre dal menu master.
+
+### Testing manuale
+- ✅ Screenshot mobile @390px: layout renderizzato correttamente, hero blu + 6 card sezione 1 con icone colorate (blu HTTPS, blu server, verde cloud, giallo key, viola shield, verde check)
+- ✅ Scroll: sezione 2 arancione + footer note visibili
+- ✅ Frontend lint pulito
+
+---
+
+
 ## V50.z105.b (Giu 2026) — Landing: Video Demo Hero (Mockup Animato)
 
 ### Componente `HeroPhoneMockup`

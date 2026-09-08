@@ -362,10 +362,20 @@ export default function LibrettoScreen() {
             • In modalità onboarding: sopra c'è anche "Ho capito · Iniziamo!" */}
       <View style={[styles.stickyCta, { paddingBottom: bottomInset + 10 }]}>
         {isOnboarding && (
-          <Pressable onPress={dismissOnboarding} testID="onboarding-start-btn" style={styles.stickyBtn}>
-            <Ionicons name="rocket" size={18} color="#FFF" />
-            <Text style={styles.stickyBtnTxt}>Ho capito · Iniziamo!</Text>
-          </Pressable>
+          <>
+            <Pressable
+              onPress={() => router.push("/security-info" as any)}
+              testID="onboarding-security-btn"
+              style={[styles.stickyBtn, { backgroundColor: "#3B82F6", marginBottom: 10 }]}
+            >
+              <Ionicons name="shield-checkmark" size={18} color="#FFF" />
+              <Text style={styles.stickyBtnTxt}>🔒 Leggi la Sicurezza AdvisorOS</Text>
+            </Pressable>
+            <Pressable onPress={dismissOnboarding} testID="onboarding-start-btn" style={styles.stickyBtn}>
+              <Ionicons name="rocket" size={18} color="#FFF" />
+              <Text style={styles.stickyBtnTxt}>Ho capito · Iniziamo!</Text>
+            </Pressable>
+          </>
         )}
         <Pressable
           onPress={onExport}
