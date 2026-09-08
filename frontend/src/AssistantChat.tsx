@@ -34,6 +34,7 @@ import { useFabStack } from "@/src/FabStack";
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
+import { ChatChartExport } from "@/src/ChatChartExport";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
 import { JscanifyScannerModal } from "@/src/JscanifyScannerModal";
 import { DropboxPickerModal } from "@/src/DropboxPickerModal";
@@ -1964,11 +1965,16 @@ function MessageBubble({
           if (segments.length === 0) return null;
           return (
             <View style={{ gap: 6 }}>
-              {segments.map((seg, si) => (
-                seg.type === "text"
-                  ? <Text key={`s-${si}`} style={styles.bubbleText}>{seg.content}</Text>
-                  : <ChatTableExport key={`s-${si}`} table={seg.table} assistantColor={ASSISTANT_COLOR} />
-              ))}
+              {segments.map((seg, si) => {
+                if (seg.type === "text") {
+                  return <Text key={`s-${si}`} style={styles.bubbleText}>{seg.content}</Text>;
+                }
+                if (seg.type === "chart") {
+                  // V50.z109 — Grafico Axon con pulsante espandi-a-tutto-schermo in-app
+                  return <ChatChartExport key={`s-${si}`} spec={seg.chart} assistantColor={ASSISTANT_COLOR_DARK} />;
+                }
+                return <ChatTableExport key={`s-${si}`} table={seg.table} assistantColor={ASSISTANT_COLOR} />;
+              })}
             </View>
           );
         })()}

@@ -24,6 +24,7 @@ import { shareDataUri } from "@/src/share";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { useAuth } from "@/src/auth";
+import { tryParseChart, type ChartSpec } from "@/src/ChatChartExport";
 
 export type ParsedTable = {
   headers: string[];
@@ -31,10 +32,16 @@ export type ParsedTable = {
   raw: string; // Original markdown block (for saving)
 };
 
-/** Splits a chat message into segments: text vs table (markdown tables). */
-export function parseMessageSegments(content: string): Array<{ type: "text"; content: string } | { type: "table"; table: ParsedTable }> {
+/** V50.z109 — Segmenti supportati: testo, tabella markdown, grafico (```chart blocks). */
+export type MessageSegment =
+  | { type: "text"; content: string }
+  | { type: "table"; table: ParsedTable }
+  | { type: "chart"; chart: ChartSpec };
+
+/** Splits a chat message into segments: text vs table (markdown tables) vs chart (```chart fenced blocks). */
+export function parseMessageSegments(content: string): MessageSegment[] {
   const lines = content.split(/\r?\n/);
-  const out: Array<{ type: "text"; content: string } | { type: "table"; table: ParsedTable }> = [];
+  const out: MessageSegment[] = [];
   let bufText: string[] = [];
   let i = 0;
   const flushText = () => {
@@ -46,6 +53,34 @@ export function parseMessageSegments(content: string): Array<{ type: "text"; con
   };
   while (i < lines.length) {
     const line = lines[i];
+
+    // V50.z109 — ```chart fenced JSON block (Axon-generated visualizzazioni)
+    const fenceMatch = /^\s*```(chart|axon-chart|json-chart)\s*$/i.exec(line);
+    if (fenceMatch) {
+      // Cerca la chiusura ``` sulle righe successive
+      const jsonBuf: string[] = [];
+      let j = i + 1;
+      let closed = false;
+      while (j < lines.length) {
+        if (/^\s*```\s*$/.test(lines[j])) { closed = true; break; }
+        jsonBuf.push(lines[j]);
+        j++;
+      }
+      if (closed) {
+        const raw = jsonBuf.join("\n").trim();
+        const chart = tryParseChart(raw);
+        if (chart) {
+          flushText();
+          out.push({ type: "chart", chart });
+          i = j + 1;
+          continue;
+        }
+        // Fallthrough: se il JSON non è valido, tratta come testo (mantiene il fence
+        // per debug lato master).
+      }
+      // Non è un chart valido → cade nel branch testo
+    }
+
     const next = lines[i + 1] || "";
     const looksLikeHeader = /^\s*\|.*\|\s*$/.test(line);
     const looksLikeSeparator = /^\s*\|?\s*:?-{2,}:?(\s*\|\s*:?-{2,}:?)+\s*\|?\s*$/.test(next);

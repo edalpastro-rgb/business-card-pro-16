@@ -5440,3 +5440,41 @@ else Linking.openURL(url).catch(() => {});
 ```
 
 **Verifica**: Lint pulito ✅ · App carica correttamente (screenshot verificato).
+
+---
+
+## V50.z109 — Grafici Axon in-app con Fullscreen Expand
+
+**Data**: 2026-09-08
+
+**Obiettivo**: Axon può ora produrre grafici visuali (bar, line, pie) nelle chat. Ogni grafico ha un pulsante **⛶ Espandi** che apre una vista a tutto schermo IN-APP (Modal transparent, non esce dall'app).
+
+**Frontend**:
+- Nuovo componente `/app/frontend/src/ChatChartExport.tsx`:
+  - Usa `react-native-chart-kit` (installato) + `react-native-svg` (già presente)
+  - Header con badge tipo (BAR/LINE/PIE), titolo, pulsante "Espandi" con icona `expand`
+  - Chart embedded (~200px h, larghezza adattiva)
+  - Modal fullscreen con backdrop scuro, header con titolo + close button ⨯, ScrollView per pinch/zoom
+- Parser esteso in `/app/frontend/src/ChatTableExport.tsx`:
+  - `parseMessageSegments` riconosce fence ```chart``` / ```axon-chart``` / ```json-chart``` con JSON puro
+  - Ritorna nuovo tipo `MessageSegment: text | table | chart`
+- Renderer aggiornato in `/app/frontend/src/AssistantChat.tsx`:
+  - Bubble Axon rende segmenti chart via `<ChatChartExport />`
+  - Assistant color propagato
+
+**Backend**:
+- System prompt Axon (2 occorrenze aggiornate) — sezione `📊 GRAFICI (V50.z109)` con:
+  - Trigger espliciti (utente chiede "fammi un grafico", analisi Excel/CSV, ecc.)
+  - Schema JSON strict (bar/line con labels+datasets; pie con slices)
+  - Regole: max 12 punti, numeri reali (no invenzione), fallback tabella se <3 punti
+
+**Schema chart accettato**:
+```
+{"type":"bar"|"line", "title":"…", "labels":[…], "datasets":[{"label":"…","data":[…]}], "unit":"…"}
+{"type":"pie", "title":"…", "slices":[{"name":"…","value":N,"color":"#…"}]}
+```
+
+**Verifica**: 
+- ✅ Lint pulito (3 file frontend)
+- ✅ Backend syntax OK, restart OK
+- ✅ Frontend build OK (screenshot verificato)
