@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -14,8 +14,9 @@ type Contact = {
   area: "energy" | "network"; source: "personal" | "referral"; address: string;
   group_ids?: string[];
 };
-type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string };
+type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; office_address?: string };
 type Group = { group_id: string; name: string; color: string; member_count: number };
+type SortMode = "default" | "distance";
 
 const AREAS_ALL: { key: "all" | "energy" | "network"; label: string }[] = [
   { key: "all", label: "Tutti" },
@@ -44,6 +45,13 @@ function ContattiScreen() {
   const [area, setArea] = useState<"all" | "energy" | "network">("all");
   const [groupId, setGroupId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // V50.z72 — Distanze in batch + ordinamento per vicinanza
+  const [sortMode, setSortMode] = useState<SortMode>("default");
+  const [distanceOrigin, setDistanceOrigin] = useState<string>("");
+  const [distances, setDistances] = useState<Record<string, number | null>>({});
+  const [distLoading, setDistLoading] = useState(false);
+  const [originModalOpen, setOriginModalOpen] = useState(false);
+  const [originDraft, setOriginDraft] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,6 +67,52 @@ function ContattiScreen() {
   }, [q, area, groupId, settings]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // V50.z72 — Popola distanceOrigin di default dall'indirizzo ufficio
+  useEffect(() => {
+    if (!distanceOrigin && settings?.office_address) {
+      setDistanceOrigin(settings.office_address);
+    }
+  }, [settings?.office_address, distanceOrigin]);
+
+  // V50.z72 — Fetch batch delle distanze quando origine + lista sono pronti
+  useEffect(() => {
+    if (!distanceOrigin || items.length === 0) {
+      setDistances({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setDistLoading(true);
+      try {
+        const res = await api<{ origin_valid: boolean; distances: Record<string, number | null> }>("/contacts/distances-batch", {
+          method: "POST",
+          body: { origin: distanceOrigin, contact_ids: items.map((i) => i.contact_id) },
+        });
+        if (!cancelled) setDistances(res?.distances || {});
+      } catch {
+        if (!cancelled) setDistances({});
+      } finally {
+        if (!cancelled) setDistLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [distanceOrigin, items]);
+
+  // V50.z72 — Applica ordinamento per vicinanza (contatti con distance null vanno in fondo)
+  const orderedItems = useMemo(() => {
+    if (sortMode !== "distance") return items;
+    const withKm = [...items];
+    withKm.sort((a, b) => {
+      const ka = distances[a.contact_id];
+      const kb = distances[b.contact_id];
+      if (ka == null && kb == null) return 0;
+      if (ka == null) return 1;
+      if (kb == null) return -1;
+      return ka - kb;
+    });
+    return withKm;
+  }, [items, distances, sortMode]);
 
   const colorFor = (a: string) => (a === "energy" ? (settings?.energy_color || theme.color.energy) : (settings?.network_color || theme.color.network));
 
@@ -108,6 +162,47 @@ function ContattiScreen() {
         ))}
       </View>
 
+      {/* V50.z72 — Barra distanze: toggle ordinamento + indirizzo di partenza */}
+      <View style={styles.distBar}>
+        <Pressable
+          testID="sort-toggle"
+          onPress={() => {
+            if (sortMode === "distance") { setSortMode("default"); }
+            else {
+              if (!distanceOrigin) { setOriginDraft(settings?.office_address || ""); setOriginModalOpen(true); }
+              setSortMode("distance");
+            }
+          }}
+          style={[styles.sortChip, sortMode === "distance" && styles.sortChipOn]}
+        >
+          <Ionicons name={sortMode === "distance" ? "swap-vertical" : "swap-vertical-outline"} size={14} color={sortMode === "distance" ? "#FFF" : theme.color.brandPrimary} />
+          <Text style={[styles.sortChipTxt, sortMode === "distance" && { color: "#FFF" }]}>
+            {sortMode === "distance" ? "Ordina: vicinanza" : "Ordina per vicinanza"}
+          </Text>
+        </Pressable>
+        {distanceOrigin ? (
+          <Pressable
+            testID="dist-origin-edit"
+            onPress={() => { setOriginDraft(distanceOrigin); setOriginModalOpen(true); }}
+            style={styles.originPill}
+          >
+            <Ionicons name="business-outline" size={12} color={theme.color.muted} />
+            <Text style={styles.originPillTxt} numberOfLines={1}>Da: {distanceOrigin}</Text>
+            <Ionicons name="create-outline" size={12} color={theme.color.brandPrimary} />
+          </Pressable>
+        ) : (
+          <Pressable
+            testID="dist-origin-set"
+            onPress={() => { setOriginDraft(""); setOriginModalOpen(true); }}
+            style={styles.originPill}
+          >
+            <Ionicons name="add-circle-outline" size={12} color={theme.color.brandPrimary} />
+            <Text style={[styles.originPillTxt, { color: theme.color.brandPrimary }]}>Imposta origine</Text>
+          </Pressable>
+        )}
+        {distLoading ? <ActivityIndicator size="small" color={theme.color.brandPrimary} /> : null}
+      </View>
+
       {groups.length > 0 && (
         <View style={{ maxHeight: 44 }}>
           <FlatList
@@ -147,38 +242,102 @@ function ContattiScreen() {
         </View>
       ) : (
         <FlatList
-          data={items}
+          data={orderedItems}
           keyExtractor={(i) => i.contact_id}
           contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: pagePad }}
-          renderItem={({ item }) => (
-            <Pressable
-              testID={`contact-${item.contact_id}`}
-              onPress={() => router.push(`/contact/${item.contact_id}`)}
-              style={styles.card}
-            >
-              <View style={[styles.avatar, { backgroundColor: colorFor(item.area) + "22" }]}>
-                <Text style={[styles.avatarTxt, { color: colorFor(item.area) }]}>
-                  {(item.first_name?.[0] || "").toUpperCase()}{(item.last_name?.[0] || "").toUpperCase()}
-                </Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.name}>{item.first_name} {item.last_name}</Text>
-                <Text style={styles.sub}>{item.phone || item.email || "—"}</Text>
-                <View style={styles.tags}>
-                  <View style={[styles.tag, { borderColor: colorFor(item.area) }]}>
-                    <View style={[styles.tagDot, { backgroundColor: colorFor(item.area) }]} />
-                    <Text style={[styles.tagTxt, { color: colorFor(item.area) }]}>{item.area === "energy" ? (settings?.energy_title || "Energia") : (settings?.network_title || "Network")}</Text>
-                  </View>
-                  <View style={[styles.tag, { borderColor: theme.color.border }]}>
-                    <Text style={styles.tagTxtNeutral}>{item.source === "referral" ? "Referenza" : "Conoscenza"}</Text>
+          renderItem={({ item }) => {
+            const km = distances[item.contact_id];
+            return (
+              <Pressable
+                testID={`contact-${item.contact_id}`}
+                onPress={() => router.push(`/contact/${item.contact_id}`)}
+                style={styles.card}
+              >
+                <View style={[styles.avatar, { backgroundColor: colorFor(item.area) + "22" }]}>
+                  <Text style={[styles.avatarTxt, { color: colorFor(item.area) }]}>
+                    {(item.first_name?.[0] || "").toUpperCase()}{(item.last_name?.[0] || "").toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.name}>{item.first_name} {item.last_name}</Text>
+                  <Text style={styles.sub}>{item.phone || item.email || "—"}</Text>
+                  <View style={styles.tags}>
+                    <View style={[styles.tag, { borderColor: colorFor(item.area) }]}>
+                      <View style={[styles.tagDot, { backgroundColor: colorFor(item.area) }]} />
+                      <Text style={[styles.tagTxt, { color: colorFor(item.area) }]}>{item.area === "energy" ? (settings?.energy_title || "Energia") : (settings?.network_title || "Network")}</Text>
+                    </View>
+                    <View style={[styles.tag, { borderColor: theme.color.border }]}>
+                      <Text style={styles.tagTxtNeutral}>{item.source === "referral" ? "Referenza" : "Conoscenza"}</Text>
+                    </View>
+                    {/* V50.z72 — Badge distanza */}
+                    {distanceOrigin ? (
+                      km == null ? (
+                        <View style={[styles.tag, styles.kmTagNull]}>
+                          <Ionicons name="help-circle-outline" size={11} color={theme.color.muted} />
+                          <Text style={styles.tagTxtNeutral}>senza indirizzo</Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.tag, styles.kmTag]}>
+                          <Ionicons name="speedometer-outline" size={11} color="#0369A1" />
+                          <Text style={styles.kmTagTxt}>≈ {km.toFixed(1)} km</Text>
+                        </View>
+                      )
+                    ) : null}
                   </View>
                 </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
-            </Pressable>
-          )}
+                <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+              </Pressable>
+            );
+          }}
         />
       )}
+
+      {/* V50.z72 — Modal per impostare origine distanze */}
+      <Modal visible={originModalOpen} transparent animationType="fade" onRequestClose={() => setOriginModalOpen(false)}>
+        <View style={styles.modalBackdrop} pointerEvents="box-none">
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Distanze dal punto</Text>
+            <Text style={styles.modalSub}>
+              Da qui verranno calcolate le distanze verso ogni contatto.
+              {settings?.office_address ? " Default = indirizzo ufficio." : ""}
+            </Text>
+            <TextInput
+              testID="dist-origin-input"
+              value={originDraft}
+              onChangeText={setOriginDraft}
+              placeholder="es. Corso Italia 42, Milano"
+              placeholderTextColor={theme.color.muted}
+              style={styles.modalInput}
+              autoFocus
+            />
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+              {settings?.office_address && originDraft.trim() !== settings.office_address ? (
+                <Pressable onPress={() => setOriginDraft(settings.office_address || "")} style={[styles.modalBtn, styles.modalBtnGhost]}>
+                  <Ionicons name="business-outline" size={14} color={theme.color.onSurface} />
+                  <Text style={styles.modalBtnGhostTxt}>Ufficio</Text>
+                </Pressable>
+              ) : null}
+              <Pressable onPress={() => setOriginModalOpen(false)} style={[styles.modalBtn, styles.modalBtnGhost, { flex: 1 }]}>
+                <Text style={styles.modalBtnGhostTxt}>Annulla</Text>
+              </Pressable>
+              <Pressable
+                testID="dist-origin-save"
+                onPress={() => {
+                  const val = originDraft.trim();
+                  setDistanceOrigin(val);
+                  setDistances({});
+                  setOriginModalOpen(false);
+                  if (val && sortMode !== "distance") setSortMode("distance");
+                }}
+                style={[styles.modalBtn, { flex: 1, backgroundColor: theme.color.brandPrimary }]}
+              >
+                <Ionicons name="checkmark" size={16} color="#FFF" />
+                <Text style={styles.modalBtnTxt}>Calcola</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -240,4 +399,23 @@ const styles = StyleSheet.create({
   groupChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
   groupChipTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 12 },
   groupDot: { width: 8, height: 8, borderRadius: 4 },
+  // V50.z72 — Distanze in batch UI
+  distBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingBottom: 6, flexWrap: "wrap" },
+  sortChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.brandPrimary },
+  sortChipOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
+  sortChipTxt: { fontSize: 11, fontWeight: "700", color: theme.color.brandPrimary },
+  originPill: { flex: 1, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, minWidth: 100 },
+  originPillTxt: { flex: 1, fontSize: 11, fontWeight: "600", color: theme.color.muted },
+  kmTag: { flexDirection: "row", alignItems: "center", gap: 3, borderColor: "#BAE6FD", backgroundColor: "#E0F2FE" },
+  kmTagNull: { flexDirection: "row", alignItems: "center", gap: 3, borderColor: theme.color.border, backgroundColor: "#F8FAFC" },
+  kmTagTxt: { fontSize: 11, fontWeight: "700", color: "#0369A1" },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 20 },
+  modalSheet: { backgroundColor: "#FFF", borderRadius: 14, padding: 18 },
+  modalTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
+  modalSub: { fontSize: 12, color: theme.color.muted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
+  modalInput: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, backgroundColor: "#F8FAFC", color: theme.color.onSurface },
+  modalBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 },
+  modalBtnGhost: { backgroundColor: "#F1F5F9" },
+  modalBtnGhostTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 13 },
+  modalBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });

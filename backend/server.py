@@ -2328,6 +2328,74 @@ async def geocode_distances(body: GeocodeDistancesIn, user=Depends(get_current_u
     return {"origin_valid": True, "distances_km": distances}
 
 
+class ContactsDistancesBatchIn(BaseModel):
+    origin: str
+    contact_ids: Optional[List[str]] = None  # se None, tutti i contatti visibili al chiamante
+
+
+def _best_addr_for_contact(c: Dict[str, Any]) -> Optional[str]:
+    """Seleziona l'indirizzo migliore da un contatto: preferred_address se settato,
+    altrimenti il primo disponibile in ordine strutturato > legacy > work > residence."""
+    pref = (c.get("preferred_address") or "").strip() or None
+    structured = ", ".join([p for p in [
+        (c.get("address_street") or "").strip(),
+        " ".join([p for p in [(c.get("address_zip") or "").strip(), (c.get("address_city") or "").strip()] if p]).strip(),
+        (c.get("address_province") or "").strip(),
+    ] if p]).strip()
+    legacy = (c.get("address") or "").strip()
+    if legacy and legacy == structured:
+        legacy = ""  # evita duplicato
+    work = (c.get("work_address") or "").strip()
+    residence = (c.get("residence_address") or "").strip()
+    order_by_kind = {"main": structured, "legacy": legacy, "work": work, "residence": residence}
+    if pref and order_by_kind.get(pref):
+        return order_by_kind[pref]
+    # fallback: primo non vuoto
+    for k in ("main", "legacy", "work", "residence"):
+        if order_by_kind.get(k):
+            return order_by_kind[k]
+    return None
+
+
+@api_router.post("/contacts/distances-batch")
+async def contacts_distances_batch(body: ContactsDistancesBatchIn, user=Depends(get_current_user)):
+    """
+    Ritorna distanze in km da `origin` all'indirizzo principale (preferred o primo disponibile)
+    di ciascun contatto. Usa la stessa cache geocoding di /geocode/distances.
+    Response: {"origin_valid": bool, "distances": {"<contact_id>": km|null, ...}}
+    """
+    origin_coords = await _geocode_one(body.origin)
+    if not origin_coords:
+        return {"origin_valid": False, "distances": {}}
+    # Filtro sul tenant + eventuale lista contact_ids (rispetta assignment per collaboratori)
+    q = await contact_visibility_filter(user)
+    if body.contact_ids:
+        q["contact_id"] = {"$in": body.contact_ids}
+    cursor = db.contacts.find(
+        q,
+        {"_id": 0, "contact_id": 1, "preferred_address": 1, "address": 1, "address_street": 1,
+         "address_zip": 1, "address_city": 1, "address_province": 1, "work_address": 1, "residence_address": 1},
+    ).limit(500)
+    contacts = await cursor.to_list(500)
+    distances: Dict[str, Optional[float]] = {}
+    for c in contacts:
+        cid = c.get("contact_id")
+        if not cid:
+            continue
+        addr = _best_addr_for_contact(c)
+        if not addr:
+            distances[cid] = None
+            continue
+        coords = await _geocode_one(addr)
+        if not coords:
+            distances[cid] = None
+        else:
+            km = _haversine_km(origin_coords["lat"], origin_coords["lon"], coords["lat"], coords["lon"])
+            distances[cid] = round(km, 1)
+    return {"origin_valid": True, "distances": distances}
+
+
+
 
 
 

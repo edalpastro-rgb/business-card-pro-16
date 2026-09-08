@@ -1,3 +1,31 @@
+## V50.z72 (Set 2026) — Distanze in batch nella lista contatti
+
+### Richiesta utente
+"Nella lista contatti mostra i km per ogni cliente così puoi ordinare per vicinanza quando pianifichi un giro."
+
+### Backend
+- Nuovo endpoint `POST /api/contacts/distances-batch` body `{origin: str, contact_ids?: [str]}`:
+  - Se `contact_ids` non fornito → tutti i contatti visibili (rispetta `contact_visibility_filter` per collaboratori).
+  - Helper `_best_addr_for_contact`: seleziona l'indirizzo preferito (`preferred_address` se settato) oppure il primo disponibile in ordine strutturato > legacy > work > residence. Deduplica legacy vs strutturato.
+  - Riuso della cache `geocode_cache` esistente (30gg) → performance eccellente sui contatti già visti.
+  - Response: `{origin_valid: bool, distances: {"<contact_id>": km|null, ...}}`.
+- Limite hard-coded 500 contatti per batch (proteggo il provider e la UX).
+
+### Frontend `/app/(tabs)/contatti.tsx`
+- Nuova barra sotto i filtri area:
+  - Chip "Ordina per vicinanza" (toggle) — attiva ordinamento crescente con contatti senza indirizzo in fondo.
+  - Pill "Da: <indirizzo>" con matita ✏️ per aprire il modal e modificare l'origine, o "Imposta origine" se vuota.
+- Modal identico a quello della scheda contatto: input libero + bottone "Ufficio" (fallback su `settings.office_address`) + Annulla/Calcola.
+- Card contatto: nuovo badge azzurro `≈ X.X km` accanto ai chip area/source; se il contatto non ha indirizzi valorizzati mostra "senza indirizzo".
+- `useMemo` per l'ordinamento (evita re-sort a ogni render); `useEffect` con `cancelled` flag per prevenire race condition su cambi origine/query.
+- Default origin auto-popolato da `settings.office_address` se presente.
+
+### Test end-to-end
+- Batch senza filtro → 52 contatti scansionati, 9 con coordinate valide, 43 senza indirizzo — corretto.
+- Batch con `contact_ids=[7 ids]` → 3 con km reali (0.5, 126.7, 249.1), 4 null (senza indirizzo) — 31ms grazie alla cache.
+- `preferred_address` rispettato: se un contatto ha preferito "residence", la distanza viene calcolata usando quello anziché lo strutturato.
+
+
 ## V50.z71 (Set 2026) — Indirizzi preferiti (stella) + distanza da ufficio
 
 ### Richieste utente
