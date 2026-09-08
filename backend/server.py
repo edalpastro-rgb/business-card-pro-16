@@ -11310,10 +11310,29 @@ async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
         except Exception as exc:
             return f"[Errore lettura PDF: {exc}]"
 
-    # Excel .xlsx
-    if name.endswith(".xlsx") or "spreadsheet" in mime or "excel" in mime:
+    # Excel .xlsx / .xls
+    if name.endswith(".xlsx") or "spreadsheet" in mime or "excel" in mime or name.endswith(".xls"):
         try:
             import io as _io
+            # V50.z89 — Fallback per .xls (formato legacy Excel 97-2003) via xlrd
+            if name.endswith(".xls") and not name.endswith(".xlsx"):
+                try:
+                    import xlrd  # type: ignore
+                    wb = xlrd.open_workbook(file_contents=raw)
+                    out = []
+                    for sh_name in wb.sheet_names()[:6]:
+                        sh = wb.sheet_by_name(sh_name)
+                        out.append(f"### Foglio: {sh_name}")
+                        for i in range(min(sh.nrows, 200)):
+                            row = sh.row_values(i)
+                            cells = [str(c) if c is not None else "" for c in row]
+                            if any(cells):
+                                out.append(" | ".join(cells))
+                        if sh.nrows > 200:
+                            out.append("... (righe successive omesse)")
+                    return "\n".join(out) if out else "[Excel vuoto]"
+                except Exception as exc_xls:
+                    return f"[Errore lettura .xls legacy: {exc_xls}]"
             from openpyxl import load_workbook
             wb = load_workbook(filename=_io.BytesIO(raw), read_only=True, data_only=True)
             out = []
@@ -11332,7 +11351,32 @@ async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
         except Exception as exc:
             return f"[Errore lettura Excel: {exc}]"
 
-    # Testo semplice / CSV / JSON / Markdown
+    # V50.z89 — CSV strutturato come tabella Markdown (rende molto meglio al LLM)
+    if name.endswith(".csv") or mime in ("text/csv", "application/csv"):
+        try:
+            import csv as _csv
+            text = raw.decode("utf-8-sig", errors="replace")
+            # Auto-detect separatore ; , \t | dalle prime righe
+            sample = text[:4096]
+            try:
+                dialect = _csv.Sniffer().sniff(sample, delimiters=",;\t|")
+                sep = dialect.delimiter
+            except Exception:
+                sep = "," if sample.count(",") >= sample.count(";") else ";"
+            rows = list(_csv.reader(text.splitlines(), delimiter=sep))
+            if not rows:
+                return "[CSV vuoto]"
+            out = [f"### CSV ({len(rows)} righe, separatore='{sep}')"]
+            # Prime max 200 righe come pipe-table
+            for i, r in enumerate(rows[:200]):
+                out.append(" | ".join((c or "").strip() for c in r))
+            if len(rows) > 200:
+                out.append(f"... ({len(rows) - 200} righe successive omesse)")
+            return "\n".join(out)
+        except Exception as exc:
+            return f"[Errore lettura CSV: {exc}]"
+
+    # Testo semplice / JSON / Markdown
     if mime.startswith("text/") or name.endswith((".txt", ".csv", ".json", ".md", ".log", ".yml", ".yaml")):
         try:
             return raw.decode("utf-8", errors="replace")
@@ -22272,6 +22316,63 @@ async def google_drive_reindex_status(user=Depends(get_current_user)):
         "latest_file": (latest or {}).get("name"),
         "latest_indexed_at": (latest or {}).get("indexed_at").isoformat() if latest and isinstance(latest.get("indexed_at"), datetime) else (latest or {}).get("indexed_at"),
     }
+
+
+# V50.z89 — Tavily Extract API (raccoglie il testo pulito di una URL specifica)
+class TavilyExtractIn(BaseModel):
+    url: str = Field(min_length=8, max_length=2048)
+    include_images: bool = False
+
+
+@api_router.post("/axon/web-extract")
+async def axon_web_extract(body: TavilyExtractIn, user=Depends(get_current_user)):
+    """Scarica il contenuto testuale pulito di una URL via Tavily Extract API.
+    Utile quando AxonOS deve leggere una pagina specifica invece di fare una
+    ricerca generica. Ritorna `{url, title, content, images}` o errore.
+    """
+    key = os.environ.get("TAVILY_API_KEY")
+    if not key:
+        raise HTTPException(status_code=503, detail="Tavily non configurato")
+    url = body.url.strip()
+    if not (url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(status_code=400, detail="URL deve iniziare con http:// o https://")
+    try:
+        async with _httpx.AsyncClient(timeout=25.0) as client:
+            resp = await client.post(
+                "https://api.tavily.com/extract",
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                json={"urls": [url], "include_images": bool(body.include_images)},
+            )
+            if resp.status_code >= 400:
+                raise HTTPException(status_code=502, detail=f"Tavily extract error {resp.status_code}: {resp.text[:200]}")
+            data = resp.json()
+            results = data.get("results") or []
+            if not results:
+                return {"available": False, "url": url}
+            r0 = results[0]
+            content = r0.get("raw_content") or r0.get("content") or ""
+            # Trim per non far esplodere il context
+            if len(content) > 40000:
+                content = content[:40000] + "\n\n[... contenuto troncato ...]"
+            return {
+                "available": True,
+                "url": r0.get("url") or url,
+                "title": r0.get("title"),
+                "content": content,
+                "images": r0.get("images") or [],
+                "response_time": data.get("response_time"),
+            }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Tavily extract failed: {exc}")
+
+
+@api_router.get("/axon/tavily-status")
+async def axon_tavily_status(user=Depends(get_current_user)):
+    """Diagnostica: verifica che Tavily sia configurato e raggiungibile."""
+    key = os.environ.get("TAVILY_API_KEY")
+    return {"configured": bool(key), "key_prefix": (key[:8] + "…") if key else None}
 
 
 

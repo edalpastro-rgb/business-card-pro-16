@@ -4875,3 +4875,33 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
 **Test**:
 - Lint pulito ✅.
 - UI: aprendo la chat Axon → 🔍 Scanner → scattare pagina/e → "Termina e usa" → appare il dialog nome file → inserire "Contratto Rossi Luce" → tap "Allega" → PDF `Contratto Rossi Luce.pdf` allegato al messaggio.
+
+---
+
+## PROMPT 20 — Tavily Extract API + Parser Excel/CSV migliorato (V50.z89) ✅ TESTATO
+
+**1) Tavily API — Extract endpoint (nuovo)**:
+- Nuovo endpoint `POST /api/axon/web-extract` (body: `{url, include_images?}`) → chiama `https://api.tavily.com/extract` con `TAVILY_API_KEY` esistente.
+- Restituisce `{available, url, title, content, images, response_time}`; content troncato a 40k caratteri.
+- Endpoint diagnostico `GET /api/axon/tavily-status` → `{configured, key_prefix}`.
+- Testato con `https://example.com` → `title: "Example Domain", content_len: 167`. ✅
+- La `_tavily_search()` esistente (chiamata autonomamente da Axon per query live) resta invariata.
+
+**2) Parser Excel / CSV potenziato in `_extract_attachment_text`**:
+- **CSV**: nuovo blocco dedicato (prima veniva letto come plain text UTF-8):
+  - Auto-detect separatore (`, ; \\t |`) via `csv.Sniffer` sulle prime 4k caratteri.
+  - Decodifica UTF-8-SIG (rimuove BOM), rende come **tabella pipe-separated**:
+    ```
+    ### CSV (N righe, separatore=';')
+    Colonna1 | Colonna2 | Colonna3
+    ```
+  - Cap a 200 righe.
+- **Excel `.xls` legacy** (formato 97-2003): fallback su `xlrd` (aggiunto a `requirements.txt`).
+- Excel `.xlsx` invariato (già supportato da openpyxl).
+- Test locale (`_extract_attachment_text` chiamato direttamente):
+  - CSV con `;` italiano → parse corretto ✅
+  - XLSX 3 righe → parse corretto ✅
+
+**Impatto AxonOS**:
+- Quando l'utente allega un file Excel/CSV, AxonOS ora riceve un contenuto tabellato leggibile e può fare calcoli/confronti.
+- Quando serve leggere un URL specifico (ad es. un articolo su ARERA), il chat handler può chiamare `/api/axon/web-extract` invece della sola search generica.
