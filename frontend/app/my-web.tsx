@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
+import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
@@ -14,6 +15,8 @@ const ICONS = ["🔗","🔍","📊","📰","🏦","💼","⚡","🔥","📞","�
 
 export default function MyWebScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const isMaster = user?.role === "owner" && !user?.parent_user_id;
   const [items, setItems] = useState<Link[]>([]);
   const bottomPad = useBottomSheetPadding();
   const pagePad = usePageBottomPadding();
@@ -23,6 +26,9 @@ export default function MyWebScreen() {
   const [url, setUrl] = useState("");
   const [icon, setIcon] = useState("🔗");
   const [saving, setSaving] = useState(false);
+  // V50.z60 — Feedback "Aggiungi a Comunica con l'azienda"
+  const [addingCompanyId, setAddingCompanyId] = useState<string | null>(null);
+  const [addedCompanyIds, setAddedCompanyIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -34,6 +40,25 @@ export default function MyWebScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const openLink = (u: string) => Linking.openURL(u).catch(() => notify("Errore", "Impossibile aprire il link"));
+
+  // V50.z60 — Aggiunge un link personale di My Web alla scheda "Comunica con
+  // l'azienda" (endpoint tenant-scoped /company-web-links, solo Master).
+  const addToCompany = async (lk: Link) => {
+    if (!isMaster || addingCompanyId) return;
+    setAddingCompanyId(lk.link_id);
+    try {
+      await api("/company-web-links", {
+        method: "POST",
+        body: { title: lk.title, url: lk.url, icon: lk.icon || "🔗" },
+      });
+      setAddedCompanyIds((prev) => new Set(prev).add(lk.link_id));
+      notify("Aggiunto ✅", `"${lk.title}" è ora nella scheda Comunica con l'azienda → Link utili.`);
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile aggiungere il link");
+    } finally {
+      setAddingCompanyId(null);
+    }
+  };
 
   const submit = async () => {
     if (!title.trim() || !url.trim()) { notify("Compila titolo e URL"); return; }
@@ -70,16 +95,40 @@ export default function MyWebScreen() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
           <View style={styles.grid}>
-            {items.map((lk) => (
-              <View key={lk.link_id} style={styles.card}>
-                <Pressable onPress={() => openLink(lk.url)} onLongPress={() => remove(lk)} style={styles.cardInner} testID={`link-${lk.link_id}`}>
-                  <Text style={styles.cardIcon}>{lk.icon || "🔗"}</Text>
-                  <Text style={styles.cardTitle} numberOfLines={2}>{lk.title}</Text>
-                  <Text style={styles.cardUrl} numberOfLines={1}>{lk.url.replace(/^https?:\/\//, "")}</Text>
-                </Pressable>
-                <Pressable onPress={() => remove(lk)} style={styles.deleteBtn}><Ionicons name="close-circle" size={20} color="#DC2626" /></Pressable>
-              </View>
-            ))}
+            {items.map((lk) => {
+              const busy = addingCompanyId === lk.link_id;
+              const added = addedCompanyIds.has(lk.link_id);
+              return (
+                <View key={lk.link_id} style={styles.card}>
+                  <Pressable onPress={() => openLink(lk.url)} onLongPress={() => remove(lk)} style={styles.cardInner} testID={`link-${lk.link_id}`}>
+                    <Text style={styles.cardIcon}>{lk.icon || "🔗"}</Text>
+                    <Text style={styles.cardTitle} numberOfLines={2}>{lk.title}</Text>
+                    <Text style={styles.cardUrl} numberOfLines={1}>{lk.url.replace(/^https?:\/\//, "")}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => remove(lk)} style={styles.deleteBtn}><Ionicons name="close-circle" size={20} color="#DC2626" /></Pressable>
+                  {/* V50.z60 — Pulsante "Aggiungi a Comunica con l'azienda"
+                      (solo Master). Il link viene copiato nella collection
+                      tenant-scoped /company-web-links. */}
+                  {isMaster && (
+                    <Pressable
+                      onPress={() => addToCompany(lk)}
+                      disabled={busy || added}
+                      style={[styles.addToCompanyBtn, added && styles.addToCompanyBtnDone, busy && { opacity: 0.6 }]}
+                      testID={`link-add-company-${lk.link_id}`}
+                    >
+                      {busy ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <>
+                          <Ionicons name={added ? "checkmark" : "business"} size={14} color="#FFF" />
+                          <Text style={styles.addToCompanyTxt}>{added ? "Aggiunto" : "Azienda"}</Text>
+                        </>
+                      )}
+                    </Pressable>
+                  )}
+                </View>
+              );
+            })}
           </View>
         </ScrollView>
       )}
@@ -127,6 +176,15 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
   cardUrl: { fontSize: 11, color: theme.color.muted, marginTop: 4 },
   deleteBtn: { position: "absolute", top: 6, right: 6, padding: 4 },
+  // V50.z60 — Pulsante "Aggiungi a Comunica con l'azienda"
+  addToCompanyBtn: {
+    position: "absolute", bottom: 8, right: 8,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
+    backgroundColor: "#0EA5E9",
+  },
+  addToCompanyBtnDone: { backgroundColor: "#16A34A" },
+  addToCompanyTxt: { color: "#FFF", fontSize: 10, fontWeight: "800" },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30 },
   sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "#CBD5E1", marginBottom: 12 },
