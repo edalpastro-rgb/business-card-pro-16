@@ -37,7 +37,9 @@ type Lead = {
   master_replied_at?: string | null;
 };
 
-const NEED_META: Record<string, { label: string; emoji: string }> = {
+type NeedItem = { id: string; label: string; emoji: string };
+
+const DEFAULT_NEED_META: Record<string, { label: string; emoji: string }> = {
   luce: { label: "Luce", emoji: "💡" },
   gas: { label: "Gas", emoji: "🔥" },
   fibra: { label: "Fibra", emoji: "📶" },
@@ -79,6 +81,18 @@ export default function LeadsPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [publicUrl, setPublicUrl] = useState("");
 
+  // V50.z103.b — Config esigenze modificabili
+  const [needsList, setNeedsList] = useState<NeedItem[]>([]);
+  const [needsDefault, setNeedsDefault] = useState(true);
+  const [showNeedsCfg, setShowNeedsCfg] = useState(false);
+  const [editNeeds, setEditNeeds] = useState<NeedItem[]>([]);
+  const [savingCfg, setSavingCfg] = useState(false);
+  const NEED_META = useMemo<Record<string, { label: string; emoji: string }>>(() => {
+    const map: Record<string, { label: string; emoji: string }> = { ...DEFAULT_NEED_META };
+    for (const n of needsList) map[n.id] = { label: n.label, emoji: n.emoji };
+    return map;
+  }, [needsList]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -89,7 +103,99 @@ export default function LeadsPage() {
     }
   }, [filter]);
 
+  const loadNeedsConfig = useCallback(async () => {
+    try {
+      const r = await api<{ needs: NeedItem[]; is_default: boolean }>(`/leads/needs-config`);
+      setNeedsList(r?.needs || []);
+      setNeedsDefault(!!r?.is_default);
+    } catch {}
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadNeedsConfig(); }, [loadNeedsConfig]);
+
+  const openNeedsCfg = async () => {
+    setShowNeedsCfg(true);
+    // Pre-populate immediatamente con quello che ho, poi refresh dal server
+    setEditNeeds(needsList.map(n => ({ ...n })));
+    try {
+      const r = await api<{ needs: NeedItem[]; is_default: boolean }>(`/leads/needs-config`);
+      const fresh = r?.needs || [];
+      setNeedsList(fresh);
+      setNeedsDefault(!!r?.is_default);
+      setEditNeeds(fresh.map(n => ({ ...n })));
+    } catch {
+      // silent — user vede la snapshot locale
+    }
+  };
+
+  const slugify = (s: string): string =>
+    s.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || `n${Date.now().toString(36).slice(-4)}`;
+
+  const addNeed = () => {
+    if (editNeeds.length >= 12) {
+      notify("Massimo 12", "Non puoi aggiungere altre esigenze");
+      return;
+    }
+    setEditNeeds([...editNeeds, { id: `nuova-${editNeeds.length + 1}`, label: "Nuova esigenza", emoji: "✨" }]);
+  };
+
+  const removeNeed = (idx: number) => {
+    setEditNeeds(editNeeds.filter((_, i) => i !== idx));
+  };
+
+  const updateNeed = (idx: number, patch: Partial<NeedItem>) => {
+    setEditNeeds(editNeeds.map((n, i) => i === idx ? { ...n, ...patch } : n));
+  };
+
+  const saveNeeds = async () => {
+    // Auto-slugify label -> id se l'id sembra default
+    const clean = editNeeds.map(n => {
+      let id = (n.id || "").trim();
+      if (!id || /^nuova-\d+$/.test(id)) id = slugify(n.label || "esigenza");
+      else id = slugify(id);
+      return { id, label: (n.label || "").trim(), emoji: (n.emoji || "").trim() || "•" };
+    }).filter(n => n.label);
+    if (clean.length === 0) {
+      notify("Nessuna esigenza", "Aggiungi almeno una voce");
+      return;
+    }
+    // Check duplicati
+    const ids = new Set<string>();
+    for (const n of clean) {
+      if (ids.has(n.id)) { notify("ID duplicato", `Rinomina '${n.label}' (id già usato)`); return; }
+      ids.add(n.id);
+    }
+    setSavingCfg(true);
+    try {
+      await api(`/leads/needs-config`, { method: "PUT", body: { needs: clean } });
+      notify("Salvato", "Esigenze aggiornate");
+      setShowNeedsCfg(false);
+      await loadNeedsConfig();
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally {
+      setSavingCfg(false);
+    }
+  };
+
+  const resetNeeds = async () => {
+    setSavingCfg(true);
+    try {
+      await api(`/leads/needs-config/reset`, { method: "POST" });
+      await loadNeedsConfig();
+      setShowNeedsCfg(false);
+      notify("Ripristinato", "Esigenze default ripristinate");
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally {
+      setSavingCfg(false);
+    }
+  };
 
   const openDetail = async (lead: Lead) => {
     // fetch fresh in case status changed
@@ -226,6 +332,9 @@ export default function LeadsPage() {
           <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
         </Pressable>
         <Text style={styles.title}>Richieste Info</Text>
+        <Pressable onPress={openNeedsCfg} style={styles.iconBtn} testID="leads-config-needs">
+          <Ionicons name="options" size={22} color={theme.color.brandPrimary} />
+        </Pressable>
         <Pressable onPress={copyPublicLink} style={styles.iconBtn} testID="leads-copy-link">
           <Ionicons name="share-social" size={22} color={theme.color.brandPrimary} />
         </Pressable>
@@ -437,6 +546,94 @@ export default function LeadsPage() {
           </View>
         </View>
       </Modal>
+
+      {/* V50.z103.b — Modal Configura Esigenze */}
+      <Modal visible={showNeedsCfg} animationType="slide" transparent onRequestClose={() => setShowNeedsCfg(false)}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetTitle}>Configura esigenze</Text>
+                <Text style={{ fontSize: 11, color: theme.color.muted }}>
+                  Modifica le checkbox del form pubblico · {needsDefault ? "Default attivi" : "Custom attivi"}
+                </Text>
+              </View>
+              <Pressable onPress={() => setShowNeedsCfg(false)} testID="needs-cfg-close">
+                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16 }}>
+              <Text style={{ fontSize: 12, color: theme.color.muted, marginBottom: 10, lineHeight: 16 }}>
+                Puoi avere da 1 a 12 esigenze. L&apos;ID viene generato automaticamente dal nome.
+                I lead già ricevuti mantengono le esigenze originali.
+              </Text>
+
+              {editNeeds.map((n, idx) => (
+                <View key={idx} style={styles.needEditRow} testID={`need-edit-${idx}`}>
+                  <TextInput
+                    style={styles.needEmojiInput}
+                    value={n.emoji}
+                    onChangeText={(v) => updateNeed(idx, { emoji: v })}
+                    placeholder="😀"
+                    maxLength={4}
+                    testID={`need-emoji-${idx}`}
+                  />
+                  <TextInput
+                    style={styles.needLabelInput}
+                    value={n.label}
+                    onChangeText={(v) => updateNeed(idx, { label: v })}
+                    placeholder="Nome esigenza"
+                    testID={`need-label-${idx}`}
+                  />
+                  <Pressable
+                    onPress={() => removeNeed(idx)}
+                    style={styles.needRemoveBtn}
+                    testID={`need-remove-${idx}`}
+                  >
+                    <Ionicons name="trash" size={16} color={theme.color.error} />
+                  </Pressable>
+                </View>
+              ))}
+
+              <Pressable
+                style={[styles.needAddBtn, editNeeds.length >= 12 && { opacity: 0.4 }]}
+                onPress={addNeed}
+                disabled={editNeeds.length >= 12}
+                testID="need-add"
+              >
+                <Ionicons name="add-circle" size={18} color={theme.color.brandPrimary} />
+                <Text style={styles.needAddTxt}>Aggiungi esigenza ({editNeeds.length}/12)</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.needSaveBtn, savingCfg && { opacity: 0.6 }]}
+                onPress={saveNeeds}
+                disabled={savingCfg}
+                testID="need-save"
+              >
+                {savingCfg ? <ActivityIndicator color="#FFF" /> : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+                    <Text style={styles.needSaveTxt}>Salva configurazione</Text>
+                  </>
+                )}
+              </Pressable>
+
+              {!needsDefault ? (
+                <Pressable
+                  style={styles.needResetBtn}
+                  onPress={resetNeeds}
+                  disabled={savingCfg}
+                  testID="need-reset"
+                >
+                  <Ionicons name="refresh" size={14} color={theme.color.muted} />
+                  <Text style={styles.needResetTxt}>Ripristina 5 default</Text>
+                </Pressable>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -569,4 +766,44 @@ const styles = StyleSheet.create({
     marginTop: 20, paddingVertical: 10,
   },
   deleteTxt: { color: theme.color.error, fontWeight: "700" },
+  // V50.z103.b — Config esigenze
+  needEditRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginBottom: 10,
+  },
+  needEmojiInput: {
+    width: 52, height: 44, borderRadius: 8,
+    borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: theme.color.surfaceSecondary,
+    textAlign: "center", fontSize: 22, color: theme.color.onSurface,
+  },
+  needLabelInput: {
+    flex: 1, height: 44, borderRadius: 8,
+    borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: theme.color.surfaceSecondary,
+    paddingHorizontal: 12, fontSize: 14, color: theme.color.onSurface,
+  },
+  needRemoveBtn: {
+    width: 40, height: 44, borderRadius: 8,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: theme.color.error + "15",
+  },
+  needAddBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1.5, borderStyle: "dashed", borderColor: theme.color.brandPrimary,
+    marginTop: 4,
+  },
+  needAddTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
+  needSaveBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 13, borderRadius: 10,
+    backgroundColor: theme.color.success, marginTop: 16,
+  },
+  needSaveTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
+  needResetBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 10, marginTop: 8,
+  },
+  needResetTxt: { color: theme.color.muted, fontWeight: "600", fontSize: 12 },
 });

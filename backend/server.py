@@ -23318,7 +23318,37 @@ LEAD_NEEDS_FIXED = [
     {"id": "networker", "label": "Consulenza / Collaborazione rete", "emoji": "🤝"},
 ]
 
-_LEAD_NEED_IDS = {n["id"] for n in LEAD_NEEDS_FIXED}
+_LEAD_NEED_IDS_DEFAULT = {n["id"] for n in LEAD_NEEDS_FIXED}
+
+
+async def _get_tenant_lead_needs(tid: str) -> List[dict]:
+    """Ritorna le esigenze configurate dal tenant o i default fissi.
+    Ogni voce: {id, label, emoji}."""
+    st = await db.user_settings.find_one({"user_id": tid}, {"_id": 0, "lead_needs": 1}) or {}
+    custom = st.get("lead_needs")
+    if isinstance(custom, list) and len(custom) > 0:
+        out: List[dict] = []
+        for n in custom:
+            if not isinstance(n, dict):
+                continue
+            nid = str(n.get("id") or "").strip()
+            label = str(n.get("label") or "").strip()
+            emoji = str(n.get("emoji") or "").strip() or "•"
+            if nid and label:
+                out.append({"id": nid, "label": label, "emoji": emoji})
+        if out:
+            return out
+    return list(LEAD_NEEDS_FIXED)
+
+
+class LeadNeedItem(BaseModel):
+    id: str = Field(min_length=1, max_length=40)
+    label: str = Field(min_length=1, max_length=80)
+    emoji: str = ""
+
+
+class LeadNeedsConfigIn(BaseModel):
+    needs: List[LeadNeedItem]
 
 
 class LeadSubmitIn(BaseModel):
@@ -23343,8 +23373,11 @@ class LeadStatusIn(BaseModel):
     status: Literal["new", "analyzed", "approved", "replied", "archived"]
 
 
-def _lead_labels_for_needs(needs: List[str]) -> List[str]:
-    return [n["label"] for n in LEAD_NEEDS_FIXED if n["id"] in (needs or [])]
+def _lead_labels_for_needs(needs: List[str], all_needs: Optional[List[dict]] = None) -> List[str]:
+    """Mappa gli id in label. Se all_needs è passato, usa quelli (tenant custom),
+    altrimenti usa i default fissi."""
+    pool = all_needs or LEAD_NEEDS_FIXED
+    return [n["label"] for n in pool if n["id"] in (needs or [])]
 
 
 async def _generate_axon_lead_reply(lead: dict, master_name: str, style: str = "friendly") -> str:
@@ -23354,9 +23387,11 @@ async def _generate_axon_lead_reply(lead: dict, master_name: str, style: str = "
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
         # Fallback statico se manca la chiave
-        return _lead_fallback_reply(lead, master_name)
+        return await _lead_fallback_reply(lead, master_name)
 
-    need_labels = _lead_labels_for_needs(lead.get("needs") or [])
+    # Usa needs del tenant (custom o default)
+    tenant_needs = await _get_tenant_lead_needs(lead.get("user_id", ""))
+    need_labels = _lead_labels_for_needs(lead.get("needs") or [], all_needs=tenant_needs)
     needs_txt = ", ".join(need_labels) if need_labels else "non specificate"
     free_text = (lead.get("free_text") or "").strip() or "(nessun messaggio aggiuntivo)"
     first_name = ((lead.get("full_name") or "").split(" ")[0]) or "amico"
@@ -23402,15 +23437,16 @@ async def _generate_axon_lead_reply(lead: dict, master_name: str, style: str = "
         # Cap dimensione per sicurezza
         if len(text) > 1600:
             text = text[:1600].rstrip() + "…"
-        return text or _lead_fallback_reply(lead, master_name)
+        return text or await _lead_fallback_reply(lead, master_name)
     except Exception as exc:
         logger.warning(f"[axon-lead-reply] LLM failed: {exc}")
-        return _lead_fallback_reply(lead, master_name)
+        return await _lead_fallback_reply(lead, master_name)
 
 
-def _lead_fallback_reply(lead: dict, master_name: str) -> str:
+async def _lead_fallback_reply(lead: dict, master_name: str) -> str:
     first_name = ((lead.get("full_name") or "").split(" ")[0]) or "Ciao"
-    need_labels = _lead_labels_for_needs(lead.get("needs") or [])
+    tenant_needs = await _get_tenant_lead_needs(lead.get("user_id", ""))
+    need_labels = _lead_labels_for_needs(lead.get("needs") or [], all_needs=tenant_needs)
     needs_line = (
         "Ho visto che ti interessano: " + ", ".join(need_labels).lower() + ".\n"
         if need_labels else ""
@@ -23423,6 +23459,58 @@ def _lead_fallback_reply(lead: dict, master_name: str) -> str:
         "come ti è più comodo.\n\n"
         f"A presto,\n{master_name}"
     )
+
+
+@api_router.get("/leads/needs-config")
+async def get_lead_needs_config(user=Depends(get_current_user)):
+    """Ritorna la configurazione esigenze del tenant (custom o default fissi) +
+    flag `is_default` per indicare se il tenant sta usando i default."""
+    tid = tenant_id(user)
+    st = await db.user_settings.find_one({"user_id": tid}, {"_id": 0, "lead_needs": 1}) or {}
+    custom = st.get("lead_needs")
+    is_default = not (isinstance(custom, list) and len(custom) > 0)
+    needs = await _get_tenant_lead_needs(tid)
+    return {"needs": needs, "is_default": is_default, "defaults": LEAD_NEEDS_FIXED}
+
+
+@api_router.put("/leads/needs-config")
+async def put_lead_needs_config(body: LeadNeedsConfigIn, user=Depends(get_current_user)):
+    """Salva la lista esigenze custom del tenant. Vincoli: min 1, max 12 voci,
+    id unici, id in slug-format (a-z0-9-)."""
+    tid = tenant_id(user)
+    if len(body.needs) < 1:
+        raise HTTPException(status_code=400, detail="Almeno 1 esigenza richiesta")
+    if len(body.needs) > 12:
+        raise HTTPException(status_code=400, detail="Massimo 12 esigenze")
+    seen: set = set()
+    cleaned: List[dict] = []
+    for n in body.needs:
+        nid = re.sub(r"[^a-z0-9-]", "", (n.id or "").lower().strip())[:40]
+        if not nid:
+            raise HTTPException(status_code=400, detail=f"ID non valido: '{n.id}' (usa solo a-z, 0-9, -)")
+        if nid in seen:
+            raise HTTPException(status_code=400, detail=f"ID duplicato: '{nid}'")
+        seen.add(nid)
+        label = (n.label or "").strip()[:80]
+        emoji = (n.emoji or "").strip()[:8] or "•"
+        cleaned.append({"id": nid, "label": label, "emoji": emoji})
+    await db.user_settings.update_one(
+        {"user_id": tid},
+        {"$set": {"lead_needs": cleaned, "user_id": tid}},
+        upsert=True,
+    )
+    return {"ok": True, "needs": cleaned}
+
+
+@api_router.post("/leads/needs-config/reset")
+async def reset_lead_needs_config(user=Depends(get_current_user)):
+    """Ripristina le 5 esigenze default (rimuove il custom)."""
+    tid = tenant_id(user)
+    await db.user_settings.update_one(
+        {"user_id": tid},
+        {"$unset": {"lead_needs": ""}},
+    )
+    return {"ok": True, "needs": LEAD_NEEDS_FIXED}
 
 
 @api_router.post("/leads/public-link")
@@ -23455,9 +23543,10 @@ async def public_lead_form_meta(slug: str):
     tid = st.get("user_id")
     master = await db.users.find_one({"user_id": tid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
     master_name = " ".join([(master or {}).get("first_name") or "", (master or {}).get("last_name") or ""]).strip() or ((master or {}).get("email") or "Consulente")
+    needs = await _get_tenant_lead_needs(tid)
     return {
         "master_name": master_name,
-        "needs": LEAD_NEEDS_FIXED,
+        "needs": needs,
     }
 
 
@@ -23471,8 +23560,10 @@ async def public_lead_submit(slug: str, body: LeadSubmitIn):
         raise HTTPException(status_code=404, detail="Pagina non trovata")
     tid = st.get("user_id")
 
-    # Filtra needs solo su ID validi
-    valid_needs = [n for n in (body.needs or []) if n in _LEAD_NEED_IDS]
+    # Filtra needs solo su ID validi (tenant custom o default)
+    tenant_needs = await _get_tenant_lead_needs(tid)
+    valid_ids = {n["id"] for n in tenant_needs} or _LEAD_NEED_IDS_DEFAULT
+    valid_needs = [n for n in (body.needs or []) if n in valid_ids]
 
     lead_id = f"lead_{uuid.uuid4().hex[:12]}"
     doc = {
@@ -23523,13 +23614,14 @@ async def _send_lead_push_notification(tid: str, lead: dict) -> None:
         tokens = []
     if not tokens:
         return
+    tenant_needs = await _get_tenant_lead_needs(tid)
     try:
         from emergent_push import send_push  # potrebbe non esistere in questa env
     except Exception:
         # Fallback: usa Expo push HTTP diretto (già usato altrove nel codebase)
         try:
             body_text = (lead.get("full_name") or "Nuovo lead") + (
-                " · " + ", ".join(_lead_labels_for_needs(lead.get("needs") or [])[:2])
+                " · " + ", ".join(_lead_labels_for_needs(lead.get("needs") or [], all_needs=tenant_needs)[:2])
                 if lead.get("needs") else ""
             )
             payload = {

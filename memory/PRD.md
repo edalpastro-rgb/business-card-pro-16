@@ -1,3 +1,41 @@
+## V50.z103.b (Giu 2026) — Configurazione esigenze Lead
+
+### Backend
+- Nuovo helper **`_get_tenant_lead_needs(tid)`** — ritorna `user_settings.lead_needs` se non-vuoto, altrimenti `LEAD_NEEDS_FIXED`. Ogni voce `{id, label, emoji}`.
+- **3 endpoint** nuovi:
+  - `GET /api/leads/needs-config` — ritorna `{needs, is_default, defaults}`
+  - `PUT /api/leads/needs-config` — salva custom (validazione: 1-12 voci, id univoci, id slug-safe `[a-z0-9-]`)
+  - `POST /api/leads/needs-config/reset` — `$unset` di `lead_needs` per tornare ai default fissi
+- **Modificati** endpoint esistenti per usare le esigenze del tenant:
+  - `GET /api/public/lead-form/{slug}` → usa `_get_tenant_lead_needs(tid)`
+  - `POST /api/public/lead-form/{slug}` → valida `body.needs` contro gli ID del tenant (fallback ai default se custom vuoto)
+  - `_generate_axon_lead_reply` e `_lead_fallback_reply` → asincroni, caricano tenant needs per mappare correttamente i label nel prompt AxonOS
+  - `_send_lead_push_notification` → usa tenant needs per il testo notifica
+- Storicità garantita: i lead già ricevuti mantengono i loro `needs` ID originali (i label vengono risolti al momento della visualizzazione).
+
+### Frontend (`app/leads.tsx`)
+- Nuova icona `options` in header header accanto a `share-social` → apre modal "Configura esigenze".
+- **Modal Configura Esigenze**:
+  - Header con badge "Default attivi" o "Custom attivi"
+  - Lista righe editabili: emoji input (52px, maxLength 4) + label input + trash button
+  - "Aggiungi esigenza (N/12)" con auto-disable a 12
+  - Auto-slugify del label per generare l'id (unaccent + replace non-alfanumerici con `-`)
+  - Check duplicati lato client prima del PUT
+  - "Salva configurazione" (verde) + "Ripristina 5 default" (visibile solo se non-default)
+- Nuovo state `NEED_META` derivato dinamicamente da `needsList` per rendering delle chip nella lista lead (fallback ai default per lead vecchi con ID diversi).
+
+### Testing
+- ✅ GET → 5 default con `is_default: true`
+- ✅ PUT con 3 custom (Bolletta Luce ⚡, Auto Elettrica 🚗, Consulenza Business 💼) → salvato
+- ✅ GET dopo PUT → `is_default: false`, count 3
+- ✅ GET public form dopo PUT → returns 3 custom labels
+- ✅ Validazione: ID duplicato → 400 "ID duplicato"; 0 needs → 400 "Almeno 1 esigenza richiesta"
+- ✅ Reset → torna a 5 default
+- ✅ Frontend lint pulito
+
+---
+
+
 ## V50.z103 (Giu 2026) — PROMPT 25: Modulo Lead + AxonOS
 
 ### Flusso completo
