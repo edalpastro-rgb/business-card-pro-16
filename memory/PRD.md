@@ -1,3 +1,35 @@
+## V50.z69 (Set 2026) — Ripristino messaggio WhatsApp negli Script (PROMPT 8)
+
+### Richiesta utente
+"Il bottone 'Script Telefonata' mostra solo lo script telefonata ma ha perso il messaggio WhatsApp associato. Ripristina entrambi oppure crea un bottone di configurazione messaggio WhatsApp separato: script telefonata e messaggio WhatsApp devono essere visibili e configurabili nella scheda cliente."
+
+### Soluzione
+Ogni `NamedScript` (Freddo/Caldo/Prospect…) ora ha un proprio campo `whatsapp_message` opzionale. Configurazione e utilizzo sono nella stessa pagina/overlay dello Script.
+
+### Modifiche
+
+**Frontend `/app/frontend/app/call-script-config.tsx`** (Master):
+- Tipo `NamedScript` esteso con `whatsapp_message?: string`.
+- Titolo pagina → "Script Telefonata & WhatsApp".
+- Sotto ogni script un secondo textarea verde con icona WhatsApp: "Messaggio WhatsApp associato" (placeholder `{name}` `{agent}`).
+- Salvataggio conserva il campo nel document `settings.call_scripts`.
+
+**Frontend `/app/frontend/src/CallScriptOverlay.tsx`** (scheda cliente):
+- Legge `whatsapp_message` dello script attivo (fallback `wa_referral_template` globale delle Impostazioni).
+- Card verde "Messaggio WhatsApp" sotto lo script, con:
+  - Placeholder sostituiti (`{name}`→nome cliente, `{agent}`→nome agente).
+  - Badge "per questo script" (verde) o "predefinito" (blu) per capire da dove arriva.
+  - Pulsanti "Copia" (expo-clipboard) e "Invia su WhatsApp" (precompila wa.me con il testo).
+
+**Backend**: nessuna modifica necessaria — `settings.call_scripts` è `List[Dict[str, Any]]`, quindi accetta il nuovo campo automaticamente.
+
+### Test end-to-end via curl
+- PUT settings con 2 script (Freddo + Caldo), ognuno con `whatsapp_message` distinto → persistito.
+- GET settings → restituisce entrambi con `whatsapp_message` intatto.
+- Rendering pagina config OK (titolo "Script Telefonata & WhatsApp", tip banner aggiornato).
+- Dati di test rimossi dal DB.
+
+
 ## V50.z68 (Set 2026) — Custom Fields: required, reorder e import mapping
 
 Estensione del PROMPT 7 con 3 potenziamenti:

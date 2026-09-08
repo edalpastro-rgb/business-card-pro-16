@@ -29,7 +29,7 @@ type Props = {
   contactPhone?: string;
 };
 
-type NamedScript = { id: string; name: string; content: string };
+type NamedScript = { id: string; name: string; content: string; whatsapp_message?: string };
 
 const HEADER_HEIGHT = 64; // altezza barra minima (solo titolo)
 
@@ -38,6 +38,7 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
   const insets = useSafeAreaInsets(); // V29.ao — non finire sotto la gesture bar Android
   const [scripts, setScripts] = useState<NamedScript[]>([]);
   const [activeId, setActiveId] = useState<string>("");
+  const [waGlobal, setWaGlobal] = useState<string>("");
   const [fontSize, setFontSize] = useState(14);
   const [minimized, setMinimized] = useState(false);
 
@@ -95,17 +96,19 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
 
   const load = useCallback(async () => {
     try {
-      const s = await api<{ call_script?: string; call_scripts?: NamedScript[] }>("/settings");
+      const s = await api<{ call_script?: string; call_scripts?: NamedScript[]; wa_referral_template?: string }>("/settings");
       // V29.ao — Filtro rilassato: accetta script anche con content vuoto (l'utente
       // può averlo appena creato); mostreremo poi l'anteprima con placeholder.
       // Il vecchio filtro `x.content` scartava troppi script validi.
       const raw = Array.isArray(s.call_scripts) ? s.call_scripts.filter((x) => x && x.id) : [];
-      const list = raw.map((x) => ({ id: x.id, name: x.name || "Script", content: x.content || "" }));
+      const list = raw.map((x) => ({ id: x.id, name: x.name || "Script", content: x.content || "", whatsapp_message: x.whatsapp_message || "" }));
       // Fallback: legacy `call_script` singolo se non c'è nessuno script strutturato
       if (list.length === 0 && s.call_script) {
-        list.push({ id: "_default", name: "Standard", content: s.call_script });
+        list.push({ id: "_default", name: "Standard", content: s.call_script, whatsapp_message: "" });
       }
       setScripts(list);
+      // V50.z69 — Fallback globale se lo script attivo non ha whatsapp_message
+      setWaGlobal(s.wa_referral_template || "");
       // Assicura che activeId punti ad uno script esistente
       setActiveId((prev) => (list.some((x) => x.id === prev) ? prev : (list[0]?.id || "")));
     } catch { setScripts([]); }
@@ -114,9 +117,16 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
   useEffect(() => { if (visible) load(); }, [visible, load]);
 
   const current = scripts.find((s) => s.id === activeId) || scripts[0];
+  const firstName = (contactName || "").split(" ")[0] || "cliente";
+  const agentName = user?.name?.split(" ")[0] || "";
   const rendered = (current?.content || "")
-    .replace(/\{agent\}/g, user?.name?.split(" ")[0] || "")
-    .replace(/\{name\}/g, (contactName || "").split(" ")[0] || "cliente");
+    .replace(/\{agent\}/g, agentName)
+    .replace(/\{name\}/g, firstName);
+  // V50.z69 — Messaggio WhatsApp per lo script attivo (fallback a wa_referral_template globale)
+  const waRaw = (current?.whatsapp_message || "").trim() || waGlobal;
+  const renderedWa = waRaw
+    .replace(/\{agent\}/g, agentName)
+    .replace(/\{name\}/g, firstName);
 
   const dial = () => {
     const num = (contactPhone || "").replace(/[^\d+]/g, "");
@@ -130,12 +140,27 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
   // chiamare"). Ora l'unico entry-point per chiamare è il banner verde `dial`.
 
   // V29.af — Azione "Mess.WhatsApp": apre il link `wa.me/<numero>` (mobile e web).
+  // V50.z69 — Se lo script attivo ha un `whatsapp_message` (o fallback globale), lo precompila.
   const openWhatsApp = () => {
     const raw = (contactPhone || "").replace(/[^\d+]/g, "").replace(/^\+/, "");
     if (!raw) return;
-    const url = `https://wa.me/${raw}`;
+    const url = renderedWa
+      ? `https://wa.me/${raw}?text=${encodeURIComponent(renderedWa)}`
+      : `https://wa.me/${raw}`;
     if (Platform.OS === "web") { try { window.open(url, "_blank"); } catch { /* ignore */ } }
     else Linking.openURL(url).catch(() => {});
+  };
+
+  const copyWaMessage = async () => {
+    if (!renderedWa) return;
+    try {
+      if (Platform.OS === "web") {
+        await navigator.clipboard.writeText(renderedWa);
+      } else {
+        const Clipboard = await import("expo-clipboard");
+        await Clipboard.setStringAsync(renderedWa);
+      }
+    } catch { /* ignore */ }
   };
 
   if (!visible) return null;
@@ -212,6 +237,38 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
                   <Text style={styles.emptySub}>Il Master può inserirlo dalle Impostazioni → &quot;Script Telefonata&quot;</Text>
                 </View>
               )}
+
+              {/* V50.z69 — Card WhatsApp associata (opzionale, per-script o globale) */}
+              {renderedWa ? (
+                <View style={styles.waCard} testID="call-script-wa-card">
+                  <View style={styles.waHeader}>
+                    <Ionicons name="logo-whatsapp" size={16} color="#16A34A" />
+                    <Text style={styles.waHeaderTxt}>Messaggio WhatsApp</Text>
+                    {current?.whatsapp_message ? (
+                      <View style={styles.waBadge}>
+                        <Text style={styles.waBadgeTxt}>per questo script</Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.waBadge, { backgroundColor: "#DBEAFE" }]}>
+                        <Text style={[styles.waBadgeTxt, { color: "#1E40AF" }]}>predefinito</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.waTxt, { fontSize: Math.max(12, fontSize - 2) }]} testID="call-script-wa-text">{renderedWa}</Text>
+                  <View style={styles.waActionRow}>
+                    <Pressable onPress={copyWaMessage} style={styles.waCopyBtn} testID="call-script-wa-copy">
+                      <Ionicons name="copy-outline" size={14} color="#166534" />
+                      <Text style={styles.waCopyBtnTxt}>Copia</Text>
+                    </Pressable>
+                    {(contactPhone || "").trim() ? (
+                      <Pressable onPress={openWhatsApp} style={styles.waSendBtn} testID="call-script-wa-send">
+                        <Ionicons name="send" size={14} color="#FFF" />
+                        <Text style={styles.waSendBtnTxt}>Invia su WhatsApp</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
             </ScrollView>
           </>
         )}
@@ -267,6 +324,17 @@ const styles = StyleSheet.create({
   phoneLbl: { fontSize: 11, fontWeight: "700", color: "#166534", textTransform: "uppercase", letterSpacing: 0.5 },
   phoneNum: { fontSize: 22, fontWeight: "900", color: C.navy, letterSpacing: -0.5, marginTop: 2 },
   scriptTxt: { color: C.navy, fontWeight: "500" },
+  waCard: { marginTop: 18, padding: 12, backgroundColor: "#F0FDF4", borderRadius: 12, borderWidth: 1, borderColor: "#86EFAC", gap: 8 },
+  waHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
+  waHeaderTxt: { flex: 1, fontSize: 12, fontWeight: "800", color: "#166534", textTransform: "uppercase", letterSpacing: 0.5 },
+  waBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: "#DCFCE7" },
+  waBadgeTxt: { fontSize: 9, fontWeight: "800", color: "#166534" },
+  waTxt: { color: C.navy, fontWeight: "500", lineHeight: 20 },
+  waActionRow: { flexDirection: "row", gap: 8, marginTop: 4 },
+  waCopyBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "#DCFCE7", borderWidth: 1, borderColor: "#86EFAC" },
+  waCopyBtnTxt: { fontSize: 12, fontWeight: "700", color: "#166534" },
+  waSendBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 8, backgroundColor: "#16A34A" },
+  waSendBtnTxt: { fontSize: 13, fontWeight: "800", color: "#FFF" },
   empty: { alignItems: "center", padding: 30, gap: 8 },
   emptyTxt: { color: C.navy, fontWeight: "800", fontSize: 14 },
   emptySub: { color: C.muted, fontSize: 12, textAlign: "center" },

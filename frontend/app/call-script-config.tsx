@@ -19,7 +19,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 const C = { primary: "#FF6B35", navy: "#1B2B4B", muted: "#94A3B8", success: "#16A34A" };
 
-type NamedScript = { id: string; name: string; content: string };
+type NamedScript = { id: string; name: string; content: string; whatsapp_message?: string };
 
 function newId(): string { return "sc_" + Math.random().toString(36).slice(2, 10); }
 
@@ -37,12 +37,14 @@ export default function CallScriptConfigScreen() {
     try {
       const s = await api<{ call_script?: string; call_scripts?: NamedScript[] }>("/settings");
       let list = Array.isArray(s.call_scripts) ? s.call_scripts.filter((x) => x && x.id && x.name != null) : [];
+      // Normalizza: assicura il campo whatsapp_message (default vuoto) per compatibilità
+      list = list.map((x) => ({ id: x.id, name: x.name, content: x.content || "", whatsapp_message: x.whatsapp_message || "" }));
       // Legacy migration: promote the old single string as "Standard"
       if (list.length === 0 && s.call_script) {
-        list = [{ id: newId(), name: "Standard", content: s.call_script }];
+        list = [{ id: newId(), name: "Standard", content: s.call_script, whatsapp_message: "" }];
       }
       if (list.length === 0) {
-        list = [{ id: newId(), name: "Freddo", content: "" }];
+        list = [{ id: newId(), name: "Freddo", content: "", whatsapp_message: "" }];
       }
       setScripts(list);
       setActiveId(list[0].id);
@@ -58,7 +60,7 @@ export default function CallScriptConfigScreen() {
   };
 
   const addScript = () => {
-    const n: NamedScript = { id: newId(), name: `Script ${scripts.length + 1}`, content: "" };
+    const n: NamedScript = { id: newId(), name: `Script ${scripts.length + 1}`, content: "", whatsapp_message: "" };
     setScripts((arr) => [...arr, n]);
     setActiveId(n.id);
   };
@@ -103,8 +105,8 @@ export default function CallScriptConfigScreen() {
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={C.navy} /></Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Script Telefonata</Text>
-          <Text style={styles.sub}>Multi-script (Freddo/Caldo/Prospect…) · agenti scelgono al momento</Text>
+          <Text style={styles.title}>Script Telefonata & WhatsApp</Text>
+          <Text style={styles.sub}>Multi-script (Freddo/Caldo/Prospect…) · ogni script ha il suo messaggio WhatsApp</Text>
         </View>
       </View>
 
@@ -113,7 +115,7 @@ export default function CallScriptConfigScreen() {
           <View style={styles.tipCard}>
             <Ionicons name="information-circle" size={18} color={C.primary} />
             <Text style={styles.tipTxt}>
-              Crea diversi script (es. Freddo, Caldo, Prospect). L&apos;agente sceglie quale usare all&apos;apertura. Placeholder disponibili: <Text style={{ fontWeight: "800" }}>{"{name}"}</Text> · <Text style={{ fontWeight: "800" }}>{"{agent}"}</Text>.
+              Crea diversi script (es. Freddo, Caldo, Prospect). L&apos;agente sceglie quale usare all&apos;apertura. Ogni script può avere il proprio <Text style={{ fontWeight: "800", color: "#16A34A" }}>messaggio WhatsApp</Text> associato. Placeholder disponibili: <Text style={{ fontWeight: "800" }}>{"{name}"}</Text> · <Text style={{ fontWeight: "800" }}>{"{agent}"}</Text>.
             </Text>
           </View>
 
@@ -162,6 +164,24 @@ export default function CallScriptConfigScreen() {
                 style={styles.textarea}
               />
 
+              <View style={styles.waHeaderRow}>
+                <Ionicons name="logo-whatsapp" size={16} color="#25D366" />
+                <Text style={[styles.lbl, { marginTop: 0 }]}>Messaggio WhatsApp associato</Text>
+              </View>
+              <TextInput
+                testID="call-script-whatsapp"
+                value={active.whatsapp_message || ""}
+                onChangeText={(t) => patchActive({ whatsapp_message: t })}
+                multiline
+                placeholder={"Ciao {name}! Ti scrivo da parte di {agent}… un messaggio breve e caldo per iniziare la conversazione."}
+                placeholderTextColor="#94A3B8"
+                style={[styles.textarea, styles.textareaWa, { minHeight: 130 }]}
+              />
+              <Text style={styles.waHint}>
+                Placeholder: <Text style={{ fontWeight: "800" }}>{"{name}"}</Text> = nome cliente ·{" "}
+                <Text style={{ fontWeight: "800" }}>{"{agent}"}</Text> = tuo nome. Vuoto = usa il messaggio globale delle Impostazioni.
+              </Text>
+
               {scripts.length > 1 ? (
                 <Pressable testID="script-remove" onPress={removeActive} style={styles.removeBtn}>
                   <Ionicons name="trash-outline" size={16} color="#DC2626" />
@@ -199,6 +219,9 @@ const styles = StyleSheet.create({
   lbl: { fontSize: 12, fontWeight: "800", color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 8 },
   nameInput: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 15, fontWeight: "700", color: C.navy },
   textarea: { backgroundColor: "#FFF", borderRadius: 14, padding: 14, minHeight: 260, fontSize: 15, color: C.navy, textAlignVertical: "top", borderWidth: 1, borderColor: theme.color.border, lineHeight: 22 },
+  textareaWa: { backgroundColor: "#F0FDF4", borderColor: "#86EFAC" },
+  waHeaderRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 14, marginBottom: 4 },
+  waHint: { fontSize: 11, color: theme.color.muted, marginTop: 4, fontStyle: "italic" },
   removeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, backgroundColor: "#FEE2E2", borderRadius: 10, marginTop: 4 },
   removeBtnTxt: { color: "#DC2626", fontWeight: "700", fontSize: 12 },
   saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 14, marginTop: 8 },
