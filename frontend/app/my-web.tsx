@@ -134,10 +134,25 @@ export default function MyWebScreen() {
       )}
 
       <Modal transparent visible={addOpen} onRequestClose={() => setAddOpen(false)} animationType="slide">
-        <Pressable style={styles.backdrop} onPress={() => setAddOpen(false)}>
-          <View style={[styles.sheet, { paddingBottom: bottomPad }]} onStartShouldSetResponder={() => true}>
+        {/* V50.z62 — Bug fix (stesso di CompanyContactSheet):
+            rimosso il backdrop <Pressable onPress={setAddOpen(false)}> che
+            veniva ri-triggerato dal re-render causato dagli onChangeText,
+            chiudendo il modal appena l'utente digitava. Il modal si chiude
+            via bottone "Chiudi" o back Android (onRequestClose). */}
+        <View style={styles.backdrop} pointerEvents="box-none">
+          <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Nuovo link</Text>
+            <View style={styles.sheetHeaderRow}>
+              <Text style={styles.sheetTitle}>Nuovo link</Text>
+              <Pressable
+                onPress={() => setAddOpen(false)}
+                hitSlop={10}
+                style={styles.sheetCloseBtn}
+                testID="link-modal-close"
+              >
+                <Ionicons name="close" size={20} color={theme.color.muted} />
+              </Pressable>
+            </View>
             <Text style={styles.label}>Titolo</Text>
             <TextInput value={title} onChangeText={setTitle} style={styles.input} placeholder="Es. Portale ENEL" testID="link-title-input" />
             <Text style={styles.label}>URL</Text>
@@ -154,7 +169,7 @@ export default function MyWebScreen() {
               {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitTxt}>Salva</Text>}
             </Pressable>
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -188,6 +203,9 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30 },
   sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "#CBD5E1", marginBottom: 12 },
+  // V50.z62 — Header con titolo + pulsante X (sostituisce il tap-outside-to-close)
+  sheetHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  sheetCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
   sheetTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface, marginBottom: 10 },
   label: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 10, marginBottom: 4 },
   input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surface },
