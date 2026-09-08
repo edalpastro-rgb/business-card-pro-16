@@ -4905,3 +4905,22 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
 **Impatto AxonOS**:
 - Quando l'utente allega un file Excel/CSV, AxonOS ora riceve un contenuto tabellato leggibile e può fare calcoli/confronti.
 - Quando serve leggere un URL specifico (ad es. un articolo su ARERA), il chat handler può chiamare `/api/axon/web-extract` invece della sola search generica.
+
+---
+
+## PROMPT 20.b — Attachment processing avanzato AxonOS (V50.z90) ✅ TESTATO
+
+**Nuovo helper unico `_build_attachments_section_advanced(msg, attachments)`** usato da entrambi gli endpoint chat (streaming e non). Sostituisce l'inline loop precedente in due punti (linee ~13554 e ~14007).
+
+**Funzionalità**:
+1. **Auto-fetch URL nel messaggio** — regex `_URL_RE` estrae fino a 2 URL dal testo, chiama `_tavily_extract_url()` (Tavily Extract API), inietta il contenuto nel context come "URL letta via Tavily" (max 8k caratteri per URL).
+2. **Riepilogo automatico file >10k caratteri** — nuova helper `_summarize_long_text()` che chiama **Claude Haiku 4.5** via emergentintegrations con system message dedicato in italiano (tipo documento / dati chiave / punti salienti / esempi righe tabelle). Output max 2.5k caratteri.
+3. **Modalità CONFRONTO** — se il messaggio contiene ≥ 2 file tabellari (CSV/XLSX/XLS), viene iniettato un banner `⚡ MODALITÀ CONFRONTO ATTIVA` con istruzioni al modello di produrre un confronto strutturato riga-per-riga con tabella Markdown finale.
+4. Marker `RIEPILOGO AUTOMATICO` che informa il modello del riassunto.
+
+**Test locale**:
+- ✅ URL: `https://example.com` → title "Example Domain" + testo pulito estratto via Tavily.
+- ✅ Confronto: 2 CSV con separatore `;` → banner CONFRONTO + entrambi i contenuti come tabelle pipe.
+- ✅ Riassunto: file `bigcontract.txt` da 15,500 char → riepilogo Claude Haiku strutturato in tre sezioni italiane, richiesta HTTP a Tavily+Anthropic andata a buon fine.
+
+**Nota grafici Excel**: la generazione di chart in-chat richiede rendering Vega-Lite/Mermaid o tool-call dedicato, non incluso in questo turno per contenere lo scope. Il riassunto Claude ora però evidenzia numeri chiave del CSV/XLSX pronti per essere trasformati in grafico manualmente o in un secondo step.

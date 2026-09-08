@@ -11407,6 +11407,139 @@ async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
     return f"[File {att.name} — tipo {mime or 'sconosciuto'} non supportato per estrazione testo]"
 
 
+# =========================
+# V50.z90 — Attachment/URL processing avanzato per chat AxonOS
+#   1) Auto-fetch URL nel messaggio via Tavily Extract
+#   2) Riepilogo automatico file > 10k caratteri (via LLM)
+#   3) Modalità confronto attiva se 2+ file tabellari (CSV/XLSX)
+# =========================
+_URL_RE = re.compile(r'https?://[^\s<>"\'`\)\]]+', re.IGNORECASE)
+
+
+async def _tavily_extract_url(url: str) -> Optional[str]:
+    """Estrae il testo pulito di una URL via Tavily Extract API. None se fallisce."""
+    key = os.environ.get("TAVILY_API_KEY")
+    if not key:
+        return None
+    try:
+        async with _httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(
+                "https://api.tavily.com/extract",
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                json={"urls": [url]},
+            )
+            if resp.status_code >= 400:
+                return None
+            data = resp.json()
+            results = data.get("results") or []
+            if not results:
+                return None
+            r0 = results[0]
+            content = r0.get("raw_content") or r0.get("content") or ""
+            title = r0.get("title") or ""
+            if not content:
+                return None
+            if len(content) > 8000:
+                content = content[:8000] + "\n\n[... contenuto troncato ...]"
+            return f"### {title}\n{content}" if title else content
+    except Exception as exc:
+        logger.debug(f"[axon-url-extract] {url} failed: {exc}")
+        return None
+
+
+async def _summarize_long_text(text: str, source_name: str) -> str:
+    """Riassume un file lungo (>10k caratteri) con Claude Haiku via emergentintegrations.
+    Fallback: prime 8000 caratteri troncati."""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
+        key = os.environ.get("EMERGENT_LLM_KEY")
+        if not key:
+            raise RuntimeError("no key")
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"summarize-{uuid.uuid4().hex[:8]}",
+            system_message=(
+                "Sei un riassuntore esperto per un CRM energia italiano. Ricevi il contenuto di un file allegato. "
+                "Produci un riassunto strutturato in ITALIANO con: 1) Tipo di documento (bolletta/contratto/tabella prezzi/ecc.), "
+                "2) Dati chiave (numeri, date, importi, POD/PDR, controparti), 3) Punti salienti. "
+                "Se è una tabella, riporta le prime 5-10 righe come esempio. Max 2500 caratteri."
+            ),
+        ).with_model("anthropic", "claude-haiku-4-5")
+        # Cap input a 60k char per non far esplodere il token count
+        content = text[:60000]
+        resp = await chat.send_message(UserMessage(
+            text=f"File: {source_name}\n\n---INIZIO CONTENUTO---\n{content}\n---FINE CONTENUTO---\n\nProduci il riassunto strutturato richiesto."
+        ))
+        return (str(resp) or "").strip() or text[:8000]
+    except Exception as exc:
+        logger.debug(f"[axon-summarize] {source_name} failed: {exc}")
+        return text[:8000] + "\n\n[... contenuto troncato — riassunto non disponibile ...]"
+
+
+async def _build_attachments_section_advanced(msg: str, attachments: List) -> str:
+    """Costruisce la sezione ALLEGATI arricchita:
+    - Auto-fetch URL trovate nel messaggio
+    - Riassunto automatico per file > 10k caratteri
+    - Tag CONFRONTO se 2+ file tabellari (CSV/XLSX)
+    """
+    parts: List[str] = []
+    tabular_names: List[str] = []
+
+    # --- 1) URL auto-fetch (max 2 URL per messaggio) ---
+    url_matches = _URL_RE.findall(msg or "")[:2]
+    seen_urls: set = set()
+    for u in url_matches:
+        u_clean = u.rstrip('.,;:!?)"\']')
+        if u_clean in seen_urls:
+            continue
+        seen_urls.add(u_clean)
+        extract = await _tavily_extract_url(u_clean)
+        if extract:
+            parts.append(f"--- URL letta via Tavily: {u_clean} ---\n{extract}")
+
+    # --- 2) Attachments con riassunto per file grandi ---
+    for att in (attachments or [])[:5]:
+        try:
+            extracted = await _extract_attachment_text(att)
+        except Exception as exc:
+            extracted = f"[Errore lettura {att.name}: {exc}]"
+        if not extracted:
+            continue
+        name_lower = (att.name or "").lower()
+        mime_lower = (att.mime or "").lower()
+        is_tabular = name_lower.endswith((".csv", ".xlsx", ".xls")) or "spreadsheet" in mime_lower or "excel" in mime_lower or mime_lower in ("text/csv",)
+        if is_tabular:
+            tabular_names.append(att.name)
+        # Riepilogo auto se > 10k
+        if len(extracted) > 10000:
+            summary = await _summarize_long_text(extracted, att.name)
+            parts.append(
+                f"--- File: {att.name} ({att.mime or 'unknown'}) · {len(extracted)} caratteri · RIEPILOGO AUTOMATICO ---\n{summary}\n\n"
+                f"[Nota: il file è stato riassunto automaticamente. Contenuto integrale disponibile su richiesta.]"
+            )
+        else:
+            parts.append(f"--- File: {att.name} ({att.mime or 'unknown'}) ---\n{extracted[:25000]}")
+
+    if not parts:
+        return ""
+
+    header = "\n\nALLEGATI / LINK CARICATI DALL'UTENTE (analizzali come CONTESTO PRINCIPALE della domanda):\n"
+    footer = (
+        "\n\nQuando rispondi, cita esplicitamente il contenuto rilevante (numeri, clausole, valori, date, nomi) "
+        "e menziona il nome del file/URL da cui provengono."
+    )
+    # --- 3) Modalità confronto se 2+ file tabellari ---
+    if len(tabular_names) >= 2:
+        header += (
+            "\n⚡ MODALITÀ CONFRONTO ATTIVA: sono presenti " + str(len(tabular_names)) +
+            " file tabellari (" + ", ".join(tabular_names) + "). "
+            "Se l'utente non specifica diversamente, produci un CONFRONTO strutturato riga-per-riga / colonna-per-colonna "
+            "evidenziando differenze principali, dati comuni e valori chiave. Restituisci una tabella Markdown finale con le differenze salienti.\n"
+        )
+
+    return header + "\n\n".join(parts) + footer
+
+
 # V29.k — Costruisce il blocco "Insegna ad Axon" per la chat Axon.
 # REGRESSIONE FIX: i file allegati alle regole (PDF GME, Optima, ecc.) ora vengono
 # effettivamente letti e iniettati nel system prompt della chat, così Axon può citarli
@@ -13552,31 +13685,7 @@ async def _prepare_assistant_prompt(
             return []
 
     async def _safe_attachments():
-        if not body.attachments:
-            return ""
-        parts: List[str] = []
-        for att in body.attachments[:5]:
-            try:
-                extracted = await _extract_attachment_text(att)
-            except Exception as exc:
-                extracted = f"[Errore lettura {att.name}: {exc}]"
-            if extracted:
-                # V50.j — cap per-file ridotto 60000 → 25000 char per abbattere
-                # la latenza LLM (Claude Sonnet 4.5 su 50k+ token impiega 15-30s
-                # per il primo token). 25k char coprono ~12-15 pagine dense che
-                # per un PDF di bolletta/anagrafica sono sufficienti; se serve
-                # analisi profonda su documenti lunghi, l'utente può usare la
-                # sezione dedicata "Analizza bolletta" del Master.
-                parts.append(f"--- File: {att.name} ({att.mime or 'unknown'}) ---\n{extracted[:25000]}")
-        if not parts:
-            return ""
-        return (
-            "\n\nALLEGATI CARICATI DALL'UTENTE (analizzali come CONTESTO PRINCIPALE della domanda — "
-            "leggi TUTTO il contenuto degli allegati, non solo l'inizio, ed estraine ogni dato utile):\n"
-            + "\n\n".join(parts)
-            + "\n\nQuando rispondi, cita esplicitamente il contenuto rilevante degli allegati (numeri, "
-            "clausole, valori, date, nomi) e menziona il nome del file da cui provengono.\n"
-        )
+        return await _build_attachments_section_advanced(msg, body.attachments or [])
 
     async def _safe_teach_section():
         try:
@@ -14003,23 +14112,8 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # V38T — Load persistent memories for this user
     memories = await _load_neo_memories(user["user_id"], limit=5)
 
-    # V28.l — Extract text from any attachments the user sent with the message
-    attachments_section = ""
-    if body.attachments:
-        parts = []
-        for att in body.attachments[:5]:  # cap at 5 files per message
-            try:
-                extracted = await _extract_attachment_text(att)
-            except Exception as exc:  # pragma: no cover — never fail the chat
-                extracted = f"[Errore lettura {att.name}: {exc}]"
-            if extracted:
-                parts.append(f"--- File: {att.name} ({att.mime or 'unknown'}) ---\n{extracted[:6000]}")
-        if parts:
-            attachments_section = (
-                "\n\nALLEGATI CARICATI DALL'UTENTE (analizzali come contesto principale della domanda):\n"
-                + "\n\n".join(parts)
-                + "\n\nQuando rispondi, cita esplicitamente il contenuto rilevante degli allegati e nomi dei file.\n"
-            )
+    # V28.l — Extract text from any attachments (unified helper V50.z90)
+    attachments_section = await _build_attachments_section_advanced(msg, body.attachments or [])
 
     # V29.k — FIX REGRESSIONE: base di conoscenza "Insegna ad Axon" (regole + file estratti).
     # Prima gli allegati alle regole (PDF GME, Optima, ecc.) non venivano letti nella chat.
