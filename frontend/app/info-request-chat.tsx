@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Platform, Image } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { api } from "@/src/api";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
+import { api, apiUpload, buildFileUrl } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { InAppWebViewer } from "@/src/InAppWebViewer";
 
 /**
  * V50.z83 — Chat thread di una richiesta info (Master ↔ Collaboratore).
@@ -23,6 +26,13 @@ type Msg = {
   author_role?: "master" | "collaborator";
   text: string;
   at: string;
+  attachment?: {
+    attach_id: string;
+    path: string;
+    size: number;
+    content_type: string;
+    filename: string;
+  } | null;
 };
 
 type ReqDetail = {
@@ -93,6 +103,65 @@ export default function InfoRequestChatScreen() {
     } finally { setSending(false); }
   };
 
+  // V50.z84 — Upload allegato (foto o PDF)
+  const [uploading, setUploading] = useState(false);
+  const [viewer, setViewer] = useState<{ uri: string; kind: "image" | "pdf"; name: string } | null>(null);
+
+  const pickAndUpload = async (source: "camera" | "gallery" | "file") => {
+    try {
+      setUploading(true);
+      let uri: string | null = null;
+      let name = "attachment";
+      let type = "application/octet-stream";
+      if (source === "gallery") {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { notify("Permesso", "Serve accesso alla galleria"); return; }
+        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.85 });
+        if (r.canceled || !r.assets?.[0]) return;
+        uri = r.assets[0].uri;
+        name = r.assets[0].fileName || `img_${Date.now()}.jpg`;
+        type = r.assets[0].mimeType || "image/jpeg";
+      } else if (source === "camera") {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { notify("Permesso", "Serve accesso alla camera"); return; }
+        const r = await ImagePicker.launchCameraAsync({ quality: 0.85 });
+        if (r.canceled || !r.assets?.[0]) return;
+        uri = r.assets[0].uri;
+        name = `foto_${Date.now()}.jpg`;
+        type = "image/jpeg";
+      } else {
+        const r = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"], copyToCacheDirectory: true });
+        if (r.canceled || !r.assets?.[0]) return;
+        uri = r.assets[0].uri;
+        name = r.assets[0].name || `file_${Date.now()}`;
+        type = r.assets[0].mimeType || "application/pdf";
+      }
+      if (!uri) return;
+      const form = new FormData();
+      if (Platform.OS === "web") {
+        const blob = await (await fetch(uri)).blob();
+        form.append("file", blob, name);
+      } else {
+        form.append("file", { uri, name, type } as any);
+      }
+      const d = await apiUpload<ReqDetail>(`/info-requests/${rid}/attachments`, form);
+      setDetail(d);
+    } catch (e: any) {
+      notify("Errore", e?.message || "Upload fallito");
+    } finally { setUploading(false); }
+  };
+
+  const openAttachment = async (att: NonNullable<Msg["attachment"]>) => {
+    try {
+      const url = await buildFileUrl(`/info-requests/attachments/${att.path}`);
+      const isImg = (att.content_type || "").startsWith("image/") || /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(att.filename);
+      const isPdf = (att.content_type || "").includes("pdf") || /\.pdf$/i.test(att.filename);
+      setViewer({ uri: url, kind: isImg ? "image" : isPdf ? "pdf" : "pdf", name: att.filename });
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile aprire l'allegato");
+    }
+  };
+
   const resolve = async () => {
     try {
       const d = await api<ReqDetail>(`/info-requests/${rid}`, { method: "PUT", body: { status: detail?.status === "pending" ? "resolved" : "pending" } });
@@ -159,12 +228,20 @@ export default function InfoRequestChatScreen() {
               author={m.author_name || (m.author_role === "master" ? "Master" : "Collaboratore")}
               text={m.text}
               at={m.at}
+              attachment={m.attachment}
+              onOpenAttachment={openAttachment}
             />
           ))}
         </KeyboardAwareScrollView>
       )}
 
       <View style={[styles.inputBar, { paddingBottom: 8 + (Platform.OS === "web" ? 60 : insets.bottom) }]}>
+        <Pressable onPress={() => pickAndUpload("gallery")} disabled={uploading} hitSlop={6} style={styles.attachBtn} testID="ireqchat-attach-img">
+          {uploading ? <ActivityIndicator size="small" color={theme.color.brandPrimary} /> : <Ionicons name="image" size={20} color={theme.color.brandPrimary} />}
+        </Pressable>
+        <Pressable onPress={() => pickAndUpload("file")} disabled={uploading} hitSlop={6} style={styles.attachBtn} testID="ireqchat-attach-file">
+          <Ionicons name="document" size={20} color={theme.color.brandPrimary} />
+        </Pressable>
         <TextInput
           value={text}
           onChangeText={setText}
@@ -179,21 +256,56 @@ export default function InfoRequestChatScreen() {
           {sending ? <ActivityIndicator color="#FFF" /> : <Ionicons name="send" size={18} color="#FFF" />}
         </Pressable>
       </View>
+
+      {viewer ? (
+        viewer.kind === "image" ? (
+          <View style={styles.viewerOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setViewer(null)} />
+            <View style={styles.viewerHead}>
+              <Text style={styles.viewerName} numberOfLines={1}>{viewer.name}</Text>
+              <Pressable onPress={() => setViewer(null)} hitSlop={8}>
+                <Ionicons name="close" size={24} color="#FFF" />
+              </Pressable>
+            </View>
+            <Image source={{ uri: viewer.uri }} style={styles.viewerImage} resizeMode="contain" />
+          </View>
+        ) : (
+          <InAppWebViewer visible url={viewer.uri} title={viewer.name} onClose={() => setViewer(null)} />
+        )
+      ) : null}
     </SafeAreaView>
   );
 }
 
-function MessageBubble({ role, author, text, at, isOriginal }: { role: "self" | "other"; author: string; text: string; at: string; isOriginal?: boolean }) {
+function MessageBubble({ role, author, text, at, isOriginal, attachment, onOpenAttachment }: { role: "self" | "other"; author: string; text: string; at: string; isOriginal?: boolean; attachment?: Msg["attachment"]; onOpenAttachment?: (att: NonNullable<Msg["attachment"]>) => void }) {
+  const isImgAttach = attachment && ((attachment.content_type || "").startsWith("image/") || /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(attachment.filename));
   return (
     <View style={[styles.bubbleRow, role === "self" ? { justifyContent: "flex-end" } : { justifyContent: "flex-start" }]}>
       <View style={[styles.bubble, role === "self" ? styles.bubbleSelf : styles.bubbleOther, isOriginal && styles.bubbleOriginal]}>
         {isOriginal ? <Text style={styles.bubbleTag}>MESSAGGIO INIZIALE</Text> : null}
         {role === "other" ? <Text style={styles.bubbleAuthor}>{author}</Text> : null}
-        <Text style={[styles.bubbleText, role === "self" && { color: "#FFF" }]}>{text}</Text>
+        {text ? <Text style={[styles.bubbleText, role === "self" && { color: "#FFF" }]}>{text}</Text> : null}
+        {attachment ? (
+          <Pressable onPress={() => onOpenAttachment && onOpenAttachment(attachment)} style={styles.attachCard}>
+            <Ionicons name={isImgAttach ? "image" : "document"} size={22} color={role === "self" ? "#FFF" : theme.color.brandPrimary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.attachName, role === "self" && { color: "#FFF" }]} numberOfLines={1}>{attachment.filename}</Text>
+              <Text style={[styles.attachMeta, role === "self" && { color: "#E2E8F0" }]}>{formatSize(attachment.size)}</Text>
+            </View>
+            <Ionicons name="open-outline" size={16} color={role === "self" ? "#FFF" : theme.color.muted} />
+          </Pressable>
+        ) : null}
         <Text style={[styles.bubbleTime, role === "self" && { color: "#E2E8F0" }]}>{formatTime(at)}</Text>
       </View>
     </View>
   );
+}
+
+function formatSize(bytes: number): string {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatTime(iso: string): string {
@@ -224,4 +336,12 @@ const styles = StyleSheet.create({
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, padding: 10, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF" },
   input: { flex: 1, minHeight: 40, maxHeight: 120, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#F1F5F9", borderRadius: 20, fontSize: 14, color: theme.color.onSurface },
   sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" },
+  attachBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.brandPrimary + "18" },
+  attachCard: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(0,0,0,0.1)" },
+  attachName: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  attachMeta: { fontSize: 10, color: theme.color.muted, marginTop: 1 },
+  viewerOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.92)", zIndex: 999, alignItems: "center", justifyContent: "center" },
+  viewerHead: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, paddingTop: 40 },
+  viewerName: { flex: 1, color: "#FFF", fontSize: 14, fontWeight: "700", marginRight: 12 },
+  viewerImage: { width: "100%", height: "80%" },
 });

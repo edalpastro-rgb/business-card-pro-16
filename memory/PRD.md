@@ -4720,3 +4720,47 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
 - Nella scheda contatto Giuseppe Verdi, sezione "RICHIESTE INFO & CHAT · 1" con card "Dubbio su offerta Luce · 1 risposte · ATTESA".
 
 **Credenziali test aggiornate in `/app/memory/test_credentials.md`**.
+
+---
+
+## PROMPT 17.c — Push Notifications (Emergent) + Allegati Chat (V50.z84) ✅ TESTATO
+
+**Backend (`server.py`)** — nuova infra push + object storage:
+- `EMERGENT_PUSH_KEY=placeholder` aggiunto a `backend/.env` (sostituito automaticamente al deploy).
+- `_push_client` = httpx AsyncClient verso `https://integrations.emergentagent.com` con header `X-Push-Key`.
+- `POST /api/register-push` — registra `{user_id, platform, device_token}` (forza user_id = utente auth).
+- `send_push(recipients, data, idempotency_key)` — helper fault-tolerant che triggera `/api/v1/push/trigger`.
+- Object Storage: `_init_storage_sync` + `_put_object_sync` + `_get_object_sync` (usa `EMERGENT_LLM_KEY` + `INTEGRATION_PROXY_URL`); path convention `advisoros/info-requests/{tenant}/{request_id}/{uuid}.{ext}`.
+- `POST /api/info-requests/{id}/attachments` — multipart upload (max 15MB, image/pdf preferiti), aggiunge un messaggio con `attachment` al thread e invia push al destinatario opposto.
+- `GET /api/info-requests/attachments/{path:path}` — download con auth flessibile (header O `?token=` in query per `<img>` su web).
+- Push chiamata SU: creazione richiesta (→ Master), reply testo (→ destinatario opposto), upload allegato (→ destinatario opposto). Tutte wrapped in try/except.
+
+**Frontend**:
+- `src/pushRegister.ts` — nuovo helper `registerForPush(userId)`: chiede permessi, chiama `getDevicePushTokenAsync()`, POST `/register-push`. No-op su web/Expo Go.
+- `app/_layout.tsx`:
+  - Import `Linking` da expo-linking (no più `require`).
+  - `addNotificationResponseReceivedListener` — tap warm: naviga `data.deeplink || data.action_url` (per tag "alarm_" resta comportamento esistente).
+  - `getLastNotificationResponseAsync()` — tap cold-start.
+  - `useEffect(user)` chiama `registerForPush(user.user_id)` al login/app open.
+- `src/api.ts`: nuovi helper `apiUpload(path, FormData)` e `buildFileUrl(path)` (token in query per web).
+- `app/info-request-chat.tsx`:
+  - Bottoni "+ Immagine" e "+ File" nella input bar.
+  - `pickAndUpload("camera"|"gallery"|"file")` con `expo-image-picker` e `expo-document-picker`, gestisce web (Blob) vs native (FormData shape).
+  - `MessageBubble` mostra `attachment` come card cliccabile (icona image/document + filename + size).
+  - Modal viewer: immagine → overlay fullscreen; PDF → `InAppWebViewer` con URL autenticato.
+  - Auto-scroll all'ultimo messaggio dopo upload/send.
+
+**Test end-to-end verificato**:
+- Collaboratore invia richiesta → backend triggera push al Master (con placeholder key logga warning, non blocca).
+- Master vede badge "1" sul FAB Axon che lampeggia (in-app), tap → apre chat.
+- Upload PNG via API dal collaboratore: appare come bolla con icona + nome + size + tap-to-open.
+- Backend risponde con `send_push` alla creazione/reply/upload (verificato via log).
+
+**Note per deploy** (auto-inserito nel finish):
+- Push notifications sistema funzionano SOLO dopo `Publish` + generazione build iOS/Android reale (non in Expo Go / preview web).
+- Utente deve fornire `google-services.json` da Firebase Console per Android.
+- Al build UI verranno chiesti anche APNs key `.p8` (iOS) e Google service account JSON (Android submission).
+
+**Credenziali test in `/app/memory/test_credentials.md`**:
+- Master: `demo@advisoros.it` / `Demo1234!`
+- Collaboratore: `collab.demo@advisoros.it` / `Demo1234!`

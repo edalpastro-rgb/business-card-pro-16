@@ -70,3 +70,30 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
   if (res.status === 204) return undefined as any;
   return (await res.json()) as T;
 }
+
+// V50.z84 — Multipart upload helper (per allegati chat)
+export async function apiUpload<T = any>(path: string, form: FormData): Promise<T> {
+  const token = await getToken();
+  // NON impostare Content-Type manualmente: il runtime aggiunge la boundary
+  const res = await fetch(`${BASE}/api${path}`, {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: form,
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const j = await res.json(); msg = j.detail || j.message || msg; } catch {}
+    throw new Error(msg);
+  }
+  return (await res.json()) as T;
+}
+
+// V50.z84 — Costruisce URL completo per un file autenticato con token in query
+// (usato per <Image source={{ uri }}> su web dove non si possono passare headers).
+export async function buildFileUrl(path: string): Promise<string> {
+  const token = await getToken();
+  const sep = path.includes("?") ? "&" : "?";
+  return `${BASE}/api${path}${token ? `${sep}token=${encodeURIComponent(token)}` : ""}`;
+}

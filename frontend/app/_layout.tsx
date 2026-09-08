@@ -14,6 +14,7 @@ import { AppLockOverlay } from "@/src/AppLock";
 import { WakeWordService } from "@/src/wakeword/WakeWordService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AssistantFAB } from "@/src/AssistantChat";
+import * as Linking from "expo-linking";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
 import { SupportFab } from "@/src/SupportFab";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
@@ -25,6 +26,7 @@ import { ActiveCallProvider } from "@/src/CallTimerBar";
 import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
 import { configureAlarmNotifications } from "@/src/alarmNotifs";
+import { registerForPush } from "@/src/pushRegister";
 import { GlobalErrorBoundary } from "@/src/GlobalErrorBoundary";
 
 configureNotifHandler();
@@ -137,18 +139,40 @@ function StackWithCallBar() {
   useEffect(() => {
     // V50.z13 — Response listener globale: tap su notifica sveglia/timer/
     // promemoria → naviga alle impostazioni della sveglia (screen /axon-alarms).
+    // V50.z84 — Tap su push info-request: naviga a action_url/deeplink.
     if (Platform.OS === "web") return;
-    const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
+    const handleData = (data: any) => {
       try {
-        const data = resp?.notification?.request?.content?.data as any;
         const tag = (data?.tag || "") as string;
         if (tag.startsWith("alarm_")) {
           router.push("/axon-alarms" as any);
+          return;
+        }
+        const url = data?.deeplink || data?.action_url;
+        if (typeof url === "string" && url.length > 0) {
+          if (url.startsWith("http")) {
+            try { Linking.openURL(url); } catch { /* ignore */ }
+          } else {
+            router.push(url as any);
+          }
         }
       } catch { /* ignore */ }
+    };
+    const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
+      handleData(resp?.notification?.request?.content?.data);
     });
+    // Cold-start check
+    Notifications.getLastNotificationResponseAsync().then((resp) => {
+      if (resp) handleData(resp?.notification?.request?.content?.data);
+    }).catch(() => {});
     return () => sub.remove();
   }, [router]);
+
+  // V50.z84 — Registra device token per push ad ogni app open / login
+  useEffect(() => {
+    if (!user?.user_id) return;
+    registerForPush(user.user_id).catch(() => {});
+  }, [user?.user_id]);
   return (
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
