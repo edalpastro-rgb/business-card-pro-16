@@ -33,7 +33,7 @@ import { useAuth } from "@/src/auth";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { FileViewer } from "@/src/FileViewer";
-import { WebView } from "react-native-webview";
+import { InAppWebViewer } from "@/src/InAppWebViewer";
 import { notify } from "@/src/utils/notify";
 import * as FileSystem from "expo-file-system/legacy";
 
@@ -1300,83 +1300,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
 // V50.z58 — Icone disponibili per i Link utili
 const LINK_ICONS = ["🔗","⚡","🔥","📊","📰","🏦","💼","📞","🌐","📈","🛒","💰","🎯","🔧","📱","📧","📅","🎓","⭐","🚀"];
 
-// V50.z58 — In-app WebView per aprire i Link utili senza uscire dall'app.
-// Componente separato per usare i hook.
-function InAppWebViewer({ title, url, onClose }: { title: string; url: string; onClose: () => void }) {
-  const [loading, setLoading] = useState(true);
-  const [errMsg, setErrMsg] = useState<string | null>(null);
-
-  const openExternal = () => {
-    Linking.openURL(url).catch(() => Alert.alert("Errore", "Impossibile aprire il link nel browser"));
-  };
-
-  return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <View style={inAppWebStyles.header}>
-        <Pressable onPress={onClose} hitSlop={8} testID="inapp-webview-close">
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
-        </Pressable>
-        <Text style={inAppWebStyles.title} numberOfLines={1}>{title || "Link"}</Text>
-        <Pressable onPress={openExternal} hitSlop={8} testID="inapp-webview-external">
-          <Ionicons name="open-outline" size={22} color="#FFF" />
-        </Pressable>
-      </View>
-      <View style={{ flex: 1, backgroundColor: "#FFF" }}>
-        {Platform.OS === "web" ? (
-          // @ts-expect-error web only
-          <iframe src={url} title={title} style={{ width: "100%", height: "100%", border: "none" }} />
-        ) : (
-          <WebView
-            source={{ uri: url }}
-            style={{ flex: 1 }}
-            onLoadStart={() => setLoading(true)}
-            onLoadEnd={() => setLoading(false)}
-            onError={(e: any) => {
-              setLoading(false);
-              setErrMsg(e?.nativeEvent?.description || "Impossibile caricare la pagina");
-            }}
-            javaScriptEnabled
-            domStorageEnabled
-            startInLoadingState
-            originWhitelist={["*"]}
-          />
-        )}
-        {loading && Platform.OS !== "web" ? (
-          <View style={inAppWebStyles.loader} pointerEvents="none">
-            <ActivityIndicator size="large" color="#0EA5E9" />
-          </View>
-        ) : null}
-        {errMsg ? (
-          <View style={inAppWebStyles.errBox}>
-            <Ionicons name="warning" size={22} color="#DC2626" />
-            <Text style={inAppWebStyles.errTxt}>{errMsg}</Text>
-            <Pressable onPress={openExternal} style={inAppWebStyles.errBtn}>
-              <Text style={inAppWebStyles.errBtnTxt}>Apri nel browser</Text>
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-const inAppWebStyles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingTop: Platform.OS === "ios" ? 44 : 12,
-    paddingBottom: 10,
-    backgroundColor: "#0F172A",
-  },
-  title: { color: "#FFF", fontSize: 15, fontWeight: "700", flex: 1, marginHorizontal: 12, textAlign: "center" },
-  loader: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.6)" },
-  errBox: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", gap: 10, padding: 24, backgroundColor: "#FFF" },
-  errTxt: { color: "#DC2626", fontSize: 13, textAlign: "center" },
-  errBtn: { backgroundColor: "#0EA5E9", paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },
-  errBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-});
+// V50.z74 — InAppWebViewer estratto in `@/src/InAppWebViewer` (era qui una copia inline).
 
 const styles = StyleSheet.create({
   backdrop: {

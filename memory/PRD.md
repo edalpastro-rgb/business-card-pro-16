@@ -1,3 +1,24 @@
+## V50.z74 (Set 2026) — Navigazione web interna: link My Web in WebView (PROMPT 11)
+
+### Richiesta utente
+"Nella sezione My Web, cliccando su un link questo si apre nel browser esterno del dispositivo. Tutti i link devono aprirsi in una WebView interna all'app AdvisorOS, senza uscire dall'applicazione."
+
+### Componente condiviso: `/app/frontend/src/InAppWebViewer.tsx`
+- Estratto dal duplicato inline in `CompanyContactSheet.tsx` come modulo riutilizzabile.
+- Header nero (#0F172A) con: ← back, titolo troncato, ↗ apertura esterna opzionale.
+- Su native → `react-native-webview` (WebView con JS + storage abilitati, whitelist origini `["*"]`, loader nativo).
+- Su Expo Web → `<iframe>` con dimensioni 100% e no border (nota: alcuni siti bloccano l'iframe via X-Frame-Options; in tal caso l'utente vede una pagina vuota e può cliccare ↗ per aprire fuori).
+- Gestione errori: box rosso con "Apri nel browser" come fallback affidabile.
+
+### Frontend
+- **`/app/my-web.tsx`**: rimossa dipendenza da `Linking.openURL`; `openLink(url, title)` ora setta `webView` state → apre `<Modal>` full-screen con `<InAppWebViewer>`.
+- **`/src/CompanyContactSheet.tsx`**: sostituita la copia inline di `InAppWebViewer` (~75 righe + styles) con import dal modulo condiviso; rimosso `import { WebView } from "react-native-webview"` non più usato in questo file.
+
+### Test
+- Screenshot pagina My Web con WebView modal → carica correttamente, senza `Linking` import ma con InAppWebViewer pronto.
+- Lint OK su tutti i file coinvolti.
+
+
 ## V50.z73 (Set 2026) — My Web: link modificabili con bottone su ogni card (PROMPT 10)
 
 ### Richiesta utente

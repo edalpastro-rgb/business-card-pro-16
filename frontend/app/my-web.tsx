@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, Linking, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { InAppWebViewer } from "@/src/InAppWebViewer";
 
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 type Link = { link_id: string; title: string; url: string; icon: string; order: number };
@@ -40,7 +41,9 @@ export default function MyWebScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const openLink = (u: string) => Linking.openURL(u).catch(() => notify("Errore", "Impossibile aprire il link"));
+  // V50.z74 — I link si aprono in WebView interna (mai fuori dall'app)
+  const [webView, setWebView] = useState<{ title: string; url: string } | null>(null);
+  const openLink = (u: string, t?: string) => setWebView({ title: t || "", url: u });
 
   // V50.z60 — Aggiunge un link personale di My Web alla scheda "Comunica con
   // l'azienda" (endpoint tenant-scoped /company-web-links, solo Master).
@@ -125,7 +128,7 @@ export default function MyWebScreen() {
               const added = addedCompanyIds.has(lk.link_id);
               return (
                 <View key={lk.link_id} style={styles.card}>
-                  <Pressable onPress={() => openLink(lk.url)} onLongPress={() => remove(lk)} style={styles.cardInner} testID={`link-${lk.link_id}`}>
+                  <Pressable onPress={() => openLink(lk.url, lk.title)} onLongPress={() => remove(lk)} style={styles.cardInner} testID={`link-${lk.link_id}`}>
                     <Text style={styles.cardIcon}>{lk.icon || "🔗"}</Text>
                     <Text style={styles.cardTitle} numberOfLines={2}>{lk.title}</Text>
                     <Text style={styles.cardUrl} numberOfLines={1}>{lk.url.replace(/^https?:\/\//, "")}</Text>
@@ -215,6 +218,17 @@ export default function MyWebScreen() {
             </Pressable>
           </View>
         </View>
+      </Modal>
+
+      {/* V50.z74 — WebView interna: apre i link senza uscire dall'app */}
+      <Modal visible={!!webView} animationType="slide" onRequestClose={() => setWebView(null)}>
+        {webView && (
+          <InAppWebViewer
+            title={webView.title}
+            url={webView.url}
+            onClose={() => setWebView(null)}
+          />
+        )}
       </Modal>
     </SafeAreaView>
   );
