@@ -5,10 +5,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
 
 /**
- * V50.z85 — Document Scanner con jscanify (via WebView, cross-platform).
+ * V50.z85 / V50.z86 — Document Scanner MULTI-PAGINA con jscanify (WebView cross-platform).
  * Su web usa <iframe srcDoc>, su native usa react-native-webview.
- * L'HTML embedded carica jscanify + OpenCV.js da CDN, l'utente scatta/carica
- * una foto, jscanify auto-rileva i 4 angoli e restituisce dataURL PNG pulito.
+ * L'HTML embedded carica jscanify + OpenCV.js + jsPDF da CDN.
+ * Flusso:
+ *   1. L'utente scatta/carica una foto → jscanify auto-rileva i 4 angoli e corregge.
+ *   2. Bottoni: "Aggiungi pagina" (accumula) oppure "Termina e usa" (unisce in PDF).
+ *   3. Il modal ritorna al RN un file `.pdf` (o un singolo `.png` se una sola pagina).
  */
 
 type Props = {
@@ -26,23 +29,34 @@ const SCANNER_HTML = `<!doctype html>
 <style>
   html,body{margin:0;padding:0;background:#0F172A;color:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;height:100%;}
   #app{display:flex;flex-direction:column;height:100%;}
-  header{padding:14px 16px;font-weight:700;font-size:15px;border-bottom:1px solid #1E293B;background:#0B1220;}
-  main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:12px;}
-  .btn{padding:12px 18px;background:#F59E0B;color:#0F172A;border:0;border-radius:12px;font-weight:800;font-size:14px;cursor:pointer;}
+  header{padding:12px 16px;font-weight:700;font-size:14px;border-bottom:1px solid #1E293B;background:#0B1220;display:flex;align-items:center;justify-content:space-between;}
+  header .count{font-size:12px;color:#F59E0B;font-weight:800;padding:3px 8px;border-radius:999px;background:#1E293B;}
+  main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:12px;gap:10px;overflow:auto;}
+  .btn{padding:11px 16px;background:#F59E0B;color:#0F172A;border:0;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;}
   .btn.secondary{background:transparent;color:#F8FAFC;border:1px solid #334155;}
+  .btn.success{background:#16A34A;color:#FFF;}
+  .btn.danger{background:transparent;color:#F87171;border:1px solid #F87171;}
   .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
-  #preview{max-width:100%;max-height:60vh;border-radius:12px;border:1px solid #334155;background:#000;}
+  #preview{max-width:100%;max-height:38vh;border-radius:12px;border:1px solid #334155;background:#000;object-fit:contain;}
   #status{font-size:12px;color:#94A3B8;text-align:center;min-height:16px;}
   #hint{font-size:12px;color:#94A3B8;text-align:center;max-width:320px;line-height:1.4;}
   input[type=file]{display:none;}
+  #thumbs{display:flex;gap:6px;overflow-x:auto;padding:4px 0;max-width:100%;width:100%;}
+  .thumb{position:relative;flex:0 0 auto;width:64px;height:80px;border-radius:8px;border:2px solid #334155;overflow:hidden;background:#000;}
+  .thumb img{width:100%;height:100%;object-fit:cover;}
+  .thumb .del{position:absolute;top:2px;right:2px;background:rgba(220,38,38,0.9);color:#FFF;border:0;width:20px;height:20px;border-radius:50%;font-size:12px;cursor:pointer;line-height:20px;padding:0;}
+  .thumb .num{position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,0.7);color:#FFF;font-size:10px;padding:1px 5px;border-radius:6px;font-weight:800;}
 </style>
 </head>
 <body>
 <div id="app">
-  <header>📄 Scanner Documenti · jscanify</header>
+  <header>
+    <div>📄 Scanner Documenti · <span id="mode">jscanify</span></div>
+    <div class="count" id="pageCount">0 pagine</div>
+  </header>
   <main>
-    <div id="hint">Scatta o carica una foto: rileveremo i bordi e correggeremo la prospettiva.</div>
-    <div class="row">
+    <div id="hint">Scatta/carica una pagina alla volta. Puoi aggiungere altre pagine prima di finire.</div>
+    <div class="row" id="pickRow">
       <label class="btn" for="pickCam">📷 Scatta</label>
       <label class="btn" for="pickFile">🖼️ Galleria</label>
     </div>
@@ -52,12 +66,18 @@ const SCANNER_HTML = `<!doctype html>
     <img id="preview" style="display:none"/>
     <div class="row" id="actionRow" style="display:none">
       <button class="btn secondary" id="btnRetake">Rifai</button>
-      <button class="btn" id="btnConfirm">Usa questa</button>
+      <button class="btn" id="btnAdd">+ Aggiungi pagina</button>
+      <button class="btn success" id="btnDone">✓ Termina e usa</button>
+    </div>
+    <div id="thumbs"></div>
+    <div class="row" id="bottomRow" style="display:none">
+      <button class="btn danger" id="btnCancel">Annulla tutto</button>
     </div>
   </main>
 </div>
 <script async src="https://docs.opencv.org/4.9.0/opencv.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jscanify@1.2.0/dist/jscanify.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
   const post = (payload) => {
     try {
@@ -68,14 +88,25 @@ const SCANNER_HTML = `<!doctype html>
       }
     } catch(e){}
   };
-  let scanner = null, cvReady = false, lastCleanDataUrl = null;
+  let scanner = null, cvReady = false;
+  const pages = []; // { dataUrl, w, h }
+  let currentClean = null;
   const $status = document.getElementById('status');
   const $prev = document.getElementById('preview');
   const $actions = document.getElementById('actionRow');
+  const $thumbs = document.getElementById('thumbs');
+  const $bottomRow = document.getElementById('bottomRow');
+  const $count = document.getElementById('pageCount');
+  const $mode = document.getElementById('mode');
+  function updateCount(){
+    $count.textContent = pages.length + (pages.length === 1 ? ' pagina' : ' pagine');
+    $bottomRow.style.display = pages.length > 0 ? 'flex' : 'none';
+  }
   function tryReady(){
     if (typeof jscanify !== 'undefined' && cvReady) {
       try { scanner = new jscanify(); } catch(e){}
-      $status.textContent = 'Pronto. Scegli una foto.';
+      $mode.textContent = 'jscanify pronto';
+      $status.textContent = 'Pronto. Scegli una pagina.';
     } else if (!cvReady) {
       $status.textContent = 'Attendo OpenCV…';
     } else {
@@ -89,6 +120,19 @@ const SCANNER_HTML = `<!doctype html>
     } else setTimeout(waitCv, 200);
   }
   waitCv();
+  function renderThumbs(){
+    $thumbs.innerHTML = '';
+    pages.forEach((p, idx) => {
+      const div = document.createElement('div');
+      div.className = 'thumb';
+      const img = document.createElement('img'); img.src = p.dataUrl;
+      const del = document.createElement('button'); del.textContent = '×'; del.className = 'del';
+      del.onclick = (ev) => { ev.stopPropagation(); pages.splice(idx, 1); renderThumbs(); updateCount(); };
+      const num = document.createElement('div'); num.className = 'num'; num.textContent = String(idx + 1);
+      div.appendChild(img); div.appendChild(del); div.appendChild(num);
+      $thumbs.appendChild(div);
+    });
+  }
   function handleFile(file){
     if (!file) return;
     $status.textContent = scanner ? 'Analisi in corso…' : 'Motore non pronto, uso originale…';
@@ -97,21 +141,24 @@ const SCANNER_HTML = `<!doctype html>
       const img = new Image();
       img.onload = () => {
         try {
+          let dataUrl, w = img.width, h = img.height;
           if (scanner) {
-            const w = Math.min(1200, img.width);
-            const h = Math.round(w * (img.height/img.width));
-            const canvas = scanner.extractPaper(img, w, h);
-            lastCleanDataUrl = canvas.toDataURL('image/png');
+            const dw = Math.min(1200, img.width);
+            const dh = Math.round(dw * (img.height/img.width));
+            const canvas = scanner.extractPaper(img, dw, dh);
+            dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            w = dw; h = dh;
           } else {
-            lastCleanDataUrl = e.target.result;
+            dataUrl = e.target.result;
           }
-          $prev.src = lastCleanDataUrl;
+          currentClean = { dataUrl, w, h };
+          $prev.src = dataUrl;
           $prev.style.display = 'block';
           $actions.style.display = 'flex';
-          $status.textContent = scanner ? 'Documento rilevato. Conferma per allegare.' : 'Immagine caricata (senza correzione).';
+          $status.textContent = scanner ? 'Anteprima pagina · scegli l\\'azione.' : 'Immagine caricata (senza correzione).';
         } catch(err) {
-          lastCleanDataUrl = e.target.result;
-          $prev.src = lastCleanDataUrl;
+          currentClean = { dataUrl: e.target.result, w: img.width, h: img.height };
+          $prev.src = currentClean.dataUrl;
           $prev.style.display = 'block';
           $actions.style.display = 'flex';
           $status.textContent = 'Rilevamento fallito, uso originale.';
@@ -121,17 +168,66 @@ const SCANNER_HTML = `<!doctype html>
     };
     reader.readAsDataURL(file);
   }
-  document.getElementById('pickCam').addEventListener('change', (e) => handleFile(e.target.files[0]));
-  document.getElementById('pickFile').addEventListener('change', (e) => handleFile(e.target.files[0]));
-  document.getElementById('btnRetake').addEventListener('click', () => {
-    lastCleanDataUrl = null;
+  function resetPreview(){
+    currentClean = null;
     $prev.style.display = 'none';
     $actions.style.display = 'none';
-    $status.textContent = 'Pronto. Scegli una foto.';
+    // Reset input value in modo da poter riscegliere lo stesso file
+    document.getElementById('pickCam').value = '';
+    document.getElementById('pickFile').value = '';
+    $status.textContent = pages.length > 0 ? ('Pagina ' + (pages.length + 1) + ': scegli una foto o termina.') : 'Pronto. Scegli una pagina.';
+  }
+  document.getElementById('pickCam').addEventListener('change', (e) => handleFile(e.target.files[0]));
+  document.getElementById('pickFile').addEventListener('change', (e) => handleFile(e.target.files[0]));
+  document.getElementById('btnRetake').addEventListener('click', () => resetPreview());
+  document.getElementById('btnAdd').addEventListener('click', () => {
+    if (!currentClean) return;
+    pages.push(currentClean);
+    renderThumbs();
+    updateCount();
+    resetPreview();
   });
-  document.getElementById('btnConfirm').addEventListener('click', () => {
-    if (!lastCleanDataUrl) return;
-    post({ type: 'scanned', dataUrl: lastCleanDataUrl, name: 'scanner_' + Date.now() + '.png' });
+  document.getElementById('btnCancel').addEventListener('click', () => {
+    pages.length = 0;
+    renderThumbs(); updateCount(); resetPreview();
+  });
+  document.getElementById('btnDone').addEventListener('click', async () => {
+    // Se c'è una pagina pending, includila
+    const list = pages.slice();
+    if (currentClean) list.push(currentClean);
+    if (list.length === 0) return;
+    // Se una sola pagina → invia PNG diretto (retro-compat con singola immagine)
+    if (list.length === 1) {
+      // Convertiamo la JPEG in PNG per uniformità: non necessario, la data URL è già valida.
+      post({ type: 'scanned', dataUrl: list[0].dataUrl, name: 'scanner_' + Date.now() + '.jpg', mime: 'image/jpeg' });
+      return;
+    }
+    // Multi-pagina → genera PDF con jsPDF
+    try {
+      $status.textContent = 'Genero PDF…';
+      const { jsPDF } = window.jspdf || {};
+      if (!jsPDF) throw new Error('jsPDF non disponibile');
+      // A4 in mm: 210 x 297. Adattiamo ogni pagina al foglio mantenendo aspect.
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const A4W = 210, A4H = 297, margin = 8;
+      for (let i = 0; i < list.length; i++) {
+        const p = list[i];
+        if (i > 0) pdf.addPage();
+        const availW = A4W - margin * 2, availH = A4H - margin * 2;
+        const ratio = Math.min(availW / p.w, availH / p.h);
+        const w = p.w * ratio, h = p.h * ratio;
+        const x = (A4W - w) / 2, y = (A4H - h) / 2;
+        pdf.addImage(p.dataUrl, 'JPEG', x, y, w, h, undefined, 'FAST');
+      }
+      const dataUrl = pdf.output('datauristring'); // "data:application/pdf;filename=..;base64,..."
+      // Normalizziamo il MIME
+      const idx = dataUrl.indexOf(',');
+      const base64 = idx >= 0 ? dataUrl.slice(idx + 1) : dataUrl;
+      const cleanUrl = 'data:application/pdf;base64,' + base64;
+      post({ type: 'scanned', dataUrl: cleanUrl, name: 'scan_' + list.length + 'pagine_' + Date.now() + '.pdf', mime: 'application/pdf' });
+    } catch (err) {
+      $status.textContent = 'Errore generazione PDF: ' + (err && err.message ? err.message : err);
+    }
   });
 </script>
 </body>
@@ -145,7 +241,7 @@ export function JscanifyScannerModal({ visible, onClose, onScanned }: Props) {
     try {
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === "scanned" && data.dataUrl) {
-        onScanned({ name: data.name || `scan_${Date.now()}.png`, dataUrl: data.dataUrl, mime: "image/png" });
+        onScanned({ name: data.name || `scan_${Date.now()}.png`, dataUrl: data.dataUrl, mime: data.mime || "image/png" });
         onClose();
       }
     } catch { /* ignore */ }
@@ -157,7 +253,7 @@ export function JscanifyScannerModal({ visible, onClose, onScanned }: Props) {
       try {
         const data = typeof evt.data === "string" ? JSON.parse(evt.data) : evt.data;
         if (data && data.type === "scanned" && data.dataUrl) {
-          onScanned({ name: data.name || `scan_${Date.now()}.png`, dataUrl: data.dataUrl, mime: "image/png" });
+          onScanned({ name: data.name || `scan_${Date.now()}.png`, dataUrl: data.dataUrl, mime: data.mime || "image/png" });
           onClose();
         }
       } catch { /* ignore */ }

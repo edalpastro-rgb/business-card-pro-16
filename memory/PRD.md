@@ -4800,3 +4800,35 @@ Ora la palette semantica AdvisorOS Pro è applicata ovunque: Axon Hub, Master gr
 **Test**:
 - Backend endpoint verificati via curl (status/manual/scheduler).
 - Frontend: lint pulito. Verifica manuale UI necessaria: aprire chat AxonOS → tap 📷 e 🔍 nella input bar sotto.
+
+---
+
+## PROMPT 19.a — Scanner Multi-Pagina (V50.z86) ✅ IMPLEMENTATO
+
+**`/app/frontend/src/JscanifyScannerModal.tsx`** riscritto completamente per supportare **cattura multi-pagina + generazione PDF unico**.
+
+**Novità nell'HTML embedded**:
+- Aggiunta CDN **jsPDF 2.5.1** (`cdnjs.cloudflare.com`) — verificata raggiungibilità (381 KB scaricabili).
+- Array `pages[]` che accumula ogni pagina già confermata.
+- UI:
+  - Contatore "N pagine" in alto a destra dell'header.
+  - Dopo la cattura di una pagina: 3 bottoni "Rifai" / "+ Aggiungi pagina" / "✓ Termina e usa".
+  - Striscia miniature orizzontale scorrevole delle pagine aggiunte (con numero e pulsante × rosso per eliminarle).
+  - Bottone "Annulla tutto" per svuotare lo stack se ci sono pagine.
+  - Status testuale che dice "Pagina N: scegli una foto o termina".
+- Reset automatico del `<input type=file>` dopo ogni "+ Aggiungi" così l'utente può riscegliere lo stesso file.
+
+**Logica generazione PDF**:
+- Se una sola pagina: invia PNG/JPEG diretto (retro-compatibilità con singola scansione).
+- Se più pagine: genera PDF A4 portrait 210×297mm con `jsPDF`:
+  - Margini 8mm.
+  - Ogni pagina viene rasterizzata come JPEG 85% con `scanner.extractPaper()` (max 1200px larghezza).
+  - Inserita con `addImage("JPEG", ...)` mantenendo l'aspect ratio.
+- Output: dataURL `data:application/pdf;base64,...` inviato al RN con MIME `application/pdf` e nome `scan_Npagine_TIMESTAMP.pdf`.
+
+**Componente RN**: la callback `onScanned(file)` riceve ora anche `mime`, che viene passato correttamente a `pendingAttachments` in `AssistantChat.tsx` (già supportato dalla precedente iterazione).
+
+**Test**:
+- Lint pulito ✅.
+- jsPDF CDN accessibile ✅.
+- Verifica manuale UI (raccomandata): aprire chat Axon → tap 🔍 Scanner → scattare/caricare pagina 1 → "+ Aggiungi pagina" → pagina 2 → "Termina e usa" → verificare che appaia in chat un allegato `.pdf` con 2 pagine.
