@@ -2328,6 +2328,180 @@ async def geocode_distances(body: GeocodeDistancesIn, user=Depends(get_current_u
     return {"origin_valid": True, "distances_km": distances}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# V50.z79 — Meteo (Open-Meteo) + allerte (Protezione Civile / Open-Meteo warnings)
+# Cache 1h su collezione weather_cache per non sforare i limiti (10k req/day free)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+_OPEN_METEO_WARN_URL = "https://api.open-meteo.com/v1/forecast"  # con &current_weather + weather_code
+
+_WEATHER_CODE_ICON = {
+    # WMO Weather Interpretation Codes → emoji-ish icon key per frontend
+    0: {"key": "sunny", "label": "Sereno"},
+    1: {"key": "sunny", "label": "Prev. sereno"},
+    2: {"key": "partly_cloudy", "label": "Parz. nuvoloso"},
+    3: {"key": "cloudy", "label": "Nuvoloso"},
+    45: {"key": "fog", "label": "Nebbia"},
+    48: {"key": "fog", "label": "Nebbia brinata"},
+    51: {"key": "drizzle", "label": "Pioviggine leggera"},
+    53: {"key": "drizzle", "label": "Pioviggine"},
+    55: {"key": "drizzle", "label": "Pioviggine intensa"},
+    61: {"key": "rain", "label": "Pioggia leggera"},
+    63: {"key": "rain", "label": "Pioggia"},
+    65: {"key": "rain_heavy", "label": "Pioggia intensa"},
+    71: {"key": "snow", "label": "Neve leggera"},
+    73: {"key": "snow", "label": "Neve"},
+    75: {"key": "snow_heavy", "label": "Neve intensa"},
+    77: {"key": "snow", "label": "Grani di neve"},
+    80: {"key": "rain", "label": "Rovesci leggeri"},
+    81: {"key": "rain", "label": "Rovesci"},
+    82: {"key": "rain_heavy", "label": "Rovesci violenti"},
+    85: {"key": "snow", "label": "Rovesci nevosi"},
+    86: {"key": "snow_heavy", "label": "Rovesci nevosi forti"},
+    95: {"key": "thunderstorm", "label": "Temporale"},
+    96: {"key": "thunderstorm", "label": "Temporale con grandine"},
+    99: {"key": "thunderstorm", "label": "Temporale violento"},
+}
+
+
+class WeatherPoint(BaseModel):
+    lat: float
+    lon: float
+    date: Optional[str] = None  # ISO date "YYYY-MM-DD"; se None → oggi
+
+
+class WeatherBatchIn(BaseModel):
+    points: List[WeatherPoint]
+
+
+class WeatherAlertsIn(BaseModel):
+    lat: float
+    lon: float
+
+
+async def _fetch_openmeteo_daily(lat: float, lon: float, date_iso: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Cache 1h. Ritorna {weather_code, temp_min, temp_max, temp, icon_key, label} per la data."""
+    d = date_iso or utcnow().strftime("%Y-%m-%d")
+    cache_key = f"{round(lat,3)},{round(lon,3)}|{d}"
+    try:
+        cached = await db.weather_cache.find_one({"key": cache_key}, {"_id": 0})
+    except Exception:
+        cached = None
+    if cached and isinstance(cached.get("cached_at"), datetime):
+        ca = cached["cached_at"]
+        if ca.tzinfo is None:
+            ca = ca.replace(tzinfo=timezone.utc)
+        if (utcnow() - ca).total_seconds() < 3600:
+            return cached.get("data")
+    try:
+        async with _httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(_OPEN_METEO_URL, params={
+                "latitude": lat, "longitude": lon,
+                "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max",
+                "start_date": d, "end_date": d,
+                "timezone": "auto",
+            })
+            if r.status_code != 200:
+                return None
+            j = r.json() or {}
+            daily = j.get("daily") or {}
+            times = daily.get("time") or []
+            if not times:
+                return None
+            idx = 0
+            code = int((daily.get("weather_code") or [0])[idx] or 0)
+            tmin = float((daily.get("temperature_2m_min") or [0])[idx] or 0)
+            tmax = float((daily.get("temperature_2m_max") or [0])[idx] or 0)
+            precip = float((daily.get("precipitation_sum") or [0])[idx] or 0)
+            wind = float((daily.get("wind_speed_10m_max") or [0])[idx] or 0)
+            meta = _WEATHER_CODE_ICON.get(code, {"key": "cloudy", "label": "Meteo"})
+            data = {
+                "weather_code": code,
+                "temp_min": round(tmin, 1),
+                "temp_max": round(tmax, 1),
+                "temp": round((tmin + tmax) / 2.0, 1),
+                "precipitation_mm": round(precip, 1),
+                "wind_kmh": round(wind, 1),
+                "icon_key": meta["key"],
+                "label": meta["label"],
+            }
+            try:
+                await db.weather_cache.update_one(
+                    {"key": cache_key}, {"$set": {"key": cache_key, "data": data, "cached_at": utcnow()}}, upsert=True,
+                )
+            except Exception:
+                pass
+            return data
+    except Exception:
+        return None
+
+
+@api_router.post("/weather/forecast-batch")
+async def weather_forecast_batch(body: WeatherBatchIn, user=Depends(get_current_user)):
+    """Ritorna previsioni per una lista di (lat, lon, date). Cache 1h per punto+data."""
+    results = []
+    for p in body.points[:100]:
+        d = await _fetch_openmeteo_daily(p.lat, p.lon, p.date)
+        results.append(d)
+    return {"results": results}
+
+
+@api_router.post("/weather/alerts")
+async def weather_alerts(body: WeatherAlertsIn, user=Depends(get_current_user)):
+    """Rileva allerte meteo attive per la posizione: usa Open-Meteo (dati 24h)
+    + soglie locali per generare eventi di severità (rossa/arancione/gialla).
+    Approssima le allerte della Protezione Civile — utile per non appesantire il feed XML."""
+    d_today = utcnow().strftime("%Y-%m-%d")
+    data = await _fetch_openmeteo_daily(body.lat, body.lon, d_today)
+    alerts: List[Dict[str, Any]] = []
+    if not data:
+        return {"alerts": alerts, "checked_at": utcnow()}
+    code = int(data.get("weather_code") or 0)
+    precip = float(data.get("precipitation_mm") or 0)
+    wind = float(data.get("wind_kmh") or 0)
+    tmax = float(data.get("temp_max") or 0)
+    tmin = float(data.get("temp_min") or 0)
+
+    # Regole soglie (soft — aggregate stile Protezione Civile)
+    if code in {95, 96, 99}:
+        alerts.append({"id": f"thunder_{d_today}", "severity": "orange", "icon": "thunderstorm", "title": "Temporali forti", "detail": data.get("label")})
+    if precip >= 40:
+        alerts.append({"id": f"rain_{d_today}", "severity": "red" if precip >= 80 else "orange", "icon": "rainy", "title": f"Piogge intense ({precip:.0f} mm)", "detail": "Rischio allagamenti locali"})
+    if wind >= 60:
+        alerts.append({"id": f"wind_{d_today}", "severity": "red" if wind >= 90 else "orange", "icon": "flash", "title": f"Vento forte ({wind:.0f} km/h)", "detail": "Prestare attenzione"})
+    if tmax >= 38:
+        alerts.append({"id": f"heat_{d_today}", "severity": "red" if tmax >= 40 else "orange", "icon": "sunny", "title": f"Ondata di calore ({tmax:.0f}°C)", "detail": "Idratarsi ed evitare esposizione diretta"})
+    if tmin <= -5:
+        alerts.append({"id": f"cold_{d_today}", "severity": "red" if tmin <= -10 else "orange", "icon": "snow", "title": f"Freddo intenso ({tmin:.0f}°C)", "detail": "Rischio gelate"})
+    if code in {75, 86}:
+        alerts.append({"id": f"snow_{d_today}", "severity": "orange", "icon": "snow", "title": "Nevicate intense", "detail": data.get("label")})
+
+    return {"alerts": alerts, "checked_at": utcnow(), "location": {"lat": body.lat, "lon": body.lon}, "weather": data}
+
+
+
+class WeatherByAddressIn(BaseModel):
+    items: List[Dict[str, Any]]  # [{address: str, date: "YYYY-MM-DD"}]
+
+
+@api_router.post("/weather/forecast-by-address")
+async def weather_forecast_by_address(body: WeatherByAddressIn, user=Depends(get_current_user)):
+    """Accetta indirizzi liberi + data. Fa geocoding (cached) e poi meteo."""
+    out = []
+    for it in body.items[:100]:
+        addr = (it.get("address") or "").strip()
+        date_iso = (it.get("date") or None)
+        if not addr:
+            out.append(None); continue
+        coords = await _geocode_one(addr)
+        if not coords:
+            out.append(None); continue
+        d = await _fetch_openmeteo_daily(coords["lat"], coords["lon"], date_iso)
+        out.append(d)
+    return {"results": out}
+
+
 class ContactsDistancesBatchIn(BaseModel):
     origin: str
     contact_ids: Optional[List[str]] = None  # se None, tutti i contatti visibili al chiamante

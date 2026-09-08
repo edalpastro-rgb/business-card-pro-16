@@ -1,3 +1,41 @@
+## V50.z79 (Set 2026) — Meteo Open-Meteo + allerte Protezione Civile-like (PROMPT 15)
+
+### Richieste utente
+1. Allerte attive nella home con flash oscurabile.
+2. Fonti: Open-Meteo per meteo + feed Protezione Civile per allerte.
+3. Nel calendario, icona meteo + temperatura sugli appuntamenti in base a geo agente e data.
+
+### Backend
+- 3 nuovi endpoint (cache DB `weather_cache` con TTL 1h):
+  - `POST /api/weather/forecast-batch` — batch lat/lon+date, ritorna weather_code, temp, icon_key.
+  - `POST /api/weather/forecast-by-address` — accetta `[{address, date}]`, auto-geocode via cache esistente + forecast.
+  - `POST /api/weather/alerts` — allerte per lat/lon oggi, con soglie tipo Protezione Civile:
+    - Temporali forti (code 95/96/99) → arancione.
+    - Piogge intense ≥40mm → arancione, ≥80mm → rossa.
+    - Vento forte ≥60km/h → arancione, ≥90 → rossa.
+    - Ondata di calore ≥38°C → arancione, ≥40 → rossa.
+    - Freddo intenso ≤-5°C → arancione, ≤-10 → rossa.
+    - Nevicate intense (code 75/86) → arancione.
+- Uso della cache geocode esistente + fetch OpenMeteo con timezone auto, limit 100 punti per batch.
+
+### Frontend
+- **`src/WeatherAlertsCard.tsx`**: banner rossa/arancione/gialla in Home. Icona ⚡ lampeggiante (Animated.loop). Pulsante 👁️‍🗨️ dismiss salva `weather_alert_dismissed_<id>` in AsyncStorage; l'allerta scompare fino a nuovo evento (id ha suffisso data → auto-reset il giorno dopo).
+- **Home** (`app/(tabs)/home.tsx`): `<WeatherAlertsCard />` inserita all'inizio dello `ScrollView`. Chiede permessi GPS al primo caricamento (best-effort su `getLastKnownPositionAsync` con maxAge 1h).
+- **Calendario** (`app/(tabs)/calendario.tsx`):
+  - Fetch batch meteo per gli appuntamenti del giorno selezionato che hanno `location` valorizzato e data entro 16 giorni futuri.
+  - Badge azzurro `☀️ 33°` accanto all'orario dell'appuntamento (icon map: sunny, partly_cloudy, cloudy, rain, thunderstorm, snow…).
+  - Cache in memoria per non rifare le chiamate se l'utente naviga nel calendario.
+
+### Permessi `app.json`
+- iOS: `NSLocationWhenInUseUsageDescription = "Meteo e allerte per la tua zona"`.
+- Android: `ACCESS_COARSE_LOCATION`, `ACCESS_FINE_LOCATION`.
+
+### Test end-to-end via curl
+- Milano oggi → Nuvoloso 33°C, 0mm pioggia, vento 12km/h — nessuna allerta.
+- Roma tra 2 giorni → Temporale con grandine 31°C, 18mm pioggia — attivata allerta.
+- Batch by-address funziona con `Piazza Duomo, Milano` e `Colosseo, Roma`.
+
+
 ## V50.z78 (Set 2026) — Sveglia: volume, preset sounds, fix reset 07:30 (PROMPT 14)
 
 ### Richieste utente

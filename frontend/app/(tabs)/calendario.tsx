@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -68,6 +68,8 @@ function CalendarioScreen() {
   const pagePad = usePageBottomPadding();
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
   const [appts, setAppts] = useState<Appointment[]>([]);
+  // V50.z79 — Meteo per appuntamenti (cache in memoria: apptId → {icon, temp, label})
+  const [weatherByAppt, setWeatherByAppt] = useState<Record<string, { icon: string; temp: number; label: string } | null>>({});
   const [teamAppts, setTeamAppts] = useState<TeamAppointment[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -221,6 +223,49 @@ function CalendarioScreen() {
     return true;
   });
   const dayItems = filteredItems.filter((a) => sameDay(a.start_at, selectedDate));
+
+  // V50.z79 — Fetch meteo per gli appuntamenti del giorno selezionato.
+  // Priorità location: preferred_address del contatto (via lookup contact_id) → item.location → skip.
+  useEffect(() => {
+    const targets = dayItems
+      .filter((it) => it.kind === "appt" && !weatherByAppt[it.id])
+      .map((it) => {
+        // Priorità: item.location (indirizzo appuntamento). Il preferred_address del contatto
+        // richiederebbe una lookup separata — se serve, l'utente può settarlo come location al momento
+        // della creazione dell'appuntamento (già supportato).
+        const addr = (it.location || "").trim();
+        if (!addr) return null;
+        const d = it.start_at.toISOString().slice(0, 10);
+        return { id: it.id, address: addr, date: d };
+      })
+      .filter((x): x is { id: string; address: string; date: string } => !!x);
+    if (targets.length === 0) return;
+    // Limita a 16 giorni (Open-Meteo forecast limit)
+    const today = new Date();
+    const safe = targets.filter((t) => {
+      const dt = new Date(t.date);
+      return (dt.getTime() - today.getTime()) <= 16 * 24 * 3600 * 1000 && (dt.getTime() - today.getTime()) >= -1 * 24 * 3600 * 1000;
+    });
+    if (safe.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api<{ results: Array<{ icon_key?: string; temp?: number; temp_min?: number; temp_max?: number; label?: string } | null> }>(
+          "/weather/forecast-by-address",
+          { method: "POST", body: { items: safe.map((t) => ({ address: t.address, date: t.date })) } }
+        );
+        if (cancelled) return;
+        const map: Record<string, { icon: string; temp: number; label: string } | null> = {};
+        safe.forEach((t, i) => {
+          const r = res.results?.[i];
+          if (!r) { map[t.id] = null; return; }
+          map[t.id] = { icon: r.icon_key || "cloudy", temp: r.temp_max ?? r.temp ?? 0, label: r.label || "" };
+        });
+        setWeatherByAppt((prev) => ({ ...prev, ...map }));
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [dayItems, weatherByAppt]);
 
   // v2.19 — Persistent backlog: MY non-done appointments in the past or today.
   // Stays visible until user marks them done or reschedules them to a future date.
@@ -457,6 +502,23 @@ function CalendarioScreen() {
                       <Text style={styles.time}>{item.start_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
                       {item.kind === "birthday" ? <Ionicons name="gift" size={14} color={eventColor(item)} /> : null}
                       {item.is_phone ? <Ionicons name="call" size={14} color={eventColor(item)} /> : null}
+                      {/* V50.z79 — Meteo badge (icona + temperatura) */}
+                      {(() => {
+                        const w = weatherByAppt[item.id];
+                        if (!w) return null;
+                        const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
+                          sunny: "sunny", partly_cloudy: "partly-sunny", cloudy: "cloud",
+                          fog: "cloud-outline", drizzle: "rainy-outline", rain: "rainy",
+                          rain_heavy: "thunderstorm", snow: "snow", snow_heavy: "snow",
+                          thunderstorm: "thunderstorm-outline",
+                        };
+                        return (
+                          <View style={styles.wxBadge}>
+                            <Ionicons name={iconMap[w.icon] || "cloud"} size={11} color="#0369A1" />
+                            <Text style={styles.wxBadgeTxt}>{Math.round(w.temp)}°</Text>
+                          </View>
+                        );
+                      })()}
                       {/* V38T — Collaborator badge on non-own events */}
                       {item.kind === "appt" && !item.is_mine && item.created_by_name && (
                         <View style={[styles.creatorBadge, { backgroundColor: item.created_by_color || theme.color.muted }]}>
@@ -617,6 +679,9 @@ const styles = StyleSheet.create({
   leftBar: { width: 3, alignSelf: "stretch" },
   row: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   time: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
+  // V50.z79 — Meteo badge accanto all'orario
+  wxBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: "#E0F2FE", borderWidth: 1, borderColor: "#BAE6FD" },
+  wxBadgeTxt: { fontSize: 10, fontWeight: "700", color: "#0369A1" },
   apptTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface, marginTop: 2 },
   loc: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
   checkBtn: { padding: 10 },

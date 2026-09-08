@@ -16,7 +16,8 @@
         "NSPhotoLibraryUsageDescription": "Aggiungi immagini motivazionali al tuo spazio personale",
         "NSCameraUsageDescription": "Scatta foto e scansiona bollette e QR",
         "NSMicrophoneUsageDescription": "Registra note vocali sui tuoi contatti",
-        "NSContactsUsageDescription": "Importa i contatti dalla tua rubrica"
+        "NSContactsUsageDescription": "Importa i contatti dalla tua rubrica",
+        "NSLocationWhenInUseUsageDescription": "Meteo e allerte per la tua zona"
       }
     },
     "android": {
@@ -37,7 +38,9 @@
         "RECEIVE_BOOT_COMPLETED",
         "RECORD_AUDIO",
         "READ_CONTACTS",
-        "WRITE_CONTACTS"
+        "WRITE_CONTACTS",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
