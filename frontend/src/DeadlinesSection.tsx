@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 
 /**
@@ -98,34 +97,11 @@ export function DeadlinesSection({ contactId }: { contactId: string }) {
     load();
   }, [load]);
 
-  if (loading) {
-    return (
-      <View style={styles.wrap}>
-        <View style={styles.header}>
-          <Ionicons name="hourglass-outline" size={18} color={C.primary} />
-          <Text style={styles.title}>Scadenze contratti</Text>
-        </View>
-        <View style={{ paddingVertical: 16, alignItems: "center" }}>
-          <ActivityIndicator color={C.primary} />
-        </View>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.wrap}>
-        <View style={styles.header}>
-          <Ionicons name="hourglass-outline" size={18} color={C.primary} />
-          <Text style={styles.title}>Scadenze contratti</Text>
-          <Pressable onPress={load} style={styles.reloadBtn}>
-            <Ionicons name="refresh" size={16} color={C.primary} />
-          </Pressable>
-        </View>
-        <Text style={styles.error}>{error}</Text>
-      </View>
-    );
-  }
+  // La sezione compare SOLO se esistono scadenze rilevanti: scadute (ancora da
+  // gestire) oppure in scadenza entro i prossimi 90 giorni. Durante il
+  // caricamento, in caso di errore o senza scadenze non viene renderizzato nulla.
+  const relevant = items.filter((d) => typeof d.days_left === "number" && d.days_left <= 90);
+  if (loading || error || relevant.length === 0) return null;
 
   return (
     <View style={styles.wrap}>
@@ -138,15 +114,7 @@ export function DeadlinesSection({ contactId }: { contactId: string }) {
         </Pressable>
       </View>
 
-      {items.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <Ionicons name="information-circle-outline" size={20} color={C.muted} />
-          <Text style={styles.emptyTxt}>
-            Nessuna scadenza rilevata. Carica una bolletta con data di attivazione o durata contratto e Axon calcolerà automaticamente le scadenze.
-          </Text>
-        </View>
-      ) : (
-        items.map((d) => {
+      {relevant.map((d) => {
           const tm = TYPE_META[d.bill_type] || TYPE_META.luce;
           const sm = STATUS_META[d.status] || STATUS_META.unknown;
           return (
@@ -182,8 +150,7 @@ export function DeadlinesSection({ contactId }: { contactId: string }) {
               </View>
             </View>
           );
-        })
-      )}
+        })}
     </View>
   );
 }

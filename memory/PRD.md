@@ -5533,3 +5533,6 @@ else Linking.openURL(url).catch(() => {});
 - Frontend `google-drive.tsx`: `openAuthSessionAsync` ora usa come returnUrl il DEEP-LINK dell'app (`Linking.createURL("google-drive")` → `frontend://google-drive?oauth=google` su APK) invece dell'https del backend (mai intercettato su Android senza App Link → custom tab restava aperto). Al rientro (`?oauth=google&status=`) la schermata ricarica lo stato e notifica. Polling status esteso a 14 tentativi. Rimosso `GD_CALLBACK_URL`.
 - Backend `GET /auth/google/callback`: deep-link di ritorno cambiato in `frontend://google-drive?oauth=google&status=ok|err`; se arrivano richieste SENZA code/state (preload/reload del custom tab dopo uno scambio riuscito) e c'è una connessione salvata negli ultimi 5 min → pagina "Google Drive già collegato" invece del falso errore; altrimenti messaggio esplicativo.
 - `GET /api/google-drive/status` espone `redirect_uri` (mostrato nella schermata quando non collegato) per verificare la corrispondenza con Google Cloud Console.
+
+## Scheda cliente: "Scadenze contratti" nascosta senza scadenze (Giugno 2026)
+- `src/DeadlinesSection.tsx`: la sezione viene renderizzata solo se esistono scadenze con `days_left <= 90` (scadute o in scadenza entro 90 gg). Nessun render durante caricamento, errore o lista vuota (rimossi loader/empty state/errore inline).
