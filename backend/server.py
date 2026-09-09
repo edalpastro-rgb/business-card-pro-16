@@ -3018,8 +3018,11 @@ class WeatherBatchIn(BaseModel):
 
 
 class WeatherAlertsIn(BaseModel):
-    lat: float
-    lon: float
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    # Se lat/lon mancano (GPS negato/web): geocoding di `address`, altrimenti
+    # fallback su user_settings.home_address del singolo utente, poi office_address del tenant.
+    address: Optional[str] = None
 
 
 async def _fetch_openmeteo_daily(lat: float, lon: float, date_iso: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -3095,10 +3098,35 @@ async def weather_alerts(body: WeatherAlertsIn, user=Depends(get_current_user)):
     + soglie locali per generare eventi di severità (rossa/arancione/gialla).
     Approssima le allerte della Protezione Civile — utile per non appesantire il feed XML."""
     d_today = utcnow().strftime("%Y-%m-%d")
-    data = await _fetch_openmeteo_daily(body.lat, body.lon, d_today)
+    lat, lon = body.lat, body.lon
+    place = "Posizione attuale"
+    if lat is None or lon is None:
+        candidates: List[str] = []
+        if (body.address or "").strip():
+            candidates.append(body.address.strip())
+        try:
+            us = await db.user_settings.find_one({"user_id": user["user_id"]}, {"_id": 0, "home_address": 1})
+            if us and (us.get("home_address") or "").strip():
+                candidates.append(us["home_address"].strip())
+        except Exception:
+            pass
+        try:
+            ts = await db.settings.find_one({"user_id": tenant_id(user)}, {"_id": 0, "office_address": 1})
+            if ts and (ts.get("office_address") or "").strip():
+                candidates.append(ts["office_address"].strip())
+        except Exception:
+            pass
+        for addr in candidates:
+            coords = await _geocode_one(addr)
+            if coords:
+                lat, lon, place = coords["lat"], coords["lon"], addr
+                break
+        if lat is None or lon is None:
+            return {"alerts": [], "checked_at": utcnow(), "location": None, "weather": None, "place": None, "needs_address": True}
+    data = await _fetch_openmeteo_daily(lat, lon, d_today)
     alerts: List[Dict[str, Any]] = []
     if not data:
-        return {"alerts": alerts, "checked_at": utcnow()}
+        return {"alerts": alerts, "checked_at": utcnow(), "location": {"lat": lat, "lon": lon}, "weather": None, "place": place}
     code = int(data.get("weather_code") or 0)
     precip = float(data.get("precipitation_mm") or 0)
     wind = float(data.get("wind_kmh") or 0)
@@ -3119,7 +3147,7 @@ async def weather_alerts(body: WeatherAlertsIn, user=Depends(get_current_user)):
     if code in {75, 86}:
         alerts.append({"id": f"snow_{d_today}", "severity": "orange", "icon": "snow", "title": "Nevicate intense", "detail": data.get("label")})
 
-    return {"alerts": alerts, "checked_at": utcnow(), "location": {"lat": body.lat, "lon": body.lon}, "weather": data}
+    return {"alerts": alerts, "checked_at": utcnow(), "location": {"lat": lat, "lon": lon}, "weather": data, "place": place}
 
 
 
@@ -10105,6 +10133,9 @@ class UserSettingsIn(BaseModel):
     # V29 — Finestra (giorni) per il widget "Scadenze imminenti" in Home.
     # Valori consigliati: 30 | 60 | 90 | 180. Default 60.
     deadlines_window_days: Optional[int] = None
+    # Indirizzo di residenza del singolo utente (master/collaboratore/manager):
+    # usato dal widget Meteo & Allerte in Home come fallback quando il GPS non è disponibile.
+    home_address: Optional[str] = None
 
 
 class AssistantAttachmentIn(BaseModel):

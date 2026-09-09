@@ -5517,3 +5517,8 @@ else Linking.openURL(url).catch(() => {});
 - `appointment/new.tsx`: modalità modifica via `?edit=<id>` (precompila form + allegati, salva con PUT, riprogramma il promemoria, torna al dettaglio). Sezione broadcast nascosta in modifica.
 - Calendario: puntini della vista Settimana colorati per tipo appuntamento (max 3, come vista Mese); corretto anche il pallino della lista "Da recuperare" (era sempre arancione).
 - Calendario: legenda colori tipi appuntamento (riga scrollabile sotto i filtri area, solo scope "I miei"; include tipi default non nascosti + personalizzati). testID `cal-type-legend`.
+
+## Widget Meteo & Allerte sempre visibile (Giugno 2026)
+- Prima la card compariva solo con allerte attive → "non si trovava". Ora `WeatherAlertsCard` (Home, widget "Meteo & Allerte") è sempre visibile: meteo di oggi (icona, max/min, descrizione, vento/pioggia), località, pill "Nessuna allerta"/"N allerte" + banner allerte dismissabili.
+- Posizione: GPS → fallback `user_settings.home_address` (indirizzo di residenza del singolo utente, editabile dal widget con tap sulla località) → `settings.office_address` del tenant. Se nessuno disponibile: card "Imposta" indirizzo.
+- Backend: `POST /api/weather/alerts` accetta lat/lon opzionali + `address`; risolve i fallback lato server (geocoding `_geocode_one`); risponde anche `weather`, `place`, `needs_address`. `UserSettingsIn.home_address` nuovo campo.
