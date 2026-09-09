@@ -92,6 +92,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   anteprima allegati in-app (V50.z24).
 - Feedback 👍/👎 self-learning + few-shot dinamico (v41), "Salva come regola" / "Salva nei file Master" a fine risposta (v2.y, V38T),
   regole auto-estratte da chat notturne (v43), memoria persistente Axon riscritta (V50.z51, endpoint `/assistant/memory`).
+  **V50.z129 — cattura immediata impegni**: se la risposta di Axon contiene "da ora in avanti / d'ora in poi / da adesso / da questo
+  momento + verbo al futuro" la frase viene salvata subito in `ai_teach_rules` (`auto_generated=True`, `source=chat_commitment`,
+  dedup su `text_norm`) senza attendere il job notturno delle 04:00 (`_auto_capture_commitment_rules`, hook in chat + chat/stream).
 - **Insegna ad Axon** (v2.34): regole + file/URL allegati, multi-categoria (v2.n), tab compatti (V50.i), PDF extraction e URL refresh
   (v2.ab), auto-suggest deep-link canonici (V50.z29). Fix ricorrenti: Axon legge i file delle regole (v2.ak, V29.at),
   ricerca PDF GME / tabelle PUN / dual-storage (V50.z26/27/28), validazione prefetch GME (V50.z77).
@@ -164,6 +167,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z129 | Giu 2026 | Cattura automatica impegni Axon ("da ora farò X") → ai_teach_rules immediata |
 | V50.z128 | Giu 2026 | Google Drive: token cache + retry transitori + rimozione connessione solo su invalid_grant |
 | V50.z127 | Giu 2026 | Fix orario appuntamenti: datetime UTC espliciti (+00:00) nelle risposte appuntamenti/calendario |
 | V50.z126 | Giu 2026 | Azioni rapide in streaming SSE + heartbeat preflight + `cache_only` |

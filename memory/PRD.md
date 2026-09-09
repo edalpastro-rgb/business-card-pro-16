@@ -1,6 +1,13 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z129 (Giu 2026) — Cattura automatica impegni Axon → ai_teach_rules immediata
+
+- `_AXON_COMMITMENT_RE` (marcatori: "da ora in avanti/poi", "d'ora in avanti/poi", "da ora", "da adesso", "da questo momento", "da oggi in avanti/poi") + `_AXON_COMMITMENT_VERB_RE` (verbi al futuro: farò, userò, applicherò, non includerò, ti risponderò…). Entrambi devono matchare nella stessa frase (evita falsi positivi tipo "Da ora puoi consultare il grafico").
+- `_extract_axon_commitments(reply)` → max 3 frasi (15–400 char). `_auto_capture_commitment_rules(user, msg, reply)` → insert in `ai_teach_rules` con `auto_generated=True`, `source="chat_commitment"`, `source_user_message`, `text_norm` per dedup, categoria "Generale", titolo = frase senza marcatore (max 70 char, markdown rimosso).
+- Hook fire-and-forget (`asyncio.create_task`) dopo la finalizzazione della risposta sia in `/assistant/chat` sia in `/assistant/chat/stream`, accanto a `_maybe_save_memory`. Il job notturno resta invariato.
+- Test: 6 frasi unit (4 positive, 2 negative) ✅; E2E via stream: "Da ora in avanti userò sempre il Listino Optima 2026…" → regola creata e visibile in `GET /ai-teach/rules` ✅; dedup seconda esecuzione = 0 ✅.
+
 ## V50.z128 (Giu 2026) — Google Drive `_gd_get_credentials`: cache token + retry + invalid_grant
 
 - Prima: QUALSIASI errore in `creds.refresh()` (anche rete/timeout/5xx Google) cancellava la connessione Drive dell'utente → riconnessioni continue.

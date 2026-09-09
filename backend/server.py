@@ -14776,6 +14776,12 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception:
         pass
 
+    # V50.z129 — Cattura immediata impegni "da ora farò X" → ai_teach_rules
+    try:
+        asyncio.create_task(_auto_capture_commitment_rules(user, msg, reply_text))
+    except Exception:
+        pass
+
     # V50.w — Fire-and-forget Axon Brain distillation ogni ~8 messaggi
     try:
         _count = await db.assistant_messages.count_documents({"user_id": user["user_id"], "session_id": session_id})
@@ -15257,6 +15263,89 @@ async def _maybe_alarm_command(msg: str, user: dict) -> Optional[dict]:
     return {"reply": reply, "cmd": "alarm_create", "alarm": doc}
 
 
+# =========================================================================
+# V50.z129 — Cattura automatica impegni di Axon ("da ora farò X").
+# Quando la risposta contiene una frase di impegno esplicito ("da ora in
+# avanti…", "d'ora in poi…", "da adesso…", "da questo momento…") la regola
+# viene salvata SUBITO in `ai_teach_rules` (auto_generated=True), senza
+# attendere la distillazione notturna delle 04:00.
+# =========================================================================
+_AXON_COMMITMENT_RE = re.compile(
+    r"(?:\bd[a']\s*ora\s+in\s+(?:avanti|poi)|\bda\s+ora\b|\bda\s+adesso\b|\bda\s+questo\s+momento\b|"
+    r"\bda\s+oggi\s+in\s+(?:avanti|poi))",
+    re.IGNORECASE,
+)
+_AXON_COMMITMENT_VERB_RE = re.compile(
+    r"\b(far[òo]|user[òo]|applicher[òo]|terr[òo]|considerer[òo]|risponder[òo]|ricorder[òo]|includer[òo]|"
+    r"eviter[òo]|indicher[òo]|mostrer[òo]|calcoler[òo]|tratter[òo]|proporr[òo]|segnaler[òo]|"
+    r"utilizzer[òo]|verificher[òo]|controller[òo]|scriver[òo]|chiamer[òo]|salver[òo]|aggiunger[òo]|formatter[òo]|"
+    r"non\s+\w+r[òo]|mi\s+ricorder[òo]|ti\s+\w+r[òo])\b",
+    re.IGNORECASE,
+)
+
+
+def _extract_axon_commitments(reply: str) -> List[str]:
+    """Ritorna le frasi della risposta che contengono un impegno esplicito di Axon."""
+    if not reply or len(reply) > 20000:
+        return []
+    out: List[str] = []
+    for raw in re.split(r"(?<=[.!?])\s+|\n+", reply):
+        s = raw.strip().strip("*-•> ").strip()
+        if len(s) < 15 or len(s) > 400:
+            continue
+        if _AXON_COMMITMENT_RE.search(s) and _AXON_COMMITMENT_VERB_RE.search(s):
+            out.append(s)
+        if len(out) >= 3:
+            break
+    return out
+
+
+async def _auto_capture_commitment_rules(user: dict, user_msg: str, reply: str) -> int:
+    """Salva come regole `ai_teach_rules` gli impegni espliciti trovati nella risposta.
+    Dedup per testo normalizzato. Ritorna il numero di regole create."""
+    try:
+        sentences = _extract_axon_commitments(reply)
+        if not sentences:
+            return 0
+        tid = tenant_id(user)
+        created = 0
+        for s in sentences:
+            norm = re.sub(r"\s+", " ", s).strip().lower()
+            exists = await db.ai_teach_rules.find_one(
+                {"user_id": tid, "$or": [{"text_norm": norm}, {"text": s}]}, {"_id": 0, "rule_id": 1}
+            )
+            if exists:
+                continue
+            title = _AXON_COMMITMENT_RE.sub("", s).replace("**", "").replace("__", "").strip(" ,;:-").strip()
+            title = (title[:1].upper() + title[1:]) if title else s
+            if len(title) > 70:
+                title = title[:67].rstrip() + "…"
+            now = utcnow()
+            doc = {
+                "rule_id": f"aitr_{uuid.uuid4().hex[:12]}",
+                "user_id": tid,
+                "created_by": user["user_id"],
+                "categories": ["Generale"],
+                "category": "Generale",
+                "title": title,
+                "text": s,
+                "text_norm": norm,
+                "files": [],
+                "auto_generated": True,
+                "source": "chat_commitment",
+                "source_user_message": (user_msg or "")[:500],
+                "created_at": now,
+                "updated_at": now,
+            }
+            await db.ai_teach_rules.insert_one(doc)
+            created += 1
+            logger.info("[axon-auto-rule] tenant=%s regola catturata: %s", tid, title)
+        return created
+    except Exception as exc:
+        logger.warning("[axon-auto-rule] capture failed: %s", exc)
+        return 0
+
+
 @api_router.post("/assistant/chat/stream")
 async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_current_user)):
     """SSE streaming variant of /assistant/chat.
@@ -15521,6 +15610,12 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         # Fire-and-forget memory distillation
         try:
             asyncio.create_task(_maybe_save_memory(user["user_id"], session_id, assistant_name))
+        except Exception:
+            pass
+
+        # V50.z129 — Cattura immediata impegni "da ora farò X" → ai_teach_rules
+        try:
+            asyncio.create_task(_auto_capture_commitment_rules(user, msg, reply_text))
         except Exception:
             pass
 
