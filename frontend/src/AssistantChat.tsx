@@ -36,6 +36,7 @@ import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { ChatChartExport } from "@/src/ChatChartExport";
+import { ModuleErrorBoundary } from "@/src/shared/ModuleErrorBoundary";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
 import { DocumentScannerModal } from "@/src/DocumentScannerModal";
 import { DropboxPickerModal } from "@/src/DropboxPickerModal";
@@ -635,6 +636,14 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     // V29.n — Nuovo AbortController per questa chiamata (Stop button lo aborta).
     const controller = new AbortController();
     abortRef.current = controller;
+    // V50.z121 — Watchdog: se il backend non invia nulla per 90s (timeout ingress,
+    // ricerca web bloccata, ecc.) interrompiamo e mostriamo un errore visibile.
+    let watchdogFired = false;
+    let watchdog: ReturnType<typeof setTimeout> | null = setTimeout(() => { watchdogFired = true; controller.abort(); }, 90000);
+    const armWatchdog = () => {
+      if (watchdog) clearTimeout(watchdog);
+      watchdog = setTimeout(() => { watchdogFired = true; controller.abort(); }, 90000);
+    };
     // V50.z112 — Voce in streaming: le frasi vengono sintetizzate e riprodotte
     // man mano che arrivano i delta (prima frase entro pochi secondi), senza
     // attendere la fine della risposta. Testo e voce procedono in parallelo.
@@ -681,6 +690,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           ]);
         },
         onDelta: (chunk) => {
+          armWatchdog();
           speaker?.feed(chunk);
           setMessages((prev) => {
             if (!prev.length) return prev;
@@ -723,6 +733,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     } catch (e: any) {
       // V50.z112 — Interrompi anche la voce in streaming
       if (speaker) { speaker.stop(); speaker = null; }
+      if (watchdogFired) {
+        // V50.z121 — Timeout: messaggio chiaro nella chat invece di schermata vuota
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          const errTxt = "⏱️ Axon non ha risposto entro 90 secondi. Il server potrebbe essere lento o non raggiungibile: riprova tra qualche istante.";
+          if (last && last.role === "assistant" && last.streaming) return [...prev.slice(0, -1), { ...last, content: last.content || errTxt, streaming: false }];
+          return [...prev, { role: "assistant", content: errTxt }];
+        });
+        notify("Timeout", "Nessuna risposta dal server entro 90 secondi.");
+        return;
+      }
       // V40 — Remove any partially-streamed empty bubble
       setMessages((prev) => {
         if (!prev.length) return prev;
@@ -746,6 +767,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       }
       if (opts?.onSpoken && !wantSpeech) opts.onSpoken();
     } finally {
+      if (watchdog) clearTimeout(watchdog);
       abortRef.current = null;
       setSending(false);
     }
@@ -1996,7 +2018,10 @@ function MessageBubble({
             // Utente normale: testo semplice
             return <Text style={[styles.bubbleText, { color: "#FFF" }]}>{msg.content}</Text>;
           }
-          const segments = parseMessageSegments(msg.content || "");
+          // V50.z121 — Il parser tabelle/grafici non deve mai far crashare la chat
+          let segments: ReturnType<typeof parseMessageSegments>;
+          try { segments = parseMessageSegments(msg.content || ""); }
+          catch { segments = [{ type: "text", content: msg.content || "" }] as any; }
           if (segments.length === 0) return null;
           return (
             <View style={{ gap: 6 }}>
@@ -2006,9 +2031,19 @@ function MessageBubble({
                 }
                 if (seg.type === "chart") {
                   // V50.z109 — Grafico Axon con pulsante espandi-a-tutto-schermo in-app
-                  return <ChatChartExport key={`s-${si}`} spec={seg.chart} assistantColor={ASSISTANT_COLOR_DARK} />;
+                  // V50.z121 — Error boundary: un grafico non renderizzabile NON deve
+                  // mai lasciare la chat bianca (fallback: tabella/testo).
+                  return (
+                    <ModuleErrorBoundary key={`s-${si}`} moduleName="grafico" fallback={() => <Text style={styles.bubbleText}>{seg.chart?.title ? `📊 ${seg.chart.title}` : "📊 Grafico non disponibile su questo dispositivo"}</Text>}>
+                      <ChatChartExport spec={seg.chart} assistantColor={ASSISTANT_COLOR_DARK} />
+                    </ModuleErrorBoundary>
+                  );
                 }
-                return <ChatTableExport key={`s-${si}`} table={seg.table} assistantColor={ASSISTANT_COLOR} />;
+                return (
+                  <ModuleErrorBoundary key={`s-${si}`} moduleName="tabella" fallback={() => <Text style={styles.bubbleText}>{(seg.table?.rows || []).map((r: any) => (Array.isArray(r) ? r.join(" | ") : String(r))).join("\n")}</Text>}>
+                    <ChatTableExport table={seg.table} assistantColor={ASSISTANT_COLOR} />
+                  </ModuleErrorBoundary>
+                );
               })}
             </View>
           );

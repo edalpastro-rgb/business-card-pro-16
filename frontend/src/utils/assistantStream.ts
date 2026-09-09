@@ -242,7 +242,9 @@ export async function streamAssistantChat(
     };
 
     xhr.onerror = () => reject(new Error("Errore di rete"));
-    xhr.ontimeout = () => reject(new Error("Timeout"));
+    // V50.z121 — Timeout esplicito (prima assente → richiesta appesa per sempre su nativo)
+    xhr.timeout = 120000;
+    xhr.ontimeout = () => reject(new Error("Timeout: il server non ha risposto entro 2 minuti"));
 
     xhr.send(JSON.stringify({
       message: args.message,

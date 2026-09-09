@@ -91,12 +91,24 @@ function xyDataToKit(spec: Extract<ChartSpec, { type: "line" | "bar" }>) {
   };
 }
 
-function chartConfig(bg = "#FFFFFF") {
+/** Decimali dell'asse Y in base all'ordine di grandezza (es. PUN 0,11 €/kWh → 3 decimali). */
+function decimalsFor(spec: ChartSpec): number {
+  const ds: Array<{ data: number[] }> = (spec as any).datasets || ((spec as any).data ? [{ data: ((spec as any).data as any[]).map((x: any) => Number(x?.value ?? x)) }] : []);
+  const vals = ds.flatMap((d) => (d.data || []).map((v: number) => Math.abs(Number(v)))).filter((v: number) => Number.isFinite(v) && v > 0);
+  const max = vals.length ? Math.max(...vals) : 0;
+  if (max === 0) return 0;
+  if (max < 1) return 3;
+  if (max < 10) return 2;
+  if (max < 100) return 1;
+  return 0;
+}
+
+function chartConfig(bg = "#FFFFFF", decimalPlaces = 0) {
   return {
     backgroundColor: bg,
     backgroundGradientFrom: bg,
     backgroundGradientTo: bg,
-    decimalPlaces: 0,
+    decimalPlaces,
     color: (opacity = 1) => `rgba(124, 58, 237, ${opacity})`,
     labelColor: (opacity = 1) => `rgba(30, 41, 59, ${opacity})`,
     style: { borderRadius: 12 },
@@ -134,7 +146,7 @@ export function ChatChartExport({ spec, assistantColor = BRAND }: Props) {
           data={data}
           width={w}
           height={h}
-          chartConfig={chartConfig()}
+          chartConfig={chartConfig("#FFFFFF", decimalsFor(spec))}
           accessor="population"
           backgroundColor="transparent"
           paddingLeft="10"
@@ -150,7 +162,7 @@ export function ChatChartExport({ spec, assistantColor = BRAND }: Props) {
           width={w}
           height={h}
           yAxisSuffix={spec.unit ? ` ${spec.unit}` : ""}
-          chartConfig={chartConfig()}
+          chartConfig={chartConfig("#FFFFFF", decimalsFor(spec))}
           bezier
           style={{ borderRadius: 12 }}
           fromZero
@@ -165,7 +177,7 @@ export function ChatChartExport({ spec, assistantColor = BRAND }: Props) {
         height={h}
         yAxisLabel=""
         yAxisSuffix={spec.unit ? ` ${spec.unit}` : ""}
-        chartConfig={chartConfig()}
+        chartConfig={chartConfig("#FFFFFF", decimalsFor(spec))}
         style={{ borderRadius: 12 }}
         fromZero
         showValuesOnTopOfBars
