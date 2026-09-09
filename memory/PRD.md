@@ -1,3 +1,6 @@
+> 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
+
+
 ## V50.z126 (Giu 2026) — Azioni rapide in streaming SSE (fix 60s+ senza output)
 
 ### Root cause
