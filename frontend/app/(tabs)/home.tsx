@@ -172,14 +172,11 @@ export default function HomeScreen() {
     let mounted = true;
     (async () => {
       try {
+        // V50.z120 — Per-device: a ogni nuova installazione il tour di benvenuto
+        // viene mostrato una volta (poi mai più su quel dispositivo).
         const localKey = `onboarding_done_${user.user_id}`;
         const doneLocal = await AsyncStorage.getItem(localKey);
         if (doneLocal === "1") return;
-        const us = await api<{ onboarding_done?: boolean }>("/user-settings");
-        if (us?.onboarding_done) {
-          await AsyncStorage.setItem(localKey, "1");
-          return;
-        }
         if (mounted) router.replace("/libretto?onboarding=1" as any);
       } catch { /* silent */ }
     })();
@@ -395,9 +392,6 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.primary} />}
       >
-        {/* V50.z81 — Sezione widget dashboard configurabili (weather, contatti totali,
-             appuntamenti oggi, scadenze, PUN, richieste info) — ordine + toggle salvato per utente */}
-        <DashboardWidgetsSection />
         {/* V50.z104 — Banner consigli utilizzo / broadcast super-admin */}
         <HomeTipsBanner />
         {/* ── Trial banners ── */}
@@ -497,6 +491,10 @@ export default function HomeScreen() {
             <Ionicons name="chevron-forward" size={18} color={C.white} />
           </Pressable>
         )}
+
+        {/* V50.z120 — Sezione widget dashboard (meteo, appuntamenti oggi, PUN, scadenze…)
+             spostata SOTTO il bottone Interfaccia Master su richiesta utente */}
+        <DashboardWidgetsSection />
 
         {/* ── 4) Ritelefonate di oggi ── */}
         <View style={styles.section}>
