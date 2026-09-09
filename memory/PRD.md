@@ -5577,3 +5577,8 @@ else Linking.openURL(url).catch(() => {});
 - Calendario: badge meteo per TUTTI gli appuntamenti non telefonici del giorno selezionato (prima solo se `location` compilata): icona + temperatura + descrizione (+ mm pioggia se precipitazioni), sfondo azzurro se pioggia/temporale/neve. testID `wx-<appointment_id>`.
 - Dettaglio appuntamento (V50.z118): card 'Meteo previsto' (icona, max/min, descrizione, mm, vento, luogo) + consiglio pratico generato da regole (ombrello, temporali, neve, nebbia, vento ≥50 km/h, caldo ≥32°, freddo ≤2°). Solo appuntamenti non telefonici entro 16 gg. testID appt-weather / appt-weather-advice.
 - V50.z119: log warning su fallimenti Open-Meteo (diagnosi 'Meteo non disponibile' in produzione). Verificato: /settings/dashboard-widgets include 'meteo' enabled anche per utenti con config salvata (merge defaults).
+
+## Home: widget sotto Interfaccia Master + tour per-device (Giugno 2026 — V50.z120)
+- `DashboardWidgetsSection` (Meteo, Appuntamenti oggi, PUN, Scadenze…) spostata sotto il bottone "Interfaccia Master" (prima era subito sotto l'header).
+- Tour di benvenuto: mostrato se manca la chiave locale `onboarding_done_${user_id}` (per-device: ogni nuova installazione lo mostra una volta); il flag server `onboarding_done` resta salvato alla chiusura ma non blocca più la visualizzazione su nuovo device.
+- Chiarimento utente: nella build 1.0.44 le modifiche meteo ERANO presenti (widget Meteo + pagina); il "banner meteo sempre visibile" percepito era il widget Meteo stesso.
