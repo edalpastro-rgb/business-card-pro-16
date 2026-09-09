@@ -1,6 +1,14 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z127 (Giu 2026) — Fix orario appuntamenti (08:15 → 06:15) — root cause backend
+
+**Root cause**: Motor/PyMongo restituisce i datetime NAIVE; FastAPI li serializzava come `"2026-06-20T06:15:00"` (senza `Z`/`+00:00`). Su JS (web e Hermes/Android) `new Date("...T06:15:00")` senza fuso = **ora locale** → un appuntamento inserito alle 08:15 (06:15Z) veniva mostrato/ricaricato come 06:15; ogni salvataggio successivo dall'editor spostava di altre 2 ore. Il `POST` rispondeva correttamente con `+00:00` (Pydantic), il bug era solo su GET/list/PUT/team.
+
+**Fix** (`server.py`): helper `_aware_utc_times(doc)` che aggiunge `tzinfo=UTC` a `start_at`/`end_at` naive; applicato in `GET /appointments`, `GET /appointments/{id}`, `PUT /appointments/{id}`, `GET /calendar/team`. Nessun'altra modifica (richiesta utente).
+
+**Test**: create 06:15Z → get/list/put/team tutti `2026-06-20T06:15:00+00:00`.
+
 ## V50.z126 (Giu 2026) — Azioni rapide in streaming SSE (fix 60s+ senza output)
 
 ### Root cause

@@ -458,6 +458,20 @@ def strip_id(doc: Optional[dict]) -> Optional[dict]:
     return doc
 
 
+def _aware_utc_times(doc: Optional[dict], keys: tuple = ("start_at", "end_at")) -> Optional[dict]:
+    """V50.z127 — Mongo restituisce datetime NAIVE (UTC implicito): serializzati
+    come "2026-06-20T06:15:00" senza suffisso, il client JS li interpreta come
+    ora LOCALE → 08:15 inserite diventavano 06:15 (bug orario appuntamenti).
+    Rende espliciti i datetime come UTC (+00:00) sui campi indicati."""
+    if not doc:
+        return doc
+    for k in keys:
+        v = doc.get(k)
+        if isinstance(v, datetime) and v.tzinfo is None:
+            doc[k] = v.replace(tzinfo=timezone.utc)
+    return doc
+
+
 async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -4000,6 +4014,7 @@ async def list_appointments(
     items = await db.appointments.find(q, {"_id": 0}).sort("start_at", 1).to_list(1000)
     # Attach read_only flag for broadcast recipients (creator != me)
     for it in items:
+        _aware_utc_times(it)
         it["read_only"] = bool(it.get("is_broadcast") and it.get("created_by") != user["user_id"] and not is_owner(user))
     return {"items": items}
     _ = scope_filter  # placeholder to avoid unused warnings
@@ -4108,7 +4123,7 @@ async def get_appointment(appointment_id: str, user=Depends(get_current_user)):
         if not allowed:
             raise HTTPException(status_code=404, detail="Appuntamento non trovato")
     a["read_only"] = bool(a.get("is_broadcast") and a.get("created_by") != user["user_id"] and not is_owner(user))
-    return a
+    return _aware_utc_times(a)
 
 
 # V50.z80 — Preview per condivisione appuntamento con cliente (WA + email)
@@ -4193,7 +4208,7 @@ async def update_appointment(appointment_id: str, body: AppointmentUpdate, user=
     upd["updated_at"] = utcnow()
     await db.appointments.update_one({"appointment_id": appointment_id}, {"$set": upd})
     a = await db.appointments.find_one({"appointment_id": appointment_id}, {"_id": 0})
-    return a
+    return _aware_utc_times(a)
 
 
 @api_router.delete("/appointments/{appointment_id}")
@@ -4353,6 +4368,7 @@ async def calendar_team(
         u_info = users_lookup.get(created_by, {})
         creator_name = u_info.get("name") or u_info.get("email") or "Collaboratore"
         is_mine = (created_by == my_id)
+        _aware_utc_times(it)
         enriched = {
             "appointment_id": it.get("appointment_id"),
             "title": it.get("title"),

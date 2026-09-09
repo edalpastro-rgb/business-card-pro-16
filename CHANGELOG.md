@@ -49,7 +49,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   categorie, durata, promemoria, ricorrenza, partecipanti, valore €.
 - Auto-link contatto da scheda, "Collega/Cambia contatto" nel dettaglio (V38W); **Modifica appuntamento** abilitata; link "Vai al contatto".
 - Vista giornaliera, filtri categoria, compleanni annuali, **Calendario Team** (I miei / Team / Tutti, privacy per collaboratori).
-- Pallini colorati per tipo + **legenda colori** (Giu 2026). Fix orario 08:15→06:13 (V50.z110). Fix mapping tipo "Personale".
+- Pallini colorati per tipo + **legenda colori** (Giu 2026). Fix mapping tipo "Personale".
+- **Fix orario 08:15→06:15** (V50.z110 lato editor; **V50.z127 root cause backend**: `start_at`/`end_at` letti da Mongo erano datetime naive
+  serializzati senza fuso → il client li leggeva come ora locale. Ora `_aware_utc_times()` forza `+00:00` su list/get/put/calendar-team).
 - **Condivisione appuntamento col cliente** WhatsApp/Email + reminder automatico (V50.z80), "Invia dettagli" in creazione (v2.14).
 - **Meteo negli appuntamenti**: icona/tooltip meteo accanto agli eventi in calendario e nel dettaglio con consigli (V50.z117),
   basato sull'indirizzo del contatto (OpenMeteo, `POST /api/weather/appointments`).
@@ -160,6 +162,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z127 | Giu 2026 | Fix orario appuntamenti: datetime UTC espliciti (+00:00) nelle risposte appuntamenti/calendario |
 | V50.z126 | Giu 2026 | Azioni rapide in streaming SSE + heartbeat preflight + `cache_only` |
 | V50.z125 | Giu 2026 | Comandi Timer/Sveglie/Promemoria in linguaggio naturale via chat Axon; fix import `notify` |
 | V50.z121 | Giu 2026 | Error Boundary grafici/tabelle, timeout visibile, fix decimali chart |
