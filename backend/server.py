@@ -825,6 +825,8 @@ class ContactIn(BaseModel):
     telegram: str = ""
     area: AreaLiteral = "energy"
     additional_areas: List[str] = Field(default_factory=list)
+    # V50.z114 — Sottocategoria scelta per ciascuna area del contatto: {"energy": "Gas", "area_x": "Vita"}
+    area_subcategories: Dict[str, str] = Field(default_factory=dict)
     source: Literal["personal", "referral"] = "personal"
     referred_by_contact_id: Optional[str] = None
     referral_type: Optional[Literal["direct", "from_contact"]] = None
@@ -888,6 +890,7 @@ class ContactUpdate(BaseModel):
     telegram: Optional[str] = None
     area: Optional[AreaLiteral] = None
     additional_areas: Optional[List[str]] = None
+    area_subcategories: Optional[Dict[str, str]] = None
     source: Optional[Literal["personal", "referral"]] = None
     referred_by_contact_id: Optional[str] = None
     referral_type: Optional[Literal["direct", "from_contact"]] = None

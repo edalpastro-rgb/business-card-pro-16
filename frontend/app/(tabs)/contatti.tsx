@@ -6,6 +6,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { isAreaVisible } from "@/src/utils/areaAccess";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
@@ -37,9 +38,10 @@ function ContattiScreen() {
   const { user } = useAuth();
   const pagePad = usePageBottomPadding();
   const allowed = user?.areas || ["energy", "network"];
-  const AREAS = AREAS_ALL.filter((a) => a.key === "all" || allowed.includes(a.key));
   const [items, setItems] = useState<Contact[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+  // V50.z114 — Permessi aree (CRM · Aree): nascondi ai collaboratori le aree non consentite/archiviate
+  const AREAS = AREAS_ALL.filter((a) => a.key === "all" || (allowed.includes(a.key) && isAreaVisible(settings as any, a.key, user?.role)));
   const [groups, setGroups] = useState<Group[]>([]);
   const [q, setQ] = useState("");
   const [area, setArea] = useState<"all" | "energy" | "network">("all");
@@ -101,8 +103,10 @@ function ContattiScreen() {
 
   // V50.z72 — Applica ordinamento per vicinanza (contatti con distance null vanno in fondo)
   const orderedItems = useMemo(() => {
-    if (sortMode !== "distance") return items;
-    const withKm = [...items];
+    // V50.z114 — Esclude i contatti delle aree non visibili per il ruolo corrente
+    const visible = items.filter((c) => isAreaVisible(settings as any, c.area, user?.role));
+    if (sortMode !== "distance") return visible;
+    const withKm = [...visible];
     withKm.sort((a, b) => {
       const ka = distances[a.contact_id];
       const kb = distances[b.contact_id];
@@ -112,7 +116,7 @@ function ContattiScreen() {
       return ka - kb;
     });
     return withKm;
-  }, [items, distances, sortMode]);
+  }, [items, distances, sortMode, settings, user?.role]);
 
   const colorFor = (a: string) => (a === "energy" ? (settings?.energy_color || theme.color.energy) : (settings?.network_color || theme.color.network));
 

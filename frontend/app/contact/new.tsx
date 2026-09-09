@@ -11,6 +11,7 @@ import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { isAreaVisible, areaSubcategories } from "@/src/utils/areaAccess";
 import { scheduleBirthdayReminder } from "@/src/notifications";
 import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
 import { notify, confirmAsync } from "@/src/utils/notify";
@@ -100,6 +101,8 @@ function NewContactScreen() {
     anniversaries: [] as { name: string; date: string }[],
     area: (allowed[0] || "energy") as "energy" | "network",
     additional_areas: [] as string[],
+    // V50.z114 — Sottocategoria scelta per ogni area selezionata {areaId: sub}
+    area_subcategories: {} as Record<string, string>,
     source: "personal" as "personal" | "referral",
     referral_type: "" as "" | "direct" | "from_contact",
     referred_by_contact_id: "",
@@ -183,6 +186,7 @@ function NewContactScreen() {
           instagram: c.instagram || "", facebook: c.facebook || "",
           area: (c.area === "network" ? "network" : "energy"),
           additional_areas: c.additional_areas || [],
+          area_subcategories: c.area_subcategories || {},
           source: (c.source === "referral" ? "referral" : "personal"),
           referral_type: c.referral_type || "",
           referred_by_contact_id: c.referred_by_contact_id || "",
@@ -919,11 +923,48 @@ function NewContactScreen() {
   const removeTag = (t: string) => setForm({ ...form, tags: form.tags.filter((x) => x !== t) });
 
   // Build all available areas: built-in + custom from settings
+  // V50.z114 — Permessi aree: mostra solo le aree consentite al ruolo e non archiviate
   const allAreas: { id: string; name: string; color: string; builtin?: boolean }[] = [
     ...(allowed.includes("energy") ? [{ id: "energy", name: settings?.energy_title || "Consulente Energetico", color: settings?.energy_color || theme.color.energy, builtin: true }] : []),
     ...(allowed.includes("network") ? [{ id: "network", name: settings?.network_title || "Networker", color: settings?.network_color || theme.color.network, builtin: true }] : []),
     ...(settings?.custom_areas || []).map((a) => ({ id: a.id, name: a.name, color: a.color })),
-  ];
+  ].filter((a) => isAreaVisible(settings as any, a.id, user?.role));
+  // Aree selezionate che hanno sottocategorie configurate (CRM · Aree)
+  const areasWithSubs = allAreas
+    .filter((a) => form.area === a.id || form.additional_areas.includes(a.id))
+    .map((a) => ({ ...a, subs: areaSubcategories(settings as any, a.id) }))
+    .filter((a) => a.subs.length > 0);
+  const renderSubcategoryPicker = () => areasWithSubs.length > 0 ? (
+                          <View style={{ width: "100%", marginTop: 6 }} testID="c-area-subcategories">
+                            {areasWithSubs.map((a) => (
+                              <View key={a.id} style={{ marginBottom: 6 }}>
+                                <Text style={[styles.hintTxt, { marginBottom: 4 }]}>
+                                  <Text style={{ fontWeight: "800", color: a.color }}>{a.name}</Text> › sottocategoria
+                                </Text>
+                                <View style={styles.pillsRow}>
+                                  {a.subs.map((sub) => {
+                                    const on = form.area_subcategories[a.id] === sub;
+                                    return (
+                                      <Pressable
+                                        key={sub}
+                                        testID={`c-sub-${a.id}-${sub}`}
+                                        onPress={() => {
+                                          const next = { ...form.area_subcategories };
+                                          if (on) delete next[a.id]; else next[a.id] = sub;
+                                          setForm({ ...form, area_subcategories: next });
+                                        }}
+                                        style={[styles.pill, on && { backgroundColor: a.color + "22", borderColor: a.color }]}
+                                      >
+                                        <Text style={[styles.pillTxt, on && { color: a.color, fontWeight: "800" }]}>{sub}</Text>
+                                      </Pressable>
+                                    );
+                                  })}
+                                </View>
+                              </View>
+                            ))}
+                          </View>
+                        
+  ) : null;
 
   const toggleArea = (areaId: string) => {
     // If it's not selected anywhere, add it. If already selected as primary → do nothing (must have primary). If additional → remove.
@@ -1238,6 +1279,7 @@ function NewContactScreen() {
                           </View>
                         );
                       })}
+                      {renderSubcategoryPicker()}
                     </>
                   ) : (
                     <>
@@ -1258,6 +1300,7 @@ function NewContactScreen() {
                             </Pressable>
                           );
                         })}
+                        {renderSubcategoryPicker()}
                         <Pressable testID="c-area-new" onPress={() => setNewAreaModal(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}>
                           <Ionicons name="add" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
                           <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Nuova area</Text>

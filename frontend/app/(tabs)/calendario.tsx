@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { apptTypeColor, DEFAULT_APPT_TYPES } from "@/app/appointment/new";
+import { isAreaVisible } from "@/src/utils/areaAccess";
 import { useAuth } from "@/src/auth";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
@@ -219,6 +220,8 @@ function CalendarioScreen() {
   // V38T — Apply member filter (only in team/all scopes) + area filter
   const filteredItems = items.filter((it) => {
     if (filter !== "all" && it.area !== filter) return false;
+    // V50.z114 — Permessi aree: nascondi appuntamenti delle aree non consentite al ruolo
+    if (it.kind !== "birthday" && (it.area === "energy" || it.area === "network") && !isAreaVisible(settings as any, it.area, user?.role)) return false;
     if (scope !== "mine" && memberFilter.size > 0) {
       // Only apply to appointments; birthdays always pass
       if (it.kind === "appt" && it.created_by && !memberFilter.has(it.created_by)) return false;
@@ -432,7 +435,7 @@ function CalendarioScreen() {
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow} style={{ maxHeight: 44 }} testID="cal-area-filters">
-            {(["all", "energy", "network", "birthday"] as const).map((f) => (
+            {(["all", "energy", "network", "birthday"] as const).filter((f) => f === "all" || f === "birthday" || isAreaVisible(settings as any, f, user?.role)).map((f) => (
               <Pressable key={f} testID={`cal-filter-${f}`} onPress={() => setFilter(f)} style={[styles.chip, filter === f && styles.chipActive]}>
                 <Text style={[styles.chipTxt, filter === f && styles.chipTxtActive]}>
                   {f === "all" ? "Tutti" : f === "energy" ? (settings?.energy_title || "Energia") : f === "network" ? (settings?.network_title || "Network") : "Compleanni"}

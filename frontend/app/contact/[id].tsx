@@ -50,7 +50,7 @@ type Contact = {
   work_address?: string; residence_address?: string;
   birth_date?: string; fiscal_code?: string; vat_number?: string; anniversaries?: { name: string; date: string }[];
   website?: string; linkedin?: string; instagram?: string; facebook?: string;
-  area: "energy" | "network"; additional_areas?: string[]; source: string; referral_note: string; email_note: string; general_note: string;
+  area: "energy" | "network"; additional_areas?: string[]; area_subcategories?: Record<string, string>; source: string; referral_note: string; email_note: string; general_note: string;
   tags?: string[]; group_ids?: string[]; referred_by_contact_id?: string;
   notes: Note[]; files: CFile[]; avatar_base64?: string;
   assigned_to_user_id?: string;
@@ -812,7 +812,9 @@ function ContactDetail() {
                           return (
                             <View key={`a-${aid}`} style={[styles.areaBadgeMini, { backgroundColor: info.color, maxWidth: "100%" }]}>
                               {i === 0 && <Ionicons name="star" size={9} color="#FFF" />}
-                              <Text style={styles.areaBadgeMiniTxt} numberOfLines={1}>{info.name}</Text>
+                              <Text style={styles.areaBadgeMiniTxt} numberOfLines={1}>
+                                {info.name}{c.area_subcategories?.[aid] ? ` › ${c.area_subcategories[aid]}` : ""}
+                              </Text>
                             </View>
                           );
                         })}

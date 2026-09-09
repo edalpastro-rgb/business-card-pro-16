@@ -5553,3 +5553,8 @@ else Linking.openURL(url).catch(() => {});
 - Frontend: nuovo `src/AreasManager.tsx` (card collassabili per area: colore+nome+freccia; dentro nome, colore a scomparsa "Cambia colore" con pallini 28px + hex, descrizione uso, permessi per ruolo Titolare/Admin/Collaboratori, albero Area > Sottocategoria con aggiungi/rimuovi; Elimina → modal "Archivia (nascondi)" / "Elimina definitivamente" (solo custom; built-in solo archivia); Ripristina; "Mostra archiviate"; "Nuova area" in fondo). Salvataggio immediato via PUT /settings.
 - `impostazioni.tsx`: rimossi i vecchi blocchi Titolo/Colore Area 1-2 e la card "CRM · Aree contatto"; la card "Personalizza aree" ora contiene solo link Personalizza Home + Nome App (+ "Salva nome app"). Restano invariate "Aree merceologiche & Appuntamenti" e "Categorie prodotti".
 - Nota: `allowed_roles` e `archived` sono per ora metadati (non filtrano ancora contatti/appuntamenti nelle altre schermate).
+
+## Permessi aree + sottocategorie in scheda (Giugno 2026 — V50.z114)
+- `src/utils/areaAccess.ts`: `isAreaVisible(settings, areaId, role)` (owner vede tutto; altri: non archiviata e ruolo in `allowed_roles`, lista vuota = tutti), `areaSubcategories()`.
+- Contatti: chip filtro area e lista contatti filtrati per aree visibili al ruolo. Calendario: chip filtro e appuntamenti filtrati (compleanni sempre visibili). Scheda contatto (nuovo/modifica): aree selezionabili solo se visibili.
+- Sottocategorie: backend `ContactIn/ContactUpdate.area_subcategories: Dict[str,str]`; nel form contatto, per ogni area selezionata con sottocategorie configurate, picker a chip (testID `c-sub-<area>-<sub>`), visibile sia nel riepilogo compatto che nella vista "Cambia". Dettaglio contatto: badge area mostra "Area › Sottocategoria".
