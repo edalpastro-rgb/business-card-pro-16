@@ -7,6 +7,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAudioPlayer } from "expo-audio";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { weatherIcon } from "@/src/utils/weather";
 import { shareDataUri } from "@/src/share";
 import { scheduleAppointmentReminder, cancelAppointmentReminder, scheduleCallbackReminder } from "@/src/notifications";
 import { openGoogleCalendar, openOutlookCalendar, shareIcs } from "@/src/calendar-export";
@@ -96,6 +97,41 @@ function AppointmentDetail() {
   const [linkContacts, setLinkContacts] = useState<ContactSearchResult[]>([]);
   const [linkLoading, setLinkLoading] = useState(false);
   const [linking, setLinking] = useState<string | null>(null);
+  // V50.z118 — Meteo nel luogo dell'incontro + consiglio pratico
+  const [wx, setWx] = useState<{ icon_key?: string; label?: string; temp_max?: number; temp_min?: number; precipitation_mm?: number; wind_kmh?: number; place?: string } | null | undefined>(undefined);
+  useEffect(() => {
+    if (!a || a.is_phone) { setWx(null); return; }
+    const start = new Date(a.start_at);
+    const diffDays = (start.getTime() - Date.now()) / 86400000;
+    if (diffDays < -1 || diffDays > 16) { setWx(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api<{ results: any[] }>("/weather/forecast-by-address", {
+          method: "POST",
+          body: { items: [{ appointment_id: a.appointment_id, address: (a.location || "").trim(), date: start.toISOString().slice(0, 10) }] },
+        });
+        if (!cancelled) setWx(r.results?.[0] || null);
+      } catch { if (!cancelled) setWx(null); }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a?.appointment_id, a?.start_at, a?.location, a?.is_phone]);
+  const wxAdvice = (() => {
+    if (!wx) return "";
+    const k = wx.icon_key || "";
+    const tips: string[] = [];
+    if (["rain", "rain_heavy", "drizzle", "thunderstorm"].includes(k) || (wx.precipitation_mm ?? 0) >= 2) tips.push("Porta l'ombrello");
+    if (k === "thunderstorm") tips.push("possibili temporali: parti con qualche minuto di anticipo");
+    if (k === "snow" || k === "snow_heavy") tips.push("neve prevista: controlla strade e pneumatici");
+    if (k === "fog") tips.push("nebbia: guida con prudenza");
+    if ((wx.wind_kmh ?? 0) >= 50) tips.push("vento forte");
+    if ((wx.temp_max ?? 20) >= 32) tips.push("caldo intenso: porta dell'acqua");
+    if ((wx.temp_min ?? 10) <= 2) tips.push("freddo: copriti bene");
+    if (tips.length === 0) return k === "sunny" || k === "partly_cloudy" ? "Bel tempo: nessuna precauzione particolare." : "Nessuna precauzione particolare.";
+    const t = tips.join(" · ");
+    return t.charAt(0).toUpperCase() + t.slice(1) + ".";
+  })();
   // Allegati: anteprima foto fullscreen + player audio
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [playingUri, setPlayingUri] = useState<string | null>(null);
@@ -430,6 +466,31 @@ function AppointmentDetail() {
             </Pressable>
           )}
         </View>
+
+        {/* V50.z118 — Meteo previsto nel luogo dell'incontro */}
+        {wx && (() => {
+          const ic = weatherIcon(wx.icon_key);
+          return (
+            <View style={[styles.card, { borderLeftWidth: 4, borderLeftColor: ic.color }]} testID="appt-weather">
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: ic.color + "1A", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name={ic.name} size={26} color={ic.color} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.sectionTitle}>
+                    Meteo previsto · {wx.temp_max != null ? `${Math.round(wx.temp_max)}°` : "—"}{wx.temp_min != null ? ` / ${Math.round(wx.temp_min)}°` : ""}
+                  </Text>
+                  <Text style={styles.metaTxt} numberOfLines={1}>{wx.label}{wx.precipitation_mm ? ` · ${wx.precipitation_mm} mm` : ""}{wx.wind_kmh ? ` · vento ${Math.round(wx.wind_kmh)} km/h` : ""}</Text>
+                  {!!wx.place && <Text style={[styles.metaTxt, { fontSize: 11 }]} numberOfLines={1}>📍 {wx.place}</Text>}
+                </View>
+              </View>
+              <View style={{ marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: ic.color + "14", borderRadius: 10, padding: 10 }}>
+                <Ionicons name="bulb-outline" size={16} color={ic.color} />
+                <Text style={[styles.metaTxt, { flex: 1, color: theme.color.onSurface, fontWeight: "700" }]} testID="appt-weather-advice">{wxAdvice}</Text>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* Note e allegati salvati con l'appuntamento */}
         {(!!a.notes?.trim() || (a.note_attachments || []).length > 0) && (
