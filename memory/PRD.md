@@ -5522,3 +5522,9 @@ else Linking.openURL(url).catch(() => {});
 - Prima la card compariva solo con allerte attive → "non si trovava". Ora `WeatherAlertsCard` (Home, widget "Meteo & Allerte") è sempre visibile: meteo di oggi (icona, max/min, descrizione, vento/pioggia), località, pill "Nessuna allerta"/"N allerte" + banner allerte dismissabili.
 - Posizione: GPS → fallback `user_settings.home_address` (indirizzo di residenza del singolo utente, editabile dal widget con tap sulla località) → `settings.office_address` del tenant. Se nessuno disponibile: card "Imposta" indirizzo.
 - Backend: `POST /api/weather/alerts` accetta lat/lon opzionali + `address`; risolve i fallback lato server (geocoding `_geocode_one`); risponde anche `weather`, `place`, `needs_address`. `UserSettingsIn.home_address` nuovo campo.
+
+## Scanner documenti: ritaglio manuale + scanner nativo in chat Axon (Giugno 2026)
+- Nuovo `src/ManualCropEditor.tsx`: editor a schermo intero con 4 maniglie trascinabili (PanResponder, SVG poligono), reset "intera immagine", conferma → `POST /api/scanner/manual-crop` (nuovo endpoint OpenCV: warp prospettico a 4 punti normalizzati + enhance/grayscale opzionali).
+- `LiveCameraScanner` (autofocus continuo `autofocus="on"`, multi-pagina, anteprima obbligatoria post-scatto): aggiunto pulsante "Ritaglia" nella review; conserva `original_base64`; flag `manual` impedisce all'autocrop async di sovrascrivere il ritaglio manuale.
+- `DocumentScannerModal`: icona ritaglio per ogni pagina immagine; le pagine ritagliate manualmente vengono inviate a merge-pdf con `already_cropped=true` (backend salta l'autocrop per quella pagina).
+- Chat AxonOS: `JscanifyScannerModal` (WebView) sostituito da `DocumentScannerModal` nativo → PDF allegato alla chat. Il file `JscanifyScannerModal.tsx` resta ma non è più usato.

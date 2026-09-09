@@ -17051,6 +17051,8 @@ async def public_event_page(public_token: str):
 class ScannerPageIn(BaseModel):
     data_base64: str
     mime: str  # image/jpeg | image/png | application/pdf
+    # Pagina già ritagliata dall'utente (manuale) o dall'autocrop live: salta l'autocrop server.
+    already_cropped: bool = False
 
 
 class ScannerMergeIn(BaseModel):
@@ -17148,6 +17150,72 @@ class ScannerPreviewIn(BaseModel):
     mime: str = "image/jpeg"
     enhance: bool = True
     grayscale: bool = False
+
+
+class ScannerManualCropIn(BaseModel):
+    """Ritaglio manuale: 4 angoli in coordinate NORMALIZZATE (0..1) rispetto
+    all'immagine originale, ordine libero (vengono riordinati tl,tr,br,bl)."""
+    data_base64: str
+    corners: List[List[float]]  # [[x,y],[x,y],[x,y],[x,y]] con valori 0..1
+    enhance: bool = True
+    grayscale: bool = False
+
+
+@api_router.post("/scanner/manual-crop")
+async def scanner_manual_crop(body: ScannerManualCropIn, user=Depends(get_current_user)):
+    """Applica una correzione prospettica a 4 punti scelti manualmente dall'utente
+    (dopo lo scatto) e restituisce il JPEG ritagliato (+ enhance/grayscale opzionali)."""
+    if not body.corners or len(body.corners) != 4:
+        raise HTTPException(status_code=400, detail="Servono esattamente 4 angoli")
+    try:
+        raw = base64.b64decode(
+            body.data_base64.split(",")[-1] if body.data_base64.startswith("data:") else body.data_base64
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="base64 non valido")
+    if len(raw) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Immagine troppo grande (max 20MB)")
+    try:
+        import cv2  # type: ignore
+        import numpy as np
+        from PIL import Image, ImageOps
+
+        pil = Image.open(io.BytesIO(raw))
+        pil = ImageOps.exif_transpose(pil).convert("RGB")
+        src = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
+        h, w = src.shape[:2]
+        pts = np.array(
+            [[min(max(float(p[0]), 0.0), 1.0) * (w - 1), min(max(float(p[1]), 0.0), 1.0) * (h - 1)] for p in body.corners],
+            dtype="float32",
+        )
+        # Ordina: tl (somma min), br (somma max), tr (diff min), bl (diff max)
+        s = pts.sum(axis=1)
+        d = np.diff(pts, axis=1).reshape(-1)
+        tl, br = pts[np.argmin(s)], pts[np.argmax(s)]
+        tr, bl = pts[np.argmin(d)], pts[np.argmax(d)]
+        rect = np.array([tl, tr, br, bl], dtype="float32")
+        maxW = int(max(np.linalg.norm(br - bl), np.linalg.norm(tr - tl)))
+        maxH = int(max(np.linalg.norm(tr - br), np.linalg.norm(tl - bl)))
+        if maxW < 20 or maxH < 20:
+            raise HTTPException(status_code=400, detail="Area di ritaglio troppo piccola")
+        dst = np.array([[0, 0], [maxW - 1, 0], [maxW - 1, maxH - 1], [0, maxH - 1]], dtype="float32")
+        M = cv2.getPerspectiveTransform(rect, dst)
+        warped = cv2.warpPerspective(src, M, (maxW, maxH))
+        ok, buf = cv2.imencode(".jpg", warped, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+        if not ok:
+            raise HTTPException(status_code=500, detail="Encoding fallito")
+        out = buf.tobytes()
+        if body.enhance or body.grayscale:
+            try:
+                out = _cv2_scan_document(out, enhance=body.enhance, autocrop=False, grayscale=body.grayscale)
+            except Exception:
+                pass
+        return {"data_base64": base64.b64encode(out).decode("ascii"), "mime": "image/jpeg", "width": maxW, "height": maxH}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("manual-crop failed: %s", e)
+        raise HTTPException(status_code=500, detail="Ritaglio fallito")
 
 
 class ScannerCornersIn(BaseModel):
@@ -17343,7 +17411,7 @@ async def scanner_merge_pdf(body: ScannerMergeIn, user=Depends(get_current_user)
                 raise HTTPException(status_code=400, detail=f"Pagina {i + 1}: PDF non valido")
         else:
             try:
-                out = _cv2_scan_document(raw, enhance=body.enhance, autocrop=body.autocrop, grayscale=body.grayscale)
+                out = _cv2_scan_document(raw, enhance=body.enhance, autocrop=(body.autocrop and not pg.already_cropped), grayscale=body.grayscale)
                 processed_images.append(Image.open(io.BytesIO(out)).convert("RGB"))
             except HTTPException:
                 raise

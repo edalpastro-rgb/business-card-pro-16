@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { LiveCameraScanner, type LiveScannedPage } from "@/src/LiveCameraScanner";
+import { ManualCropEditor } from "@/src/ManualCropEditor";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 /**
@@ -28,7 +29,7 @@ import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
  *   - Backend does auto-crop (OpenCV Canny + 4-point warp), CLAHE contrast,
  *     unsharp mask, optional grayscale, and merges into a single PDF.
  */
-export type ScannedPage = { data_base64: string; mime: string; preview_uri: string };
+export type ScannedPage = { data_base64: string; mime: string; preview_uri: string; original_base64?: string; manual_crop?: boolean };
 
 type Props = {
   visible: boolean;
@@ -48,6 +49,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
   const [busy, setBusy] = useState(false);
   const [savingLbl, setSavingLbl] = useState<string>("");
   const [liveScanOpen, setLiveScanOpen] = useState(false); // Bug 11 — modalità continua
+  const [cropIdx, setCropIdx] = useState<number | null>(null); // ritaglio manuale pagina
   const nameSyncedFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -187,6 +189,8 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
       data_base64: p.data_base64,
       mime: p.mime || "image/jpeg",
       preview_uri: p.preview_uri || `data:${p.mime || "image/jpeg"};base64,${p.data_base64}`,
+      original_base64: p.original_base64,
+      manual_crop: p.manual,
     }));
     setPages((prev) => [...prev, ...additions]);
     setLiveScanOpen(false);
@@ -199,7 +203,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
       setBusy(true);
       setSavingLbl(`Elaborazione ${pages.length} pagine…`);
       const payload = {
-        pages: pages.map((p) => ({ data_base64: p.data_base64, mime: p.mime })),
+        pages: pages.map((p) => ({ data_base64: p.data_base64, mime: p.mime, already_cropped: !!p.manual_crop })),
         enhance,
         autocrop,
         grayscale,
@@ -284,6 +288,9 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
                     {p.mime.startsWith("image/") ? "Immagine" : p.mime === "application/pdf" ? "PDF" : p.mime}
                   </Text>
                 </View>
+                {p.mime.startsWith("image/") && (
+                  <Pressable onPress={() => setCropIdx(i)} style={styles.iconBtn} testID={`scanner-page-crop-${i}`}><Ionicons name="crop" size={17} color="#FF6B35" /></Pressable>
+                )}
                 <Pressable onPress={() => moveUp(i)} disabled={i === 0} style={[styles.iconBtn, i === 0 && { opacity: 0.3 }]}><Ionicons name="chevron-up" size={18} color={theme.color.onSurface} /></Pressable>
                 <Pressable onPress={() => moveDown(i)} disabled={i === pages.length - 1} style={[styles.iconBtn, i === pages.length - 1 && { opacity: 0.3 }]}><Ionicons name="chevron-down" size={18} color={theme.color.onSurface} /></Pressable>
                 <Pressable onPress={() => removePage(i)} style={styles.iconBtn} testID={`scanner-page-remove-${i}`}><Ionicons name="trash-outline" size={17} color="#DC2626" /></Pressable>
@@ -340,6 +347,26 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
         enhance={enhance}
         grayscale={grayscale}
       />
+      {cropIdx !== null && pages[cropIdx] && (
+        <ManualCropEditor
+          visible
+          imageBase64={pages[cropIdx].original_base64 || pages[cropIdx].data_base64}
+          enhance={enhance}
+          grayscale={grayscale}
+          onCancel={() => setCropIdx(null)}
+          onDone={(r) => {
+            setPages((prev) => prev.map((p, i) => (i === cropIdx ? {
+              ...p,
+              original_base64: p.original_base64 || p.data_base64,
+              data_base64: r.data_base64,
+              mime: r.mime,
+              preview_uri: r.preview_uri,
+              manual_crop: true,
+            } : p)));
+            setCropIdx(null);
+          }}
+        />
+      )}
     </Modal>
   );
 }

@@ -36,7 +36,7 @@ import { pickCommonFile } from "@/src/utils/filePicker";
 import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { ChatChartExport } from "@/src/ChatChartExport";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
-import { JscanifyScannerModal } from "@/src/JscanifyScannerModal";
+import { DocumentScannerModal } from "@/src/DocumentScannerModal";
 import { DropboxPickerModal } from "@/src/DropboxPickerModal";
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { AxonOSLogo } from "@/src/BrandLogos";
@@ -1676,10 +1676,18 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         onFilePicked={(f) => addPendingAttachment({ name: f.name, mime: f.mime, base64: f.data_base64 })}
       />
       {/* V50.z85 — Scanner documenti jscanify */}
-      <JscanifyScannerModal
+      {/* Scanner nativo (stesso della scheda cliente): autofocus, multi-pagina,
+          ritaglio manuale, anteprima/conferma → PDF allegato alla chat */}
+      <DocumentScannerModal
         visible={scannerOpen}
         onClose={() => setScannerOpen(false)}
-        onScanned={onScannerResult}
+        defaultName={`Scansione-${new Date().toISOString().slice(0, 10)}`}
+        hintTitle="Scansiona un documento da allegare ad Axon"
+        onSaved={(r) => onScannerResult({
+          name: r.name.toLowerCase().endsWith(".pdf") ? r.name : `${r.name}.pdf`,
+          dataUrl: `data:${r.mime};base64,${r.pdf_base64}`,
+          mime: r.mime,
+        })}
       />
       {/* V41 — Feedback 👎 reason modal */}
       <Modal

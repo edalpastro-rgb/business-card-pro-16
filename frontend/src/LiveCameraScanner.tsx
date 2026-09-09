@@ -32,6 +32,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polygon, Circle } from "react-native-svg";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { ManualCropEditor } from "@/src/ManualCropEditor";
 
 export type LiveScannedPage = {
   data_base64: string;
@@ -39,6 +40,8 @@ export type LiveScannedPage = {
   preview_uri: string; // data:image/jpeg;base64,...
   cropped?: boolean; // true = version returned by /scanner/autocrop-preview
   blurry?: boolean; // Bug 11.d — true if backend flagged low sharpness
+  original_base64?: string; // scatto originale (per il ritaglio manuale)
+  manual?: boolean; // true = ritaglio manuale dell'utente (non sovrascrivere con l'autocrop)
 };
 
 type Props = {
@@ -55,6 +58,8 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   const [pages, setPages] = useState<LiveScannedPage[]>([]);
   // V50.z9 — Preview post-scatto: obbliga review prima della pagina successiva
   const [reviewIdx, setReviewIdx] = useState<number | null>(null);
+  // Ritaglio manuale della pagina in revisione (originale non ritagliato se disponibile)
+  const [cropOpen, setCropOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [torch, setTorch] = useState<"on" | "off">("off");
   const [facing, setFacing] = useState<"back" | "front">("back");
@@ -253,9 +258,10 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
         if (r?.detected && r.data_base64) {
           setPages((prev) => {
             const next = [...prev];
-            if (!next[index]) return prev;
+            if (!next[index] || next[index].manual) return prev;
             next[index] = {
               ...next[index],
+              original_base64: next[index].original_base64 || data_base64,
               data_base64: r.data_base64,
               mime: r.mime || "image/jpeg",
               preview_uri: `data:${r.mime || "image/jpeg"};base64,${r.data_base64}`,
@@ -268,9 +274,10 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
           // Even if not detected, we keep the enhanced version (better contrast/sharpness)
           setPages((prev) => {
             const next = [...prev];
-            if (!next[index]) return prev;
+            if (!next[index] || next[index].manual) return prev;
             next[index] = {
               ...next[index],
+              original_base64: next[index].original_base64 || data_base64,
               data_base64: r.data_base64,
               mime: r.mime || "image/jpeg",
               preview_uri: `data:${r.mime || "image/jpeg"};base64,${r.data_base64}`,
@@ -657,8 +664,17 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                   <Text style={styles.reviewBtnTxt}>Rifai</Text>
                 </Pressable>
                 <Pressable
+                  onPress={() => setCropOpen(true)}
+                  style={[styles.reviewBtn, { backgroundColor: "#FF6B35" }]}
+                  testID="live-review-crop"
+                >
+                  <Ionicons name="crop" size={20} color="#FFF" />
+                  <Text style={styles.reviewBtnTxt}>Ritaglia</Text>
+                </Pressable>
+                <Pressable
                   onPress={() => setReviewIdx(null)}
                   style={[styles.reviewBtn, { backgroundColor: "#0F9D58" }]}
+                  testID="live-review-ok"
                 >
                   <Ionicons name="checkmark" size={22} color="#FFF" />
                   <Text style={styles.reviewBtnTxt}>Usa questa</Text>
@@ -668,6 +684,27 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
           )}
         </SafeAreaView>
       </View>
+      {reviewIdx !== null && pages[reviewIdx] && (
+        <ManualCropEditor
+          visible={cropOpen}
+          imageBase64={pages[reviewIdx].original_base64 || pages[reviewIdx].data_base64}
+          enhance={enhance}
+          grayscale={grayscale}
+          onCancel={() => setCropOpen(false)}
+          onDone={(r) => {
+            setPages((prev) => prev.map((p, i) => (i === reviewIdx ? {
+              ...p,
+              original_base64: p.original_base64 || p.data_base64,
+              data_base64: r.data_base64,
+              mime: r.mime,
+              preview_uri: r.preview_uri,
+              cropped: true,
+              manual: true,
+            } : p)));
+            setCropOpen(false);
+          }}
+        />
+      )}
     </Modal>
   );
 }
