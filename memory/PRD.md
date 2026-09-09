@@ -1,3 +1,42 @@
+## V50.z126 (Giu 2026) — Azioni rapide in streaming SSE (fix 60s+ senza output)
+
+### Root cause
+Le azioni rapide (chip "PUN MEDIO X FASCE" ecc.) usavano `POST /axon/quick-action` che, su cache miss, chiamava `assistant_chat` **bloccante** (Tavily + RAG + Sonnet full-buffer): 60s+ senza output, oltre il timeout dell'ingress → schermata vuota. Lo streaming SSE esisteva ma non era usato per le quick action.
+
+### Backend `/app/backend/server.py`
+- `AxonQuickActionIn.cache_only` → su miss ritorna subito `{"reply": null, "miss": true}` (nessuna LLM).
+- `_qa_enrich_prompt()` helper condiviso.
+- `AssistantChatStreamIn.quick_label` → lo stream arricchisce il prompt e a fine risposta fa upsert in `axon_qa_cache` (stessa cache di prima); evento `done` include `qa_updated_at`.
+- **Heartbeat preflight**: `_prepare_assistant_prompt` eseguito come task; ogni 6s senza risultato viene emesso un evento `progress` ("Sto cercando nei documenti…", "Sto raccogliendo dati aggiornati…") → il proxy non chiude la connessione per inattività e l'utente vede lo stato.
+
+### Frontend
+- `assistantStream.ts`: `quick_label` nel body, callback `onProgress`, `StreamDone.qa_updated_at`.
+- `AssistantChat.tsx`: quick action → lookup `cache_only` (istantaneo se in cache) → altrimenti `streamAssistantChat({ quick_label })` con token visibili man mano; badge "Nuovo aggiornamento: <data>" da `qa_updated_at`. Stato `progressText` mostrato nella typing bubble al posto di "sta scrivendo…"; il watchdog 90s viene riarmato anche dagli eventi progress.
+
+### Test manuali
+- ✅ SSE quick action su cache miss: primo token a ~6-8s, 31 delta, cache scritta → lookup successivo `from_cache=true`.
+- ✅ Screenshot web: chip "Telefonate di oggi" → "Sto raccogliendo il contesto…" → risposta in streaming + badge aggiornamento.
+
+
+## V50.z125 (Giu 2026) — Comandi vocali/testuali Axon per Timer, Sveglie e Promemoria
+
+### Backend `/app/backend/server.py`
+- `_maybe_alarm_command(msg, user)` — intercept nello stream `/assistant/chat/stream` (dopo slash e quick-action, prima della LLM principale).
+  - Pre-filtro regex `_ALARM_INTENT_RE` (timer, sveglia, svegliami, ricordami, promemoria, avvisami, conto alla rovescia…).
+  - **Fast path** `_parse_timer_fast` (regex, 0 LLM): "timer 15 minuti", "timer di un'ora e mezza", "countdown 90 secondi".
+  - Altrimenti `_parse_alarm_llm` → `gpt-5.4-mini` JSON `{action, kind, label, duration_seconds, time, weekdays, trigger_at, missing}` con ora attuale Europe/Rome nel prompt.
+  - Crea il doc via `_create_axon_alarm_doc` (logica estratta da `POST /axon/alarms`, condivisa).
+  - Risposte: `alarm_create` (conferma "⏱️ Timer di 15 minuti impostato: suonerà alle 20:20"), `alarm_ask` (dato mancante / orario passato → domanda), `alarm_list` ("quali sveglie ho?" → elenco attivi dal DB). Se non è un comando (es. "ricordami che cos'è il PUN") → None → flusso LLM normale.
+  - Evento SSE `done` include `alarm: doc` quando creato.
+### Frontend
+- `assistantStream.ts`: `StreamDone.alarm?: Alarm`.
+- `AssistantChat.tsx`: in `onDone`, se `done.alarm` → `syncAlarmNotifs(done.alarm)` schedula la notifica locale (native; su web no-op). Fix: import mancante di `notify` (crash su timeout/errore microfono).
+- La conferma viene letta a voce in modalità voce/entrambi (delta passa dal SentenceSpeaker).
+
+### Test manuali
+- ✅ 7 frasi testate via SSE (timer fast path, sveglia one-shot, sveglia ricorrente Lun/Mer, promemoria "tra 40 minuti", dato mancante, orario passato, lista) — ✅ screenshot web chat conferma timer.
+
+
 ## V50.z107 (Giu 2026) — Link app-wide in WebView interna con tab bar visibile
 
 ### Route dedicata `(tabs)/webviewer`
@@ -5582,3 +5621,9 @@ else Linking.openURL(url).catch(() => {});
 - `DashboardWidgetsSection` (Meteo, Appuntamenti oggi, PUN, Scadenze…) spostata sotto il bottone "Interfaccia Master" (prima era subito sotto l'header).
 - Tour di benvenuto: mostrato se manca la chiave locale `onboarding_done_${user_id}` (per-device: ogni nuova installazione lo mostra una volta); il flag server `onboarding_done` resta salvato alla chiusura ma non blocca più la visualizzazione su nuovo device.
 - Chiarimento utente: nella build 1.0.44 le modifiche meteo ERANO presenti (widget Meteo + pagina); il "banner meteo sempre visibile" percepito era il widget Meteo stesso.
+
+## Axon azioni rapide: nessuna schermata bianca + timeout visibile (Giugno 2026 — V50.z121)
+- Causa più probabile del "bianco": crash di render del grafico/tabella (react-native-chart-kit su nativo) o del parser segmenti → ora `ModuleErrorBoundary` attorno a `ChatChartExport`/`ChatTableExport` con fallback testuale, e `parseMessageSegments` in try/catch.
+- Timeout: `xhr.timeout = 120s` in `assistantStream.ts` (prima assente → richiesta appesa su nativo); watchdog 90s senza dati in `AssistantChat.send` → abort + messaggio "⏱️ Axon non ha risposto entro 90 secondi…" + notify. Errori generici già mostrati come "⚠️ Errore: …".
+- Grafici: decimali asse Y dinamici (`decimalsFor`) → PUN 0,11 €/kWh non più mostrato come "0".
+- Backend verificato: prompt "PUN medio per fasce" risponde in ~9s con tabella+grafico.

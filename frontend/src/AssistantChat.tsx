@@ -43,6 +43,8 @@ import { DropboxPickerModal } from "@/src/DropboxPickerModal";
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { AxonOSLogo } from "@/src/BrandLogos";
 import { streamAssistantChat } from "@/src/utils/assistantStream";
+import { syncAlarmNotifs } from "@/src/alarmNotifs";
+import { notify } from "@/src/utils/notify";
 
 // V50.z11 — useBottomSheetPadding rimosso: era usato per padding sheet ma
 // il KeyboardAvoidingView ora gestisce autonomamente lo spazio sopra la tastiera.
@@ -183,6 +185,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [loadingHist, setLoadingHist] = useState(false);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  // V50.z126 — Testo di stato del preflight streaming ("Sto raccogliendo il contesto…")
+  const [progressText, setProgressText] = useState<string | null>(null);
   const [recDuration, setRecDuration] = useState(0);
   const [responseMode, setResponseMode] = useState<ResponseMode>("text");
   // V28.o — Quick actions personalizzabili (mostrate nell'empty state della chat).
@@ -599,25 +603,28 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     setPendingAttachments([]);
 
     // V29.ag — Azioni rapide: usa endpoint server-side con cache + auto-refresh.
-    // La cache client-side (V29.u) è sostituita da quella server-side, così anche
-    // altri device dello stesso utente beneficiano del refresh automatico.
+    // V50.z126 — Solo lookup cache (istantaneo). Su miss NON attendiamo la POST
+    // bloccante (60s+ senza output, oltre il timeout ingress): si passa allo
+    // streaming SSE sotto con `quick_label`, che mostra i token man mano e
+    // salva la risposta finale nella stessa cache.
     if (opts?.quickLabel && !attachmentsPayload.length) {
       try {
-        const qa = await api<{ reply: string; updated_at: string; from_cache: boolean; cache_age_days?: number }>(
+        const qa = await api<{ reply: string | null; updated_at: string | null; from_cache: boolean; cache_age_days?: number; miss?: boolean }>(
           "/axon/quick-action",
           {
             method: "POST",
-            body: { label: opts.quickLabel, prompt: msg },
+            body: { label: opts.quickLabel, prompt: msg, cache_only: true },
           }
         );
         if (qa && qa.reply) {
+          const cachedReply: string = qa.reply;
           setMessages((prev) => [
             ...prev,
             {
               role: "assistant" as const,
-              content: qa.reply,
+              content: cachedReply,
               created_at: new Date().toISOString(),
-              qa_updated_at: qa.updated_at,
+              qa_updated_at: qa.updated_at || undefined,
               qa_from_cache: !!qa.from_cache,
             },
           ]);
@@ -672,8 +679,15 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         message: msg || "Analizza gli allegati.",
         session_id: sessionId || undefined,
         attachments: attachmentsPayload,
+        quick_label: opts?.quickLabel && !attachmentsPayload.length ? opts.quickLabel : undefined,
         signal: controller.signal,
+        onProgress: (p) => {
+          // V50.z126 — Stato del preflight visibile ("Sto raccogliendo il contesto…")
+          armWatchdog();
+          if (p?.text) setProgressText(p.text);
+        },
         onMeta: (meta) => {
+          setProgressText(null);
           if (meta.session_id) setSessionId(meta.session_id);
           if (meta.assistant_name) setAssistantName(meta.assistant_name);
           // Insert an empty assistant bubble that will be filled by deltas
@@ -702,6 +716,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           });
         },
         onDone: (done) => {
+          // V50.z125 — Comando timer/sveglia/promemoria: schedula la notifica locale
+          if (done.alarm) { void syncAlarmNotifs(done.alarm).catch(() => {}); }
           setMessages((prev) => {
             if (!prev.length) return prev;
             const last = prev[prev.length - 1];
@@ -714,6 +730,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               web_sources: done.web_sources || [],
               from_cache: !!done.from_cache,
               message_id: done.message_id || last.message_id,
+              qa_updated_at: done.qa_updated_at || last.qa_updated_at,
+              qa_from_cache: done.qa_updated_at ? false : last.qa_from_cache,
             });
             return next;
           });
@@ -769,6 +787,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     } finally {
       if (watchdog) clearTimeout(watchdog);
       abortRef.current = null;
+      setProgressText(null);
       setSending(false);
     }
   };
@@ -1524,7 +1543,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 <>
                   <View style={styles.typingBubble}>
                     <TypingDots />
-                    <Text style={styles.typingTxt}>{assistantName} sta scrivendo…</Text>
+                    <Text style={styles.typingTxt}>{progressText || `${assistantName} sta scrivendo…`}</Text>
                   </View>
                   <Pressable
                     testID="assistant-stop-btn"

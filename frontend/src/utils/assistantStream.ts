@@ -6,6 +6,7 @@
 // when a streaming reader is unavailable, so the UX still works.
 
 import { getToken } from "@/src/api";
+import type { Alarm } from "@/src/alarmNotifs";
 
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL as string;
 
@@ -23,14 +24,23 @@ export type StreamDone = {
   web_sources?: { title: string; url: string }[];
   from_cache?: boolean;
   session_id?: string;
+  // V50.z125 — sveglia/timer/promemoria creato da comando vocale/testuale
+  alarm?: Alarm | null;
+  // V50.z126 — azione rapida: timestamp salvataggio in cache QA
+  qa_updated_at?: string | null;
 };
+
+export type StreamProgress = { stage?: string; text?: string; model?: string };
 
 export type StreamAssistantChatArgs = {
   message: string;
   session_id?: string;
   attachments?: { name: string; mime: string; data_base64: string }[];
+  // V50.z126 — etichetta azione rapida (il backend arricchisce il prompt e salva in cache)
+  quick_label?: string;
   signal?: AbortSignal;
   onMeta?: (meta: StreamMeta) => void;
+  onProgress?: (p: StreamProgress) => void;
   onDelta?: (chunk: string) => void;
   onDone?: (done: StreamDone) => void;
 };
@@ -103,6 +113,8 @@ export async function streamAssistantChat(
       if (typeof data?.from_cache === "boolean") result.from_cache = data.from_cache;
       if (data?.session_id) result.session_id = data.session_id;
       args.onDone?.(data);
+    } else if (event === "progress") {
+      args.onProgress?.(data || {});
     } else if (event === "error") {
       throw new Error(data?.error || "Errore streaming");
     }
@@ -145,6 +157,7 @@ export async function streamAssistantChat(
         message: args.message,
         session_id: args.session_id,
         attachments: args.attachments || [],
+        quick_label: args.quick_label || undefined,
       }),
       signal: args.signal,
     });
@@ -250,6 +263,7 @@ export async function streamAssistantChat(
       message: args.message,
       session_id: args.session_id,
       attachments: args.attachments || [],
+      quick_label: args.quick_label || undefined,
     }));
   });
 

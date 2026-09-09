@@ -14804,7 +14804,10 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
 # =========================================================================
 
 class AssistantChatStreamIn(AssistantChatIn):
-    pass
+    # V50.z126 — Se presente, la richiesta è un'azione rapida: il prompt viene
+    # arricchito con le istruzioni operative e la risposta finale salvata in
+    # axon_qa_cache (stessa cache di POST /axon/quick-action).
+    quick_label: Optional[str] = None
 
 
 # V50.m — Slash commands: intercettati prima della LLM per risposte istantanee
@@ -15026,6 +15029,218 @@ async def _maybe_quick_action_intercept(msg: str, user: dict) -> Optional[dict]:
     return None
 
 
+# =========================================================================
+# V50.z125 — Axon Alarm commands (voce/testo): "imposta timer 15 minuti",
+# "sveglia domani alle 7", "ricordami di chiamare Mario stasera".
+# Flusso: regex di pre-filtro → parser (regex veloce per i timer semplici,
+# altrimenti LLM JSON) → creazione doc in axon_alarms → risposta di conferma.
+# Il client riceve `alarm` nell'evento `done` e schedula la notifica locale.
+# =========================================================================
+_ALARM_INTENT_RE = re.compile(
+    r"\b(timer|sveglia|sveglie|svegliami|ricordami|ricordamelo|promemoria|conto alla rovescia|"
+    r"countdown|avvisami|avvertimi|cronometro)\b",
+    re.IGNORECASE,
+)
+_ALARM_TIMER_RE = re.compile(
+    r"\b(?:timer|conto alla rovescia|countdown)\b.*?(?:di\s+|da\s+)?"
+    r"(\d{1,3}|un[o']?|una|due|tre|quattro|cinque|dieci|quindici|venti|trenta|quarantacinque|sessanta)"
+    r"\s*(?:'|′)?\s*(second[oi]|sec|s|minut[oi]|min|m|or[ae]|h)\b(?:\s*e\s*(mezz[ao]|un quarto|tre quarti|(\d{1,2})\s*(?:minut[oi]|min)?))?",
+    re.IGNORECASE,
+)
+_ALARM_NUM_WORDS = {
+    "un": 1, "uno": 1, "un'": 1, "una": 1, "due": 2, "tre": 3, "quattro": 4, "cinque": 5,
+    "dieci": 10, "quindici": 15, "venti": 20, "trenta": 30, "quarantacinque": 45, "sessanta": 60,
+}
+_ALARM_WEEKDAYS_IT = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"]
+
+
+def _rome_now() -> datetime:
+    import zoneinfo as _zi
+    return utcnow().astimezone(_zi.ZoneInfo("Europe/Rome"))
+
+
+def _fmt_duration_it(seconds: int) -> str:
+    h, rem = divmod(int(seconds), 3600)
+    m, s = divmod(rem, 60)
+    parts = []
+    if h: parts.append(f"{h} or{'a' if h == 1 else 'e'}")
+    if m: parts.append(f"{m} minut{'o' if m == 1 else 'i'}")
+    if s and not h: parts.append(f"{s} second{'o' if s == 1 else 'i'}")
+    return " e ".join(parts) or "0 secondi"
+
+
+def _parse_timer_fast(txt: str) -> Optional[int]:
+    """Parser regex per timer semplici → durata in secondi, None se non matcha."""
+    m = _ALARM_TIMER_RE.search(txt)
+    if not m:
+        return None
+    raw_n, unit, extra, extra_min = m.group(1), m.group(2).lower(), (m.group(3) or "").lower(), m.group(4)
+    n = _ALARM_NUM_WORDS.get(raw_n.lower().rstrip("'"), None)
+    if n is None:
+        try:
+            n = int(raw_n)
+        except Exception:
+            return None
+    if unit.startswith("or") or unit == "h":
+        secs = n * 3600
+        if extra.startswith("mezz"): secs += 1800
+        elif extra == "un quarto": secs += 900
+        elif extra == "tre quarti": secs += 2700
+        elif extra_min: secs += int(extra_min) * 60
+    elif unit.startswith("min") or unit == "m":
+        secs = n * 60
+        if extra.startswith("mezz"): secs += 30
+    else:
+        secs = n
+    return secs if 0 < secs <= 24 * 3600 else None
+
+
+async def _parse_alarm_llm(msg: str) -> Optional[dict]:
+    """Chiede a un modello veloce di estrarre il comando in JSON strutturato."""
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return None
+    now = _rome_now()
+    weekday_it = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"][now.weekday()]
+    system = (
+        "Sei il parser comandi di Axon, assistente di un CRM italiano. Trasformi richieste in linguaggio "
+        "naturale (anche da trascrizione vocale, quindi con possibili errori) in un comando JSON per creare "
+        "timer, sveglie o promemoria. Rispondi SOLO con JSON valido, senza testo attorno."
+    )
+    prompt = f"""ORA ATTUALE (Europe/Rome): {now.strftime('%Y-%m-%d %H:%M')} ({weekday_it})
+
+MESSAGGIO UTENTE: «{msg.strip()}»
+
+Rispondi con questo JSON:
+{{"action": "create" | "none",
+ "kind": "timer" | "alarm" | "reminder" | null,
+ "label": "etichetta breve (max 60 caratteri)",
+ "duration_seconds": int | null,
+ "time": "HH:MM" | null,
+ "weekdays": [0-6] | null,
+ "trigger_at": "YYYY-MM-DDTHH:MM" | null,
+ "missing": "domanda da porre all'utente se manca un dato essenziale" | null}}
+
+REGOLE:
+- timer: durata relativa ("timer 15 minuti", "avvisami tra un'ora e mezza", "conto alla rovescia 90 secondi") → kind timer, duration_seconds. label es. "Timer" o "Timer pasta" se c'è uno scopo.
+- alarm (sveglia): un orario del giorno ("sveglia alle 7", "svegliami domani alle 6 e mezza", "sveglia ogni lunedì alle 8") → kind alarm, time in 24h. weekdays SOLO se ricorrente (0=Domenica,1=Lunedì,...,6=Sabato; "giorni feriali"=[1,2,3,4,5], "tutti i giorni"=[0,1,2,3,4,5,6]); per "domani"/one-shot usa []. label "Sveglia".
+- reminder (promemoria): "ricordami di X ...", "promemoria: X alle 18", "avvisami domani alle 10 di chiamare Rossi" → kind reminder, trigger_at in ora locale Europe/Rome, label = cosa fare (es. "Chiamare Mario Rossi"). Se manca l'orario ma c'è il giorno usa: "stasera"=20:00, "domattina"/"mattina"=08:30, "pomeriggio"=15:00, "pranzo"=13:00, "sera"=20:00; "tra X minuti/ore" → ora attuale + X. Il trigger_at deve essere nel FUTURO (se l'orario di oggi è già passato e non è indicato il giorno, usa domani).
+- "alle 7" senza altro → se le 7 di oggi sono già passate → domani alle 7 (comunque per alarm serve solo time).
+- action "none" se l'utente NON chiede di creare qualcosa (domanda, elenco, "quali sveglie ho", "cancella il timer", conversazione generica) → missing null.
+- action "none" + missing compilato se vuole creare ma manca un dato essenziale (es. "ricordami di chiamare Mario" senza quando → missing "Per quando vuoi il promemoria per chiamare Mario?")."""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(api_key=key, session_id=f"alarm-nlp-{uuid.uuid4().hex[:8]}", system_message=system).with_model("openai", "gpt-5.4-mini")
+        r = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=20)
+        txt = (r or "").strip()
+        if txt.startswith("```"):
+            txt = re.sub(r"^```(?:json)?\n?|\n?```$", "", txt).strip()
+        import json as _json
+        return _json.loads(txt)
+    except Exception as e:
+        logger.warning("[axon-alarm-nlp] parse failed: %s", e)
+        return None
+
+
+async def _maybe_alarm_command(msg: str, user: dict) -> Optional[dict]:
+    """Se il messaggio è un comando per creare timer/sveglia/promemoria, lo esegue
+    e ritorna {"reply", "cmd", "alarm"}. Ritorna None se non è un comando."""
+    txt = (msg or "").strip()
+    if not txt or len(txt) > 300 or not _ALARM_INTENT_RE.search(txt):
+        return None
+    import zoneinfo as _zi
+    rome = _zi.ZoneInfo("Europe/Rome")
+
+    payload: Optional[dict] = None
+    # Fast path: timer semplice (nessuna chiamata LLM)
+    fast = _parse_timer_fast(txt)
+    if fast:
+        payload = {"kind": "timer", "label": "Timer", "duration_seconds": fast}
+    else:
+        parsed = await _parse_alarm_llm(txt)
+        if not parsed or not isinstance(parsed, dict):
+            return None
+        if parsed.get("action") != "create":
+            missing = (parsed.get("missing") or "").strip()
+            if missing:
+                return {"reply": f"⏰ {missing}", "cmd": "alarm_ask", "alarm": None}
+            # Domanda sull'elenco ("quali sveglie ho?", "ho timer attivi?") → lista dal DB
+            if re.search(r"\b(quali|quante|quanti|elenca|mostra|lista|ho|attiv[ie])\b", txt, re.IGNORECASE):
+                items = await db.axon_alarms.find({"user_id": user["user_id"], "enabled": True}, {"_id": 0}).sort("created_at", -1).to_list(50)
+                if not items:
+                    return {"reply": "⏰ Non hai timer, sveglie o promemoria attivi.", "cmd": "alarm_list", "alarm": None}
+                lines = [f"⏰ **Attivi ({len(items)})**\n"]
+                for a in items:
+                    k = a.get("kind")
+                    if k == "alarm":
+                        wds = a.get("weekdays") or []
+                        when = ("ogni " + ", ".join(_ALARM_WEEKDAYS_IT[d] for d in wds)) if wds else "one-shot"
+                        lines.append(f"• ⏰ {a.get('label')} — {a.get('time')} ({when})")
+                    else:
+                        try:
+                            tl = datetime.fromisoformat(a["trigger_at"]).astimezone(rome).strftime("%d/%m %H:%M")
+                        except Exception:
+                            tl = "?"
+                        lines.append(f"• {'⏱️' if k == 'timer' else '🔔'} {a.get('label')} — {tl}")
+                return {"reply": "\n".join(lines), "cmd": "alarm_list", "alarm": None}
+            return None
+        kind = (parsed.get("kind") or "").lower()
+        label = (parsed.get("label") or "").strip() or {"timer": "Timer", "alarm": "Sveglia"}.get(kind, "Promemoria")
+        payload = {"kind": kind, "label": label}
+        if kind == "timer":
+            try:
+                payload["duration_seconds"] = int(parsed.get("duration_seconds") or 0)
+            except Exception:
+                payload["duration_seconds"] = 0
+        elif kind == "alarm":
+            payload["time"] = (parsed.get("time") or "").strip()
+            wd = parsed.get("weekdays") or []
+            payload["weekdays"] = [int(d) for d in wd if isinstance(d, (int, float)) and 0 <= int(d) <= 6]
+        elif kind == "reminder":
+            raw = (parsed.get("trigger_at") or "").strip()
+            try:
+                local_dt = datetime.fromisoformat(raw)
+                if local_dt.tzinfo is None:
+                    local_dt = local_dt.replace(tzinfo=rome)
+            except Exception:
+                return {"reply": "⏰ Per quando vuoi impostare il promemoria? Dimmi giorno e ora.", "cmd": "alarm_ask", "alarm": None}
+            if local_dt <= _rome_now() + timedelta(seconds=30):
+                return {"reply": "⏰ L'orario indicato è già passato. Per quando vuoi il promemoria?", "cmd": "alarm_ask", "alarm": None}
+            payload["trigger_at"] = local_dt.astimezone(timezone.utc).isoformat()
+        else:
+            return None
+
+    try:
+        doc = await _create_axon_alarm_doc(user, payload)
+    except HTTPException as he:
+        logger.info("[axon-alarm-nlp] invalid payload %s: %s", payload, he.detail)
+        return {"reply": "⏰ Non ho capito bene quando impostarlo: puoi ripetere indicando durata o orario?", "cmd": "alarm_ask", "alarm": None}
+
+    kind = doc["kind"]
+    if kind == "timer":
+        end_local = datetime.fromisoformat(doc["trigger_at"]).astimezone(rome)
+        reply = f"⏱️ Timer di {_fmt_duration_it(doc['duration_seconds'])} impostato: suonerà alle {end_local.strftime('%H:%M')}."
+    elif kind == "alarm":
+        wds = doc.get("weekdays") or []
+        if wds:
+            when = "tutti i giorni" if len(wds) == 7 else "ogni " + ", ".join(_ALARM_WEEKDAYS_IT[d] for d in wds)
+        else:
+            now_l = _rome_now()
+            h, m = (int(x) for x in doc["time"].split(":"))
+            when = "oggi" if (h, m) > (now_l.hour, now_l.minute) else "domani"
+        reply = f"⏰ Sveglia impostata alle {doc['time']} ({when})."
+    else:
+        trig_local = datetime.fromisoformat(doc["trigger_at"]).astimezone(rome)
+        today = _rome_now().date()
+        d = trig_local.date()
+        if d == today: day_s = "oggi"
+        elif d == today + timedelta(days=1): day_s = "domani"
+        else: day_s = f"{_ALARM_WEEKDAYS_IT[(trig_local.weekday() + 1) % 7]} {trig_local.strftime('%d/%m')}"
+        reply = f"🔔 Promemoria «{doc['label']}» impostato per {day_s} alle {trig_local.strftime('%H:%M')}."
+    reply += "\n\nLo trovi in *Timer & Sveglie*."
+    return {"reply": reply, "cmd": "alarm_create", "alarm": doc}
+
+
 @api_router.post("/assistant/chat/stream")
 async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_current_user)):
     """SSE streaming variant of /assistant/chat.
@@ -15043,6 +15258,13 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         return f"event: {event}\ndata: {_json_mod.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
     async def event_stream():
+        # V50.z126 — Azione rapida in streaming: arricchisci il prompt come
+        # faceva POST /axon/quick-action (che era bloccante e superava il
+        # timeout dell'ingress senza mostrare nulla all'utente).
+        _qa_label = (body.quick_label or "").strip()[:120]
+        if _qa_label:
+            body.message = _qa_enrich_prompt(body.message or "")
+
         # V50.m — Slash commands intercept: /aiuto, /bolletta, /scadenze,
         # /pun, /team → risposta istantanea senza chiamare la LLM (o con
         # prompt riscritto se `rebuild_msg`).
@@ -15080,6 +15302,28 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                                "web_sources": [], "from_cache": False, "slash": _qa_result.get("cmd")})
             return
 
+        # V50.z125 — Comandi timer/sveglia/promemoria ("imposta timer 15 minuti",
+        # "ricordami di chiamare Mario stasera"): crea la sveglia e conferma.
+        _al_result = await _maybe_alarm_command(body.message or "", user)
+        if _al_result and _al_result.get("reply") is not None:
+            _sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
+            _mid = uuid.uuid4().hex[:16]
+            try:
+                await db.assistant_messages.insert_many([
+                    {"user_id": user["user_id"], "session_id": _sid, "role": "user",
+                     "content": body.message or "", "created_at": utcnow()},
+                    {"message_id": _mid, "user_id": user["user_id"], "session_id": _sid,
+                     "role": "assistant", "content": _al_result["reply"], "created_at": utcnow()},
+                ])
+            except Exception:
+                pass
+            yield sse("meta", {"session_id": _sid, "message_id": _mid, "from_cache": False, "slash": _al_result.get("cmd")})
+            yield sse("delta", {"text": _al_result["reply"]})
+            yield sse("done", {"session_id": _sid, "message_id": _mid, "used_web_search": False,
+                               "web_sources": [], "from_cache": False, "slash": _al_result.get("cmd"),
+                               "alarm": _al_result.get("alarm")})
+            return
+
         # V50.k — Progress event: preflight iniziato (l'utente vede subito
         # "Sto raccogliendo il contesto…" invece di attendere silenziosamente).
         yield sse("progress", {"stage": "preflight", "text": "Sto raccogliendo il contesto…"})
@@ -15089,14 +15333,28 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         # rispondeva solo con scuse). Ripristinato comportamento V50.z50.
 
         # --- Preflight: build prompt (raises HTTPException on error) ---
-        try:
-            prep = await _prepare_assistant_prompt(user, body)
-        except HTTPException as he:
-            yield sse("error", {"error": he.detail, "status": he.status_code})
-            return
-        except Exception as e:
-            yield sse("error", {"error": f"prep failed: {e}"})
-            return
+        # V50.z126 — Il preflight (RAG, Tavily, KB…) può durare decine di
+        # secondi: lo eseguiamo come task e nel frattempo emettiamo heartbeat
+        # `progress` ogni 6s, così il proxy non chiude la connessione per
+        # inattività e l'utente vede che Axon sta lavorando.
+        _prep_task = asyncio.create_task(_prepare_assistant_prompt(user, body))
+        _prep_started = asyncio.get_event_loop().time()
+        _hb_msgs = ["Sto cercando nei documenti e nelle regole…", "Sto raccogliendo dati aggiornati…", "Ancora un momento, sto preparando il contesto…"]
+        _hb_i = 0
+        while True:
+            try:
+                prep = await asyncio.wait_for(asyncio.shield(_prep_task), timeout=6.0)
+                break
+            except asyncio.TimeoutError:
+                yield sse("progress", {"stage": "preflight", "text": _hb_msgs[_hb_i % len(_hb_msgs)], "elapsed": round(asyncio.get_event_loop().time() - _prep_started)})
+                _hb_i += 1
+                continue
+            except HTTPException as he:
+                yield sse("error", {"error": he.detail, "status": he.status_code})
+                return
+            except Exception as e:
+                yield sse("error", {"error": f"prep failed: {e}"})
+                return
 
         msg = prep["msg"]
         session_id = prep["session_id"]
@@ -15264,6 +15522,22 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             except Exception:
                 pass
 
+        # V50.z126 — Persisti la risposta dell'azione rapida nella cache QA
+        _qa_updated_at: Optional[str] = None
+        if _qa_label and reply_text:
+            try:
+                _qa_now = utcnow()
+                await db.axon_qa_cache.update_one(
+                    {"user_id": user["user_id"], "label": _qa_label},
+                    {"$set": {"user_id": user["user_id"], "label": _qa_label, "reply": reply_text,
+                              "updated_at": _qa_now, "web_sources": web_sources or [],
+                              "used_web_search": bool(used_web_search)}},
+                    upsert=True,
+                )
+                _qa_updated_at = _qa_now.isoformat()
+            except Exception as exc:
+                logger.warning("[assistant-stream] qa cache persist failed: %s", exc)
+
         yield sse("done", {
             "message_id": assistant_message_id,
             "used_web_search": used_web_search,
@@ -15271,6 +15545,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             "from_cache": False,
             "session_id": session_id,
             "model": _model_choice,
+            "qa_updated_at": _qa_updated_at,
         })
 
     return StreamingResponse(
@@ -16279,6 +16554,23 @@ class AxonQuickActionIn(BaseModel):
     label: str
     prompt: str
     force_refresh: bool = False
+    # V50.z126 — Solo lookup cache: su miss ritorna subito {"reply": None, "miss": True}
+    # così il client passa allo streaming SSE invece di attendere una POST bloccante.
+    cache_only: bool = False
+
+
+def _qa_enrich_prompt(prompt: str) -> str:
+    return (
+        f"{prompt}\n\n"
+        "ISTRUZIONI OPERATIVE:\n"
+        "- Usa i file e link presenti nelle 'regole' come fonte primaria.\n"
+        "- Se il dato richiesto non è aggiornato nelle regole, cerca autonomamente "
+        "online (web_search) SOLO nelle fonti/link già indicati nelle regole "
+        "o in fonti ufficiali equivalenti (es. GME per PUN, ARERA per bollette).\n"
+        "- Non chiedere mai all'utente di caricare file: recupera tutto da solo.\n"
+        "- Formatta la risposta in modo chiaro (tabelle Markdown se utile) e "
+        "specifica sempre la fonte/data del dato."
+    )
 
 
 @api_router.post("/axon/quick-action")
@@ -16318,18 +16610,11 @@ async def axon_quick_action(body: AxonQuickActionIn, user=Depends(get_current_us
                         "cache_age_days": round(age_days, 2),
                     }
 
+    if body.cache_only:
+        return {"reply": None, "updated_at": None, "from_cache": False, "miss": True}
+
     # 2) Cache stale/missing → richiesta all'LLM con istruzioni di auto-refresh.
-    enriched_prompt = (
-        f"{prompt}\n\n"
-        "ISTRUZIONI OPERATIVE:\n"
-        "- Usa i file e link presenti nelle 'regole' come fonte primaria.\n"
-        "- Se il dato richiesto non è aggiornato nelle regole, cerca autonomamente "
-        "online (web_search) SOLO nelle fonti/link già indicati nelle regole "
-        "o in fonti ufficiali equivalenti (es. GME per PUN, ARERA per bollette).\n"
-        "- Non chiedere mai all'utente di caricare file: recupera tutto da solo.\n"
-        "- Formatta la risposta in modo chiaro (tabelle Markdown se utile) e "
-        "specifica sempre la fonte/data del dato."
-    )
+    enriched_prompt = _qa_enrich_prompt(prompt)
 
     chat_body = AssistantChatIn(message=enriched_prompt, session_id=None, attachments=[])
     try:
@@ -22198,6 +22483,13 @@ async def create_axon_alarm(payload: Dict[str, Any] = Body(...), user=Depends(ge
         # Promemoria:
         trigger_at: ISO datetime
     """
+    return await _create_axon_alarm_doc(user, payload)
+
+
+async def _create_axon_alarm_doc(user: dict, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Valida il payload, inserisce il doc in `axon_alarms` e lo ritorna.
+    Condiviso tra l'endpoint REST e il comando vocale/testuale di Axon
+    (V50.z125 `_maybe_alarm_command`)."""
     tenant = user["user_id"]
     kind = (payload.get("kind") or "").strip().lower()
     if kind not in _AXON_ALARM_KINDS:
