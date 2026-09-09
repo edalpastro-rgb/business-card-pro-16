@@ -28,6 +28,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
+import { SentenceSpeaker } from "@/src/utils/sentenceSpeaker";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { useFabStack } from "@/src/FabStack";
@@ -634,6 +635,27 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     // V29.n — Nuovo AbortController per questa chiamata (Stop button lo aborta).
     const controller = new AbortController();
     abortRef.current = controller;
+    // V50.z112 — Voce in streaming: le frasi vengono sintetizzate e riprodotte
+    // man mano che arrivano i delta (prima frase entro pochi secondi), senza
+    // attendere la fine della risposta. Testo e voce procedono in parallelo.
+    const wantSpeech = !!(opts?.forceSpeak || responseMode === "voice" || responseMode === "both");
+    let speaker: SentenceSpeaker | null = null;
+    if (wantSpeech) {
+      if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
+      speaker = new SentenceSpeaker(assistantVoice, {
+        onStart: () => { setPlayingIdx(-1); setPaused(false); },
+        onAudioElement: (el) => { currentAudioRef.current = el; },
+        onEnd: () => {
+          currentAudioRef.current = null;
+          setPlayingIdx((v) => (v === -1 ? null : v));
+          setPaused(false);
+          cleanupAudioRef.current = null;
+          if (opts?.onSpoken) opts.onSpoken();
+        },
+      });
+      const sp = speaker;
+      cleanupAudioRef.current = () => sp.stop();
+    }
     try {
       // V40 — Streaming path via SSE. Append delta chunks to the last message
       // in real time. Falls back to a regular POST if streaming fails.
@@ -659,6 +681,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           ]);
         },
         onDelta: (chunk) => {
+          speaker?.feed(chunk);
           setMessages((prev) => {
             if (!prev.length) return prev;
             const last = prev[prev.length - 1];
@@ -687,15 +710,19 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         },
       });
 
-      // Auto-play voice if mode requires (or forced by conversation mode)
+      // V50.z112 — Voce: chiudi la coda (residuo + eventuale fallback se lo
+      // stream non ha prodotto delta, es. risposta non-stream). onSpoken viene
+      // chiamato dal SentenceSpeaker alla fine dell'ultimo audio.
       const finalReply = streamResult.reply;
-      const shouldSpeak = opts?.forceSpeak || responseMode === "voice" || responseMode === "both";
-      if (shouldSpeak && finalReply) {
-        void speakReply(finalReply, undefined, opts?.onSpoken);
+      if (speaker) {
+        if (finalReply) speaker.finishWith(finalReply);
+        else speaker.stop();
       } else if (opts?.onSpoken) {
         opts.onSpoken();
       }
     } catch (e: any) {
+      // V50.z112 — Interrompi anche la voce in streaming
+      if (speaker) { speaker.stop(); speaker = null; }
       // V40 — Remove any partially-streamed empty bubble
       setMessages((prev) => {
         if (!prev.length) return prev;
@@ -717,7 +744,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           { role: "assistant", content: `⚠️ Errore: ${e?.message || "Impossibile contattare l'assistente"}`, created_at: new Date().toISOString() },
         ]);
       }
-      if (opts?.onSpoken) opts.onSpoken();
+      if (opts?.onSpoken && !wantSpeech) opts.onSpoken();
     } finally {
       abortRef.current = null;
       setSending(false);
