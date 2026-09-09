@@ -1,6 +1,15 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z128 (Giu 2026) — Google Drive `_gd_get_credentials`: cache token + retry + invalid_grant
+
+- Prima: QUALSIASI errore in `creds.refresh()` (anche rete/timeout/5xx Google) cancellava la connessione Drive dell'utente → riconnessioni continue.
+- Ora (`server.py`, solo questa funzione + dict `_GD_TOKEN_CACHE`):
+  - Cache in-memory `user_id → {key: refresh_token_enc, token, expiry}`; hit se expiry−60s > now; chiave legata al refresh token cifrato (una riconnessione invalida la cache); pop su 409/invalid_grant.
+  - `creds.refresh` eseguito in `asyncio.to_thread` con 3 tentativi (backoff 0.5s, 1s). Errori transitori → dopo 3 tentativi `503 Google Drive temporaneamente non raggiungibile`, connessione conservata.
+  - `invalid_grant` nel messaggio → `delete_one` + `401` (comportamento precedente, ora solo in questo caso).
+- Test (mock `Credentials.refresh`): cache hit senza refresh ✅, transitorio → successo al 3° tentativo ✅, down → 503 e connessione conservata ✅, invalid_grant → 401 e connessione rimossa ✅.
+
 ## V50.z127 (Giu 2026) — Fix orario appuntamenti (08:15 → 06:15) — root cause backend
 
 **Root cause**: Motor/PyMongo restituisce i datetime NAIVE; FastAPI li serializzava come `"2026-06-20T06:15:00"` (senza `Z`/`+00:00`). Su JS (web e Hermes/Android) `new Date("...T06:15:00")` senza fuso = **ora locale** → un appuntamento inserito alle 08:15 (06:15Z) veniva mostrato/ricaricato come 06:15; ogni salvataggio successivo dall'editor spostava di altre 2 ore. Il `POST` rispondeva correttamente con `+00:00` (Pydantic), il bug era solo su GET/list/PUT/team.

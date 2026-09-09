@@ -118,6 +118,8 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - I miei file / Master Files: upload con formati unificati e validazione (v2.20), share nativo (v2.6), report inline (v2.4).
 - **Google Drive OAuth** (v2.w): redirect_uri hardening, PKCE code verifier fix (V29.as/aw), scope allargato (V50.h), fix ricorsione
   (V50.z12), **fix redirect deep link `frontend://` su APK Android** (V50.z110). Dropbox OAuth + callback backend (V50.e/f).
+  **V50.z128 `_gd_get_credentials`**: cache in-memory access token (`_GD_TOKEN_CACHE`, invalidata su riconnessione), refresh con
+  3 tentativi/backoff su errori transitori (→ 503, connessione conservata), connessione rimossa SOLO su `invalid_grant` confermato (→ 401).
 - Caselle mail: Auto-CRM scheduler configurabile che aggancia mail ai contatti, estrae firme via LLM e propone aggiornamenti
   (V50.z24), allegati mail su contatto (V50.z25).
 - Emergent Object Storage per immagini/file.
@@ -162,6 +164,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z128 | Giu 2026 | Google Drive: token cache + retry transitori + rimozione connessione solo su invalid_grant |
 | V50.z127 | Giu 2026 | Fix orario appuntamenti: datetime UTC espliciti (+00:00) nelle risposte appuntamenti/calendario |
 | V50.z126 | Giu 2026 | Azioni rapide in streaming SSE + heartbeat preflight + `cache_only` |
 | V50.z125 | Giu 2026 | Comandi Timer/Sveglie/Promemoria in linguaggio naturale via chat Axon; fix import `notify` |

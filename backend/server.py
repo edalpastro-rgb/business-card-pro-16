@@ -19578,6 +19578,8 @@ _GD_SCOPES = [
     "https://www.googleapis.com/auth/drive.metadata.readonly",
 ]
 _gd_fernet = _Fernet(_GD_TOKEN_KEY.encode()) if _GD_TOKEN_KEY else None
+# V50.z128 — Cache in-memory access token Drive: user_id → {key, token, expiry}
+_GD_TOKEN_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 def _gd_client_config() -> Dict[str, Any]:
@@ -19597,29 +19599,71 @@ def _gd_configured() -> bool:
 
 
 async def _gd_get_credentials(user_id: str):
-    """Return authenticated googleapiclient credentials (refreshed if needed) or raise 409/401."""
+    """Return authenticated googleapiclient credentials (refreshed if needed) or raise 409/401/503.
+
+    V50.z128:
+    - Cache in-memory dell'access token per utente (chiave legata al refresh
+      token cifrato → una riconnessione invalida automaticamente la cache).
+    - Refresh ritentato automaticamente (3 tentativi con backoff) sugli errori
+      transitori (rete, timeout, 5xx Google).
+    - La connessione Drive viene rimossa SOLO su `invalid_grant` confermato
+      (token revocato/scaduto). Gli altri errori → 503 senza cancellare nulla.
+    """
     from google.oauth2.credentials import Credentials  # type: ignore
     from google.auth.transport.requests import Request as GoogleRequest  # type: ignore
     row = await db.google_drive_connections.find_one({"user_id": user_id})
     if not row:
+        _GD_TOKEN_CACHE.pop(user_id, None)
         raise HTTPException(status_code=409, detail="Google Drive non collegato")
     if not _gd_fernet:
         raise HTTPException(status_code=500, detail="Google Drive non configurato lato server")
-    refresh = _gd_fernet.decrypt(row["refresh_token_enc"].encode()).decode()
-    creds = Credentials(
-        None,
-        refresh_token=refresh,
-        token_uri="https://oauth2.googleapis.com/token",
-        client_id=_GD_CLIENT_ID,
-        client_secret=_GD_CLIENT_SECRET,
-        scopes=_GD_SCOPES,
-    )
-    try:
-        creds.refresh(GoogleRequest())
-    except Exception as e:
-        # Token revocato o non valido: rimuovi la connessione locale.
-        await db.google_drive_connections.delete_one({"user_id": user_id})
-        raise HTTPException(status_code=401, detail=f"Token Google revocato o non valido: forza riconnessione") from e
+    refresh_enc = row["refresh_token_enc"]
+    refresh = _gd_fernet.decrypt(refresh_enc.encode()).decode()
+
+    def _build(token: Optional[str] = None, expiry: Optional[datetime] = None):
+        return Credentials(
+            token,
+            refresh_token=refresh,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=_GD_CLIENT_ID,
+            client_secret=_GD_CLIENT_SECRET,
+            scopes=_GD_SCOPES,
+            expiry=expiry,
+        )
+
+    # 1) Cache hit: access token ancora valido (margine 60s)
+    cached = _GD_TOKEN_CACHE.get(user_id)
+    now_naive = datetime.utcnow()
+    if cached and cached.get("key") == refresh_enc and cached.get("expiry") and cached["expiry"] - timedelta(seconds=60) > now_naive:
+        return _build(cached["token"], cached["expiry"])
+
+    # 2) Refresh con retry sugli errori transitori
+    creds = _build()
+    last_exc: Optional[Exception] = None
+    for attempt in range(3):
+        try:
+            await asyncio.to_thread(creds.refresh, GoogleRequest())
+            last_exc = None
+            break
+        except Exception as e:  # noqa: BLE001
+            last_exc = e
+            msg = str(e).lower()
+            if "invalid_grant" in msg:
+                # Token revocato/scaduto CONFERMATO da Google → rimuovi la connessione locale.
+                _GD_TOKEN_CACHE.pop(user_id, None)
+                await db.google_drive_connections.delete_one({"user_id": user_id})
+                logger.warning("[gdrive] invalid_grant per user=%s: connessione rimossa", user_id)
+                raise HTTPException(status_code=401, detail="Token Google revocato o non valido: forza riconnessione") from e
+            logger.warning("[gdrive] refresh transitorio fallito (tentativo %d/3) user=%s: %s", attempt + 1, user_id, e)
+            if attempt < 2:
+                await asyncio.sleep(0.5 * (2 ** attempt))
+    if last_exc is not None:
+        raise HTTPException(status_code=503, detail="Google Drive temporaneamente non raggiungibile: riprova tra qualche istante") from last_exc
+
+    # 3) Salva in cache (expiry naive UTC come da google-auth; fallback 55 min)
+    exp = creds.expiry or (now_naive + timedelta(minutes=55))
+    if creds.token:
+        _GD_TOKEN_CACHE[user_id] = {"key": refresh_enc, "token": creds.token, "expiry": exp}
     return creds
 
 
