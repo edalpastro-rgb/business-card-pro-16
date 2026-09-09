@@ -667,43 +667,10 @@ function ImpostazioniScreen() {
 
         {!user?.parent_user_id && (
         <View style={styles.card}>
-          <CatHeader color="#F97316" label="Comunicazioni · Script & Referenze" icon="mail" />
-          <Text style={{ fontSize: 12, color: theme.color.muted, marginBottom: 8 }}>
-            Questi due testi vengono usati da tutti gli agenti del tuo team. Il primo compare nel widget floating
-            &quot;Script&quot; durante le chiamate; il secondo è il messaggio WhatsApp che il cliente invia ai suoi contatti
-            dopo aver firmato.
-          </Text>
-
-          <Text style={styles.label}>Script telefonata (widget floating)</Text>
-          <TextInput
-            testID="settings-call-script"
-            value={s.call_script || ""}
-            onChangeText={(t) => setS({ ...s, call_script: t })}
-            multiline
-            style={[styles.input, { minHeight: 140, textAlignVertical: "top" }]}
-            placeholder={"APERTURA\nBuongiorno {name}, sono {agent}…"}
-            placeholderTextColor="#94A3B8"
-          />
-          <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 4 }}>
-            Placeholder: <Text style={{ fontWeight: "800" }}>{"{name}"}</Text> = nome cliente ·{" "}
-            <Text style={{ fontWeight: "800" }}>{"{agent}"}</Text> = tuo nome
-          </Text>
-
-          <Text style={[styles.label, { marginTop: 16 }]}>Messaggio WhatsApp &quot;Chiedi Referenze&quot;</Text>
-          <TextInput
-            testID="settings-wa-template"
-            value={s.wa_referral_template || ""}
-            onChangeText={(t) => setS({ ...s, wa_referral_template: t })}
-            multiline
-            style={[styles.input, { minHeight: 110, textAlignVertical: "top" }]}
-            placeholder={"Ciao {name}! Volevo consigliarti…"}
-            placeholderTextColor="#94A3B8"
-          />
-          <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 4 }}>
-            Placeholder disponibile: <Text style={{ fontWeight: "800" }}>{"{name}"}</Text> = nome del cliente che ha firmato
-          </Text>
-
-          <Text style={[styles.label, { marginTop: 16 }]}>Indirizzo ufficio</Text>
+          {/* Sezioni "Script telefonata (widget floating)" e "Messaggio WhatsApp Chiedi Referenze"
+              RIMOSSE su richiesta: lo Script resta configurabile dall'hub Master → "Script Telefonata". */}
+          <CatHeader color="#F97316" label="Sede · Indirizzo ufficio" icon="business" />
+          <Text style={styles.label}>Indirizzo ufficio</Text>
           <TextInput
             testID="settings-office-address"
             value={s.office_address || ""}
