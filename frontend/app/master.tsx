@@ -844,6 +844,7 @@ function SettingsHubSection({
   onGoto: (path: string) => void;
   onLogout: () => Promise<void>;
 }) {
+  const { user } = useAuth();
   const groups: HubGroup[] = [
     {
       color: "#0EA5E9", label: "CRM Core", icon: "briefcase",
@@ -912,6 +913,8 @@ function SettingsHubSection({
           onPress: async () => {
             try {
               await AsyncStorage.removeItem("libretto_seen_v1");
+              if (user?.user_id) await AsyncStorage.removeItem(`onboarding_done_${user.user_id}`);
+              await api("/user-settings", { method: "PUT", body: { onboarding_done: false } }).catch(() => {});
               notify("Tour guidato riavviato", "Ti riportiamo all'introduzione");
               setTimeout(() => onGoto("/libretto?onboarding=1"), 300);
             } catch (e: any) {

@@ -27,6 +27,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection, LibrettoMeta, LIBRETTO_IMAGE_MAP, resolveSectionImage } from "@/src/libretto/libretto-content";
 import { api } from "@/src/api";
+import { useAuth } from "@/src/auth";
 
 const ADVISOR_LOGO = require("@/assets/images/advisoros-logo-transparent.png");
 const AXON_LOGO = require("@/assets/images/axonos-logo-transparent.png");
@@ -186,6 +187,7 @@ const LIBRETTO_SEEN_KEY = "libretto_seen_v1";
 
 export default function LibrettoScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ onboarding?: string }>();
   const isOnboarding = params.onboarding === "1";
   const [exporting, setExporting] = useState(false);
@@ -226,18 +228,16 @@ export default function LibrettoScreen() {
     })();
   }, []);
 
-  // V50.m — Se apriamo il libretto in modalità onboarding, non è più "primo giro":
-  // segna come visto quando l'utente inizia a leggerlo (evita che riappaia).
-  useEffect(() => {
-    if (isOnboarding) {
-      AsyncStorage.setItem(LIBRETTO_SEEN_KEY, "1").catch(() => {});
-    }
-  }, [isOnboarding]);
-
+  // V50.z111 — Il tour è "fatto" SOLO quando l'utente lo conclude o lo salta:
+  // flag per-utente lato server (user-settings.onboarding_done) + cache locale.
   const dismissOnboarding = useCallback(async () => {
     try { await AsyncStorage.setItem(LIBRETTO_SEEN_KEY, "1"); } catch { /* noop */ }
+    if (user?.user_id) {
+      try { await AsyncStorage.setItem(`onboarding_done_${user.user_id}`, "1"); } catch { /* noop */ }
+    }
+    api("/user-settings", { method: "PUT", body: { onboarding_done: true } }).catch(() => {});
     router.replace("/");
-  }, [router]);
+  }, [router, user?.user_id]);
 
   const onExport = useCallback(async () => {
     try {

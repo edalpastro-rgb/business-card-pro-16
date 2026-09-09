@@ -10157,6 +10157,8 @@ class UserSettingsIn(BaseModel):
     # Indirizzo di residenza del singolo utente (master/collaboratore/manager):
     # usato dal widget Meteo & Allerte in Home come fallback quando il GPS non è disponibile.
     home_address: Optional[str] = None
+    # Tour guidato di benvenuto completato/saltato (per-utente, sopravvive a reinstall/cambio device)
+    onboarding_done: Optional[bool] = None
 
 
 class AssistantAttachmentIn(BaseModel):
@@ -10637,6 +10639,7 @@ async def get_user_settings(user=Depends(get_current_user)):
         s["assistant_quick_actions"] = list(DEFAULT_QUICK_ACTIONS)
     else:
         s["assistant_quick_actions"] = _normalize_quick_actions(s.get("assistant_quick_actions"))
+    s["onboarding_done"] = bool(s.get("onboarding_done"))
     return s
 
 

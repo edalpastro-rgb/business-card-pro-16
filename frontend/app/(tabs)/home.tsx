@@ -162,21 +162,29 @@ export default function HomeScreen() {
     });
   }, []);
 
-  // V50.m — Onboarding esteso: al primo login mostra automaticamente il
-  // libretto informativo in modalità tour guidato. Una volta visto, non
-  // riappare più (chiave AsyncStorage persistente).
+  // V50.z111 — Tour guidato al primo avvio (per-utente, non per-device).
+  // Fonte di verità: `user-settings.onboarding_done` lato server (sopravvive a
+  // reinstall/cambio telefono); cache locale `onboarding_done_${user_id}` per
+  // evitare la chiamata a ogni apertura. Viene marcato come fatto SOLO quando
+  // l'utente conclude o salta il tour (non al semplice mount della pagina).
   useEffect(() => {
+    if (!user?.user_id) return;
     let mounted = true;
     (async () => {
       try {
-        const seen = await AsyncStorage.getItem("libretto_seen_v1");
-        if (mounted && !seen) {
-          router.replace("/libretto?onboarding=1" as any);
+        const localKey = `onboarding_done_${user.user_id}`;
+        const doneLocal = await AsyncStorage.getItem(localKey);
+        if (doneLocal === "1") return;
+        const us = await api<{ onboarding_done?: boolean }>("/user-settings");
+        if (us?.onboarding_done) {
+          await AsyncStorage.setItem(localKey, "1");
+          return;
         }
+        if (mounted) router.replace("/libretto?onboarding=1" as any);
       } catch { /* silent */ }
     })();
     return () => { mounted = false; };
-  }, [router]);
+  }, [user?.user_id, router]);
 
   // Update header clock every minute (aligned to the next :00 second)
   useEffect(() => {

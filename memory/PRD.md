@@ -5536,3 +5536,7 @@ else Linking.openURL(url).catch(() => {});
 
 ## Scheda cliente: "Scadenze contratti" nascosta senza scadenze (Giugno 2026)
 - `src/DeadlinesSection.tsx`: la sezione viene renderizzata solo se esistono scadenze con `days_left <= 90` (scadute o in scadenza entro 90 gg). Nessun render durante caricamento, errore o lista vuota (rimossi loader/empty state/errore inline).
+
+## Tour guidato al primo avvio ripristinato (Giugno 2026 — V50.z111)
+- Causa: la chiave `libretto_seen_v1` era globale per device e veniva impostata al semplice mount della pagina libretto (anche se l'utente non vedeva nulla) → il tour non compariva più.
+- Ora: flag per-utente lato server `user_settings.onboarding_done` (nuovo campo `UserSettingsIn`) + cache locale `onboarding_done_${user_id}`. Home (`home.tsx`) controlla cache → server → se non fatto apre `/libretto?onboarding=1`. Il flag viene impostato SOLO con "Ho capito · Iniziamo!" o "Salta" (`libretto.tsx`). "Rivedi tour guidato" (master.tsx) azzera flag server + cache.
