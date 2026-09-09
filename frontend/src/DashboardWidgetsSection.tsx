@@ -5,6 +5,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { WeatherAlertsCard } from "@/src/WeatherAlertsCard";
+import { WeatherWidget } from "@/src/WeatherWidget";
 
 /**
  * V50.z81 — Sezione widget home configurabili.
@@ -53,6 +54,7 @@ export function DashboardWidgetsSection() {
     <View style={styles.wrap} testID="home-dashboard-widgets">
       {active.map((w) => {
         if (w.id === "weather") return <WeatherAlertsCard key="weather" />;
+        if (w.id === "meteo") return <WeatherWidget key="meteo" />;
         if (w.id === "appointments_today") {
           return <MiniStatCard key="appointments_today" testID="widget-appt-today" icon="calendar" label="Appuntamenti di oggi" value={counts.apptToday ?? "…"} color="#7C3AED" onPress={() => router.push("/(tabs)/calendario" as any)} />;
         }

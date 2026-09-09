@@ -5564,3 +5564,10 @@ else Linking.openURL(url).catch(() => {});
 - Contatto: nuovo `area_categories: {areaId: {category, subcategory}}` (ContactIn/Update); `area_subcategories` legacy mantenuto e mostrato se non c'è categoria.
 - UI: AreasManager (albero categorie con sottocategorie, input per categoria e per sottocategoria); form contatto (chip categoria → chip sottocategoria per ogni area selezionata); dettaglio contatto badge "Area › Cat › Sub"; Contatti: filtri a cascata Categoria → Sottocategoria sotto i chip area (testID `filter-cat-*`, `filter-sub-*`).
 - Non fatto: breakdown per categoria nel tab Report.
+
+## Widget Meteo + pagina Meteo (Giugno 2026 — V50.z116)
+- `WeatherAlertsCard` (widget "weather" → etichetta "Allerte meteo (solo se attive)"): torna a mostrare SOLO i banner allerta; nessuna allerta = niente.
+- Nuovo widget `meteo` (`src/WeatherWidget.tsx`): card compatta (icona, max/min, descrizione, località, pill allerte) → tap apre `/meteo`. Registrato in `DASHBOARD_WIDGET_DEFAULTS` (backend), `dashboard-config.tsx` reset list e `DashboardWidgetsSection.tsx`.
+- Nuova pagina `app/meteo.tsx`: attuale (temp, percepita, umidità), allerte, dettagli oggi (pioggia, prob., vento, UV, alba/tramonto), 7 giorni, località modificabile (home_address per-utente), stati "Imposta località"/"Riprova".
+- Backend `POST /api/weather/forecast` (Open-Meteo daily 7gg + current; stessa risoluzione posizione di /weather/alerts; risponde `error` se il servizio non è raggiungibile).
+- `src/utils/weather.ts`: icone WMO→Ionicons, `getWeatherCoords()`, `fmtDayIt()`.

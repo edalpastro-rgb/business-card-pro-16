@@ -71,8 +71,9 @@ export default function DashboardConfigScreen() {
 
   const reset = () => {
     setItems([
-      { id: "weather",            enabled: true,  order: 0, label: "Meteo & Allerte",          coming_soon: false },
-      { id: "contacts_total",     enabled: true,  order: 1, label: "Contatti totali",          coming_soon: false },
+      { id: "weather",            enabled: true,  order: 0, label: "Allerte meteo (solo se attive)", coming_soon: false },
+      { id: "meteo",              enabled: true,  order: 1, label: "Meteo",                    coming_soon: false },
+      { id: "contacts_total",     enabled: true,  order: 2, label: "Contatti totali",          coming_soon: false },
       { id: "appointments_today", enabled: true,  order: 2, label: "Appuntamenti di oggi",     coming_soon: false },
       { id: "deadlines_alerts",   enabled: true,  order: 3, label: "Alert scadenze",           coming_soon: false },
       { id: "pun",                enabled: false, order: 4, label: "PUN aggiornato",           coming_soon: true },

@@ -1612,7 +1612,8 @@ async def reset_areas(user=Depends(get_current_user)):
 # V50.z81 — Dashboard Home widgets (per-user)
 # =========================
 DASHBOARD_WIDGET_DEFAULTS = [
-    {"id": "weather",             "enabled": True,  "label": "Meteo & Allerte",         "coming_soon": False},
+    {"id": "weather",             "enabled": True,  "label": "Allerte meteo (solo se attive)", "coming_soon": False},
+    {"id": "meteo",               "enabled": True,  "label": "Meteo",                   "coming_soon": False},
     {"id": "appointments_today",  "enabled": True,  "label": "Appuntamenti di oggi",    "coming_soon": False},
     {"id": "pun",                 "enabled": True,  "label": "PUN aggiornato",          "coming_soon": False},
 ]
@@ -3196,6 +3197,71 @@ async def weather_alerts(body: WeatherAlertsIn, user=Depends(get_current_user)):
         alerts.append({"id": f"snow_{d_today}", "severity": "orange", "icon": "snow", "title": "Nevicate intense", "detail": data.get("label")})
 
     return {"alerts": alerts, "checked_at": utcnow(), "location": {"lat": lat, "lon": lon}, "weather": data, "place": place}
+
+
+@api_router.post("/weather/forecast")
+async def weather_forecast(body: WeatherAlertsIn, user=Depends(get_current_user)):
+    """V50.z116 — Previsioni 7 giorni (Open-Meteo) per la pagina Meteo dell'app.
+    Stessa risoluzione posizione di /weather/alerts (GPS → home_address → office_address)."""
+    lat, lon = body.lat, body.lon
+    place = "Posizione attuale"
+    if lat is None or lon is None:
+        candidates: List[str] = []
+        if (body.address or "").strip():
+            candidates.append(body.address.strip())
+        us = await db.user_settings.find_one({"user_id": user["user_id"]}, {"_id": 0, "home_address": 1})
+        if us and (us.get("home_address") or "").strip():
+            candidates.append(us["home_address"].strip())
+        ts = await db.settings.find_one({"user_id": tenant_id(user)}, {"_id": 0, "office_address": 1})
+        if ts and (ts.get("office_address") or "").strip():
+            candidates.append(ts["office_address"].strip())
+        for addr in candidates:
+            coords = await _geocode_one(addr)
+            if coords:
+                lat, lon, place = coords["lat"], coords["lon"], addr
+                break
+        if lat is None or lon is None:
+            return {"days": [], "place": None, "needs_address": True}
+    try:
+        import httpx as _httpx
+        async with _httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(_OPEN_METEO_URL, params={
+                "latitude": lat, "longitude": lon,
+                "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset,uv_index_max",
+                "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
+                "forecast_days": 7, "timezone": "auto",
+            })
+            if r.status_code != 200:
+                return {"days": [], "place": place, "error": f"Open-Meteo HTTP {r.status_code}"}
+            j = r.json()
+    except Exception as e:
+        logger.warning("weather forecast failed: %s", e)
+        return {"days": [], "place": place, "error": "Servizio meteo non raggiungibile"}
+    d = j.get("daily") or {}
+    days = []
+    for i, t in enumerate(d.get("time") or []):
+        code = int((d.get("weather_code") or [0])[i] or 0)
+        meta = _WEATHER_CODE_ICON.get(code, {"key": "cloudy", "label": "Meteo"})
+        days.append({
+            "date": t, "weather_code": code, "icon_key": meta["key"], "label": meta["label"],
+            "temp_min": (d.get("temperature_2m_min") or [None])[i],
+            "temp_max": (d.get("temperature_2m_max") or [None])[i],
+            "precipitation_mm": (d.get("precipitation_sum") or [None])[i],
+            "precipitation_prob": (d.get("precipitation_probability_max") or [None])[i],
+            "wind_kmh": (d.get("wind_speed_10m_max") or [None])[i],
+            "uv_index": (d.get("uv_index_max") or [None])[i],
+            "sunrise": (d.get("sunrise") or [None])[i],
+            "sunset": (d.get("sunset") or [None])[i],
+        })
+    cur = j.get("current") or {}
+    ccode = int(cur.get("weather_code") or 0)
+    cmeta = _WEATHER_CODE_ICON.get(ccode, {"key": "cloudy", "label": "Meteo"})
+    current = {
+        "temp": cur.get("temperature_2m"), "feels_like": cur.get("apparent_temperature"),
+        "humidity": cur.get("relative_humidity_2m"), "wind_kmh": cur.get("wind_speed_10m"),
+        "icon_key": cmeta["key"], "label": cmeta["label"],
+    } if cur else None
+    return {"days": days, "current": current, "place": place, "location": {"lat": lat, "lon": lon}}
 
 
 
