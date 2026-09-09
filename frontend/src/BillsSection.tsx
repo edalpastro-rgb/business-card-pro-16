@@ -41,7 +41,7 @@ type Grouped = { luce: Bill[]; gas: Bill[]; telco: Bill[] };
 
 const SECTION_META: Record<BillType, { label: string; icon: any; color: string; emoji: string }> = {
   luce: { label: "Luce", icon: "flash", color: "#F59E0B", emoji: "💡" },
-  gas: { label: "Gas", icon: "flame", color: "#DC2626", emoji: "🔥" },
+  gas: { label: "Gas", icon: "flame", color: "#2563EB", emoji: "🔥" },
   telco: { label: "Telco", icon: "call", color: "#0891B2", emoji: "📞" },
 };
 
