@@ -122,7 +122,11 @@ async def _oauth_callback_bridge(request: Request):
             _sep = "&" if "?" in _web_ret else "?"
             deep_link = f"{_web_ret}{_sep}oauth=google&status=" + ("ok" if ok else "err")
         else:
-            deep_link = "frontend://impostazioni?oauth=google&status=" + ("ok" if ok else "err")
+            # V50.z110 — Deep-link direttamente alla schermata Google Drive
+            # dell'app (scheme "frontend"): lì lo stato viene ricaricato e
+            # l'utente vede subito "Collegato". Il custom tab Android si chiude
+            # perché l'app usa lo stesso deep-link come returnUrl.
+            deep_link = "frontend://google-drive?oauth=google&status=" + ("ok" if ok else "err")
         html = f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AdvisorOS · Google Drive</title>
@@ -162,7 +166,24 @@ setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
     if err:
         return await _try_exchange_and_page(False, "Autorizzazione annullata", err)
     if not code or not state:
-        return await _try_exchange_and_page(False, "Callback OAuth incompleto", "Manca code o state")
+        # V50.z110 — Su APK Android il custom tab può ricaricare/precaricare la
+        # callback SENZA query (preload di Chrome, back, "Apri app" tardivo)
+        # DOPO che il primo hit ha già completato lo scambio. Se esiste una
+        # connessione salvata negli ultimi 5 minuti la mostriamo come riuscita
+        # invece di un falso errore; altrimenti spieghiamo cosa fare.
+        try:
+            recent = await db.google_drive_connections.find_one(
+                {"updated_at": {"$gte": utcnow() - timedelta(minutes=5)}},
+                sort=[("updated_at", -1)],
+            )
+        except Exception:
+            recent = None
+        if recent:
+            return await _try_exchange_and_page(True, "Google Drive già collegato",
+                                                f"Account: {recent.get('google_email') or ''}")
+        return await _try_exchange_and_page(False, "Callback OAuth incompleto",
+                                            "Google non ha restituito il codice di autorizzazione. "
+                                            "Torna all'app e riprova da Google Drive → Collega.")
 
     # Scambio server-side (stesso codice del POST /google-drive/oauth/exchange)
     try:
@@ -19190,7 +19211,9 @@ async def google_drive_status(user=Depends(get_current_user)):
         {"user_id": user["user_id"]},
         {"_id": 0, "scopes": 1, "updated_at": 1, "google_email": 1},
     )
-    return {"connected": bool(row), "configured": True, **(row or {})}
+    # V50.z110 — Espone il redirect URI usato nel flow OAuth: deve coincidere
+    # ESATTAMENTE con uno degli "Authorized redirect URIs" in Google Cloud Console.
+    return {"connected": bool(row), "configured": True, "redirect_uri": _sanitize_redirect_uri(_GD_REDIRECT_URI), **(row or {})}
 
 
 @api_router.post("/google-drive/oauth/start")

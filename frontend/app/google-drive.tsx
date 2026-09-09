@@ -15,8 +15,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
@@ -25,21 +26,13 @@ import { notify } from "@/src/utils/notify";
 try { WebBrowser.maybeCompleteAuthSession(); } catch { /* noop */ }
 
 const GD_GREEN = "#0F9D58";
-// V45b — Redirect URI derivato dinamicamente dall'origine del backend deployato.
-// Deve essere REGISTRATO in Google Cloud Console → OAuth 2.0 Client → Authorized
-// redirect URIs per OGNI dominio backend usato (dev + prod). Non hardcodare qui
-// il dominio: in questo modo il flow OAuth continua a funzionare se il backend
-// viene ri-deployato su un dominio diverso.
-const GD_CALLBACK_URL = (() => {
-  const backend = (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/+$/, "");
-  if (backend) return `${backend}/auth/google/callback`;
-  // Fallback: shouldn't happen in a deployed build (EXPO_PUBLIC_BACKEND_URL is
-  // baked at build time), but keep a sane default for local `expo start` cases.
-  return "/auth/google/callback";
-})();
+// Nota: il redirect URI https di Google è configurato SOLO lato backend
+// (GOOGLE_DRIVE_REDIRECT_URI) e deve essere registrato in Google Cloud Console.
 
 export default function GoogleDriveScreen() {
   const router = useRouter();
+  // V50.z110 — Parametri dal deep-link di ritorno (frontend://google-drive?oauth=google&status=ok|err)
+  const { oauth: oauthParam, status: oauthStatus } = useLocalSearchParams<{ oauth?: string; status?: string }>();
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -128,10 +121,15 @@ export default function GoogleDriveScreen() {
       }
 
       // 2) Mobile: apri l'auth session nativa in-app.
-      //    - `returnUrl` = URL callback https già registrato in Google → il browser
-      //      si chiude appena Google reindirizza a questa pagina.
-      //    - `result.url` contiene i parametri `code` e `state` da scambiare.
-      const result = await WebBrowser.openAuthSessionAsync(url, GD_CALLBACK_URL, {
+      //    V50.z110 — `returnUrl` = DEEP-LINK dell'app (frontend://google-drive
+      //    su APK, exp://… in Expo Go), NON l'https del backend: su Android un
+      //    returnUrl https non viene mai intercettato dal custom tab (serve un
+      //    App Link verificato), quindi il browser restava aperto sulla pagina
+      //    del backend e l'app non riceveva il ritorno. Il backend, dopo aver
+      //    scambiato il code lato server, reindirizza a questo stesso deep-link
+      //    → il custom tab si chiude e torniamo qui con ?oauth=google&status=ok.
+      const appReturnUrl = Linking.createURL("google-drive", { queryParams: { oauth: "google" } });
+      const result = await WebBrowser.openAuthSessionAsync(url, appReturnUrl, {
         showInRecents: false,
         preferEphemeralSession: true,
       });
@@ -147,7 +145,7 @@ export default function GoogleDriveScreen() {
       // collegamento è riuscito. Facciamo quindi polling di /google-drive/status
       // per accorgerci del collegamento non appena il backend lo ha salvato.
       if (result.type === "success" || result.type === "cancel" || result.type === "dismiss") {
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 14; i++) {
           try {
             const s = await api<any>("/google-drive/status");
             if (s?.connected) {
@@ -166,6 +164,20 @@ export default function GoogleDriveScreen() {
       setConnecting(false);
     }
   };
+
+  // V50.z110 — Rientro dal deep-link: ricarica lo stato e avvisa l'utente.
+  useFocusEffect(useCallback(() => {
+    if (oauthParam !== "google") return;
+    (async () => {
+      await load();
+      try {
+        const s = await api<any>("/google-drive/status");
+        if (s?.connected) notify("Collegato", "Google Drive è ora collegato a Axon");
+        else if (oauthStatus === "err") notify("Collegamento non riuscito", "Riprova con \"Collega Google Drive\".");
+      } catch { /* ignore */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oauthParam, oauthStatus]));
 
   const disconnect = async () => {
     const ok = Platform.OS === "web"
@@ -246,6 +258,11 @@ export default function GoogleDriveScreen() {
               {connecting ? <ActivityIndicator color="#FFF" /> : <Ionicons name="link" size={18} color="#FFF" />}
               <Text style={styles.primaryBtnTxt}>{connecting ? "Apertura autorizzazione…" : "Collega Google Drive"}</Text>
             </Pressable>
+          )}
+          {status.configured && !status.connected && !!(status as any).redirect_uri && (
+            <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 8 }} selectable testID="gd-redirect-uri">
+              Redirect URI OAuth (deve essere registrato in Google Cloud Console): {(status as any).redirect_uri}
+            </Text>
           )}
 
           {status.connected && (

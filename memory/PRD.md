@@ -5528,3 +5528,8 @@ else Linking.openURL(url).catch(() => {});
 - `LiveCameraScanner` (autofocus continuo `autofocus="on"`, multi-pagina, anteprima obbligatoria post-scatto): aggiunto pulsante "Ritaglia" nella review; conserva `original_base64`; flag `manual` impedisce all'autocrop async di sovrascrivere il ritaglio manuale.
 - `DocumentScannerModal`: icona ritaglio per ogni pagina immagine; le pagine ritagliate manualmente vengono inviate a merge-pdf con `already_cropped=true` (backend salta l'autocrop per quella pagina).
 - Chat AxonOS: `JscanifyScannerModal` (WebView) sostituito da `DocumentScannerModal` nativo → PDF allegato alla chat. Il file `JscanifyScannerModal.tsx` resta ma non è più usato.
+
+## Fix OAuth Google Drive su APK (Giugno 2026 — V50.z110)
+- Frontend `google-drive.tsx`: `openAuthSessionAsync` ora usa come returnUrl il DEEP-LINK dell'app (`Linking.createURL("google-drive")` → `frontend://google-drive?oauth=google` su APK) invece dell'https del backend (mai intercettato su Android senza App Link → custom tab restava aperto). Al rientro (`?oauth=google&status=`) la schermata ricarica lo stato e notifica. Polling status esteso a 14 tentativi. Rimosso `GD_CALLBACK_URL`.
+- Backend `GET /auth/google/callback`: deep-link di ritorno cambiato in `frontend://google-drive?oauth=google&status=ok|err`; se arrivano richieste SENZA code/state (preload/reload del custom tab dopo uno scambio riuscito) e c'è una connessione salvata negli ultimi 5 min → pagina "Google Drive già collegato" invece del falso errore; altrimenti messaggio esplicativo.
+- `GET /api/google-drive/status` espone `redirect_uri` (mostrato nella schermata quando non collegato) per verificare la corrispondenza con Google Cloud Console.
