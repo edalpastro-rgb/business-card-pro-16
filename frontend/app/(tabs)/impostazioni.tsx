@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme } from "@/src/theme";
+import { AreasManager } from "@/src/AreasManager";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { openInAppLink } from "@/src/utils/openInAppLink";
@@ -19,7 +20,8 @@ type Settings = {
   app_name?: string;
   custom_appointment_types?: string[];
   custom_product_categories?: { name: string; subs?: string[] }[];
-  custom_areas?: { id: string; name: string; color: string; icon?: string }[];
+  custom_areas?: { id: string; name: string; color: string; icon?: string; description?: string; subcategories?: string[]; allowed_roles?: string[]; archived?: boolean }[];
+  area_meta?: Record<string, any>;
   // V27 — templates configurable by Master, used by agents
   wa_referral_template?: string;
   call_script?: string;
@@ -27,7 +29,6 @@ type Settings = {
   office_address?: string;
 };
 
-const COLOR_SWATCHES = ["#EF4444", "#F97316", "#F59E0B", "#22C55E", "#10B981", "#06B6D4", "#3B82F6", "#2563EB", "#8B5CF6", "#EC4899", "#F43F5E", "#84CC16"];
 
 // V50.z41 — Header categorizzato per Impostazioni (palette AdvisorOS Pro)
 function CatHeader({ color, label, icon }: { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }) {
@@ -716,104 +717,28 @@ function ImpostazioniScreen() {
             placeholderTextColor="#94A3B8"
           />
 
-          <Text style={styles.label}>Titolo Area 1 (Energia)</Text>
-          <TextInput
-            testID="settings-energy-title"
-            value={s.energy_title}
-            onChangeText={(t) => setS({ ...s, energy_title: t })}
-            style={styles.input}
-          />
-          <Text style={styles.label}>Colore Area 1</Text>
-          <View style={styles.swatches}>
-            {COLOR_SWATCHES.map((c) => (
-              <Pressable
-                key={"e"+c}
-                testID={`energy-color-${c}`}
-                onPress={() => setS({ ...s, energy_color: c })}
-                style={[styles.swatch, { backgroundColor: c }, s.energy_color === c && styles.swatchActive]}
-              >
-                {s.energy_color === c && <Ionicons name="checkmark" size={16} color="#FFF" />}
-              </Pressable>
-            ))}
-          </View>
-          <View style={styles.hexRow}>
-            <View style={[styles.hexPreview, { backgroundColor: s.energy_color }]} />
-            <TextInput
-              testID="settings-energy-hex"
-              value={s.energy_color}
-              onChangeText={(t) => setS({ ...s, energy_color: t.startsWith("#") ? t : "#" + t.replace(/[^0-9a-fA-F]/g, "").slice(0, 6) })}
-              style={[styles.input, { flex: 1 }]}
-              placeholder="#RRGGBB"
-              placeholderTextColor="#94A3B8"
-              autoCapitalize="characters"
-              maxLength={7}
-            />
-          </View>
-
-          <View style={{ height: 12 }} />
-          <Text style={styles.label}>Titolo Area 2 (Network)</Text>
-          <TextInput
-            testID="settings-network-title"
-            value={s.network_title}
-            onChangeText={(t) => setS({ ...s, network_title: t })}
-            style={styles.input}
-          />
-          <Text style={styles.label}>Colore Area 2</Text>
-          <View style={styles.swatches}>
-            {COLOR_SWATCHES.map((c) => (
-              <Pressable
-                key={"n"+c}
-                testID={`network-color-${c}`}
-                onPress={() => setS({ ...s, network_color: c })}
-                style={[styles.swatch, { backgroundColor: c }, s.network_color === c && styles.swatchActive]}
-              >
-                {s.network_color === c && <Ionicons name="checkmark" size={16} color="#FFF" />}
-              </Pressable>
-            ))}
-          </View>
-          <View style={styles.hexRow}>
-            <View style={[styles.hexPreview, { backgroundColor: s.network_color }]} />
-            <TextInput
-              testID="settings-network-hex"
-              value={s.network_color}
-              onChangeText={(t) => setS({ ...s, network_color: t.startsWith("#") ? t : "#" + t.replace(/[^0-9a-fA-F]/g, "").slice(0, 6) })}
-              style={[styles.input, { flex: 1 }]}
-              placeholder="#RRGGBB"
-              placeholderTextColor="#94A3B8"
-              autoCapitalize="characters"
-              maxLength={7}
-            />
-          </View>
-
-          <Pressable testID="settings-save" onPress={save} style={styles.saveBtn} disabled={saving}>
-            {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>{ok ? "Salvato ✓" : "Salva modifiche"}</Text>}
+          <Pressable testID="settings-save" onPress={save} style={[styles.saveBtn, { marginTop: 10 }]} disabled={saving}>
+            {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>{ok ? "Salvato ✓" : "Salva nome app"}</Text>}
           </Pressable>
         </View>
         )}
 
+        {/* V50.z113 — CRM · Aree: albero Area > Sottocategoria (card collassabili, colore a scomparsa,
+            descrizione uso, permessi, Archivia/Elimina, Nuova area). Le modifiche salvano subito. */}
         {!user?.parent_user_id && (
         <View style={styles.card}>
-          <CatHeader color="#0EA5E9" label="CRM · Aree contatto" icon="people" />
-          <Text style={styles.hint}>Oltre a &quot;Consulente Energetico&quot; e &quot;Networker&quot;, gestisci le aree custom (es. Assicurazioni, Immobiliare). Crea nuove aree direttamente dalla scheda contatto.</Text>
-          {(s.custom_areas || []).length === 0 ? (
-            <Text style={{ color: theme.color.muted, fontSize: 12, fontStyle: "italic", marginTop: 4 }}>Nessuna area personalizzata. Creane dalla schermata Nuovo Contatto → &quot;Nuova area&quot;.</Text>
-          ) : (
-            <View style={styles.chipsWrap}>
-              {(s.custom_areas || []).map((a) => (
-                <Pressable
-                  key={a.id}
-                  onPress={() => {
-                    persistAndReload({ ...s, custom_areas: (s.custom_areas || []).filter((x) => x.id !== a.id) });
-                  }}
-                  style={[styles.chip, { flexDirection: "row", alignItems: "center", backgroundColor: a.color + "33", borderColor: a.color, borderWidth: 1 }]}
-                >
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: a.color, marginRight: 6 }} />
-                  <Text style={[styles.chipTxt, { color: a.color }]}>{a.name}</Text>
-                  <Ionicons name="close" size={12} color={a.color} />
-                </Pressable>
-              ))}
-            </View>
-          )}
+          <CatHeader color="#0EA5E9" label="CRM · Aree" icon="git-branch" />
+          <AreasManager
+            settings={s as any}
+            onSave={(next) => persistAndReload({ ...s, ...(next as any) })}
+            onReset={async () => {
+              try {
+                const r = await api<Settings>("/settings/areas/reset", { method: "POST" });
+                setS(r);
+                notify("Aree azzerate", "Riparti da zero: Energia e Network sono pronte.");
+              } catch (e: any) { notify("Errore", e?.message || "Impossibile azzerare"); }
+            }}
+          />
         </View>
         )}
 

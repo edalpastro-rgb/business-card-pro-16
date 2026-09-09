@@ -696,6 +696,10 @@ class SettingsModel(BaseModel):
     hidden_appointment_types: List[str] = Field(default_factory=list)
     custom_product_categories: List[Dict[str, Any]] = Field(default_factory=list)
     custom_areas: List[Dict[str, Any]] = Field(default_factory=list)
+    # V50.z113 — Metadati delle aree built-in (energy/network): descrizione uso,
+    # sottocategorie, permessi di accesso (ruoli), archiviata.
+    # {"energy": {"description": str, "subcategories": [..], "allowed_roles": [..], "archived": bool}, "network": {...}}
+    area_meta: Dict[str, Any] = Field(default_factory=dict)
     appointment_outcomes: List[Dict[str, Any]] = Field(default_factory=list)
     call_outcomes: List[Dict[str, Any]] = Field(default_factory=list)
     callback_notify_default_advance_min: int = 10
@@ -1579,6 +1583,23 @@ async def update_settings(body: SettingsModel, user=Depends(get_current_user)):
     )
     s = await db.settings.find_one({"user_id": user["user_id"]}, {"_id": 0})
     return s
+
+
+@api_router.post("/settings/areas/reset")
+async def reset_areas(user=Depends(get_current_user)):
+    """V50.z113 — Azzera aree custom, metadati aree, categorie prodotto (+ sottocategorie)
+    e tipi appuntamento personalizzati del tenant per ripartire da zero."""
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo l'owner può azzerare le aree")
+    await db.settings.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            "custom_areas": [], "area_meta": {}, "custom_product_categories": [],
+            "custom_appointment_types": [], "hidden_appointment_types": [],
+        }},
+        upsert=True,
+    )
+    return await db.settings.find_one({"user_id": user["user_id"]}, {"_id": 0})
 
 
 # =========================
