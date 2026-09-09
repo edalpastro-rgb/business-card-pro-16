@@ -5571,3 +5571,7 @@ else Linking.openURL(url).catch(() => {});
 - Nuova pagina `app/meteo.tsx`: attuale (temp, percepita, umidità), allerte, dettagli oggi (pioggia, prob., vento, UV, alba/tramonto), 7 giorni, località modificabile (home_address per-utente), stati "Imposta località"/"Riprova".
 - Backend `POST /api/weather/forecast` (Open-Meteo daily 7gg + current; stessa risoluzione posizione di /weather/alerts; risponde `error` se il servizio non è raggiungibile).
 - `src/utils/weather.ts`: icone WMO→Ionicons, `getWeatherCoords()`, `fmtDayIt()`.
+
+## Meteo appuntamenti nel calendario (Giugno 2026 — V50.z117)
+- `POST /api/weather/forecast-by-address` accetta anche `appointment_id`: senza `address` risolve il luogo lato server (location → full_address/map_address/address_city → indirizzo migliore del contatto collegato via `_best_addr_for_contact`) e restituisce anche `place`.
+- Calendario: badge meteo per TUTTI gli appuntamenti non telefonici del giorno selezionato (prima solo se `location` compilata): icona + temperatura + descrizione (+ mm pioggia se precipitazioni), sfondo azzurro se pioggia/temporale/neve. testID `wx-<appointment_id>`.

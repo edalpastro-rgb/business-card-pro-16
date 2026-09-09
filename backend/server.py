@@ -3273,15 +3273,35 @@ class WeatherByAddressIn(BaseModel):
 async def weather_forecast_by_address(body: WeatherByAddressIn, user=Depends(get_current_user)):
     """Accetta indirizzi liberi + data. Fa geocoding (cached) e poi meteo."""
     out = []
+    tid = tenant_id(user)
     for it in body.items[:100]:
         addr = (it.get("address") or "").strip()
         date_iso = (it.get("date") or None)
+        place = addr or None
+        # V50.z117 — Risoluzione lato server del luogo dell'appuntamento:
+        # location → full_address/map_address → indirizzo migliore del contatto collegato.
+        if not addr and it.get("appointment_id"):
+            a = await db.appointments.find_one(
+                {"appointment_id": it["appointment_id"], "$or": [{"tenant_id": tid}, {"user_id": tid}, {"created_by": user["user_id"]}]},
+                {"_id": 0, "location": 1, "full_address": 1, "map_address": 1, "address_city": 1, "contact_id": 1, "is_phone": 1},
+            )
+            if a:
+                for k in ("location", "full_address", "map_address", "address_city"):
+                    if (a.get(k) or "").strip():
+                        addr = a[k].strip(); break
+                if not addr and a.get("contact_id"):
+                    c = await db.contacts.find_one({"contact_id": a["contact_id"]}, {"_id": 0})
+                    if c:
+                        addr = _best_addr_for_contact(c) or ""
+                place = addr or None
         if not addr:
             out.append(None); continue
         coords = await _geocode_one(addr)
         if not coords:
             out.append(None); continue
         d = await _fetch_openmeteo_daily(coords["lat"], coords["lon"], date_iso)
+        if d:
+            d = {**d, "place": place}
         out.append(d)
     return {"results": out}
 
