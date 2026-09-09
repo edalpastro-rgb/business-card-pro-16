@@ -3097,6 +3097,7 @@ async def _fetch_openmeteo_daily(lat: float, lon: float, date_iso: Optional[str]
                 "timezone": "auto",
             })
             if r.status_code != 200:
+                logger.warning("open-meteo daily HTTP %s for %s,%s %s", r.status_code, lat, lon, d)
                 return None
             j = r.json() or {}
             daily = j.get("daily") or {}
@@ -3127,7 +3128,10 @@ async def _fetch_openmeteo_daily(lat: float, lon: float, date_iso: Optional[str]
             except Exception:
                 pass
             return data
-    except Exception:
+    except Exception as e:
+        # V50.z119 — Log esplicito: in produzione un "Meteo non disponibile" dipende
+        # quasi sempre da timeout/blocco verso api.open-meteo.com → visibile nei log backend.
+        logger.warning("open-meteo daily fetch failed (%s,%s %s): %s", lat, lon, d, e)
         return None
 
 
