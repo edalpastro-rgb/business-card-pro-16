@@ -14776,9 +14776,9 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception:
         pass
 
-    # V50.z129 — Cattura immediata impegni "da ora farò X" → ai_teach_rules
+    # V50.z129/z130 — Apprendimento immediato: impegni di Axon + lezioni dell'utente → ai_teach_rules
     try:
-        asyncio.create_task(_auto_capture_commitment_rules(user, msg, reply_text))
+        asyncio.create_task(_post_reply_learning(user, msg, reply_text))
     except Exception:
         pass
 
@@ -15346,6 +15346,196 @@ async def _auto_capture_commitment_rules(user: dict, user_msg: str, reply: str) 
         return 0
 
 
+# =========================================================================
+# V50.z130 — Distillazione regole ON-DEMAND ("lezioni" insegnate in chat).
+# Quando l'utente insegna qualcosa ad Axon ("ricorda che…", "da ora in poi…",
+# "quando ti chiedo X fai Y", "non usare mai…") la lezione viene distillata
+# SUBITO in una regola `ai_teach_rules` (LLM Haiku, JSON) e persiste da quel
+# momento, senza attendere il job notturno delle 04:00 (che resta invariato).
+# Trigger: automatico dopo ogni risposta (se il messaggio utente ha intento
+# didattico) + manuale `POST /axon/teach/distill-now` sulla sessione.
+# =========================================================================
+_TEACH_INTENT_RE = re.compile(
+    r"(ricord(a|ati|atelo|atevi)\s+(che|di|sempre|questo)|\bimpara\b|\bimparalo\b|\bmemorizza\b|tieni\s+(presente|a\s+mente)|"
+    r"\bd[a']\s*ora\s+in\s+(avanti|poi)|\bda\s+adesso\b|\bda\s+ora\b|\bda\s+oggi\b|quando\s+ti\s+chied|"
+    r"\bregola\s*:|nuova\s+regola|non\s+fare\s+pi[uù]|non\s+devi\s+(mai|pi[uù])|devi\s+sempre|usa\s+sempre|"
+    r"non\s+usare\s+mai|considera\s+sempre|\binsegn|sappi\s+che|per\s+il\s+futuro|la\s+prossima\s+volta|"
+    r"ogni\s+volta\s+che|d[a']\s*ora\s+in\s+avanti|non\s+includere\s+mai|includi\s+sempre|rispondi\s+sempre)",
+    re.IGNORECASE,
+)
+
+
+def _is_teach_intent(msg: str) -> bool:
+    m = (msg or "").strip()
+    return 8 <= len(m) <= 3000 and bool(_TEACH_INTENT_RE.search(m))
+
+
+async def _llm_extract_lessons(dialog: str, existing_titles: List[str], max_rules: int = 3) -> List[dict]:
+    """Chiede a Claude Haiku di estrarre le lezioni (istruzioni per l'assistente)
+    presenti nel dialogo. Ritorna [{title, category, text}]."""
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key or not dialog.strip():
+        return []
+    cats_csv = ", ".join(_RULE_PROPOSAL_CATEGORIES)
+    system_prompt = (
+        "Sei il modulo di apprendimento di Axon, assistente AI per consulenti energetici italiani. "
+        "Ricevi uno scambio di chat e devi estrarre le LEZIONI che l'utente ha insegnato esplicitamente "
+        "all'assistente (preferenze, procedure, regole, correzioni, 'da ora in poi fai X', 'ricorda che Y').\n"
+        "Trasforma ogni lezione in una regola ISTRUTTIVA per l'assistente ('Quando…, fai…' / 'Usa sempre…').\n"
+        "NON creare regole da semplici domande, da dati CRM puntuali (nomi clienti, appuntamenti) o da "
+        "informazioni che l'assistente ha fornito di sua iniziativa. "
+        f"Max {max_rules} regole. Titolo max 60 char; text 1-4 righe, chiaro e autonomo. "
+        "Categoria SEMPRE una tra: " + cats_csv + ".\n"
+        "OUTPUT: JSON puro, senza markdown: {\"rules\": [{\"title\": \"...\", \"category\": \"...\", \"text\": \"...\"}]}. "
+        "Se non c'è nessuna lezione esplicita: {\"rules\": []}."
+    )
+    user_prompt = (
+        "Regole già esistenti (NON duplicare): " + (", ".join(existing_titles[:40]) or "nessuna") + "\n\n"
+        "=== SCAMBIO ===\n" + dialog[:12000]
+    )
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(api_key=key, session_id=f"teach_now_{uuid.uuid4().hex[:8]}", system_message=system_prompt).with_model("anthropic", "claude-haiku-4-5")
+        raw = (await asyncio.wait_for(chat.send_message(UserMessage(text=user_prompt)), timeout=40) or "").strip()
+    except Exception as exc:
+        logger.warning("[teach-now] LLM failed: %s", exc)
+        return []
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\n?|\n?```$", "", raw).strip()
+    import json as _json
+    try:
+        data = _json.loads(raw)
+    except Exception:
+        m = re.search(r"\{[\s\S]*\}", raw)
+        if not m:
+            return []
+        try:
+            data = _json.loads(m.group(0))
+        except Exception:
+            return []
+    rules = data.get("rules") if isinstance(data, dict) else None
+    out: List[dict] = []
+    for r in (rules or [])[:max_rules]:
+        if not isinstance(r, dict):
+            continue
+        title = str(r.get("title") or "").strip()[:120]
+        text = str(r.get("text") or "").strip()
+        cat = str(r.get("category") or "Generale").strip()
+        if not title or len(text) < 15:
+            continue
+        if cat not in _RULE_PROPOSAL_CATEGORIES:
+            cat = "Generale"
+        out.append({"title": title, "category": cat, "text": text})
+    return out
+
+
+async def _save_distilled_rules(user: dict, rules: List[dict], source: str, source_msg: str = "") -> List[dict]:
+    """Inserisce le regole distillate in ai_teach_rules (dedup su titolo/testo normalizzati)."""
+    tid = tenant_id(user)
+    created: List[dict] = []
+    for r in rules:
+        text_norm = re.sub(r"\s+", " ", r["text"]).strip().lower()
+        title_norm = re.sub(r"\s+", " ", r["title"]).strip().lower()
+        dup = await db.ai_teach_rules.find_one(
+            {"user_id": tid, "$or": [{"text_norm": text_norm}, {"title_norm": title_norm}]},
+            {"_id": 0, "rule_id": 1},
+        )
+        if dup:
+            continue
+        # Dedup "soft" sul titolo (case-insensitive) contro regole manuali senza title_norm
+        dup2 = await db.ai_teach_rules.find_one(
+            {"user_id": tid, "title": {"$regex": f"^{re.escape(r['title'])}$", "$options": "i"}}, {"_id": 0, "rule_id": 1}
+        )
+        if dup2:
+            continue
+        now = utcnow()
+        doc = {
+            "rule_id": f"aitr_{uuid.uuid4().hex[:12]}",
+            "user_id": tid,
+            "created_by": user["user_id"],
+            "categories": [r["category"]],
+            "category": r["category"],
+            "title": r["title"],
+            "text": r["text"],
+            "text_norm": text_norm,
+            "title_norm": title_norm,
+            "files": [],
+            "auto_generated": True,
+            "source": source,
+            "source_user_message": (source_msg or "")[:500],
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.ai_teach_rules.insert_one(doc)
+        doc.pop("_id", None)
+        created.append(doc)
+        logger.info("[teach-now] tenant=%s regola distillata (%s): %s", tid, source, r["title"])
+    return created
+
+
+async def _distill_lesson_now(user: dict, user_msg: str, reply: str) -> List[dict]:
+    """Distilla immediatamente la lezione contenuta nello scambio utente→Axon."""
+    try:
+        if not _is_teach_intent(user_msg):
+            return []
+        tid = tenant_id(user)
+        # Se la cattura impegni (V50.z129) ha già salvato una regola per QUESTO messaggio, evita doppioni.
+        already = await db.ai_teach_rules.find_one(
+            {"user_id": tid, "source": "chat_commitment", "source_user_message": (user_msg or "")[:500]}, {"_id": 0, "rule_id": 1}
+        )
+        if already:
+            return []
+        titles_docs = await db.ai_teach_rules.find({"user_id": tid}, {"_id": 0, "title": 1}).to_list(200)
+        titles = [t.get("title") or "" for t in titles_docs]
+        dialog = f"[USER] {(user_msg or '').strip()[:3000]}\n[AXON] {(reply or '').strip()[:2500]}"
+        rules = await _llm_extract_lessons(dialog, titles, max_rules=2)
+        return await _save_distilled_rules(user, rules, source="chat_teach", source_msg=user_msg)
+    except Exception as exc:
+        logger.warning("[teach-now] distill failed: %s", exc)
+        return []
+
+
+async def _post_reply_learning(user: dict, user_msg: str, reply: str) -> None:
+    """Hook fire-and-forget dopo ogni risposta: 1) cattura impegni espliciti di
+    Axon (V50.z129); 2) distilla la lezione insegnata dall'utente (V50.z130)."""
+    n = await _auto_capture_commitment_rules(user, user_msg, reply)
+    if n == 0:
+        await _distill_lesson_now(user, user_msg, reply)
+
+
+class AxonTeachDistillNowIn(BaseModel):
+    session_id: Optional[str] = None
+    max_rules: int = 5
+
+
+@api_router.post("/axon/teach/distill-now")
+async def axon_teach_distill_now(body: AxonTeachDistillNowIn = Body(default=AxonTeachDistillNowIn()), user=Depends(get_current_user)):
+    """V50.z130 — Trigger manuale: distilla SUBITO le lezioni della sessione chat
+    corrente (o dell'ultima) in regole `ai_teach_rules`, senza attendere le 04:00."""
+    _require_master(user)
+    sid = body.session_id
+    if not sid:
+        latest = await db.assistant_messages.find_one({"user_id": user["user_id"]}, {"session_id": 1}, sort=[("created_at", -1)])
+        if not latest:
+            return {"created": [], "count": 0, "session_id": None}
+        sid = latest["session_id"]
+    msgs = await db.assistant_messages.find(
+        {"user_id": user["user_id"], "session_id": sid}, {"_id": 0, "role": 1, "content": 1}
+    ).sort("created_at", 1).to_list(200)
+    lines = []
+    for m in msgs[-40:]:
+        c = (m.get("content") or "").replace("\n", " ").strip()
+        if c:
+            lines.append(f"[{'USER' if m.get('role') == 'user' else 'AXON'}] {c[:600]}")
+    if not lines:
+        return {"created": [], "count": 0, "session_id": sid}
+    tid = tenant_id(user)
+    titles_docs = await db.ai_teach_rules.find({"user_id": tid}, {"_id": 0, "title": 1}).to_list(200)
+    rules = await _llm_extract_lessons("\n".join(lines), [t.get("title") or "" for t in titles_docs], max_rules=max(1, min(int(body.max_rules or 5), 8)))
+    created = await _save_distilled_rules(user, rules, source="chat_teach_manual")
+    return {"created": created, "count": len(created), "session_id": sid}
+
+
 @api_router.post("/assistant/chat/stream")
 async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_current_user)):
     """SSE streaming variant of /assistant/chat.
@@ -15613,9 +15803,9 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         except Exception:
             pass
 
-        # V50.z129 — Cattura immediata impegni "da ora farò X" → ai_teach_rules
+        # V50.z129/z130 — Apprendimento immediato: impegni di Axon + lezioni dell'utente → ai_teach_rules
         try:
-            asyncio.create_task(_auto_capture_commitment_rules(user, msg, reply_text))
+            asyncio.create_task(_post_reply_learning(user, msg, reply_text))
         except Exception:
             pass
 

@@ -1,6 +1,17 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z130 (Giu 2026) — Distillazione regole on-demand (lezioni in chat persistono subito)
+
+- `_TEACH_INTENT_RE` / `_is_teach_intent(msg)`: intento didattico nel messaggio utente (ricorda che, impara, memorizza, tieni presente, da ora in poi/avanti, da adesso, quando ti chiedo, regola:, non fare più, devi sempre, usa sempre, non usare mai, considera sempre, insegn-, sappi che, per il futuro, la prossima volta, ogni volta che, includi sempre, rispondi sempre).
+- `_llm_extract_lessons(dialog, existing_titles, max_rules)` → Claude Haiku 4.5, JSON `{"rules":[{title, category, text}]}`, categorie in `_RULE_PROPOSAL_CATEGORIES`, timeout 40s.
+- `_save_distilled_rules(user, rules, source, source_msg)` → insert in `ai_teach_rules` con `auto_generated=True`, `text_norm`/`title_norm` per dedup (+ dedup case-insensitive sul titolo delle regole manuali).
+- `_distill_lesson_now(user, msg, reply)` → solo se intento didattico; salta se V50.z129 ha già salvato un impegno per lo stesso messaggio.
+- `_post_reply_learning(user, msg, reply)` = hook unico fire-and-forget (in `/assistant/chat` e `/assistant/chat/stream`): prima cattura impegni (z129), se 0 → distilla lezione (z130).
+- `POST /axon/teach/distill-now` (Master) body `{session_id?, max_rules=5}`: distilla l'intera sessione (ultimi 40 msg) e salva (`source=chat_teach_manual`). Ritorna `{created, count, session_id}`.
+- Job notturno 04:00 invariato.
+- Test E2E: "Ricorda che per i clienti con partita IVA…" + risposta "Ok, ricevuto." → regola "Prezzi netti per clienti partita IVA" (Contratti) creata in ~5s ✅; distill-now sulla stessa sessione → 0 (dedup) ✅; domanda neutra → 0 regole ✅.
+
 ## V50.z129 (Giu 2026) — Cattura automatica impegni Axon → ai_teach_rules immediata
 
 - `_AXON_COMMITMENT_RE` (marcatori: "da ora in avanti/poi", "d'ora in avanti/poi", "da ora", "da adesso", "da questo momento", "da oggi in avanti/poi") + `_AXON_COMMITMENT_VERB_RE` (verbi al futuro: farò, userò, applicherò, non includerò, ti risponderò…). Entrambi devono matchare nella stessa frase (evita falsi positivi tipo "Da ora puoi consultare il grafico").
