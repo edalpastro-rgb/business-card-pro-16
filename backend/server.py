@@ -827,6 +827,8 @@ class ContactIn(BaseModel):
     additional_areas: List[str] = Field(default_factory=list)
     # V50.z114 — Sottocategoria scelta per ciascuna area del contatto: {"energy": "Gas", "area_x": "Vita"}
     area_subcategories: Dict[str, str] = Field(default_factory=dict)
+    # V50.z115 — Gerarchia a 3 livelli: {"energy": {"category": "Luce", "subcategory": "Domestico"}}
+    area_categories: Dict[str, Dict[str, str]] = Field(default_factory=dict)
     source: Literal["personal", "referral"] = "personal"
     referred_by_contact_id: Optional[str] = None
     referral_type: Optional[Literal["direct", "from_contact"]] = None
@@ -891,6 +893,7 @@ class ContactUpdate(BaseModel):
     area: Optional[AreaLiteral] = None
     additional_areas: Optional[List[str]] = None
     area_subcategories: Optional[Dict[str, str]] = None
+    area_categories: Optional[Dict[str, Dict[str, str]]] = None
     source: Optional[Literal["personal", "referral"]] = None
     referred_by_contact_id: Optional[str] = None
     referral_type: Optional[Literal["direct", "from_contact"]] = None

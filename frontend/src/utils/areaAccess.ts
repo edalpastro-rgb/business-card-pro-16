@@ -7,7 +7,8 @@
  * un'area è visibile solo se non archiviata e se il ruolo è tra quelli
  * consentiti (lista vuota/assente = tutti).
  */
-export type AreaMetaLike = { allowed_roles?: string[]; archived?: boolean; subcategories?: string[] };
+export type AreaCategory = { name: string; subs: string[] };
+export type AreaMetaLike = { allowed_roles?: string[]; archived?: boolean; subcategories?: string[]; categories?: AreaCategory[] };
 export type SettingsLike = {
   energy_title?: string; energy_color?: string;
   network_title?: string; network_color?: string;
@@ -35,7 +36,14 @@ export function isAreaVisible(settings: SettingsLike, areaId: string, role?: str
   return roles.length === 0 || roles.includes(r);
 }
 
-/** Sottocategorie configurate per un'area (vuoto se nessuna). */
-export function areaSubcategories(settings: SettingsLike, areaId: string): string[] {
-  return areaMetaFor(settings, areaId).subcategories || [];
+/**
+ * V50.z115 — Categorie (con sottocategorie) di un'area: Area > Categoria > Sottocategoria.
+ * Retro-compatibilità: le vecchie `subcategories` piatte vengono esposte come
+ * categoria "Generale" (i dati non vengono toccati finché non si modifica l'area).
+ */
+export function areaCategories(settings: SettingsLike, areaId: string): AreaCategory[] {
+  const meta = areaMetaFor(settings, areaId);
+  if (meta.categories && meta.categories.length) return meta.categories;
+  if (meta.subcategories && meta.subcategories.length) return [{ name: "Generale", subs: meta.subcategories }];
+  return [];
 }

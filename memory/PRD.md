@@ -5558,3 +5558,9 @@ else Linking.openURL(url).catch(() => {});
 - `src/utils/areaAccess.ts`: `isAreaVisible(settings, areaId, role)` (owner vede tutto; altri: non archiviata e ruolo in `allowed_roles`, lista vuota = tutti), `areaSubcategories()`.
 - Contatti: chip filtro area e lista contatti filtrati per aree visibili al ruolo. Calendario: chip filtro e appuntamenti filtrati (compleanni sempre visibili). Scheda contatto (nuovo/modifica): aree selezionabili solo se visibili.
 - Sottocategorie: backend `ContactIn/ContactUpdate.area_subcategories: Dict[str,str]`; nel form contatto, per ogni area selezionata con sottocategorie configurate, picker a chip (testID `c-sub-<area>-<sub>`), visibile sia nel riepilogo compatto che nella vista "Cambia". Dettaglio contatto: badge area mostra "Area › Sottocategoria".
+
+## Gerarchia a 3 livelli Area › Categoria › Sottocategoria (Giugno 2026 — V50.z115)
+- Modello: `area_meta[key].categories` / `custom_areas[].categories` = `[{name, subs[]}]`. Retro-compat: vecchie `subcategories` piatte lette come categoria "Generale" (`areaCategories()` in `areaAccess.ts`), nessun dato cancellato; al primo salvataggio dell'area vengono migrate in `categories`.
+- Contatto: nuovo `area_categories: {areaId: {category, subcategory}}` (ContactIn/Update); `area_subcategories` legacy mantenuto e mostrato se non c'è categoria.
+- UI: AreasManager (albero categorie con sottocategorie, input per categoria e per sottocategoria); form contatto (chip categoria → chip sottocategoria per ogni area selezionata); dettaglio contatto badge "Area › Cat › Sub"; Contatti: filtri a cascata Categoria → Sottocategoria sotto i chip area (testID `filter-cat-*`, `filter-sub-*`).
+- Non fatto: breakdown per categoria nel tab Report.

@@ -6,13 +6,14 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
-import { isAreaVisible } from "@/src/utils/areaAccess";
+import { isAreaVisible, areaCategories } from "@/src/utils/areaAccess";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string;
   area: "energy" | "network"; source: "personal" | "referral"; address: string;
+  area_categories?: Record<string, { category?: string; subcategory?: string }>;
   group_ids?: string[];
 };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; office_address?: string };
@@ -40,6 +41,9 @@ function ContattiScreen() {
   const allowed = user?.areas || ["energy", "network"];
   const [items, setItems] = useState<Contact[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+  // V50.z115 — Filtro Categoria › Sottocategoria (attivo quando è selezionata un'area con categorie)
+  const [catFilter, setCatFilter] = useState<string | null>(null);
+  const [subFilter, setSubFilter] = useState<string | null>(null);
   // V50.z114 — Permessi aree (CRM · Aree): nascondi ai collaboratori le aree non consentite/archiviate
   const AREAS = AREAS_ALL.filter((a) => a.key === "all" || (allowed.includes(a.key) && isAreaVisible(settings as any, a.key, user?.role)));
   const [groups, setGroups] = useState<Group[]>([]);
@@ -104,7 +108,15 @@ function ContattiScreen() {
   // V50.z72 — Applica ordinamento per vicinanza (contatti con distance null vanno in fondo)
   const orderedItems = useMemo(() => {
     // V50.z114 — Esclude i contatti delle aree non visibili per il ruolo corrente
-    const visible = items.filter((c) => isAreaVisible(settings as any, c.area, user?.role));
+    const visible = items.filter((c) => {
+      if (!isAreaVisible(settings as any, c.area, user?.role)) return false;
+      if (area !== "all" && catFilter) {
+        const ac = c.area_categories?.[area];
+        if (ac?.category !== catFilter) return false;
+        if (subFilter && ac?.subcategory !== subFilter) return false;
+      }
+      return true;
+    });
     if (sortMode !== "distance") return visible;
     const withKm = [...visible];
     withKm.sort((a, b) => {
@@ -116,7 +128,7 @@ function ContattiScreen() {
       return ka - kb;
     });
     return withKm;
-  }, [items, distances, sortMode, settings, user?.role]);
+  }, [items, distances, sortMode, settings, user?.role, area, catFilter, subFilter]);
 
   const colorFor = (a: string) => (a === "energy" ? (settings?.energy_color || theme.color.energy) : (settings?.network_color || theme.color.network));
 
@@ -146,13 +158,41 @@ function ContattiScreen() {
           <Pressable
             key={a.key}
             testID={`filter-${a.key}`}
-            onPress={() => setArea(a.key)}
+            onPress={() => { setArea(a.key); setCatFilter(null); setSubFilter(null); }}
             style={[styles.chip, area === a.key && styles.chipActive]}
           >
             <Text style={[styles.chipTxt, area === a.key && styles.chipTxtActive]}>{a.label}</Text>
           </Pressable>
         ))}
       </View>
+      {area !== "all" && areaCategories(settings as any, area).length > 0 && (
+        <View style={[styles.chipsRow, { paddingTop: 0 }]} testID="filter-categories">
+          {areaCategories(settings as any, area).map((c) => (
+            <Pressable
+              key={c.name}
+              testID={`filter-cat-${c.name}`}
+              onPress={() => { setCatFilter(catFilter === c.name ? null : c.name); setSubFilter(null); }}
+              style={[styles.chip, catFilter === c.name && styles.chipActive]}
+            >
+              <Text style={[styles.chipTxt, catFilter === c.name && styles.chipTxtActive]}>{c.name}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {area !== "all" && catFilter && (areaCategories(settings as any, area).find((c) => c.name === catFilter)?.subs.length || 0) > 0 && (
+        <View style={[styles.chipsRow, { paddingTop: 0 }]} testID="filter-subcategories">
+          {(areaCategories(settings as any, area).find((c) => c.name === catFilter)?.subs || []).map((sub) => (
+            <Pressable
+              key={sub}
+              testID={`filter-sub-${sub}`}
+              onPress={() => setSubFilter(subFilter === sub ? null : sub)}
+              style={[styles.chip, subFilter === sub && styles.chipActive]}
+            >
+              <Text style={[styles.chipTxt, subFilter === sub && styles.chipTxtActive]}>› {sub}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {/* V50.z72 — Barra distanze: toggle ordinamento + indirizzo di partenza */}
       <View style={styles.distBar}>

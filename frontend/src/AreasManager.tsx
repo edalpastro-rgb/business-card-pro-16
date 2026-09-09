@@ -16,7 +16,8 @@ import { View, Text, StyleSheet, Pressable, TextInput, Modal } from "react-nativ
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
 
-export type AreaMeta = { description?: string; subcategories?: string[]; allowed_roles?: string[]; archived?: boolean };
+export type AreaCategory = { name: string; subs: string[] };
+export type AreaMeta = { description?: string; subcategories?: string[]; categories?: AreaCategory[]; allowed_roles?: string[]; archived?: boolean };
 export type CustomArea = { id: string; name: string; color: string; icon?: string } & AreaMeta;
 export type AreasSettings = {
   energy_title: string; energy_color: string;
@@ -53,7 +54,7 @@ export function AreasManager({ settings, onSave, onReset }: {
     ];
     const custom: AreaRow[] = (settings.custom_areas || []).map((a) => ({
       key: a.id, builtin: false, name: a.name, color: a.color,
-      meta: { description: a.description, subcategories: a.subcategories, allowed_roles: a.allowed_roles, archived: a.archived },
+      meta: { description: a.description, subcategories: a.subcategories, categories: a.categories, allowed_roles: a.allowed_roles, archived: a.archived },
     }));
     return [...base, ...custom];
   }, [settings]);
@@ -80,7 +81,7 @@ export function AreasManager({ settings, onSave, onReset }: {
     const color = PALETTE.find((c) => !used.has(c)) || PALETTE[rows.length % PALETTE.length];
     const next: AreasSettings = {
       ...settings,
-      custom_areas: [...(settings.custom_areas || []), { id, name: "Nuova area", color, icon: "briefcase", description: "", subcategories: [], allowed_roles: ALL_ROLES, archived: false }],
+      custom_areas: [...(settings.custom_areas || []), { id, name: "Nuova area", color, icon: "briefcase", description: "", categories: [], allowed_roles: ALL_ROLES, archived: false }],
     };
     void onSave(next);
     setOpenKey(id);
@@ -94,7 +95,7 @@ export function AreasManager({ settings, onSave, onReset }: {
   return (
     <View testID="areas-manager">
       <Text style={styles.legend}>
-        Struttura: <Text style={styles.legendStrong}>Area</Text> <Ionicons name="chevron-forward" size={11} color={theme.color.muted} /> <Text style={styles.legendStrong}>Sottocategoria</Text>. Tocca un&apos;area per aprirla.
+        Struttura: <Text style={styles.legendStrong}>Area</Text> › <Text style={styles.legendStrong}>Categoria</Text> › <Text style={styles.legendStrong}>Sottocategoria</Text>. Tocca un&apos;area per aprirla.
       </Text>
 
       {visible.map((r) => (
@@ -136,7 +137,7 @@ export function AreasManager({ settings, onSave, onReset }: {
             <Text style={styles.modalHint}>
               {confirm?.builtin
                 ? "Quest'area è strutturale (contatti e appuntamenti la usano): può essere solo archiviata."
-                : "Scegli cosa fare con quest'area e le sue sottocategorie."}
+                : "Scegli cosa fare con quest'area, le sue categorie e sottocategorie."}
             </Text>
             <Pressable
               testID="area-archive"
@@ -197,8 +198,14 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
   const [desc, setDesc] = useState(row.meta.description || "");
   const [colorOpen, setColorOpen] = useState(false);
   const [hex, setHex] = useState(row.color);
-  const [subInput, setSubInput] = useState("");
-  const subs = row.meta.subcategories || [];
+  const [catInput, setCatInput] = useState("");
+  const [subInputs, setSubInputs] = useState<Record<string, string>>({});
+  // Gerarchia: categorie con sottocategorie. Le vecchie `subcategories` piatte
+  // vengono mostrate come categoria "Generale" (migrazione trasparente al primo salvataggio).
+  const cats: AreaCategory[] = (row.meta.categories && row.meta.categories.length)
+    ? row.meta.categories
+    : (row.meta.subcategories && row.meta.subcategories.length ? [{ name: "Generale", subs: row.meta.subcategories }] : []);
+  const subCount = cats.reduce((n, c) => n + c.subs.length, 0);
   const roles = row.meta.allowed_roles && row.meta.allowed_roles.length ? row.meta.allowed_roles : ALL_ROLES;
   const archived = !!row.meta.archived;
 
@@ -214,13 +221,22 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
     if (next.length === 0) return; // almeno un ruolo
     onChange({ meta: { allowed_roles: next } });
   };
-  const addSub = () => {
-    const v = subInput.trim();
-    if (!v || subs.some((x) => x.toLowerCase() === v.toLowerCase())) { setSubInput(""); return; }
-    onChange({ meta: { subcategories: [...subs, v] } });
-    setSubInput("");
+  const saveCats = (next: AreaCategory[]) => onChange({ meta: { categories: next, subcategories: [] } });
+  const addCat = () => {
+    const v = catInput.trim();
+    if (!v || cats.some((c) => c.name.toLowerCase() === v.toLowerCase())) { setCatInput(""); return; }
+    saveCats([...cats, { name: v, subs: [] }]);
+    setCatInput("");
   };
-  const removeSub = (v: string) => onChange({ meta: { subcategories: subs.filter((x) => x !== v) } });
+  const removeCat = (name: string) => saveCats(cats.filter((c) => c.name !== name));
+  const addSub = (catName: string) => {
+    const v = (subInputs[catName] || "").trim();
+    const cat = cats.find((c) => c.name === catName);
+    if (!v || !cat || cat.subs.some((x) => x.toLowerCase() === v.toLowerCase())) { setSubInputs({ ...subInputs, [catName]: "" }); return; }
+    saveCats(cats.map((c) => c.name === catName ? { ...c, subs: [...c.subs, v] } : c));
+    setSubInputs({ ...subInputs, [catName]: "" });
+  };
+  const removeSub = (catName: string, v: string) => saveCats(cats.map((c) => c.name === catName ? { ...c, subs: c.subs.filter((x) => x !== v) } : c));
 
   return (
     <View style={[styles.card, { borderLeftColor: row.color }, archived && { opacity: 0.6 }]} testID={`area-card-${row.key}`}>
@@ -229,7 +245,7 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.cardTitle} numberOfLines={1}>{row.name}</Text>
           <Text style={styles.cardSub} numberOfLines={1}>
-            {subs.length} {subs.length === 1 ? "sottocategoria" : "sottocategorie"}
+            {cats.length} {cats.length === 1 ? "categoria" : "categorie"} · {subCount} {subCount === 1 ? "sottocategoria" : "sottocategorie"}
             {row.builtin ? " · predefinita" : ""}{archived ? " · ARCHIVIATA" : ""}
           </Text>
         </View>
@@ -312,34 +328,63 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
             })}
           </View>
 
-          {/* Sottocategorie — albero */}
-          <Text style={styles.label}>Sottocategorie</Text>
+          {/* Albero: Area › Categoria › Sottocategoria */}
+          <Text style={styles.label}>Categorie e sottocategorie</Text>
           <View style={styles.tree}>
             <View style={styles.treeRoot}>
               <View style={[styles.dotSm, { backgroundColor: row.color }]} />
               <Text style={styles.treeRootTxt}>{row.name}</Text>
             </View>
-            {subs.length === 0 && <Text style={styles.treeEmpty}>└─ nessuna sottocategoria</Text>}
-            {subs.map((sub, i) => (
-              <View key={sub} style={styles.treeRow} testID={`area-sub-${row.key}-${i}`}>
-                <Text style={styles.treeBranch}>{i === subs.length - 1 ? "└─" : "├─"}</Text>
-                <Text style={styles.treeLeaf} numberOfLines={1}>{sub}</Text>
-                <Pressable onPress={() => removeSub(sub)} hitSlop={8} testID={`area-sub-del-${row.key}-${i}`}>
-                  <Ionicons name="close-circle" size={16} color={theme.color.muted} />
-                </Pressable>
-              </View>
-            ))}
+            {cats.length === 0 && <Text style={styles.treeEmpty}>└─ nessuna categoria</Text>}
+            {cats.map((cat, ci) => {
+              const lastCat = ci === cats.length - 1;
+              return (
+                <View key={cat.name} testID={`area-cat-${row.key}-${ci}`}>
+                  <View style={styles.treeRow}>
+                    <Text style={styles.treeBranch}>{lastCat ? "└─" : "├─"}</Text>
+                    <Ionicons name="folder-outline" size={14} color={row.color} />
+                    <Text style={[styles.treeLeaf, { fontWeight: "800" }]} numberOfLines={1}>{cat.name}</Text>
+                    <Pressable onPress={() => removeCat(cat.name)} hitSlop={8} testID={`area-cat-del-${row.key}-${ci}`}>
+                      <Ionicons name="close-circle" size={16} color={theme.color.muted} />
+                    </Pressable>
+                  </View>
+                  {cat.subs.map((sub, si) => (
+                    <View key={sub} style={[styles.treeRow, { paddingLeft: 22 }]} testID={`area-sub-${row.key}-${ci}-${si}`}>
+                      <Text style={styles.treeBranch}>{lastCat ? "   " : "│  "}{si === cat.subs.length - 1 ? "└─" : "├─"}</Text>
+                      <Text style={styles.treeLeaf} numberOfLines={1}>{sub}</Text>
+                      <Pressable onPress={() => removeSub(cat.name, sub)} hitSlop={8} testID={`area-sub-del-${row.key}-${ci}-${si}`}>
+                        <Ionicons name="close-circle" size={14} color={theme.color.muted} />
+                      </Pressable>
+                    </View>
+                  ))}
+                  <View style={[styles.addRow, { paddingLeft: 22, marginTop: 4, marginBottom: 6 }]}>
+                    <TextInput
+                      testID={`area-sub-input-${row.key}-${ci}`}
+                      value={subInputs[cat.name] || ""}
+                      onChangeText={(t) => setSubInputs({ ...subInputs, [cat.name]: t })}
+                      onSubmitEditing={() => addSub(cat.name)}
+                      style={[styles.input, { flex: 1, marginTop: 0, paddingVertical: 6, fontSize: 13 }]}
+                      placeholder={`Sottocategoria di ${cat.name}`}
+                      placeholderTextColor="#94A3B8"
+                    />
+                    <Pressable testID={`area-sub-add-${row.key}-${ci}`} onPress={() => addSub(cat.name)} style={[styles.plusBtn, { width: 34, height: 34, backgroundColor: row.color + "33" }]}>
+                      <Ionicons name="add" size={16} color={row.color} />
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
             <View style={styles.addRow}>
               <TextInput
-                testID={`area-sub-input-${row.key}`}
-                value={subInput}
-                onChangeText={setSubInput}
-                onSubmitEditing={addSub}
+                testID={`area-cat-input-${row.key}`}
+                value={catInput}
+                onChangeText={setCatInput}
+                onSubmitEditing={addCat}
                 style={[styles.input, { flex: 1, marginTop: 0 }]}
-                placeholder="Aggiungi sottocategoria (es. Luce, Gas)"
+                placeholder="Nuova categoria (es. Luce, Gas)"
                 placeholderTextColor="#94A3B8"
               />
-              <Pressable testID={`area-sub-add-${row.key}`} onPress={addSub} style={[styles.plusBtn, { backgroundColor: row.color }]}>
+              <Pressable testID={`area-cat-add-${row.key}`} onPress={addCat} style={[styles.plusBtn, { backgroundColor: row.color }]}>
                 <Ionicons name="add" size={18} color="#FFF" />
               </Pressable>
             </View>

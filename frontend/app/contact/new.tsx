@@ -11,7 +11,7 @@ import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
-import { isAreaVisible, areaSubcategories } from "@/src/utils/areaAccess";
+import { isAreaVisible, areaCategories } from "@/src/utils/areaAccess";
 import { scheduleBirthdayReminder } from "@/src/notifications";
 import { uriToBase64DataUrl, uriToBase64, base64ByteSize } from "@/src/utils/media";
 import { notify, confirmAsync } from "@/src/utils/notify";
@@ -103,6 +103,8 @@ function NewContactScreen() {
     additional_areas: [] as string[],
     // V50.z114 — Sottocategoria scelta per ogni area selezionata {areaId: sub}
     area_subcategories: {} as Record<string, string>,
+    // V50.z115 — {areaId: {category, subcategory}}
+    area_categories: {} as Record<string, { category?: string; subcategory?: string }>,
     source: "personal" as "personal" | "referral",
     referral_type: "" as "" | "direct" | "from_contact",
     referred_by_contact_id: "",
@@ -187,6 +189,7 @@ function NewContactScreen() {
           area: (c.area === "network" ? "network" : "energy"),
           additional_areas: c.additional_areas || [],
           area_subcategories: c.area_subcategories || {},
+          area_categories: c.area_categories || {},
           source: (c.source === "referral" ? "referral" : "personal"),
           referral_type: c.referral_type || "",
           referred_by_contact_id: c.referred_by_contact_id || "",
@@ -929,41 +932,67 @@ function NewContactScreen() {
     ...(allowed.includes("network") ? [{ id: "network", name: settings?.network_title || "Networker", color: settings?.network_color || theme.color.network, builtin: true }] : []),
     ...(settings?.custom_areas || []).map((a) => ({ id: a.id, name: a.name, color: a.color })),
   ].filter((a) => isAreaVisible(settings as any, a.id, user?.role));
-  // Aree selezionate che hanno sottocategorie configurate (CRM · Aree)
+  // Aree selezionate che hanno categorie configurate (CRM · Aree): Area › Categoria › Sottocategoria
   const areasWithSubs = allAreas
     .filter((a) => form.area === a.id || form.additional_areas.includes(a.id))
-    .map((a) => ({ ...a, subs: areaSubcategories(settings as any, a.id) }))
-    .filter((a) => a.subs.length > 0);
+    .map((a) => ({ ...a, cats: areaCategories(settings as any, a.id) }))
+    .filter((a) => a.cats.length > 0);
+  const setAreaCat = (areaId: string, patch: { category?: string; subcategory?: string } | null) => {
+    const next = { ...form.area_categories };
+    if (!patch) delete next[areaId]; else next[areaId] = { ...(next[areaId] || {}), ...patch };
+    setForm({ ...form, area_categories: next });
+  };
   const renderSubcategoryPicker = () => areasWithSubs.length > 0 ? (
                           <View style={{ width: "100%", marginTop: 6 }} testID="c-area-subcategories">
-                            {areasWithSubs.map((a) => (
-                              <View key={a.id} style={{ marginBottom: 6 }}>
-                                <Text style={[styles.hintTxt, { marginBottom: 4 }]}>
-                                  <Text style={{ fontWeight: "800", color: a.color }}>{a.name}</Text> › sottocategoria
-                                </Text>
-                                <View style={styles.pillsRow}>
-                                  {a.subs.map((sub) => {
-                                    const on = form.area_subcategories[a.id] === sub;
-                                    return (
-                                      <Pressable
-                                        key={sub}
-                                        testID={`c-sub-${a.id}-${sub}`}
-                                        onPress={() => {
-                                          const next = { ...form.area_subcategories };
-                                          if (on) delete next[a.id]; else next[a.id] = sub;
-                                          setForm({ ...form, area_subcategories: next });
-                                        }}
-                                        style={[styles.pill, on && { backgroundColor: a.color + "22", borderColor: a.color }]}
-                                      >
-                                        <Text style={[styles.pillTxt, on && { color: a.color, fontWeight: "800" }]}>{sub}</Text>
-                                      </Pressable>
-                                    );
-                                  })}
+                            {areasWithSubs.map((a) => {
+                              const sel = form.area_categories[a.id] || {};
+                              const cat = a.cats.find((c) => c.name === sel.category);
+                              return (
+                                <View key={a.id} style={{ marginBottom: 6 }}>
+                                  <Text style={[styles.hintTxt, { marginBottom: 4 }]}>
+                                    <Text style={{ fontWeight: "800", color: a.color }}>{a.name}</Text> › categoria
+                                  </Text>
+                                  <View style={styles.pillsRow}>
+                                    {a.cats.map((c) => {
+                                      const on = sel.category === c.name;
+                                      return (
+                                        <Pressable
+                                          key={c.name}
+                                          testID={`c-cat-${a.id}-${c.name}`}
+                                          onPress={() => setAreaCat(a.id, on ? null : { category: c.name, subcategory: undefined })}
+                                          style={[styles.pill, on && { backgroundColor: a.color, borderColor: a.color }]}
+                                        >
+                                          <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{c.name}</Text>
+                                        </Pressable>
+                                      );
+                                    })}
+                                  </View>
+                                  {cat && cat.subs.length > 0 && (
+                                    <>
+                                      <Text style={[styles.hintTxt, { marginTop: 6, marginBottom: 4 }]}>
+                                        <Text style={{ fontWeight: "800", color: a.color }}>{cat.name}</Text> › sottocategoria
+                                      </Text>
+                                      <View style={styles.pillsRow}>
+                                        {cat.subs.map((sub) => {
+                                          const on = sel.subcategory === sub;
+                                          return (
+                                            <Pressable
+                                              key={sub}
+                                              testID={`c-sub-${a.id}-${sub}`}
+                                              onPress={() => setAreaCat(a.id, { subcategory: on ? undefined : sub })}
+                                              style={[styles.pill, on && { backgroundColor: a.color + "22", borderColor: a.color }]}
+                                            >
+                                              <Text style={[styles.pillTxt, on && { color: a.color, fontWeight: "800" }]}>{sub}</Text>
+                                            </Pressable>
+                                          );
+                                        })}
+                                      </View>
+                                    </>
+                                  )}
                                 </View>
-                              </View>
-                            ))}
+                              );
+                            })}
                           </View>
-                        
   ) : null;
 
   const toggleArea = (areaId: string) => {
