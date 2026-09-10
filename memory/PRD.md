@@ -1,6 +1,11 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z159 (Giu 2026) — Card Scadenze apre il menu laterale + orologio
+
+**Causa**: la linguetta `EdgePanel` (24px a destra, `hitSlop.left=16`) copre una fascia invisibile di ~40px lungo il bordo destro, alla stessa altezza della card Scadenze; il ⋯ (marginRight -6) finiva dentro quella fascia → tap = apertura pannello. **Fix**: hitSlop sinistro 4, ⋯ senza margine negativo (home + /deadlines). Orologio Home: `arm()` ricalcola/riallinea al `AppState` "active" e al focus (`useFocusEffect`); l'ora è sempre `new Date()` locale del dispositivo (fuso dell'area geografica). Master aggiorna ogni 1s (già ok).
+
+
 ## V50.z158 (Giu 2026) — Tour guidato assente al primo avvio (APK 1.0.50)
 
 **Cause plausibili (non riproducibile in locale, entrambe coperte)**: (a) su nativo `router.replace("/libretto?onboarding=1")` da Home (tab annidato) può non essere gestito ("REPLACE not handled") anche dopo z133; (b) **Android Auto Backup** (`allowBackup` default true) ripristina i dati app (AsyncStorage) alla reinstallazione → `onboarding_done_<uid>` = "1" già presente → il tour "per-device" non parte mai su un "primo avvio" che in realtà è un reinstall.

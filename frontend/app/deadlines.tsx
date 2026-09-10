@@ -180,5 +180,5 @@ const styles = StyleSheet.create({
   pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   pillTxt: { fontSize: 10.5, fontWeight: "800", letterSpacing: 0.2 },
   days: { fontSize: 11.5, fontWeight: "700", marginTop: 4 },
-  moreBtn: { width: 32, height: 44, alignItems: "center", justifyContent: "center", marginRight: -6 },
+  moreBtn: { width: 32, height: 44, alignItems: "center", justifyContent: "center" },
 });

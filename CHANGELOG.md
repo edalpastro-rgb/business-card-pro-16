@@ -285,6 +285,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z159 | Giu 2026 | Home: tap sulla card Scadenze apriva l'Edge Panel → hitSlop sinistro linguetta 16→4 e ⋯ non più a filo bordo; orologio header ri-sincronizzato al rientro in foreground (AppState) e al focus (ora locale del dispositivo) |
 | V50.z158 | Giu 2026 | Tour primo avvio (APK 1.0.50 ancora assente): apertura con `push` alternato a `replace`, verifica `usePathname` e fino a 5 tentativi (1s), nessun blocco su navReady; `android.allowBackup: false` (il backup automatico Android ripristinava AsyncStorage al reinstall → flag `onboarding_done_*` già "1" → nessun tour) |
 | V50.z157 | Giu 2026 | Meteo: badge header SEMPRE visibile (Home + Master; senza dati mostra nuvola + "Meteo" → /meteo per impostare la località; refresh al focus) — prima `return null` senza GPS/indirizzo (APK senza permesso posizione). "Meteo" aggiunto alle Utility della Master |
 | V50.z156 | Giu 2026 | Scanner: riga "Diagnostica" nella schermata permesso fotocamera (stato reale + richiedibile) per distinguere "permesso negato" da "permesso assente nella build". Config Android RIVERIFICATA con `expo prebuild` locale: il manifest generato contiene CAMERA/RECORD_AUDIO/CONTACTS/LOCATION → se l'APK 1.0.49 non li ha, è la pipeline di build (escalation supporto). Fix collaterale: `yarn.lock` aggiornato con `expo-build-properties` (mancava → possibile fallimento install in CI) |

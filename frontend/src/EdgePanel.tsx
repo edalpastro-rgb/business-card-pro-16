@@ -221,7 +221,10 @@ export function EdgePanel() {
           <Pressable
             onPress={() => setOpen(true)}
             style={styles.tabInner}
-            hitSlop={{ left: 16, right: 4, top: 8, bottom: 8 }}
+            // V50.z159 — hitSlop sinistro ridotto (16→4): la zona invisibile della
+            // linguetta copriva il bordo destro delle card (es. ⋯ Scadenze) e
+            // apriva il pannello al posto dell'azione della card.
+            hitSlop={{ left: 4, right: 4, top: 8, bottom: 8 }}
           >
             {/* V50.z17 — Alone pulsante per farla scoprire ai nuovi utenti */}
             {!discovered && (

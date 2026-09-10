@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert, AppState } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, useRootNavigationState, usePathname } from "expo-router";
@@ -217,19 +217,33 @@ export default function HomeScreen() {
   }, [user?.user_id]);
 
   // Update header clock every minute (aligned to the next :00 second)
+  // V50.z159 — L'orologio usa SEMPRE l'ora locale del dispositivo (fuso dell'area
+  // geografica). Su Android i timer JS vengono sospesi in background: al rientro
+  // (AppState → active) e al focus della tab ri-sincronizziamo subito e
+  // riallineiamo l'intervallo, così l'ora non resta indietro di minuti.
   useEffect(() => {
     let intervalId: any = null;
-    const d = new Date();
-    const msToNextMinute = (60 - d.getSeconds()) * 1000 - d.getMilliseconds();
-    const timeoutId = setTimeout(() => {
-      setNowTick(Date.now());
-      intervalId = setInterval(() => setNowTick(Date.now()), 60000);
-    }, Math.max(500, msToNextMinute));
-    return () => {
-      clearTimeout(timeoutId);
+    let timeoutId: any = null;
+    const arm = () => {
+      if (timeoutId) clearTimeout(timeoutId);
       if (intervalId) clearInterval(intervalId);
+      setNowTick(Date.now());
+      const d = new Date();
+      const msToNextMinute = (60 - d.getSeconds()) * 1000 - d.getMilliseconds();
+      timeoutId = setTimeout(() => {
+        setNowTick(Date.now());
+        intervalId = setInterval(() => setNowTick(Date.now()), 60000);
+      }, Math.max(500, msToNextMinute));
+    };
+    arm();
+    const sub = AppState.addEventListener("change", (st) => { if (st === "active") arm(); });
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+      sub.remove();
     };
   }, []);
+  useFocusEffect(useCallback(() => { setNowTick(Date.now()); }, []));
 
   const load = useCallback(async () => {
     try {
@@ -1448,5 +1462,5 @@ const styles = StyleSheet.create({
   deadlinePillTxt: { fontSize: 10.5, fontWeight: "800", letterSpacing: 0.2 },
   deadlineDays: { fontSize: 11.5, fontWeight: "700", marginTop: 4 },
   deadlineMore: { fontSize: 12, color: C.muted, textAlign: "center", marginTop: 4, marginBottom: 4 },
-  deadlineMoreBtn: { width: 32, height: 44, alignItems: "center", justifyContent: "center", marginRight: -6 },
+  deadlineMoreBtn: { width: 32, height: 44, alignItems: "center", justifyContent: "center" },
 });
