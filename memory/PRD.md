@@ -1,6 +1,11 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## Verifica permesso CAMERA Android (Giu 2026) — nessuna modifica necessaria
+
+Segnalazione: "la fotocamera non compare in Impostazioni → AdvisorOS → Autorizzazioni". Verificato: `app.json` → `expo.android.permissions` contiene `CAMERA` (presente dal commit d5a1a9c); plugin `["expo-camera", {"cameraPermission": …}]` e `["expo-image-picker", {"cameraPermission": …}]` configurati; nessun `blockedPermissions`; `npx expo config --type introspect` genera il manifest con `android.permission.CAMERA` (+ RECORD_AUDIO, READ/WRITE_CONTACTS, ecc.). Nessun `app.config.js` che sovrascrive. Conclusione: la configurazione è corretta → se l'APK installato non elenca la fotocamera, o è una build precedente/diversa, oppure il dispositivo mostra il gruppo solo dopo la prima richiesta runtime (ora eseguita correttamente dal flusso V50.z139). Da ricontrollare sull'APK generato dopo il deploy di oggi.
+
+
 ## V50.z145 (Giu 2026) — Comunica con l'azienda: Modifica solo esistenti + "+ Aggiungi contatto"
 
 `src/CompanyContactSheet.tsx`: rimosso `addDraftPhone` e il bottone "Aggiungi" (`company-sheet-add-phone`) dall'edit-mode → "Modifica" corregge/elimina solo i contatti esistenti (etichetta, numero; nome/email azienda restano editabili). Nuovo stato `addOpen/addLabel/addNumber` + `addManualContact()` (GET `/settings` → append `{id, label||"Contatto", number}` a `communica_azienda_phones` con dedup numero normalizzato → PUT). View-mode (Master): bottone tratteggiato "+ Aggiungi contatto" (`company-sheet-add-contact`) sotto la lista numeri → form inline (`company-sheet-add-contact-label|number|save|cancel`), Salva disabilitato senza numero. Testi empty-state aggiornati. Test web: aggiunta contatto manuale → riga chiamabile ✅; edit-mode senza "Aggiungi" ✅. Dato di test rimosso.
