@@ -1,6 +1,13 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z160 (Giu 2026) — Chat AxonOS esportabile e condivisibile
+
+**Richiesta** (ripetuta più volte): dal telefono il testo della chat non è selezionabile; serve un'icona ⋯ per condividere in chat di gruppo, mail, social.
+**Implementazione**: `src/utils/chatExport.ts` — `conversationToText(messages, assistantName, userName)`, `copyText` (expo-clipboard + notify), `shareText` (RN `Share.share` → share sheet nativo; web `navigator.share` → fallback copia), `exportConversationPdf(messages, …)` (HTML brandizzato → `Print.printToFileAsync` → `Sharing.shareAsync` PDF; web `Print.printAsync`). `AssistantChat.tsx`: nuova azione header **"⋯ Altro"** (testID `assistant-more-btn`) → menu `assistant-more-menu` con Condividi conversazione / Esporta PDF / Copia tutto (riusa stili `modeMenu/modeItem`); in ogni bubble completata riga azioni **Copia · Condividi** (+ **PDF** sulle risposte Axon) con testID `msg-copy-btn`, `msg-share-btn`, `msg-pdf-btn`. Nessun'altra modifica.
+**Test web**: menu Altro visibile con 3 voci; 2 bubble → 2 pulsanti Copia ✅.
+
+
 ## V50.z159 (Giu 2026) — Card Scadenze apre il menu laterale + orologio
 
 **Causa**: la linguetta `EdgePanel` (24px a destra, `hitSlop.left=16`) copre una fascia invisibile di ~40px lungo il bordo destro, alla stessa altezza della card Scadenze; il ⋯ (marginRight -6) finiva dentro quella fascia → tap = apertura pannello. **Fix**: hitSlop sinistro 4, ⋯ senza margine negativo (home + /deadlines). Orologio Home: `arm()` ricalcola/riallinea al `AppState` "active" e al focus (`useFocusEffect`); l'ora è sempre `new Date()` locale del dispositivo (fuso dell'area geografica). Master aggiorna ogni 1s (già ok).

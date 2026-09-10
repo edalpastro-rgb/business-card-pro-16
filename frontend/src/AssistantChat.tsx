@@ -45,6 +45,7 @@ import { AxonOSLogo } from "@/src/BrandLogos";
 import { streamAssistantChat } from "@/src/utils/assistantStream";
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
+import { conversationToText, copyText, shareText, exportConversationPdf } from "@/src/utils/chatExport";
 
 // V50.z11 — useBottomSheetPadding rimosso: era usato per padding sheet ma
 // il KeyboardAvoidingView ora gestisce autonomamente lo spazio sopra la tastiera.
@@ -194,6 +195,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [quickActions, setQuickActions] = useState<{ id: string; label: string; prompt: string }[] | null>(null);  const [assistantVoice, setAssistantVoice] = useState<string>("nova");
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
   const [showModeMenu, setShowModeMenu] = useState(false);
+  // V50.z160 — Menu ⋯ "Altro": condividi / PDF / copia intera conversazione
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   // V38T — Save-to-master modal state (opens with default filename)
   const [saveTarget, setSaveTarget] = useState<{ content: string; defaultName: string } | null>(null);
   const [paused, setPaused] = useState(false);
@@ -1446,6 +1449,15 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   <Ionicons name="create-outline" size={20} color="#FFF" />
                   <Text style={styles.headerActionTxt}>Nuova chat</Text>
                 </Pressable>
+                <Pressable
+                  onPress={() => { setShowModeMenu(false); setShowMoreMenu((v) => !v); }}
+                  style={styles.headerAction}
+                  accessibilityLabel="Altre azioni: condividi, PDF, copia"
+                  testID="assistant-more-btn"
+                >
+                  <Ionicons name="ellipsis-vertical" size={20} color="#FFF" />
+                  <Text style={styles.headerActionTxt}>Altro</Text>
+                </Pressable>
                 <Pressable onPress={onClose} style={styles.headerAction} accessibilityLabel="Chiudi">
                   <Ionicons name="close" size={22} color="#FFF" />
                   <Text style={styles.headerActionTxt}>Chiudi</Text>
@@ -1467,6 +1479,37 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 </Pressable>
               </View>
             </View>
+
+            {/* V50.z160 — Menu ⋯ Altro: esporta/condividi l'intera conversazione */}
+            {showMoreMenu && (
+              <View style={[styles.modeMenu, { minWidth: 240 }]} testID="assistant-more-menu">
+                {([
+                  { id: "share", icon: "share-social", label: "Condividi conversazione", sub: "WhatsApp, gruppi, mail, social" },
+                  { id: "pdf", icon: "document-text", label: "Esporta PDF", sub: "Salva o condividi come PDF" },
+                  { id: "copy", icon: "copy", label: "Copia tutto il testo", sub: "Negli appunti" },
+                ] as { id: string; icon: any; label: string; sub: string }[]).map((it) => (
+                  <Pressable
+                    key={it.id}
+                    testID={`assistant-more-${it.id}`}
+                    disabled={messages.length === 0}
+                    onPress={async () => {
+                      setShowMoreMenu(false);
+                      const txt = conversationToText(messages, assistantName, (user?.name || "").split(" ")[0] || undefined);
+                      if (it.id === "share") await shareText(txt, `Conversazione con ${assistantName}`);
+                      else if (it.id === "pdf") await exportConversationPdf(messages, assistantName, (user?.name || "").split(" ")[0] || undefined);
+                      else await copyText(txt);
+                    }}
+                    style={[styles.modeItem, messages.length === 0 && { opacity: 0.4 }]}
+                  >
+                    <Ionicons name={it.icon} size={18} color={ASSISTANT_COLOR_DARK} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modeItemTxt}>{it.label}</Text>
+                      <Text style={{ fontSize: 11, color: "#64748B" }}>{it.sub}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
 
             {/* Mode menu (long-press header toggle) */}
             {showModeMenu && (
@@ -2112,6 +2155,44 @@ function MessageBubble({
         {!isUser && (
           <SaveToAxonPrompt content={msg.content} assistantColor={ASSISTANT_COLOR_DARK} isMaster={!!isMaster} />
         )}
+        {/* V50.z160 — Azioni messaggio: Copia · Condividi · PDF (il testo non è
+            selezionabile su Android nel Modal → serve un'azione esplicita). */}
+        {!msg.streaming && !!(msg.content || "").trim() && (
+          <View style={[styles.msgActionsRow, isUser && { justifyContent: "flex-end" }]}>
+            <Pressable
+              onPress={() => copyText(msg.content)}
+              hitSlop={8}
+              accessibilityLabel="Copia messaggio"
+              testID="msg-copy-btn"
+              style={styles.msgActionBtn}
+            >
+              <Ionicons name="copy-outline" size={13} color={isUser ? "#EDE9FE" : "#64748B"} />
+              <Text style={[styles.msgActionTxt, isUser && { color: "#EDE9FE" }]}>Copia</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => shareText(msg.content, `${assistantName} · AdvisorOS`)}
+              hitSlop={8}
+              accessibilityLabel="Condividi messaggio"
+              testID="msg-share-btn"
+              style={styles.msgActionBtn}
+            >
+              <Ionicons name="share-social-outline" size={13} color={isUser ? "#EDE9FE" : "#64748B"} />
+              <Text style={[styles.msgActionTxt, isUser && { color: "#EDE9FE" }]}>Condividi</Text>
+            </Pressable>
+            {!isUser && (
+              <Pressable
+                onPress={() => exportConversationPdf([msg], assistantName, undefined, `${assistantName} · risposta`)}
+                hitSlop={8}
+                accessibilityLabel="Esporta messaggio in PDF"
+                testID="msg-pdf-btn"
+                style={styles.msgActionBtn}
+              >
+                <Ionicons name="document-text-outline" size={13} color="#64748B" />
+                <Text style={styles.msgActionTxt}>PDF</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
         {/* V41 — Feedback 👍/👎 (solo su risposte assistant completate, con message_id) */}
         {!isUser && !msg.streaming && msg.message_id && onFeedback && (
           <View style={styles.feedbackRow}>
@@ -2738,6 +2819,10 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   // V41 — Feedback thumbs + modal styles
+  // V50.z160 — Azioni messaggio
+  msgActionsRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
+  msgActionBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 28, paddingHorizontal: 2 },
+  msgActionTxt: { fontSize: 11, fontWeight: "700", color: "#64748B" },
   feedbackRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -239,6 +239,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Nome app, nome assistente, voce TTS, modalità risposta, azioni rapide, tipi appuntamento e categorie prodotto custom,
   aree (vedi §2), formato ora 12h/24h, dashboard widget, edge panel, sicurezza/2FA, tema Optima esteso a tutte le pagine (V29.bb/bc).
 - **Header tabella** (V50.z140, solo Master): logo + nome azienda in testa alle tabelle AxonOS esportate (vedi §5).
+- **Esporta/condividi chat** (V50.z160): header ⋯ Altro (Condividi conversazione · Esporta PDF · Copia tutto) + azioni per messaggio Copia · Condividi · PDF — `src/utils/chatExport.ts` (`conversationToText`, `shareText` via RN Share / navigator.share, `copyText` expo-clipboard, `exportConversationPdf` expo-print → expo-sharing).
 
 ## 12. Stile / UX globale
 - **REGOLA MODAL (V50.z135, richiesta utente)**: in ogni modal il pulsante di chiusura/azione primaria sta in un footer FISSO fuori
@@ -285,6 +286,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z160 | Giu 2026 | AxonOS chat esportabile/condivisibile: header "⋯ Altro" → Condividi conversazione (share sheet nativo: WhatsApp/gruppi/mail/social), Esporta PDF (expo-print+expo-sharing), Copia tutto; su ogni messaggio azioni Copia · Condividi · PDF (`src/utils/chatExport.ts`) |
 | V50.z159 | Giu 2026 | Home: tap sulla card Scadenze apriva l'Edge Panel → hitSlop sinistro linguetta 16→4 e ⋯ non più a filo bordo; orologio header ri-sincronizzato al rientro in foreground (AppState) e al focus (ora locale del dispositivo) |
 | V50.z158 | Giu 2026 | Tour primo avvio (APK 1.0.50 ancora assente): apertura con `push` alternato a `replace`, verifica `usePathname` e fino a 5 tentativi (1s), nessun blocco su navReady; `android.allowBackup: false` (il backup automatico Android ripristinava AsyncStorage al reinstall → flag `onboarding_done_*` già "1" → nessun tour) |
 | V50.z157 | Giu 2026 | Meteo: badge header SEMPRE visibile (Home + Master; senza dati mostra nuvola + "Meteo" → /meteo per impostare la località; refresh al focus) — prima `return null` senza GPS/indirizzo (APK senza permesso posizione). "Meteo" aggiunto alle Utility della Master |
