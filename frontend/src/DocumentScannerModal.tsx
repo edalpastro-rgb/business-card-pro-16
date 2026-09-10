@@ -29,7 +29,7 @@ import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
  *   - Backend does auto-crop (OpenCV Canny + 4-point warp), CLAHE contrast,
  *     unsharp mask, optional grayscale, and merges into a single PDF.
  */
-export type ScannedPage = { data_base64: string; mime: string; preview_uri: string; original_base64?: string; manual_crop?: boolean };
+export type ScannedPage = { data_base64: string; mime: string; preview_uri: string; original_base64?: string; manual_crop?: boolean; auto_cropped?: boolean };
 
 type Props = {
   visible: boolean;
@@ -48,7 +48,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
   const [name, setName] = useState(defaultName || "");
   const [busy, setBusy] = useState(false);
   const [savingLbl, setSavingLbl] = useState<string>("");
-  const [liveScanOpen, setLiveScanOpen] = useState(false); // Bug 11 — modalità continua
+  const [liveScanOpen, setLiveScanOpen] = useState<false | "multi" | "single">(false); // Bug 11 — modalità continua / V50.z139 foto singola
   const [cropIdx, setCropIdx] = useState<number | null>(null); // ritaglio manuale pagina
   const nameSyncedFor = useRef<string | null>(null);
 
@@ -66,32 +66,12 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
     }
   }, [visible, defaultName]);
 
-  const addFromCamera = useCallback(async () => {
-    try {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        notify("Permesso mancante", "Serve l'accesso alla fotocamera per scansionare.");
-        return;
-      }
-      const res = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.85,
-        base64: true,
-        exif: false,
-        // V50.z134 — "Foto singola" deve aprire SEMPRE la fotocamera posteriore
-        cameraType: ImagePicker.CameraType.back,
-      });
-      if (res.canceled || !res.assets?.length) return;
-      const a = res.assets[0];
-      if (!a.base64) return;
-      setPages((p) => [...p, {
-        data_base64: a.base64!,
-        mime: a.mimeType || "image/jpeg",
-        preview_uri: a.uri || `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`,
-      }]);
-    } catch (e: any) {
-      notify("Errore fotocamera", e?.message || "");
-    }
+  const addFromCamera = useCallback(() => {
+    // V50.z139 — "Foto singola" usa la fotocamera in-app (expo-camera CameraView): autofocus
+    // continuo, rilevamento bordi live e ritaglio automatico PRIMA di restituire l'immagine,
+    // con gestione permessi robusta (niente loop "Serve l'accesso alla fotocamera").
+    // Sostituisce ImagePicker.launchCameraAsync (nessun autofocus/crop, permessi in loop su Android 16).
+    setLiveScanOpen("single");
   }, []);
 
   const addFromGallery = useCallback(async () => {
@@ -193,6 +173,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
       preview_uri: p.preview_uri || `data:${p.mime || "image/jpeg"};base64,${p.data_base64}`,
       original_base64: p.original_base64,
       manual_crop: p.manual,
+      auto_cropped: p.cropped && !p.manual,
     }));
     setPages((prev) => [...prev, ...additions]);
     setLiveScanOpen(false);
@@ -205,7 +186,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
       setBusy(true);
       setSavingLbl(`Elaborazione ${pages.length} pagine…`);
       const payload = {
-        pages: pages.map((p) => ({ data_base64: p.data_base64, mime: p.mime, already_cropped: !!p.manual_crop })),
+        pages: pages.map((p) => ({ data_base64: p.data_base64, mime: p.mime, already_cropped: !!(p.manual_crop || p.auto_cropped) })),
         enhance,
         autocrop,
         grayscale,
@@ -240,7 +221,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
 
           {/* Sources */}
           <View style={styles.sourceRow}>
-            <Pressable onPress={() => setLiveScanOpen(true)} style={styles.sourceBtn} testID="scanner-live">
+            <Pressable onPress={() => setLiveScanOpen("multi")} style={styles.sourceBtn} testID="scanner-live">
               <View style={[styles.sourceIcon, { backgroundColor: "#DC2626" }]}>
                 <Ionicons name="scan" size={20} color="#FFF" />
               </View>
@@ -341,9 +322,10 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
         </View>
       </View>
 
-      {/* Bug 11 — Live camera in-app (modalità continua + autofocus + auto-crop) */}
+      {/* Bug 11 — Live camera in-app (modalità continua + autofocus + auto-crop); V50.z139 anche per "Foto singola" */}
       <LiveCameraScanner
-        visible={liveScanOpen}
+        visible={liveScanOpen !== false}
+        singleShot={liveScanOpen === "single"}
         onClose={() => setLiveScanOpen(false)}
         onDone={onLiveScanDone}
         enhance={enhance}

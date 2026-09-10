@@ -25,6 +25,8 @@ import {
   Modal,
   Platform,
   ScrollView,
+  AppState,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -42,6 +44,8 @@ export type LiveScannedPage = {
   blurry?: boolean; // Bug 11.d — true if backend flagged low sharpness
   original_base64?: string; // scatto originale (per il ritaglio manuale)
   manual?: boolean; // true = ritaglio manuale dell'utente (non sovrascrivere con l'autocrop)
+  id?: string; // V50.z139 — id univoco dello scatto (l'autocrop asincrono aggiorna per id, non per indice)
+  processed?: boolean; // V50.z139 — true quando /scanner/autocrop-preview ha risposto (ok o fallback)
 };
 
 type Props = {
@@ -50,12 +54,25 @@ type Props = {
   onDone: (pages: LiveScannedPage[]) => void;
   enhance?: boolean;
   grayscale?: boolean;
+  /** V50.z139 — "Foto singola": dopo il primo scatto confermato ("Usa questa") chiude e restituisce 1 pagina. */
+  singleShot?: boolean;
 };
 
-export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, grayscale = false }: Props) {
-  const [permission, requestPermission] = useCameraPermissions();
+export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, grayscale = false, singleShot = false }: Props) {
+  // V50.z139 — Gestione permessi robusta (Android 16 / patch 2025-09: `requestPermission`
+  // può NON risolvere mai se il permesso è già concesso → la schermata "Serve l'accesso"
+  // restava per sempre). Regole: 1) rileggere SEMPRE lo stato con `getPermission` quando
+  // il modal si apre (lo stato dell'hook può essere stale: concesso altrove); 2) chiedere
+  // solo se non concesso e `canAskAgain`; 3) la richiesta ha un timeout e viene sempre
+  // seguita da una rilettura; 4) al ritorno in foreground (chiusura dialog di sistema)
+  // rileggere lo stato.
+  const [permission, requestPermission, getPermission] = useCameraPermissions();
+  const [permBusy, setPermBusy] = useState(false);
+  const permAskedRef = useRef(false);
   const cameraRef = useRef<CameraView | null>(null);
   const [pages, setPages] = useState<LiveScannedPage[]>([]);
+  const pagesRef = useRef<LiveScannedPage[]>([]);
+  pagesRef.current = pages;
   // V50.z9 — Preview post-scatto: obbliga review prima della pagina successiva
   const [reviewIdx, setReviewIdx] = useState<number | null>(null);
   // Ritaglio manuale della pagina in revisione (originale non ritagliato se disponibile)
@@ -92,6 +109,8 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   useEffect(() => {
     if (!visible) {
       setPages([]);
+      setReviewIdx(null);
+      setCropOpen(false);
       setBusy(false);
       setTorch("off");
       setProcessingCount(0);
@@ -105,12 +124,47 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
     }
   }, [visible]);
 
-  // Request permission when the modal opens
-  useEffect(() => {
-    if (visible && permission && !permission.granted && permission.canAskAgain) {
-      requestPermission();
+  // V50.z139 — Richiesta permesso robusta (vedi commento in testa al componente).
+  const askPermission = useCallback(async () => {
+    setPermBusy(true);
+    try {
+      // 1) Rileggi lo stato reale (l'hook può essere stale)
+      const cur = await getPermission().catch(() => null);
+      if (cur?.granted) return true;
+      if (cur && !cur.canAskAgain) return false;
+      // 2) Richiedi con timeout: su Android 16 la promise può non risolvere mai
+      //    se il permesso risulta già concesso a livello di sistema.
+      const res = await Promise.race([
+        requestPermission().catch(() => null),
+        new Promise<null>((r) => setTimeout(() => r(null), 12000)),
+      ]);
+      if (res?.granted) return true;
+      // 3) Rileggi comunque: `get` risolve sempre, anche quando `request` si è bloccata
+      const after = await getPermission().catch(() => null);
+      return !!after?.granted;
+    } finally {
+      setPermBusy(false);
     }
-  }, [visible, permission, requestPermission]);
+  }, [getPermission, requestPermission]);
+
+  useEffect(() => {
+    if (!visible) {
+      permAskedRef.current = false;
+      return;
+    }
+    if (permAskedRef.current) return;
+    permAskedRef.current = true;
+    askPermission();
+  }, [visible, askPermission]);
+
+  // Al ritorno in foreground (dialog di sistema chiuso / rientro dalle Impostazioni) rileggi lo stato.
+  useEffect(() => {
+    if (!visible) return;
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") getPermission().catch(() => {});
+    });
+    return () => sub.remove();
+  }, [visible, getPermission]);
 
   // Bug 11.b — Live edge detection loop.
   // Every SAMPLE_INTERVAL ms, we grab a low-quality frame with takePictureAsync
@@ -240,7 +294,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   }, [visible, edgeDetectOn, permission?.granted, busy, autoShutter]);
 
   const applyAutocropAsync = useCallback(
-    async (index: number, data_base64: string) => {
+    async (pageId: string, data_base64: string) => {
       setProcessingCount((c) => c + 1);
       try {
         const r = await api<{ detected: boolean; data_base64: string; mime: string; sharpness?: number }>(
@@ -255,41 +309,26 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
         // the sampling frame (400px). Threshold ~250 empirically differentiates
         // sharp vs. hand-shake blurry on typical phone cameras.
         const isBlurry = typeof r?.sharpness === "number" && r.sharpness < 250;
-        if (r?.detected && r.data_base64) {
-          setPages((prev) => {
-            const next = [...prev];
-            if (!next[index] || next[index].manual) return prev;
-            next[index] = {
-              ...next[index],
-              original_base64: next[index].original_base64 || data_base64,
+        if (r?.data_base64) {
+          // detected=true → versione ritagliata; altrimenti teniamo comunque la versione
+          // migliorata (contrasto/nitidezza) — V50.z139: aggiornamento per id pagina.
+          setPages((prev) => prev.map((p) => {
+            if (p.id !== pageId || p.manual) return p;
+            return {
+              ...p,
+              original_base64: p.original_base64 || data_base64,
               data_base64: r.data_base64,
               mime: r.mime || "image/jpeg",
               preview_uri: `data:${r.mime || "image/jpeg"};base64,${r.data_base64}`,
-              cropped: true,
+              cropped: !!r.detected,
               blurry: isBlurry,
             };
-            return next;
-          });
-        } else if (r?.data_base64) {
-          // Even if not detected, we keep the enhanced version (better contrast/sharpness)
-          setPages((prev) => {
-            const next = [...prev];
-            if (!next[index] || next[index].manual) return prev;
-            next[index] = {
-              ...next[index],
-              original_base64: next[index].original_base64 || data_base64,
-              data_base64: r.data_base64,
-              mime: r.mime || "image/jpeg",
-              preview_uri: `data:${r.mime || "image/jpeg"};base64,${r.data_base64}`,
-              cropped: false,
-              blurry: isBlurry,
-            };
-            return next;
-          });
+          }));
         }
       } catch {
         // Silently keep original page — user can still crop server-side on save
       } finally {
+        setPages((prev) => prev.map((p) => (p.id === pageId ? { ...p, processed: true } : p)));
         setProcessingCount((c) => Math.max(0, c - 1));
       }
     },
@@ -317,23 +356,21 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
       }
       const preview_uri = photo.uri || `data:image/jpeg;base64,${photo.base64}`;
       // Add page immediately so the user sees a thumbnail
-      let newIndex = -1;
-      setPages((prev) => {
-        newIndex = prev.length;
-        return [
-          ...prev,
-          {
-            data_base64: photo.base64!,
-            mime: "image/jpeg",
-            preview_uri,
-            cropped: false,
-          },
-        ];
-      });
-      // Fire-and-forget autocrop in background
-      setTimeout(() => {
-        if (newIndex >= 0) applyAutocropAsync(newIndex, photo.base64!);
-      }, 0);
+      const pageId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const newIndex = pagesRef.current.length;
+      setPages((prev) => [
+        ...prev,
+        {
+          id: pageId,
+          data_base64: photo.base64!,
+          mime: "image/jpeg",
+          preview_uri,
+          cropped: false,
+          processed: false,
+        },
+      ]);
+      // Fire-and-forget autocrop in background (aggiorna la pagina per id)
+      setTimeout(() => applyAutocropAsync(pageId, photo.base64!), 0);
       // V50.z9 — Apri preview OBBLIGATORIA prima di scattare la prossima
       setReviewIdx(newIndex);
     } catch (e: any) {
@@ -357,42 +394,62 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
 
   if (!visible) return null;
 
-  // Permission gate — while denied, show a friendly UI
-  if (permission && !permission.granted) {
+  // Permission gate — finché il permesso non è confermato mostra una UI amichevole
+  // (V50.z139: anche mentre lo stato è ancora sconosciuto / in verifica, per non montare
+  // la CameraView senza permesso).
+  if (!permission || !permission.granted) {
+    const checking = permBusy || !permission;
     return (
       <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
         <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
           <View style={styles.permWrap}>
             <Ionicons name="camera-outline" size={64} color="#F1F5F9" />
-            <Text style={styles.permTitle}>Serve l&apos;accesso alla fotocamera</Text>
+            <Text style={styles.permTitle}>
+              {checking ? "Verifica accesso alla fotocamera…" : "Serve l'accesso alla fotocamera"}
+            </Text>
             <Text style={styles.permSub}>
-              Per scansionare documenti in modalità continua l&apos;app deve accedere alla fotocamera del
-              dispositivo. Nessun dato viene inviato senza il tuo consenso.
+              {checking
+                ? "Se compare la richiesta di sistema, tocca “Consenti”."
+                : singleShot
+                  ? "Per scattare e ritagliare automaticamente il documento l'app deve accedere alla fotocamera del dispositivo."
+                  : "Per scansionare documenti in modalità continua l'app deve accedere alla fotocamera del dispositivo. Nessun dato viene inviato senza il tuo consenso."}
             </Text>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 20 }}>
-              <Pressable onPress={onClose} style={[styles.permBtn, { backgroundColor: "#334155" }]}>
+              <Pressable onPress={onClose} style={[styles.permBtn, { backgroundColor: "#334155" }]} testID="live-scan-perm-cancel">
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>Annulla</Text>
               </Pressable>
-              {permission.canAskAgain ? (
+              {checking ? (
+                <View style={[styles.permBtn, { backgroundColor: "#FF6B35", flexDirection: "row", alignItems: "center", gap: 8 }]}>
+                  <ActivityIndicator color="#FFF" size="small" />
+                  <Text style={{ color: "#FFF", fontWeight: "800" }}>Attendi…</Text>
+                </View>
+              ) : permission.canAskAgain ? (
                 <Pressable
-                  onPress={requestPermission}
+                  onPress={askPermission}
                   style={[styles.permBtn, { backgroundColor: "#FF6B35" }]}
+                  testID="live-scan-perm-allow"
                 >
                   <Text style={{ color: "#FFF", fontWeight: "800" }}>Consenti</Text>
                 </Pressable>
               ) : (
                 <Pressable
                   onPress={() => {
-                    if (Platform.OS !== "web") {
-                      import("react-native").then(({ Linking }) => Linking.openSettings?.());
-                    }
+                    if (Platform.OS !== "web") Linking.openSettings?.();
                   }}
                   style={[styles.permBtn, { backgroundColor: "#FF6B35" }]}
+                  testID="live-scan-perm-settings"
                 >
                   <Text style={{ color: "#FFF", fontWeight: "800" }}>Apri impostazioni</Text>
                 </Pressable>
               )}
             </View>
+            {!checking && (
+              <Pressable onPress={() => getPermission().catch(() => {})} style={{ marginTop: 18 }} hitSlop={8} testID="live-scan-perm-recheck">
+                <Text style={{ color: "#94A3B8", fontSize: 12, textDecorationLine: "underline" }}>
+                  Ho già concesso il permesso · ricontrolla
+                </Text>
+              </Pressable>
+            )}
           </View>
         </SafeAreaView>
       </Modal>
@@ -530,8 +587,8 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
 
         {/* Bottom controls */}
         <SafeAreaView edges={["bottom"]} style={styles.bottomBar} pointerEvents="box-none">
-          {/* Thumbnails strip */}
-          {pages.length > 0 && (
+          {/* Thumbnails strip (non in modalità Foto singola) */}
+          {!singleShot && pages.length > 0 && (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -610,6 +667,11 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
               </View>
             </Pressable>
 
+            {singleShot ? (
+              <View style={[styles.sideBtn, { backgroundColor: "transparent" }]} pointerEvents="none">
+                <Text style={[styles.doneTxt, { color: "rgba(255,255,255,0.7)" }]}>1 foto</Text>
+              </View>
+            ) : (
             <Pressable
               onPress={finish}
               hitSlop={12}
@@ -625,64 +687,85 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                 <Text style={styles.doneTxt}>Fine</Text>
               )}
             </Pressable>
+            )}
           </View>
 
-          {/* V50.z9 — Preview post-scatto obbligatoria */}
-          {reviewIdx !== null && pages[reviewIdx] && (
-            <View style={styles.reviewOverlay}>
-              <View style={styles.reviewHeader}>
-                <Text style={styles.reviewTitle}>Pagina {reviewIdx + 1}</Text>
-                {pages[reviewIdx].cropped ? (
-                  <View style={styles.cropBadge}>
-                    <Ionicons name="checkmark-circle" size={14} color="#0F9D58" />
-                    <Text style={styles.cropBadgeTxt}>Ritagliata automaticamente</Text>
-                  </View>
-                ) : (
-                  <View style={styles.cropBadgeWarn}>
-                    <ActivityIndicator size="small" color="#F59E0B" />
-                    <Text style={styles.cropBadgeTxtWarn}>Ritaglio in corso…</Text>
-                  </View>
-                )}
-              </View>
-              <View style={styles.reviewImgWrap}>
-                <Image
-                  source={{ uri: pages[reviewIdx].preview_uri || `data:image/jpeg;base64,${pages[reviewIdx].data_base64}` }}
-                  style={styles.reviewImg}
-                  resizeMode="contain"
-                />
-              </View>
-              <View style={styles.reviewActions}>
-                <Pressable
-                  onPress={() => {
-                    // Rifai: rimuovi pagina + torna alla camera
-                    setPages((prev) => prev.filter((_, i) => i !== reviewIdx));
-                    setReviewIdx(null);
-                  }}
-                  style={[styles.reviewBtn, { backgroundColor: "#DC2626" }]}
-                >
-                  <Ionicons name="refresh" size={20} color="#FFF" />
-                  <Text style={styles.reviewBtnTxt}>Rifai</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setCropOpen(true)}
-                  style={[styles.reviewBtn, { backgroundColor: "#FF6B35" }]}
-                  testID="live-review-crop"
-                >
-                  <Ionicons name="crop" size={20} color="#FFF" />
-                  <Text style={styles.reviewBtnTxt}>Ritaglia</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setReviewIdx(null)}
-                  style={[styles.reviewBtn, { backgroundColor: "#0F9D58" }]}
-                  testID="live-review-ok"
-                >
-                  <Ionicons name="checkmark" size={22} color="#FFF" />
-                  <Text style={styles.reviewBtnTxt}>Usa questa</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
         </SafeAreaView>
+
+        {/* V50.z9 — Preview post-scatto obbligatoria (V50.z139: a schermo intero, fuori dalla barra inferiore) */}
+        {reviewIdx !== null && pages[reviewIdx] && (
+          <SafeAreaView style={styles.reviewOverlay} edges={["top", "bottom"]}>
+            <View style={styles.reviewHeader}>
+              <Text style={styles.reviewTitle}>{singleShot ? "Anteprima" : `Pagina ${reviewIdx + 1}`}</Text>
+              {pages[reviewIdx].cropped ? (
+                <View style={styles.cropBadge}>
+                  <Ionicons name="checkmark-circle" size={14} color="#0F9D58" />
+                  <Text style={styles.cropBadgeTxt}>Ritagliata automaticamente</Text>
+                </View>
+              ) : pages[reviewIdx].processed ? (
+                <View style={styles.cropBadgeWarn}>
+                  <Ionicons name="information-circle" size={14} color="#F59E0B" />
+                  <Text style={styles.cropBadgeTxtWarn}>Bordi non rilevati · usa Ritaglia</Text>
+                </View>
+              ) : (
+                <View style={styles.cropBadgeWarn}>
+                  <ActivityIndicator size="small" color="#F59E0B" />
+                  <Text style={styles.cropBadgeTxtWarn}>Ritaglio in corso…</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.reviewImgWrap}>
+              <Image
+                source={{ uri: pages[reviewIdx].preview_uri || `data:image/jpeg;base64,${pages[reviewIdx].data_base64}` }}
+                style={styles.reviewImg}
+                resizeMode="contain"
+              />
+            </View>
+            <View style={styles.reviewActions}>
+              <Pressable
+                onPress={() => {
+                  // Rifai: rimuovi pagina + torna alla camera
+                  setPages((prev) => prev.filter((_, i) => i !== reviewIdx));
+                  setReviewIdx(null);
+                }}
+                style={[styles.reviewBtn, { backgroundColor: "#DC2626" }]}
+              >
+                <Ionicons name="refresh" size={20} color="#FFF" />
+                <Text style={styles.reviewBtnTxt}>Rifai</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setCropOpen(true)}
+                style={[styles.reviewBtn, { backgroundColor: "#FF6B35" }]}
+                testID="live-review-crop"
+              >
+                <Ionicons name="crop" size={20} color="#FFF" />
+                <Text style={styles.reviewBtnTxt}>Ritaglia</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (singleShot) {
+                    // V50.z139 — Foto singola: restituisci subito la pagina (già ritagliata) e chiudi
+                    const pg = pages[reviewIdx];
+                    setReviewIdx(null);
+                    if (pg) onDone([pg]);
+                    return;
+                  }
+                  setReviewIdx(null);
+                }}
+                disabled={singleShot && !pages[reviewIdx].processed}
+                style={[styles.reviewBtn, { backgroundColor: "#0F9D58" }, singleShot && !pages[reviewIdx].processed && { opacity: 0.55 }]}
+                testID="live-review-ok"
+              >
+                {singleShot && !pages[reviewIdx].processed ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Ionicons name="checkmark" size={22} color="#FFF" />
+                )}
+                <Text style={styles.reviewBtnTxt}>{singleShot && !pages[reviewIdx].processed ? "Ritaglio…" : "Usa questa"}</Text>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        )}
       </View>
       {reviewIdx !== null && pages[reviewIdx] && (
         <ManualCropEditor
@@ -714,10 +797,11 @@ const styles = StyleSheet.create({
   // V50.z9 — Preview post-scatto
   reviewOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.94)",
+    backgroundColor: "#050505",
     padding: 14,
-    paddingTop: 30,
+    paddingTop: 14,
     zIndex: 100,
+    elevation: 100,
   },
   reviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   reviewTitle: { color: "#FFF", fontSize: 17, fontWeight: "900" },

@@ -206,11 +206,15 @@ function AppointmentDetail() {
       : [...selectedOutcomeIds, outcomeId];
     const outcome = dynamicOutcomes.find((o) => o.id === outcomeId);
     const patch: any = { outcome_ids: next };
+    // V50.z138 — Registrare un esito implica che l'appuntamento è stato svolto:
+    // i chip sono sempre cliccabili e, se serve, segnano automaticamente "Fatto".
+    if (!a.done && next.length > 0) patch.done = true;
     // Auto-set contract_signed based on counts_as="contract"
     const containsContract = next.some((oid) => dynamicOutcomes.find((o) => o.id === oid)?.counts_as === "contract");
     patch.contract_signed = containsContract || a.contract_signed;
     // If "rescheduled" outcome toggled ON → prompt to reschedule
-    setA({ ...a, outcome_ids: next, contract_signed: patch.contract_signed });
+    setA({ ...a, outcome_ids: next, contract_signed: patch.contract_signed, done: patch.done ? true : a.done });
+    if (patch.done) { cancelAppointmentReminder(id as string).catch(() => {}); }
     await api(`/appointments/${id}`, { method: "PUT", body: patch });
     // V26.q: Rinviato → apri modal per fissare nuova data
     if (outcome?.counts_as === "rescheduled" && !selectedOutcomeIds.includes(outcomeId)) {
@@ -313,8 +317,12 @@ function AppointmentDetail() {
   };
 
   const toggleTag = async (key: string) => {
-    const has = a.outcome_tags.includes(key);
-    const next = has ? a.outcome_tags.filter((t) => t !== key) : [...a.outcome_tags, key];
+    // V50.z138 — `outcome_tags` può mancare su appuntamenti vecchi (Android: chip
+    // bianchi/non reattivi perché `.includes` lanciava). Sempre selezionabili,
+    // anche prima di segnare l'appuntamento come fatto.
+    const cur = a.outcome_tags || [];
+    const has = cur.includes(key);
+    const next = has ? cur.filter((t) => t !== key) : [...cur, key];
     setA({ ...a, outcome_tags: next });
     // energy: single-select behavior implicit; for network multiselect. Persist:
     await api(`/appointments/${id}`, { method: "PUT", body: { outcome_tags: next, contract_signed: next.includes("contratto_fatto") || a.contract_signed } });
@@ -741,9 +749,10 @@ function AppointmentDetail() {
           <Text style={styles.shareHint}>
             {a.done
               ? "Seleziona uno o più esiti. Se scegli \"Rinviato\" puoi riprogrammare l'appuntamento."
-              : "Segna prima l'appuntamento come \"Fatto\" per registrare gli esiti (Contratto, Nuovo cliente, Rinviato ecc.)"}
+              : "Tocca un esito per registrarlo: l'appuntamento verrà segnato automaticamente come \"Fatto\"."}
           </Text>
-          <View style={[styles.outcomesGrid, !a.done && { opacity: 0.5 }]} pointerEvents={a.done ? "auto" : "none"}>
+          {/* V50.z138 — Chip sempre attivi (prima erano disabilitati finché non "Fatto") */}
+          <View style={styles.outcomesGrid}>
             {dynamicOutcomes.map((o) => {
                 const active = selectedOutcomeIds.includes(o.id);
                 return (
@@ -787,12 +796,14 @@ function AppointmentDetail() {
           <Text style={styles.sectionTitle}>Dopo l&apos;appuntamento (dettagli)</Text>
           <View style={styles.outcomesGrid}>
             {outcomes.map((o) => {
-              const active = a.outcome_tags.includes(o.key);
+              const active = (a.outcome_tags || []).includes(o.key);
               return (
                 <Pressable
                   key={o.key}
                   testID={`outcome-${o.key}`}
                   onPress={() => toggleTag(o.key)}
+                  hitSlop={4}
+                  android_ripple={{ color: "rgba(0,0,0,0.08)", borderless: false }}
                   style={[styles.outcomeChip, active && { backgroundColor: color, borderColor: color }]}
                 >
                   <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={16} color={active ? "#FFF" : theme.color.muted} />
@@ -1101,7 +1112,7 @@ const styles = StyleSheet.create({
   smallSave: { backgroundColor: theme.color.brandPrimary, padding: 10, borderRadius: theme.radius.md, alignItems: "center", marginTop: 10 },
   smallSaveTxt: { color: "#FFF", fontWeight: "700" },
   outcomesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  outcomeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border },
+  outcomeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 9, minHeight: 40, borderRadius: theme.radius.pill, backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#CBD5E1", overflow: "hidden" },
   outcomeTxt: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary },
   lbl: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary, marginTop: 12, marginBottom: 4 },
   syncRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },

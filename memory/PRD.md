@@ -1,6 +1,26 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z139 (Giu 2026) — Scanner: loop permessi Android + Foto singola senza autofocus/crop
+
+**Root cause loop permessi** (`LiveCameraScanner.tsx`): `useCameraPermissions()` legge lo stato UNA volta al mount (il componente è sempre montato con `visible=false`); se il permesso veniva concesso altrove (dialog ImagePicker di "Foto singola", QR scanner) lo stato restava stale=denied → gate "Serve l'accesso alla fotocamera" → `useEffect` chiamava `requestPermission()`; su Android 16 (patch sicurezza 2025-09, expo/expo#39480, RN#53898) la richiesta di un permesso GIÀ concesso non mostra dialog e la promise **non risolve mai** → gate infinito. Inoltre l'effetto dipendeva da `permission` → richiesta ripetuta a ogni cambio stato.
+
+**Fix**: `askPermission()` = `getPermission()` (risolve sempre) → se granted stop; se `!canAskAgain` stop; altrimenti `Promise.race(requestPermission, timeout 12s)` → poi di nuovo `getPermission()`. Eseguita una sola volta per apertura (`permAskedRef`), riletture su `AppState` "active" (dialog chiuso / rientro da Impostazioni). Gate mostrato anche con stato `null`/in verifica ("Verifica accesso alla fotocamera…" + spinner) per non montare `CameraView` senza permesso; bottoni Consenti / Apri impostazioni (`Linking.openSettings`) / "Ho già concesso il permesso · ricontrolla".
+
+**Foto singola** (`DocumentScannerModal.addFromCamera`): non usa più `ImagePicker.launchCameraAsync` (fotocamera di sistema: nessun autofocus controllabile né crop, permessi ImagePicker soggetti allo stesso bug). Ora `setLiveScanOpen("single")` → `LiveCameraScanner singleShot`: `CameraView autofocus="on"`, rilevamento bordi live (`/scanner/detect-corners`), scatto → `applyAutocropAsync` → anteprima full-screen con badge "Ritagliata automaticamente" / "Bordi non rilevati · usa Ritaglia" / "Ritaglio in corso…"; "Usa questa" disabilitato finché `processed=false`, poi `onDone([pagina])` → il modal aggiunge la pagina con `auto_cropped=true` → `already_cropped` nel payload `merge-pdf` (nessun doppio crop). Strip thumbnails e "Fine" nascosti in singleShot ("1 foto"). Web: stessa CameraView (WebRTC).
+
+**Altro**: `LiveScannedPage.id` + `processed`; autocrop asincrono aggiorna per id (prima per indice → race con "Rifai"); `newIndex` da `pagesRef` (no updater side-effect); reset `reviewIdx/cropOpen` alla chiusura; anteprima post-scatto spostata fuori dalla barra inferiore (era confinata in ~110px, immagine invisibile, bottoni tagliati) → `SafeAreaView` full-screen opaca.
+
+**Test web (fake camera)**: Foto singola → camera in-app senza "Fine" → scatto → anteprima full-screen → "Usa questa" → pagina 1 nel modal, live chiuso ✅; Scan continuo → scatto → "Usa questa" resta in camera, "Fine (1)" ✅. Lint pulito; nessun nuovo errore tsc. **Da verificare su APK 1.0.48+** (permessi reali Android).
+
+
+## V50.z138 (Giu 2026) — 3 bug UI appuntamenti/Scadenze (Android)
+
+1) `home.tsx` SCADENZE: stato `dlCollapsed`; `active = !dlCollapsed && d === deadlinesDays`; tap su chip attivo → `setDlCollapsed(true)` (widget nascosto, hint "Filtro chiuso · tocca un intervallo per vedere le scadenze"); tap su un chip → riapre (e cambia finestra se diversa). Chip attivo con icona × (Ionicons close 12px), `minHeight 28`, `hitSlop 6`.
+2) `[id].tsx` "Dopo l'appuntamento (dettagli)": `a.outcome_tags` poteva essere `undefined` su appuntamenti vecchi → `.includes` lanciava in render/onPress (chip bianchi/non reattivi). Ora `(a.outcome_tags || [])` in render e `toggleTag`; chip con bg `#F1F5F9`, bordo `#CBD5E1`, `minHeight 40`, `hitSlop`, `android_ripple`, `overflow hidden`. Selezionabili anche prima di "Fatto" (già così, ora robusto).
+3) `[id].tsx` "Esito dell'appuntamento": rimossi `opacity 0.5` + `pointerEvents="none"` quando `!a.done`. `toggleOutcome`: se `!a.done && next.length > 0` → patch include `done: true` (stato locale aggiornato, `cancelAppointmentReminder`). Hint aggiornato: "Tocca un esito per registrarlo: l'appuntamento verrà segnato automaticamente come Fatto".
+Test web: appuntamento "Da svolgere" → tap "Contratto fatto" → badge "Fatto" + "1 esito registrato" ✅; "Non interessato" selezionabile ✅; Home: tap chip attivo → "Filtro chiuso", tap 90gg → riaperto ✅.
+
 ## V50.z137 (Giu 2026) — Help Center: "Rifai il tour guidato" prominente
 
 - Voce già introdotta in V50.z136 come "Rivedi tour guidato": rinominata **"Rifai il tour guidato"** e resa prominente (bottone pieno #7C3AED, icona in cerchio traslucido, testo bianco, ombra/elevation) — prima voce dello ScrollView, sopra badge Termini e checkbox.

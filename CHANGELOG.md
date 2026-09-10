@@ -44,6 +44,8 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Comunicazioni: chiama diretto, script manuale, banner pause/play (v2.32), pacchetto comunicazioni (v2.33), auto-log comunicazioni
   (v2.30), ripristino messaggio WhatsApp negli Script (V50.z69). **Config script telefono/WhatsApp RIMOSSE dalle Impostazioni** (Giu 2026).
 - **Scadenze contratti** (v2.ac) — sezione nascosta automaticamente se vuota; pagina `/deadlines` (fix Unmatched Route).
+  **V50.z138**: nel banner SCADENZE della Home il chip attivo mostra una × e, toccato, chiude la vista ("Filtro chiuso · tocca un
+  intervallo…"); un tap su qualsiasi intervallo la riapre.
 - Allegati dalle mail collegati al contatto (V50.z25), analisi Axon automatiche per contatto (v2.ah), cronologia cliente.
 - Analizza fatture in anagrafica (V50.g) + versione Master con parity (V50.z76).
 - **CRM · Aree ridisegnato** (V50.z113–115): gerarchia a 3 livelli **Area › Categoria › Sottocategoria** in `AreasManager.tsx`,
@@ -55,6 +57,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Tipi multi-select (Piano Marketing / Energia / Ant / Dare seguito / Demo prodotti / **Personale** + custom), prodotti con
   categorie, durata, promemoria, ricorrenza, partecipanti, valore €.
 - Auto-link contatto da scheda, "Collega/Cambia contatto" nel dettaglio (V38W); **Modifica appuntamento** abilitata; link "Vai al contatto".
+  **V50.z138 dettaglio appuntamento**: chip "Esito dell'appuntamento" sempre cliccabili anche con stato "Da svolgere" (registrare un esito
+  segna automaticamente l'appuntamento come Fatto e cancella il reminder); chip "Dopo l'appuntamento (dettagli)" robusti a
+  `outcome_tags` mancante (causa dei chip bianchi/non reattivi su Android), sfondo grigio visibile, minHeight 40, ripple Android.
 - Vista giornaliera, filtri categoria, compleanni annuali, **Calendario Team** (I miei / Team / Tutti, privacy per collaboratori).
 - Pallini colorati per tipo + **legenda colori** (Giu 2026). Fix mapping tipo "Personale".
 - **Fix orario 08:15→06:15** (V50.z110 lato editor; **V50.z127 root cause backend**: `start_at`/`end_at` letti da Mongo erano datetime naive
@@ -136,6 +141,14 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z139 — Foto singola = fotocamera in-app + permessi robusti**: "Foto singola" NON usa più `ImagePicker.launchCameraAsync`
+  (nessun autofocus, nessun crop, loop permessi) ma `LiveCameraScanner` in modalità `singleShot` (autofocus continuo, rilevamento
+  bordi live, autocrop via `/scanner/autocrop-preview` PRIMA di restituire la pagina; "Usa questa" attende il ritaglio, poi chiude e
+  aggiunge 1 pagina già ritagliata → `already_cropped` al merge-pdf, niente doppio ritaglio). Permessi expo-camera: `getPermission`
+  rilettura SEMPRE all'apertura (stato hook stale), richiesta solo se necessaria e con timeout 12s + rilettura (bug Android 16 /
+  patch 2025-09: `requestPermission` non risolve se già concesso → schermata "Serve l'accesso" infinita), rilettura al ritorno in
+  foreground, link "Ho già concesso il permesso · ricontrolla", "Apri impostazioni" se `canAskAgain=false`. Anteprima post-scatto a
+  schermo intero (prima era confinata nella barra inferiore). Autocrop asincrono aggiorna la pagina per `id` (non per indice).
 - Analisi bolletta (cliente + Master allineati, v2.8), CTE comparativa multi-bolletta + report (v2.12), Fiscal Check con JSON
   parsing robusto (v1.9), auto-save bozze nei file Master (V38Q), 5 bug fix pagina analisi fattura (V38W).
 
@@ -194,6 +207,8 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z139 | Giu 2026 | Scanner: "Foto singola" con fotocamera in-app (autofocus + autocrop prima del ritorno), fix loop permessi Android 16, anteprima full-screen |
+| V50.z138 | Giu 2026 | Home: chiusura filtro Scadenze; dettaglio appuntamento: esiti sempre cliccabili (auto-Fatto), chip dettagli fix Android |
 | V50.z137 | Giu 2026 | Help Center: bottone prominente "Rifai il tour guidato" (funziona anche dopo completamento) |
 | V50.z136 | Giu 2026 | Intro animata offline nel tour (WowIntro) + "Rivedi tour guidato" in Help Center |
 | V50.z135 | Giu 2026 | Modal "Appuntamento creato": chiusura sempre visibile; testo invio dettagli personalizzabile (creazione + dettaglio) |

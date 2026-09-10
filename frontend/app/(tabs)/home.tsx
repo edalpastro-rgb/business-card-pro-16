@@ -135,6 +135,8 @@ export default function HomeScreen() {
   // V29 — Scadenze imminenti (widget Home)
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [deadlinesDays, setDeadlinesDays] = useState<number>(60);
+  // V50.z138 — Tap sul filtro attivo (o sulla ×) → chiude/resetta la vista scadenze
+  const [dlCollapsed, setDlCollapsed] = useState(false);
   // V50.j — Header FISSO (rimossa animazione di collapse su scroll).
   //   Motivo: animare `height` richiede useNativeDriver:false, che rialloca
   //   layout ad ogni frame di scroll → "effetto scatto" visibile su Android.
@@ -619,25 +621,36 @@ export default function HomeScreen() {
             <Text style={styles.dlSectionTitle}>SCADENZE</Text>
             <View style={styles.dlChipsRowCentered}>
               {[30, 60, 90, 180].map((d) => {
-                const active = d === deadlinesDays;
+                const active = !dlCollapsed && d === deadlinesDays;
                 return (
                   <Pressable
                     key={d}
                     testID={`dl-window-${d}`}
-                    onPress={() => { if (!active) changeDeadlinesDays(d); }}
+                    hitSlop={6}
+                    accessibilityLabel={active ? `Filtro ${d} giorni attivo: tocca per chiudere` : `Mostra scadenze entro ${d} giorni`}
+                    onPress={() => {
+                      if (active) { setDlCollapsed(true); return; }
+                      setDlCollapsed(false);
+                      if (d !== deadlinesDays) changeDeadlinesDays(d);
+                    }}
                     style={[styles.dlChip, active && styles.dlChipActive]}
                   >
                     <Text style={[styles.dlChipTxt, active && styles.dlChipTxtActive]}>{d}gg</Text>
+                    {active && <Ionicons name="close" size={12} color={C.primary} style={{ marginLeft: 3 }} />}
                   </Pressable>
                 );
               })}
             </View>
           </View>
-          <DeadlinesWidget
-            items={deadlines}
-            loading={deadlinesLoading}
-            onOpenContact={(cid) => router.push(`/contact/${cid}?tab=bills` as any)}
-          />
+          {dlCollapsed ? (
+            <Text style={styles.dlCollapsedHint}>Filtro chiuso · tocca un intervallo per vedere le scadenze</Text>
+          ) : (
+            <DeadlinesWidget
+              items={deadlines}
+              loading={deadlinesLoading}
+              onOpenContact={(cid) => router.push(`/contact/${cid}?tab=bills` as any)}
+            />
+          )}
         </View>
 
         {/* ── 6) Statistiche ── */}
@@ -1378,7 +1391,8 @@ const styles = StyleSheet.create({
   dlHeader: { alignItems: "center", gap: 10, marginBottom: 12 },
   dlSectionTitle: { fontSize: 18, fontWeight: "900", color: C.navy, letterSpacing: 2, textAlign: "center" },
   dlChipsRowCentered: { flexDirection: "row", gap: 8, justifyContent: "center", alignItems: "center", flexWrap: "wrap" },
-  dlChip: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: C.navySoft, borderWidth: 1, borderColor: C.border },
+  dlChip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 9, paddingVertical: 5, minHeight: 28, borderRadius: 999, backgroundColor: C.navySoft, borderWidth: 1, borderColor: C.border },
+  dlCollapsedHint: { fontSize: 11, color: C.muted, textAlign: "center", paddingVertical: 8, fontStyle: "italic" },
   dlChipActive: { backgroundColor: C.primarySoft, borderColor: C.primary },
   dlChipTxt: { fontSize: 11, fontWeight: "800", color: C.navy },
   dlChipTxtActive: { color: C.primary },
