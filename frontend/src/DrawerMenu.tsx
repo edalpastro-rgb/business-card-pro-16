@@ -54,7 +54,7 @@ const ITEMS: DrawerItem[] = [
   // Team & Insights (giallo #EAB308)
   { label: "Team Insights",     icon: "analytics-outline",    href: "/team-insights",      categoryKey: "team" },
   { label: "Invita Collaboratore", icon: "person-add-outline",href: "/invite-collaborator",categoryKey: "team" },
-  { label: "Report",            icon: "bar-chart-outline",    href: "/(tabs)/report",      categoryKey: "team" },
+  { label: "Statistiche",       icon: "bar-chart-outline",    href: "/(tabs)/report",      categoryKey: "team" }, // V50.z141 — ex tab "Report"
   // Amministrazione (grigio #475569)
   { label: "Impostazioni",      icon: "settings-outline",     href: "/(tabs)/impostazioni",categoryKey: "admin" },
   { label: "Setting App",       icon: "color-palette-outline",href: "/settings-app",       categoryKey: "admin" },

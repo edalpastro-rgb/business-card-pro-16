@@ -26,6 +26,8 @@ type TabDef = {
   route: `/${string}`;
   iconOn: keyof typeof Ionicons.glyphMap;
   iconOff: keyof typeof Ionicons.glyphMap;
+  /** V50.z141 — prefissi di pathname extra che rendono attivo il tab (es. Help → /libretto) */
+  activePrefixes?: string[];
 };
 
 const TABS: TabDef[] = [
@@ -33,7 +35,8 @@ const TABS: TabDef[] = [
   { name: "contatti",     label: "Contatti",   route: "/(tabs)/contatti",     iconOn: "people",           iconOff: "people-outline" },
   { name: "chat",         label: "Chat",       route: "/(tabs)/chat",         iconOn: "chatbubbles",      iconOff: "chatbubbles-outline" },
   { name: "calendario",   label: "Calendario", route: "/(tabs)/calendario",   iconOn: "calendar",         iconOff: "calendar-outline" },
-  { name: "report",       label: "Report",     route: "/(tabs)/report",       iconOn: "bar-chart",        iconOff: "bar-chart-outline" },
+  // V50.z141 — "Report" sostituito da "Help" (apre la guida / tour guidato). Statistiche → menu laterale.
+  { name: "help",         label: "Help",       route: "/libretto",            iconOn: "help-circle",      iconOff: "help-circle-outline", activePrefixes: ["/libretto", "/help"] },
   { name: "impostazioni", label: "Profilo",    route: "/(tabs)/impostazioni", iconOn: "person-circle",    iconOff: "person-circle-outline" },
 ];
 
@@ -54,10 +57,14 @@ export function PersistentBottomNav() {
   const insets = useSafeAreaInsets();
 
   // Se siamo su una rotta interna a (tabs)/*, la Tabs nativa gestisce la barra:
-  // rileviamo controllando se il pathname corrisponde a uno dei tab principali.
+  // rileviamo controllando se il pathname corrisponde a uno dei tab principali
+  // (+ /report, rotta del gruppo (tabs) non più visibile nella barra).
+  const TAB_GROUP_EXTRA = ["/report"];
   const inTabs =
     pathname === "/" ||
+    TAB_GROUP_EXTRA.some((p) => pathname === p || pathname === `/(tabs)${p}`) ||
     TABS.some((t) => {
+      if (!t.route.startsWith("/(tabs)")) return false;
       const bare = t.route.replace("/(tabs)", "");
       return pathname === bare || pathname === `/(tabs)${bare}`;
     });
@@ -68,7 +75,9 @@ export function PersistentBottomNav() {
 
   const bottomInset = Math.max(insets.bottom || 0, 20);
 
-  const current = TABS.find((t) => pathname.includes(`/${t.name}`))?.name;
+  const current = TABS.find((t) =>
+    t.activePrefixes ? t.activePrefixes.some((p) => pathname.startsWith(p)) : pathname.includes(`/${t.name}`),
+  )?.name;
 
   return (
     <View

@@ -1,4 +1,4 @@
-import { Tabs, Redirect } from "expo-router";
+import { Tabs, Redirect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
@@ -14,6 +14,7 @@ const TAB_BORDER = "#EEF0F4";
 export default function TabsLayout() {
   const { user, loading } = useAuth();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   // V29.ap — Garantiamo un padding-bottom minimo di 20px sempre (era 16px):
   //  - Su iOS con notch: insets.bottom ~34px → prende quello
   //  - Su Android con gesture-bar: insets.bottom ~24-48px → prende quello
@@ -102,10 +103,26 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="report"
         options={{
-          title: "Report",
+          // V50.z141 — "Report/Statistiche" tolto dalla bottom bar (resta raggiungibile dal
+          // menu laterale come "Statistiche" e dall'Edge Panel). Rotta invariata: /(tabs)/report
+          href: null,
+          title: "Statistiche",
+        }}
+      />
+      <Tabs.Screen
+        name="help"
+        options={{
+          title: "Help",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "bar-chart" : "bar-chart-outline"} size={22} color={color} />
+            <Ionicons name={focused ? "help-circle" : "help-circle-outline"} size={24} color={color} />
           ),
+        }}
+        listeners={{
+          // V50.z141 — Il tab Help apre direttamente la guida / tour guidato (libretto)
+          tabPress: (e) => {
+            e.preventDefault();
+            router.push("/libretto" as any);
+          },
         }}
       />
       <Tabs.Screen

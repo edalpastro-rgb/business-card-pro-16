@@ -30,7 +30,7 @@ export const EDGE_ACTIONS: EdgeAction[] = [
   { id: "agenda", label: "Agenda", icon: "calendar", color: "#0891B2", href: "/(tabs)/calendario" },
   { id: "contatti", label: "Contatti", icon: "people", color: "#6366F1", href: "/(tabs)/contatti" },
   { id: "chat", label: "Chat Team", icon: "chatbubbles", color: "#F59E0B", href: "/(tabs)/chat" },
-  { id: "report", label: "Report", icon: "bar-chart", color: "#22C55E", href: "/(tabs)/report" },
+  { id: "report", label: "Statistiche", icon: "bar-chart", color: "#22C55E", href: "/(tabs)/report" },
   { id: "profilo", label: "Profilo", icon: "person", color: "#7C3AED", href: "/(tabs)/impostazioni" },
   { id: "new-contact", label: "Nuovo Contatto", icon: "person-add", color: "#7C3AED", href: "/contact/new" },
   { id: "new-appt", label: "Nuovo Appuntamento", icon: "add-circle", color: "#16A34A", href: "/appointment/new" },

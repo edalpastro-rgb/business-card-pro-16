@@ -1,6 +1,15 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z141 (Giu 2026) — Bottom bar: "Report" → "Help"; "Statistiche" nel drawer
+
+- `app/(tabs)/_layout.tsx`: `Tabs.Screen name="report"` → `href: null` (nascosto dalla barra, rotta `/(tabs)/report` intatta, titolo "Statistiche"); nuovo `Tabs.Screen name="help"` (icona `help-circle`, size 24) con `listeners.tabPress` → `e.preventDefault()` + `router.push("/libretto")` (guida / tour guidato). `useRouter` importato.
+- `app/(tabs)/help.tsx` (nuovo): fallback raggiungibile via URL `/help` — hero + 3 card: Guida rapida (`/libretto`), Rifai il tour guidato (rimuove `libretto_seen_v1` + `onboarding_done_${uid}`, `PUT /user-settings {onboarding_done:false}`, `/libretto?onboarding=1`), Help Center (`/help-center`). testID `help-tab-guide|replay|center`.
+- `src/PersistentBottomNav.tsx`: tab `report` sostituito da `help` (route `/libretto`, `activePrefixes: ["/libretto","/help"]`); `inTabs` considera solo route `/(tabs)/...` + extra `/report` (così su `/libretto` la barra replica è visibile con Help attivo, su `/report` resta solo la Tabs nativa).
+- `src/DrawerMenu.tsx`: voce "Report" → **"Statistiche"** (Team & Insights, stesso href). `src/EdgePanel.tsx`: shortcut "Report" → "Statistiche".
+- Test web: home → barra senza "Report", con "Help" ✅; tap Help → `/libretto` con barra persistente e Help attivo ✅; drawer → "Statistiche" → `/report` ✅.
+
+
 ## V50.z140 (Giu 2026) — Tabella AxonOS: schermo intero + Header tabella (logo + nome azienda)
 
 **Backend** (`server.py`): `UserOut`/`ProfileUpdate` + `table_header_name`, `table_header_logo_base64` (persistiti da `PUT /auth/profile` generico). Nuovo `GET /api/table-header` → legge il doc del tenant owner (`tenant_id(user)`, quindi anche i collaboratori vedono l'header del Master): `{name, logo_base64, source: "table"|"branding"|"none"}`; se nome e logo tabella sono vuoti fallback a `company_name`/`company_logo_base64` (Branding).

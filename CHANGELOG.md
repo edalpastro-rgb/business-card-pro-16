@@ -191,6 +191,11 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   visibile senza scorrere. Applicare a ogni nuovo modal e quando si tocca un modal esistente.
 - Stile Optima: header tecnico senza loghi, bottoni categorizzati, safe-area globale, label 1 riga (V50.a/c, V29.ba–bc).
 - Bottom nav persistente, barra AxonOS minimale (v2.ap). Keyboard-avoiding fix nei modal Insegna ad Axon (V29.au/ax).
+  **V50.z141 — Bottom bar**: la voce "Report" è sostituita da **"Help"** (icona `help-circle`) che apre la guida / tour guidato
+  (`/libretto`; `listeners.tabPress` + `preventDefault` in `(tabs)/_layout.tsx`, fallback screen `(tabs)/help.tsx` con Guida rapida /
+  Rifai il tour / Help Center). `report` resta nel gruppo (tabs) con `href: null` (rotta `/report` invariata) ed è raggiungibile
+  dal menu laterale come **"Statistiche"** (Team & Insights) e dall'Edge Panel. `PersistentBottomNav` allineata (tab Help attivo su
+  `/libretto` e `/help*`, nascosta su `/report` dove c'è la Tabs nativa).
 - Menu laterale (`DrawerMenu.tsx`): **V50.z131** rimosso link morto "Note" (`/notes`, pagina inesistente); "Business Cards" →
   "Biglietto da visita" collegato a `/business-card`. Mapping colori in `menuCategories.ts` aggiornato.
 - Regola: nessuna schermata bianca — error boundary su moduli chart/table, timeout visibili.
@@ -214,6 +219,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z141 | Giu 2026 | Bottom bar: "Report" → "Help" (apre guida/tour); "Statistiche" nel menu laterale (Team & Insights) e Edge Panel |
 | V50.z140 | Giu 2026 | Chat: tabella a schermo intero (tap/bottone), Impostazioni "Header tabella" (logo + nome) su tabelle chat/PDF/PNG |
 | V50.z139 | Giu 2026 | Scanner: "Foto singola" con fotocamera in-app (autofocus + autocrop prima del ritorno), fix loop permessi Android 16, anteprima full-screen |
 | V50.z138 | Giu 2026 | Home: chiusura filtro Scadenze; dettaglio appuntamento: esiti sempre cliccabili (auto-Fatto), chip dettagli fix Android |
