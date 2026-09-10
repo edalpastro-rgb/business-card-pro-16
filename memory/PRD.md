@@ -1,6 +1,12 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z148 (Giu 2026) — Regressione icona meteo header (APK 1.0.48)
+
+**Analisi**: `HeaderWeatherBadge` (V50.z132) è ancora montato in `home.tsx` (bottom-left del banner) e renderizza solo dopo `/weather/alerts` (che risponde anche senza coords: fallback indirizzo Master, verificato). Root cause probabile sull'APK dopo reinstallazione: `getWeatherCoords()` → permesso posizione concesso → `getLastKnownPositionAsync` null (cache azzerata) → `getCurrentPositionAsync({})` **senza timeout** può non risolvere (GPS a freddo/indoor) → l'effetto non arriva mai alla chiamata API → badge mai visibile. Secondaria: un errore di rete al cold start lasciava `res=null` per sempre.
+**Fix** (`src/utils/weather.ts`): `withTimeout` 6s su `getCurrentPositionAsync` (`Accuracy.Low`) e 20s su `requestForegroundPermissionsAsync` (bug Android 16 promise pendente) → fallback `null` → backend usa l'indirizzo Master. (`src/WeatherWidget.tsx` `HeaderWeatherBadge`): coords con `.catch(null)`, 2 tentativi API con pausa 4s. Layering header verificato (nessun overlay sopra il badge). Web: badge `header-weather-badge` visibile "22°" ✅. Serve nuova build per verificarlo su APK.
+
+
 ## V50.z147 (Giu 2026) — Rimosso Help dalle top header
 
 L'unico "Help" nelle header era il `<SupportFab />` globale (montato in `app/_layout.tsx`, top-right accanto all'avatar su tutte le pagine, `accessibilityLabel="HELP CENTER"`, testID `support-fab`). Rimosso il mount + import (componente `src/SupportFab.tsx` conservato, non montato; `app/master.tsx` ha solo un commento che lo cita). Nessun'altra icona help nelle header (grep `help-circle`: solo icone di lista/badge non-header). Verifica web: `support-fab` count 0, header Home con solo avatar ✅.

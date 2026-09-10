@@ -23,18 +23,27 @@ export function weatherIcon(key?: string | null) {
   return WEATHER_ICON[key || ""] || WEATHER_ICON.cloudy;
 }
 
+// V50.z148 — `getCurrentPositionAsync` su Android può non risolvere per molto tempo (GPS a
+// freddo, indoor, dopo reinstallazione senza last-known position): senza timeout il badge
+// meteo in header non compariva mai. Timeout 6s → fallback `null` (il backend usa l'indirizzo
+// dello studio / Master).
+const POSITION_TIMEOUT_MS = 6000;
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+}
+
 export async function getWeatherCoords(): Promise<{ lat: number; lon: number } | null> {
   try {
     const perm = await Location.getForegroundPermissionsAsync();
     if (perm.granted) {
       const loc = await Location.getLastKnownPositionAsync({ maxAge: 1000 * 60 * 60 }).catch(() => null);
       if (loc?.coords) return { lat: loc.coords.latitude, lon: loc.coords.longitude };
-      const cur = await Location.getCurrentPositionAsync({}).catch(() => null);
+      const cur = await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }).catch(() => null), POSITION_TIMEOUT_MS);
       if (cur?.coords) return { lat: cur.coords.latitude, lon: cur.coords.longitude };
     } else if (perm.canAskAgain && Platform.OS !== "web") {
-      const req = await Location.requestForegroundPermissionsAsync();
-      if (req.granted) {
-        const cur = await Location.getCurrentPositionAsync({}).catch(() => null);
+      const req = await withTimeout(Location.requestForegroundPermissionsAsync(), 20000);
+      if (req?.granted) {
+        const cur = await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }).catch(() => null), POSITION_TIMEOUT_MS);
         if (cur?.coords) return { lat: cur.coords.latitude, lon: cur.coords.longitude };
       }
     }

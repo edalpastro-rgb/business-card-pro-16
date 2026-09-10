@@ -109,11 +109,19 @@ export function HeaderWeatherBadge() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const c = await getWeatherCoords();
-        const r = await api<Res>("/weather/alerts", { method: "POST", body: c ? { lat: c.lat, lon: c.lon } : {} });
-        if (!cancelled) setRes(r);
-      } catch { if (!cancelled) setRes(null); }
+      // V50.z148 — coords con timeout (vedi getWeatherCoords) + 1 retry se la rete non è pronta
+      // al cold start: prima un errore lasciava il badge invisibile per sempre.
+      const c = await getWeatherCoords().catch(() => null);
+      for (let attempt = 0; attempt < 2 && !cancelled; attempt++) {
+        try {
+          const r = await api<Res>("/weather/alerts", { method: "POST", body: c ? { lat: c.lat, lon: c.lon } : {} });
+          if (!cancelled) setRes(r);
+          return;
+        } catch {
+          if (attempt === 0) await new Promise((res) => setTimeout(res, 4000));
+        }
+      }
+      if (!cancelled) setRes(null);
     })();
     return () => { cancelled = true; };
   }, []);
