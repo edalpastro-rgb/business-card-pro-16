@@ -61,6 +61,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   segna automaticamente l'appuntamento come Fatto e cancella il reminder); chip "Dopo l'appuntamento (dettagli)" robusti a
   `outcome_tags` mancante (causa dei chip bianchi/non reattivi su Android), sfondo grigio visibile, minHeight 40, ripple Android.
 - Vista giornaliera, filtri categoria, compleanni annuali, **Calendario Team** (I miei / Team / Tutti, privacy per collaboratori).
+  **V50.z152 — Compleanni che si chiudono**: il promemoria compleanno (virtuale, 09:00) sparisce automaticamente 24h dopo
+  l'orario e ha un bottone **"Visto ✓"** sulla card che lo chiude subito (id `bday_<contact>_<anno>` in AsyncStorage
+  `calendar_birthdays_seen_v1`, per dispositivo). L'anno successivo il compleanno ricompare (id diverso).
 - Pallini colorati per tipo + **legenda colori** (Giu 2026). Fix mapping tipo "Personale".
 - **Fix orario 08:15→06:15** (V50.z110 lato editor; **V50.z127 root cause backend**: `start_at`/`end_at` letti da Mongo erano datetime naive
   serializzati senza fuso → il client li leggeva come ora locale. Ora `_aware_utc_times()` forza `+00:00` su list/get/put/calendar-team).
@@ -266,6 +269,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z152 | Giu 2026 | Calendario: promemoria compleanno si chiude 24h dopo o con "Visto ✓" (persistito sul dispositivo) |
 | V50.z151 | Giu 2026 | Meteo: geocoding con 3° fallback Open-Meteo (città/CAP anche da indirizzi con via), negative-cache 10 min, messaggio "Indirizzo non riconosciuto" + Riprova, errore salvataggio visibile |
 | V50.z150 | Giu 2026 | Home: widget "Meteo" della zona widget SEMPRE visibile (temp attuale, min/max, condizioni, località); header badge mostra temp attuale |
 | V50.z149 | Giu 2026 | Edge Panel (menu laterale destro): "Statistiche" tra i default + migrazione una-tantum per selezioni salvate |

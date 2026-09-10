@@ -1,6 +1,11 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z152 (Giu 2026) — Compleanni nel calendario: chiusura automatica 24h + "Visto"
+
+`app/(tabs)/calendario.tsx`: i compleanni sono item virtuali generati dai contatti (`bday_<contact_id>_<anno>`, ore 09:00). Ora (1) vengono esclusi se `Date.now() - start_at > 24h`; (2) card con bottone "Visto ✓" (`cal-bday-seen-<id>`, `stopPropagation`) → `dismissBirthday(id)` → Set persistito in AsyncStorage `calendar_birthdays_seen_v1` (caricato al mount) → item escluso. Dipendenza `dismissedBdays` nel `useMemo` degli item. Stili `bdaySeenBtn/bdaySeenTxt`. Test web: contatto con compleanno oggi → card con "Visto" → click → "0 eventi", persiste dopo reload ✅ (contatto di test ripristinato).
+
+
 ## V50.z151 (Giu 2026) — Meteo: "Imposta indirizzo" non produceva nulla (APK)
 
 **Analisi**: `/meteo` mostra "Imposta la tua località" quando il backend risponde `needs_address=True`, cioè quando NON ci sono coords GPS **e** nessun candidato indirizzo (body.address → `user_settings.home_address` → `settings.office_address` del tenant) viene geocodificato. Localmente PUT `/user-settings {home_address}` persiste e Photon/Nominatim risolvono gli indirizzi testati; in produzione il fallimento più probabile è il geocoding (Photon/Nominatim non raggiungibili o rate-limited) aggravato dalla **negative-cache di 24h** (`geocode_cache lat=None`): l'indirizzo appena impostato restava "non trovato" per un giorno. Inoltre l'errore del PUT era silenzioso e la UI non distingueva "nessun indirizzo" da "indirizzo non risolvibile".

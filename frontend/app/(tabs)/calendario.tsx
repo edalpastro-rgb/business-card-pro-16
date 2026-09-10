@@ -12,6 +12,9 @@ import { isAreaVisible } from "@/src/utils/areaAccess";
 import { useAuth } from "@/src/auth";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const BDAY_SEEN_KEY = "calendar_birthdays_seen_v1"; // V50.z152
 
 type Appointment = {
   appointment_id: string; title: string; area: "energy" | "network";
@@ -80,6 +83,21 @@ function CalendarioScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "energy" | "network" | "birthday">("all");
+  // V50.z152 — compleanni segnati "Visto" (persistiti sul dispositivo)
+  const [dismissedBdays, setDismissedBdays] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    AsyncStorage.getItem(BDAY_SEEN_KEY).then((raw) => {
+      if (!raw) return;
+      try { const arr = JSON.parse(raw); if (Array.isArray(arr)) setDismissedBdays(new Set(arr.filter((x) => typeof x === "string"))); } catch {}
+    }).catch(() => {});
+  }, []);
+  const dismissBirthday = useCallback((id: string) => {
+    setDismissedBdays((prev) => {
+      const next = new Set(prev); next.add(id);
+      AsyncStorage.setItem(BDAY_SEEN_KEY, JSON.stringify(Array.from(next))).catch(() => {});
+      return next;
+    });
+  }, []);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
   const [viewMode, setViewMode] = useState<"week" | "month" | "year">("month");
   // V38T — New: scope tab (Mine / Team / All)
@@ -190,6 +208,9 @@ function CalendarioScreen() {
     }
 
     // Birthdays — show in "mine" and "all" tabs (never in Team-only tab)
+    // V50.z152 — Un compleanno (promemoria) si chiude da solo 24h dopo l'orario (09:00 del giorno)
+    // oppure quando l'utente lo segna "Visto" (dismissedBdays). Non resta più visibile a oltranza.
+    const nowMs = Date.now();
     if (scope !== "team") {
       list.push(
         ...contacts.filter((c) => c.birth_date && c.birth_date.length >= 5)
@@ -197,23 +218,26 @@ function CalendarioScreen() {
             const parts = (c.birth_date || "").split("/").map((x) => parseInt(x, 10));
             if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return [];
             const [dd, mm] = parts;
-            return [selectedDate.getFullYear(), selectedDate.getFullYear() + 1].map((year) => {
+            return [selectedDate.getFullYear(), selectedDate.getFullYear() + 1].flatMap((year): CalItem[] => {
               const d = new Date(year, mm - 1, dd, 9, 0, 0);
-              return {
+              const id = `bday_${c.contact_id}_${year}`;
+              if (nowMs - d.getTime() > 24 * 60 * 60 * 1000) return []; // chiuso automaticamente dopo 24h
+              if (dismissedBdays.has(id)) return []; // segnato "Visto"
+              return [{
                 kind: "birthday" as const,
-                id: `bday_${c.contact_id}_${year}`,
+                id,
                 title: `Compleanno di ${c.first_name} ${c.last_name}`.trim(),
                 area: "birthday" as const,
                 start_at: d,
                 contact_id: c.contact_id,
-              };
+              }];
             });
           }),
       );
     }
 
     return list;
-  }, [scope, appts, teamAppts, contacts, selectedDate, user]);
+  }, [scope, appts, teamAppts, contacts, selectedDate, user, dismissedBdays]);
 
   const days = Array.from({ length: 14 }, (_, i) => addDays(startOfDay(new Date()), i));
 
@@ -549,6 +573,19 @@ function CalendarioScreen() {
                         );
                       })()}
                       {/* V50.z80 — Bottone condividi con cliente (solo su appuntamenti reali) */}
+                      {item.kind === "birthday" ? (
+                        // V50.z152 — Segna il promemoria compleanno come "Visto" → chiuso
+                        <Pressable
+                          onPress={(e) => { (e as any).stopPropagation?.(); dismissBirthday(item.id); }}
+                          hitSlop={8}
+                          style={styles.bdaySeenBtn}
+                          testID={`cal-bday-seen-${item.id}`}
+                          accessibilityLabel="Segna compleanno come visto"
+                        >
+                          <Ionicons name="checkmark-circle-outline" size={14} color="#B45309" />
+                          <Text style={styles.bdaySeenTxt}>Visto</Text>
+                        </Pressable>
+                      ) : null}
                       {item.kind === "appt" ? (
                         <Pressable
                           onPress={(e) => { (e as any).stopPropagation?.(); setShareApptId(item.id); }}
@@ -738,6 +775,9 @@ const styles = StyleSheet.create({
   wxBadgeLbl: { fontSize: 10, color: "#0369A1", maxWidth: 110 },
   // V50.z80 — Bottone condividi inline
   shareInline: { marginLeft: "auto", padding: 3, borderRadius: 999, backgroundColor: "#EEF2FF" },
+  // V50.z152 — "Visto" sui promemoria compleanno
+  bdaySeenBtn: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 28, borderRadius: 999, backgroundColor: "#FEF3C7" },
+  bdaySeenTxt: { fontSize: 11, fontWeight: "800", color: "#B45309" },
   apptTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface, marginTop: 2 },
   loc: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
   checkBtn: { padding: 10 },
