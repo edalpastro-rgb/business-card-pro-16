@@ -29,6 +29,7 @@ import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection, LibrettoMeta, LIBRET
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 
+import { WowIntro } from "@/src/WowIntro";
 const ADVISOR_LOGO = require("@/assets/images/advisoros-logo-transparent.png");
 const AXON_LOGO = require("@/assets/images/axonos-logo-transparent.png");
 const ADVISOR_ICON = require("@/assets/images/advisoros-icon-1024.png");
@@ -238,6 +239,10 @@ export default function LibrettoScreen() {
     AsyncStorage.setItem(`onboarding_done_${user.user_id}`, "1").catch(() => {});
   }, [isOnboarding, user?.user_id]);
 
+  // V50.z136 — Intro animata offline all'inizio del tour (sostituisce il video tutorial YouTube).
+  const [introVisible, setIntroVisible] = useState(isOnboarding);
+  useEffect(() => { if (isOnboarding) setIntroVisible(true); }, [isOnboarding]);
+
   // V50.z111 — Il tour è "fatto" SOLO quando l'utente lo conclude o lo salta:
   // flag per-utente lato server (user-settings.onboarding_done) + cache locale.
   const dismissOnboarding = useCallback(async () => {
@@ -298,6 +303,7 @@ export default function LibrettoScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
+      {isOnboarding && introVisible && <WowIntro onDone={() => setIntroVisible(false)} />}
       {/* Header */}
       <View style={styles.headerBar}>
         {isOnboarding ? (

@@ -1,6 +1,14 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z136 (Giu 2026) — Intro animata offline nel tour + "Rivedi tour guidato" in Help Center
+
+- Nel codice attuale non esisteva più un pulsante "Guarda il video tutorial" nel tour (rimosso in passato); implementata direttamente l'intro animata richiesta.
+- `src/WowIntro.tsx` (react-native-reanimated 4, già in package.json — nessuna dipendenza nuova, 100% offline): overlay assoluto su `/libretto?onboarding=1`; 4 slide (Benvenuto, Contatti & Calendario, AxonOS, Scanner & Documenti) con `ZoomIn` sull'icona hero, 4 icone in orbita con `ZoomIn` scaglionato + pulsazione `withRepeat`, testi `FadeInUp`, bolle di sfondo animate, dots cliccabili, auto-avanzamento 4.2s, CTA "Avanti"/"Inizia il tour" + "Salta intro". testID: `wow-intro`, `wow-intro-next`, `wow-intro-start`, `wow-intro-skip`.
+- `app/libretto.tsx`: stato `introVisible` (true in onboarding) → `<WowIntro onDone={() => setIntroVisible(false)} />` prima dell'header; al termine si vede il tour (libretto) con "Ho capito · Iniziamo!".
+- `app/help-center.tsx`: prima voce nello ScrollView (prima del badge Termini/checkbox) `help-replay-tour` "Rivedi tour guidato": rimuove `libretto_seen_v1` e `onboarding_done_${user_id}`, `PUT /user-settings {onboarding_done:false}`, `router.push('/libretto?onboarding=1')`.
+- Test web: login nuova sessione → intro → 3× Avanti → "Inizia il tour" → tour visibile; Help Center → "Rivedi tour guidato" → intro di nuovo ✅.
+
 ## V50.z135 (Giu 2026) — Modal "Appuntamento creato" + testo invio dettagli personalizzabile
 
 1) `app/appointment/new.tsx` modal post-save: `KeyboardAvoidingView` come backdrop, card `maxHeight = 88% altezza finestra` + `paddingBottom = max(insets.bottom, 12)`, `AppointmentShareActions` dentro `ScrollView` (`flexGrow: 0`), pulsante "Chiudi senza inviare" fuori dallo scroll (footer fisso). Regola modal documentata in CHANGELOG §12.

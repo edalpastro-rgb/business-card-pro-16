@@ -86,6 +86,29 @@ export default function HelpCenterScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad, gap: 12 }}>
+        {/* V50.z136 — Prima voce: riavvia il tour guidato (intro animata + libretto) */}
+        <Pressable
+          testID="help-replay-tour"
+          onPress={async () => {
+            try {
+              await AsyncStorage.removeItem("libretto_seen_v1");
+              if (user?.user_id) await AsyncStorage.removeItem(`onboarding_done_${user.user_id}`);
+              await api("/user-settings", { method: "PUT", body: { onboarding_done: false } }).catch(() => {});
+            } catch { /* silent */ }
+            router.push("/libretto?onboarding=1" as any);
+          }}
+          style={styles.replayBtn}
+        >
+          <View style={styles.replayIcon}>
+            <Ionicons name="sparkles" size={20} color="#FFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.replayTitle}>Rivedi tour guidato</Text>
+            <Text style={styles.replayHint}>Riparte dall'inizio: intro animata + giro guidato dell'app</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+        </Pressable>
+
         <View style={styles.badge}>
           <Ionicons name="shield-checkmark" size={20} color="#7C3AED" />
           <Text style={styles.badgeTxt}>Termini di utilizzo · assistente AI</Text>
@@ -218,6 +241,10 @@ export default function HelpCenterScreen() {
 }
 
 const styles = StyleSheet.create({
+  replayBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.color.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.color.border, minHeight: 64 },
+  replayIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" },
+  replayTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
+  replayHint: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
   root: { flex: 1, backgroundColor: theme.color.surface },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
