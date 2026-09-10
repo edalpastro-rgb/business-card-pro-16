@@ -224,6 +224,11 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Regola: nessuna schermata bianca — error boundary su moduli chart/table, timeout visibili.
 
 ## 13. Infrastruttura / Backend
+- **V50.z146 — Permesso CAMERA hardcoded nel manifest Android**: plugin locale `frontend/plugins/withCameraPermission.js`
+  (`withAndroidManifest`, idempotente) forza `<uses-permission android.permission.CAMERA/>` + `<uses-feature android.hardware.camera
+  / .autofocus required=false>`; `expo-build-properties` installato (~1.0.10) e registrato; prop `android.permissions:["CAMERA"]` sul
+  plugin `expo-camera`. `expo.android.permissions` continua a includere `CAMERA`. Verificato con `expo config --type introspect`.
+  Richiede nuova build APK.
 - Refactor architetturale fasi 1-3 (v1.6–1.8). Scheduler APScheduler: auto-CRM tick, review auto-follow-up (1h), advisor auto-tips
   (12h), reminder appuntamenti cliente. Cache semantica con embedding. Deploy Emergent Publish o Aruba (`/app/ARUBA_DEPLOY.md`).
 - Endpoint chiave: `/api/assistant/chat/stream`, `/api/axon/quick-action`, `/api/axon/alarms`, `/api/weather/dashboard`,
@@ -242,6 +247,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z146 | Giu 2026 | Android: permesso CAMERA hardcoded via config plugin locale + expo-build-properties; uses-feature camera required=false (serve nuova build) |
 | V50.z145 | Giu 2026 | Comunica con l'azienda: "Modifica" solo per contatti esistenti; nuovo "+ Aggiungi contatto" manuale (form inline) |
 | V50.z144 | Giu 2026 | Knowledge Base Axon: voci FAQ/Dati/Nota + TXT/MD/CSV, modifica/rinomina, filtri; PINNED riattivate in cima al prompt; impegni "da ora farò X" PINNED |
 | V50.z143 | Giu 2026 | Insegna ad Axon: "Distilla chat" → Claude estrae regole da conversazione incollata/storica e le salva PINNED |

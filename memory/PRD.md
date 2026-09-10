@@ -1,6 +1,14 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z146 (Giu 2026) — Permesso CAMERA forzato nel manifest (APK 1.0.48 senza voce Fotocamera)
+
+- Installato `expo-build-properties ~1.0.10` (`yarn expo install`) e registrato in `plugins` con `{android:{}}` (non può aggiungere uses-permission: serve un config plugin).
+- Nuovo `frontend/plugins/withCameraPermission.js` (CommonJS, `expo/config-plugins.withAndroidManifest`): aggiunge se assenti `uses-permission android.permission.CAMERA` e `uses-feature android.hardware.camera` / `.autofocus` con `required=false`. Registrato come `"./plugins/withCameraPermission.js"` (ultimo plugin).
+- `expo-camera` plugin: aggiunta prop `android.permissions: ["CAMERA"]` (richiesta dall'utente; il plugin la ignora, innocua).
+- Verifica `npx expo config --type introspect`: CAMERA presente 1 volta (no duplicati), uses-feature presenti; expo dev server riparte senza errori. **Serve nuova build APK**. Se anche così la voce non compare → problema pipeline di build (support@emergent.sh).
+
+
 ## Verifica permesso CAMERA Android (Giu 2026) — nessuna modifica necessaria
 
 Segnalazione: "la fotocamera non compare in Impostazioni → AdvisorOS → Autorizzazioni". Verificato: `app.json` → `expo.android.permissions` contiene `CAMERA` (presente dal commit d5a1a9c); plugin `["expo-camera", {"cameraPermission": …}]` e `["expo-image-picker", {"cameraPermission": …}]` configurati; nessun `blockedPermissions`; `npx expo config --type introspect` genera il manifest con `android.permission.CAMERA` (+ RECORD_AUDIO, READ/WRITE_CONTACTS, ecc.). Nessun `app.config.js` che sovrascrive. Conclusione: la configurazione è corretta → se l'APK installato non elenca la fotocamera, o è una build precedente/diversa, oppure il dispositivo mostra il gruppo solo dopo la prima richiesta runtime (ora eseguita correttamente dal flusso V50.z139). Da ricontrollare sull'APK generato dopo il deploy di oggi.

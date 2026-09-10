@@ -64,7 +64,10 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Scatta foto e scansiona bollette e QR"
+          "cameraPermission": "Scatta foto e scansiona bollette e QR",
+          "android": {
+            "permissions": ["CAMERA"]
+          }
         }
       ],
       [
@@ -88,7 +91,14 @@
         }
       ],
       "expo-asset",
-      "onnxruntime-react-native"
+      "onnxruntime-react-native",
+      [
+        "expo-build-properties",
+        {
+          "android": {}
+        }
+      ],
+      "./plugins/withCameraPermission.js"
     ],
     "experiments": {
       "typedRoutes": true
