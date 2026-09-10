@@ -17,7 +17,9 @@ import { WeatherWidget } from "@/src/WeatherWidget";
 type Widget = { id: string; enabled: boolean; order: number; label: string; coming_soon: boolean };
 type PunLatest = { available: boolean; month_name?: string; month_short?: string; year?: number; F1?: number; F2?: number; F3?: number; monorario?: number; unit?: string; source_url?: string; delta_pct?: number | null; delta_f1_pct?: number | null; delta_f2_pct?: number | null; delta_f3_pct?: number | null };
 
-export function DashboardWidgetsSection() {
+// V50.z132 — `only` / `exclude` permettono di renderizzare un sottoinsieme di
+// widget in punti diversi della Home (es. "Appuntamenti di oggi" sotto Ritelefonate).
+export function DashboardWidgetsSection({ only, exclude }: { only?: string[]; exclude?: string[] } = {}) {
   const router = useRouter();
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [counts, setCounts] = useState<{ apptToday?: number }>({});
@@ -43,9 +45,16 @@ export function DashboardWidgetsSection() {
   useEffect(() => { load(); }, [load]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const active = useMemo(() => widgets.filter((w) => w.enabled).sort((a, b) => a.order - b.order), [widgets]);
+  const active = useMemo(
+    () => widgets
+      .filter((w) => w.enabled)
+      .filter((w) => (only ? only.includes(w.id) : true) && !(exclude || []).includes(w.id))
+      .sort((a, b) => a.order - b.order),
+    [widgets, only, exclude],
+  );
 
   if (loading && active.length === 0) {
+    if (only) return null;
     return <ActivityIndicator style={{ marginVertical: 8 }} color={theme.color.brandPrimary} />;
   }
   if (active.length === 0) return null;

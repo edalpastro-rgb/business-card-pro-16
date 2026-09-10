@@ -14,6 +14,8 @@ import { HomeEventBanner } from "@/src/HomeEventBanner";
 import { AlarmHomeWidget } from "@/src/AlarmHomeWidget";
 import { DrawerMenu } from "@/src/DrawerMenu";
 import { DashboardWidgetsSection } from "@/src/DashboardWidgetsSection";
+import { HeaderWeatherBadge } from "@/src/WeatherWidget";
+const APPT_TODAY_WIDGET = ["appointments_today"];
 import { HomeTipsBanner } from "@/src/HomeTipsBanner";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
@@ -356,6 +358,8 @@ export default function HomeScreen() {
           />
           {/* Gradient scrim per garantire leggibilità della data/ora sopra l'immagine */}
           <View pointerEvents="none" style={styles.brandHeaderScrim} />
+          {/* V50.z132 — Mini icona meteo (sole/pioggia/neve) in basso a sinistra */}
+          <HeaderWeatherBadge />
 
           {/* V29.ae — Layout header 80px: date/avatar come overlay corner */}
           <View style={styles.brandHeaderCornerTL} pointerEvents="none">
@@ -494,7 +498,8 @@ export default function HomeScreen() {
 
         {/* V50.z120 — Sezione widget dashboard (meteo, appuntamenti oggi, PUN, scadenze…)
              spostata SOTTO il bottone Interfaccia Master su richiesta utente */}
-        <DashboardWidgetsSection />
+        {/* V50.z132 — "Appuntamenti di oggi" è renderizzato più in basso, sotto Ritelefonate */}
+        <DashboardWidgetsSection exclude={APPT_TODAY_WIDGET} />
 
         {/* ── 4) Ritelefonate di oggi ── */}
         <View style={styles.section}>
@@ -555,6 +560,9 @@ export default function HomeScreen() {
             );
           })}
         </View>
+
+        {/* V50.z132 — Banner "Appuntamenti di oggi" SOTTO Ritelefonate */}
+        <DashboardWidgetsSection only={APPT_TODAY_WIDGET} />
 
         {/* ── 5) Azioni rapide (a scomparsa) ── */}
         <View style={styles.section}>

@@ -36,6 +36,10 @@ export function WeatherWidget() {
   const icon = weatherIcon(w?.icon_key);
   const nAlerts = res?.alerts?.length || 0;
 
+  // V50.z132 — Il widget compare SOLO se ci sono allerte attive; le condizioni
+  // correnti sono sempre visibili nella mini-icona sul banner (HeaderWeatherBadge).
+  if (loading || nAlerts === 0) return null;
+
   return (
     <Pressable testID="weather-widget" onPress={() => router.push("/meteo" as any)} style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}>
       <View style={[styles.iconBox, { backgroundColor: icon.color + "1A" }]}>
@@ -89,6 +93,46 @@ const styles = StyleSheet.create({
   place: { fontSize: 11, color: theme.color.muted, flexShrink: 1 },
   pill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: "#DCFCE7" },
   pillTxt: { fontSize: 10.5, fontWeight: "800", color: "#16A34A" },
+  headerBadge: { position: "absolute", left: 8, bottom: 6, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: "rgba(15,23,42,0.45)" },
+  headerBadgeTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
 });
+
+/**
+ * V50.z132 — Mini indicatore meteo per il banner AdvisorOS della Home
+ * (angolo in basso a sinistra): icona sole/pioggia/neve + temperatura.
+ * Tap → pagina /meteo. Non renderizza nulla se il meteo non è disponibile.
+ */
+export function HeaderWeatherBadge() {
+  const router = useRouter();
+  const [res, setRes] = useState<Res | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const c = await getWeatherCoords();
+        const r = await api<Res>("/weather/alerts", { method: "POST", body: c ? { lat: c.lat, lon: c.lon } : {} });
+        if (!cancelled) setRes(r);
+      } catch { if (!cancelled) setRes(null); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const w = res?.weather;
+  if (!w || !w.icon_key) return null;
+  const icon = weatherIcon(w.icon_key);
+  return (
+    <Pressable
+      testID="header-weather-badge"
+      onPress={() => router.push("/meteo" as any)}
+      hitSlop={8}
+      accessibilityLabel={`Meteo attuale: ${w.label || ""}`}
+      style={styles.headerBadge}
+    >
+      <Ionicons name={icon.name} size={14} color="#FFF" />
+      {w.temp_max != null && <Text style={styles.headerBadgeTxt}>{Math.round(w.temp_max)}°</Text>}
+    </Pressable>
+  );
+}
 
 export default WeatherWidget;

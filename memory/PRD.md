@@ -1,6 +1,13 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z132 (Giu 2026) — Home: meteo solo con allerte + mini-icona banner + ordine widget
+
+- `src/WeatherWidget.tsx`: `WeatherWidget` ritorna `null` se `loading` o nessuna allerta (`res.alerts.length === 0`). Nuovo export `HeaderWeatherBadge`: pill assoluta `left:8 bottom:6` sul banner (icona `weatherIcon(icon_key)` + temp max, tap → `/meteo`, testID `header-weather-badge`), nulla se meteo non disponibile.
+- `src/DashboardWidgetsSection.tsx`: props opzionali `only?: string[]` / `exclude?: string[]` per filtrare i widget; con `only` niente spinner.
+- `app/(tabs)/home.tsx`: `<HeaderWeatherBadge />` dentro `home-brand-header`; `<DashboardWidgetsSection exclude={["appointments_today"]} />` al posto originale; `<DashboardWidgetsSection only={["appointments_today"]} />` subito dopo la sezione Ritelefonate (prima di Azioni rapide).
+- Verifica web: badge 🌧 22° in basso a sinistra; widget meteo mostrato perché c'è un'allerta "Temporali forti" attiva; "Appuntamenti di oggi" sotto "Ritelefonate di oggi".
+
 ## V50.z131 (Giu 2026) — FAB Axon muto in Contatti + link morti menu laterale
 
 - `AssistantChat.tsx` `AssistantFAB`: il tap era gestito SOLO in `onPanResponderRelease` (tap = release senza drag < 500ms). Su nativo, in schermate con liste lunghe (Contatti) la negoziazione del responder poteva non consegnare il release → nessuna apertura. Ora il nodo interno è una `Pressable` con `onPress={fireTap}` (hitSlop 6, accessibilityRole button); il PanResponder resta per il drag (prende il controllo su move > 3px); `fireTap` con guard 400ms evita doppio-fire tra Pressable e fallback release. Web verificato: FAB apre la chat dalla tab Contatti.

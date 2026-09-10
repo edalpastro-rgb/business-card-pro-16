@@ -60,7 +60,10 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## 4. Home / Dashboard / Master
 - Home V27 redesign, header animato/collapsable con immagine locale (V29.aq/ar), home compatta + PUN riorganizzato (V50.z87).
 - **Dashboard configurabile** (V50.z81): widget riordinabili; widget PUN Live & Richieste Info (V50.z82); widget Sveglia (V50.z10);
-  **Widget Meteo & Allerte** sempre visibile + banner allerte separato + pagina `/meteo` 7 giorni (V50.z79, z116).
+  **Widget Meteo & Allerte** + banner allerte separato + pagina `/meteo` 7 giorni (V50.z79, z116).
+  **V50.z132**: il widget Meteo (`WeatherWidget`) è visibile SOLO con allerte attive; le condizioni correnti stanno nella mini-icona
+  `HeaderWeatherBadge` (sole/pioggia/neve + °C) in basso a sinistra sul banner AdvisorOS (tap → `/meteo`); il widget
+  "Appuntamenti di oggi" è renderizzato SOTTO la sezione Ritelefonate (`DashboardWidgetsSection` con props `only`/`exclude`).
 - Widget sotto "Interfaccia Master" (V50.z120). Banner My Thing con font/size/colore personalizzabili (v2.31). Banner Evento Master
   con range date, descrizione, audio, copertina PDF (v2.10, v2.18, v2.11). **Banner Gas colore BLU** (Giu 2026).
 - **Interfaccia Master**: griglia bottoni stile Optima categorizzati per colore con header categorie (V50.z34/40/41), drawer laterale
@@ -174,6 +177,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z132 | Giu 2026 | Home: widget meteo solo con allerte, mini-icona meteo sul banner, Appuntamenti di oggi sotto Ritelefonate |
 | V50.z131 | Giu 2026 | FAB Axon: tap via Pressable (fix Contatti); drawer: rimosso "Note", "Business Cards" → `/business-card` |
 | V50.z130 | Giu 2026 | Distillazione regole on-demand: lezioni in chat → ai_teach_rules immediate + `POST /axon/teach/distill-now` |
 | V50.z129 | Giu 2026 | Cattura automatica impegni Axon ("da ora farò X") → ai_teach_rules immediata |
