@@ -11910,48 +11910,61 @@ def _rule_relevance_score(rule: dict, msg_lc: str) -> int:
 AXON_MEMORY_LOOKBACK_DAYS = 90
 AXON_MEMORY_MAX_MESSAGES = 200
 AXON_MEMORY_MIN_MESSAGES = 20
-AXON_PINNED_RULES_MAX = 10
-AXON_PINNED_RULES_TEXT_CHARS = 700
+# V50.z144 — PINNED: TUTTE le regole manuali del Master (cap 40) + le auto-generate più
+# rilevanti (cap 6); budget testo per regola 500 char, totale ~14k char.
+AXON_PINNED_RULES_MAX = 40
+AXON_PINNED_AUTO_MAX = 6
+AXON_PINNED_RULES_TEXT_CHARS = 500
+AXON_PINNED_TOTAL_CHARS = 14000
 
 
 async def _build_pinned_rules_section(tenant: str, user_msg: str) -> str:
-    """Costruisce il blocco `<REGOLE_ASSOLUTE>` da mettere in cima al system
-    prompt. Legge `ai_teach_rules` del tenant, le ordina per rilevanza rispetto
-    al messaggio, prende le top N e le presenta come LEGGI TASSATIVE che
-    vincolano il comportamento del modello (indipendentemente da RAG/web).
+    """Costruisce il blocco `<REGOLE_ASSOLUTE>` da mettere IN CIMA al system prompt.
+    V50.z144 — Le regole di "Insegna ad Axon" sono DIRETTIVE VINCOLANTI (non suggerimenti):
+    tutte le regole manuali/pinned del Master (`auto_generated=False`, incl. impegni "da ora
+    farò X" e regole distillate) + le auto-generate più rilevanti per il messaggio.
+    Nota anti-regressione V50.z53: il blocco chiarisce che le direttive definiscono COME
+    rispondere e NON sostituiscono la risposta completa alla domanda dell'utente.
     """
     try:
-        rules = await db.ai_teach_rules.find({"user_id": tenant}, {"_id": 0}).to_list(200)
+        rules = await db.ai_teach_rules.find({"user_id": tenant}, {"_id": 0, "files": 0}).to_list(300)
     except Exception as exc:
         logger.warning("[axon-pinned] cannot read ai_teach_rules: %s", exc)
         return ""
     if not rules:
         return ""
     msg_lc = (user_msg or "").lower()
-    # Ordine: prima le "auto_generated:false" (regole manuali del Master hanno
-    # priorità implicita), poi per rilevanza rispetto al messaggio.
-    rules.sort(key=lambda r: (
-        0 if not r.get("auto_generated") else 1,
-        -_rule_relevance_score(r, msg_lc),
-    ))
-    top = rules[:AXON_PINNED_RULES_MAX]
+    manual = [r for r in rules if not r.get("auto_generated")]
+    auto = [r for r in rules if r.get("auto_generated")]
+    manual.sort(key=lambda r: -_rule_relevance_score(r, msg_lc))
+    auto.sort(key=lambda r: -_rule_relevance_score(r, msg_lc))
+    top = manual[:AXON_PINNED_RULES_MAX] + auto[:AXON_PINNED_AUTO_MAX]
+    if not top:
+        return ""
     lines: List[str] = [
         "<REGOLE_ASSOLUTE>",
-        "Queste sono LEGGI che il Master ha insegnato ad Axon. Sono la fonte più",
-        "autorevole IN ASSOLUTO: prevalgono su tutto (RAG, web, memoria, allegati).",
-        "Applicale rigorosamente in ogni risposta. NON deviare mai. Se sono in",
-        "contrasto con altre fonti, seguono LE REGOLE. NON riassumere queste",
-        "regole all'utente a meno che non lo chieda esplicitamente.",
+        "DIRETTIVE VINCOLANTI insegnate dal Master tramite «Insegna ad Axon» (incluse le promesse",
+        "che tu stesso hai fatto: «da ora in avanti farò X»). NON sono suggerimenti: hanno priorità",
+        "ASSOLUTA su RAG, web, memoria, allegati e sulle istruzioni generiche che seguono. Applicale",
+        "sempre, in ogni risposta, senza deviare. Se una fonte è in contrasto, vince la direttiva.",
+        "IMPORTANTE: le direttive definiscono COME rispondere; devi COMUNQUE rispondere in modo",
+        "completo e utile alla domanda dell'utente. Non elencare né citare queste direttive se non",
+        "richiesto esplicitamente.",
         "",
     ]
+    total = 0
     for idx, r in enumerate(top, 1):
         title = (r.get("title") or "").strip() or "(senza titolo)"
         text = (r.get("text") or "").strip()
         cats = r.get("categories") or ([r.get("category")] if r.get("category") else [])
         cats_txt = ", ".join([c for c in cats if c]) or "Generale"
-        lines.append(f"[{idx}] {title}  •  Categoria: {cats_txt}")
+        block = f"[{idx}] {title}  •  {cats_txt}"
         if text:
-            lines.append(f"    -> {text[:AXON_PINNED_RULES_TEXT_CHARS]}")
+            block += f"\n    -> {text[:AXON_PINNED_RULES_TEXT_CHARS]}"
+        if total + len(block) > AXON_PINNED_TOTAL_CHARS:
+            break
+        lines.append(block)
+        total += len(block)
     lines.append("</REGOLE_ASSOLUTE>")
     return "\n".join(lines) + "\n\n"
 
@@ -14082,8 +14095,10 @@ async def _prepare_assistant_prompt(
                 pg = c.get("page_number") or 0
                 score = c.get("_score", 0.0)
                 content = (c.get("content") or "")[:2000]
+                # V50.z144 — voci testuali (FAQ/Dati/Nota) mostrano la categoria invece della pagina
+                _where = f"pagina {pg}" if (c.get("doc_kind") or "pdf") == "pdf" else (c.get("doc_category") or "Nota")
                 rag_section += (
-                    f"\n--- Estratto {i} da \"{dname}\" (pagina {pg}, rilevanza {score:.2f}) ---\n"
+                    f"\n--- Estratto {i} da \"{dname}\" ({_where}, rilevanza {score:.2f}) ---\n"
                     f"{content}\n"
                 )
             rag_section += (
@@ -14339,10 +14354,13 @@ async def _prepare_assistant_prompt(
         _cloud_section = ""
     system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
 
-    # V50.z53 — ROLLBACK EMERGENCY: PINNED rules e MEMORIA_PERSISTENTE
-    # DISATTIVATI (causavano risposte inutili tipo "Sono qui. Pronto. Cosa ti chiedi?"
-    # invece della vera risposta AI). Il sistema torna al comportamento V50.z50.
-    # _pinned_section e _tenant_mem_section restano calcolati ma NON iniettati.
+    # V50.z144 — PINNED rules RIATTIVATE e messe IN CIMA al system prompt come
+    # direttive vincolanti (<REGOLE_ASSOLUTE>). Il rollback V50.z53 riguardava la
+    # coppia PINNED + MEMORIA_PERSISTENTE con wording che portava a risposte vuote:
+    # il nuovo blocco impone di rispondere COMUNQUE in modo completo.
+    # MEMORIA_PERSISTENTE resta NON iniettata.
+    if _pinned_section:
+        system_message = _pinned_section + system_message
 
     if history:
         convo_text = ""
@@ -14491,8 +14509,10 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
                 pg = c.get("page_number") or 0
                 score = c.get("_score", 0.0)
                 content = (c.get("content") or "")[:2000]
+                # V50.z144 — voci testuali (FAQ/Dati/Nota) mostrano la categoria invece della pagina
+                _where = f"pagina {pg}" if (c.get("doc_kind") or "pdf") == "pdf" else (c.get("doc_category") or "Nota")
                 rag_section += (
-                    f"\n--- Estratto {i} da \"{dname}\" (pagina {pg}, rilevanza {score:.2f}) ---\n"
+                    f"\n--- Estratto {i} da \"{dname}\" ({_where}, rilevanza {score:.2f}) ---\n"
                     f"{content}\n"
                 )
             rag_section += (
@@ -14751,8 +14771,13 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         _cloud_section = ""
     system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
 
-    # V50.z53 — ROLLBACK EMERGENCY: rimossa iniezione PINNED/MEMORIA anche
-    # nell'endpoint non-streaming.
+    # V50.z144 — PINNED rules in cima anche nell'endpoint non-streaming (stesso blocco dello stream).
+    try:
+        _pinned_section_ns = await _build_pinned_rules_section(tenant_id(user), msg)
+    except Exception:
+        _pinned_section_ns = ""
+    if _pinned_section_ns:
+        system_message = _pinned_section_ns + system_message
 
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     chat = LlmChat(
@@ -15356,7 +15381,9 @@ async def _auto_capture_commitment_rules(user: dict, user_msg: str, reply: str) 
                 "text": s,
                 "text_norm": norm,
                 "files": [],
-                "auto_generated": True,
+                # V50.z144 — gli impegni "da ora farò X" sono PINNED (direttive vincolanti), non suggerimenti
+                "auto_generated": False,
+                "pinned": True,
                 "source": "chat_commitment",
                 "source_user_message": (user_msg or "")[:500],
                 "created_at": now,
@@ -16233,45 +16260,49 @@ def _extract_pdf_pages(pdf_base64: str, max_pages: int = RAG_MAX_PAGES) -> List[
 class MasterDocIn(BaseModel):
     name: str
     mime: Optional[str] = "application/pdf"
-    data_base64: str
+    data_base64: Optional[str] = None
+    # V50.z144 — Knowledge base: voci testuali (FAQ / dati ricorrenti / note) oltre ai PDF
+    kind: Optional[str] = None           # "pdf" | "text" (auto-rilevato se assente)
+    content: Optional[str] = None        # testo della voce (kind=text)
+    category: Optional[str] = None       # "Documento" | "FAQ" | "Dati" | "Nota"
 
 
-@api_router.post("/master-docs")
-async def create_master_doc(body: MasterDocIn, user=Depends(get_current_user)):
-    """Upload a PDF to Axon's knowledge base. MASTER-only.
-    Extracts text, chunks it and indexes tokens for retrieval."""
+class MasterDocUpdateIn(BaseModel):
+    name: Optional[str] = None
+    content: Optional[str] = None
+    category: Optional[str] = None
+
+
+MASTER_DOC_CATEGORIES = ("Documento", "FAQ", "Dati", "Nota")
+MASTER_DOC_TEXT_MAX_CHARS = 60000
+
+
+def _require_master_docs_owner(user: dict, action: str = "gestire") -> None:
     if user.get("parent_user_id") or (user.get("role") or "member") != "owner":
-        raise HTTPException(status_code=403, detail="Solo il Master può caricare documenti Axon")
-    name = (body.name or "").strip()[:200]
-    if not name:
-        raise HTTPException(status_code=400, detail="Nome documento richiesto")
-    if not body.data_base64:
-        raise HTTPException(status_code=400, detail="File richiesto")
-    mime = (body.mime or "application/pdf").lower()
-    if "pdf" not in mime and not name.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Solo PDF sono supportati (al momento)")
+        raise HTTPException(status_code=403, detail=f"Solo il Master può {action} la knowledge base di Axon")
 
-    pages = _extract_pdf_pages(body.data_base64)
-    if not pages:
-        raise HTTPException(status_code=400, detail="Il PDF non contiene testo estraibile (potrebbe essere scannerizzato)")
 
-    tid = tenant_id(user)
-    uid = user["user_id"]
-    doc_id = uuid.uuid4().hex
-    now = utcnow()
+def _decode_text_file_b64(data_base64: str) -> str:
+    """V50.z144 — Decodifica un file di testo (txt/md/csv) in base64."""
+    b64 = data_base64.split(",", 1)[1] if data_base64.startswith("data:") else data_base64
+    try:
+        raw = base64.b64decode(b64)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"File base64 non valido: {e}")
+    for enc in ("utf-8", "latin-1"):
+        try:
+            return raw.decode(enc)
+        except Exception:
+            continue
+    return raw.decode("utf-8", errors="ignore")
 
-    # Approximate size from base64
-    b64 = body.data_base64
-    if b64.startswith("data:"):
-        b64 = b64.split(",", 1)[1]
-    approx_size = int(len(b64) * 3 / 4)
 
-    # Chunk each page; keep page reference in each chunk
+def _build_master_doc_chunks(doc_id: str, uid: str, tid: str, pages: List[Tuple[int, str]], now) -> List[dict]:
+    """Chunk ogni pagina/paragrafo e indicizza i token (usato da create + update)."""
     chunk_docs: List[dict] = []
     chunk_idx = 0
     for page_no, page_text in pages:
         page_chunks = _chunk_text_by_words(page_text)
-        # Fallback: if a page produced no chunks (whitespace-only), skip it
         if not page_chunks:
             continue
         for c_text in page_chunks:
@@ -16285,44 +16316,183 @@ async def create_master_doc(body: MasterDocIn, user=Depends(get_current_user)):
                 "tenant_id": tid,
                 "chunk_index": chunk_idx,
                 "page_number": page_no,
-                "content": c_text[:4000],  # cap chunk length
+                "content": c_text[:4000],
                 "tokens": tokens,
                 "created_at": now,
             })
             chunk_idx += 1
+    return chunk_docs
 
+
+def _text_to_pages(title: str, content: str) -> List[Tuple[int, str]]:
+    """Voce testuale → 'pagine' logiche (blocchi separati da riga vuota, ~1500 char) col titolo
+    in testa a ogni blocco così il retrieval token/embedding aggancia anche il titolo."""
+    content = (content or "").strip()
+    if not content:
+        return []
+    paras = [p.strip() for p in re.split(r"\n\s*\n", content) if p.strip()]
+    pages: List[Tuple[int, str]] = []
+    buf = ""
+    for p in paras:
+        if buf and len(buf) + len(p) > 1500:
+            pages.append((len(pages) + 1, f"{title}\n{buf}".strip()))
+            buf = p
+        else:
+            buf = (buf + "\n\n" + p) if buf else p
+    if buf:
+        pages.append((len(pages) + 1, f"{title}\n{buf}".strip()))
+    return pages
+
+
+@api_router.post("/master-docs")
+async def create_master_doc(body: MasterDocIn, user=Depends(get_current_user)):
+    """Knowledge base Axon (MASTER-only): PDF, file di testo (txt/md/csv) o voce testuale
+    (FAQ / dati ricorrenti / nota). Estrae il testo, lo divide in chunk e indicizza i token
+    per il retrieval automatico prima di ogni risposta."""
+    _require_master_docs_owner(user, "caricare documenti in")
+    name = (body.name or "").strip()[:200]
+    if not name:
+        raise HTTPException(status_code=400, detail="Nome/titolo richiesto")
+    mime = (body.mime or "").lower()
+    kind = (body.kind or "").lower()
+    if not kind:
+        kind = "text" if (body.content and not body.data_base64) else "pdf"
+    category = (body.category or "").strip()
+    if category not in MASTER_DOC_CATEGORIES:
+        category = "Documento" if kind == "pdf" else "Nota"
+
+    tid = tenant_id(user)
+    uid = user["user_id"]
+    doc_id = uuid.uuid4().hex
+    now = utcnow()
+    approx_size = 0
+    content_text: Optional[str] = None
+
+    if kind == "text":
+        content_text = (body.content or "").strip()
+        if not content_text and body.data_base64:
+            content_text = _decode_text_file_b64(body.data_base64).strip()
+        if len(content_text) < 10:
+            raise HTTPException(status_code=400, detail="Testo troppo breve (min 10 caratteri)")
+        content_text = content_text[:MASTER_DOC_TEXT_MAX_CHARS]
+        approx_size = len(content_text.encode("utf-8"))
+        mime = mime or "text/plain"
+        pages = _text_to_pages(name, content_text)
+    else:
+        if not body.data_base64:
+            raise HTTPException(status_code=400, detail="File richiesto")
+        is_pdf = "pdf" in mime or name.lower().endswith(".pdf")
+        is_textfile = any(name.lower().endswith(ext) for ext in (".txt", ".md", ".csv")) or mime.startswith("text/")
+        if not is_pdf and not is_textfile:
+            raise HTTPException(status_code=400, detail="Formati supportati: PDF, TXT, MD, CSV oppure voce testuale")
+        b64 = body.data_base64.split(",", 1)[1] if body.data_base64.startswith("data:") else body.data_base64
+        approx_size = int(len(b64) * 3 / 4)
+        if is_pdf:
+            mime = mime or "application/pdf"
+            pages = _extract_pdf_pages(body.data_base64)
+            if not pages:
+                raise HTTPException(status_code=400, detail="Il PDF non contiene testo estraibile (potrebbe essere scannerizzato)")
+        else:
+            kind = "text"
+            mime = mime or "text/plain"
+            content_text = _decode_text_file_b64(body.data_base64).strip()[:MASTER_DOC_TEXT_MAX_CHARS]
+            if len(content_text) < 10:
+                raise HTTPException(status_code=400, detail="Il file di testo è vuoto")
+            pages = _text_to_pages(name, content_text)
+
+    chunk_docs = _build_master_doc_chunks(doc_id, uid, tid, pages, now)
     if not chunk_docs:
-        raise HTTPException(status_code=400, detail="Nessun testo utile trovato nel PDF")
+        raise HTTPException(status_code=400, detail="Nessun testo utile trovato")
 
-    # Persist document metadata
-    await db.master_documents.insert_one({
+    doc = {
         "doc_id": doc_id,
         "user_id": uid,
         "tenant_id": tid,
         "name": name,
         "mime": mime,
+        "kind": kind,
+        "category": category,
         "size": approx_size,
         "total_pages": len(pages),
         "total_chunks": len(chunk_docs),
         "created_at": now,
-    })
-    # Bulk insert chunks
+        "updated_at": now,
+    }
+    if content_text is not None:
+        doc["content"] = content_text
+    await db.master_documents.insert_one(doc)
     try:
         await db.master_doc_chunks.insert_many(chunk_docs, ordered=False)
     except Exception as exc:
         logger.warning("[master-docs] chunk insert failed: %s", exc)
-        # Roll back the doc record on massive failure
         await db.master_documents.delete_one({"doc_id": doc_id})
         raise HTTPException(status_code=500, detail="Salvataggio chunks fallito")
 
     return {
         "doc_id": doc_id,
         "name": name,
+        "kind": kind,
+        "category": category,
         "total_pages": len(pages),
         "total_chunks": len(chunk_docs),
         "size": approx_size,
         "created_at": now.isoformat(),
     }
+
+
+@api_router.put("/master-docs/{doc_id}")
+async def update_master_doc(doc_id: str, body: MasterDocUpdateIn, user=Depends(get_current_user)):
+    """V50.z144 — Aggiorna una voce della knowledge base (MASTER-only): rinomina / categoria per
+    tutti; per le voci testuali anche il contenuto (re-chunk + re-index, embeddings ricalcolati lazy)."""
+    _require_master_docs_owner(user, "modificare")
+    tid = tenant_id(user)
+    doc = await db.master_documents.find_one({"doc_id": doc_id, "tenant_id": tid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    upd: dict = {"updated_at": utcnow()}
+    if body.name is not None:
+        nm = body.name.strip()[:200]
+        if not nm:
+            raise HTTPException(status_code=400, detail="Nome/titolo richiesto")
+        upd["name"] = nm
+    if body.category is not None:
+        if body.category not in MASTER_DOC_CATEGORIES:
+            raise HTTPException(status_code=400, detail=f"Categoria non valida ({', '.join(MASTER_DOC_CATEGORIES)})")
+        upd["category"] = body.category
+    reindexed = False
+    if body.content is not None:
+        if (doc.get("kind") or "pdf") != "text":
+            raise HTTPException(status_code=400, detail="Il contenuto è modificabile solo per le voci testuali")
+        content_text = body.content.strip()[:MASTER_DOC_TEXT_MAX_CHARS]
+        if len(content_text) < 10:
+            raise HTTPException(status_code=400, detail="Testo troppo breve (min 10 caratteri)")
+        title = upd.get("name") or doc.get("name") or ""
+        pages = _text_to_pages(title, content_text)
+        chunk_docs = _build_master_doc_chunks(doc_id, doc.get("user_id") or user["user_id"], tid, pages, upd["updated_at"])
+        if not chunk_docs:
+            raise HTTPException(status_code=400, detail="Nessun testo utile trovato")
+        await db.master_doc_chunks.delete_many({"doc_id": doc_id})
+        await db.master_doc_chunks.insert_many(chunk_docs, ordered=False)
+        upd.update({"content": content_text, "size": len(content_text.encode("utf-8")),
+                    "total_pages": len(pages), "total_chunks": len(chunk_docs)})
+        reindexed = True
+    elif "name" in upd and (doc.get("kind") or "pdf") == "text" and doc.get("content"):
+        # Il titolo è parte dei chunk testuali → re-index leggero
+        pages = _text_to_pages(upd["name"], doc["content"])
+        chunk_docs = _build_master_doc_chunks(doc_id, doc.get("user_id") or user["user_id"], tid, pages, upd["updated_at"])
+        if chunk_docs:
+            await db.master_doc_chunks.delete_many({"doc_id": doc_id})
+            await db.master_doc_chunks.insert_many(chunk_docs, ordered=False)
+            upd.update({"total_pages": len(pages), "total_chunks": len(chunk_docs)})
+            reindexed = True
+    await db.master_documents.update_one({"doc_id": doc_id}, {"$set": upd})
+    out = await db.master_documents.find_one({"doc_id": doc_id}, {"_id": 0})
+    for k in ("created_at", "updated_at"):
+        if hasattr(out.get(k), "isoformat"):
+            out[k] = out[k].isoformat()
+    out["reindexed"] = reindexed
+    return out
+
 
 
 @api_router.get("/master-docs")
@@ -16332,16 +16502,33 @@ async def list_master_docs(user=Depends(get_current_user)):
     tid = tenant_id(user)
     cursor = db.master_documents.find(
         {"tenant_id": tid},
-        {"_id": 0},
+        {"_id": 0, "content": 0},  # V50.z144 — il contenuto testuale si legge da GET /master-docs/{id}
     ).sort("created_at", -1)
     items = [d async for d in cursor]
     # Serialize dates
     for it in items:
-        for k in ("created_at",):
+        it.setdefault("kind", "pdf")
+        it.setdefault("category", "Documento")
+        for k in ("created_at", "updated_at"):
             v = it.get(k)
             if hasattr(v, "isoformat"):
                 it[k] = v.isoformat()
     return {"items": items, "total": len(items)}
+
+
+@api_router.get("/master-docs/{doc_id}")
+async def get_master_doc(doc_id: str, user=Depends(get_current_user)):
+    """V50.z144 — Dettaglio voce knowledge base (incluso il testo per le voci testuali)."""
+    tid = tenant_id(user)
+    doc = await db.master_documents.find_one({"doc_id": doc_id, "tenant_id": tid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    doc.setdefault("kind", "pdf")
+    doc.setdefault("category", "Documento")
+    for k in ("created_at", "updated_at"):
+        if hasattr(doc.get(k), "isoformat"):
+            doc[k] = doc[k].isoformat()
+    return doc
 
 
 @api_router.delete("/master-docs/{doc_id}")
@@ -16960,15 +17147,18 @@ async def _retrieve_master_doc_chunks(
         c.pop("embedding", None)
         c.pop("_jscore", None)
     doc_ids = list({c["doc_id"] for c in top})
-    doc_map: Dict[str, str] = {}
+    doc_map: Dict[str, dict] = {}
     docs_cursor = db.master_documents.find(
         {"doc_id": {"$in": doc_ids}, "tenant_id": tenant},
-        {"_id": 0, "doc_id": 1, "name": 1},
+        {"_id": 0, "doc_id": 1, "name": 1, "kind": 1, "category": 1},
     )
     async for d in docs_cursor:
-        doc_map[d["doc_id"]] = d.get("name") or ""
+        doc_map[d["doc_id"]] = d
     for c in top:
-        c["doc_name"] = doc_map.get(c["doc_id"], "?")
+        d = doc_map.get(c["doc_id"]) or {}
+        c["doc_name"] = d.get("name") or "?"
+        c["doc_kind"] = d.get("kind") or "pdf"           # V50.z144
+        c["doc_category"] = d.get("category") or "Documento"
     return top
 
 

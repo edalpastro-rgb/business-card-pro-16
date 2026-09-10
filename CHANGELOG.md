@@ -138,6 +138,16 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ricerca PDF GME / tabelle PUN / dual-storage (V50.z26/27/28), validazione prefetch GME (V50.z77).
 - **RAG documenti Master** (v42): chunk + retrieval per tenant; **Knowledge Base personale** da pagine WebView con auto-search
   (V50.z92, V50.z100). Axon Drive re-index (V50.z85, V50.z8-9).
+  **V50.z144 — Knowledge Base Axon completa** (`/documenti-axon`, Master): oltre ai PDF ora **voci testuali** FAQ / Dati / Nota
+  (`POST /master-docs {kind:"text", category, content}`) e file TXT/MD/CSV; **modifica** (`PUT /master-docs/{id}` — rinomina,
+  categoria, contenuto con re-chunk/re-index), dettaglio `GET /master-docs/{id}`, elimina. UI: filtri per categoria, badge, icone
+  per tipo, tap/matita → editor (`src/KbEntryEditorModal.tsx`), FAB "Nuova voce" + "Carica file", link "Regole" → Insegna ad Axon.
+  Retrieval automatico pre-risposta invariato (token prefilter + embeddings, `_retrieve_master_doc_chunks`), estratti etichettati
+  con la categoria per le voci testuali.
+  **PINNED riattivate**: `<REGOLE_ASSOLUTE>` ora IN CIMA al system prompt (stream e non-stream) come DIRETTIVE VINCOLANTI: tutte
+  le regole manuali del Master (cap 40, 500 char) + 6 auto-generate più rilevanti; wording anti-regressione z53 ("rispondi comunque
+  in modo completo"). Gli impegni "da ora farò X" (z129) vengono salvati con `auto_generated=False, pinned=True` → PINNED.
+  MEMORIA_PERSISTENTE resta disattivata.
 - Semantic cache "istantanea" badge, badge web, "Nuovo aggiornamento: data" su azioni rapide.
 - Fix input chat coperto da tastiera Android (V50.z12, V50.z39), input riorganizzato (V50.h).
 
@@ -228,6 +238,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z144 | Giu 2026 | Knowledge Base Axon: voci FAQ/Dati/Nota + TXT/MD/CSV, modifica/rinomina, filtri; PINNED riattivate in cima al prompt; impegni "da ora farò X" PINNED |
 | V50.z143 | Giu 2026 | Insegna ad Axon: "Distilla chat" → Claude estrae regole da conversazione incollata/storica e le salva PINNED |
 | V50.z142 | Giu 2026 | Chat Axon: ack SSE immediato "Sto ragionando…" come primo evento (<1s), fallback locale nel client |
 | V50.z141 | Giu 2026 | Bottom bar: "Report" → "Help" (apre guida/tour); "Statistiche" nel menu laterale (Team & Insights) e Edge Panel |

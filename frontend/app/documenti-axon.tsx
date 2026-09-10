@@ -23,6 +23,7 @@ import { notify, confirmAsync } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import * as FileSystem from "expo-file-system/legacy";
+import { KbEntryEditorModal, KB_CATEGORIES, type KbCategory } from "@/src/KbEntryEditorModal";
 
 type MasterDoc = {
   doc_id: string;
@@ -32,6 +33,16 @@ type MasterDoc = {
   total_pages?: number;
   total_chunks?: number;
   created_at?: string;
+  updated_at?: string;
+  kind?: "pdf" | "text";       // V50.z144
+  category?: KbCategory;       // V50.z144
+};
+
+const KIND_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
+  Documento: "document-text",
+  FAQ: "help-circle",
+  Dati: "stats-chart",
+  Nota: "create",
 };
 
 export default function DocumentiAxonScreen() {
@@ -43,6 +54,10 @@ export default function DocumentiAxonScreen() {
   const [items, setItems] = useState<MasterDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  // V50.z144 — editor voce KB (nuova FAQ/Dati/Nota o modifica/rinomina)
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorDoc, setEditorDoc] = useState<MasterDoc | null>(null);
+  const [filterCat, setFilterCat] = useState<KbCategory | "all">("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,8 +86,11 @@ export default function DocumentiAxonScreen() {
       }
       const mime = (asset.mimeType || "").toLowerCase();
       const name = (asset.name || "documento.pdf").toString();
-      if (!mime.includes("pdf") && !name.toLowerCase().endsWith(".pdf")) {
-        notify("Formato non supportato", "Al momento sono accettati solo file PDF.");
+      const lower = name.toLowerCase();
+      const isPdf = mime.includes("pdf") || lower.endsWith(".pdf");
+      const isText = mime.startsWith("text/") || [".txt", ".md", ".csv"].some((e) => lower.endsWith(e));
+      if (!isPdf && !isText) {
+        notify("Formato non supportato", "Sono accettati PDF, TXT, MD e CSV. Per FAQ e dati usa «Nuova voce».");
         return;
       }
       let b64 = base64 || (asset as { _base64?: string })._base64 || "";
@@ -105,16 +123,16 @@ export default function DocumentiAxonScreen() {
         }
       }
       if (!b64) {
-        notify("File vuoto", "Impossibile leggere il PDF selezionato.");
+        notify("File vuoto", "Impossibile leggere il file selezionato.");
         return;
       }
-      const stripped = name.replace(/\.pdf$/i, "");
+      const stripped = name.replace(/\.(pdf|txt|md|csv)$/i, "");
       await api("/master-docs", {
         method: "POST",
-        body: { name: stripped, mime: "application/pdf", data_base64: b64 },
+        body: { name: stripped, mime: isPdf ? "application/pdf" : (mime || "text/plain"), data_base64: b64, category: "Documento" },
       });
       await load();
-      notify("PDF caricato", "Axon ora userà questo documento nelle sue risposte.");
+      notify(isPdf ? "PDF caricato" : "File caricato", "Axon ora userà questo documento nelle sue risposte.");
     } catch (e: any) {
       notify("Upload fallito", e?.message || String(e));
     } finally {
@@ -161,9 +179,13 @@ export default function DocumentiAxonScreen() {
           <Ionicons name="chevron-back" size={22} color="#FFF" />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Documenti Axon</Text>
-          <Text style={styles.headerSub}>La base di conoscenza personale</Text>
+          <Text style={styles.headerTitle}>Knowledge Base Axon</Text>
+          <Text style={styles.headerSub}>Documenti, FAQ e dati ricorrenti che Axon usa per rispondere</Text>
         </View>
+        <Pressable onPress={() => router.push("/ai-teach" as any)} hitSlop={8} style={styles.rulesBtn} testID="kb-goto-rules">
+          <Ionicons name="school" size={16} color="#FFF" />
+          <Text style={styles.rulesBtnTxt}>Regole</Text>
+        </Pressable>
       </View>
 
       {/* Info box */}
@@ -172,8 +194,9 @@ export default function DocumentiAxonScreen() {
           <Ionicons name="bulb" size={16} color="#B45309" />
         </View>
         <Text style={styles.infoTxt}>
-          Carica qui i tuoi PDF (contratti, listini, brochure, procedure): Axon li leggerà e li
-          userà per rispondere in modo preciso alle tue domande e a quelle dei tuoi collaboratori.
+          Carica PDF/testi o scrivi FAQ, dati ricorrenti e note: prima di ogni risposta Axon cerca automaticamente
+          le voci pertinenti alla domanda e le carica nel contesto. Le regole di comportamento (direttive PINNED) si
+          gestiscono in «Regole».
         </Text>
       </View>
 
@@ -187,7 +210,23 @@ export default function DocumentiAxonScreen() {
         </View>
       )}
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 12 }}>
+      {/* V50.z144 — Filtro categoria */}
+      {items.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, gap: 8 }}>
+          {([{ key: "all", label: "Tutte" }, ...KB_CATEGORIES.map((c) => ({ key: c.key, label: c.key }))] as { key: KbCategory | "all"; label: string }[]).map((c) => {
+            const on = filterCat === c.key;
+            const n = c.key === "all" ? items.length : items.filter((d) => (d.category || "Documento") === c.key).length;
+            if (c.key !== "all" && n === 0) return null;
+            return (
+              <Pressable key={c.key} onPress={() => setFilterCat(c.key)} style={[styles.filterChip, on && styles.filterChipOn]} testID={`kb-filter-${c.key}`}>
+                <Text style={[styles.filterTxt, on && { color: "#FFF" }]}>{c.label} · {n}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120, gap: 12 }}>
         {loading && (
           <View style={{ alignItems: "center", paddingVertical: 40 }}>
             <ActivityIndicator color={theme.color.brandPrimary} />
@@ -197,69 +236,102 @@ export default function DocumentiAxonScreen() {
         {!loading && items.length === 0 && (
           <View style={styles.emptyBox}>
             <Ionicons name="documents-outline" size={40} color="#94A3B8" />
-            <Text style={styles.emptyTitle}>Nessun documento caricato</Text>
+            <Text style={styles.emptyTitle}>Knowledge base vuota</Text>
             <Text style={styles.emptyTxt}>
               {isMaster
-                ? "Tocca «Carica PDF» per aggiungere il primo documento."
+                ? "Tocca «Carica file» per un PDF/TXT oppure «Nuova voce» per una FAQ o un dato ricorrente."
                 : "Il tuo Master non ha ancora caricato documenti Axon."}
             </Text>
           </View>
         )}
 
         {!loading &&
-          items.map((d) => (
-            <View key={d.doc_id} style={styles.docCard} testID={`doc-${d.doc_id}`}>
+          items.filter((d) => filterCat === "all" || (d.category || "Documento") === filterCat).map((d) => {
+            const cat = (d.category || "Documento") as KbCategory;
+            const isText = (d.kind || "pdf") === "text";
+            return (
+            <Pressable
+              key={d.doc_id}
+              style={styles.docCard}
+              testID={`doc-${d.doc_id}`}
+              disabled={!isMaster}
+              onPress={() => { setEditorDoc(d); setEditorOpen(true); }}
+              accessibilityLabel={isMaster ? "Modifica voce" : undefined}
+            >
               <View style={styles.docIcon}>
-                <Ionicons name="document-text" size={22} color="#7C3AED" />
+                <Ionicons name={KIND_ICON[cat] || "document-text"} size={22} color="#7C3AED" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.docName} numberOfLines={2}>{d.name}</Text>
                 <View style={styles.docMeta}>
+                  <View style={styles.catBadge}><Text style={styles.catBadgeTxt}>{cat}</Text></View>
                   <Text style={styles.docMetaTxt}>
-                    {d.total_pages ? `${d.total_pages} pag` : ""}
-                    {d.total_pages && d.total_chunks ? " · " : ""}
+                    {!isText && d.total_pages ? `${d.total_pages} pag · ` : ""}
                     {d.total_chunks ? `${d.total_chunks} chunk` : ""}
-                    {(d.total_pages || d.total_chunks) && d.size ? " · " : ""}
-                    {d.size ? fmtSize(d.size) : ""}
+                    {d.size ? ` · ${fmtSize(d.size)}` : ""}
                   </Text>
-                  {d.created_at && (
-                    <Text style={styles.docMetaTxt}>· {fmtDate(d.created_at)}</Text>
+                  {(d.updated_at || d.created_at) && (
+                    <Text style={styles.docMetaTxt}>· {fmtDate(d.updated_at || d.created_at)}</Text>
                   )}
                 </View>
               </View>
               {isMaster && (
-                <Pressable
-                  onPress={() => void remove(d)}
-                  hitSlop={8}
-                  style={styles.docDelBtn}
-                  testID={`doc-del-${d.doc_id}`}
-                  accessibilityLabel="Elimina documento"
-                >
-                  <Ionicons name="trash" size={18} color="#DC2626" />
-                </Pressable>
+                <View style={{ flexDirection: "row", gap: 6 }}>
+                  <Pressable
+                    onPress={() => { setEditorDoc(d); setEditorOpen(true); }}
+                    hitSlop={8}
+                    style={[styles.docDelBtn, { backgroundColor: "#F3E8FF" }]}
+                    testID={`doc-edit-${d.doc_id}`}
+                    accessibilityLabel={isText ? "Modifica voce" : "Rinomina documento"}
+                  >
+                    <Ionicons name="create-outline" size={18} color="#7C3AED" />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void remove(d)}
+                    hitSlop={8}
+                    style={styles.docDelBtn}
+                    testID={`doc-del-${d.doc_id}`}
+                    accessibilityLabel="Elimina documento"
+                  >
+                    <Ionicons name="trash" size={18} color="#DC2626" />
+                  </Pressable>
+                </View>
               )}
-            </View>
-          ))}
+            </Pressable>
+            );
+          })}
       </ScrollView>
 
-      {/* Upload FAB — Master only */}
+      {/* FAB — Master only: Carica file + Nuova voce */}
       {isMaster && (
-        <Pressable
-          onPress={upload}
-          disabled={uploading}
-          style={[styles.fab, { bottom: 96 + bottomPad - 24 }, uploading && { opacity: 0.6 }]}
-          testID="doc-upload-fab"
-        >
-          {uploading ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <>
-              <Ionicons name="cloud-upload" size={20} color="#FFF" />
-              <Text style={styles.fabTxt}>Carica PDF</Text>
-            </>
-          )}
-        </Pressable>
+        <View style={[styles.fabRow, { bottom: 96 + bottomPad - 24 }]}>
+          <Pressable
+            onPress={() => { setEditorDoc(null); setEditorOpen(true); }}
+            style={[styles.fab, { backgroundColor: "#1B2B4B", shadowColor: "#1B2B4B" }]}
+            testID="kb-new-entry-fab"
+          >
+            <Ionicons name="add-circle" size={20} color="#FFF" />
+            <Text style={styles.fabTxt}>Nuova voce</Text>
+          </Pressable>
+          <Pressable
+            onPress={upload}
+            disabled={uploading}
+            style={[styles.fab, uploading && { opacity: 0.6 }]}
+            testID="doc-upload-fab"
+          >
+            {uploading ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="cloud-upload" size={20} color="#FFF" />
+                <Text style={styles.fabTxt}>Carica file</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
       )}
+
+      <KbEntryEditorModal visible={editorOpen} doc={editorDoc} onClose={() => setEditorOpen(false)} onSaved={load} />
     </SafeAreaView>
   );
 }
@@ -354,7 +426,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   docName: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
-  docMeta: { flexDirection: "row", flexWrap: "wrap", marginTop: 2 },
+  docMeta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", marginTop: 3 },
   docMetaTxt: { fontSize: 11, color: "#64748B", marginRight: 4 },
   docDelBtn: {
     width: 36,
@@ -365,14 +437,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   fab: {
-    position: "absolute",
-    bottom: 96, // clear the bottom tab bar + Axon FAB
-    right: 24,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     paddingVertical: 14,
-    paddingHorizontal: 20,
+    paddingHorizontal: 14,
     borderRadius: 999,
     backgroundColor: "#7C3AED",
     shadowColor: "#7C3AED",
@@ -381,5 +450,14 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
+  // V50.z144 — riga FAB (Nuova voce + Carica file)
+  fabRow: { position: "absolute", right: 92, left: 16, flexDirection: "row", justifyContent: "flex-start", gap: 10 }, // right: 92 → non copre il FAB AxonOS
   fabTxt: { color: "#FFF", fontWeight: "800", fontSize: 14, letterSpacing: -0.2 },
+  rulesBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.18)" },
+  rulesBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: "#DDD6FE", backgroundColor: "#FFF", minHeight: 32, justifyContent: "center" },
+  filterChipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
+  filterTxt: { fontSize: 12, fontWeight: "700", color: "#7C3AED" },
+  catBadge: { backgroundColor: "#F3E8FF", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1, marginRight: 6 },
+  catBadgeTxt: { fontSize: 10, fontWeight: "800", color: "#7C3AED" },
 });

@@ -1,6 +1,18 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z144 (Giu 2026) — Knowledge Base Axon + regole PINNED vincolanti
+
+**Stato pre-esistente rilevato**: RAG per tenant (`master_documents` + `master_doc_chunks`, solo PDF, pagina `/documenti-axon`) e retrieval automatico in preflight già attivi; `_build_pinned_rules_section` esisteva ma **NON era iniettata** (rollback V50.z53: risposte vuote "Sono qui. Pronto."); le regole entravano solo a metà prompt come "BASE DI CONOSCENZA… usa come contesto prioritario" (suggerimento, max 8); impegni z129 salvati `auto_generated=True` (non PINNED).
+
+**Backend** (`server.py`):
+1. KB: `MasterDocIn` + `kind|content|category` (categorie `Documento|FAQ|Dati|Nota`, `MASTER_DOC_TEXT_MAX_CHARS=60000`); `POST /master-docs` accetta PDF, TXT/MD/CSV (base64 → `_decode_text_file_b64`) e voci testuali (`_text_to_pages`: blocchi ~1500 char separati da riga vuota, titolo in testa a ogni blocco per il retrieval); helper `_build_master_doc_chunks`; doc salva `kind, category, content, updated_at`. `PUT /master-docs/{id}` (`MasterDocUpdateIn name|category|content`): re-chunk + re-index (embeddings lazy) per voci testuali, re-index leggero se cambia solo il titolo. `GET /master-docs/{id}` (con content); lista esclude `content`. `_retrieve_master_doc_chunks` arricchisce `doc_kind/doc_category`; nel prompt gli estratti testuali mostrano `(FAQ, rilevanza …)` invece di `pagina 1`.
+2. PINNED: `_build_pinned_rules_section` riscritta — tutte le manuali (`auto_generated=False`, cap `AXON_PINNED_RULES_MAX=40`) + `AXON_PINNED_AUTO_MAX=6` auto per rilevanza, 500 char/regola, budget 14k; header "DIRETTIVE VINCOLANTI… NON sono suggerimenti… devi COMUNQUE rispondere in modo completo". Iniettata `system_message = _pinned_section + system_message` in `_prepare_assistant_prompt` (stream) e in `assistant_chat` (non-stream). MEMORIA_PERSISTENTE resta off.
+3. `_auto_capture_commitment_rules`: `auto_generated=False, pinned=True` (source `chat_commitment`).
+**Frontend**: `src/KbEntryEditorModal.tsx` (nuovo: titolo, chip categoria, textarea; edit carica content via GET; PDF → solo rinomina/categoria; footer fisso). `app/documenti-axon.tsx`: header "Knowledge Base Axon" + bottone "Regole" → `/ai-teach`; filtri categoria con conteggi; card con icona per categoria, badge, matita (edit) + cestino; tap card = edit; upload accetta PDF/TXT/MD/CSV; FAB row "Nuova voce" (navy) + "Carica file" (viola), `right: 92` per non coprire il FAB AxonOS. testID: `kb-new-entry-fab`, `doc-upload-fab`, `doc-edit-<id>`, `doc-del-<id>`, `kb-filter-<cat>`, `kb-editor-*`, `kb-goto-rules`.
+**Test**: API create FAQ text → 1 chunk; list senza content; GET content; PUT content+categoria → reindexed; upload note.txt → kind text. E2E chat stream: domanda su Zurbuck+POD → risposta usa FAQ aggiornata (19,90 €) + txt (POD) + regola PINNED manuale (chiusura "Energia in movimento!") in 3.9s, risposta completa ✅. Web UI: nuova voce Dati → card, filtro Dati·2, edit carica contenuto ✅. Dati di test rimossi.
+
+
 ## V50.z143 (Giu 2026) — Distilla conversazione in regole (PINNED)
 
 **Backend** (`server.py`):
