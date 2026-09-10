@@ -123,6 +123,10 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## 7. Scanner documenti e Bollette
 - Scanner live `LiveCameraScanner.tsx`: autofocus continuo, rilevamento bordi live, anti-motion blur, scatto automatico con toggle
   Auto/Manuale, auto-crop (V29C/D/E, V29.ar).
+- **V50.z134 — Autocrop robusto** (`_detect_document_quad` condiviso da `merge-pdf` e `autocrop-preview`): padding anti-bordo, 7 mappe
+  (Canny auto/fisso, Otsu, adaptive, saturazione, regione chiara), convex hull + multi-epsilon, punteggio area×rettangolarità×contrasto
+  lati, filtri "intera foto" / "fuori è ancora carta", fallback minAreaRect. Test sintetici 6/6 (IoU 0.83–0.99), nessun falso
+  ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
 - Analisi bolletta (cliente + Master allineati, v2.8), CTE comparativa multi-bolletta + report (v2.12), Fiscal Check con JSON
@@ -180,6 +184,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z134 | Giu 2026 | Scanner: autocrop robusto (nuovo detector OpenCV) + Foto singola sempre fotocamera posteriore |
 | V50.z133 | Giu 2026 | Tour onboarding: attesa navigator pronto + flag device al primo mostrare (una volta per dispositivo) |
 | V50.z132 | Giu 2026 | Home: widget meteo solo con allerte, mini-icona meteo sul banner, Appuntamenti di oggi sotto Ritelefonate |
 | V50.z131 | Giu 2026 | FAB Axon: tap via Pressable (fix Contatti); drawer: rimosso "Note", "Business Cards" → `/business-card` |

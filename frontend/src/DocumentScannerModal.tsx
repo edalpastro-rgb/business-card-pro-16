@@ -78,6 +78,8 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
         quality: 0.85,
         base64: true,
         exif: false,
+        // V50.z134 — "Foto singola" deve aprire SEMPRE la fotocamera posteriore
+        cameraType: ImagePicker.CameraType.back,
       });
       if (res.canceled || !res.assets?.length) return;
       const a = res.assets[0];

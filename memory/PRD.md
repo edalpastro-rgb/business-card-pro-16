@@ -1,6 +1,20 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z134 (Giu 2026) — Scanner: fotocamera posteriore + autocrop che funziona davvero
+
+**1) Foto singola → fotocamera frontale**: `DocumentScannerModal.addFromCamera` non passava `cameraType`; su alcuni Android il picker riapriva l'ultima lente usata (frontale). Ora `cameraType: ImagePicker.CameraType.back`.
+
+**2) Autocrop attivo ma senza ritaglio**: il vecchio detector (Canny 60/180 fisso, solo `RETR_EXTERNAL`, `approxPolyDP` 2%, area ≥ 20%) falliva silenziosamente (fallback = immagine intera) nei casi reali: foglio che tocca il bordo foto, carta bianca su scrivania chiara, contorno non perfettamente a 4 punti. Nuovo `_detect_document_quad(src)` in `server.py`:
+- downscale 900px + padding 12px nero (chiude i contorni sui bordi) → `_is_whole_frame` scarta il contorno della foto intera;
+- 7 mappe: Canny auto-soglia (mediana), Canny 30/100, Canny 60/180, Otsu, adaptive threshold, Canny su saturazione, regione chiara `inRange`; chiusura morfologica;
+- `RETR_LIST` + `convexHull` + epsilon 2–7%; angoli 60–120°, rettangolarità ≥ 0.75, area 15–98.5%;
+- `_side_contrasts`: contrasto dentro/fuori lungo i lati (≥ 2 lati con ≥ 10/255); `_outside_is_paper`: se fuori dal quad è più chiaro (+12) e > 200 → è margine di carta (foglio che riempie la foto) → nessun ritaglio;
+- score = area × rettangolarità × (0.4 + 0.6·contrasto/40); fallback `minAreaRect` sul contorno più grande ≥ 30%.
+- `_warp_quad` + `_order_quad` helper; `_cv2_scan_document` e `/scanner/autocrop-preview` usano il detector condiviso (prima duplicato).
+- Test `/tmp/scan_test.py` (foto sintetiche): dark_desk 0.99, wood_desk 0.95, light_desk 0.94, touching_edge 0.83, small_receipt 0.98, white_on_white 0.94 (prima: 2 casi non rilevati); negativi: foto senza documento → None; foglio a tutta foto (con rumore) → None. Tempo ~50ms su foto 3000×4000. E2E via API: preview detected=true, merge-pdf 2 pagine OK.
+- Android/iOS: l'algoritmo gira sul backend (identico per entrambe); l'orientamento EXIF è gestito da `ImageOps.exif_transpose`.
+
 ## V50.z133 (Giu 2026) — Tour onboarding: ripristino "una volta per dispositivo"
 
 - Causa più probabile su APK: a cold start con sessione salvata Home è la prima schermata; `router.replace` nell'`useEffect` partiva prima che il navigator root fosse pronto → azione ignorata (nessun errore) → tour mai mostrato.
