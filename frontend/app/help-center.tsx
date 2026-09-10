@@ -103,10 +103,10 @@ export default function HelpCenterScreen() {
             <Ionicons name="sparkles" size={20} color="#FFF" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.replayTitle}>Rivedi tour guidato</Text>
+            <Text style={styles.replayTitle}>Rifai il tour guidato</Text>
             <Text style={styles.replayHint}>Riparte dall'inizio: intro animata + giro guidato dell'app</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+          <Ionicons name="chevron-forward" size={18} color="#FFF" />
         </Pressable>
 
         <View style={styles.badge}>
@@ -241,10 +241,11 @@ export default function HelpCenterScreen() {
 }
 
 const styles = StyleSheet.create({
-  replayBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.color.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.color.border, minHeight: 64 },
-  replayIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" },
-  replayTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  replayHint: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  // V50.z137 — bottone prominente (pieno, colore brand) come prima voce dell'Help Center
+  replayBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#7C3AED", borderRadius: 14, padding: 16, minHeight: 68, shadowColor: "#7C3AED", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  replayIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  replayTitle: { fontSize: 16, fontWeight: "900", color: "#FFF" },
+  replayHint: { fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 2 },
   root: { flex: 1, backgroundColor: theme.color.surface },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

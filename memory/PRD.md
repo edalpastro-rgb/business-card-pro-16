@@ -1,6 +1,12 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z137 (Giu 2026) — Help Center: "Rifai il tour guidato" prominente
+
+- Voce già introdotta in V50.z136 come "Rivedi tour guidato": rinominata **"Rifai il tour guidato"** e resa prominente (bottone pieno #7C3AED, icona in cerchio traslucido, testo bianco, ombra/elevation) — prima voce dello ScrollView, sopra badge Termini e checkbox.
+- Funziona anche dopo il completamento: rimuove `libretto_seen_v1` + `onboarding_done_${user_id}`, `PUT /user-settings {onboarding_done:false}`, `router.push('/libretto?onboarding=1')` → intro animata + tour.
+- Test web: tour completato ("Ho capito · Iniziamo!" → Home) → Help Center → tap → intro animata mostrata di nuovo ✅.
+
 ## V50.z136 (Giu 2026) — Intro animata offline nel tour + "Rivedi tour guidato" in Help Center
 
 - Nel codice attuale non esisteva più un pulsante "Guarda il video tutorial" nel tour (rimosso in passato); implementata direttamente l'intro animata richiesta.

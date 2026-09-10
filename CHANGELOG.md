@@ -29,7 +29,8 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   mostrato in modalità onboarding (una sola volta per dispositivo, anche uscendo con back/tab bar). Flag server invariato.
   **V50.z136**: intro animata offline `src/WowIntro.tsx` (4 slide: fade/slide/zoom, icone in orbita pulsanti, bolle animate,
   auto-avanzamento 4.2s, "Salta intro"/"Avanti"/"Inizia il tour") mostrata all'inizio del tour (`/libretto?onboarding=1`) — nessun
-  video YouTube. Help Center: prima voce "Rivedi tour guidato" (reset chiavi locali + flag server → riapre intro + tour).
+  video YouTube. Help Center: prima voce **"Rifai il tour guidato"** (V50.z137: bottone pieno viola prominente; reset chiavi locali +
+  flag server → riapre intro + tour anche se già completato).
 - Credenziali test: `/app/memory/test_credentials.md` (demo@advisoros.it / Demo1234!, collab.demo@advisoros.it).
 
 ## 2. Contatti / Anagrafica (CRM)
@@ -193,6 +194,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z137 | Giu 2026 | Help Center: bottone prominente "Rifai il tour guidato" (funziona anche dopo completamento) |
 | V50.z136 | Giu 2026 | Intro animata offline nel tour (WowIntro) + "Rivedi tour guidato" in Help Center |
 | V50.z135 | Giu 2026 | Modal "Appuntamento creato": chiusura sempre visibile; testo invio dettagli personalizzabile (creazione + dettaglio) |
 | V50.z134 | Giu 2026 | Scanner: autocrop robusto (nuovo detector OpenCV) + Foto singola sempre fotocamera posteriore |
