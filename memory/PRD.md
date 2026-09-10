@@ -1,6 +1,14 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z153 (Giu 2026) — Scadenze: avviso disattivabile e reimpostabile (nuova data / nuova bolletta)
+
+**Richiesta**: l'avviso scadenza (Home "SCADENZE" + `/deadlines`) deve poter essere disattivato e riattivato inserendo una nuova data di scadenza o sostituendo la bolletta. Scelte utente: icona ⋯ visibile a destra della card; nessuna sezione "Avvisi disattivati".
+**Backend** (`server.py`, blocco V29 deadlines): `_compute_bill_deadline` legge `bill.deadline_override.expiry_date` (priorità su data letta/calcolata, `source: "manuale"`) e restituisce `dismissed`; `/contacts/{id}/deadlines` e `/deadlines/upcoming` saltano le bolletle con `deadline_dismissed`. Nuovi endpoint: `POST /deadlines/{bill_id}/dismiss` (set `deadline_dismissed/_at/_by`), `PUT /deadlines/{bill_id}/expiry {expiry_date: "GG/MM/AAAA"|ISO}` (set override + unset dismissed, 400 se data invalida). Ownership: bolletta del tenant + `_ensure_contact_owned`. `POST /contacts/{cid}/bills/{bid}/reanalyze` ora fa `$unset` di dismissed/override (bolletta "sostituita" → avviso riattivato). Una bolletta nuova nasce senza flag → visibile.
+**Frontend**: nuovo `src/DeadlineActionsSheet.tsx` (Modal bottom sheet senza Pressable backdrop, cfr. V50.z59-fix2; KeyboardAvoidingView; input data con maschera GG/MM/AAAA, tastiera numerica): azioni "Disattiva avviso", "Nuova data scadenza" (→ Salva e riattiva), "Sostituisci bolletta" (→ `/contact/{id}?tab=bills`). Integrato in `home.tsx` (`DeadlinesWidget` prop `onChanged` → ricarica finestra corrente; testID `deadline-more-<bill_id>`) e `app/deadlines.tsx`.
+**Test**: python e2e su bolletta fittizia → dismiss 200 + sparisce dalla lista; data invalida 400; nuova data 200 `source=manuale` e ricompare ✅. Web: ⋯ → Nuova data 15/12/2026 → card "OK · tra 96 gg" → ⋯ → Disattiva → "Tutto in ordine" ✅ (bolletta di test rimossa).
+
+
 ## V50.z152 (Giu 2026) — Compleanni nel calendario: chiusura automatica 24h + "Visto"
 
 `app/(tabs)/calendario.tsx`: i compleanni sono item virtuali generati dai contatti (`bday_<contact_id>_<anno>`, ore 09:00). Ora (1) vengono esclusi se `Date.now() - start_at > 24h`; (2) card con bottone "Visto ✓" (`cal-bday-seen-<id>`, `stopPropagation`) → `dismissBirthday(id)` → Set persistito in AsyncStorage `calendar_birthdays_seen_v1` (caricato al mount) → item escluso. Dipendenza `dismissedBdays` nel `useMemo` degli item. Stili `bdaySeenBtn/bdaySeenTxt`. Test web: contatto con compleanno oggi → card con "Visto" → click → "0 eventi", persiste dopo reload ✅ (contatto di test ripristinato).

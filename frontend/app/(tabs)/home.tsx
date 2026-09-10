@@ -15,6 +15,7 @@ import { AlarmHomeWidget } from "@/src/AlarmHomeWidget";
 import { DrawerMenu } from "@/src/DrawerMenu";
 import { DashboardWidgetsSection } from "@/src/DashboardWidgetsSection";
 import { HeaderWeatherBadge } from "@/src/WeatherWidget";
+import { DeadlineActionsSheet, DeadlineItem } from "@/src/DeadlineActionsSheet";
 const APPT_TODAY_WIDGET = ["appointments_today"];
 import { HomeTipsBanner } from "@/src/HomeTipsBanner";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
@@ -649,6 +650,7 @@ export default function HomeScreen() {
               items={deadlines}
               loading={deadlinesLoading}
               onOpenContact={(cid) => router.push(`/contact/${cid}?tab=bills` as any)}
+              onChanged={() => changeDeadlinesDays(deadlinesDays)}
             />
           )}
         </View>
@@ -803,15 +805,19 @@ export default function HomeScreen() {
 
 // V29 — Widget "Scadenze imminenti" per la Home. Ogni card è cliccabile e
 // apre l'anagrafica del contatto sulla tab Fatture per intervenire subito.
+// V50.z153 — Icona ⋯ a destra: Disattiva avviso / Nuova data / Sostituisci bolletta.
 function DeadlinesWidget({
   items,
   loading,
   onOpenContact,
+  onChanged,
 }: {
   items: any[];
   loading: boolean;
   onOpenContact: (contactId: string) => void;
+  onChanged: () => void;
 }) {
+  const [actionItem, setActionItem] = useState<DeadlineItem | null>(null);
   const TYPE = { luce: { i: "flash", c: "#F59E0B" }, gas: { i: "flame", c: "#EA580C" }, telco: { i: "wifi", c: "#0891B2" } } as const;
   const STATUS = {
     expired: { l: "Scaduta", fg: C.danger, bg: C.dangerSoft },
@@ -872,12 +878,22 @@ function DeadlinesWidget({
               </View>
               {!!dlTxt && <Text style={[styles.deadlineDays, { color: sm.fg }]}>{dlTxt}</Text>}
             </View>
+            <Pressable
+              testID={`deadline-more-${d.bill_id}`}
+              onPress={() => setActionItem(d)}
+              hitSlop={8}
+              accessibilityLabel="Azioni scadenza"
+              style={({ pressed }) => [styles.deadlineMoreBtn, pressed && { opacity: 0.6 }]}
+            >
+              <Ionicons name="ellipsis-vertical" size={18} color={C.muted} />
+            </Pressable>
           </Pressable>
         );
       })}
       {items.length > 5 && (
         <Text style={styles.deadlineMore}>+{items.length - 5} altre scadenze nel periodo selezionato</Text>
       )}
+      <DeadlineActionsSheet item={actionItem} onClose={() => setActionItem(null)} onChanged={onChanged} />
     </View>
   );
 }
@@ -1415,4 +1431,5 @@ const styles = StyleSheet.create({
   deadlinePillTxt: { fontSize: 10.5, fontWeight: "800", letterSpacing: 0.2 },
   deadlineDays: { fontSize: 11.5, fontWeight: "700", marginTop: 4 },
   deadlineMore: { fontSize: 12, color: C.muted, textAlign: "center", marginTop: 4, marginBottom: 4 },
+  deadlineMoreBtn: { width: 32, height: 44, alignItems: "center", justifyContent: "center", marginRight: -6 },
 });

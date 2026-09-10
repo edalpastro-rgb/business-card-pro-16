@@ -46,6 +46,10 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - **Scadenze contratti** (v2.ac) — sezione nascosta automaticamente se vuota; pagina `/deadlines` (fix Unmatched Route).
   **V50.z138**: nel banner SCADENZE della Home il chip attivo mostra una × e, toccato, chiude la vista ("Filtro chiuso · tocca un
   intervallo…"); un tap su qualsiasi intervallo la riapre.
+  **V50.z153**: ogni card scadenza ha un'icona ⋯ → foglio azioni: *Disattiva avviso* (flag `deadline_dismissed` sulla bolletta,
+  sparisce da Home/`/deadlines`/conteggi), *Nuova data scadenza* (`deadline_override.expiry_date`, `source: "manuale"`, riattiva
+  l'avviso), *Sostituisci bolletta* (apre `/contact/{id}?tab=bills`; nuova bolletta o rianalisi resettano dismiss/override).
+  Componente condiviso `src/DeadlineActionsSheet.tsx` (nessun Pressable backdrop, cfr. V50.z59-fix2).
 - Allegati dalle mail collegati al contatto (V50.z25), analisi Axon automatiche per contatto (v2.ah), cronologia cliente.
 - Analizza fatture in anagrafica (V50.g) + versione Master con parity (V50.z76).
 - **CRM · Aree ridisegnato** (V50.z113–115): gerarchia a 3 livelli **Area › Categoria › Sottocategoria** in `AreasManager.tsx`,
@@ -269,6 +273,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z153 | Giu 2026 | Scadenze: icona ⋯ su ogni card (Home + /deadlines) → "Disattiva avviso" (server-side, sparisce da liste e conteggi), "Nuova data scadenza" (override manuale, riattiva), "Sostituisci bolletta" (apre tab Bollette; nuova bolletta/rianalisi riattiva). API `POST /deadlines/{bill_id}/dismiss`, `PUT /deadlines/{bill_id}/expiry` |
 | V50.z152 | Giu 2026 | Calendario: promemoria compleanno si chiude 24h dopo o con "Visto ✓" (persistito sul dispositivo) |
 | V50.z151 | Giu 2026 | Meteo: geocoding con 3° fallback Open-Meteo (città/CAP anche da indirizzi con via), negative-cache 10 min, messaggio "Indirizzo non riconosciuto" + Riprova, errore salvataggio visibile |
 | V50.z150 | Giu 2026 | Home: widget "Meteo" della zona widget SEMPRE visibile (temp attuale, min/max, condizioni, località); header badge mostra temp attuale |

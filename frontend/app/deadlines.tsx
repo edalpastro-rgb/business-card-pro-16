@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { DeadlineActionsSheet, DeadlineItem } from "@/src/DeadlineActionsSheet";
 
 const WINDOWS = [30, 60, 90, 180];
 const TYPE = { luce: { i: "flash", c: "#F59E0B" }, gas: { i: "flame", c: "#EA580C" }, telco: { i: "wifi", c: "#0891B2" } } as const;
@@ -30,6 +31,8 @@ function DeadlinesInner() {
   const [days, setDays] = useState<number>(60);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // V50.z153 — Azioni per scadenza (⋯)
+  const [actionItem, setActionItem] = useState<DeadlineItem | null>(null);
 
   const load = useCallback(async (d: number, silent = false) => {
     if (!silent) setLoading(true);
@@ -138,12 +141,22 @@ function DeadlinesInner() {
                     </View>
                     {!!dlTxt && <Text style={[styles.days, { color: sm.fg }]}>{dlTxt}</Text>}
                   </View>
+                  <Pressable
+                    testID={`deadline-more-${d.bill_id}`}
+                    onPress={() => setActionItem(d)}
+                    hitSlop={8}
+                    accessibilityLabel="Azioni scadenza"
+                    style={({ pressed }) => [styles.moreBtn, pressed && { opacity: 0.6 }]}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={18} color={theme.color.muted} />
+                  </Pressable>
                 </Pressable>
               );
             })}
           </>
         )}
       </ScrollView>
+      <DeadlineActionsSheet item={actionItem} onClose={() => setActionItem(null)} onChanged={() => load(days, true)} />
     </SafeAreaView>
   );
 }
@@ -167,4 +180,5 @@ const styles = StyleSheet.create({
   pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   pillTxt: { fontSize: 10.5, fontWeight: "800", letterSpacing: 0.2 },
   days: { fontSize: 11.5, fontWeight: "700", marginTop: 4 },
+  moreBtn: { width: 32, height: 44, alignItems: "center", justifyContent: "center", marginRight: -6 },
 });

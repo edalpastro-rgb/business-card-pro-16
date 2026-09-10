@@ -6965,7 +6965,12 @@ async def reanalyze_bill(contact_id: str, bill_id: str, background: BackgroundTa
     b = await db.energy_bills.find_one({"user_id": tenant_id(user), "contact_id": contact_id, "bill_id": bill_id})
     if not b:
         raise HTTPException(status_code=404, detail="Fattura non trovata")
-    await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {"status": "pending", "error_message": None}})
+    # V50.z153 — Rianalisi = "bolletta sostituita": riattiva l'avviso scadenza
+    # e rimuove eventuale data manuale (la nuova lettura fa fede).
+    await db.energy_bills.update_one({"bill_id": bill_id}, {
+        "$set": {"status": "pending", "error_message": None},
+        "$unset": {"deadline_dismissed": "", "deadline_dismissed_at": "", "deadline_override": ""},
+    })
     background.add_task(_analyze_bill_task, bill_id)
     return {"ok": True, "status": "pending"}
 
@@ -7144,6 +7149,13 @@ def _compute_bill_deadline(bill: dict) -> Optional[dict]:
         months = duration_m if (duration_m and duration_m > 0) else 12
         expiry = _add_months(activation, months)
         source = "calcolata"
+    # V50.z153 — Data scadenza impostata manualmente dall'utente: ha priorità
+    # su quella letta/calcolata dalla bolletta.
+    ovr = (bill or {}).get("deadline_override") or {}
+    manual_expiry = _parse_italian_date(ovr.get("expiry_date")) if isinstance(ovr, dict) else None
+    if manual_expiry:
+        expiry = manual_expiry
+        source = "manuale"
     if not expiry:
         return None
     from datetime import date as _date
@@ -7156,6 +7168,7 @@ def _compute_bill_deadline(bill: dict) -> Optional[dict]:
         "status": _deadline_status(days_left),
         "source": source or "data_scadenza",
         "duration_months": duration_m,
+        "dismissed": bool((bill or {}).get("deadline_dismissed")),
     }
 
 
@@ -7187,7 +7200,7 @@ async def contact_deadlines(contact_id: str, user=Depends(get_current_user)):
     out: List[dict] = []
     for it in items:
         entry = _bill_deadline_entry(it)
-        if entry:
+        if entry and not entry.get("dismissed"):
             out.append(entry)
     # Sort by days_left ascending (expired/critical first)
     out.sort(key=lambda x: (x.get("days_left") is None, x.get("days_left") or 999999))
@@ -7229,7 +7242,7 @@ async def upcoming_deadlines(days: Optional[int] = None, user=Depends(get_curren
     out: List[dict] = []
     for b in bills:
         entry = _bill_deadline_entry(b)
-        if not entry:
+        if not entry or entry.get("dismissed"):
             continue
         dl = entry.get("days_left")
         if dl is None:
@@ -7252,6 +7265,54 @@ async def upcoming_deadlines(days: Optional[int] = None, user=Depends(get_curren
     for d in out:
         counts[d.get("status", "ok")] = counts.get(d.get("status", "ok"), 0) + 1
     return {"items": out, "counts": counts, "days": days}
+
+
+# V50.z153 — Gestione avviso scadenza per singola bolletta:
+#   • dismiss  → l'avviso sparisce da Home / Scadenze / conteggi
+#   • expiry   → nuova data scadenza manuale, l'avviso si riattiva
+#   • una nuova bolletta (o la rianalisi) riattiva automaticamente l'avviso
+class DeadlineExpiryIn(BaseModel):
+    expiry_date: str  # DD/MM/YYYY oppure YYYY-MM-DD
+
+
+async def _get_owned_bill_for_deadline(bill_id: str, user) -> dict:
+    b = await db.energy_bills.find_one(
+        {"user_id": tenant_id(user), "bill_id": bill_id},
+        {"_id": 0, "pdf_base64": 0},
+    )
+    if not b:
+        raise HTTPException(status_code=404, detail="Fattura non trovata")
+    if b.get("contact_id"):
+        await _ensure_contact_owned(b["contact_id"], user)
+    return b
+
+
+@api_router.post("/deadlines/{bill_id}/dismiss")
+async def dismiss_deadline(bill_id: str, user=Depends(get_current_user)):
+    await _get_owned_bill_for_deadline(bill_id, user)
+    await db.energy_bills.update_one(
+        {"bill_id": bill_id},
+        {"$set": {"deadline_dismissed": True, "deadline_dismissed_at": utcnow(), "deadline_dismissed_by": user["user_id"]}},
+    )
+    return {"ok": True, "dismissed": True}
+
+
+@api_router.put("/deadlines/{bill_id}/expiry")
+async def set_deadline_expiry(bill_id: str, body: DeadlineExpiryIn, user=Depends(get_current_user)):
+    b = await _get_owned_bill_for_deadline(bill_id, user)
+    d = _parse_italian_date(body.expiry_date)
+    if not d:
+        raise HTTPException(status_code=400, detail="Data non valida. Usa il formato GG/MM/AAAA")
+    await db.energy_bills.update_one(
+        {"bill_id": bill_id},
+        {
+            "$set": {"deadline_override": {"expiry_date": d.isoformat(), "set_at": utcnow(), "set_by": user["user_id"]}},
+            "$unset": {"deadline_dismissed": "", "deadline_dismissed_at": "", "deadline_dismissed_by": ""},
+        },
+    )
+    b["deadline_override"] = {"expiry_date": d.isoformat()}
+    b.pop("deadline_dismissed", None)
+    return {"ok": True, "deadline": _bill_deadline_entry(b)}
 
 
 
