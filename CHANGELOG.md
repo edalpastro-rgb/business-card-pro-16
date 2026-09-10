@@ -71,7 +71,8 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Team Insights / profilo comportamentale collaboratori (v44, v2.aj). Report con intestazione configurabile (v2.17).
 
 ## 5. AxonOS — Assistente AI (chat)
-- Chat modale via **FAB trascinabile** (V50.z100; fix touch Android hitSlop Giu 2026), header con logo, dropdown modalità
+- Chat modale via **FAB trascinabile** (V50.z100; fix touch Android hitSlop Giu 2026; **V50.z131** tap gestito da `Pressable` interna +
+  PanResponder solo per il drag, guard anti doppio-fire — fix FAB muto in Contatti), header con logo, dropdown modalità
   (testo / voce / entrambi), Nuova chat, Annunci, Audio (v2.ao/ap).
 - **Streaming SSE** (`POST /api/assistant/chat/stream`, v40): eventi `progress` / `meta` / `delta` / `done` / `error`; client XHR
   onprogress su nativo, ReadableStream su web (`assistantStream.ts`). Watchdog 90s con errore visibile (V50.z121).
@@ -150,6 +151,8 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## 12. Stile / UX globale
 - Stile Optima: header tecnico senza loghi, bottoni categorizzati, safe-area globale, label 1 riga (V50.a/c, V29.ba–bc).
 - Bottom nav persistente, barra AxonOS minimale (v2.ap). Keyboard-avoiding fix nei modal Insegna ad Axon (V29.au/ax).
+- Menu laterale (`DrawerMenu.tsx`): **V50.z131** rimosso link morto "Note" (`/notes`, pagina inesistente); "Business Cards" →
+  "Biglietto da visita" collegato a `/business-card`. Mapping colori in `menuCategories.ts` aggiornato.
 - Regola: nessuna schermata bianca — error boundary su moduli chart/table, timeout visibili.
 
 ## 13. Infrastruttura / Backend
@@ -171,6 +174,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z131 | Giu 2026 | FAB Axon: tap via Pressable (fix Contatti); drawer: rimosso "Note", "Business Cards" → `/business-card` |
 | V50.z130 | Giu 2026 | Distillazione regole on-demand: lezioni in chat → ai_teach_rules immediate + `POST /axon/teach/distill-now` |
 | V50.z129 | Giu 2026 | Cattura automatica impegni Axon ("da ora farò X") → ai_teach_rules immediata |
 | V50.z128 | Giu 2026 | Google Drive: token cache + retry transitori + rimozione connessione solo su invalid_grant |

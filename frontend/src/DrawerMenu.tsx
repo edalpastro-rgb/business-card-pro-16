@@ -32,7 +32,6 @@ const ITEMS: DrawerItem[] = [
   { label: "Appuntamenti",      icon: "calendar-outline",     href: "/calendario",         categoryKey: "crm" },
   { label: "Nuovo Appuntamento",icon: "add-circle-outline",   href: "/appointment/new",    categoryKey: "crm" },
   { label: "Scadenze",          icon: "hourglass-outline",    href: "/deadlines",          categoryKey: "crm" },
-  { label: "Note",              icon: "document-text-outline",href: "/notes",              categoryKey: "crm" },
   // AI & Axon (viola #7C3AED)
   { label: "Axon Hub",          icon: "sparkles",             href: "/axon-hub",           categoryKey: "axon" },
   { label: "Insegna ad Axon",   icon: "school-outline",       href: "/ai-teach",           categoryKey: "axon" },
@@ -51,7 +50,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Anagrafica Master",   icon: "id-card-outline",      href: "/anagrafica-master",   categoryKey: "docs" },
   { label: "Master Files",        icon: "folder-outline",       href: "/master-files",        categoryKey: "docs" },
   { label: "Google Drive",        icon: "cloud-outline",        href: "/google-drive",        categoryKey: "docs" },
-  { label: "Business Cards",      icon: "card-outline",         href: "/business-cards",      categoryKey: "docs" },
+  { label: "Biglietto da visita", icon: "card-outline",         href: "/business-card",       categoryKey: "docs" },
   // Team & Insights (giallo #EAB308)
   { label: "Team Insights",     icon: "analytics-outline",    href: "/team-insights",      categoryKey: "team" },
   { label: "Invita Collaboratore", icon: "person-add-outline",href: "/invite-collaborator",categoryKey: "team" },

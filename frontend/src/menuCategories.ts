@@ -40,7 +40,6 @@ export const ROUTE_CATEGORY: Record<string, MenuCategoryKey> = {
   "/calendario":          "crm",
   "/deadlines":           "crm",
   "/cruscotto":           "crm",
-  "/notes":               "crm",
   "/corporate/new":       "crm",
   "/invitati":            "crm",
 
@@ -62,7 +61,7 @@ export const ROUTE_CATEGORY: Record<string, MenuCategoryKey> = {
   // Documenti & Cloud
   "/master-files":        "docs",
   "/google-drive":        "docs",
-  "/business-cards":      "docs",
+  "/business-card":       "docs",
 
   // Team & Insights
   "/team-insights":       "team",

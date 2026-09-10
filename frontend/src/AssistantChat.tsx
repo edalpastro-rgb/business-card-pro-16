@@ -2304,9 +2304,10 @@ export function AssistantFAB() {
           );
         } catch { /* ignore */ }
 
-        // Se non c'è stato drag significativo → tratta come tap.
+        // Se non c'è stato drag significativo → tratta come tap (fallback:
+        // il tap principale è gestito dalla Pressable interna, vedi V50.z131).
         if (!didDrag.current && Math.abs(g.dx) < 6 && Math.abs(g.dy) < 6 && (Date.now() - dragStartTs.current) < 500) {
-          handlePressRef.current?.();
+          fireTapRef.current?.();
         }
       },
       onPanResponderTerminationRequest: () => false,
@@ -2366,6 +2367,19 @@ export function AssistantFAB() {
   };
   const handlePressRef = useRef(handlePress);
   useEffect(() => { handlePressRef.current = handlePress; });
+  // V50.z131 — Tap robusto: la Pressable interna gestisce il tap in modo
+  // nativo (indipendente dalla negoziazione del PanResponder, che su alcune
+  // schermate con liste lunghe — es. Contatti — non arrivava al release).
+  // Il PanResponder resta solo per il drag. Guard anti doppio-fire (400ms).
+  const lastTapTs = useRef(0);
+  const fireTap = () => {
+    const now = Date.now();
+    if (now - lastTapTs.current < 400) return;
+    lastTapTs.current = now;
+    handlePressRef.current?.();
+  };
+  const fireTapRef = useRef(fireTap);
+  useEffect(() => { fireTapRef.current = fireTap; });
 
   // Hide when not logged in
   if (!user) return null;
@@ -2396,8 +2410,11 @@ export function AssistantFAB() {
             transform: [{ scale: pulse }],
           }}
         >
-        <View
+        <Pressable
           style={styles.fab}
+          onPress={fireTap}
+          hitSlop={6}
+          accessibilityRole="button"
           accessibilityLabel={unreadInfoReq > 0 ? `Apri richieste info (${unreadInfoReq} nuove) — trascina per spostare` : "Apri assistente AI — trascina per spostare"}
           testID="assistant-fab"
         >
@@ -2413,7 +2430,7 @@ export function AssistantFAB() {
               <Text style={styles.fabBadgeTxt}>{unreadInfoReq > 9 ? "9+" : String(unreadInfoReq)}</Text>
             </View>
           ) : null}
-        </View>
+        </Pressable>
         </Animated.View>
       </Animated.View>
       <AssistantChatModal visible={open} onClose={() => setOpen(false)} />

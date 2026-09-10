@@ -1,6 +1,12 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z131 (Giu 2026) — FAB Axon muto in Contatti + link morti menu laterale
+
+- `AssistantChat.tsx` `AssistantFAB`: il tap era gestito SOLO in `onPanResponderRelease` (tap = release senza drag < 500ms). Su nativo, in schermate con liste lunghe (Contatti) la negoziazione del responder poteva non consegnare il release → nessuna apertura. Ora il nodo interno è una `Pressable` con `onPress={fireTap}` (hitSlop 6, accessibilityRole button); il PanResponder resta per il drag (prende il controllo su move > 3px); `fireTap` con guard 400ms evita doppio-fire tra Pressable e fallback release. Web verificato: FAB apre la chat dalla tab Contatti.
+- `DrawerMenu.tsx`: rimosso "Note" (`/notes` non esiste); "Business Cards" (`/business-cards`) → "Biglietto da visita" `/business-card`. `menuCategories.ts` allineato.
+- Nessun'altra modifica.
+
 ## V50.z130 (Giu 2026) — Distillazione regole on-demand (lezioni in chat persistono subito)
 
 - `_TEACH_INTENT_RE` / `_is_teach_intent(msg)`: intento didattico nel messaggio utente (ricorda che, impara, memorizza, tieni presente, da ora in poi/avanti, da adesso, quando ti chiedo, regola:, non fare più, devi sempre, usa sempre, non usare mai, considera sempre, insegn-, sappi che, per il futuro, la prossima volta, ogni volta che, includi sempre, rispondi sempre).
