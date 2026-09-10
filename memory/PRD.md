@@ -1,6 +1,11 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z145 (Giu 2026) — Comunica con l'azienda: Modifica solo esistenti + "+ Aggiungi contatto"
+
+`src/CompanyContactSheet.tsx`: rimosso `addDraftPhone` e il bottone "Aggiungi" (`company-sheet-add-phone`) dall'edit-mode → "Modifica" corregge/elimina solo i contatti esistenti (etichetta, numero; nome/email azienda restano editabili). Nuovo stato `addOpen/addLabel/addNumber` + `addManualContact()` (GET `/settings` → append `{id, label||"Contatto", number}` a `communica_azienda_phones` con dedup numero normalizzato → PUT). View-mode (Master): bottone tratteggiato "+ Aggiungi contatto" (`company-sheet-add-contact`) sotto la lista numeri → form inline (`company-sheet-add-contact-label|number|save|cancel`), Salva disabilitato senza numero. Testi empty-state aggiornati. Test web: aggiunta contatto manuale → riga chiamabile ✅; edit-mode senza "Aggiungi" ✅. Dato di test rimosso.
+
+
 ## V50.z144 (Giu 2026) — Knowledge Base Axon + regole PINNED vincolanti
 
 **Stato pre-esistente rilevato**: RAG per tenant (`master_documents` + `master_doc_chunks`, solo PDF, pagina `/documenti-axon`) e retrieval automatico in preflight già attivi; `_build_pinned_rules_section` esisteva ma **NON era iniettata** (rollback V50.z53: risposte vuote "Sono qui. Pronto."); le regole entravano solo a metà prompt come "BASE DI CONOSCENZA… usa come contesto prioritario" (suggerimento, max 8); impegni z129 salvati `auto_generated=True` (non PINNED).

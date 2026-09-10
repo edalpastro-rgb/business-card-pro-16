@@ -217,8 +217,51 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
     }
   };
 
-  const addDraftPhone = () => {
-    setDraftPhones((prev) => [...prev, { id: genId(), label: "", number: "" }]);
+  // V50.z145 — "Modifica" consente SOLO di modificare/eliminare i contatti esistenti
+  // (estratti dal PDF o già presenti). L'inserimento manuale avviene dal bottone
+  // separato "+ Aggiungi contatto" in view-mode (form inline, nessun modal annidato).
+  const [addOpen, setAddOpen] = useState(false);
+  const [addLabel, setAddLabel] = useState("");
+  const [addNumber, setAddNumber] = useState("");
+
+  const addManualContact = async () => {
+    const label = addLabel.trim();
+    const number = addNumber.trim();
+    if (!number) {
+      Alert.alert("Numero mancante", "Inserisci il numero di telefono.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const current = await api<Record<string, unknown>>("/settings");
+      const existing = Array.isArray((current as any).communica_azienda_phones)
+        ? ((current as any).communica_azienda_phones as Phone[])
+        : [];
+      const norm = (n: string) => n.replace(/[^\d+]/g, "");
+      if (existing.some((p) => norm(p.number) === norm(number))) {
+        Alert.alert("Numero già presente", "Questo numero è già configurato nel pannello.");
+        return;
+      }
+      const body = {
+        ...current,
+        communica_azienda_phones: [...existing, { id: genId(), label: label || "Contatto", number }],
+      };
+      delete (body as any)._id;
+      delete (body as any).user_id;
+      const updated = await api<CompanyContactData>("/settings", { method: "PUT", body });
+      setData({
+        communica_azienda_name: updated.communica_azienda_name || "",
+        communica_azienda_email: updated.communica_azienda_email || "",
+        communica_azienda_phones: updated.communica_azienda_phones || [],
+      });
+      setAddLabel("");
+      setAddNumber("");
+      setAddOpen(false);
+    } catch (e: any) {
+      Alert.alert("Errore", e?.message || "Impossibile aggiungere il contatto.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updateDraftPhone = (id: string, key: "label" | "number", value: string) => {
@@ -653,19 +696,14 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
 
                 <View style={styles.phonesHdr}>
                   <Text style={styles.fieldLbl}>Numeri di telefono di servizio</Text>
-                  <Pressable
-                    onPress={addDraftPhone}
-                    style={styles.addBtn}
-                    testID="company-sheet-add-phone"
-                  >
-                    <Ionicons name="add" size={16} color="#FFF" />
-                    <Text style={styles.addBtnTxt}>Aggiungi</Text>
-                  </Pressable>
                 </View>
+                <Text style={[styles.editSubLbl, { marginBottom: 4 }]}>
+                  Qui puoi correggere etichetta e numero dei contatti esistenti. Per un nuovo numero usa «+ Aggiungi contatto».
+                </Text>
 
                 {draftPhones.length === 0 ? (
                   <Text style={styles.empty}>
-                    Nessun numero. Tocca &quot;Aggiungi&quot; per inserire il primo.
+                    Nessun numero da modificare. Chiudi e usa &quot;+ Aggiungi contatto&quot;.
                   </Text>
                 ) : (
                   draftPhones.map((p) => (
@@ -778,7 +816,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                     <Text style={styles.emptyTxt}>Nessun numero configurato</Text>
                     {isMaster ? (
                       <Text style={styles.emptySub}>
-                        Tocca &quot;Modifica&quot; per aggiungere numeri di servizio
+                        Tocca &quot;+ Aggiungi contatto&quot; per inserire il primo numero
                       </Text>
                     ) : (
                       <Text style={styles.emptySub}>
@@ -814,6 +852,62 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                       </View>
                     </Pressable>
                   ))
+                )}
+
+                {/* V50.z145 — Inserimento manuale di un nuovo contatto (indipendente dal PDF) */}
+                {isMaster && !addOpen && (
+                  <Pressable
+                    onPress={() => setAddOpen(true)}
+                    style={styles.addContactBtn}
+                    testID="company-sheet-add-contact"
+                  >
+                    <Ionicons name="add-circle" size={18} color={C.primary} />
+                    <Text style={styles.addContactTxt}>+ Aggiungi contatto</Text>
+                  </Pressable>
+                )}
+                {isMaster && addOpen && (
+                  <View style={styles.addContactBox} testID="company-sheet-add-contact-form">
+                    <Text style={styles.fieldLbl}>Nuovo contatto</Text>
+                    <Text style={styles.editSubLbl}>Etichetta (nome del bottone)</Text>
+                    <TextInput
+                      testID="company-sheet-add-contact-label"
+                      value={addLabel}
+                      onChangeText={setAddLabel}
+                      placeholder="Es. Assistenza tecnica consulenti"
+                      placeholderTextColor={C.muted}
+                      maxLength={60}
+                      style={[styles.input, { fontSize: 13 }]}
+                    />
+                    <Text style={styles.editSubLbl}>Numero di telefono</Text>
+                    <TextInput
+                      testID="company-sheet-add-contact-number"
+                      value={addNumber}
+                      onChangeText={setAddNumber}
+                      placeholder="Es. +39 02 1234 5678"
+                      placeholderTextColor={C.muted}
+                      keyboardType="phone-pad"
+                      style={[styles.input, { fontSize: 13 }]}
+                    />
+                    <View style={styles.actionsRow}>
+                      <Pressable
+                        onPress={() => { setAddOpen(false); setAddLabel(""); setAddNumber(""); }}
+                        style={styles.btnGhost}
+                        disabled={saving}
+                        testID="company-sheet-add-contact-cancel"
+                      >
+                        <Text style={styles.btnGhostTxt}>Annulla</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={addManualContact}
+                        style={[styles.btnSave, (saving || !addNumber.trim()) && { opacity: 0.6 }]}
+                        disabled={saving || !addNumber.trim()}
+                        testID="company-sheet-add-contact-save"
+                      >
+                        <Ionicons name="checkmark" size={16} color="#FFF" />
+                        <Text style={styles.btnSaveTxt}>{saving ? "Salvo…" : "Salva contatto"}</Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 )}
 
                 {/* V49 — Documenti aziendali (PDF) + AI extraction */}
@@ -1452,6 +1546,28 @@ const styles = StyleSheet.create({
     backgroundColor: C.primary,
   },
   addBtnTxt: { fontSize: 12, fontWeight: "800", color: "#FFF" },
+  // V50.z145 — "+ Aggiungi contatto" (view-mode) + form inline
+  addContactBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: C.primary,
+    backgroundColor: "#FFF7ED",
+  },
+  addContactTxt: { fontSize: 14, fontWeight: "800", color: C.primary },
+  addContactBox: {
+    gap: 6,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    backgroundColor: "#FFF7ED",
+  },
   phoneEditRow: {
     flexDirection: "row",
     alignItems: "flex-start",

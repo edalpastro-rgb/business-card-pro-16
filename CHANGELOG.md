@@ -198,6 +198,10 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Biglietto da visita: formato orizzontale con flip fronte/retro, QR, condivisione PNG/PDF (V38W, v2.15, v2.3, V29.av alpha PNG),
   statistiche (v2.28). Firma email agente (v2.ag).
 - Eventi Master: banner con programma PDF, fix "Invalid PDF structure" e "Rendered more hooks" (v2.aa, v2.x).
+- **Comunica con l'azienda** (`src/CompanyContactSheet.tsx`, sheet dalla Home, V49): nome/email/numeri di servizio (`/settings`
+  `communica_azienda_*`), documenti aziendali PDF + estrazione contatti AI, link utili. **V50.z145**: "Modifica" (Master) consente
+  SOLO di correggere/eliminare i contatti esistenti (etichetta, numero) + nome/email — rimosso "Aggiungi" in edit-mode; nuovo bottone
+  separato **"+ Aggiungi contatto"** in view-mode con form inline (etichetta + numero, dedup numero) indipendente dal PDF.
 
 ## 11. Impostazioni
 - Nome app, nome assistente, voce TTS, modalità risposta, azioni rapide, tipi appuntamento e categorie prodotto custom,
@@ -238,6 +242,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z145 | Giu 2026 | Comunica con l'azienda: "Modifica" solo per contatti esistenti; nuovo "+ Aggiungi contatto" manuale (form inline) |
 | V50.z144 | Giu 2026 | Knowledge Base Axon: voci FAQ/Dati/Nota + TXT/MD/CSV, modifica/rinomina, filtri; PINNED riattivate in cima al prompt; impegni "da ora farò X" PINNED |
 | V50.z143 | Giu 2026 | Insegna ad Axon: "Distilla chat" → Claude estrae regole da conversazione incollata/storica e le salva PINNED |
 | V50.z142 | Giu 2026 | Chat Axon: ack SSE immediato "Sto ragionando…" come primo evento (<1s), fallback locale nel client |
