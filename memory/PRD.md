@@ -1,6 +1,14 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z156 (Giu 2026) — Scanner "ancora senza permessi" (APK 1.0.49)
+
+**Verifica**: `npx expo prebuild --platform android --no-install` su copia del progetto (/tmp/pb) → `android/app/src/main/AndroidManifest.xml` contiene `CAMERA, RECORD_AUDIO, READ/WRITE_CONTACTS, ACCESS_COARSE/FINE_LOCATION, POST_NOTIFICATIONS, USE_BIOMETRIC…` + `uses-feature camera required=false`. La libreria `expo-camera` dichiara CAMERA anche nel proprio manifest. ⇒ La configurazione del repo è corretta; app.json ha version 1.0.16/versionCode 16 mentre l'APK è 1.0.49 → la pipeline Emergent riscrive la config in build. Se in Android → Autorizzazioni la voce "Fotocamera" non esiste proprio, il manifest dell'APK non la contiene: problema di build, escalation a support@emergent.sh (fatto tramite support_agent).
+**Modifica app**: `LiveCameraScanner.tsx` permission gate → riga "Diagnostica · stato: … · richiedibile: sì/no" + istruzione (testID `live-scan-perm-diag`).
+**Nota**: NON creare la cartella `android/` nel repo (prebuild eseguito solo in /tmp).
+**Trovato inoltre**: `frontend/yarn.lock` committato NON conteneva `expo-build-properties@~1.0.10` (aggiunto in z146 solo in package.json/node_modules) → un `yarn install --frozen-lockfile` in CI fallisce o installa senza il plugin. Lockfile ora aggiornato e verificato (`yarn install --frozen-lockfile` → up-to-date). Utente ha confermato: in Android → Autorizzazioni la voce Fotocamera NON esiste → manifest dell'APK senza CAMERA → escalation supporto Emergent.
+
+
 ## V50.z155 (Giu 2026) — Axon "non ha accesso a Drive" + risposte lentissime (P0)
 
 **Segnalazione**: Drive "Collegato" con cartella attiva, ma Axon risponde "No, non ho accesso / non vedo nessuna cartella"; "Sto cercando nei documenti e nelle regole…" per 2 minuti.

@@ -450,6 +450,18 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                 </Text>
               </Pressable>
             )}
+            {/* V50.z156 — Diagnostica: stato reale del permesso. Se Android risponde
+                subito "denied + non richiedibile" senza mai mostrare il popup, la build
+                installata NON dichiara CAMERA nel manifest (problema di build, non di app). */}
+            {!checking && (
+              <Text style={{ color: "#64748B", fontSize: 11, marginTop: 14, textAlign: "center" }} testID="live-scan-perm-diag">
+                Diagnostica · stato: {permission.status} · richiedibile: {permission.canAskAgain ? "sì" : "no"}
+                {"\n"}
+                {!permission.canAskAgain
+                  ? "Se in Impostazioni → Autorizzazioni la voce “Fotocamera” NON compare, la build installata non include il permesso: serve una nuova build."
+                  : "Tocca “Consenti” e accetta il popup di sistema."}
+              </Text>
+            )}
           </View>
         </SafeAreaView>
       </Modal>
