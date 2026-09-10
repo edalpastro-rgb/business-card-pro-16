@@ -12,12 +12,17 @@ import { getWeatherCoords, weatherIcon } from "@/src/utils/weather";
 
 type Res = {
   alerts?: { id: string }[];
-  weather?: { icon_key?: string; label?: string; temp_min?: number; temp_max?: number } | null;
+  weather?: { icon_key?: string; label?: string; temp?: number; temp_min?: number; temp_max?: number } | null;
   place?: string | null;
   needs_address?: boolean;
 };
 
-export function WeatherWidget() {
+/**
+ * @param alwaysVisible V50.z150 — widget "Meteo" della zona widget Home: mostra SEMPRE temperatura
+ * attuale e condizioni (stessa fonte dell'icona in header), anche senza allerte e durante il caricamento.
+ * Senza prop (default) resta il comportamento V50.z132 (solo con allerte attive).
+ */
+export function WeatherWidget({ alwaysVisible = false }: { alwaysVisible?: boolean } = {}) {
   const router = useRouter();
   const [res, setRes] = useState<Res | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,7 +43,7 @@ export function WeatherWidget() {
 
   // V50.z132 — Il widget compare SOLO se ci sono allerte attive; le condizioni
   // correnti sono sempre visibili nella mini-icona sul banner (HeaderWeatherBadge).
-  if (loading || nAlerts === 0) return null;
+  if (!alwaysVisible && (loading || nAlerts === 0)) return null;
 
   return (
     <Pressable testID="weather-widget" onPress={() => router.push("/meteo" as any)} style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}>
@@ -54,8 +59,8 @@ export function WeatherWidget() {
         ) : (
           <>
             <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
-              <Text style={styles.temp} testID="weather-temp">{w?.temp_max != null ? `${Math.round(w.temp_max)}°` : (loading ? "…" : "—")}</Text>
-              {w?.temp_min != null && <Text style={styles.min}>min {Math.round(w.temp_min)}°</Text>}
+              <Text style={styles.temp} testID="weather-temp">{(w?.temp ?? w?.temp_max) != null ? `${Math.round((w!.temp ?? w!.temp_max) as number)}°` : (loading ? "…" : "—")}</Text>
+              {w?.temp_min != null && <Text style={styles.min}>min {Math.round(w.temp_min)}°{w?.temp_max != null ? ` · max ${Math.round(w.temp_max)}°` : ""}</Text>}
             </View>
             <Text style={styles.sub} numberOfLines={1}>{w?.label || (loading ? "Caricamento…" : "Meteo non disponibile · tocca per riprovare")}</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -138,7 +143,7 @@ export function HeaderWeatherBadge() {
       style={styles.headerBadge}
     >
       <Ionicons name={icon.name} size={14} color="#FFF" />
-      {w.temp_max != null && <Text style={styles.headerBadgeTxt}>{Math.round(w.temp_max)}°</Text>}
+      {(w.temp ?? w.temp_max) != null && <Text style={styles.headerBadgeTxt}>{Math.round((w.temp ?? w.temp_max) as number)}°</Text>}
     </Pressable>
   );
 }

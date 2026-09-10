@@ -81,6 +81,11 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   **V50.z148**: `getWeatherCoords()` ha timeout 6s su `getCurrentPositionAsync` (Accuracy.Low) e 20s sulla richiesta permesso —
   su Android (GPS a freddo / reinstallazione senza last-known) la promise non risolveva e il badge non compariva mai; il badge
   ritenta 1 volta la chiamata `/weather/alerts` dopo 4s se la rete non è pronta al cold start.
+  **V50.z150 — Widget "Meteo" nella zona widget Home** (id `meteo` in `DASHBOARD_WIDGET_DEFAULTS`, attivabile/ordinabile da
+  `/dashboard-config`): `DashboardWidgetsSection` renderizza `<WeatherWidget alwaysVisible />` → card SEMPRE visibile con
+  temperatura **attuale** (`weather.temp`, fallback `temp_max`), "min · max", condizioni, località (stessa fonte `/weather/alerts`
+  + `getWeatherCoords` dell'icona header), pill "N allerte" / "Nessuna allerta", tap → `/meteo`. Il `WeatherWidget` senza prop
+  mantiene il comportamento z132 (solo con allerte). L'header badge mostra anch'esso la temp attuale.
   "Appuntamenti di oggi" è renderizzato SOTTO la sezione Ritelefonate (`DashboardWidgetsSection` con props `only`/`exclude`).
 - Widget sotto "Interfaccia Master" (V50.z120). Banner My Thing con font/size/colore personalizzabili (v2.31). Banner Evento Master
   con range date, descrizione, audio, copertina PDF (v2.10, v2.18, v2.11). **Banner Gas colore BLU** (Giu 2026).
@@ -256,6 +261,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z150 | Giu 2026 | Home: widget "Meteo" della zona widget SEMPRE visibile (temp attuale, min/max, condizioni, località); header badge mostra temp attuale |
 | V50.z149 | Giu 2026 | Edge Panel (menu laterale destro): "Statistiche" tra i default + migrazione una-tantum per selezioni salvate |
 | V50.z148 | Giu 2026 | Fix regressione icona meteo header (APK 1.0.48): timeout 6s su getCurrentPositionAsync + retry API nel badge |
 | V50.z147 | Giu 2026 | Rimosso il bottone Help/Support Center dalle top header di tutte le pagine (SupportFab non montato) — ridondante col tab Help |

@@ -1,6 +1,12 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z150 (Giu 2026) — Widget Meteo nella zona widget Home
+
+**Analisi**: il widget `meteo` esisteva già nei default backend e in `DashboardWidgetsSection` (`<WeatherWidget />`), ma `WeatherWidget` dal V50.z132 ritorna `null` senza allerte → di fatto mai visibile ("feature richiesta più volte e mai implementata").
+**Fix**: `WeatherWidget({ alwaysVisible })` — con `alwaysVisible` non ritorna null (né in loading né senza allerte); `DashboardWidgetsSection` passa `alwaysVisible` per id `meteo`. Temperatura principale = `weather.temp` (attuale, già fornita dal backend) con fallback `temp_max`; riga "min X° · max Y°"; `Res.weather.temp` aggiunto al type. `HeaderWeatherBadge` allineato alla temp attuale. Backend invariato (`_merge_dashboard_widgets` aggiunge `meteo` anche alle config salvate). Test web: card "20° · min 17° · max 22° · Temporale con grandine · Piazza del Duomo, Milano · 1 allerta" nella zona widget ✅.
+
+
 ## V50.z149 (Giu 2026) — "Statistiche" nel menu laterale destro (Edge Panel)
 
 **Analisi**: il DrawerMenu sinistro (hamburger) ha già "Statistiche" (Team & Insights, `drawer-item-/(tabs)/report`, verificato in z141). Il "menu a scomparsa laterale destro" dell'utente è l'**Edge Panel** (`src/EdgePanel.tsx`), i cui shortcut sono una selezione utente persistita (`edge_panel_ids_v1`) con `DEFAULT_IDS` senza "report" → Statistiche non compariva.
