@@ -18,6 +18,7 @@ import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomS
 import { ModuleErrorBoundary } from "@/src/shared";
 
 // V49.g — Header Master allineato all'header Home: usa la stessa immagine.
+import { HeaderWeatherBadge } from "@/src/WeatherWidget";
 const HOME_HEADER_IMG = require("@/assets/images/advisoros-home-header.jpg");
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
@@ -233,6 +234,8 @@ function MasterScreen() {
     // Utility (grigio #475569) — V50.z50 richiesta utente: Sveglia + Scanner
     { label: "Sveglia", icon: "alarm", color: "#475569", onPress: () => goto("/axon-alarms") },
     { label: "Scanner", icon: "scan", color: "#475569", onPress: () => goto("/scanner") },
+    // V50.z157 — Meteo tra le Utility (richiesta utente)
+    { label: "Meteo", icon: "partly-sunny", color: "#475569", onPress: () => goto("/meteo") },
     // CRM Core
     { label: "New CRT", icon: "document-text", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread },
     { label: "New App", icon: "add-circle", color: "#0EA5E9", onPress: () => goto("/appointment/new") },
@@ -360,6 +363,8 @@ function MasterScreen() {
             }}
           />
           <View pointerEvents="none" style={styles.brandHeaderScrim} />
+          {/* V50.z157 — Badge meteo anche nell'header Master (sempre visibile) */}
+          <HeaderWeatherBadge />
           <View style={styles.brandHeaderCornerTL} pointerEvents="none">
             <Text style={styles.brandHeaderDate} numberOfLines={1} testID="master-clock-time">
               {now.toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}

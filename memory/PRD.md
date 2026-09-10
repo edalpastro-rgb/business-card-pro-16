@@ -1,6 +1,13 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z157 (Giu 2026) — Icona meteo header assente su APK (visibile su web) + Meteo nelle Utility
+
+**Root cause**: `HeaderWeatherBadge` faceva `return null` se `/weather/alerts` non restituiva `weather` (needs_address). Su APK 1.0.49 il permesso posizione NON è nel manifest (stesso problema build della fotocamera) → coords null → in produzione nessun indirizzo salvato → needs_address → badge invisibile. Sul web preview il DB ha un indirizzo/geolocalizzazione browser → visibile. Widget Home "Meteo · Tocca per impostare la tua località" conferma.
+**Fix**: badge sempre renderizzato (icona `cloud-outline` + testo "Meteo" quando mancano dati; tap → `/meteo`), ricarica al focus (`useFocusEffect` + tick) così dopo aver impostato l'indirizzo mostra la temperatura. Aggiunto anche nell'header di `master.tsx`. Tile "Meteo" (partly-sunny, grigio Utility) in `master.tsx` → `/meteo`. Test web: badge presente su /master, tile Meteo presente ✅.
+**Per l'utente**: impostare l'indirizzo in /meteo rende il meteo funzionante anche senza GPS.
+
+
 ## V50.z156 (Giu 2026) — Scanner "ancora senza permessi" (APK 1.0.49)
 
 **Verifica**: `npx expo prebuild --platform android --no-install` su copia del progetto (/tmp/pb) → `android/app/src/main/AndroidManifest.xml` contiene `CAMERA, RECORD_AUDIO, READ/WRITE_CONTACTS, ACCESS_COARSE/FINE_LOCATION, POST_NOTIFICATIONS, USE_BIOMETRIC…` + `uses-feature camera required=false`. La libreria `expo-camera` dichiara CAMERA anche nel proprio manifest. ⇒ La configurazione del repo è corretta; app.json ha version 1.0.16/versionCode 16 mentre l'APK è 1.0.49 → la pipeline Emergent riscrive la config in build. Se in Android → Autorizzazioni la voce "Fotocamera" non esiste proprio, il manifest dell'APK non la contiene: problema di build, escalation a support@emergent.sh (fatto tramite support_agent).

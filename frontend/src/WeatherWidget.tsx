@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { getWeatherCoords, weatherIcon } from "@/src/utils/weather";
@@ -110,6 +110,12 @@ const styles = StyleSheet.create({
 export function HeaderWeatherBadge() {
   const router = useRouter();
   const [res, setRes] = useState<Res | null>(null);
+  // V50.z157 — Il badge è SEMPRE visibile: senza dati meteo (GPS negato/assente nella
+  // build, indirizzo non impostato, rete) mostra un'icona "nuvola" generica che porta a
+  // /meteo per impostare la località. Prima `return null` lo faceva sparire del tutto
+  // (APK 1.0.49: permesso posizione assente → coords null → needs_address → nessun badge).
+  const [tick, setTick] = useState(0);
+  useFocusEffect(useCallback(() => { setTick((t) => t + 1); }, []));
 
   useEffect(() => {
     let cancelled = false;
@@ -129,21 +135,26 @@ export function HeaderWeatherBadge() {
       if (!cancelled) setRes(null);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [tick]);
 
   const w = res?.weather;
-  if (!w || !w.icon_key) return null;
-  const icon = weatherIcon(w.icon_key);
+  const hasWeather = !!(w && w.icon_key);
+  const icon = hasWeather ? weatherIcon(w!.icon_key) : { name: "cloud-outline" as any };
+  const temp = hasWeather ? (w!.temp ?? w!.temp_max) : null;
   return (
     <Pressable
       testID="header-weather-badge"
       onPress={() => router.push("/meteo" as any)}
       hitSlop={8}
-      accessibilityLabel={`Meteo attuale: ${w.label || ""}`}
+      accessibilityLabel={hasWeather ? `Meteo attuale: ${w!.label || ""}` : "Meteo: imposta la tua località"}
       style={styles.headerBadge}
     >
       <Ionicons name={icon.name} size={14} color="#FFF" />
-      {(w.temp ?? w.temp_max) != null && <Text style={styles.headerBadgeTxt}>{Math.round((w.temp ?? w.temp_max) as number)}°</Text>}
+      {temp != null ? (
+        <Text style={styles.headerBadgeTxt}>{Math.round(temp as number)}°</Text>
+      ) : (
+        <Text style={styles.headerBadgeTxt}>Meteo</Text>
+      )}
     </Pressable>
   );
 }
