@@ -17,7 +17,7 @@ import { AssistantFAB } from "@/src/AssistantChat";
 import * as Linking from "expo-linking";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
-import { SupportFab } from "@/src/SupportFab";
+// V50.z147 — SupportFab non più montato (header Help rimosso); import rimosso.
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { EdgePanel } from "@/src/EdgePanel";
 import { OnboardingWizard } from "@/src/OnboardingWizard";
@@ -179,7 +179,9 @@ function StackWithCallBar() {
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
       <AssistantFAB />
-      {user ? <SupportFab /> : null}
+      {/* V50.z147 — Rimosso il bottone Help/Support Center dalle top header di tutte le pagine
+          (`<SupportFab />`, V49.j/k): ridondante con il tab "Help" della bottom bar (V50.z141).
+          Il componente resta in `src/SupportFab.tsx` per eventuale riuso. */}
       {/* V50.z5 — Calculator FAB globale: appare in tutte le pagine, anche
           sopra i modali fatture (posizionato accanto al FAB Axon). */}
       {user ? <CalculatorFAB /> : null}

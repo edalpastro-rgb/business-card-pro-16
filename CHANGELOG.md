@@ -219,6 +219,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   Rifai il tour / Help Center). `report` resta nel gruppo (tabs) con `href: null` (rotta `/report` invariata) ed è raggiungibile
   dal menu laterale come **"Statistiche"** (Team & Insights) e dall'Edge Panel. `PersistentBottomNav` allineata (tab Help attivo su
   `/libretto` e `/help*`, nascosta su `/report` dove c'è la Tabs nativa).
+  **V50.z147**: rimosso da `app/_layout.tsx` il `<SupportFab />` (bottone Help/Support Center in alto a destra su tutte le pagine,
+  V49.j/k) perché ridondante col tab Help. Il componente `src/SupportFab.tsx` (sheet assistenza AI + ticket) resta nel codice ma
+  non è più montato.
 - Menu laterale (`DrawerMenu.tsx`): **V50.z131** rimosso link morto "Note" (`/notes`, pagina inesistente); "Business Cards" →
   "Biglietto da visita" collegato a `/business-card`. Mapping colori in `menuCategories.ts` aggiornato.
 - Regola: nessuna schermata bianca — error boundary su moduli chart/table, timeout visibili.
@@ -247,6 +250,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z147 | Giu 2026 | Rimosso il bottone Help/Support Center dalle top header di tutte le pagine (SupportFab non montato) — ridondante col tab Help |
 | V50.z146 | Giu 2026 | Android: permesso CAMERA hardcoded via config plugin locale + expo-build-properties; uses-feature camera required=false (serve nuova build) |
 | V50.z145 | Giu 2026 | Comunica con l'azienda: "Modifica" solo per contatti esistenti; nuovo "+ Aggiungi contatto" manuale (form inline) |
 | V50.z144 | Giu 2026 | Knowledge Base Axon: voci FAQ/Dati/Nota + TXT/MD/CSV, modifica/rinomina, filtri; PINNED riattivate in cima al prompt; impegni "da ora farò X" PINNED |

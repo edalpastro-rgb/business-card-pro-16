@@ -1,6 +1,11 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z147 (Giu 2026) — Rimosso Help dalle top header
+
+L'unico "Help" nelle header era il `<SupportFab />` globale (montato in `app/_layout.tsx`, top-right accanto all'avatar su tutte le pagine, `accessibilityLabel="HELP CENTER"`, testID `support-fab`). Rimosso il mount + import (componente `src/SupportFab.tsx` conservato, non montato; `app/master.tsx` ha solo un commento che lo cita). Nessun'altra icona help nelle header (grep `help-circle`: solo icone di lista/badge non-header). Verifica web: `support-fab` count 0, header Home con solo avatar ✅.
+
+
 ## V50.z146 (Giu 2026) — Permesso CAMERA forzato nel manifest (APK 1.0.48 senza voce Fotocamera)
 
 - Installato `expo-build-properties ~1.0.10` (`yarn expo install`) e registrato in `plugins` con `{android:{}}` (non può aggiungere uses-permission: serve un config plugin).
