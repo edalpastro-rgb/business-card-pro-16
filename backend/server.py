@@ -278,6 +278,7 @@ async def _oauth_callback_bridge(request: Request):
         await db.google_drive_connections.update_one(
             {"user_id": s["user_id"]}, {"$set": doc, "$setOnInsert": {"created_at": utcnow()}}, upsert=True
         )
+        _schedule_drive_reindex(s["user_id"], reason="oauth-connected")  # V50.z155
         return await _try_exchange_and_page(True, "Google Drive collegato",
                                             f"Account: {google_email}" if google_email else "")
     except Exception as e:
@@ -12296,18 +12297,24 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
     #  - HTML generico URL insegnati (snapshot + last_summary)
     #  - GME canonical fallback
     # Ogni fetcher può richiedere 1-3s: in sequenza ~10s, in parallelo ~3s.
+    # V50.z155 — Timeout duro per fetcher (12s): un URL lento non deve bloccare
+    # la risposta di Axon per minuti ("Sto cercando nei documenti…").
+    async def _bounded(coro, label: str):
+        try:
+            return await asyncio.wait_for(coro, timeout=12)
+        except asyncio.TimeoutError:
+            logger.warning("[axon-teach] fetcher %s timeout (12s) — skipped", label)
+            return ""
+        except Exception:
+            return ""
     async def _s_pdf():
-        try: return await _fetch_teach_url_pdfs_for_query(tenant, user_msg)
-        except Exception: return ""
+        return await _bounded(_fetch_teach_url_pdfs_for_query(tenant, user_msg), "url-pdf")
     async def _s_drive():
-        try: return await _fetch_teach_drive_pdfs_for_query(tenant, user_msg)
-        except Exception: return ""
+        return await _bounded(_fetch_teach_drive_pdfs_for_query(tenant, user_msg), "drive-index")
     async def _s_html():
-        try: return await _fetch_teach_urls_html_generic(tenant, user_msg)
-        except Exception: return ""
+        return await _bounded(_fetch_teach_urls_html_generic(tenant, user_msg), "url-html")
     async def _s_canonical():
-        try: return await _fetch_gme_pun_canonical(tenant, user_msg)
-        except Exception: return ""
+        return await _bounded(_fetch_gme_pun_canonical(tenant, user_msg), "gme")
     dyn_pdf_text, dyn_drive_pdf_text, dyn_html_text, canonical_gme_text = await asyncio.gather(
         _s_pdf(), _s_drive(), _s_html(), _s_canonical(),
     )
@@ -12381,11 +12388,14 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
     drive_block = ""
     if dyn_drive_pdf_text:
         drive_block = (
-            "\n\n### 📂 PDF DA GOOGLE DRIVE (cartelle/file insegnati — letti in tempo reale)\n"
+            "\n\n### 📂 GOOGLE DRIVE — INDICE AUTOMATICO DELLE CARTELLE MONITORATE\n"
             + dyn_drive_pdf_text
-            + "\n\nQuesto è il CONTENUTO REALE dei file PDF che l'utente ha caricato in una cartella "
-            "Google Drive collegata a te. Usa QUESTI numeri come FONTE PRIMARIA. Se contengono la "
-            "risposta, cita il nome del file. Non dire 'dati non disponibili' — ce li hai qui."
+            + "\n\nHAI ACCESSO a queste cartelle Drive: l'indice viene aggiornato automaticamente "
+            "(ogni 30 min e ad ogni nuova cartella collegata). Se l'utente chiede 'hai accesso al Drive?' "
+            "o 'che cartella vedi?' rispondi SÌ ed elenca cartelle e file dall'elenco sopra. Il testo dei "
+            "file più pertinenti è già incluso: usalo come FONTE PRIMARIA e cita il nome del file. Se il file "
+            "richiesto è nell'elenco ma il suo testo non è incluso, dillo e invita a riformulare con il nome "
+            "del file (oppure ad allegarlo con l'icona G blu)."
         )
     html_block = ""
     if dyn_html_text:
@@ -13554,42 +13564,104 @@ def _extract_drive_file_id(url: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
-async def _fetch_teach_drive_pdfs_for_query(
-    tenant: str, user_msg: str, max_pdfs: int = 4
-) -> str:
-    """V50.z7 — Scarica dinamicamente PDF da Drive folders/files linkati come
-    teach URL. Se la query menziona mese/anno prova a filtrare per nome
-    file, altrimenti prende gli N più recenti (ordina per modifiedTime desc).
-
-    Best-effort: se l'utente non ha Drive collegato o l'URL non è un link
-    Drive valido, ritorna stringa vuota (silent no-op).
-    """
-    msg_lc = (user_msg or "").lower()
+async def _drive_index_roots(tenant: str) -> Tuple[List[Dict[str, str]], List[str]]:
+    """V50.z155 — Radici dell'indice Drive di un tenant:
+    cartelle scelte in Impostazioni → Google Drive (`google_drive_folders`) +
+    link drive.google.com inseriti in "Insegna ad Axon" (`ai_teach_urls`).
+    Ritorna ([{id, name}], [file_id singoli])."""
+    folders: List[Dict[str, str]] = []
+    seen: set = set()
     try:
-        urls = await db.ai_teach_urls.find({"user_id": tenant}, {"_id": 0}).to_list(50)
+        cur = db.google_drive_folders.find({"user_id": tenant}, {"_id": 0, "folder_id": 1, "folder_name": 1})
+        async for d in cur:
+            fid = d.get("folder_id")
+            if fid and fid not in seen:
+                seen.add(fid)
+                folders.append({"id": fid, "name": d.get("folder_name") or "Cartella Drive"})
     except Exception:
-        return ""
-    if not urls:
-        return ""
-
-    drive_folders: List[str] = []
-    drive_files: List[str] = []
+        pass
+    files: List[str] = []
+    try:
+        urls = await db.ai_teach_urls.find({"user_id": tenant}, {"_id": 0, "url": 1, "title": 1}).to_list(50)
+    except Exception:
+        urls = []
     for u in urls:
         url = (u.get("url") or "").strip()
-        if not url:
-            continue
         fid = _extract_drive_folder_id(url)
         if fid:
-            drive_folders.append(fid)
+            if fid not in seen:
+                seen.add(fid)
+                folders.append({"id": fid, "name": u.get("title") or "Cartella insegnata"})
             continue
         fid = _extract_drive_file_id(url)
         if fid:
-            drive_files.append(fid)
+            files.append(fid)
+    return folders, files
 
-    if not drive_folders and not drive_files:
+
+_DRIVE_TEACH_STOPWORDS = {
+    "the","and","for","con","del","della","dei","delle","dal","dalla",
+    "che","una","uno","gli","alla","allo","alle","agli","tra","fra",
+    "sul","sulla","sui","sulle","suo","sua","suoi","sue","mio","mia","miei","mie",
+    "cosa","come","dove","quando","quanto","quanti","quali","perché",
+    "fai","dammi","dimmi","mostrami","fammi","voglio","vorrei","posso","puoi","puo",
+    "sintesi","riassunto","tabella","dati","elenco","lista","file","pdf",
+    "sono","siamo","sei","fatto","fatta","ecco","così","cosi","molto",
+    "drive","google","cartella","cartelle","documento","documenti","vedi","hai","accesso",
+}
+
+
+async def _fetch_teach_drive_pdfs_for_query(
+    tenant: str, user_msg: str, max_pdfs: int = 4
+) -> str:
+    """V50.z155 — Contesto Drive per la chat letto dall'INDICE (`drive_snapshots`),
+    non più con chiamate live all'API Drive (BFS su decine di cartelle ad ogni
+    domanda → 30-120s di attesa e falsi "non ho accesso").
+
+    • Elenca sempre cartelle monitorate + n. file indicizzati (così Axon sa
+      rispondere "che cartella vedi?").
+    • Sceglie i file più pertinenti (keyword nel nome/percorso → mese/anno →
+      più recenti) e ne include il testo.
+    • Se l'indice è vuoto ma esistono radici, avvia il reindex in background e
+      lo dichiara nel prompt.
+    Ritorna "" solo se il tenant non ha Drive collegato né cartelle.
+    """
+    msg_lc = (user_msg or "").lower()
+    folders, single_files = await _drive_index_roots(tenant)
+    if not folders and not single_files:
         return ""
+    connected = await db.google_drive_connections.find_one({"user_id": tenant}, {"_id": 0, "user_id": 1}) is not None
 
-    # Estrai mesi/anni menzionati (mesi italiani + formati numerici)
+    try:
+        snaps = await db.drive_snapshots.find(
+            {"user_id": tenant},
+            {"_id": 0, "file_id": 1, "name": 1, "folder_path": 1, "modified_time": 1, "text": 1, "mime": 1},
+        ).sort("modified_time", -1).to_list(2000)
+    except Exception:
+        snaps = []
+
+    folder_names = ", ".join(f["name"] for f in folders[:20]) or "—"
+    header_lines = [
+        f"CARTELLE DRIVE MONITORATE ({len(folders)}): {folder_names}",
+        f"FILE INDICIZZATI: {len(snaps)}",
+    ]
+
+    if not snaps:
+        if connected:
+            _schedule_drive_reindex(tenant, reason="index-empty")
+            header_lines.append(
+                "⚠️ Indice in costruzione (prima indicizzazione avviata ora): i contenuti dei file "
+                "saranno disponibili tra pochi minuti. Se l'utente chiede se hai accesso al Drive: "
+                "rispondi SÌ (cartelle sopra), spiegando che l'indice si sta ancora popolando."
+            )
+        else:
+            header_lines.append(
+                "🔴 Google Drive NON collegato (o sessione scaduta): l'indice non può aggiornarsi. "
+                "Invita l'utente a Impostazioni → Google Drive → Collega."
+            )
+        return "\n".join(header_lines)
+
+    # --- Scoring per pertinenza -------------------------------------------
     months = [m for m in _MONTH_MAP_IT if m in msg_lc]
     for _mnum in re.findall(r"\b(0[1-9]|1[0-2])[/\-\.\s](20\d{2})\b", msg_lc):
         _mnum_int = int(_mnum[0])
@@ -13597,246 +13669,61 @@ async def _fetch_teach_drive_pdfs_for_query(
             if _mval == _mnum_int and _mname not in months:
                 months.append(_mname)
     years = re.findall(r"20\d{2}", msg_lc)
+    keywords = [w for w in re.findall(r"[a-zA-Zàèéìòù0-9]{3,}", msg_lc) if w not in _DRIVE_TEACH_STOPWORDS]
 
-    # Ottieni credenziali Drive dell'utente (silent se non connesso)
-    try:
-        creds = await _gd_get_credentials(tenant)
-    except HTTPException:
-        return ""
-    except Exception as exc:
-        logger.warning("[teach-drive] cannot get drive creds: %s", exc)
-        return ""
-
-    from googleapiclient.discovery import build  # type: ignore
-    from googleapiclient.http import MediaIoBaseDownload  # type: ignore
-    from io import BytesIO
-
-    # V50.z12 — Ricorsione ricorsiva su sottocartelle Drive.
-    # Le cartelle collegate spesso contengono decine di sottocartelle (es.
-    # CORPORATE CLUB → 30 sottocartelle argomento). Serve BFS con visited-set
-    # e limite di sicurezza (max_folders, max_depth) per non esplodere.
-    def _list_folder_children(folder_id: str) -> List[Dict[str, Any]]:
-        """Lista TUTTI i figli diretti (PDF + cartelle) di folder_id.
-        Gestisce paginazione fino a 1000 elementi per cartella.
-        """
-        try:
-            service = build("drive", "v3", credentials=creds, cache_discovery=False)
-            q = (
-                f"'{folder_id}' in parents and trashed = false and "
-                f"(mimeType = 'application/pdf' or "
-                f"mimeType = 'application/vnd.google-apps.folder')"
-            )
-            out: List[Dict[str, Any]] = []
-            page_token: Optional[str] = None
-            for _ in range(4):  # max 4 pagine (~4000 elementi) per cartella
-                result = service.files().list(
-                    q=q,
-                    pageSize=1000,
-                    orderBy="folder,modifiedTime desc",
-                    fields="nextPageToken, files(id,name,mimeType,modifiedTime,parents)",
-                    pageToken=page_token,
-                ).execute()
-                out.extend(result.get("files", []) or [])
-                page_token = result.get("nextPageToken")
-                if not page_token:
-                    break
-            return out
-        except Exception as exc:
-            logger.warning("[teach-drive] list_children %s failed: %s", folder_id, exc)
-            return []
-
-    def _list_folder_pdfs_recursive(
-        root_folder_id: str,
-        max_folders: int = 60,
-        max_depth: int = 5,
-        max_pdfs_total: int = 400,
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
-        """BFS ricorsiva: ritorna (lista pdf, mappa folder_id → path_leggibile).
-        Il path aiuta a matchare le query per nome sottocartella
-        (es. "Super Impresa Smart" trova PDF dentro CORPORATE CLUB/Offerte/Super Impresa Smart/).
-        """
-        MIME_FOLDER = "application/vnd.google-apps.folder"
-        MIME_PDF = "application/pdf"
-        pdfs: List[Dict[str, Any]] = []
-        folder_paths: Dict[str, str] = {root_folder_id: ""}
-        visited: set = {root_folder_id}
-        queue: List[Tuple[str, int]] = [(root_folder_id, 0)]
-        folders_scanned = 0
-        while queue and folders_scanned < max_folders and len(pdfs) < max_pdfs_total:
-            folder_id, depth = queue.pop(0)
-            folders_scanned += 1
-            children = _list_folder_children(folder_id)
-            parent_path = folder_paths.get(folder_id, "")
-            for ch in children:
-                mime = ch.get("mimeType") or ""
-                name = ch.get("name") or ""
-                cid = ch.get("id") or ""
-                if not cid:
-                    continue
-                if mime == MIME_PDF:
-                    ch["_folder_path"] = parent_path
-                    pdfs.append(ch)
-                    if len(pdfs) >= max_pdfs_total:
-                        break
-                elif mime == MIME_FOLDER and cid not in visited and depth < max_depth:
-                    visited.add(cid)
-                    folder_paths[cid] = f"{parent_path}/{name}" if parent_path else name
-                    queue.append((cid, depth + 1))
-        return pdfs, folder_paths
-
-    def _get_file_meta(file_id: str) -> Optional[Dict[str, Any]]:
-        try:
-            service = build("drive", "v3", credentials=creds, cache_discovery=False)
-            return service.files().get(
-                fileId=file_id, fields="id,name,mimeType,modifiedTime"
-            ).execute()
-        except Exception as exc:
-            logger.warning("[teach-drive] meta %s failed: %s", file_id, exc)
-            return None
-
-    def _download_pdf_bytes(file_id: str) -> Optional[bytes]:
-        try:
-            service = build("drive", "v3", credentials=creds, cache_discovery=False)
-            req = service.files().get_media(fileId=file_id)
-            out = BytesIO()
-            dl = MediaIoBaseDownload(out, req, chunksize=1024 * 1024)
-            done = False
-            while not done:
-                _, done = dl.next_chunk()
-            raw = out.getvalue()
-            if len(raw) > 8 * 1024 * 1024:
-                raw = raw[: 8 * 1024 * 1024]
-            return raw
-        except Exception as exc:
-            logger.warning("[teach-drive] download %s failed: %s", file_id, exc)
-            return None
-
-    # V50.z12 — Estrai KEYWORD dalla query (>=3 char, no stopwords) per matching
-    # per NOME file/cartella (es. "sintesi offerta Super Impresa Smart" →
-    # ["super","impresa","smart","offerta","sintesi"]).
-    _STOPWORDS_IT = {
-        "the","and","for","con","del","della","dei","delle","dal","dalla",
-        "che","una","uno","gli","alla","allo","alle","agli","tra","fra",
-        "sul","sulla","sui","sulle","suo","sua","suoi","sue","mio","mia","miei","mie",
-        "cosa","come","dove","quando","quanto","quanti","quali","perché",
-        "fai","dammi","dimmi","mostrami","fammi","voglio","vorrei","posso","puoi","puo",
-        "sintesi","riassunto","tabella","dati","elenco","lista","file","pdf",
-        "sono","siamo","sei","fatto","fatta","ecco","così","cosi","molto",
-    }
-    keywords = [
-        w for w in re.findall(r"[a-zA-Zàèéìòù]{3,}", msg_lc)
-        if w not in _STOPWORDS_IT
-    ]
-
-    def _matches_month_year(fname: str) -> bool:
+    def _my_match(fname: str) -> bool:
         if not months and not years:
-            return True
+            return False
         f_low = (fname or "").lower()
-        month_pats: List[str] = []
+        pats: List[str] = []
         for m in months:
-            mnum = _MONTH_MAP_IT[m]
-            m2 = f"{mnum:02d}"
-            month_pats.extend([m, f"-{m2}-", f"_{m2}_", f".{m2}.", f" {m2} "])
+            m2 = f"{_MONTH_MAP_IT[m]:02d}"
+            pats.extend([m, f"-{m2}-", f"_{m2}_", f".{m2}.", f" {m2} "])
             for y in years:
-                month_pats.extend([
-                    f"{y}{m2}", f"{m2}{y}", f"{y}-{m2}", f"{y}_{m2}",
-                    f"{y}.{m2}", f"{m2}-{y}", f"{m2}_{y}", f"{m2}.{y}",
-                ])
-        if month_pats and any(p in f_low for p in month_pats):
+                pats.extend([f"{y}{m2}", f"{m2}{y}", f"{y}-{m2}", f"{y}_{m2}", f"{y}.{m2}", f"{m2}-{y}", f"{m2}_{y}", f"{m2}.{y}"])
+        if pats and any(p in f_low for p in pats):
             return True
-        # Se nessun mese ma anno menzionato, matcha solo per anno
-        if not months and years and any(y in f_low for y in years):
-            return True
-        return False
+        return bool(not months and years and any(y in f_low for y in years))
 
-    def _keyword_score(f: Dict[str, Any]) -> int:
-        """Punteggio: quante keyword della query compaiono in nome file + path
-        cartella. Priorità: keyword nel nome file (peso 3) > path (peso 1)."""
-        if not keywords:
-            return 0
-        fname = (f.get("name") or "").lower()
-        fpath = (f.get("_folder_path") or "").lower()
-        score = 0
+    def _score(s: Dict[str, Any]) -> int:
+        name = (s.get("name") or "").lower()
+        path = (s.get("folder_path") or "").lower()
+        sc = 0
         for kw in keywords:
-            if kw in fname:
-                score += 3
-            if kw in fpath:
-                score += 1
-        return score
+            if kw in name:
+                sc += 3
+            if kw in path:
+                sc += 1
+        if _my_match(name):
+            sc += 2
+        return sc
 
-    # 1) Raccogli tutti i candidati con BFS ricorsivo (max 3 cartelle root)
-    candidate_files: List[Dict[str, Any]] = []
-    for folder_id in drive_folders[:3]:
-        pdfs, _paths = await asyncio.to_thread(_list_folder_pdfs_recursive, folder_id)
-        candidate_files.extend(pdfs)
-    for file_id in drive_files[:5]:
-        meta = await asyncio.to_thread(_get_file_meta, file_id)
-        if meta and meta.get("mimeType") == "application/pdf":
-            meta["_folder_path"] = ""
-            candidate_files.append(meta)
+    scored = sorted(snaps, key=lambda s: (_score(s), s.get("modified_time") or ""), reverse=True)
+    top = [s for s in scored if _score(s) > 0][:max_pdfs]
+    if not top:
+        # Nessuna keyword pertinente: includi i più recenti (utile per "cosa c'è di nuovo")
+        top = scored[:2]
 
-    if not candidate_files:
-        return ""
+    # Elenco sintetico (nomi) per permettere a Axon di citare cosa esiste
+    listing = []
+    for s in snaps[:40]:
+        p = s.get("folder_path") or ""
+        listing.append(f"  • {(p + '/') if p else ''}{s.get('name') or '?'}")
+    header_lines.append("ELENCO FILE (max 40, più recenti prima):\n" + "\n".join(listing))
 
-    logger.info(
-        "[teach-drive] tenant=%s candidates=%d keywords=%s months=%s years=%s",
-        tenant, len(candidate_files), keywords[:6], months, years,
-    )
-
-    # 2) Priorità: matching per keyword (nome file/cartella) → poi mese/anno
-    # → altrimenti più recenti. Se una parola chiave matcha, quel PDF ha
-    # sempre priorità sui recenti generici.
-    if keywords:
-        keyword_matches = [f for f in candidate_files if _keyword_score(f) > 0]
-        # Ordina per punteggio decrescente, poi per modifiedTime desc
-        keyword_matches.sort(
-            key=lambda f: (_keyword_score(f), f.get("modifiedTime", "")),
-            reverse=True,
-        )
-        # Se abbiamo match forti (score >= 3 = keyword nel nome file), usa quelli
-        strong = [f for f in keyword_matches if _keyword_score(f) >= 3]
-        if strong:
-            filtered = strong[:max_pdfs]
-        else:
-            # Match deboli (solo path) + fallback
-            filtered = keyword_matches[:max_pdfs]
-    else:
-        filtered = [f for f in candidate_files if _matches_month_year(f.get("name", ""))]
-        if not filtered:
-            # Nessun filtro → più recenti
-            filtered = sorted(
-                candidate_files,
-                key=lambda f: f.get("modifiedTime", ""),
-                reverse=True,
-            )[:max_pdfs]
-
-    filtered = filtered[:max_pdfs]
-
-    # 3) Scarica ed estrai testo
-    out_blocks: List[str] = []
-    for f in filtered:
-        fid = f.get("id")
-        fname = f.get("name") or "documento.pdf"
-        fpath = f.get("_folder_path") or ""
-        display_name = f"{fpath}/{fname}" if fpath else fname
-        if not fid:
-            continue
-        pdf_bytes = await asyncio.to_thread(_download_pdf_bytes, fid)
-        if not pdf_bytes:
-            continue
-        try:
-            txt = _extract_pdf_text_bytes(pdf_bytes) or ""
-        except Exception:
-            txt = ""
-        txt = (txt or "").strip()
+    blocks: List[str] = []
+    for s in top:
+        txt = (s.get("text") or "").strip()
         if not txt:
             continue
-        modified = f.get("modifiedTime", "")
-        out_blocks.append(
-            f"--- PDF Drive: {display_name} (modificato: {modified}) ---\n{txt[:8000]}"
-        )
+        p = s.get("folder_path") or ""
+        display = f"{p}/{s.get('name')}" if p else (s.get("name") or "documento")
+        blocks.append(f"--- File Drive: {display} (modificato: {s.get('modified_time') or '?'}) ---\n{txt[:8000]}")
 
-    return "\n\n".join(out_blocks)
+    out = "\n".join(header_lines)
+    if blocks:
+        out += "\n\nCONTENUTO DEI FILE PIÙ PERTINENTI:\n\n" + "\n\n".join(blocks)
+    return out
 
 
 
@@ -14360,14 +14247,15 @@ async def _prepare_assistant_prompt(
         "dato manca. Se il dato è presente in una qualsiasi sezione fornita nel prompt, USALO senza chiedere "
         "conferma e senza cercare sul web. NON RIPETERE MAI 'i dati non sono disponibili' se una delle "
         "sezioni (DOCUMENTI MASTER, MEMORIA PERSISTENTE, ALLEGATI, RICERCA WEB) contiene i valori richiesti.\n"
-        "- GOOGLE DRIVE / DROPBOX (integrazioni cloud): l'utente può allegare file dal SUO Google Drive o "
-        "Dropbox tramite l'icona colorata (G blu = Drive, cassetto blu = Dropbox) nel campo di input. "
-        "Quando allega un file, ne ricevi il contenuto nella sezione ALLEGATI (per QUELLA singola richiesta). "
-        "NON dire mai 'non ho mai avuto accesso a Google Drive' e NON dire 'non ho un collegamento persistente' "
-        "in modo brusco: ogni chat parte fresca e vedo SOLO ciò che l'utente allega in questo momento. "
-        "Se ricorda di aver usato Drive in precedenza, spiega con gentilezza: «Ogni conversazione parte pulita: "
-        "ieri hai allegato il file dal Drive con l'icona G blu e l'ho letto in quella chat. Per rileggerlo ora, "
-        "tocca di nuovo l'icona G blu e selezionalo — lo apro subito.» Frase pronta da riusare al bisogno.\n"
+        "- GOOGLE DRIVE / DROPBOX (integrazioni cloud): hai DUE canali. (1) INDICE AUTOMATICO: le cartelle "
+        "Drive monitorate dal Master (Impostazioni → Google Drive → Scegli cartella, e i link Drive di "
+        "'Insegna ad Axon') vengono indicizzate in automatico; nel prompt trovi la sezione 'GOOGLE DRIVE — "
+        "INDICE AUTOMATICO' con l'elenco cartelle/file e il testo dei file più pertinenti: USALA. Se l'utente "
+        "chiede 'hai accesso al Drive?' / 'che cartella vedi?' rispondi SÌ ed elenca cartelle e n. file "
+        "indicizzati (se la sezione dice 'indice in costruzione' o 'non collegato', riporta esattamente quello). "
+        "(2) ALLEGATO MANUALE: l'utente può allegare un singolo file dal suo Drive/Dropbox con l'icona colorata "
+        "(G blu = Drive, cassetto blu = Dropbox) nel campo di input; lo ricevi nella sezione ALLEGATI per quella "
+        "richiesta. NON dire MAI 'non ho accesso a Google Drive' se nel prompt esiste la sezione indice Drive.\n"
         "- TABELLE DATI: quando l'utente chiede una tabella (PUN mensile, tariffe, storico, listino, ecc.) "
         "rispondi ESCLUSIVAMENTE con la tabella Markdown. **ZERO** testo prima, **ZERO** testo dopo, "
         "**ZERO** spiegazioni, **ZERO** commenti, **ZERO** consigli operativi, **ZERO** disclaimer, "
@@ -14420,11 +14308,13 @@ async def _prepare_assistant_prompt(
     # Axon deve sapere di essere COLLEGATO al Drive del Master.
     _cloud_section = ""
     try:
+        # V50.z155 — Collaboratori: le connessioni cloud sono del Master (tenant)
+        _cloud_q = {"user_id": {"$in": list({user["user_id"], tenant_id(user)})}}
         _drive_folders = await db.google_drive_folders.find(
-            {"user_id": user["user_id"]}, {"_id": 0, "name": 1, "folder_id": 1}
+            _cloud_q, {"_id": 0, "folder_name": 1, "folder_id": 1}
         ).to_list(30)
-        _dropbox_ok = await db.dropbox_credentials.find_one({"user_id": user["user_id"]}) is not None
-        _drive_ok = await db.google_drive_connections.find_one({"user_id": user["user_id"]}) is not None
+        _dropbox_ok = await db.dropbox_credentials.find_one(_cloud_q) is not None
+        _drive_ok = await db.google_drive_connections.find_one(_cloud_q) is not None
         # V50.z54 — Sessione scaduta detection: attiva SOLO se ci sono cartelle
         # in `google_drive_folders`. Rimosso il proxy su `ai_teach_urls` che
         # causava falsi positivi "sessione scaduta" quando l'utente aveva mai
@@ -14433,10 +14323,11 @@ async def _prepare_assistant_prompt(
         lines = ["\n\nCLOUD & DRIVE COLLEGATI AL MASTER (usa queste info se l'utente chiede 'a cosa hai accesso'):"]
         if _drive_ok:
             if _drive_folders:
-                lines.append(f"- ✅ Google Drive COLLEGATO. Cartelle Axon monitorate ({len(_drive_folders)}):")
+                _idx_cnt = await db.drive_snapshots.count_documents(_cloud_q)
+                lines.append(f"- ✅ Google Drive COLLEGATO. Cartelle Axon monitorate ({len(_drive_folders)}), file indicizzati: {_idx_cnt}:")
                 for f in _drive_folders[:20]:
-                    lines.append(f"    • {f.get('name','?')}")
-                lines.append("  → Puoi leggere file da queste cartelle quando l'utente allega con l'icona G blu del picker Drive nel campo input.")
+                    lines.append(f"    • {f.get('folder_name') or f.get('name') or '?'}")
+                lines.append("  → HAI ACCESSO a queste cartelle: l'indice automatico (sezione 'GOOGLE DRIVE — INDICE AUTOMATICO') contiene elenco e testo dei file. In più l'utente può allegare singoli file con l'icona G blu.")
             else:
                 lines.append("- ⚠️ Google Drive collegato ma NESSUNA cartella Axon configurata. Dì all'utente di andare in Impostazioni → Google Drive → Scegli cartella.")
         elif _drive_had_before:
@@ -14777,14 +14668,15 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "dato manca. Se il dato è presente in una qualsiasi sezione fornita nel prompt, USALO senza chiedere "
         "conferma e senza cercare sul web. NON RIPETERE MAI 'i dati non sono disponibili' se una delle "
         "sezioni (DOCUMENTI MASTER, MEMORIA PERSISTENTE, ALLEGATI, RICERCA WEB) contiene i valori richiesti.\n"
-        "- GOOGLE DRIVE / DROPBOX (integrazioni cloud): l'utente può allegare file dal SUO Google Drive o "
-        "Dropbox tramite l'icona colorata (G blu = Drive, cassetto blu = Dropbox) nel campo di input. "
-        "Quando allega un file, ne ricevi il contenuto nella sezione ALLEGATI (per QUELLA singola richiesta). "
-        "NON dire mai 'non ho mai avuto accesso a Google Drive' e NON dire 'non ho un collegamento persistente' "
-        "in modo brusco: ogni chat parte fresca e vedo SOLO ciò che l'utente allega in questo momento. "
-        "Se ricorda di aver usato Drive in precedenza, spiega con gentilezza: «Ogni conversazione parte pulita: "
-        "ieri hai allegato il file dal Drive con l'icona G blu e l'ho letto in quella chat. Per rileggerlo ora, "
-        "tocca di nuovo l'icona G blu e selezionalo — lo apro subito.» Frase pronta da riusare al bisogno.\n"
+        "- GOOGLE DRIVE / DROPBOX (integrazioni cloud): hai DUE canali. (1) INDICE AUTOMATICO: le cartelle "
+        "Drive monitorate dal Master (Impostazioni → Google Drive → Scegli cartella, e i link Drive di "
+        "'Insegna ad Axon') vengono indicizzate in automatico; nel prompt trovi la sezione 'GOOGLE DRIVE — "
+        "INDICE AUTOMATICO' con l'elenco cartelle/file e il testo dei file più pertinenti: USALA. Se l'utente "
+        "chiede 'hai accesso al Drive?' / 'che cartella vedi?' rispondi SÌ ed elenca cartelle e n. file "
+        "indicizzati (se la sezione dice 'indice in costruzione' o 'non collegato', riporta esattamente quello). "
+        "(2) ALLEGATO MANUALE: l'utente può allegare un singolo file dal suo Drive/Dropbox con l'icona colorata "
+        "(G blu = Drive, cassetto blu = Dropbox) nel campo di input; lo ricevi nella sezione ALLEGATI per quella "
+        "richiesta. NON dire MAI 'non ho accesso a Google Drive' se nel prompt esiste la sezione indice Drive.\n"
         "- TABELLE DATI: quando l'utente chiede una tabella (PUN mensile, tariffe, storico, listino, ecc.) "
         "rispondi ESCLUSIVAMENTE con la tabella Markdown. **ZERO** testo prima, **ZERO** testo dopo, "
         "**ZERO** spiegazioni, **ZERO** commenti, **ZERO** consigli operativi, **ZERO** disclaimer, "
@@ -14837,11 +14729,13 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # Axon deve sapere di essere COLLEGATO al Drive del Master.
     _cloud_section = ""
     try:
+        # V50.z155 — Collaboratori: le connessioni cloud sono del Master (tenant)
+        _cloud_q = {"user_id": {"$in": list({user["user_id"], tenant_id(user)})}}
         _drive_folders = await db.google_drive_folders.find(
-            {"user_id": user["user_id"]}, {"_id": 0, "name": 1, "folder_id": 1}
+            _cloud_q, {"_id": 0, "folder_name": 1, "folder_id": 1}
         ).to_list(30)
-        _dropbox_ok = await db.dropbox_credentials.find_one({"user_id": user["user_id"]}) is not None
-        _drive_ok = await db.google_drive_connections.find_one({"user_id": user["user_id"]}) is not None
+        _dropbox_ok = await db.dropbox_credentials.find_one(_cloud_q) is not None
+        _drive_ok = await db.google_drive_connections.find_one(_cloud_q) is not None
         # V50.z54 — Sessione scaduta detection: attiva SOLO se ci sono cartelle
         # in `google_drive_folders`. Rimosso il proxy su `ai_teach_urls` che
         # causava falsi positivi "sessione scaduta" quando l'utente aveva mai
@@ -14850,10 +14744,11 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         lines = ["\n\nCLOUD & DRIVE COLLEGATI AL MASTER (usa queste info se l'utente chiede 'a cosa hai accesso'):"]
         if _drive_ok:
             if _drive_folders:
-                lines.append(f"- ✅ Google Drive COLLEGATO. Cartelle Axon monitorate ({len(_drive_folders)}):")
+                _idx_cnt = await db.drive_snapshots.count_documents(_cloud_q)
+                lines.append(f"- ✅ Google Drive COLLEGATO. Cartelle Axon monitorate ({len(_drive_folders)}), file indicizzati: {_idx_cnt}:")
                 for f in _drive_folders[:20]:
-                    lines.append(f"    • {f.get('name','?')}")
-                lines.append("  → Puoi leggere file da queste cartelle quando l'utente allega con l'icona G blu del picker Drive nel campo input.")
+                    lines.append(f"    • {f.get('folder_name') or f.get('name') or '?'}")
+                lines.append("  → HAI ACCESSO a queste cartelle: l'indice automatico (sezione 'GOOGLE DRIVE — INDICE AUTOMATICO') contiene elenco e testo dei file. In più l'utente può allegare singoli file con l'icona G blu.")
             else:
                 lines.append("- ⚠️ Google Drive collegato ma NESSUNA cartella Axon configurata. Dì all'utente di andare in Impostazioni → Google Drive → Scegli cartella.")
         elif _drive_had_before:
@@ -20857,6 +20752,8 @@ async def google_drive_folders_add(body: DrivePickedFoldersIn, user=Depends(get_
         )
         if r.upserted_id or r.modified_count:
             added += 1
+    if added:
+        _schedule_drive_reindex(user["user_id"], reason="folders-added")  # V50.z155
     return {"added": added}
 
 
@@ -20864,6 +20761,8 @@ async def google_drive_folders_add(body: DrivePickedFoldersIn, user=Depends(get_
 async def google_drive_folders_remove(folder_id: str, user=Depends(get_current_user)):
     """Rimuove una cartella dalla lista Axon (non revoca l'OAuth grant)."""
     r = await db.google_drive_folders.delete_one({"user_id": user["user_id"], "folder_id": folder_id})
+    if r.deleted_count:
+        _schedule_drive_reindex(user["user_id"], reason="folder-removed")  # V50.z155
     return {"removed": r.deleted_count}
 
 
@@ -23935,77 +23834,186 @@ async def ha_toggle(payload: Dict[str, Any] = Body(...), user=Depends(get_curren
 
 
 # V50.z85 — Drive re-indexing: cache testo dei file Drive per RAG in AxonOS
-async def _reindex_drive_files_for_user(user_id: str, max_files: int = 40) -> Dict[str, int]:
-    """Re-indicizza i file Drive dell'utente. Skippa file con modifiedTime <= last_indexed_at.
-    Estrae testo da PDF, TXT, CSV. Salva in `db.drive_snapshots`.
+_DRIVE_REINDEX_RUNNING: set = set()
+
+
+def _schedule_drive_reindex(user_id: str, reason: str = "") -> None:
+    """V50.z155 — Avvia il reindex in background (fire-and-forget) se non già in corso."""
+    if not user_id or user_id in _DRIVE_REINDEX_RUNNING:
+        return
+    try:
+        loop = asyncio.get_event_loop()
+        loop.create_task(_reindex_drive_files_for_user(user_id, max_files=300))
+        logger.info("[drive-reindex] scheduled user=%s reason=%s", user_id, reason)
+    except Exception as e:
+        logger.warning("[drive-reindex] cannot schedule user=%s: %s", user_id, e)
+
+
+def _drive_walk_and_collect(creds, root_folders: List[Dict[str, str]], single_files: List[str],
+                            max_folders: int = 80, max_depth: int = 6, max_files: int = 300) -> Tuple[List[Dict[str, Any]], int]:
+    """SYNC (eseguita in thread): BFS ricorsiva sulle cartelle radice.
+    Ritorna (files, folders_scanned). Ogni file ha `_folder_path` e `_root_id`."""
+    from googleapiclient.discovery import build  # type: ignore
+    service = build("drive", "v3", credentials=creds, cache_discovery=False)
+    MIME_FOLDER = "application/vnd.google-apps.folder"
+    WANT = (
+        "mimeType = 'application/pdf' or mimeType contains 'text/' or mimeType = 'application/json' or "
+        "mimeType = 'application/vnd.google-apps.document' or mimeType = 'application/vnd.google-apps.spreadsheet' or "
+        f"mimeType = '{MIME_FOLDER}'"
+    )
+    files: List[Dict[str, Any]] = []
+    visited: set = set()
+    queue: List[Tuple[str, int, str, str]] = []
+    for rf in root_folders:
+        if rf["id"] not in visited:
+            visited.add(rf["id"])
+            queue.append((rf["id"], 0, rf.get("name") or "", rf["id"]))
+    scanned = 0
+    while queue and scanned < max_folders and len(files) < max_files:
+        fid, depth, path, root_id = queue.pop(0)
+        scanned += 1
+        page_token = None
+        for _ in range(3):
+            try:
+                res = service.files().list(
+                    q=f"'{fid}' in parents and trashed = false and ({WANT})",
+                    pageSize=500, orderBy="folder,modifiedTime desc",
+                    fields="nextPageToken, files(id,name,mimeType,size,modifiedTime,parents)",
+                    pageToken=page_token,
+                ).execute()
+            except Exception as e:
+                logger.warning("[drive-reindex] list %s failed: %s", fid, e)
+                break
+            for ch in res.get("files", []) or []:
+                mt = ch.get("mimeType") or ""
+                if mt == MIME_FOLDER:
+                    if ch["id"] not in visited and depth < max_depth:
+                        visited.add(ch["id"])
+                        queue.append((ch["id"], depth + 1, f"{path}/{ch.get('name') or ''}" if path else (ch.get("name") or ""), root_id))
+                else:
+                    ch["_folder_path"] = path
+                    ch["_root_id"] = root_id
+                    files.append(ch)
+                    if len(files) >= max_files:
+                        break
+            page_token = res.get("nextPageToken")
+            if not page_token or len(files) >= max_files:
+                break
+    for sfid in single_files[:20]:
+        try:
+            meta = service.files().get(fileId=sfid, fields="id,name,mimeType,size,modifiedTime,parents").execute()
+            meta["_folder_path"] = ""
+            meta["_root_id"] = sfid
+            files.append(meta)
+        except Exception as e:
+            logger.warning("[drive-reindex] meta %s failed: %s", sfid, e)
+    return files, scanned
+
+
+def _drive_download_text(creds, f: Dict[str, Any]) -> str:
+    """SYNC (thread): scarica/esporta un file e ne estrae il testo (max 100k char)."""
+    from googleapiclient.discovery import build  # type: ignore
+    from googleapiclient.http import MediaIoBaseDownload  # type: ignore
+    from io import BytesIO
+    service = build("drive", "v3", credentials=creds, cache_discovery=False)
+    mt = f.get("mimeType") or ""
+    fid = f["id"]
+    if mt == "application/vnd.google-apps.document":
+        req = service.files().export_media(fileId=fid, mimeType="text/plain"); mt = "text/plain"
+    elif mt == "application/vnd.google-apps.spreadsheet":
+        req = service.files().export_media(fileId=fid, mimeType="text/csv"); mt = "text/csv"
+    else:
+        req = service.files().get_media(fileId=fid)
+    buf = BytesIO()
+    dl = MediaIoBaseDownload(buf, req, chunksize=1024 * 1024)
+    done = False
+    while not done:
+        _, done = dl.next_chunk()
+    data = buf.getvalue()[: 12 * 1024 * 1024]
+    text = ""
+    if mt == "application/pdf":
+        try: text = _extract_pdf_text_bytes(data) or ""
+        except Exception: text = ""
+    else:
+        try: text = data.decode("utf-8", errors="ignore")
+        except Exception: text = ""
+    return re.sub(r"\s{3,}", " ", text or "").strip()[:100000]
+
+
+async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> Dict[str, int]:
+    """V50.z155 — Re-indicizza RICORSIVAMENTE le cartelle Drive monitorate
+    (Impostazioni → Google Drive) + i link Drive di "Insegna ad Axon".
+    Tutte le chiamate Google girano in thread (non bloccano l'event loop).
+    Salva testo in `drive_snapshots`, stato in `drive_index_meta`.
     """
-    stats = {"scanned": 0, "updated": 0, "skipped": 0, "failed": 0}
+    stats = {"scanned": 0, "updated": 0, "skipped": 0, "failed": 0, "removed": 0}
+    if user_id in _DRIVE_REINDEX_RUNNING:
+        return stats
+    _DRIVE_REINDEX_RUNNING.add(user_id)
+    started = utcnow()
+    err_msg = None
     try:
         row = await db.google_drive_connections.find_one({"user_id": user_id})
         if not row:
             return stats
-        from googleapiclient.discovery import build  # type: ignore
-        from googleapiclient.http import MediaIoBaseDownload  # type: ignore
-        from io import BytesIO
-        creds = await _gd_get_credentials(user_id)
-        service = build("drive", "v3", credentials=creds, cache_discovery=False)
-        folder_ids = await _gd_user_folder_ids(user_id)
-        if not folder_ids:
+        roots, single_files = await _drive_index_roots(user_id)
+        if not roots and not single_files:
             return stats
-        parents_or = " or ".join([f"'{fid}' in parents" for fid in folder_ids])
-        q = f"trashed = false and ({parents_or}) and (mimeType='application/pdf' or mimeType='text/plain' or mimeType='text/csv' or mimeType contains 'text/')"
-        result = service.files().list(
-            q=q, pageSize=max_files,
-            orderBy="modifiedTime desc",
-            fields="files(id,name,mimeType,size,modifiedTime,parents)",
-        ).execute()
-        files = result.get("files", []) or []
+        await db.drive_index_meta.update_one(
+            {"user_id": user_id}, {"$set": {"status": "running", "started_at": started}}, upsert=True
+        )
+        creds = await _gd_get_credentials(user_id)
+        files, folders_scanned = await asyncio.to_thread(_drive_walk_and_collect, creds, roots, single_files, 80, 6, max_files)
+        current_ids = set()
         for f in files:
-            stats["scanned"] += 1
             fid = f["id"]
-            existing = await db.drive_snapshots.find_one({"user_id": user_id, "file_id": fid})
+            current_ids.add(fid)
+            stats["scanned"] += 1
+            existing = await db.drive_snapshots.find_one({"user_id": user_id, "file_id": fid}, {"_id": 0, "modified_time": 1, "folder_path": 1})
             if existing and existing.get("modified_time") == f.get("modifiedTime"):
+                if existing.get("folder_path") != f.get("_folder_path"):
+                    await db.drive_snapshots.update_one({"user_id": user_id, "file_id": fid}, {"$set": {"folder_path": f.get("_folder_path") or ""}})
                 stats["skipped"] += 1
                 continue
             try:
-                req = service.files().get_media(fileId=fid)
-                buf = BytesIO()
-                downloader = MediaIoBaseDownload(buf, req)
-                done = False
-                while not done:
-                    _st, done = downloader.next_chunk()
-                data = buf.getvalue()
-                text = ""
-                mt = f.get("mimeType", "")
-                if mt == "application/pdf":
-                    try: text = _extract_pdf_text_bytes(data) or ""
-                    except Exception: text = ""
-                elif mt.startswith("text/") or mt in ("application/json",):
-                    try: text = data.decode("utf-8", errors="ignore")
-                    except Exception: text = ""
-                text = re.sub(r"\s{3,}", " ", text or "").strip()[:100000]
-                doc = {
-                    "user_id": user_id,
-                    "file_id": fid,
-                    "name": f.get("name") or fid,
-                    "mime": mt,
-                    "size": int(f.get("size") or 0),
-                    "modified_time": f.get("modifiedTime"),
-                    "parents": f.get("parents") or [],
-                    "text": text,
-                    "indexed_at": utcnow(),
-                }
+                text = await asyncio.to_thread(_drive_download_text, creds, f)
                 await db.drive_snapshots.update_one(
                     {"user_id": user_id, "file_id": fid},
-                    {"$set": doc},
+                    {"$set": {
+                        "user_id": user_id, "file_id": fid,
+                        "name": f.get("name") or fid, "mime": f.get("mimeType") or "",
+                        "size": int(f.get("size") or 0), "modified_time": f.get("modifiedTime"),
+                        "parents": f.get("parents") or [], "folder_path": f.get("_folder_path") or "",
+                        "root_id": f.get("_root_id"), "text": text, "indexed_at": utcnow(),
+                    }},
                     upsert=True,
                 )
                 stats["updated"] += 1
             except Exception as e:
                 stats["failed"] += 1
                 logger.debug(f"[drive-reindex] {fid} failed: {e}")
+        # Rimuovi dall'indice i file non più presenti nelle cartelle (solo se la scansione ha prodotto qualcosa)
+        if folders_scanned > 0 or single_files:
+            r = await db.drive_snapshots.delete_many({"user_id": user_id, "file_id": {"$nin": list(current_ids)}})
+            stats["removed"] = int(r.deleted_count or 0)
+    except HTTPException as e:
+        err_msg = str(e.detail)
+        logger.warning(f"[drive-reindex] user {user_id} auth/config error: {e.detail}")
     except Exception as e:
+        err_msg = str(e)[:300]
         logger.warning(f"[drive-reindex] user {user_id} failed: {e}")
+    finally:
+        _DRIVE_REINDEX_RUNNING.discard(user_id)
+        try:
+            cnt = await db.drive_snapshots.count_documents({"user_id": user_id})
+            await db.drive_index_meta.update_one(
+                {"user_id": user_id},
+                {"$set": {"status": "error" if err_msg else "ok", "error": err_msg, "last_run_at": utcnow(),
+                          "duration_s": (utcnow() - started).total_seconds(), "files_count": cnt, "stats": stats}},
+                upsert=True,
+            )
+        except Exception:
+            pass
     return stats
 
 
@@ -24020,7 +24028,7 @@ async def _run_drive_reindex_job() -> None:
             if not uid:
                 continue
             n_users += 1
-            s = await _reindex_drive_files_for_user(uid, max_files=40)
+            s = await _reindex_drive_files_for_user(uid, max_files=300)
             for k in totals: totals[k] += s.get(k, 0)
         if n_users:
             logger.info(f"[drive-reindex] users={n_users} scanned={totals['scanned']} updated={totals['updated']} skipped={totals['skipped']} failed={totals['failed']}")
@@ -24030,9 +24038,12 @@ async def _run_drive_reindex_job() -> None:
 
 @api_router.post("/google-drive/reindex")
 async def google_drive_manual_reindex(user=Depends(get_current_user)):
-    """Forza un reindex on-demand dei file Drive dell'utente corrente."""
-    stats = await _reindex_drive_files_for_user(user["user_id"], max_files=100)
-    return {"ok": True, **stats}
+    """V50.z155 — Avvia un reindex on-demand in background (può durare minuti);
+    lo stato è consultabile su GET /google-drive/reindex/status."""
+    running = user["user_id"] in _DRIVE_REINDEX_RUNNING
+    if not running:
+        _schedule_drive_reindex(user["user_id"], reason="manual")
+    return {"ok": True, "started": not running, "running": True}
 
 
 @api_router.get("/google-drive/reindex/status")
@@ -24044,8 +24055,16 @@ async def google_drive_reindex_status(user=Depends(get_current_user)):
         {"_id": 0, "name": 1, "indexed_at": 1, "modified_time": 1},
         sort=[("indexed_at", -1)],
     )
+    meta = await db.drive_index_meta.find_one({"user_id": user["user_id"]}, {"_id": 0}) or {}
+    for k in ("last_run_at", "started_at"):
+        if isinstance(meta.get(k), datetime):
+            meta[k] = meta[k].isoformat()
+    folders_cnt = await db.google_drive_folders.count_documents({"user_id": user["user_id"]})
     return {
         "indexed_files": cnt,
+        "folders": folders_cnt,
+        "running": user["user_id"] in _DRIVE_REINDEX_RUNNING,
+        "meta": meta,
         "latest_file": (latest or {}).get("name"),
         "latest_indexed_at": (latest or {}).get("indexed_at").isoformat() if latest and isinstance(latest.get("indexed_at"), datetime) else (latest or {}).get("indexed_at"),
     }

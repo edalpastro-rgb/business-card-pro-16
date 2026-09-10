@@ -1,6 +1,18 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z155 (Giu 2026) — Axon "non ha accesso a Drive" + risposte lentissime (P0)
+
+**Segnalazione**: Drive "Collegato" con cartella attiva, ma Axon risponde "No, non ho accesso / non vedo nessuna cartella"; "Sto cercando nei documenti e nelle regole…" per 2 minuti.
+**Root cause (3 bug concatenati)**:
+1. Il job `_reindex_drive_files_for_user` popolava `drive_snapshots` ma **nessun punto del prompt lo leggeva**: a chat-time veniva letto solo `ai_teach_urls` (link drive.google.com di "Insegna ad Axon"), NON `google_drive_folders` (cartelle scelte in Impostazioni). La cartella "attiva" era quindi invisibile ad Axon.
+2. Il system prompt diceva testualmente "ogni chat parte fresca e vedo SOLO ciò che l'utente allega con l'icona G blu" → Axon negava l'accesso anche quando i dati c'erano. Inoltre la sezione CLOUD leggeva `f.get('name')` ma il campo è `folder_name` → elenco cartelle "?".
+3. `_fetch_teach_drive_pdfs_for_query` faceva ad OGNI domanda una BFS live su Drive (fino a 60 cartelle × paginazione + download 4 PDF) → 30-120s; il vecchio reindex usava chiamate Google sincrone nell'event loop (bloccava tutto il backend ogni 30 min).
+**Fix backend**: indexer unico ricorsivo (`_drive_index_roots` = cartelle Impostazioni + link Drive insegnati; `_drive_walk_and_collect` in thread, max 80 cartelle/6 livelli/300 file, PDF+testo+CSV+JSON+Google Docs/Sheets via export; `_drive_download_text`; snapshot con `folder_path`/`root_id`; rimozione file spariti; `drive_index_meta` con status/durata/errore; lock per utente). Avvio automatico: dopo OAuth riuscito, add/remove cartella, `POST /google-drive/reindex` (ora background), indice vuoto a chat-time; job periodico 30 min (300 file). Chat: `_fetch_teach_drive_pdfs_for_query` legge dall'indice (ms): intestazione cartelle + n. file + elenco 40 nomi + testo dei 4 più pertinenti (keyword nome/percorso ×3/×1, mese/anno +2, poi recenti; fallback 2 più recenti). Prompt: regola Drive riscritta (2 copie: "DUE canali: indice automatico + allegato manuale; NON dire mai 'non ho accesso' se esiste la sezione indice"), sezione CLOUD con conteggio file e `folder_name`, query per tenant (collaboratori). Timeout 12s per ciascun fetcher di `_build_axon_teach_section`.
+**Fix frontend** (`google-drive.tsx`): card "Indice Axon" (n. file letti, ultimo aggiornamento, stato/errore, "Aggiorna indice ora" con polling), testi aggiornati (scope reale = drive.readonly).
+**Test**: unit con Drive mock (BFS con ciclo, sottocartelle, Google Doc, file singolo → 4 file / 2 cartelle ✅); fetch da indice seed: "Super Impresa Smart" → file giusto, "pun maggio 2026" → PrezzoMedioFasce_2026_05 ✅; sezione prompt contiene "INDICE AUTOMATICO" ✅; endpoint status/reindex 200 ✅; chat senza connessione → "non è ancora collegato" (corretto). Test con Drive reale possibile solo in produzione (nessuna connessione OAuth in locale).
+
+
 ## V50.z154 (Giu 2026) — OAuth Google Drive (e Dropbox) su APK: il browser non riportava all'app
 
 **Segnalazione**: dopo l'autorizzazione Google, la pagina "Google Drive già collegato" restava aperta in Samsung Internet; "Apri AdvisorOS" e l'auto-redirect non facevano nulla; si tornava solo con il back di sistema.

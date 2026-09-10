@@ -65,6 +65,39 @@ export default function GoogleDriveScreen() {
     if (status.connected) loadFolders();
   }, [status.connected, loadFolders]);
 
+  // V50.z155 — Stato indice Axon (file delle cartelle monitorate letti da Axon)
+  type IdxStatus = { indexed_files: number; folders?: number; running?: boolean; meta?: { status?: string; error?: string | null; last_run_at?: string; files_count?: number } };
+  const [idx, setIdx] = useState<IdxStatus | null>(null);
+  const [reindexing, setReindexing] = useState(false);
+  const loadIdx = useCallback(async () => {
+    try {
+      const r = await api<IdxStatus>("/google-drive/reindex/status");
+      setIdx(r);
+      return r;
+    } catch { return null; }
+  }, []);
+  useEffect(() => {
+    if (status.connected) loadIdx();
+  }, [status.connected, folders.length, loadIdx]);
+  const reindexNow = useCallback(async () => {
+    setReindexing(true);
+    try {
+      await api("/google-drive/reindex", { method: "POST" });
+      // Polling fino a fine indicizzazione (max ~3 min)
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const r = await loadIdx();
+        if (r && !r.running) break;
+      }
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile avviare l'indicizzazione");
+    } finally { setReindexing(false); }
+  }, [loadIdx]);
+  const fmtIdxTime = (s?: string) => {
+    if (!s) return "mai";
+    try { return new Date(s).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return s; }
+  };
+
   // V50.i — Ricarica cartelle quando la schermata torna in foreground
   // (utile dopo il picker che chiama router.back())
   useEffect(() => {
@@ -287,7 +320,7 @@ export default function GoogleDriveScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.folderTitle}>📂 Cartelle Axon</Text>
                   <Text style={styles.folderSub}>
-                    Axon leggerà SOLO i file nelle cartelle che scegli qui. Puoi aggiungerne quante vuoi.
+                    Axon legge in automatico i file di queste cartelle (sottocartelle incluse). Puoi aggiungerne quante vuoi.
                   </Text>
                 </View>
                 {/* V50.o — Refresh manuale della lista cartelle */}
@@ -345,13 +378,44 @@ export default function GoogleDriveScreen() {
                   {folders.length === 0 ? "Scegli cartella" : "Aggiungi altra cartella"}
                 </Text>
               </Pressable>
+
+              {/* V50.z155 — Indice Axon: cosa vede davvero l'assistente */}
+              {folders.length > 0 && (
+                <View style={styles.idxCard} testID="gd-index-card">
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Ionicons name="sparkles" size={16} color="#7C3AED" />
+                    <Text style={styles.idxTitle}>Indice Axon</Text>
+                    {(idx?.running || reindexing) && <ActivityIndicator size="small" color="#7C3AED" />}
+                  </View>
+                  <Text style={styles.idxMeta}>
+                    {idx ? `${idx.indexed_files} file letti da Axon` : "…"}
+                    {idx?.meta?.last_run_at ? ` · aggiornato ${fmtIdxTime(idx.meta.last_run_at)}` : ""}
+                    {idx?.running || reindexing ? " · indicizzazione in corso…" : ""}
+                  </Text>
+                  {idx?.meta?.status === "error" && !!idx?.meta?.error && (
+                    <Text style={styles.idxErr}>Ultimo errore: {idx.meta.error}</Text>
+                  )}
+                  {idx && idx.indexed_files === 0 && !idx.running && !reindexing && (
+                    <Text style={styles.idxHint}>Nessun file indicizzato: tocca &ldquo;Aggiorna indice&rdquo; (PDF, testo, CSV, Documenti e Fogli Google nelle cartelle sopra, sottocartelle incluse).</Text>
+                  )}
+                  <Pressable
+                    testID="gd-reindex-btn"
+                    onPress={reindexNow}
+                    disabled={reindexing || !!idx?.running}
+                    style={[styles.idxBtn, (reindexing || idx?.running) && { opacity: 0.5 }]}
+                  >
+                    <Ionicons name="refresh" size={16} color="#7C3AED" />
+                    <Text style={styles.idxBtnTxt}>Aggiorna indice ora</Text>
+                  </Pressable>
+                </View>
+              )}
             </View>
           )}
 
           <View style={styles.infoCard}>
             <Ionicons name="information-circle" size={18} color={theme.color.brandPrimary} />
             <Text style={styles.infoTxt}>
-              Al primo collegamento Google chiederà quali file autorizzare. Solo quei file saranno accessibili ad Axon (scope <Text style={{ fontWeight: "800" }}>drive.file</Text>). Puoi revocare in qualsiasi momento dal pulsante Scollega.
+              Axon legge in automatico i file delle cartelle scelte (aggiornamento ogni 30 minuti e ad ogni nuova cartella). Puoi anche allegare un singolo file in chat con l&apos;icona G. Revoca l&apos;accesso in qualsiasi momento con Scollega.
             </Text>
           </View>
         </ScrollView>
@@ -431,4 +495,12 @@ const styles = StyleSheet.create({
     paddingVertical: 13, borderRadius: 12, backgroundColor: GD_GREEN,
   },
   pickerBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
+  // V50.z155 — Indice Axon
+  idxCard: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE", gap: 6 },
+  idxTitle: { fontSize: 13, fontWeight: "900", color: "#5B21B6" },
+  idxMeta: { fontSize: 12, color: theme.color.onSurface, fontWeight: "600" },
+  idxErr: { fontSize: 11.5, color: "#DC2626", fontWeight: "600" },
+  idxHint: { fontSize: 11.5, color: theme.color.muted, lineHeight: 16 },
+  idxBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, alignSelf: "flex-start", minHeight: 40, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: "#7C3AED", backgroundColor: "#FFFFFF" },
+  idxBtnTxt: { color: "#7C3AED", fontWeight: "800", fontSize: 13 },
 });

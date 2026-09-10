@@ -158,6 +158,13 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ricerca PDF GME / tabelle PUN / dual-storage (V50.z26/27/28), validazione prefetch GME (V50.z77).
 - **RAG documenti Master** (v42): chunk + retrieval per tenant; **Knowledge Base personale** da pagine WebView con auto-search
   (V50.z92, V50.z100). Axon Drive re-index (V50.z85, V50.z8-9).
+  **V50.z155 — Indice Drive usato DAVVERO da Axon**: `_drive_index_roots(tenant)` (cartelle Impostazioni→Drive + link Drive
+  "Insegna ad Axon") → `_reindex_drive_files_for_user` (BFS ricorsivo in thread `_drive_walk_and_collect`, testo via
+  `_drive_download_text` incl. export Google Docs/Sheets, snapshot in `drive_snapshots` con `folder_path`, stato in
+  `drive_index_meta`, lock `_DRIVE_REINDEX_RUNNING`, `_schedule_drive_reindex` fire-and-forget dopo OAuth / add-remove cartella /
+  `POST /google-drive/reindex` / indice vuoto). `_fetch_teach_drive_pdfs_for_query` legge SOLO dall'indice (elenco cartelle + file +
+  testo dei 4 più pertinenti per keyword/mese/anno). Prompt: sezione "GOOGLE DRIVE — INDICE AUTOMATICO" + regola "hai DUE canali";
+  `GET /google-drive/reindex/status` esteso (folders, running, meta). Frontend: card "Indice Axon" in `/google-drive`.
   **V50.z144 — Knowledge Base Axon completa** (`/documenti-axon`, Master): oltre ai PDF ora **voci testuali** FAQ / Dati / Nota
   (`POST /master-docs {kind:"text", category, content}`) e file TXT/MD/CSV; **modifica** (`PUT /master-docs/{id}` — rinomina,
   categoria, contenuto con re-chunk/re-index), dettaglio `GET /master-docs/{id}`, elimina. UI: filtri per categoria, badge, icone
@@ -278,6 +285,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z155 | Giu 2026 | **Axon + Google Drive: accesso REALE alle cartelle monitorate.** Root cause: l'indice `drive_snapshots` non veniva mai passato all'AI (solo i link Drive di "Insegna ad Axon" venivano letti, con BFS live sull'API ad ogni domanda → 30-120s) e il prompt diceva ad Axon "vedi SOLO ciò che l'utente allega". Ora: indexer ricorsivo in thread (PDF/TXT/CSV/Google Docs/Sheets, sottocartelle, 300 file), avvio automatico dopo OAuth/scelta cartella + job 30 min, chat legge dall'indice in ms, prompt riscritto (2 copie) + fix `folder_name` ("?"), timeout 12s per fetcher, card "Indice Axon" + "Aggiorna indice ora" nella pagina Google Drive |
 | V50.z154 | Giu 2026 | OAuth Google Drive/Dropbox su APK: ritorno automatico nell'app. Il client invia `return_url` (deep-link) + `android_package` a `/oauth/start`; la pagina di callback usa `intent://…#Intent;scheme=frontend;package=…;end` (Chrome/Samsung Internet) + scheme fallback; rimosso il check UA "android;" (mai vero → link web). Dropbox: returnUrl del custom tab ora è il deep-link (non più https) |
 | V50.z153 | Giu 2026 | Scadenze: icona ⋯ su ogni card (Home + /deadlines) → "Disattiva avviso" (server-side, sparisce da liste e conteggi), "Nuova data scadenza" (override manuale, riattiva), "Sostituisci bolletta" (apre tab Bollette; nuova bolletta/rianalisi riattiva). API `POST /deadlines/{bill_id}/dismiss`, `PUT /deadlines/{bill_id}/expiry` |
 | V50.z152 | Giu 2026 | Calendario: promemoria compleanno si chiude 24h dopo o con "Visto ✓" (persistito sul dispositivo) |
