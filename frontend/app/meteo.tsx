@@ -4,7 +4,7 @@
  * residenza per-utente usato come fallback al GPS).
  */
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl, Modal, TextInput } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl, Modal, TextInput, Alert as RNAlert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -14,7 +14,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { getWeatherCoords, weatherIcon, fmtDayIt } from "@/src/utils/weather";
 
 type Day = { date: string; icon_key: string; label: string; temp_min?: number; temp_max?: number; precipitation_mm?: number; precipitation_prob?: number; wind_kmh?: number; uv_index?: number; sunrise?: string; sunset?: string };
-type Forecast = { days: Day[]; current?: { temp?: number; feels_like?: number; humidity?: number; wind_kmh?: number; icon_key?: string; label?: string } | null; place?: string | null; needs_address?: boolean; error?: string };
+type Forecast = { days: Day[]; current?: { temp?: number; feels_like?: number; humidity?: number; wind_kmh?: number; icon_key?: string; label?: string } | null; place?: string | null; needs_address?: boolean; address_error?: string | null; error?: string };
 type Alert = { id: string; severity: "red" | "orange" | "yellow"; title: string; detail: string };
 
 const SEV: Record<string, string> = { red: "#DC2626", orange: "#EA580C", yellow: "#CA8A04" };
@@ -65,7 +65,10 @@ function MeteoInner() {
     try {
       await api("/user-settings", { method: "PUT", body: { home_address: addrDraft.trim() } });
       setAddrModal(false); setLoading(true); await load();
-    } catch { /* ignore */ } finally { setSaving(false); }
+    } catch (e: any) {
+      // V50.z151 — prima l'errore era silenzioso ("non succede nulla")
+      RNAlert.alert("Salvataggio non riuscito", e?.message || "Controlla la connessione e riprova.");
+    } finally { setSaving(false); }
   };
 
   const today = fc?.days?.[0];
@@ -90,9 +93,16 @@ function MeteoInner() {
           <ActivityIndicator color={theme.color.brandPrimary} style={{ marginTop: 40 }} />
         ) : fc?.needs_address ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Imposta la tua località</Text>
-            <Text style={styles.muted}>Il GPS non è disponibile: inserisci il tuo indirizzo di residenza per vedere meteo e allerte della tua zona.</Text>
-            <Pressable testID="meteo-set-address" onPress={openAddr} style={styles.primaryBtn}><Text style={styles.primaryBtnTxt}>Imposta indirizzo</Text></Pressable>
+            <Text style={styles.cardTitle}>{fc?.address_error ? "Indirizzo non riconosciuto" : "Imposta la tua località"}</Text>
+            <Text style={styles.muted}>
+              {fc?.address_error
+                ? `Il GPS non è disponibile e non riesco a localizzare «${fc.address_error}». Prova a scrivere solo città e provincia (es. "Padova" oppure "Cittadella PD"), poi riprova.`
+                : "Il GPS non è disponibile: inserisci il tuo indirizzo di residenza per vedere meteo e allerte della tua zona."}
+            </Text>
+            <Pressable testID="meteo-set-address" onPress={openAddr} style={styles.primaryBtn}><Text style={styles.primaryBtnTxt}>{fc?.address_error ? "Correggi indirizzo" : "Imposta indirizzo"}</Text></Pressable>
+            <Pressable testID="meteo-retry" onPress={() => { setLoading(true); load(); }} style={{ alignSelf: "center", marginTop: 10, minHeight: 40, justifyContent: "center" }}>
+              <Text style={{ color: theme.color.brandPrimary, fontWeight: "700" }}>Riprova</Text>
+            </Pressable>
           </View>
         ) : fc?.error || !today ? (
           <View style={styles.card}>

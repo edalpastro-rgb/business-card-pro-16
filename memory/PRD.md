@@ -1,6 +1,13 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z151 (Giu 2026) — Meteo: "Imposta indirizzo" non produceva nulla (APK)
+
+**Analisi**: `/meteo` mostra "Imposta la tua località" quando il backend risponde `needs_address=True`, cioè quando NON ci sono coords GPS **e** nessun candidato indirizzo (body.address → `user_settings.home_address` → `settings.office_address` del tenant) viene geocodificato. Localmente PUT `/user-settings {home_address}` persiste e Photon/Nominatim risolvono gli indirizzi testati; in produzione il fallimento più probabile è il geocoding (Photon/Nominatim non raggiungibili o rate-limited) aggravato dalla **negative-cache di 24h** (`geocode_cache lat=None`): l'indirizzo appena impostato restava "non trovato" per un giorno. Inoltre l'errore del PUT era silenzioso e la UI non distingueva "nessun indirizzo" da "indirizzo non risolvibile".
+**Fix backend**: `_try_openmeteo_geocode()` come 3° fallback (geocoding-api.open-meteo.com, stesso dominio-famiglia del meteo già funzionante in prod) con candidati progressivi (intero → parti dopo virgola → ultime 1-2 parole → parole ≥4 char; esclusi civici, CAP, sigle provincia); testato: "Via Roma 10, Padova", "Camposampiero PD", "35010 Cadoneghe", "Via dei Mille 3, Cittadella (PD)" → coords ✅. Negative-cache 24h → 10 min. `address_error` nelle risposte `needs_address`.
+**Fix frontend** (`app/meteo.tsx`): card "Indirizzo non riconosciuto" con suggerimento (solo città + provincia), bottoni "Correggi indirizzo" e "Riprova" (`meteo-retry`); `RNAlert` su errore di salvataggio. Test web: imposta "Cittadella PD" → forecast 18° Nuvoloso, Cittadella PD ✅. Demo home_address ripulito.
+
+
 ## V50.z150 (Giu 2026) — Widget Meteo nella zona widget Home
 
 **Analisi**: il widget `meteo` esisteva già nei default backend e in `DashboardWidgetsSection` (`<WeatherWidget />`), ma `WeatherWidget` dal V50.z132 ritorna `null` senza allerte → di fatto mai visibile ("feature richiesta più volte e mai implementata").

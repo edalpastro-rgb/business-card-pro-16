@@ -2971,8 +2971,9 @@ async def _geocode_one(query: str) -> Optional[Dict[str, float]]:
         if age < 30 * 24 * 3600:
             if cached.get("lat") is not None and cached.get("lon") is not None:
                 return {"lat": cached["lat"], "lon": cached["lon"]}
-            # cached-not-found: riprova comunque dopo 24h nel caso il provider fosse down
-            if age < 24 * 3600:
+            # cached-not-found: V50.z151 — riprova dopo 10 minuti (prima 24h: un'indisponibilità
+            # temporanea del provider bloccava per un giorno l'indirizzo appena impostato dall'utente)
+            if age < 10 * 60:
                 return None
 
     async def _try_photon() -> Optional[Dict[str, float]]:
@@ -3014,10 +3015,48 @@ async def _geocode_one(query: str) -> Optional[Dict[str, float]]:
             except Exception:
                 return None
 
-    # Prova Photon prima (no rate limit stringente), poi fallback Nominatim
+    async def _try_openmeteo_geocode() -> Optional[Dict[str, float]]:
+        """V50.z151 — Terzo fallback: geocoding Open-Meteo (stesso provider del meteo, sempre
+        raggiungibile dove funziona il meteo). Ottimo per città/CAP; per indirizzi con via prova
+        progressivamente le parti dopo la virgola e le ultime parole (es. "Via Roma 10, Padova" → "Padova")."""
+        parts = [p.strip() for p in re.split(r"[,;]", q) if p.strip()]
+        cands: List[str] = [q]
+        cands += [p for p in reversed(parts) if p not in cands]
+        # ultime 1-2 parole (senza numeri civici / CAP / sigle provincia "PD" o tra parentesi)
+        words = [
+            w for w in re.sub(r"\([^)]*\)", " ", q).replace(",", " ").split()
+            if not re.fullmatch(r"\d+[a-zA-Z]?", w) and not re.fullmatch(r"[A-Z]{2}", w)
+        ]
+        if words:
+            for n in (2, 1):
+                cand = " ".join(words[-n:])
+                if cand and cand not in cands:
+                    cands.append(cand)
+            for w in reversed(words):
+                if len(w) >= 4 and w not in cands:
+                    cands.append(w)
+        try:
+            async with _httpx.AsyncClient(timeout=8.0) as client:
+                for cand in cands[:7]:
+                    r = await client.get(
+                        "https://geocoding-api.open-meteo.com/v1/search",
+                        params={"name": cand, "count": 1, "language": "it", "format": "json"},
+                    )
+                    if r.status_code != 200:
+                        continue
+                    res = (r.json() or {}).get("results") or []
+                    if res and res[0].get("latitude") is not None:
+                        return {"lat": float(res[0]["latitude"]), "lon": float(res[0]["longitude"])}
+        except Exception:
+            return None
+        return None
+
+    # Prova Photon prima (no rate limit stringente), poi fallback Nominatim, poi Open-Meteo (V50.z151)
     result = await _try_photon()
     if not result:
         result = await _try_nominatim()
+    if not result:
+        result = await _try_openmeteo_geocode()
 
     # Cache result (anche fallimenti per evitare hammering)
     try:
@@ -3214,7 +3253,9 @@ async def weather_alerts(body: WeatherAlertsIn, user=Depends(get_current_user)):
                 lat, lon, place = coords["lat"], coords["lon"], addr
                 break
         if lat is None or lon is None:
-            return {"alerts": [], "checked_at": utcnow(), "location": None, "weather": None, "place": None, "needs_address": True}
+            # V50.z151 — distingui "nessun indirizzo" da "indirizzo non risolvibile" (geocoding fallito)
+            return {"alerts": [], "checked_at": utcnow(), "location": None, "weather": None, "place": None,
+                    "needs_address": True, "address_error": (candidates[0] if candidates else None)}
     data = await _fetch_openmeteo_daily(lat, lon, d_today)
     alerts: List[Dict[str, Any]] = []
     if not data:
@@ -3264,7 +3305,9 @@ async def weather_forecast(body: WeatherAlertsIn, user=Depends(get_current_user)
                 lat, lon, place = coords["lat"], coords["lon"], addr
                 break
         if lat is None or lon is None:
-            return {"days": [], "place": None, "needs_address": True}
+            # V50.z151 — se un indirizzo c'era ma il geocoding è fallito, segnalalo al client
+            return {"days": [], "place": None, "needs_address": True,
+                    "address_error": (candidates[0] if candidates else None)}
     try:
         import httpx as _httpx
         async with _httpx.AsyncClient(timeout=10.0) as client:

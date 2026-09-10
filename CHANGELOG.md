@@ -86,6 +86,11 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   temperatura **attuale** (`weather.temp`, fallback `temp_max`), "min · max", condizioni, località (stessa fonte `/weather/alerts`
   + `getWeatherCoords` dell'icona header), pill "N allerte" / "Nessuna allerta", tap → `/meteo`. Il `WeatherWidget` senza prop
   mantiene il comportamento z132 (solo con allerte). L'header badge mostra anch'esso la temp attuale.
+  **V50.z151 — Geocoding robusto** (`_geocode_one`): Photon → Nominatim → **Open-Meteo Geocoding** (nuovo 3° fallback, stesso
+  provider del meteo: candidati = stringa intera, parti dopo virgola, ultime 1-2 parole, singole parole ≥4 char, esclusi civici/CAP/
+  sigle provincia → "Via Roma 10, Padova" ⇒ "Padova"); negative-cache ridotta da 24h a 10 min. `/weather/forecast` e `/weather/alerts`
+  ritornano `address_error` (l'indirizzo che non è stato risolto) oltre a `needs_address`; `/meteo` mostra "Indirizzo non
+  riconosciuto … prova solo città e provincia" + "Correggi indirizzo" + "Riprova"; errore PUT indirizzo ora visibile (Alert).
   "Appuntamenti di oggi" è renderizzato SOTTO la sezione Ritelefonate (`DashboardWidgetsSection` con props `only`/`exclude`).
 - Widget sotto "Interfaccia Master" (V50.z120). Banner My Thing con font/size/colore personalizzabili (v2.31). Banner Evento Master
   con range date, descrizione, audio, copertina PDF (v2.10, v2.18, v2.11). **Banner Gas colore BLU** (Giu 2026).
@@ -261,6 +266,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z151 | Giu 2026 | Meteo: geocoding con 3° fallback Open-Meteo (città/CAP anche da indirizzi con via), negative-cache 10 min, messaggio "Indirizzo non riconosciuto" + Riprova, errore salvataggio visibile |
 | V50.z150 | Giu 2026 | Home: widget "Meteo" della zona widget SEMPRE visibile (temp attuale, min/max, condizioni, località); header badge mostra temp attuale |
 | V50.z149 | Giu 2026 | Edge Panel (menu laterale destro): "Statistiche" tra i default + migrazione una-tantum per selezioni salvate |
 | V50.z148 | Giu 2026 | Fix regressione icona meteo header (APK 1.0.48): timeout 6s su getCurrentPositionAsync + retry API nel badge |
