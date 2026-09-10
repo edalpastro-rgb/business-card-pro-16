@@ -18,6 +18,9 @@ export type User = {
   additional_emails?: string[];
   company_name?: string | null;
   company_logo_base64?: string | null;
+  // V50.z140 — Header tabelle AxonOS
+  table_header_name?: string | null;
+  table_header_logo_base64?: string | null;
 };
 
 const TRUST_KEY = "trust_expires_at_v1";

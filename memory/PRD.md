@@ -1,6 +1,20 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z140 (Giu 2026) — Tabella AxonOS: schermo intero + Header tabella (logo + nome azienda)
+
+**Backend** (`server.py`): `UserOut`/`ProfileUpdate` + `table_header_name`, `table_header_logo_base64` (persistiti da `PUT /auth/profile` generico). Nuovo `GET /api/table-header` → legge il doc del tenant owner (`tenant_id(user)`, quindi anche i collaboratori vedono l'header del Master): `{name, logo_base64, source: "table"|"branding"|"none"}`; se nome e logo tabella sono vuoti fallback a `company_name`/`company_logo_base64` (Branding).
+
+**Frontend `src/ChatTableExport.tsx`**:
+- `useTableBrandHeader()` (cache modulo 30s + dedup in-flight, `invalidateTableBrandHeader()` esportata) e `BrandHeaderRow` (compatta nell'anteprima chat dentro il capture-view, `large` nel fullscreen).
+- Anteprima avvolta in `Pressable` (`table-open-fullscreen`) → `setFull(true)`; hint "Tocca la tabella per lo schermo intero"; bottone "Schermo intero" (`table-fullscreen-btn`) accanto a "Esporta tabella".
+- Modal fullscreen (`presentationStyle="fullScreen"`, safe-area): header "Tabella AxonOS · N righe · M colonne" + X; `ScrollView` verticale ⊃ `ScrollView` orizzontale con TUTTE le righe (`table-full-row-i`), larghezza colonne adattiva `max(110, min(240, 40 + maxLen*7))`, font 14; footer FISSO (regola modal §12) PDF / Immagine / Chiudi (`table-full-export-pdf|png`, `table-full-close-btn`). PNG nativo da `captureFullRef` (include header brand).
+- `tableToHtml(table, title, brand)`: blocco `.brand` (img logo max 56px + nome, bordo viola) sopra il titolo. `drawTableToPngWeb(table, brand)`: fascia header 64px con logo (`HTMLImageElement`) + nome + linea viola, poi `ctx.translate`.
+**`app/(tabs)/impostazioni.tsx`**: card `table-header-card` (owner only, sotto Branding): anteprima header, `table-header-name-input` (debounce 600ms → `PUT /auth/profile`), `table-header-logo-upload` (`pickAvatarBase64`) / `table-header-logo-remove`; hint fallback Branding. `invalidateTableBrandHeader()` dopo ogni salvataggio. `src/auth.tsx` User type esteso.
+
+**Test web**: `GET /table-header` none → dopo set nome+logo → `source=table` ✅; chat con tabella 12×6 iniettata: header brand in anteprima, "Schermo intero" → modal con 12 righe, logo + "Dal Pastro Energie", footer visibile ✅; Chiudi ✅; tap sulla tabella → fullscreen ✅; Impostazioni: card renderizzata con valori salvati ✅. Lint/tsc ok (solo warning pre-esistenti). Dati di test rimossi (config header demo lasciata).
+
+
 ## V50.z139 (Giu 2026) — Scanner: loop permessi Android + Foto singola senza autofocus/crop
 
 **Root cause loop permessi** (`LiveCameraScanner.tsx`): `useCameraPermissions()` legge lo stato UNA volta al mount (il componente è sempre montato con `visible=false`); se il permesso veniva concesso altrove (dialog ImagePicker di "Foto singola", QR scanner) lo stato restava stale=denied → gate "Serve l'accesso alla fotocamera" → `useEffect` chiamava `requestPermission()`; su Android 16 (patch sicurezza 2025-09, expo/expo#39480, RN#53898) la richiesta di un permesso GIÀ concesso non mostra dialog e la promise **non risolve mai** → gate infinito. Inoltre l'effetto dipendeva da `permission` → richiesta ripetuta a ogni cambio stato.

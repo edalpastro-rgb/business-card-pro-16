@@ -552,6 +552,9 @@ class UserOut(BaseModel):
     # V38U — Report header extras (slogan + contacts printed as header)
     report_slogan: Optional[str] = None
     report_contacts: Optional[str] = None
+    # V50.z140 — Header tabelle AxonOS (logo + nome azienda in testa a ogni tabella esportata)
+    table_header_name: Optional[str] = None
+    table_header_logo_base64: Optional[str] = None
 
 
 class TeamInviteInput(BaseModel):
@@ -939,6 +942,9 @@ class ProfileUpdate(BaseModel):
     # V38U — Report header extras
     report_slogan: Optional[str] = None
     report_contacts: Optional[str] = None
+    # V50.z140 — Header tabelle AxonOS
+    table_header_name: Optional[str] = None
+    table_header_logo_base64: Optional[str] = None
 
 
 class AppointmentIn(BaseModel):
@@ -1417,6 +1423,25 @@ async def update_profile(body: ProfileUpdate, user=Depends(get_current_user)):
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": upd})
     u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     return {"user": UserOut(**u).model_dump()}
+
+
+# V50.z140 — Header tabelle AxonOS: logo + nome azienda configurati dal Master (tenant owner),
+# mostrati in testa a ogni tabella esportata dalla chat (anche per i collaboratori).
+# Fallback: se il Master non ha configurato l'header tabella si usa il Branding aziendale.
+@api_router.get("/table-header")
+async def get_table_header(user=Depends(get_current_user)):
+    owner = await db.users.find_one(
+        {"user_id": tenant_id(user)},
+        {"_id": 0, "table_header_name": 1, "table_header_logo_base64": 1, "company_name": 1, "company_logo_base64": 1},
+    ) or {}
+    name = (owner.get("table_header_name") or "").strip()
+    logo = (owner.get("table_header_logo_base64") or "").strip()
+    source = "table"
+    if not name and not logo:
+        name = (owner.get("company_name") or "").strip()
+        logo = (owner.get("company_logo_base64") or "").strip()
+        source = "branding" if (name or logo) else "none"
+    return {"name": name, "logo_base64": logo, "source": source}
 
 
 # =========================

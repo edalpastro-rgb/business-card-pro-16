@@ -13,9 +13,10 @@
  * Se l'utente è Master, il file esportato viene anche salvato in "Insegna ad
  * Axon" (categoria "Dati esportati") per l'auto-apprendimento.
  */
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator, Platform } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator, Platform, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
@@ -132,7 +133,7 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function tableToHtml(table: ParsedTable, title: string): string {
+function tableToHtml(table: ParsedTable, title: string, brand?: TableBrandHeader | null): string {
   const headerCells = table.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
   const bodyRows = table.rows
     .map(
@@ -142,6 +143,11 @@ function tableToHtml(table: ParsedTable, title: string): string {
     .join("");
   const orientation = table.headers.length > 5 ? "landscape" : "portrait";
   const exportedAt = new Date().toLocaleString("it-IT");
+  // V50.z140 — Header tabella (logo + nome azienda) configurato dal Master
+  const brandLogo = brand?.logo_base64 ? toDataUri(brand.logo_base64) : "";
+  const brandBlock = brand && (brand.name || brandLogo)
+    ? `<div class="brand">${brandLogo ? `<img class="brand-logo" src="${brandLogo}" alt="logo" />` : ""}<div class="brand-name">${escapeHtml(brand.name || "")}</div></div>`
+    : "";
   return `<!DOCTYPE html><html lang="it"><head>
   <meta charset="UTF-8">
   <title>${escapeHtml(title)}</title>
@@ -149,6 +155,9 @@ function tableToHtml(table: ParsedTable, title: string): string {
     @page { size: A4 ${orientation}; margin: 24px; }
     * { box-sizing: border-box; }
     body { font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; color: #1B2B4B; margin: 0; padding: 24px; }
+    .brand { display: flex; align-items: center; gap: 14px; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 3px solid #7C3AED; }
+    .brand-logo { max-height: 56px; max-width: 180px; object-fit: contain; }
+    .brand-name { font-size: 20px; font-weight: 800; color: #1E3A5F; }
     h1 { color: #4C1D95; font-size: 18px; margin: 0 0 4px 0; font-weight: 800; letter-spacing: -0.2px; }
     .meta { color: #94A3B8; font-size: 10px; margin: 0 0 16px 0; }
     table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: auto; page-break-inside: auto; }
@@ -159,6 +168,7 @@ function tableToHtml(table: ParsedTable, title: string): string {
     .footer { color: #94A3B8; font-size: 9px; margin-top: 12px; font-style: italic; }
   </style>
   </head><body>
+    ${brandBlock}
     <h1>${escapeHtml(title)}</h1>
     <p class="meta">Esportato da AdvisorOS · ${escapeHtml(exportedAt)}</p>
     <table>
@@ -167,6 +177,61 @@ function tableToHtml(table: ParsedTable, title: string): string {
     </table>
     <p class="footer">${table.rows.length} righe totali · ${table.headers.length} colonne</p>
   </body></html>`;
+}
+
+/** V50.z140 — Header tabella (logo + nome azienda) del tenant, da `GET /api/table-header`. */
+export type TableBrandHeader = { name: string; logo_base64: string; source: "table" | "branding" | "none" };
+
+function toDataUri(b64: string): string {
+  return b64.startsWith("data:") ? b64 : `data:image/png;base64,${b64}`;
+}
+
+let _brandCache: { data: TableBrandHeader; at: number } | null = null;
+let _brandInflight: Promise<TableBrandHeader> | null = null;
+const BRAND_TTL_MS = 30_000;
+
+/** Invalidazione esplicita (es. dopo il salvataggio in Impostazioni). */
+export function invalidateTableBrandHeader() {
+  _brandCache = null;
+}
+
+async function fetchTableBrandHeader(): Promise<TableBrandHeader> {
+  if (_brandCache && Date.now() - _brandCache.at < BRAND_TTL_MS) return _brandCache.data;
+  if (_brandInflight) return _brandInflight;
+  _brandInflight = api<TableBrandHeader>("/table-header")
+    .then((d) => {
+      const data: TableBrandHeader = { name: d?.name || "", logo_base64: d?.logo_base64 || "", source: d?.source || "none" };
+      _brandCache = { data, at: Date.now() };
+      return data;
+    })
+    .catch(() => ({ name: "", logo_base64: "", source: "none" as const }))
+    .finally(() => { _brandInflight = null; });
+  return _brandInflight;
+}
+
+function useTableBrandHeader(): TableBrandHeader | null {
+  const [brand, setBrand] = useState<TableBrandHeader | null>(_brandCache?.data || null);
+  useEffect(() => {
+    let alive = true;
+    fetchTableBrandHeader().then((b) => { if (alive) setBrand(b); });
+    return () => { alive = false; };
+  }, []);
+  return brand;
+}
+
+/** Riga header (logo + nome) mostrata sopra la tabella (anteprima compatta e schermo intero). */
+function BrandHeaderRow({ brand, large }: { brand: TableBrandHeader | null; large?: boolean }) {
+  if (!brand || (!brand.name && !brand.logo_base64)) return null;
+  return (
+    <View style={[styles.brandRow, large && styles.brandRowLarge]} testID="table-brand-header">
+      {!!brand.logo_base64 && (
+        <Image source={{ uri: toDataUri(brand.logo_base64) }} resizeMode="contain" style={large ? styles.brandLogoLarge : styles.brandLogo} />
+      )}
+      {!!brand.name && (
+        <Text style={[styles.brandName, large && styles.brandNameLarge]} numberOfLines={1}>{brand.name}</Text>
+      )}
+    </View>
+  );
 }
 
 /**
@@ -180,8 +245,8 @@ function tableToHtml(table: ParsedTable, title: string): string {
  *   di auto-save su Axon knowledge viene saltato (segnalato al chiamante con
  *   `null`).
  */
-async function tableToPdfBase64(table: ParsedTable, title: string): Promise<string | null> {
-  const html = tableToHtml(table, title);
+async function tableToPdfBase64(table: ParsedTable, title: string, brand?: TableBrandHeader | null): Promise<string | null> {
+  const html = tableToHtml(table, title, brand);
   if (Platform.OS === "web") {
     // Web: open a print window and let the browser handle PDF export.
     try {
@@ -228,13 +293,22 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
   const { user } = useAuth();
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const safeBottom = useSafeBottom(); // V29.aq
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
+  const [full, setFull] = useState(false); // V50.z140 — modal a schermo intero
   const [busyFormat, setBusyFormat] = useState<"pdf" | "png" | null>(null);
   const captureRefEl = useRef<View>(null);
+  const captureFullRef = useRef<View>(null);
+  const brand = useTableBrandHeader(); // V50.z140 — logo + nome azienda in testa alla tabella
 
   const previewRows = useMemo(() => table.rows.slice(0, 30), [table.rows]);
+  // V50.z140 — larghezza colonne adattiva a schermo intero (min 110, max 240) in base al testo
+  const fullColWidths = useMemo(() => table.headers.map((h, ci) => {
+    const maxLen = table.rows.reduce((m, r) => Math.max(m, (r[ci] || "").length), h.length);
+    return Math.max(110, Math.min(240, 40 + maxLen * 7));
+  }), [table]);
 
-  const doExport = useCallback(async (format: "pdf" | "png") => {
+  const doExport = useCallback(async (format: "pdf" | "png", source: "preview" | "full" = "preview") => {
     try {
       setBusyFormat(format);
       const stamp = nowStamp();
@@ -244,7 +318,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
       let data_base64: string | null = "";
 
       if (format === "pdf") {
-        data_base64 = await tableToPdfBase64(table, `Tabella esportata (${table.rows.length} righe)`);
+        data_base64 = await tableToPdfBase64(table, `Tabella esportata (${table.rows.length} righe)`, brand);
         // Su web `tableToPdfBase64` apre il print dialog del browser e ritorna null.
         // In quel caso non condividiamo né salviamo — il PDF è già stato prodotto dal browser.
         if (data_base64 === null) {
@@ -255,10 +329,11 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
       } else {
         // PNG: cross-platform capture
         if (Platform.OS === "web") {
-          data_base64 = await drawTableToPngWeb(table);
+          data_base64 = await drawTableToPngWeb(table, brand);
         } else {
-          if (!captureRefEl.current) throw new Error("Anteprima non disponibile per lo snapshot");
-          const uri = await captureRef(captureRefEl.current, { format: "png", quality: 1, result: "base64" });
+          const target = source === "full" ? captureFullRef.current : captureRefEl.current;
+          if (!target) throw new Error("Anteprima non disponibile per lo snapshot");
+          const uri = await captureRef(target, { format: "png", quality: 1, result: "base64" });
           data_base64 = uri;
         }
       }
@@ -278,43 +353,129 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
     } finally {
       setBusyFormat(null);
     }
-  }, [table, isMaster]);
+  }, [table, isMaster, brand]);
 
   return (
     <View style={styles.wrap}>
-      {/* Table preview (scrollable) — usato anche come capture-target su native */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tableScroll}>
-        <View ref={captureRefEl} collapsable={false} style={[styles.table, { backgroundColor: "#FFF" }]}>
-          <View style={[styles.row, styles.headerRow, { backgroundColor: assistantColor }]}>
-            {table.headers.map((h, i) => (
-              <View key={i} style={[styles.cell, i === table.headers.length - 1 && styles.cellLast]}>
-                <Text style={styles.headerCellTxt} numberOfLines={2}>{h}</Text>
-              </View>
-            ))}
-          </View>
-          {previewRows.map((r, ri) => (
-            <View key={ri} style={[styles.row, ri % 2 === 1 && { backgroundColor: "#F8FAFC" }]}>
-              {r.map((c, ci) => (
-                <View key={ci} style={[styles.cell, ci === r.length - 1 && styles.cellLast]}>
-                  <Text style={styles.cellTxt} numberOfLines={3}>{c}</Text>
+      {/* Table preview (scrollable) — usato anche come capture-target su native.
+          V50.z140: un tap apre la tabella a schermo intero. */}
+      <Pressable onPress={() => setFull(true)} testID="table-open-fullscreen" accessibilityRole="button" accessibilityLabel="Apri tabella a schermo intero">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tableScroll}>
+          <View ref={captureRefEl} collapsable={false} style={[styles.table, { backgroundColor: "#FFF" }]}>
+            <BrandHeaderRow brand={brand} />
+            <View style={[styles.row, styles.headerRow, { backgroundColor: assistantColor }]}>
+              {table.headers.map((h, i) => (
+                <View key={i} style={[styles.cell, i === table.headers.length - 1 && styles.cellLast]}>
+                  <Text style={styles.headerCellTxt} numberOfLines={2}>{h}</Text>
                 </View>
               ))}
             </View>
-          ))}
-        </View>
-      </ScrollView>
-      {table.rows.length > previewRows.length ? (
-        <Text style={styles.moreRowsTxt}>… e altre {table.rows.length - previewRows.length} righe (incluse nell&apos;export)</Text>
-      ) : null}
-
-      <Pressable
-        testID="table-export-btn"
-        onPress={() => setOpen(true)}
-        style={[styles.exportBtn, { borderColor: assistantColor }]}
-      >
-        <Ionicons name="download-outline" size={16} color={assistantColor} />
-        <Text style={[styles.exportBtnTxt, { color: assistantColor }]}>Esporta tabella</Text>
+            {previewRows.map((r, ri) => (
+              <View key={ri} style={[styles.row, ri % 2 === 1 && { backgroundColor: "#F8FAFC" }]}>
+                {r.map((c, ci) => (
+                  <View key={ci} style={[styles.cell, ci === r.length - 1 && styles.cellLast]}>
+                    <Text style={styles.cellTxt} numberOfLines={3}>{c}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       </Pressable>
+      <View style={styles.underRow}>
+        <Text style={styles.tapHint}>
+          <Ionicons name="expand-outline" size={10} color="#94A3B8" /> Tocca la tabella per lo schermo intero
+        </Text>
+        {table.rows.length > previewRows.length ? (
+          <Text style={styles.moreRowsTxt}>… e altre {table.rows.length - previewRows.length} righe (incluse nell&apos;export)</Text>
+        ) : null}
+      </View>
+
+      <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+        <Pressable
+          testID="table-fullscreen-btn"
+          onPress={() => setFull(true)}
+          style={[styles.exportBtn, { borderColor: assistantColor }]}
+        >
+          <Ionicons name="expand-outline" size={16} color={assistantColor} />
+          <Text style={[styles.exportBtnTxt, { color: assistantColor }]}>Schermo intero</Text>
+        </Pressable>
+        <Pressable
+          testID="table-export-btn"
+          onPress={() => setOpen(true)}
+          style={[styles.exportBtn, { borderColor: assistantColor }]}
+        >
+          <Ionicons name="download-outline" size={16} color={assistantColor} />
+          <Text style={[styles.exportBtnTxt, { color: assistantColor }]}>Esporta tabella</Text>
+        </Pressable>
+      </View>
+
+      {/* V50.z140 — Modal a schermo intero: tutte le righe, scroll verticale + orizzontale,
+          header tabella (logo + nome azienda), footer FISSO con export + chiudi (regola modal). */}
+      <Modal visible={full} animationType="slide" onRequestClose={() => !busyFormat && setFull(false)} presentationStyle="fullScreen">
+        <View style={[styles.fullRoot, { paddingTop: insets.top }]}>
+          <View style={styles.fullHdr}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fullTitle}>Tabella AxonOS</Text>
+              <Text style={styles.fullSub}>{table.rows.length} righe · {table.headers.length} colonne · scorri in ogni direzione</Text>
+            </View>
+            <Pressable onPress={() => !busyFormat && setFull(false)} hitSlop={12} style={styles.fullClose} testID="table-fullscreen-close">
+              <Ionicons name="close" size={22} color="#1B2B4B" />
+            </Pressable>
+          </View>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.fullScrollV} showsVerticalScrollIndicator>
+            <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ paddingRight: 12 }}>
+              <View ref={captureFullRef} collapsable={false} style={styles.fullTable}>
+                <BrandHeaderRow brand={brand} large />
+                <View style={[styles.row, { backgroundColor: assistantColor }]}>
+                  {table.headers.map((h, i) => (
+                    <View key={i} style={[styles.cellFull, { width: fullColWidths[i] }, i === table.headers.length - 1 && styles.cellLast]}>
+                      <Text style={styles.headerCellTxtFull}>{h}</Text>
+                    </View>
+                  ))}
+                </View>
+                {table.rows.map((r, ri) => (
+                  <View key={ri} style={[styles.row, ri % 2 === 1 && { backgroundColor: "#F8FAFC" }]} testID={`table-full-row-${ri}`}>
+                    {table.headers.map((_, ci) => (
+                      <View key={ci} style={[styles.cellFull, { width: fullColWidths[ci] }, ci === table.headers.length - 1 && styles.cellLast]}>
+                        <Text style={styles.cellTxtFull}>{r[ci] ?? ""}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          </ScrollView>
+          <View style={[styles.fullFooter, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+            <Pressable
+              testID="table-full-export-pdf"
+              onPress={() => doExport("pdf", "full")}
+              disabled={!!busyFormat}
+              style={[styles.fullBtn, { backgroundColor: "#DC2626" }, !!busyFormat && { opacity: 0.6 }]}
+            >
+              {busyFormat === "pdf" ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="document" size={16} color="#FFF" />}
+              <Text style={styles.fullBtnTxt}>PDF</Text>
+            </Pressable>
+            <Pressable
+              testID="table-full-export-png"
+              onPress={() => doExport("png", "full")}
+              disabled={!!busyFormat}
+              style={[styles.fullBtn, { backgroundColor: "#0891B2" }, !!busyFormat && { opacity: 0.6 }]}
+            >
+              {busyFormat === "png" ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="image" size={16} color="#FFF" />}
+              <Text style={styles.fullBtnTxt}>Immagine</Text>
+            </Pressable>
+            <Pressable
+              testID="table-full-close-btn"
+              onPress={() => !busyFormat && setFull(false)}
+              style={[styles.fullBtn, { backgroundColor: "#1B2B4B", flex: 1.2 }]}
+            >
+              <Ionicons name="checkmark" size={16} color="#FFF" />
+              <Text style={styles.fullBtnTxt}>Chiudi</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal transparent visible={open} animationType="fade" onRequestClose={() => !busyFormat && setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => !busyFormat && setOpen(false)}>
@@ -362,13 +523,25 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
 }
 
 /** V28.t — Disegna la tabella su un canvas HTML e ritorna PNG base64 (senza prefisso). Solo web. */
-async function drawTableToPngWeb(table: ParsedTable): Promise<string> {
+async function drawTableToPngWeb(table: ParsedTable, brand?: TableBrandHeader | null): Promise<string> {
   // Dimensionamento heuristico
   const cellPadding = 10;
   const headerH = 32;
   const rowH = 26;
   const fontHeader = 13;
   const fontCell = 12;
+  // V50.z140 — Header tabella (logo + nome azienda)
+  const hasBrand = !!(brand && (brand.name || brand.logo_base64));
+  const brandH = hasBrand ? 64 : 0;
+  let logoImg: HTMLImageElement | null = null;
+  if (hasBrand && brand?.logo_base64) {
+    logoImg = await new Promise<HTMLImageElement | null>((resolve) => {
+      const im = new window.Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => resolve(null);
+      im.src = toDataUri(brand.logo_base64);
+    });
+  }
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas non disponibile");
@@ -381,8 +554,8 @@ async function drawTableToPngWeb(table: ParsedTable): Promise<string> {
     ctx.font = `bold ${fontHeader}px -apple-system, Segoe UI, Roboto, sans-serif`;
     return Math.max(Math.min(Math.max(headW, cellW) + cellPadding * 2, 300), 90);
   });
-  const totalW = colWidths.reduce((a, b) => a + b, 0);
-  const totalH = headerH + table.rows.length * rowH + 40;
+  const totalW = Math.max(colWidths.reduce((a, b) => a + b, 0), hasBrand ? 320 : 0);
+  const totalH = brandH + headerH + table.rows.length * rowH + 40;
   // Retina 2x
   const scale = 2;
   canvas.width = totalW * scale;
@@ -393,6 +566,26 @@ async function drawTableToPngWeb(table: ParsedTable): Promise<string> {
   // BG
   ctx.fillStyle = "#FFFFFF";
   ctx.fillRect(0, 0, totalW, totalH);
+  // Brand header
+  if (hasBrand) {
+    let bx = cellPadding;
+    if (logoImg) {
+      const maxH = 40, maxW = 120;
+      const ratio = Math.min(maxW / logoImg.width, maxH / logoImg.height);
+      const lw = logoImg.width * ratio, lh = logoImg.height * ratio;
+      ctx.drawImage(logoImg, bx, (brandH - 8 - lh) / 2, lw, lh);
+      bx += lw + 12;
+    }
+    if (brand?.name) {
+      ctx.fillStyle = "#1E3A5F";
+      ctx.font = `bold 18px -apple-system, Segoe UI, Roboto, sans-serif`;
+      ctx.textBaseline = "middle";
+      ctx.fillText(brand.name, bx, (brandH - 8) / 2);
+    }
+    ctx.fillStyle = "#7C3AED";
+    ctx.fillRect(0, brandH - 8, totalW, 3);
+  }
+  ctx.translate(0, brandH);
   // Header
   ctx.fillStyle = "#7C3AED";
   ctx.fillRect(0, 0, totalW, headerH);
@@ -481,6 +674,29 @@ const styles = StyleSheet.create({
   headerCellTxt: { color: "#FFF", fontSize: 11, fontWeight: "800", letterSpacing: 0.2, textAlign: "center" },
   cellTxt: { fontSize: 12, color: "#1B2B4B", textAlign: "center" },
   moreRowsTxt: { fontSize: 10, color: "#94A3B8", fontStyle: "italic", textAlign: "right" },
+  underRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  tapHint: { fontSize: 10, color: "#94A3B8" },
+  // V50.z140 — Header tabella (logo + nome azienda)
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderBottomWidth: 2, borderBottomColor: "#7C3AED", backgroundColor: "#FFF" },
+  brandRowLarge: { gap: 12, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 3 },
+  brandLogo: { width: 28, height: 22 },
+  brandLogoLarge: { width: 72, height: 44 },
+  brandName: { fontSize: 12, fontWeight: "800", color: "#1E3A5F", flexShrink: 1 },
+  brandNameLarge: { fontSize: 18 },
+  // V50.z140 — Modal schermo intero
+  fullRoot: { flex: 1, backgroundColor: "#F8FAFC" },
+  fullHdr: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  fullTitle: { fontSize: 17, fontWeight: "800", color: "#1B2B4B" },
+  fullSub: { fontSize: 11, color: "#94A3B8", marginTop: 2 },
+  fullClose: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
+  fullScrollV: { padding: 12, paddingBottom: 24 },
+  fullTable: { backgroundColor: "#FFF", borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden" },
+  cellFull: { paddingVertical: 10, paddingHorizontal: 10, justifyContent: "center", borderRightWidth: 1, borderRightColor: "#E5E7EB", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  headerCellTxtFull: { color: "#FFF", fontSize: 13, fontWeight: "800" },
+  cellTxtFull: { fontSize: 14, color: "#1B2B4B", lineHeight: 20 },
+  fullFooter: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 10, backgroundColor: "#FFF", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  fullBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 12 },
+  fullBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   exportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, alignSelf: "flex-start" },
   exportBtnTxt: { fontSize: 12, fontWeight: "800" },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 20 },

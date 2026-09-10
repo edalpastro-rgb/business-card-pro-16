@@ -13,6 +13,7 @@ import { notify, confirmAsync } from "@/src/utils/notify";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { invalidateTableBrandHeader } from "@/src/ChatTableExport";
 
 type Settings = {
   energy_title: string; energy_color: string;
@@ -228,6 +229,50 @@ function ImpostazioniScreen() {
       await refresh();
     } catch (e: any) { notify("Errore", e?.message || ""); }
     finally { setLogoBusy(false); }
+  };
+
+  // V50.z140 — Header tabelle AxonOS (logo + nome azienda in testa a ogni tabella esportata dalla chat)
+  const [tableHdrName, setTableHdrName] = useState<string>(user?.table_header_name || "");
+  const [tableHdrSaved, setTableHdrSaved] = useState(false);
+  const [tableLogoBusy, setTableLogoBusy] = useState(false);
+  const tableHdrTimer = React.useRef<any>(null);
+  useEffect(() => { setTableHdrName(user?.table_header_name || ""); }, [user?.table_header_name]);
+  const saveTableHdrName = (v: string) => {
+    setTableHdrName(v);
+    setTableHdrSaved(false);
+    if (tableHdrTimer.current) clearTimeout(tableHdrTimer.current);
+    tableHdrTimer.current = setTimeout(async () => {
+      try {
+        await api("/auth/profile", { method: "PUT", body: { table_header_name: v.trim().slice(0, 80) } });
+        await refresh();
+        invalidateTableBrandHeader();
+        setTableHdrSaved(true);
+        setTimeout(() => setTableHdrSaved(false), 1800);
+      } catch (e: any) { notify("Errore", e?.message || ""); }
+    }, 600);
+  };
+  const uploadTableLogo = async () => {
+    setTableLogoBusy(true);
+    try {
+      const b64 = await pickAvatarBase64();
+      if (b64) {
+        await api("/auth/profile", { method: "PUT", body: { table_header_logo_base64: b64 } });
+        await refresh();
+        invalidateTableBrandHeader();
+      }
+    } catch (e: any) { notify("Errore logo", e?.message || ""); }
+    finally { setTableLogoBusy(false); }
+  };
+  const removeTableLogo = async () => {
+    const ok = await confirmAsync("Rimuovi logo", "Vuoi togliere il logo dall'header delle tabelle?");
+    if (!ok) return;
+    setTableLogoBusy(true);
+    try {
+      await api("/auth/profile", { method: "PUT", body: { table_header_logo_base64: "" } });
+      await refresh();
+      invalidateTableBrandHeader();
+    } catch (e: any) { notify("Errore", e?.message || ""); }
+    finally { setTableLogoBusy(false); }
   };
 
   const load = useCallback(async () => setS(await api<Settings>("/settings")), []);
@@ -565,6 +610,88 @@ function ImpostazioniScreen() {
             />
             <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 6, fontStyle: "italic" }}>
               Slogan e contatti verranno mostrati in cima a ogni report / analisi / comparazione.
+            </Text>
+          </View>
+        )}
+
+        {/* V50.z140 — Header tabelle AxonOS (owner only) */}
+        {!user?.parent_user_id && (
+          <View style={styles.card} testID="table-header-card">
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#EDE9FE", justifyContent: "center", alignItems: "center" }}>
+                <Ionicons name="grid" size={20} color="#7C3AED" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <CatHeader color="#7C3AED" label="AI & Axon · Header tabella" icon="grid" />
+                <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
+                  Logo e nome azienda mostrati in testa a ogni tabella generata da AxonOS ed esportata (PDF / immagine)
+                </Text>
+              </View>
+            </View>
+
+            {/* Anteprima header */}
+            <View style={{ marginTop: 14, backgroundColor: "#FFF", borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, borderBottomWidth: 3, borderBottomColor: "#7C3AED", padding: 10, flexDirection: "row", alignItems: "center", gap: 10 }} testID="table-header-preview">
+              {user?.table_header_logo_base64 ? (
+                <Image source={{ uri: user.table_header_logo_base64 }} resizeMode="contain" style={{ width: 44, height: 32 }} />
+              ) : (
+                <View style={{ width: 44, height: 32, borderRadius: 6, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="image-outline" size={16} color="#7C3AED" />
+                </View>
+              )}
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: "800", color: "#1B2B4B" }} numberOfLines={1}>
+                {tableHdrName || user?.company_name || "Nome azienda"}
+              </Text>
+              <Text style={{ fontSize: 10, color: theme.color.muted }}>Tabella AxonOS</Text>
+            </View>
+
+            <Text style={[styles.label, { marginTop: 14 }]}>Nome azienda</Text>
+            <TextInput
+              testID="table-header-name-input"
+              value={tableHdrName}
+              onChangeText={saveTableHdrName}
+              style={styles.input}
+              placeholder="Es. Dal Pastro Energie"
+              placeholderTextColor="#94A3B8"
+              maxLength={80}
+            />
+            <Text style={{ fontSize: 11, color: tableHdrSaved ? "#16A34A" : theme.color.muted, marginTop: 4 }}>
+              {tableHdrSaved ? "✓ Nome salvato" : "Salvataggio automatico dopo la digitazione."}
+            </Text>
+
+            <Text style={[styles.label, { marginTop: 14 }]}>Logo aziendale</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
+              <View style={{ width: 160, height: 90, borderRadius: 12, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: theme.color.border, justifyContent: "center", alignItems: "center", overflow: "hidden", padding: 8 }}>
+                {user?.table_header_logo_base64 ? (
+                  <Image source={{ uri: user.table_header_logo_base64 }} resizeMode="contain" style={{ width: "100%", height: "100%" }} />
+                ) : (
+                  <Ionicons name="image" size={36} color={theme.color.muted} />
+                )}
+              </View>
+              <View style={{ flex: 1, gap: 8 }}>
+                <Pressable
+                  testID="table-header-logo-upload"
+                  onPress={uploadTableLogo}
+                  disabled={tableLogoBusy}
+                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 8, backgroundColor: "#7C3AED", opacity: tableLogoBusy ? 0.5 : 1 }}
+                >
+                  {tableLogoBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="cloud-upload" size={16} color="#FFF" />}
+                  <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>{user?.table_header_logo_base64 ? "Cambia logo" : "Carica logo"}</Text>
+                </Pressable>
+                {user?.table_header_logo_base64 && (
+                  <Pressable
+                    testID="table-header-logo-remove"
+                    onPress={removeTableLogo}
+                    disabled={tableLogoBusy}
+                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 8, backgroundColor: "#FEE2E2", borderWidth: 1, borderColor: "#FCA5A5" }}
+                  >
+                    <Ionicons name="trash" size={14} color="#DC2626" />
+                    <Text style={{ color: "#DC2626", fontWeight: "700", fontSize: 12 }}>Rimuovi</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+            <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 8, fontStyle: "italic" }}>
+              Se lasci vuoti nome e logo, le tabelle useranno il Branding aziendale qui sopra. Vale anche per le tabelle viste dai collaboratori.
             </Text>
           </View>
         )}

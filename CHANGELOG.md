@@ -107,6 +107,12 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Meteo in chat (città) + fix parser (V50.z32). Intent energia → ricerca web con fonti (V38T).
 - **Grafici e tabelle in chat**: parser segmenti, `ChatChartExport` con fullscreen (V50.z109), `ChatTableExport` export PDF/PNG
   (v2.p, v2.t), **Error Boundary** su grafici/tabelle (V50.z121) — mai schermata bianca.
+  **V50.z140 — Tabelle a schermo intero + Header tabella**: tap sulla tabella (o bottone "Schermo intero") → Modal fullscreen con
+  tutte le righe, scroll verticale+orizzontale, colonne a larghezza adattiva, footer FISSO PDF / Immagine / Chiudi. Header tabella
+  (logo + nome azienda) configurato dal Master in Impostazioni → card "AI & Axon · Header tabella" (`table_header_name`,
+  `table_header_logo_base64` su `users`, `PUT /auth/profile`); `GET /api/table-header` risolve l'header del tenant (fallback al
+  Branding aziendale se vuoto) → mostrato in testa alla tabella in chat, nel fullscreen, nel PDF (expo-print HTML) e nel PNG
+  (view-shot nativo / canvas web). Cache client 30s + `invalidateTableBrandHeader()` al salvataggio.
 - Allegati: upload file/foto/scanner dalla chat (V50.z85), drag-and-drop desktop (v2.v), processing avanzato allegati (V50.z90),
   anteprima allegati in-app (V50.z24).
 - Feedback 👍/👎 self-learning + few-shot dinamico (v41), "Salva come regola" / "Salva nei file Master" a fine risposta (v2.y, V38T),
@@ -177,6 +183,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## 11. Impostazioni
 - Nome app, nome assistente, voce TTS, modalità risposta, azioni rapide, tipi appuntamento e categorie prodotto custom,
   aree (vedi §2), formato ora 12h/24h, dashboard widget, edge panel, sicurezza/2FA, tema Optima esteso a tutte le pagine (V29.bb/bc).
+- **Header tabella** (V50.z140, solo Master): logo + nome azienda in testa alle tabelle AxonOS esportate (vedi §5).
 
 ## 12. Stile / UX globale
 - **REGOLA MODAL (V50.z135, richiesta utente)**: in ogni modal il pulsante di chiusura/azione primaria sta in un footer FISSO fuori
@@ -207,6 +214,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z140 | Giu 2026 | Chat: tabella a schermo intero (tap/bottone), Impostazioni "Header tabella" (logo + nome) su tabelle chat/PDF/PNG |
 | V50.z139 | Giu 2026 | Scanner: "Foto singola" con fotocamera in-app (autofocus + autocrop prima del ritorno), fix loop permessi Android 16, anteprima full-screen |
 | V50.z138 | Giu 2026 | Home: chiusura filtro Scadenze; dettaglio appuntamento: esiti sempre cliccabili (auto-Fatto), chip dettagli fix Android |
 | V50.z137 | Giu 2026 | Help Center: bottone prominente "Rifai il tour guidato" (funziona anche dopo completamento) |
