@@ -1,6 +1,12 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z149 (Giu 2026) — "Statistiche" nel menu laterale destro (Edge Panel)
+
+**Analisi**: il DrawerMenu sinistro (hamburger) ha già "Statistiche" (Team & Insights, `drawer-item-/(tabs)/report`, verificato in z141). Il "menu a scomparsa laterale destro" dell'utente è l'**Edge Panel** (`src/EdgePanel.tsx`), i cui shortcut sono una selezione utente persistita (`edge_panel_ids_v1`) con `DEFAULT_IDS` senza "report" → Statistiche non compariva.
+**Fix**: `DEFAULT_IDS` = `[home, agenda, new-contact, axon-alarms, report, master]`; nel load, se la selezione salvata non contiene "report" e il flag `edge_panel_report_added_v1` non è impostato → append + persist + flag (migrazione una-tantum; rimane rimovibile da "Modifica"). Test web: tile "Statistiche" nel pannello destro → tap → `/report` ✅.
+
+
 ## V50.z148 (Giu 2026) — Regressione icona meteo header (APK 1.0.48)
 
 **Analisi**: `HeaderWeatherBadge` (V50.z132) è ancora montato in `home.tsx` (bottom-left del banner) e renderizza solo dopo `/weather/alerts` (che risponde anche senza coords: fallback indirizzo Master, verificato). Root cause probabile sull'APK dopo reinstallazione: `getWeatherCoords()` → permesso posizione concesso → `getLastKnownPositionAsync` null (cache azzerata) → `getCurrentPositionAsync({})` **senza timeout** può non risolvere (GPS a freddo/indoor) → l'effetto non arriva mai alla chiamata API → badge mai visibile. Secondaria: un errore di rete al cold start lasciava `res=null` per sempre.

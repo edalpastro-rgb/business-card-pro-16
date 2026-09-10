@@ -222,6 +222,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   Rifai il tour / Help Center). `report` resta nel gruppo (tabs) con `href: null` (rotta `/report` invariata) ed è raggiungibile
   dal menu laterale come **"Statistiche"** (Team & Insights) e dall'Edge Panel. `PersistentBottomNav` allineata (tab Help attivo su
   `/libretto` e `/help*`, nascosta su `/report` dove c'è la Tabs nativa).
+  **V50.z149**: nell'Edge Panel (pannello laterale DESTRO, shortcut personalizzabili in AsyncStorage `edge_panel_ids_v1`) "report"
+  (Statistiche) è ora tra i `DEFAULT_IDS` e viene aggiunto una-tantum alle selezioni già salvate (flag `edge_panel_report_added_v1`);
+  l'utente può comunque toglierlo da "Modifica".
   **V50.z147**: rimosso da `app/_layout.tsx` il `<SupportFab />` (bottone Help/Support Center in alto a destra su tutte le pagine,
   V49.j/k) perché ridondante col tab Help. Il componente `src/SupportFab.tsx` (sheet assistenza AI + ticket) resta nel codice ma
   non è più montato.
@@ -253,6 +256,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z149 | Giu 2026 | Edge Panel (menu laterale destro): "Statistiche" tra i default + migrazione una-tantum per selezioni salvate |
 | V50.z148 | Giu 2026 | Fix regressione icona meteo header (APK 1.0.48): timeout 6s su getCurrentPositionAsync + retry API nel badge |
 | V50.z147 | Giu 2026 | Rimosso il bottone Help/Support Center dalle top header di tutte le pagine (SupportFab non montato) — ridondante col tab Help |
 | V50.z146 | Giu 2026 | Android: permesso CAMERA hardcoded via config plugin locale + expo-build-properties; uses-feature camera required=false (serve nuova build) |

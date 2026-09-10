@@ -56,7 +56,9 @@ const KEY_IDS = "edge_panel_ids_v1";
 const KEY_TAB_Y = "edge_panel_tab_y_v1";
 const KEY_ENABLED = "edge_panel_enabled_v1";
 const KEY_DISCOVERED = "edge_panel_discovered_v1";
-const DEFAULT_IDS = ["home", "agenda", "new-contact", "axon-alarms", "master"];
+const KEY_REPORT_MIGRATED = "edge_panel_report_added_v1"; // V50.z149
+// V50.z149 — "report" (Statistiche) tra i default: era il tab Report della bottom bar (V50.z141)
+const DEFAULT_IDS = ["home", "agenda", "new-contact", "axon-alarms", "report", "master"];
 const PANEL_WIDTH = 260;
 const TAB_WIDTH = 6;
 const TAB_HEIGHT = 68;
@@ -92,7 +94,17 @@ export function EdgePanel() {
         if (raw) {
           const arr = JSON.parse(raw);
           if (Array.isArray(arr) && arr.every((x) => typeof x === "string")) {
-            setSelectedIds(arr);
+            // V50.z149 — "Statistiche" (ex tab Report, V50.z141) deve comparire nel pannello
+            // laterale destro: migrazione una-tantum per chi ha già una selezione salvata.
+            const migrated = await AsyncStorage.getItem(KEY_REPORT_MIGRATED);
+            if (!migrated && !arr.includes("report")) {
+              const next = [...arr, "report"];
+              setSelectedIds(next);
+              AsyncStorage.setItem(KEY_IDS, JSON.stringify(next)).catch(() => {});
+            } else {
+              setSelectedIds(arr);
+            }
+            if (!migrated) AsyncStorage.setItem(KEY_REPORT_MIGRATED, "1").catch(() => {});
           }
         }
         const y = await AsyncStorage.getItem(KEY_TAB_Y);
