@@ -20,9 +20,9 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { buildOAuthReturn } from "@/src/utils/oauthReturn";
 
 const DBX_BLUE = "#0061FF";
-const DBX_CALLBACK_URL = "https://business-card-pro-16.emergent.host/auth/dropbox/callback";
 
 type DbxStatus = {
   connected: boolean;
@@ -67,15 +67,18 @@ export default function DropboxScreen() {
     }
     try {
       setConnecting(true);
-      const r = await api<{ authorization_url: string }>("/dropbox/oauth/start", { method: "POST", body: {} });
+      // V50.z154 — deep-link di ritorno (frontend://dropbox?oauth=dropbox) come
+      // returnUrl del custom tab + info per la pagina di callback (intent Android).
+      const ret = Platform.OS === "web" ? null : buildOAuthReturn("dropbox", "dropbox");
+      const r = await api<{ authorization_url: string }>("/dropbox/oauth/start", { method: "POST", body: ret?.body || {} });
       const url = r?.authorization_url;
       if (!url) throw new Error("URL di autorizzazione non ricevuto");
 
-      if (Platform.OS === "web") {
+      if (Platform.OS === "web" || !ret) {
         (globalThis as any).window.location.assign(url);
         return;
       }
-      const result = await WebBrowser.openAuthSessionAsync(url, DBX_CALLBACK_URL, {
+      const result = await WebBrowser.openAuthSessionAsync(url, ret.returnUrl, {
         showInRecents: false,
         preferEphemeralSession: true,
       });

@@ -91,45 +91,53 @@ async def _api_health():
 #  3. Rispondiamo con una pagina HTML "Autorizzato ✓ Torna all'app"
 #  4. L'app in foreground rileva via polling /google-drive/status che il token
 #     è ora presente → aggancia la UI.
-@app.get("/auth/google/callback")
-async def _oauth_callback_bridge(request: Request):
-    from fastapi.responses import HTMLResponse, RedirectResponse
-    qp = request.query_params
-    code = qp.get("code")
-    state = qp.get("state")
-    err = qp.get("error")
-    # V50.z54 — Rileva se il caller è un browser desktop web (non mobile app):
-    # in quel caso il deep-link `frontend://` non funziona; usiamo un redirect
-    # HTTPS al frontend web configurato invece.
-    _ua = (request.headers.get("user-agent") or "").lower()
-    _is_web = not any(k in _ua for k in ("expo", "advisoros-app", "okhttp", "cfnetwork/", "darwin", "android;"))
-    _web_ret = _GD_FRONTEND_URL or "https://advisoros.it/"
+# V50.z154 — Ritorno all'app affidabile su Android (APK):
+#  • Il client passa a `/oauth/start` il proprio deep-link (`return_url`, es.
+#    frontend://google-drive?oauth=google) e il package Android; li salviamo
+#    nello state e nella connessione, così la pagina di callback NON deve più
+#    indovinare la piattaforma dallo User-Agent (il vecchio check "android;"
+#    non matchava mai "Android 14;" → su APK veniva usato il link HTTPS web e
+#    l'utente restava nel browser).
+#  • Su Android il bottone/auto-redirect usano un URL `intent://…#Intent;
+#    scheme=…;package=…;end`: Chrome e Samsung Internet lo onorano sempre,
+#    mentre `scheme://` da JS viene spesso ignorato senza gesto utente.
+def _oauth_return_links(ret: dict, ua: str, default_path: str, provider_key: str, ok: bool):
+    """Return (deep_link, intent_link|None) for the OAuth callback page."""
+    from urllib.parse import quote as _q
+    ret = ret or {}
+    status = "ok" if ok else "err"
+    ua_l = (ua or "").lower()
+    is_android = "android" in ua_l
+    is_ios = any(k in ua_l for k in ("iphone", "ipad", "ipod", "cfnetwork/", "darwin"))
+    is_app = bool(ret.get("return_url")) or is_android or is_ios or any(k in ua_l for k in ("expo", "advisoros-app", "okhttp"))
+    base = (ret.get("return_url") or "").strip()
+    if base:
+        sep = "&" if "?" in base else "?"
+        if f"oauth=" not in base:
+            base = f"{base}{sep}oauth={provider_key}"
+            sep = "&"
+        deep = f"{base}{sep}status={status}"
+    elif not is_app:
+        web_ret = _GD_FRONTEND_URL or "https://advisoros.it/"
+        sep = "&" if "?" in web_ret else "?"
+        deep = f"{web_ret}{sep}oauth={provider_key}&status={status}"
+    else:
+        deep = f"frontend://{default_path}?oauth={provider_key}&status={status}"
+    intent = None
+    pkg = (ret.get("android_package") or "").strip()
+    if is_android and pkg and "://" in deep and not deep.lower().startswith("http"):
+        scheme, rest = deep.split("://", 1)
+        intent = f"intent://{rest}#Intent;scheme={scheme};package={pkg};S.browser_fallback_url={_q(deep, safe='')};end"
+    return deep, intent
 
-    async def _try_exchange_and_page(ok: bool, message: str, detail: str = "") -> HTMLResponse:
-        # HTML minimalista, brand navy + arancione, self-close-friendly
-        # V50.i — Auto deep-link all'app Expo (scheme "frontend") + pulsante
-        # manuale "Apri app". Su mobile il redirect a `frontend://impostazioni`
-        # apre l'app installata (se presente) e la porta alla schermata
-        # Impostazioni; da lì il polling `/api/google-drive/status` aggancia
-        # la UI. In-app browser (WebBrowser.openAuthSessionAsync) si chiude
-        # automaticamente al deep-link. Fallback: window.close() dopo 4s.
-        color = "#16A34A" if ok else "#DC2626"
-        icon = "✓" if ok else "✗"
-        # V50.z54 — Web: redirect a URL HTTPS del frontend web (con query
-        # ?oauth=google&status=ok/err) invece di deep-link mobile che non
-        # funziona sui browser desktop.
-        if _is_web:
-            _sep = "&" if "?" in _web_ret else "?"
-            deep_link = f"{_web_ret}{_sep}oauth=google&status=" + ("ok" if ok else "err")
-        else:
-            # V50.z110 — Deep-link direttamente alla schermata Google Drive
-            # dell'app (scheme "frontend"): lì lo stato viene ricaricato e
-            # l'utente vede subito "Collegato". Il custom tab Android si chiude
-            # perché l'app usa lo stesso deep-link come returnUrl.
-            deep_link = "frontend://google-drive?oauth=google&status=" + ("ok" if ok else "err")
-        html = f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
+
+def _oauth_return_page_html(title: str, ok: bool, message: str, detail: str, deep_link: str, intent_link: Optional[str], color_ok: str) -> str:
+    color = color_ok if ok else "#DC2626"
+    icon = "✓" if ok else "✗"
+    href = intent_link or deep_link
+    return f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AdvisorOS · Google Drive</title>
+<title>AdvisorOS · {title}</title>
 <style>
 body {{ font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 32px;
        background: #0F2438; color: #FFF; min-height: 100vh; display: flex; flex-direction: column;
@@ -146,21 +154,44 @@ p {{ color: rgba(255,255,255,0.75); font-size: 14px; margin: 4px 0; max-width: 3
 .btn:active {{ transform: scale(0.98); }}
 .hint {{ margin-top: 14px; color: #38BDF8; font-size: 11px; font-weight: 700;
         text-transform: uppercase; letter-spacing: 1px; }}
+.small {{ margin-top: 18px; color: rgba(255,255,255,0.5); font-size: 12px; }}
 </style></head><body>
 <div class="circle">{icon}</div>
 <h1>{message}</h1>
 <p>{detail}</p>
-<a class="btn" href="{deep_link}">Apri AdvisorOS</a>
+<a class="btn" id="openApp" href="{href}">Apri AdvisorOS</a>
 <p class="hint">Ti riportiamo automaticamente all'app…</p>
+<p class="small">Se non succede nulla, tocca "Apri AdvisorOS" oppure chiudi questa scheda e torna all'app.</p>
 <script>
-// 1) Tentativo di deep-link automatico (mobile): apre l'app se installata
-setTimeout(function(){{
-  try {{ window.location.href = "{deep_link}"; }} catch(e){{}}
-}}, 600);
-// 2) Fallback: chiude il tab/browser dopo 4s (utile su in-app WebBrowser)
-setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
+(function(){{
+  var deep = "{deep_link}";
+  var intent = {('"' + intent_link + '"') if intent_link else 'null'};
+  // 1) Android: prova subito l'intent (Chrome/Samsung Internet), poi lo scheme.
+  //    iOS/altri: scheme diretto.
+  try {{ window.location.href = intent || deep; }} catch(e){{}}
+  setTimeout(function(){{ try {{ window.location.href = deep; }} catch(e){{}} }}, 1200);
+  // 2) Fallback: chiude il tab/browser (funziona solo se aperto da script/in-app)
+  setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
+}})();
 </script>
 </body></html>"""
+
+
+@app.get("/auth/google/callback")
+async def _oauth_callback_bridge(request: Request):
+    from fastapi.responses import HTMLResponse, RedirectResponse
+    qp = request.query_params
+    code = qp.get("code")
+    state = qp.get("state")
+    err = qp.get("error")
+    _ua = request.headers.get("user-agent") or ""
+    # V50.z154 — Info di ritorno all'app (deep-link + package) salvate allo start
+    # o sulla connessione: popolate appena disponibili, usate dalla pagina.
+    ret_info: Dict[str, Any] = {}
+
+    async def _try_exchange_and_page(ok: bool, message: str, detail: str = "") -> HTMLResponse:
+        deep_link, intent_link = _oauth_return_links(ret_info, _ua, "google-drive", "google", ok)
+        html = _oauth_return_page_html("Google Drive", ok, message, detail, deep_link, intent_link, "#16A34A")
         return HTMLResponse(content=html, status_code=200)
 
     if err:
@@ -179,6 +210,7 @@ setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
         except Exception:
             recent = None
         if recent:
+            ret_info.update(recent.get("app_return") or {})
             return await _try_exchange_and_page(True, "Google Drive già collegato",
                                                 f"Account: {recent.get('google_email') or ''}")
         return await _try_exchange_and_page(False, "Callback OAuth incompleto",
@@ -203,10 +235,12 @@ setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
                 sort=[("updated_at", -1)],
             )
             if recent:
+                ret_info.update(recent.get("app_return") or {})
                 return await _try_exchange_and_page(True, "Google Drive già collegato",
                                                     f"Account: {recent.get('google_email') or ''}")
             return await _try_exchange_and_page(False, "Sessione scaduta",
                                                 "Riprova dalla schermata Google Drive")
+        ret_info.update(s.get("app_return") or {})
         from google_auth_oauthlib.flow import Flow  # type: ignore
         from googleapiclient.discovery import build  # type: ignore
         # V29.aw — Use the redirect_uri and code_verifier persisted at start time
@@ -239,6 +273,7 @@ setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
             "scopes": list(creds.scopes or _GD_SCOPES),
             "google_email": google_email,
             "updated_at": utcnow(),
+            "app_return": s.get("app_return") or {},  # V50.z154 — per i re-hit senza state
         }
         await db.google_drive_connections.update_one(
             {"user_id": s["user_id"]}, {"$set": doc, "$setOnInsert": {"created_at": utcnow()}}, upsert=True
@@ -270,44 +305,12 @@ async def _dropbox_oauth_callback_bridge(request: Request):
     code = qp.get("code")
     state = qp.get("state")
     err = qp.get("error") or qp.get("error_description")
+    _ua = request.headers.get("user-agent") or ""
+    ret_info: Dict[str, Any] = {}  # V50.z154 — deep-link/package dell'app (dallo state)
 
     def _page(ok: bool, message: str, detail: str = "") -> HTMLResponse:
-        # V50.i — Auto deep-link "frontend://dropbox" + pulsante manuale.
-        color = "#0061FF" if ok else "#DC2626"
-        icon = "✓" if ok else "✗"
-        deep_link = "frontend://dropbox?oauth=dropbox&status=" + ("ok" if ok else "err")
-        html = f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AdvisorOS · Dropbox</title>
-<style>
-body {{ font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 32px;
-       background: #0F2438; color: #FFF; min-height: 100vh; display: flex; flex-direction: column;
-       align-items: center; justify-content: center; text-align: center; }}
-.circle {{ width: 88px; height: 88px; border-radius: 44px; background: {color};
-           display: flex; align-items: center; justify-content: center; font-size: 48px;
-           color: #FFF; font-weight: 800; margin-bottom: 20px; }}
-h1 {{ font-size: 22px; margin: 0 0 8px 0; font-weight: 800; letter-spacing: -0.4px; }}
-p {{ color: rgba(255,255,255,0.75); font-size: 14px; margin: 4px 0; max-width: 380px; }}
-.btn {{ display: inline-block; margin-top: 22px; padding: 14px 28px;
-        background: #EA580C; color: #FFF; font-weight: 800; font-size: 15px;
-        border-radius: 999px; text-decoration: none; letter-spacing: 0.3px;
-        box-shadow: 0 6px 20px rgba(234,88,12,0.35); }}
-.btn:active {{ transform: scale(0.98); }}
-.hint {{ margin-top: 14px; color: #38BDF8; font-size: 11px; font-weight: 700;
-        text-transform: uppercase; letter-spacing: 1px; }}
-</style></head><body>
-<div class="circle">{icon}</div>
-<h1>{message}</h1>
-<p>{detail}</p>
-<a class="btn" href="{deep_link}">Apri AdvisorOS</a>
-<p class="hint">Ti riportiamo automaticamente all'app…</p>
-<script>
-setTimeout(function(){{
-  try {{ window.location.href = "{deep_link}"; }} catch(e){{}}
-}}, 600);
-setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
-</script>
-</body></html>"""
+        deep_link, intent_link = _oauth_return_links(ret_info, _ua, "dropbox", "dropbox", ok)
+        html = _oauth_return_page_html("Dropbox", ok, message, detail, deep_link, intent_link, "#0061FF")
         return HTMLResponse(content=html, status_code=200)
 
     if err:
@@ -323,6 +326,7 @@ setTimeout(function(){{ try{{ window.close(); }} catch(e){{}} }}, 4000);
         if not st:
             return _page(False, "Sessione scaduta",
                          "Riprova dalla schermata Dropbox")
+        ret_info.update(st.get("app_return") or {})
         # V50.q — Mongo può restituire datetime tz-naive: normalizza a UTC
         # prima del confronto per evitare "can't compare offset-naive and
         # offset-aware datetimes".
@@ -20542,8 +20546,35 @@ async def google_drive_status(user=Depends(get_current_user)):
     return {"connected": bool(row), "configured": True, "redirect_uri": _sanitize_redirect_uri(_GD_REDIRECT_URI), **(row or {})}
 
 
+# V50.z154 — Info di ritorno all'app inviate dal client allo start OAuth
+class OAuthStartIn(BaseModel):
+    return_url: Optional[str] = None       # deep-link app (frontend://google-drive?oauth=google, exp://…)
+    android_package: Optional[str] = None  # per intent:// su Android
+    platform: Optional[str] = None
+
+
+def _oauth_app_return(body: Optional["OAuthStartIn"]) -> Dict[str, Any]:
+    if not body:
+        return {}
+    ru = (body.return_url or "").strip()
+    # Solo scheme custom / exp / https (no javascript: ecc.)
+    if ru and not re.match(r"^[a-zA-Z][a-zA-Z0-9+.\-]*://", ru):
+        ru = ""
+    pkg = (body.android_package or "").strip()
+    if pkg and not re.match(r"^[a-zA-Z0-9_.]+$", pkg):
+        pkg = ""
+    out: Dict[str, Any] = {}
+    if ru:
+        out["return_url"] = ru[:500]
+    if pkg:
+        out["android_package"] = pkg[:200]
+    if body.platform:
+        out["platform"] = str(body.platform)[:20]
+    return out
+
+
 @api_router.post("/google-drive/oauth/start")
-async def google_drive_oauth_start(user=Depends(get_current_user)):
+async def google_drive_oauth_start(body: Optional[OAuthStartIn] = None, user=Depends(get_current_user)):
     """Genera l'authorization URL per il flow OAuth. Lo state è persistito con TTL 10min."""
     if not _gd_configured():
         raise HTTPException(status_code=503, detail="Google Drive non configurato sul server")
@@ -20573,6 +20604,7 @@ async def google_drive_oauth_start(user=Depends(get_current_user)):
         "user_id": user["user_id"],
         "code_verifier": code_verifier,  # V29.aw — may be None if lib version < 1.0 (older versions didn't do PKCE)
         "redirect_uri": clean_redirect,  # persist to guarantee identical value at exchange time
+        "app_return": _oauth_app_return(body),  # V50.z154
         "expires_at": utcnow(),
         "created_at": utcnow(),
     })
@@ -21101,7 +21133,7 @@ async def dropbox_status(user=Depends(get_current_user)):
 
 
 @api_router.post("/dropbox/oauth/start")
-async def dropbox_oauth_start(user=Depends(get_current_user)):
+async def dropbox_oauth_start(body: Optional[OAuthStartIn] = None, user=Depends(get_current_user)):
     if not _dbx_configured():
         raise HTTPException(status_code=503, detail="Dropbox non configurato sul server")
     state = secrets.token_urlsafe(32)
@@ -21110,6 +21142,7 @@ async def dropbox_oauth_start(user=Depends(get_current_user)):
         "_id": state,
         "user_id": user["user_id"],
         "code_verifier": verifier,
+        "app_return": _oauth_app_return(body),  # V50.z154
         "expires_at": utcnow() + timedelta(minutes=10),
     })
     from urllib.parse import urlencode

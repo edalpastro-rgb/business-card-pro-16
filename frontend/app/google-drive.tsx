@@ -17,10 +17,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { buildOAuthReturn } from "@/src/utils/oauthReturn";
 
 // Su web questa call chiude la popup di auth restituendo il controllo alla pagina.
 try { WebBrowser.maybeCompleteAuthSession(); } catch { /* noop */ }
@@ -109,12 +109,15 @@ export default function GoogleDriveScreen() {
     }
     try {
       setConnecting(true);
+      // V50.z154 — Passiamo al backend il deep-link di ritorno + package Android:
+      // la pagina di callback userà intent:// (Chrome/Samsung) per riaprire l'app.
+      const ret = Platform.OS === "web" ? null : buildOAuthReturn("google-drive", "google");
       // 1) Ottieni l'URL di autorizzazione dal backend (con state).
-      const r = await api<{ authorization_url: string }>("/google-drive/oauth/start", { method: "POST", body: {} });
+      const r = await api<{ authorization_url: string }>("/google-drive/oauth/start", { method: "POST", body: ret?.body || {} });
       const url = r?.authorization_url;
       if (!url) throw new Error("URL di autorizzazione non ricevuto");
 
-      if (Platform.OS === "web") {
+      if (Platform.OS === "web" || !ret) {
         // Web: redirect nella stessa tab, torneremo a /google-drive dopo il callback.
         (globalThis as any).window.location.assign(url);
         return;
@@ -128,7 +131,7 @@ export default function GoogleDriveScreen() {
       //    del backend e l'app non riceveva il ritorno. Il backend, dopo aver
       //    scambiato il code lato server, reindirizza a questo stesso deep-link
       //    → il custom tab si chiude e torniamo qui con ?oauth=google&status=ok.
-      const appReturnUrl = Linking.createURL("google-drive", { queryParams: { oauth: "google" } });
+      const appReturnUrl = ret.returnUrl;
       const result = await WebBrowser.openAuthSessionAsync(url, appReturnUrl, {
         showInRecents: false,
         preferEphemeralSession: true,

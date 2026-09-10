@@ -1,6 +1,15 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z154 (Giu 2026) — OAuth Google Drive (e Dropbox) su APK: il browser non riportava all'app
+
+**Segnalazione**: dopo l'autorizzazione Google, la pagina "Google Drive già collegato" restava aperta in Samsung Internet; "Apri AdvisorOS" e l'auto-redirect non facevano nulla; si tornava solo con il back di sistema.
+**Root cause**: `_oauth_callback_bridge` decideva mobile vs web dallo User-Agent con la chiave `"android;"`, che sui device reali non compare mai (`"Linux; Android 14; SM-…"`) → `_is_web=True` → il link era l'URL HTTPS del frontend web, non il deep-link `frontend://`. Inoltre `scheme://` da JS senza gesto utente viene spesso ignorato da Chrome/Samsung.
+**Fix backend**: `OAuthStartIn {return_url, android_package, platform}` accettato da `POST /google-drive/oauth/start` e `POST /dropbox/oauth/start` (validato in `_oauth_app_return`, salvato nello state `app_return` e, per Drive, sulla connessione per i re-hit senza state). `_oauth_return_links(ret, ua, default_path, provider, ok)` → `(deep_link, intent_link)`: usa `return_url` se presente, altrimenti UA (`"android"`, iOS) → `frontend://…`, desktop → web; su Android con package genera `intent://<path>?…#Intent;scheme=<s>;package=<pkg>;end`. `_oauth_return_page_html` condivisa Google/Dropbox: bottone href = intent (o deep), JS prova subito intent→deep (1.2s)→close (4s).
+**Fix frontend**: `src/utils/oauthReturn.ts` (`buildOAuthReturn`) — `Linking.createURL(path,{oauth})` + `Constants.expoConfig.android.package` (escluso Expo Go). `google-drive.tsx` e `dropbox.tsx` inviano il body allo start e usano il deep-link come `returnUrl` di `openAuthSessionAsync` (Dropbox prima usava l'https hardcoded `DBX_CALLBACK_URL`, mai intercettato su Android). Richiede nuova build APK.
+**Test**: curl con UA Samsung + state con `app_return` → href `intent://google-drive?oauth=google&status=…#Intent;scheme=frontend;package=com.emergent.consulenteapp.zkleir;…;end` ✅; desktop UA → link web ✅; Android senza state → `frontend://google-drive?…` ✅.
+
+
 ## V50.z153 (Giu 2026) — Scadenze: avviso disattivabile e reimpostabile (nuova data / nuova bolletta)
 
 **Richiesta**: l'avviso scadenza (Home "SCADENZE" + `/deadlines`) deve poter essere disattivato e riattivato inserendo una nuova data di scadenza o sostituendo la bolletta. Scelte utente: icona ⋯ visibile a destra della card; nessuna sezione "Avvisi disattivati".

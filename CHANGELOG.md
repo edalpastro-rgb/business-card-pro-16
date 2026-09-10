@@ -201,6 +201,11 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - I miei file / Master Files: upload con formati unificati e validazione (v2.20), share nativo (v2.6), report inline (v2.4).
 - **Google Drive OAuth** (v2.w): redirect_uri hardening, PKCE code verifier fix (V29.as/aw), scope allargato (V50.h), fix ricorsione
   (V50.z12), **fix redirect deep link `frontend://` su APK Android** (V50.z110). Dropbox OAuth + callback backend (V50.e/f).
+  **V50.z154**: ritorno automatico nell'app dalla pagina di callback (Google + Dropbox): `src/utils/oauthReturn.ts` →
+  `buildOAuthReturn(path, provider)` invia `{return_url, android_package, platform}` a `/oauth/start` (salvati nello state e nella
+  connessione Drive `app_return`); helper backend `_oauth_return_links` + `_oauth_return_page_html` generano deep-link e
+  `intent://` Android (bottone "Apri AdvisorOS" + auto-redirect). Il vecchio rilevamento UA `"android;"` non matchava mai gli
+  Android reali ("Android 14;") → veniva usato il link web HTTPS e l'utente restava nel browser.
   **V50.z128 `_gd_get_credentials`**: cache in-memory access token (`_GD_TOKEN_CACHE`, invalidata su riconnessione), refresh con
   3 tentativi/backoff su errori transitori (→ 503, connessione conservata), connessione rimossa SOLO su `invalid_grant` confermato (→ 401).
 - Caselle mail: Auto-CRM scheduler configurabile che aggancia mail ai contatti, estrae firme via LLM e propone aggiornamenti
@@ -273,6 +278,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z154 | Giu 2026 | OAuth Google Drive/Dropbox su APK: ritorno automatico nell'app. Il client invia `return_url` (deep-link) + `android_package` a `/oauth/start`; la pagina di callback usa `intent://…#Intent;scheme=frontend;package=…;end` (Chrome/Samsung Internet) + scheme fallback; rimosso il check UA "android;" (mai vero → link web). Dropbox: returnUrl del custom tab ora è il deep-link (non più https) |
 | V50.z153 | Giu 2026 | Scadenze: icona ⋯ su ogni card (Home + /deadlines) → "Disattiva avviso" (server-side, sparisce da liste e conteggi), "Nuova data scadenza" (override manuale, riattiva), "Sostituisci bolletta" (apre tab Bollette; nuova bolletta/rianalisi riattiva). API `POST /deadlines/{bill_id}/dismiss`, `PUT /deadlines/{bill_id}/expiry` |
 | V50.z152 | Giu 2026 | Calendario: promemoria compleanno si chiude 24h dopo o con "Visto ✓" (persistito sul dispositivo) |
 | V50.z151 | Giu 2026 | Meteo: geocoding con 3° fallback Open-Meteo (città/CAP anche da indirizzi con via), negative-cache 10 min, messaggio "Indirizzo non riconosciuto" + Riprova, errore salvataggio visibile |
