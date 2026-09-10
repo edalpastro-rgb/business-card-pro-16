@@ -1,6 +1,13 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z135 (Giu 2026) — Modal "Appuntamento creato" + testo invio dettagli personalizzabile
+
+1) `app/appointment/new.tsx` modal post-save: `KeyboardAvoidingView` come backdrop, card `maxHeight = 88% altezza finestra` + `paddingBottom = max(insets.bottom, 12)`, `AppointmentShareActions` dentro `ScrollView` (`flexGrow: 0`), pulsante "Chiudi senza inviare" fuori dallo scroll (footer fisso). Regola modal documentata in CHANGELOG §12.
+2) Invio dettagli dal dettaglio appuntamento: già presente (`[id].tsx` riga ~535 usa lo stesso componente) → nessuna modifica; beneficia del punto 3.
+3) `src/AppointmentShareActions.tsx`: stato `bodyText` (default `buildAppointmentMessage`, reset se cambiano appt/contatto), toggle "Personalizza messaggio" → `TextInput` multilinea (min 120/max 220px), link "Ripristina" se modificato; Email/WhatsApp/SMS usano il testo corrente.
+Test web (viewport 390×700): modal → "Chiudi senza inviare" a y=649 visibile; apertura editor + testo aggiunto → pulsante ancora visibile; Ripristina presente; chiusura OK.
+
 ## V50.z134 (Giu 2026) — Scanner: fotocamera posteriore + autocrop che funziona davvero
 
 **1) Foto singola → fotocamera frontale**: `DocumentScannerModal.addFromCamera` non passava `cameraType`; su alcuni Android il picker riapriva l'ultima lente usata (frontale). Ora `cameraType: ImagePicker.CameraType.back`.

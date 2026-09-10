@@ -56,6 +56,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - **Fix orario 08:15→06:15** (V50.z110 lato editor; **V50.z127 root cause backend**: `start_at`/`end_at` letti da Mongo erano datetime naive
   serializzati senza fuso → il client li leggeva come ora locale. Ora `_aware_utc_times()` forza `+00:00` su list/get/put/calendar-team).
 - **Condivisione appuntamento col cliente** WhatsApp/Email + reminder automatico (V50.z80), "Invia dettagli" in creazione (v2.14).
+  **V50.z135**: `AppointmentShareActions` (usato sia nel modal post-creazione sia nel **dettaglio appuntamento**) ha il testo del
+  messaggio **personalizzabile** ("Personalizza messaggio" → TextInput multilinea, "Ripristina"); il modal "Appuntamento creato" ha
+  footer fisso con "Chiudi senza inviare" sempre visibile (card maxHeight 88%, safe-area bottom, KeyboardAvoidingView, contenuto in ScrollView).
 - **Meteo negli appuntamenti**: icona/tooltip meteo accanto agli eventi in calendario e nel dettaglio con consigli (V50.z117),
   basato sull'indirizzo del contatto (OpenMeteo, `POST /api/weather/appointments`).
 - Timer chiamata → barra compatta globale (v2.r), timer in background (v2.ae).
@@ -159,6 +162,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   aree (vedi §2), formato ora 12h/24h, dashboard widget, edge panel, sicurezza/2FA, tema Optima esteso a tutte le pagine (V29.bb/bc).
 
 ## 12. Stile / UX globale
+- **REGOLA MODAL (V50.z135, richiesta utente)**: in ogni modal il pulsante di chiusura/azione primaria sta in un footer FISSO fuori
+  dallo ScrollView, card con `maxHeight` (~88% viewport) + padding safe-area bottom + KeyboardAvoidingView: deve essere sempre
+  visibile senza scorrere. Applicare a ogni nuovo modal e quando si tocca un modal esistente.
 - Stile Optima: header tecnico senza loghi, bottoni categorizzati, safe-area globale, label 1 riga (V50.a/c, V29.ba–bc).
 - Bottom nav persistente, barra AxonOS minimale (v2.ap). Keyboard-avoiding fix nei modal Insegna ad Axon (V29.au/ax).
 - Menu laterale (`DrawerMenu.tsx`): **V50.z131** rimosso link morto "Note" (`/notes`, pagina inesistente); "Business Cards" →
@@ -184,6 +190,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z135 | Giu 2026 | Modal "Appuntamento creato": chiusura sempre visibile; testo invio dettagli personalizzabile (creazione + dettaglio) |
 | V50.z134 | Giu 2026 | Scanner: autocrop robusto (nuovo detector OpenCV) + Foto singola sempre fotocamera posteriore |
 | V50.z133 | Giu 2026 | Tour onboarding: attesa navigator pronto + flag device al primo mostrare (una volta per dispositivo) |
 | V50.z132 | Giu 2026 | Home: widget meteo solo con allerte, mini-icona meteo sul banner, Appuntamenti di oggi sotto Ritelefonate |

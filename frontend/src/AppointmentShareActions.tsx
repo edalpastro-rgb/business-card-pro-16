@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { View, Text, StyleSheet, Pressable, Linking, Platform } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, Pressable, Linking, Platform, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
 
@@ -73,7 +73,12 @@ type Props = {
 };
 
 export function AppointmentShareActions({ appt, contact, compact = false }: Props) {
-  const bodyText = useMemo(() => buildAppointmentMessage(appt, contact), [appt, contact]);
+  const defaultText = useMemo(() => buildAppointmentMessage(appt, contact), [appt, contact]);
+  // V50.z135 — Testo personalizzabile prima dell'invio (WhatsApp/SMS/Email).
+  const [bodyText, setBodyText] = useState(defaultText);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { setBodyText(defaultText); }, [defaultText]);
+  const isCustom = bodyText !== defaultText;
 
   // v2.16 — Effective channels: prefer contact fields when present, else
   // fall back to the appointment's own phone/email fields.
@@ -111,6 +116,29 @@ export function AppointmentShareActions({ appt, contact, compact = false }: Prop
         <Text style={styles.title}>Invia dettagli al cliente</Text>
       </View>
       <Text style={styles.hint}>Condividi data, ora e luogo dell&apos;appuntamento via Email, WhatsApp o SMS.</Text>
+      <View style={styles.editRow}>
+        <Pressable testID="appt-share-edit-toggle" onPress={() => setEditing((v) => !v)} style={styles.editBtn} hitSlop={6}>
+          <Ionicons name={editing ? "chevron-up" : "create-outline"} size={14} color={theme.color.brandPrimary} />
+          <Text style={styles.editBtnTxt}>{editing ? "Nascondi testo" : (isCustom ? "Testo personalizzato · modifica" : "Personalizza messaggio")}</Text>
+        </Pressable>
+        {isCustom && (
+          <Pressable testID="appt-share-reset" onPress={() => setBodyText(defaultText)} hitSlop={6}>
+            <Text style={styles.resetTxt}>Ripristina</Text>
+          </Pressable>
+        )}
+      </View>
+      {editing && (
+        <TextInput
+          testID="appt-share-message"
+          value={bodyText}
+          onChangeText={setBodyText}
+          multiline
+          textAlignVertical="top"
+          style={styles.msgInput}
+          placeholder="Testo del messaggio…"
+          placeholderTextColor={theme.color.muted}
+        />
+      )}
       <View style={styles.btnRow}>
         <Pressable
           testID="appt-share-email"
@@ -159,4 +187,9 @@ const styles = StyleSheet.create({
   btn: { flex: 1, paddingVertical: 10, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
   warn: { marginTop: 8, fontSize: 11, color: "#B45309", fontStyle: "italic" },
+  editRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  editBtn: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 28 },
+  editBtnTxt: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary },
+  resetTxt: { fontSize: 12, fontWeight: "700", color: theme.color.muted, textDecorationLine: "underline" },
+  msgInput: { minHeight: 120, maxHeight: 220, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 10, fontSize: 13, lineHeight: 18, color: theme.color.onSurface, marginBottom: 10 },
 });

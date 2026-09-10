@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Modal, Image } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Modal, Image, KeyboardAvoidingView, useWindowDimensions } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -115,6 +115,8 @@ export default function NewAppointmentRoute() {
 
 function NewAppointmentScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { height: winH } = useWindowDimensions();
   const { user } = useAuth();
   const safeBottom = useSafeBottom(); // V29.ar — sticky footer safe-area
   const allowed = (user?.areas || ["energy", "network"]) as ("energy" | "network")[];
@@ -1170,10 +1172,14 @@ function NewAppointmentScreen() {
         testID="ap-reminder-modal"
       />
 
-      {/* v2.14 — Post-save "Invia dettagli" modal */}
+      {/* v2.14 — Post-save "Invia dettagli" modal
+          V50.z135 — REGOLA MODAL: il pulsante di chiusura è nel footer FISSO
+          (fuori dallo ScrollView), la card ha maxHeight e rispetta la safe-area:
+          "Chiudi senza inviare" è sempre visibile senza scorrere, anche con
+          tastiera aperta (KeyboardAvoidingView). */}
       <Modal visible={!!postSave} animationType="slide" transparent onRequestClose={() => { setPostSave(null); router.back(); }}>
-        <View style={mstyles.postSaveBack}>
-          <View style={mstyles.postSaveCard}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={mstyles.postSaveBack}>
+          <View style={[mstyles.postSaveCard, { maxHeight: Math.round(winH * 0.88), paddingBottom: Math.max(insets.bottom, 12) }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
               <View style={mstyles.checkCircle}>
                 <Ionicons name="checkmark" size={20} color="#FFF" />
@@ -1184,9 +1190,11 @@ function NewAppointmentScreen() {
               </View>
             </View>
 
-            {postSave && (
-              <AppointmentShareActions appt={postSave.appt} contact={postSave.contact} />
-            )}
+            <ScrollView style={{ flexGrow: 0 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              {postSave && (
+                <AppointmentShareActions appt={postSave.appt} contact={postSave.contact} />
+              )}
+            </ScrollView>
 
             <Pressable
               testID="post-save-close"
@@ -1196,7 +1204,7 @@ function NewAppointmentScreen() {
               <Text style={mstyles.postSaveCloseTxt}>Chiudi senza inviare</Text>
             </Pressable>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
