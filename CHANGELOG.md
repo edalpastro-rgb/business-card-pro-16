@@ -30,7 +30,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   **V50.z136**: intro animata offline `src/WowIntro.tsx` (4 slide: fade/slide/zoom, icone in orbita pulsanti, bolle animate,
   auto-avanzamento 4.2s, "Salta intro"/"Avanti"/"Inizia il tour") mostrata all'inizio del tour (`/libretto?onboarding=1`) — nessun
   video YouTube. Help Center: prima voce **"Rifai il tour guidato"** (V50.z137: bottone pieno viola prominente; reset chiavi locali +
-  flag server → riapre intro + tour anche se già completato).
+  flag server → riapre intro + tour anche se già completato). **V50.z158**: trigger in `home.tsx` con push/replace alternati + retry su `usePathname` (5×1s); `allowBackup:false` in app.json perché il backup Android ripristinava le chiavi locali su reinstall.
 - Credenziali test: `/app/memory/test_credentials.md` (demo@advisoros.it / Demo1234!, collab.demo@advisoros.it).
 
 ## 2. Contatti / Anagrafica (CRM)
@@ -285,6 +285,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z158 | Giu 2026 | Tour primo avvio (APK 1.0.50 ancora assente): apertura con `push` alternato a `replace`, verifica `usePathname` e fino a 5 tentativi (1s), nessun blocco su navReady; `android.allowBackup: false` (il backup automatico Android ripristinava AsyncStorage al reinstall → flag `onboarding_done_*` già "1" → nessun tour) |
 | V50.z157 | Giu 2026 | Meteo: badge header SEMPRE visibile (Home + Master; senza dati mostra nuvola + "Meteo" → /meteo per impostare la località; refresh al focus) — prima `return null` senza GPS/indirizzo (APK senza permesso posizione). "Meteo" aggiunto alle Utility della Master |
 | V50.z156 | Giu 2026 | Scanner: riga "Diagnostica" nella schermata permesso fotocamera (stato reale + richiedibile) per distinguere "permesso negato" da "permesso assente nella build". Config Android RIVERIFICATA con `expo prebuild` locale: il manifest generato contiene CAMERA/RECORD_AUDIO/CONTACTS/LOCATION → se l'APK 1.0.49 non li ha, è la pipeline di build (escalation supporto). Fix collaterale: `yarn.lock` aggiornato con `expo-build-properties` (mancava → possibile fallimento install in CI) |
 | V50.z155 | Giu 2026 | **Axon + Google Drive: accesso REALE alle cartelle monitorate.** Root cause: l'indice `drive_snapshots` non veniva mai passato all'AI (solo i link Drive di "Insegna ad Axon" venivano letti, con BFS live sull'API ad ogni domanda → 30-120s) e il prompt diceva ad Axon "vedi SOLO ciò che l'utente allega". Ora: indexer ricorsivo in thread (PDF/TXT/CSV/Google Docs/Sheets, sottocartelle, 300 file), avvio automatico dopo OAuth/scelta cartella + job 30 min, chat legge dall'indice in ms, prompt riscritto (2 copie) + fix `folder_name` ("?"), timeout 12s per fetcher, card "Indice Axon" + "Aggiorna indice ora" nella pagina Google Drive |

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useFocusEffect, useRootNavigationState } from "expo-router";
+import { useRouter, useFocusEffect, useRootNavigationState, usePathname } from "expo-router";
 import Svg, { Circle, G } from "react-native-svg";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -179,10 +179,19 @@ export default function HomeScreen() {
   const rootNavState = useRootNavigationState();
   const navReady = !!rootNavState?.key;
   const onboardingTriggered = useRef(false);
+  // V50.z158 — Apertura tour "a prova di bomba" (APK 1.0.50: ancora assente al
+  // primo avvio). (1) Non dipendiamo più da navReady per DECIDERE (solo per il
+  // ritardo iniziale); (2) usiamo `push` (gestito sempre) alternato a `replace`;
+  // (3) verifichiamo con `usePathname` che siamo davvero su /libretto e
+  // ritentiamo fino a 5 volte a 1s di distanza. La chiave locale viene scritta
+  // da libretto.tsx appena il tour compare (una volta per dispositivo).
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
   useEffect(() => {
-    if (!user?.user_id || !navReady || onboardingTriggered.current) return;
+    if (!user?.user_id || onboardingTriggered.current) return;
     let mounted = true;
-    let timer: any = null;
+    const timers: any[] = [];
     (async () => {
       try {
         // V50.z120 — Per-device: a ogni nuova installazione il tour di benvenuto
@@ -191,13 +200,21 @@ export default function HomeScreen() {
         const doneLocal = await AsyncStorage.getItem(localKey);
         if (doneLocal === "1" || !mounted) return;
         onboardingTriggered.current = true;
-        timer = setTimeout(() => {
-          if (mounted) router.replace("/libretto?onboarding=1" as any);
-        }, 350);
+        const href = "/libretto?onboarding=1" as any;
+        const attempt = (n: number) => {
+          if (!mounted || n > 5) return;
+          if ((pathnameRef.current || "").includes("libretto")) return;
+          try {
+            if (n % 2 === 1) router.push(href); else router.replace(href);
+          } catch { /* retry below */ }
+          timers.push(setTimeout(() => attempt(n + 1), 1000));
+        };
+        timers.push(setTimeout(() => attempt(1), navReady ? 350 : 900));
       } catch { /* silent */ }
     })();
-    return () => { mounted = false; if (timer) clearTimeout(timer); };
-  }, [user?.user_id, navReady, router]);
+    return () => { mounted = false; timers.forEach((t) => clearTimeout(t)); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.user_id]);
 
   // Update header clock every minute (aligned to the next :00 second)
   useEffect(() => {

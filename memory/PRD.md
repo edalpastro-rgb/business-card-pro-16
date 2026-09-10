@@ -1,6 +1,13 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z158 (Giu 2026) — Tour guidato assente al primo avvio (APK 1.0.50)
+
+**Cause plausibili (non riproducibile in locale, entrambe coperte)**: (a) su nativo `router.replace("/libretto?onboarding=1")` da Home (tab annidato) può non essere gestito ("REPLACE not handled") anche dopo z133; (b) **Android Auto Backup** (`allowBackup` default true) ripristina i dati app (AsyncStorage) alla reinstallazione → `onboarding_done_<uid>` = "1" già presente → il tour "per-device" non parte mai su un "primo avvio" che in realtà è un reinstall.
+**Fix**: `home.tsx` → trigger senza dipendere da `navReady` (solo ritardo 350/900ms), `push` (tentativi impari) alternato a `replace`, verifica `usePathname().includes("libretto")`, max 5 tentativi a 1s; `app.json` → `expo.android.allowBackup: false` (richiede nuova build). Test web: login con flag rimossi → redirect a `/libretto?onboarding=1`, intro "Benvenuto in AdvisorOS" visibile, flag device scritto ✅.
+**Nota**: l'utente ha chiesto di NON toccare altro.
+
+
 ## V50.z157 (Giu 2026) — Icona meteo header assente su APK (visibile su web) + Meteo nelle Utility
 
 **Root cause**: `HeaderWeatherBadge` faceva `return null` se `/weather/alerts` non restituiva `weather` (needs_address). Su APK 1.0.49 il permesso posizione NON è nel manifest (stesso problema build della fotocamera) → coords null → in produzione nessun indirizzo salvato → needs_address → badge invisibile. Sul web preview il DB ha un indirizzo/geolocalizzazione browser → visibile. Widget Home "Meteo · Tocca per impostare la tua località" conferma.
