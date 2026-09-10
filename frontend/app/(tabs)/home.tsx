@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect, useRootNavigationState } from "expo-router";
 import Svg, { Circle, G } from "react-native-svg";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -169,21 +169,32 @@ export default function HomeScreen() {
   // reinstall/cambio telefono); cache locale `onboarding_done_${user_id}` per
   // evitare la chiamata a ogni apertura. Viene marcato come fatto SOLO quando
   // l'utente conclude o salta il tour (non al semplice mount della pagina).
+  // V50.z133 — Su nativo, a cold start con sessione salvata, Home è la prima
+  // schermata: un `router.replace` lanciato prima che il navigator root sia
+  // pronto viene ignorato silenziosamente ("REPLACE not handled") → il tour non
+  // compariva più. Attendiamo `useRootNavigationState().key` e un breve tick.
+  const rootNavState = useRootNavigationState();
+  const navReady = !!rootNavState?.key;
+  const onboardingTriggered = useRef(false);
   useEffect(() => {
-    if (!user?.user_id) return;
+    if (!user?.user_id || !navReady || onboardingTriggered.current) return;
     let mounted = true;
+    let timer: any = null;
     (async () => {
       try {
         // V50.z120 — Per-device: a ogni nuova installazione il tour di benvenuto
         // viene mostrato una volta (poi mai più su quel dispositivo).
         const localKey = `onboarding_done_${user.user_id}`;
         const doneLocal = await AsyncStorage.getItem(localKey);
-        if (doneLocal === "1") return;
-        if (mounted) router.replace("/libretto?onboarding=1" as any);
+        if (doneLocal === "1" || !mounted) return;
+        onboardingTriggered.current = true;
+        timer = setTimeout(() => {
+          if (mounted) router.replace("/libretto?onboarding=1" as any);
+        }, 350);
       } catch { /* silent */ }
     })();
-    return () => { mounted = false; };
-  }, [user?.user_id, router]);
+    return () => { mounted = false; if (timer) clearTimeout(timer); };
+  }, [user?.user_id, navReady, router]);
 
   // Update header clock every minute (aligned to the next :00 second)
   useEffect(() => {

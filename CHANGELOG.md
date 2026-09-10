@@ -24,6 +24,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Landing pubblica advisoros.it (v29.ak, V50.z105/.b con video demo hero), schermata Sicurezza informativa (V50.z106).
 - Splash animato di brand (v2.aq), login screen responsive con logo grande (v2.ai), brand identity AdvisorOS + AxonOS (v2.af/ag).
 - Onboarding **Tour guidato** al primo avvio, reset per-device (V50.z111, V50.z120); micro-tutorial (V50.o–p).
+  **V50.z133**: Home attende `useRootNavigationState().key` + 350ms prima di `router.replace('/libretto?onboarding=1')` (a cold start
+  nativo il replace veniva ignorato → tour assente); il flag device `onboarding_done_${user_id}` viene scritto appena il tour è
+  mostrato in modalità onboarding (una sola volta per dispositivo, anche uscendo con back/tab bar). Flag server invariato.
 - Credenziali test: `/app/memory/test_credentials.md` (demo@advisoros.it / Demo1234!, collab.demo@advisoros.it).
 
 ## 2. Contatti / Anagrafica (CRM)
@@ -177,6 +180,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z133 | Giu 2026 | Tour onboarding: attesa navigator pronto + flag device al primo mostrare (una volta per dispositivo) |
 | V50.z132 | Giu 2026 | Home: widget meteo solo con allerte, mini-icona meteo sul banner, Appuntamenti di oggi sotto Ritelefonate |
 | V50.z131 | Giu 2026 | FAB Axon: tap via Pressable (fix Contatti); drawer: rimosso "Note", "Business Cards" → `/business-card` |
 | V50.z130 | Giu 2026 | Distillazione regole on-demand: lezioni in chat → ai_teach_rules immediate + `POST /axon/teach/distill-now` |

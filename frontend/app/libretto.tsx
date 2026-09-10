@@ -228,6 +228,16 @@ export default function LibrettoScreen() {
     })();
   }, []);
 
+  // V50.z133 — Il tour deve comparire UNA sola volta per dispositivo: appena
+  // viene mostrato in modalità onboarding marchiamo il device (chiave locale
+  // per-utente), così anche se l'utente esce con back/tab bar senza premere
+  // "Ho capito"/"Salta" non ricompare a ogni riapertura. Il flag server
+  // `onboarding_done` resta impostato solo da conclusione/salto (sotto).
+  useEffect(() => {
+    if (!isOnboarding || !user?.user_id) return;
+    AsyncStorage.setItem(`onboarding_done_${user.user_id}`, "1").catch(() => {});
+  }, [isOnboarding, user?.user_id]);
+
   // V50.z111 — Il tour è "fatto" SOLO quando l'utente lo conclude o lo salta:
   // flag per-utente lato server (user-settings.onboarding_done) + cache locale.
   const dismissOnboarding = useCallback(async () => {

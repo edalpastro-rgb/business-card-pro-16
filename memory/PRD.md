@@ -1,6 +1,13 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z133 (Giu 2026) — Tour onboarding: ripristino "una volta per dispositivo"
+
+- Causa più probabile su APK: a cold start con sessione salvata Home è la prima schermata; `router.replace` nell'`useEffect` partiva prima che il navigator root fosse pronto → azione ignorata (nessun errore) → tour mai mostrato.
+- `home.tsx`: `useRootNavigationState()` → `navReady = !!state.key`; effetto dipende da `[user_id, navReady]`; guard `onboardingTriggered` ref; replace dopo `setTimeout 350ms`.
+- `libretto.tsx`: nuovo effetto — se `isOnboarding && user` → `AsyncStorage.setItem(onboarding_done_${user_id}, "1")` subito (device marcato al primo mostrare). `dismissOnboarding` invariato (imposta anche flag server `onboarding_done`). "Rivedi tour" in master.tsx continua a rimuovere la chiave → tour riparte.
+- Test web: sessione nuova → login → `/libretto?onboarding=1` ✅; uscita senza "Ho capito" → riapertura Home → tour NON ricompare ✅.
+
 ## V50.z132 (Giu 2026) — Home: meteo solo con allerte + mini-icona banner + ordine widget
 
 - `src/WeatherWidget.tsx`: `WeatherWidget` ritorna `null` se `loading` o nessuna allerta (`res.alerts.length === 0`). Nuovo export `HeaderWeatherBadge`: pill assoluta `left:8 bottom:6` sul banner (icona `weatherIcon(icon_key)` + temp max, tap → `/meteo`, testID `header-weather-badge`), nulla se meteo non disponibile.
