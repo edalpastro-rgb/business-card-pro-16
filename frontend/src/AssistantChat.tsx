@@ -673,6 +673,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       cleanupAudioRef.current = () => sp.stop();
     }
     try {
+      // V50.z142 — Feedback immediato locale: mostra subito "Sto ragionando…" nella bolla
+      // di typing; il server invia lo stesso ack come primo evento SSE (stage "ack").
+      setProgressText("Sto ragionando…");
       // V40 — Streaming path via SSE. Append delta chunks to the last message
       // in real time. Falls back to a regular POST if streaming fails.
       const streamResult = await streamAssistantChat({

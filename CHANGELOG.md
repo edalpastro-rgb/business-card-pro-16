@@ -94,6 +94,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   (testo / voce / entrambi), Nuova chat, Annunci, Audio (v2.ao/ap).
 - **Streaming SSE** (`POST /api/assistant/chat/stream`, v40): eventi `progress` / `meta` / `delta` / `done` / `error`; client XHR
   onprogress su nativo, ReadableStream su web (`assistantStream.ts`). Watchdog 90s con errore visibile (V50.z121).
+  **V50.z142 — ACK immediato**: il primo evento dello stream è `progress {stage:"ack", text:"Sto ragionando…"}` emesso PRIMA di
+  qualsiasi await (intercept slash/quick-action/sveglie, preflight, LLM) → visibile in <1s (misurato 8ms locale, 0.34s via ingress)
+  indipendentemente dal modello; il client imposta lo stesso testo localmente all'invio come fallback di rete.
 - **Voce in streaming** (V50.z112, `sentenceSpeaker.ts`): frasi sintetizzate e riprodotte man mano; barge-in VAD (v2.u); microfono
   con Whisper `/api/ai/transcribe`; copilot vocale auto (V50.o–p); TTS OpenAI voci selezionabili.
 - Router modello Haiku/Sonnet (V50.k), cache semantica tenant-shared (v40, V50.k), cache Tavily 15 min + semantica (V50.z36/37),
@@ -219,6 +222,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z142 | Giu 2026 | Chat Axon: ack SSE immediato "Sto ragionando…" come primo evento (<1s), fallback locale nel client |
 | V50.z141 | Giu 2026 | Bottom bar: "Report" → "Help" (apre guida/tour); "Statistiche" nel menu laterale (Team & Insights) e Edge Panel |
 | V50.z140 | Giu 2026 | Chat: tabella a schermo intero (tap/bottone), Impostazioni "Header tabella" (logo + nome) su tabelle chat/PDF/PNG |
 | V50.z139 | Giu 2026 | Scanner: "Foto singola" con fotocamera in-app (autofocus + autocrop prima del ritorno), fix loop permessi Android 16, anteprima full-screen |

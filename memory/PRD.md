@@ -1,6 +1,14 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z142 (Giu 2026) — Feedback immediato AxonOS ("Sto ragionando…")
+
+- **Causa del ritardo**: in `/assistant/chat/stream` il primo evento (`progress` "Sto raccogliendo il contesto…") veniva emesso solo DOPO gli intercept slash / quick-action / sveglie (query DB e, per intento sveglia, una chiamata `gpt-5.4-mini`) → anche 1-3s senza nulla a schermo.
+- **Fix server** (`server.py`, `event_stream()`): prima istruzione `yield sse("progress", {"stage":"ack","text":"Sto ragionando…"})` prima di qualsiasi `await`. Header già presenti: `X-Accel-Buffering: no`, `Cache-Control: no-transform`.
+- **Fix client** (`AssistantChat.tsx`): `setProgressText("Sto ragionando…")` subito prima di `streamAssistantChat(...)` (la bolla di typing mostra `progressText` già dal primo render, `onMeta` la azzera). Nessun'altra modifica.
+- **Misure**: locale primo byte 8ms (`event: progress` ack), via ingress HTTPS 0.34s; messaggio con intento sveglia: ack 0.34s, `meta` a 1.76s (prima nulla fino a 1.76s). Dati di test rimossi.
+
+
 ## V50.z141 (Giu 2026) — Bottom bar: "Report" → "Help"; "Statistiche" nel drawer
 
 - `app/(tabs)/_layout.tsx`: `Tabs.Screen name="report"` → `href: null` (nascosto dalla barra, rotta `/(tabs)/report` intatta, titolo "Statistiche"); nuovo `Tabs.Screen name="help"` (icona `help-circle`, size 24) con `listeners.tabPress` → `e.preventDefault()` + `router.push("/libretto")` (guida / tour guidato). `useRouter` importato.

@@ -15578,6 +15578,11 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         return f"event: {event}\ndata: {_json_mod.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
     async def event_stream():
+        # V50.z142 — ACK immediato: primo evento emesso PRIMA di qualsiasi await
+        # (intercept slash/quick-action/sveglie, preflight, LLM). L'utente vede
+        # "Sto ragionando…" entro <1s indipendentemente dal modello usato.
+        yield sse("progress", {"stage": "ack", "text": "Sto ragionando…"})
+
         # V50.z126 — Azione rapida in streaming: arricchisci il prompt come
         # faceva POST /axon/quick-action (che era bloccante e superava il
         # timeout dell'ingress senza mostrare nulla all'utente).
