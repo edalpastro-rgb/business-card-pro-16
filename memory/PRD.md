@@ -1,6 +1,16 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z143 (Giu 2026) — Distilla conversazione in regole (PINNED)
+
+**Backend** (`server.py`):
+- `_save_distilled_rules(..., pinned=False)`: nuovo parametro → `auto_generated = not pinned` (PINNED = regola manuale ad alta priorità in `_build_pinned_rules_section`). Chiamate esistenti (z129/z130/distill-now) invariate (`pinned=False`).
+- `GET /api/assistant/sessions?limit=30`: aggregate su `assistant_messages` per `session_id` → `{session_id, count, first_at, last_at, preview}` (preview = primo messaggio utente, 120 char).
+- `POST /api/axon/teach/distill-conversation` (Master, `AxonDistillConversationIn {text?, session_id?, max_rules=8}`): testo incollato (prefisso "Trascrizione… le indicazioni del Master sono lezioni") o sessione (`[USER]/[AXON]` fino a 400 msg); min 20 char; chunk 11k × max 3; per chunk `_llm_extract_lessons` (Claude Haiku 4.5, JSON strutturato) con elenco regole esistenti "titolo — testo[:90]" (dedup semantico) + titoli già estratti; dedup titolo tra chunk; `_save_distilled_rules(..., source="conversation_distill", pinned=True)`. Risposta `{created, count, extracted, skipped_duplicates, chunks, chars, session_id}`. 400 se vuoto/troppo corto, 404 sessione vuota.
+**Frontend**: `src/DistillConversationModal.tsx` (nuovo): toggle "Incolla testo" / "Chat storica" (radio list sessioni), TextInput multiline (min 160/max 260), risultato con regole create (badge categoria, titolo, testo) o messaggio "Nessuna nuova regola", footer FISSO Annulla/Chiudi + "Distilla con Claude" (spinner "Claude sta leggendo…"), KeyboardAvoidingView, card maxHeight 90%. testID: `distill-conversation-btn`, `distill-mode-paste|history`, `distill-text-input`, `distill-session-<sid>`, `distill-run`, `distill-result`, `distill-close`. `app/ai-teach.tsx`: bottone "Distilla chat" (viola) accanto ad "Aggiungi regola" nel tab Regole; `onDone → load()`.
+**Test**: API testo 553 char → 2 regole (Luce/Clienti) `auto_generated=false` in 3.6s, domanda meteo/PUN ignorata ✅; vuoto → 400 ✅; web: modal → incolla → "1 regole PINNED salvate", contatore Regole 2→3 ✅; Chat storica → 30 sessioni ✅. Regole di test rimosse.
+
+
 ## V50.z142 (Giu 2026) — Feedback immediato AxonOS ("Sto ragionando…")
 
 - **Causa del ritardo**: in `/assistant/chat/stream` il primo evento (`progress` "Sto raccogliendo il contesto…") veniva emesso solo DOPO gli intercept slash / quick-action / sveglie (query DB e, per intento sveglia, una chiamata `gpt-5.4-mini`) → anche 1-3s senza nulla a schermo.

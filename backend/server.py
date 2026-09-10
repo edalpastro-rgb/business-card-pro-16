@@ -15454,8 +15454,9 @@ async def _llm_extract_lessons(dialog: str, existing_titles: List[str], max_rule
     return out
 
 
-async def _save_distilled_rules(user: dict, rules: List[dict], source: str, source_msg: str = "") -> List[dict]:
-    """Inserisce le regole distillate in ai_teach_rules (dedup su titolo/testo normalizzati)."""
+async def _save_distilled_rules(user: dict, rules: List[dict], source: str, source_msg: str = "", pinned: bool = False) -> List[dict]:
+    """Inserisce le regole distillate in ai_teach_rules (dedup su titolo/testo normalizzati).
+    V50.z143 — `pinned=True` salva come regola MANUALE (`auto_generated=False`) = priorità PINNED."""
     tid = tenant_id(user)
     created: List[dict] = []
     for r in rules:
@@ -15485,7 +15486,7 @@ async def _save_distilled_rules(user: dict, rules: List[dict], source: str, sour
             "text_norm": text_norm,
             "title_norm": title_norm,
             "files": [],
-            "auto_generated": True,
+            "auto_generated": not pinned,
             "source": source,
             "source_user_message": (source_msg or "")[:500],
             "created_at": now,
@@ -15559,6 +15560,115 @@ async def axon_teach_distill_now(body: AxonTeachDistillNowIn = Body(default=Axon
     rules = await _llm_extract_lessons("\n".join(lines), [t.get("title") or "" for t in titles_docs], max_rules=max(1, min(int(body.max_rules or 5), 8)))
     created = await _save_distilled_rules(user, rules, source="chat_teach_manual")
     return {"created": created, "count": len(created), "session_id": sid}
+
+
+# =========================================================================
+# V50.z143 — "Distilla conversazione in regole" (Master)
+# L'utente incolla una chat storica (o sceglie una sessione salvata): il testo
+# viene passato a Claude (`_llm_extract_lessons`, JSON strutturato) e le regole
+# comportamentali estratte vengono salvate come regole PINNED
+# (`auto_generated=False`) in `ai_teach_rules`, dedup su titolo/testo.
+# =========================================================================
+
+class AxonDistillConversationIn(BaseModel):
+    text: Optional[str] = None
+    session_id: Optional[str] = None
+    max_rules: int = 8
+
+
+@api_router.get("/assistant/sessions")
+async def assistant_sessions(limit: int = 30, user=Depends(get_current_user)):
+    """V50.z143 — Elenco sessioni chat dell'utente (per scegliere una chat storica da distillare)."""
+    limit = max(1, min(int(limit or 30), 100))
+    pipeline = [
+        {"$match": {"user_id": user["user_id"]}},
+        {"$sort": {"created_at": 1}},
+        {"$group": {
+            "_id": "$session_id",
+            "count": {"$sum": 1},
+            "last_at": {"$max": "$created_at"},
+            "first_at": {"$min": "$created_at"},
+            "preview": {"$first": {"$cond": [{"$eq": ["$role", "user"]}, "$content", None]}},
+            "any_user": {"$push": {"$cond": [{"$eq": ["$role", "user"]}, "$content", "$$REMOVE"]}},
+        }},
+        {"$sort": {"last_at": -1}},
+        {"$limit": limit},
+    ]
+    out = []
+    async for s in db.assistant_messages.aggregate(pipeline):
+        users_msgs = s.get("any_user") or []
+        preview = (s.get("preview") or (users_msgs[0] if users_msgs else "") or "").replace("\n", " ").strip()[:120]
+        out.append({
+            "session_id": s["_id"],
+            "count": s.get("count", 0),
+            "last_at": s.get("last_at"),
+            "first_at": s.get("first_at"),
+            "preview": preview or "(senza testo)",
+        })
+    return {"sessions": out}
+
+
+@api_router.post("/axon/teach/distill-conversation")
+async def axon_teach_distill_conversation(body: AxonDistillConversationIn, user=Depends(get_current_user)):
+    """V50.z143 — Distilla una conversazione (testo incollato o sessione storica) in regole PINNED."""
+    _require_master(user)
+    text = (body.text or "").strip()
+    sid = (body.session_id or "").strip() or None
+    if not text and not sid:
+        raise HTTPException(status_code=400, detail="Incolla il testo della conversazione o scegli una chat storica")
+    if sid and not text:
+        msgs = await db.assistant_messages.find(
+            {"user_id": user["user_id"], "session_id": sid}, {"_id": 0, "role": 1, "content": 1}
+        ).sort("created_at", 1).to_list(400)
+        lines = []
+        for m in msgs:
+            c = (m.get("content") or "").replace("\n", " ").strip()
+            if c:
+                lines.append(f"[{'USER' if m.get('role') == 'user' else 'AXON'}] {c[:1200]}")
+        text = "\n".join(lines)
+        if not text:
+            raise HTTPException(status_code=404, detail="Sessione vuota o non trovata")
+    else:
+        text = "Trascrizione di una chat storica incollata dal Master (le indicazioni del Master sono lezioni da apprendere).\n" + text
+    if len(text) < 20:
+        raise HTTPException(status_code=400, detail="Testo troppo breve per estrarre regole")
+
+    max_rules = max(1, min(int(body.max_rules or 8), 12))
+    tid = tenant_id(user)
+    titles_docs = await db.ai_teach_rules.find({"user_id": tid}, {"_id": 0, "title": 1, "text": 1}).sort("updated_at", -1).to_list(40)
+    # Titolo + inizio testo: aiuta Claude a riconoscere duplicati semantici (non solo di titolo)
+    titles = [f"{(t.get('title') or '').strip()} — {(t.get('text') or '').strip()[:90]}" for t in titles_docs if t.get("title")]
+
+    # Chunking per conversazioni lunghe (max 3 blocchi da ~11k char), dedup per titolo tra i blocchi
+    CHUNK = 11000
+    chunks = [text[i:i + CHUNK] for i in range(0, min(len(text), CHUNK * 3), CHUNK)] or [text]
+    extracted: List[dict] = []
+    seen_titles = {(t.get("title") or "").strip().lower() for t in titles_docs if t.get("title")}
+    for ch in chunks:
+        remaining = max_rules - len(extracted)
+        if remaining <= 0:
+            break
+        try:
+            part = await _llm_extract_lessons(ch, titles + [r["title"] for r in extracted], max_rules=remaining)
+        except Exception as exc:
+            logger.warning("[distill-conversation] chunk failed: %s", exc)
+            part = []
+        for r in part:
+            k = (r.get("title") or "").strip().lower()
+            if not k or k in seen_titles:
+                continue
+            seen_titles.add(k)
+            extracted.append(r)
+    created = await _save_distilled_rules(user, extracted, source="conversation_distill", pinned=True)
+    return {
+        "created": created,
+        "count": len(created),
+        "extracted": len(extracted),
+        "skipped_duplicates": max(0, len(extracted) - len(created)),
+        "chunks": len(chunks),
+        "chars": len(text),
+        "session_id": sid,
+    }
 
 
 @api_router.post("/assistant/chat/stream")

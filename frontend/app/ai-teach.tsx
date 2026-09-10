@@ -20,6 +20,7 @@ import * as FileSystem from "expo-file-system/legacy";
 
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { MicroTutorial, TUTORIAL_INSEGNA_AXON } from "@/src/MicroTutorial";
+import { DistillConversationModal } from "@/src/DistillConversationModal";
 type Rule = { rule_id: string; category?: string; categories?: string[]; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string };
 type LastError = { reason?: string; message?: string; at?: string } | string;
 type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: LastError };
@@ -80,6 +81,7 @@ export default function AiTeachScreen() {
   const { user } = useAuth();
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const [tab, setTab] = useState<"rules" | "urls" | "history" | "suggestions">("rules");
+  const [distillOpen, setDistillOpen] = useState(false); // V50.z143
   const bottomPad = useBottomSheetPadding();
   const pagePad = usePageBottomPadding();
   const [filter, setFilter] = useState<string>("all");
@@ -580,10 +582,17 @@ export default function AiTeachScreen() {
                 })}
               </ScrollView>
             ) : null}
-            <Pressable testID="add-rule-btn" onPress={() => setEditRule({ categories: filter !== "all" ? [filter] : ["Generale"], category: filter !== "all" ? filter : "Generale", title: "", text: "" })} style={styles.addBtn}>
-              <Ionicons name="add-circle" size={20} color="#FFF" />
-              <Text style={styles.addBtnTxt}>Aggiungi regola</Text>
-            </Pressable>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable testID="add-rule-btn" onPress={() => setEditRule({ categories: filter !== "all" ? [filter] : ["Generale"], category: filter !== "all" ? filter : "Generale", title: "", text: "" })} style={[styles.addBtn, { flex: 1 }]}>
+                <Ionicons name="add-circle" size={20} color="#FFF" />
+                <Text style={styles.addBtnTxt}>Aggiungi regola</Text>
+              </Pressable>
+              {/* V50.z143 — Distilla una chat storica in regole PINNED via Claude */}
+              <Pressable testID="distill-conversation-btn" onPress={() => setDistillOpen(true)} style={[styles.addBtn, { flex: 1, backgroundColor: "#7C3AED" }]}>
+                <Ionicons name="flask" size={18} color="#FFF" />
+                <Text style={styles.addBtnTxt}>Distilla chat</Text>
+              </Pressable>
+            </View>
             {filteredRules.length === 0 ? (
               <View style={styles.empty}><Text style={styles.emptyTxt}>Nessuna regola. Aggiungi la prima per iniziare a insegnare ad Axon.</Text></View>
             ) : filteredRules.map((r) => {
@@ -1080,6 +1089,8 @@ export default function AiTeachScreen() {
           </View>
         </View>
       </Modal>
+      {/* V50.z143 — Distilla conversazione in regole PINNED */}
+      <DistillConversationModal visible={distillOpen} onClose={() => setDistillOpen(false)} onDone={() => load()} />
     </SafeAreaView>
   );
 }

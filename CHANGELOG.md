@@ -127,6 +127,12 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   quando ti chiedo, usa sempre, non usare mai, da ora in poi…) la lezione viene distillata subito da Claude Haiku in una regola
   `ai_teach_rules` (`source=chat_teach`, categoria tra quelle standard, dedup titolo/testo) → persiste dalla risposta successiva.
   Hook unico `_post_reply_learning` (impegni z129 → poi lezione z130). Trigger manuale Master `POST /axon/teach/distill-now {session_id?}`.
+  **V50.z143 — "Distilla conversazione in regole"** (Insegna ad Axon › Regole › bottone viola "Distilla chat", solo Master):
+  modal `src/DistillConversationModal.tsx` con 2 modalità — **Incolla testo** (chat storica da WhatsApp/email/altro) o **Chat storica**
+  (elenco sessioni da `GET /api/assistant/sessions`) → `POST /api/axon/teach/distill-conversation {text?|session_id?, max_rules}` →
+  Claude (`_llm_extract_lessons`, JSON `{rules:[{title,category,text}]}`, chunking ~11k×3) → salvate come regole **PINNED**
+  (`auto_generated=False`, `source=conversation_distill`, dedup titolo/testo + titoli/testi esistenti nel prompt). Il modal mostra le
+  regole create; la lista Regole si ricarica.
 - **Insegna ad Axon** (v2.34): regole + file/URL allegati, multi-categoria (v2.n), tab compatti (V50.i), PDF extraction e URL refresh
   (v2.ab), auto-suggest deep-link canonici (V50.z29). Fix ricorrenti: Axon legge i file delle regole (v2.ak, V29.at),
   ricerca PDF GME / tabelle PUN / dual-storage (V50.z26/27/28), validazione prefetch GME (V50.z77).
@@ -222,6 +228,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z143 | Giu 2026 | Insegna ad Axon: "Distilla chat" → Claude estrae regole da conversazione incollata/storica e le salva PINNED |
 | V50.z142 | Giu 2026 | Chat Axon: ack SSE immediato "Sto ragionando…" come primo evento (<1s), fallback locale nel client |
 | V50.z141 | Giu 2026 | Bottom bar: "Report" → "Help" (apre guida/tour); "Statistiche" nel menu laterale (Team & Insights) e Edge Panel |
 | V50.z140 | Giu 2026 | Chat: tabella a schermo intero (tap/bottone), Impostazioni "Header tabella" (logo + nome) su tabelle chat/PDF/PNG |
