@@ -193,6 +193,19 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z180 — Axon vede TUTTA l'app ("accesso a ogni riga")** — nuovo modulo isolato `backend/routes/axon_crm_omniscience.py`
+  + `axon_app_map.json` (generato dal Libretto), agganciato in `21_axon_streaming.py` (stream e non-stream: `_safe_omni` nel gather,
+  sezione `{omni_section}` dopo SNAPSHOT_CRM, regole di sistema aggiornate: "hai accesso a tutte le sezioni, non dire mai 'non ho accesso'").
+  Prima Axon riceveva solo uno snapshot ristretto (15 contatti recenti, appuntamenti 7gg, richiamate, contratti 30gg). Ora il prompt include:
+  **MAPPA DELL'APP** (tutte le sezioni con percorso e cosa fanno — Libretto + menu), **DATI COMPLETI CRM** (contatti: totale, per stato/area/
+  città, elenco compatto fino a 250; appuntamenti −30/+60gg con esiti/contratti; ritelefonate aperte; telefonate oggi/7/30gg + esiti + ultime 20;
+  contratti con stato/importi; scadenze da bollette; bollette; note recenti; gruppi; team con KPI per membro (Master/Admin); Corporate Gym
+  sessioni/punteggi/report/manuali; My Thing; audio; biglietto (visite/lead/recensioni); caselle mail; Master Files; documenti e offerte azienda;
+  documenti RAG; KB; regole insegnate; link; sveglie; chat; Drive; inviti; impostazioni tenant) e **SCHEDE COMPLETE DEI CONTATTI CITATI**
+  (ricerca per nome/azienda/email/telefono/codice/città/tag sulle parole del messaggio → fino a 3 dossier: tutti i campi, note embedded +
+  contact_notes, file, appuntamenti, ritelefonate, telefonate, contratti, bollette con scadenza, profilo Axon, analisi Axon, gruppi, segnalato da).
+  Visibilità rispettata (tenant + `contact_visibility_filter` + ownership per i collaboratori). Budget 32k caratteri con troncamento progressivo;
+  costruzione ~0.03s. Verificato: Master/collaboratore, stream e non-stream (domande su contatti, team, Gym, sezioni app).
 - **V50.z179 — Libretto: badge versione dinamico** (`src/libretto/appVersion.ts`, `app/libretto.tsx`, `app.json`). Badge da
   "1.0 · Giugno 2026" → "**2.0 · Settembre 2026**" e reso automatico: versione = `Application.nativeApplicationVersion` (build installata;
   fallback `Constants.expoConfig.version` su web/Expo Go, "x.y.0" mostrata come "x.y"), data = `getLastUpdateTimeAsync()` su Android /
@@ -411,6 +424,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z180 | Set 2026 | Axon omnisciente: prompt con mappa dell'app + dati completi di tutte le sezioni + schede complete dei contatti citati (`axon_crm_omniscience.py`), visibilità rispettata |
 | V50.z179 | Set 2026 | Libretto: badge versione dinamico (versione app reale + data ultimo aggiornamento build), app.json → 2.0.0, badge "2.0 · Settembre 2026" |
 | V50.z178 | Giu 2026 | Tour guidato/Libretto: nuovo step "Corporate Gym — Formazione vocale per il tuo team" (banner + icone Gym Obiezioni/WIN-WIN) prima di Consigli/FAQ; step esistenti invariati; integrato anche nei libretti personalizzati |
 | V50.z177 | Giu 2026 | Axon Drive: rinomina globale di "Copilot Vocale · Modalità Auto" (drawer+icona auto, header, Home, libretto) e redesign UI della pagina (sfondo interno auto, volante centrale, esempi grandi con icona, mic prominente); nessuna modifica funzionale |

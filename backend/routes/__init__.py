@@ -27,6 +27,7 @@ MODULES = [
     "18_master_interface.py",
     "19_axon_assistant_core.py",
     "20_axon_memory.py",
+    "axon_crm_omniscience.py",  # V50.z180 — Axon vede tutte le sezioni (DATI COMPLETI CRM + mappa app); usato da 21
     "21_axon_streaming.py",
     "22_axon_alarm_commit_teach.py",
     "23_axon_feedback_rag_rules.py",

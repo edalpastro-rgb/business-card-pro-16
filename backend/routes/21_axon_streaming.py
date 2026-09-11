@@ -309,7 +309,15 @@ async def _prepare_assistant_prompt(
             logger.debug("[axon-kb] section build failed: %s", exc)
             return ""
 
-    context, weather_ctx, _prefetch_rag_chunks, memories, attachments_section, axon_teach_section, web_search_ctx, kb_section = await asyncio.gather(
+    # V50.z180 — Axon vede TUTTE le sezioni dell'app (dati completi + schede dei contatti citati + mappa app)
+    async def _safe_omni():
+        try:
+            return await _build_crm_omniscience_section(user, msg)
+        except Exception as exc:
+            logger.warning("[axon-omni] section failed: %s", exc)
+            return ""
+
+    context, weather_ctx, _prefetch_rag_chunks, memories, attachments_section, axon_teach_section, web_search_ctx, kb_section, omni_section = await asyncio.gather(
         _safe_context(),
         _safe_weather(),
         _safe_rag_prefetch(),
@@ -318,6 +326,7 @@ async def _prepare_assistant_prompt(
         _safe_teach_section(),
         _safe_tavily(),
         _safe_kb(),
+        _safe_omni(),
     )
 
     # V50.z51 — PINNED rules + tenant memory (rewrite architettura memoria).
@@ -471,8 +480,13 @@ async def _prepare_assistant_prompt(
         "consulente energetico e networker in Italia.\n\n"
         "REGOLE:\n"
         "- Rispondi SEMPRE in italiano, tono professionale ma amichevole.\n"
-        "- Per domande CRM usa esclusivamente i dati forniti (SNAPSHOT_CRM). Non inventare.\n"
-        "- Se un dato non è nello snapshot, dillo chiaramente.\n"
+        "- Per domande CRM usa esclusivamente i dati forniti (SNAPSHOT_CRM + DATI COMPLETI CRM + SCHEDE COMPLETE DEI CONTATTI). Non inventare.\n"
+        "- Hai accesso a TUTTE le sezioni di AdvisorOS (vedi MAPPA DELL'APP e DATI COMPLETI CRM): contatti con note/file/bollette/contratti, "
+        "appuntamenti passati e futuri, scadenze, telefonate, ritelefonate, gruppi, team, Corporate Gym, My Thing, caselle mail, Master Files, "
+        "documenti/offerte azienda, KB, regole insegnate, sveglie, biglietto da visita, impostazioni. NON dire MAI 'non ho accesso a questa sezione': "
+        "cerca prima nei dati forniti. Se l'utente chiede di un contatto, usa la sua SCHEDA COMPLETA (se presente) — altrimenti chiedi il nome esatto.\n"
+        "- Se chiedono 'cosa fa / dove trovo' una sezione dell'app, rispondi con la MAPPA DELL'APP (nome sezione, percorso, cosa fa).\n"
+        "- Se un dato non è in nessuna sezione fornita, dillo chiaramente.\n"
         "- Per domande sul meteo usa i dati della sezione METEO (se presente).\n"
         "- Per dati di mercato energetico (PUN, ARERA, tariffe, oneri) USA IN ORDINE: "
         "1) `🌐 CONTENUTO WEB LIVE dagli URL insegnati` (PDF/HTML appena scaricati da GME, ARERA, ecc. — FONTE PRIMARIA), "
@@ -551,6 +565,7 @@ async def _prepare_assistant_prompt(
         f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
+        f"{omni_section}"
         f"{weather_section}"
         f"{axon_teach_section}"
         f"{rag_section}"
@@ -723,6 +738,12 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         context = await _build_assistant_context(user)
     except Exception as e:
         context = {"error": f"Impossibile caricare i dati CRM: {e}"}
+    # V50.z180 — dati completi di tutte le sezioni + schede contatti citati
+    try:
+        omni_section = await _build_crm_omniscience_section(user, msg)
+    except Exception as exc:
+        logger.warning("[axon-omni] section failed (non-stream): %s", exc)
+        omni_section = ""
 
     # Detect weather intent and prefetch data if a city is mentioned
     weather_ctx: Optional[dict] = None
@@ -892,8 +913,13 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         "consulente energetico e networker in Italia.\n\n"
         "REGOLE:\n"
         "- Rispondi SEMPRE in italiano, tono professionale ma amichevole.\n"
-        "- Per domande CRM usa esclusivamente i dati forniti (SNAPSHOT_CRM). Non inventare.\n"
-        "- Se un dato non è nello snapshot, dillo chiaramente.\n"
+        "- Per domande CRM usa esclusivamente i dati forniti (SNAPSHOT_CRM + DATI COMPLETI CRM + SCHEDE COMPLETE DEI CONTATTI). Non inventare.\n"
+        "- Hai accesso a TUTTE le sezioni di AdvisorOS (vedi MAPPA DELL'APP e DATI COMPLETI CRM): contatti con note/file/bollette/contratti, "
+        "appuntamenti passati e futuri, scadenze, telefonate, ritelefonate, gruppi, team, Corporate Gym, My Thing, caselle mail, Master Files, "
+        "documenti/offerte azienda, KB, regole insegnate, sveglie, biglietto da visita, impostazioni. NON dire MAI 'non ho accesso a questa sezione': "
+        "cerca prima nei dati forniti. Se l'utente chiede di un contatto, usa la sua SCHEDA COMPLETA (se presente) — altrimenti chiedi il nome esatto.\n"
+        "- Se chiedono 'cosa fa / dove trovo' una sezione dell'app, rispondi con la MAPPA DELL'APP (nome sezione, percorso, cosa fa).\n"
+        "- Se un dato non è in nessuna sezione fornita, dillo chiaramente.\n"
         "- Per domande sul meteo usa i dati della sezione METEO (se presente).\n"
         "- Per dati di mercato energetico (PUN, ARERA, tariffe, oneri) USA IN ORDINE: "
         "1) `🌐 CONTENUTO WEB LIVE dagli URL insegnati` (PDF/HTML appena scaricati da GME, ARERA, ecc. — FONTE PRIMARIA), "
@@ -972,6 +998,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
+        f"{omni_section}"
         f"{weather_section}"
         f"{axon_teach_section}"
         f"{rag_section}"
