@@ -6,7 +6,7 @@
 > Dettagli tecnici completi per ogni versione: `/app/memory/PRD.md` (cerca il codice versione, es. `V50.z126`).
 >
 > Lingua utente: **Italiano**. Test: manuali (screenshot_tool / python / curl) — **NON usare testing_agent** (richiesta utente).
-> Bug "nested modal" (modali che si chiudono digitando): l'utente ha detto di **lasciarlo stare** — non toccare senza conferma.
+> Bug "nested modal" (modali che si chiudono digitando): richiesta **chiusa dall'utente** (Giu 2026) — non riproporre.
 
 **Stack**: Expo Router SDK 54 (React Native, web + Android APK + iOS) · FastAPI monolite `/app/backend/server.py` (~25k righe) ·
 MongoDB · JWT + bcrypt · Emergent LLM Key (Claude Sonnet/Haiku, GPT-5.4-mini, Whisper, TTS) · Tavily · OpenMeteo · OpenCV ·
@@ -270,6 +270,19 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   (`?scenario=`; intro per scenario; per WIN-WIN timer 45:00 conto alla rovescia + fase nella barra live, bolle con nome cliente); sottosezioni:
   Gym Obiezioni con 3 card TEMPO/COSTO/DECISORE, Gym WIN-WIN con card "Trattativa WIN-WIN · 45 min" (placeholder rimosso); pulsante mic sulle
   sessioni (obiezioni→tempo, winwin→winwin). Report settimanale elenca gli scenari disponibili dinamicamente.
+- **V50.z174 fix**: `CgymTileIcon` (`fill`, contain, centrata), `CgymHeaderBanner` (ratio reale, contain, mai tagliato), `CgymWidget` ritorna null senza sessioni attive/in scadenza/assegnate; `CgymMyFeedbackCard` (feedback personale AxonOS per il collaboratore, Genera/Aggiorna; `POST /cgym/stats/agent-feedback/{me}` consentito al collaboratore per sé).
+- **V50.z175 Manuali Google Drive (AxonOS gestore manuali)** — modulo isolato `backend/routes/corporate_gym_manuals.py`
+  (collection `cgym_manuals_config`), `src/corporate-gym/manualsApi.ts`, `src/corporate-gym/CgymManualButton.tsx`,
+  `app/corporate-gym/manuals-config.tsx`. Il **Master** (solo `is_owner`) configura UNA volta la cartella Drive principale
+  "Corporate Gym"; le sottocartelle **Obiezioni** / **WIN-WIN** sono riconosciute per nome (obiezioni/obbiezioni, win-win/winwin/win win)
+  e ri-risolte automaticamente se create dopo. Tutti i membri del tenant leggono i manuali con le **credenziali Drive del Master**
+  (`_gd_get_credentials(tenant_id)`): non serve Drive personale. Bottone **"Leggi Manuale"** in Gym Obiezioni / Gym WIN-WIN → sheet
+  AxonOS con elenco PDF (+ Google Docs/Slides esportati in PDF) letto LIVE da Drive, ricerca per nome, **Apri** (web: nuova scheda;
+  iOS: WebView; Android: WebView + viewer Google Docs) e **Scarica** (nativo: cache + share sheet). Link firmato JWT `kind=cgym_manual`
+  12h servito da `GET /public/cgym-manual/{token}` (legge da Drive ad ogni richiesta → sempre l'ultima versione, `Cache-Control: no-store`,
+  max 40MB; `?download=1` → attachment). API: `GET/PUT/DELETE /cgym/manuals/config`, `GET /cgym/manuals/{obiezioni|winwin}?q=`,
+  `POST /cgym/manuals/{type}/files/{file_id}/link`. Il link è consentito solo per file dentro root/sottocartella (403 altrimenti).
+  Entry Master in Gym home: "Manuali · cartella Google Drive" (viola AxonOS). Test: `backend/tests/test_cgym_manuals.py` (Drive simulato).
 - **Punti di aggancio (1 riga ciascuno)**: bottone "Corporate Gym" in `master.tsx` (categoria Team #EAB308), voce drawer
   `DrawerMenu.tsx` (team), `DashboardWidgetsSection.tsx` (`w.id === "cgym"`), `dashboard-config.tsx` reset list,
   `home.tsx` `<CgymAlertStrip/>` sotto `HomeTipsBanner`.
@@ -352,7 +365,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Cancellazione/disattivazione sveglie a voce ("cancella il timer").
 - Confronto collaboratori (KPI a confronto).
 - Registro chiamate Android `READ_CALL_LOG` (solo APK sideload).
-- Bug nested modal — **solo su richiesta esplicita dell'utente**.
+- ~~Bug nested modal~~ — **chiuso dall'utente (Giu 2026): non più da trattare.**
 
 ---
 
@@ -368,6 +381,8 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z175 | Giu 2026 | Corporate Gym · Manuali Google Drive gestiti da AxonOS: il Master configura la cartella principale (sottocartelle Obiezioni/WIN-WIN per nome), "Leggi Manuale" nelle due sezioni elenca i PDF letti live dal Drive del Master (ricerca per nome, Apri/Scarica via link firmato 12h `/public/cgym-manual/{token}`), sempre ultima versione; solo il Master modifica il percorso |
+| V50.z174 | Giu 2026 | Corporate Gym fix: icone tile/header intere e centrate (`CgymTileIcon` prop `fill` + resizeMode contain; banner header con aspect ratio reale via Image.getSize, contain); widget Home nascosto se nessuna sessione oggi/in scadenza 7gg/assegnata pendente; card "Il tuo feedback AxonOS" nella Gym home per ogni collaboratore (`CgymMyFeedbackCard`; backend agent-feedback POST consentito anche per il proprio user_id) |
 | V50.z173 | Giu 2026 | Corporate Gym Blocco 5: obiezioni COSTO e DECISORE + Gym WIN-WIN (trattativa integrata vocale 45 min a 5 fasi, timer, score/feedback, salvataggio in cgym_sessions type winwin); `GET /api/cgym/roleplay/scenarios` |
 | V50.z172 | Giu 2026 | Corporate Gym Blocco 4: dashboard statistiche Master (`/corporate-gym/stats`, `/api/cgym/stats`), feedback personale AxonOS per agente e report settimanale (lacune, scenari, manuale vendite) con cache `cgym_ai_reports` |
 | V50.z171 | Giu 2026 | Corporate Gym Blocco 3: assegnazioni Master (agente/team, tipo, 1-3 al giorno, scadenza → sessioni generate), piani con avanzamento, badge drawer done/total, widget riga assegnate, striscia attiva su assegnate non completate |

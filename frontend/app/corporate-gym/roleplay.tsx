@@ -206,7 +206,7 @@ export default function CgymRoleplayScreen() {
       {phase === "intro" && (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: navPad + 16 }} testID="cgym-rp-intro">
           <View style={styles.card}>
-            <View style={{ alignItems: "center", marginBottom: 8 }}><CgymTileIcon type={meta.area} size={80} /></View>
+            <CgymTileIcon type={meta.area} size={90} fill />
             <Text style={styles.cardTitle}>{meta.label}</Text>
             <Text style={styles.cardSub}>{`AxonOS interpreta ${meta.customer}. ${meta.description}`}</Text>
             <View style={styles.durRow} testID="cgym-rp-duration">

@@ -13,6 +13,7 @@ import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding, useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { CgymHeaderBanner } from "@/src/corporate-gym/CgymHeaderBanner";
 import { CgymTileIcon } from "@/src/corporate-gym/CgymTileIcon";
+import { CgymMyFeedbackCard } from "@/src/corporate-gym/CgymMyFeedbackCard";
 import { cgymApi, CgymSession, CgymType, CgymTeamRow, CGYM_TYPE_META, CGYM_ORANGE, fmtCgymDate, isPast } from "@/src/corporate-gym/api";
 
 type Member = { user_id: string; name?: string; email?: string; role?: string };
@@ -157,7 +158,7 @@ export default function CorporateGymHome() {
             const n = sessions.filter((s) => s.type === t && s.status !== "completata").length;
             return (
               <Pressable key={t} style={styles.tile} onPress={() => router.push(m.route as any)} testID={`cgym-tile-${t}`}>
-                <CgymTileIcon type={t} size={72} />
+                <CgymTileIcon type={t} size={84} fill />
                 <Text style={styles.tileTitle}>{m.label}</Text>
                 <Text style={styles.tileSub}>{n > 0 ? `${n} da fare` : "Nessuna in sospeso"}</Text>
               </Pressable>
@@ -238,6 +239,9 @@ export default function CorporateGymHome() {
           })
         )}
 
+        {/* Il tuo feedback AxonOS (ogni collaboratore vede il proprio) */}
+        {user?.user_id ? <CgymMyFeedbackCard userId={user.user_id} hasSessions={sessions.some((s) => s.status === "completata")} /> : null}
+
         {/* Quadro team (Titolare/Admin) */}
         {isAdmin && (
           <View style={styles.card} testID="cgym-team-card">
@@ -257,6 +261,14 @@ export default function CorporateGymHome() {
                 <Text style={styles.assignTxt}>Statistiche</Text>
               </Pressable>
             </View>
+            {/* Manuali Google Drive (solo Master modifica la cartella) */}
+            {user?.role === "owner" && !user.parent_user_id && (
+              <Pressable onPress={() => router.push("/corporate-gym/manuals-config" as any)} style={[styles.assignBtn, { backgroundColor: "#6D28D9" }]} testID="cgym-manuals-config-open">
+                <Ionicons name="book" size={16} color="#FFF" />
+                <Text style={styles.assignTxt}>Manuali · cartella Google Drive</Text>
+                <Ionicons name="chevron-forward" size={16} color="#FFF" />
+              </Pressable>
+            )}
             {teamOpen && (
               team == null ? (
                 <ActivityIndicator color={CGYM_ORANGE} style={{ marginVertical: 10 }} />
@@ -355,9 +367,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
   headBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: CGYM_ORANGE, alignItems: "center", justifyContent: "center" },
   grid: { flexDirection: "row", gap: 10, marginBottom: 16 },
-  tile: { flex: 1, backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12, gap: 6 },
-  tileTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  tileSub: { fontSize: 12, color: theme.color.muted },
+  tile: { flex: 1, backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12, gap: 6, alignItems: "center" },
+  tileTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
+  tileSub: { fontSize: 12, color: theme.color.muted, textAlign: "center" },
   sectionHead: { gap: 8, marginBottom: 10 },
   sectionTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
   segment: { flexDirection: "row", backgroundColor: theme.color.surfaceTertiary, borderRadius: 999, padding: 3 },

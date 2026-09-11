@@ -1,18 +1,23 @@
 // Corporate Gym — banner header (immagine fornita dall'utente) riutilizzato in tutte le pagine del modulo.
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Image, StyleSheet, Text, ActivityIndicator } from "react-native";
 import { CGYM_HEADER_IMAGE, CGYM_ORANGE } from "@/src/corporate-gym/api";
 
 export function CgymHeaderBanner({ subtitle }: { subtitle?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Rapporto reale dell'immagine → banner intero, centrato, mai tagliato ai bordi
+  const [ratio, setRatio] = useState(2.2);
+  useEffect(() => {
+    Image.getSize(CGYM_HEADER_IMAGE, (w, h) => { if (w > 0 && h > 0) setRatio(w / h); }, () => {});
+  }, []);
   return (
     <View style={styles.wrap} testID="cgym-header-banner">
       {!failed ? (
         <Image
           source={{ uri: CGYM_HEADER_IMAGE }}
-          style={styles.img}
-          resizeMode="cover"
+          style={[styles.img, { aspectRatio: ratio }]}
+          resizeMode="contain"
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
         />
@@ -37,7 +42,7 @@ export function CgymHeaderBanner({ subtitle }: { subtitle?: string }) {
 
 const styles = StyleSheet.create({
   wrap: { borderRadius: 16, overflow: "hidden", backgroundColor: "#0B1220", marginBottom: 14 },
-  img: { width: "100%", aspectRatio: 2.2 },
+  img: { width: "100%", alignSelf: "center" },
   fallback: { alignItems: "center", justifyContent: "center", backgroundColor: "#0B1220" },
   fallbackTxt: { color: "#FFF", fontWeight: "900", fontSize: 22, letterSpacing: 2 },
   loading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },

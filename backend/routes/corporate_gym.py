@@ -981,9 +981,10 @@ def _cgym_agent_excerpts(rps: List[dict], limit: int = 4) -> str:
 
 @api_router.post("/cgym/stats/agent-feedback/{agent_id}")
 async def cgym_agent_feedback(agent_id: str, force: bool = False, days: int = 30, user=Depends(get_current_user)):
-    """Feedback personale AxonOS per un agente (cache 24h in cgym_ai_reports; force=true rigenera)."""
-    if not is_admin_or_owner(user):
-        raise HTTPException(status_code=403, detail="Solo Titolare/Admin")
+    """Feedback personale AxonOS per un agente (cache 24h in cgym_ai_reports; force=true rigenera).
+    Titolare/Admin: qualsiasi agente del tenant. Collaboratore: solo il proprio (visibile nella Gym home)."""
+    if not is_admin_or_owner(user) and user["user_id"] != agent_id:
+        raise HTTPException(status_code=403, detail="Puoi generare solo il tuo feedback")
     tid = tenant_id(user)
     if not force:
         cached = await db.cgym_ai_reports.find_one({"tenant_id": tid, "kind": "agent", "user_id": agent_id}, sort=[("generated_at", -1)])

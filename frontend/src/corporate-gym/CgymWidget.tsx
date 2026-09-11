@@ -21,6 +21,10 @@ export function CgymWidget() {
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // Nascosto del tutto se non ci sono sessioni attive/in scadenza (7 gg), assegnate pendenti o di oggi
+  if (!data || error) return null;
+  if ((data.due_soon_count || 0) === 0 && (data.today_total || 0) === 0 && (data.assigned_pending || 0) === 0) return null;
+
   const total = data?.today_total ?? 0;
   const done = data?.today_done ?? 0;
   const pct = total > 0 ? Math.min(1, done / total) : 0;

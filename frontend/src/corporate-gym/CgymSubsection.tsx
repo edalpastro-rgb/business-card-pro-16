@@ -8,6 +8,7 @@ import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CgymHeaderBanner } from "@/src/corporate-gym/CgymHeaderBanner";
 import { CgymTileIcon } from "@/src/corporate-gym/CgymTileIcon";
+import { CgymManualButton } from "@/src/corporate-gym/CgymManualButton";
 import { cgymApi, CgymType, CGYM_TYPE_META, CGYM_ORANGE, CGYM_SCENARIO_META, CgymScenarioKey } from "@/src/corporate-gym/api";
 
 export function CgymSubsection({ type, description }: { type: CgymType; description: string }) {
@@ -37,9 +38,11 @@ export function CgymSubsection({ type, description }: { type: CgymType; descript
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad }}>
         <CgymHeaderBanner subtitle={meta.label} />
         <View style={styles.card} testID={`cgym-sub-${type}`}>
-          <CgymTileIcon type={type} size={96} />
+          <CgymTileIcon type={type} size={110} fill />
           <Text style={styles.cardTitle}>{meta.label}</Text>
           <Text style={styles.cardSub}>{description}</Text>
+          {/* Manuali Drive (AxonOS) — letti live dalla sottocartella configurata dal Master */}
+          <CgymManualButton type={type} />
           {/* Blocco 5 — scenari role-play dell'area */}
           <View style={{ alignSelf: "stretch", gap: 8, marginTop: 8 }}>
             {(Object.keys(CGYM_SCENARIO_META) as CgymScenarioKey[]).filter((k) => CGYM_SCENARIO_META[k].area === type).map((k) => {
