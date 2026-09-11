@@ -5952,3 +5952,6 @@ else Linking.openURL(url).catch(() => {});
 - Autocrop indipendente per ogni scatto: mutex fotocamera (sample vs scatto), reset rilevamento, pausa campionamento durante autocrop, 3 tentativi con timeout 45s + badge "riprova".
 - Suono scatto regolabile (Basso default / Muto / Sistema) persistito; click soft `assets/sounds/shutter-soft.wav`.
 - Flusso multi-pagina: resta nello scanner dopo "Usa questa" (già V50.z165, riverificato).
+
+## Bottom nav uniforme (Giugno 2026 — V50.z167)
+- Hook condiviso `useNavBarBottomInset()` per Tabs nativa e PersistentBottomNav (fallback initialWindowMetrics): padding-bottom identico su Home e altre schermate.

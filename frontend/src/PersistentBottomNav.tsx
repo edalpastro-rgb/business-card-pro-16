@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavBarBottomInset } from "@/src/hooks/useSafeBottom";
 
 /**
  * V29.n — Barra di navigazione inferiore SEMPRE visibile su tutte le schermate
@@ -54,7 +54,8 @@ const HIDE_ON_PATHS = [
 export function PersistentBottomNav() {
   const pathname = usePathname() || "";
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  // V50.z167 — stesso hook della Tabs nativa: padding-bottom identico su tutte le schermate
+  const bottomInset = useNavBarBottomInset();
 
   // Se siamo su una rotta interna a (tabs)/*, la Tabs nativa gestisce la barra:
   // rileviamo controllando se il pathname corrisponde a uno dei tab principali
@@ -72,8 +73,6 @@ export function PersistentBottomNav() {
   const hideCompletely = HIDE_ON_PATHS.some((p) => pathname === p) || pathname.startsWith("/auth");
   if (hideCompletely) return null;
   if (inTabs) return null; // la Tabs nativa è già visibile
-
-  const bottomInset = Math.max(insets.bottom || 0, 20);
 
   const current = TABS.find((t) =>
     t.activePrefixes ? t.activePrefixes.some((p) => pathname.startsWith(p)) : pathname.includes(`/${t.name}`),

@@ -55,6 +55,21 @@ export function useSafeBottom(): number {
 }
 
 /**
+ * V50.z167 — UNICO valore di padding-bottom per le due barre di navigazione
+ * (Tabs nativa in `(tabs)/_layout.tsx` e `PersistentBottomNav`). Prima ciascuna
+ * calcolava `Math.max(insets.bottom, 20)` per conto suo: dentro lo Stack nativo
+ * (Home e altri tab) su Android edge-to-edge `insets.bottom` può valere 0 → barra
+ * alta solo 20px sotto le label → "attaccata" alla navigation bar del telefono,
+ * mentre fuori dallo Stack (scheda anagrafica, Help) l'inset era corretto.
+ * Il fallback `initialWindowMetrics` (misurato all'avvio) rende il valore identico ovunque.
+ */
+const NAV_BAR_MIN_BOTTOM = 20;
+export function useNavBarBottomInset(): number {
+  const insets = useSafeAreaInsets();
+  return Math.max(insets.bottom || 0, safeBottomFallback(), NAV_BAR_MIN_BOTTOM);
+}
+
+/**
  * Spacer da droppare come ULTIMO child di qualunque container che ha bottoni
  * in fondo (bottom sheet, Modal content, footer di scheda, ecc.). Aggiunge
  * automaticamente lo spazio della gesture bar Android / notch iOS.

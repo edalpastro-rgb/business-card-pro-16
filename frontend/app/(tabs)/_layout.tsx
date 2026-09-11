@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { View, ActivityIndicator, Platform } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavBarBottomInset } from "@/src/hooks/useSafeBottom";
 
 // V27 palette (used only for tab bar styling, no global theme override)
 const TAB_ACTIVE = "#FF6B35";
@@ -13,15 +13,11 @@ const TAB_BORDER = "#EEF0F4";
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
-  const insets = useSafeAreaInsets();
   const router = useRouter();
-  // V29.ap — Garantiamo un padding-bottom minimo di 20px sempre (era 16px):
-  //  - Su iOS con notch: insets.bottom ~34px → prende quello
-  //  - Su Android con gesture-bar: insets.bottom ~24-48px → prende quello
-  //  - Su Android con nav-bar 3-button: insets.bottom = 0 su alcune build APK
-  //    "edge-to-edge", quindi forziamo 20px minimo per non tagliare le label.
-  //  - Su web: insets.bottom = 0 su alcuni browser → 20px minimo.
-  const bottomInset = Math.max(insets.bottom || 0, 20);
+  // V50.z167 — Stesso valore della PersistentBottomNav (hook condiviso, con fallback
+  // initialWindowMetrics): prima `Math.max(insets.bottom, 20)` locale → in Home la barra
+  // risultava attaccata alla navigation bar Android (insets.bottom=0 dentro lo Stack).
+  const bottomInset = useNavBarBottomInset();
   const tabBarHeight = 60 + bottomInset;
 
   if (loading) {
