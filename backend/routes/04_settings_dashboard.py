@@ -101,6 +101,7 @@ DASHBOARD_WIDGET_DEFAULTS = [
     {"id": "meteo",               "enabled": True,  "label": "Meteo",                   "coming_soon": False},
     {"id": "appointments_today",  "enabled": True,  "label": "Appuntamenti di oggi",    "coming_soon": False},
     {"id": "pun",                 "enabled": True,  "label": "PUN aggiornato",          "coming_soon": False},
+    {"id": "cgym",                "enabled": True,  "label": "Corporate Gym",           "coming_soon": False},  # Blocco 1
 ]
 
 

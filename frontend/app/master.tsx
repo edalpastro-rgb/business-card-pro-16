@@ -269,6 +269,8 @@ function MasterScreen() {
     // CRM Core
     { label: "Cruscotto", icon: "grid", color: "#0EA5E9", onPress: () => goto("/cruscotto") },
     { label: "Azioni rapide", icon: "flash", color: "#0EA5E9", onPress: () => goto("/quick-actions") },
+    // Team & Insights (giallo #EAB308) — Corporate Gym (Blocco 1)
+    { label: "Corporate Gym", icon: "barbell", color: "#EAB308", onPress: () => goto("/corporate-gym") },
   ];
 
   // V48 — Apply saved order (if any), placing unknown/new buttons at the end.

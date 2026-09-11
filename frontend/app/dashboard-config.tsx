@@ -78,6 +78,7 @@ export default function DashboardConfigScreen() {
       { id: "appointments_today", enabled: true,  order: 2, label: "Appuntamenti di oggi",     coming_soon: false },
       { id: "deadlines_alerts",   enabled: true,  order: 3, label: "Alert scadenze",           coming_soon: false },
       { id: "pun",                enabled: false, order: 4, label: "PUN aggiornato",           coming_soon: true },
+      { id: "cgym",               enabled: true,  order: 5, label: "Corporate Gym",            coming_soon: false },
       { id: "info_requests",      enabled: false, order: 5, label: "Richieste info in attesa", coming_soon: true },
     ]);
   };

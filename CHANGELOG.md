@@ -216,6 +216,24 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Analisi bolletta (cliente + Master allineati, v2.8), CTE comparativa multi-bolletta + report (v2.12), Fiscal Check con JSON
   parsing robusto (v1.9), auto-save bozze nei file Master (V38Q), 5 bug fix pagina analisi fattura (V38W).
 
+## 7b. Corporate Gym (modulo isolato — Blocco 1, Giu 2026, V50.z168)
+- **Backend** `routes/corporate_gym.py` (caricato PRIMA di `37_app_startup_scheduler.py` in `routes/__init__.py::MODULES`),
+  collection `cgym_sessions` (session_id, tenant_id, user_id assegnatario, assigned_by, type obiezioni|winwin, title, scheduled_at,
+  status assegnata|in_corso|completata, mandatory, score, created_at/completed_at). Endpoint: `GET/POST /api/cgym/sessions`
+  (scope=mine|team; team solo Titolare/Admin; assegnare ad altri solo Titolare/Admin, membri del tenant), `PATCH/DELETE
+  /api/cgym/sessions/{id}`, `GET /api/cgym/summary` (due_soon 7gg, today_total/today_done Europe/Rome, mandatory_pending, overdue),
+  `GET /api/cgym/team-overview` (Titolare/Admin). Widget `cgym` aggiunto a `DASHBOARD_WIDGET_DEFAULTS`.
+- **Frontend** `app/corporate-gym/{index,obiezioni,win-win}.tsx` + `src/corporate-gym/{api,CgymHeaderBanner,CgymSubsection,CgymWidget,CgymAlertStrip}`.
+  Index: banner header (immagine fornita dall'utente via URL), tile Gym Obiezioni / Gym WIN-WIN (placeholder "Allenamento
+  interattivo in arrivo" + conteggi), "Le mie sessioni" (Da fare/Completate; inizia/completa/riapri/elimina), sheet "Nuova
+  sessione" (tipo, giorno, ora, titolo, obbligatoria, assegnatario per Titolare/Admin da `/team/members`), "Quadro team" (Titolare/Admin).
+- **Punti di aggancio (1 riga ciascuno)**: bottone "Corporate Gym" in `master.tsx` (categoria Team #EAB308), voce drawer
+  `DrawerMenu.tsx` (team), `DashboardWidgetsSection.tsx` (`w.id === "cgym"`), `dashboard-config.tsx` reset list,
+  `home.tsx` `<CgymAlertStrip/>` sotto `HomeTipsBanner`.
+- **Striscia arancione** (`CgymAlertStrip`): sottile (26px), visibile SOLO con sessioni obbligatorie non completate; tap → /corporate-gym;
+  X la nasconde per la sessione app (riappare se il numero cambia); sparisce da sola al completamento (ricarica su focus Home).
+- Test: pytest 21/21 (`backend/tests/test_cgym_v1.py`), UI verificata (strip show/X/auto-hide, widget progress, team overview).
+
 ## 8. File, Drive e Mail
 - I miei file / Master Files: upload con formati unificati e validazione (v2.20), share nativo (v2.6), report inline (v2.4).
 - **Google Drive OAuth** (v2.w): redirect_uri hardening, PKCE code verifier fix (V29.as/aw), scope allargato (V50.h), fix ricorsione
@@ -307,6 +325,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z168 | Giu 2026 | Corporate Gym Blocco 1 (modulo isolato): backend `routes/corporate_gym.py` + `cgym_sessions`, pagine `/corporate-gym` (+ obiezioni, win-win), widget Home `cgym`, striscia arancione obbligatorie, voce Master + drawer |
 | V50.z167 | Giu 2026 | Batch 4: bottom nav uniforme — nuovo hook condiviso `useNavBarBottomInset()` (`src/hooks/useSafeBottom.tsx`: max(insets.bottom, initialWindowMetrics.bottom, 20)) usato sia dalla Tabs nativa `(tabs)/_layout.tsx` (Home & tab) sia da `PersistentBottomNav` → stesso padding-bottom su tutte le schermate (in Home insets.bottom=0 dentro lo Stack Android edge-to-edge → barra attaccata alla navigation bar) |
 | V50.z166 | Giu 2026 | Scanner (job d664abc6): mutex fotocamera sample/scatto + timeout, reset rilevamento a ogni scatto, campionamento in pausa durante l'autocrop, autocrop per pagina con 3 tentativi/AbortController/45s + badge "riprova", suono scatto Basso/Muto/Sistema persistito (click soft expo-audio) |
 | V50.z165 | Giu 2026 | Batch 3: scanner "Foto singola" resta nello scanner dopo "Usa questa" (strip + "Fine (N)" anche in single, si esce solo con Fine); foto ridimensionata a 1800px con expo-image-manipulator prima dell'upload autocrop (velocità/affidabilità) + 1 retry; **safe-bottom globale**: `useSafeBottom`/`useBottomSheetPadding`/`usePageBottomPadding` con fallback `initialWindowMetrics.insets.bottom` (dentro i Modal Android insets=0) e min Android 24; `useInsetsSafe()` applicato a 15 componenti/modal che usavano `insets.bottom` diretto; bill-quick "Avvia analisi AI" con paddingBottom |

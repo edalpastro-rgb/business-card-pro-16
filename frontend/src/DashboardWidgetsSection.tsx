@@ -6,6 +6,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { WeatherAlertsCard } from "@/src/WeatherAlertsCard";
 import { WeatherWidget } from "@/src/WeatherWidget";
+import { CgymWidget } from "@/src/corporate-gym/CgymWidget"; // Corporate Gym (Blocco 1)
 
 /**
  * V50.z81 — Sezione widget home configurabili.
@@ -67,6 +68,7 @@ export function DashboardWidgetsSection({ only, exclude }: { only?: string[]; ex
         if (w.id === "appointments_today") {
           return <MiniStatCard key="appointments_today" testID="widget-appt-today" icon="calendar" label="Appuntamenti di oggi" value={counts.apptToday ?? "…"} color="#7C3AED" onPress={() => router.push("/(tabs)/calendario" as any)} />;
         }
+        if (w.id === "cgym") return <CgymWidget key="cgym" />; // Corporate Gym (Blocco 1)
         if (w.id === "pun") {
           return <PunLiveCard key="pun" data={pun} />;
         }

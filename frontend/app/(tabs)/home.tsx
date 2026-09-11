@@ -18,6 +18,7 @@ import { HeaderWeatherBadge } from "@/src/WeatherWidget";
 import { DeadlineActionsSheet, DeadlineItem } from "@/src/DeadlineActionsSheet";
 const APPT_TODAY_WIDGET = ["appointments_today"];
 import { HomeTipsBanner } from "@/src/HomeTipsBanner";
+import { CgymAlertStrip } from "@/src/corporate-gym/CgymAlertStrip"; // Corporate Gym (Blocco 1)
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 // V29.aq — Header dashboard image (loaded as local bundled asset so it works
@@ -443,6 +444,8 @@ export default function HomeScreen() {
       >
         {/* V50.z104 — Banner consigli utilizzo / broadcast super-admin */}
         <HomeTipsBanner />
+        {/* Corporate Gym (Blocco 1) — striscia sottile: solo con sessioni obbligatorie non completate */}
+        <CgymAlertStrip />
         {/* ── Trial banners ── */}
         {subscription?.status === "trial" && (subscription.days_left ?? 999) <= 7 && (
           <View style={[styles.banner, { backgroundColor: (subscription.days_left ?? 0) <= 3 ? C.dangerSoft : C.warningSoft, borderColor: (subscription.days_left ?? 0) <= 3 ? C.danger : C.warning }]}>

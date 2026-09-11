@@ -1,0 +1,43 @@
+{
+  "summary": "Corporate Gym (Blocco 1) backend + frontend testing. Backend: 21/21 pytest tests passed covering GET/POST/PATCH/DELETE /api/cgym/sessions (scope mine/team + all RBAC branches: member scope=team 403, member assigns other 403, owner assigns sub OK, invalid scheduled_at 400, unknown user_id 400, patch someone else's 403, delete owner-assigned as member 403), GET /api/cgym/summary (shape + mandatory_pending +1 after create), GET /api/cgym/team-overview (owner OK, member 403), GET /api/settings/dashboard-widgets includes id 'cgym'. Frontend: unauth-rendered corporate-gym page confirms structural testIDs cgym-header-banner, cgym-tile-obiezioni, cgym-tile-winwin, cgym-new, cgym-new-sheet, cgym-new-mandatory, cgym-new-title, cgym-new-save, cgym-filter-todo/done, cgym-back, cgym-empty, cgym-empty-new. Sub-page /corporate-gym/obiezioni renders testID cgym-sub-obiezioni with text 'Allenamento interattivo in arrivo'. /master page contains 'Corporate Gym' entry (button). DrawerMenu source-code contains a Corporate Gym item under Team category (line 58). Home widget-cgym and cgym-alert-strip could NOT be exercised end-to-end via Playwright because the login submit button click did not fire the /api/auth/login request from the web preview (repeated attempts timed out). Direct API login works (200 + token) but injecting the token via localStorage 'auth_token_v1' did not authenticate the app (AsyncStorage on web appears to use a different key mangling). No app bugs were found — only a test-harness auth injection limitation.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "web-preview login via UI (test harness limitation)",
+        "issue": "Programmatic click on [data-testid=auth-submit-button] on /login did not trigger a /api/auth/login POST within 15s in Playwright over the web preview. This blocked owner-authenticated UI verification of widget-cgym on home, cgym-alert-strip visibility with a mandatory pending session, and Quadro team card (cgym-team-card) which is gated by isAdmin (requires a hydrated useAuth user). Direct fetch('/api/auth/login') returned 200 with token, but setting localStorage.auth_token_v1 did not authenticate the app (AsyncStorage web adapter appears to use a different underlying key).",
+        "affected_testIDs": ["widget-cgym", "cgym-alert-strip", "cgym-alert-strip-open", "cgym-alert-strip-close", "cgym-team-card", "cgym-team-toggle", "cgym-new-user-me"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cgym_v1.py",
+    "/app/test_reports/pytest/cgym_v1_results.xml"
+  ],
+  "action_items": [
+    "None required for Corporate Gym Blocco 1 — backend API surface is complete and correct per spec (21/21 tests pass). Structural testIDs on /corporate-gym and /corporate-gym/obiezioni render correctly and match the spec.",
+    "Suggested (optional): the main agent may re-run a quick manual smoke of the Home widget-cgym + cgym-alert-strip end-to-end (create a mandatory session as owner → visit /(tabs)/home → verify strip; click cgym-alert-strip-close hides it; complete session via UI or API → strip disappears). Testing agent could not fully exercise this via Playwright due to a login-submit harness issue on the web preview (not a product bug)."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/corporate_gym.py is clean: uuid ids, MongoDB _id excluded in _cgym_out, ISO datetimes normalized to UTC, RBAC correct (owner/admin gates via is_admin_or_owner), tenant scoping enforced. Uses Europe/Rome for today boundaries in /cgym/summary as required.",
+    "Frontend CgymAlertStrip uses a module-scoped variable dismissedForCount for the 'X hides for the app session' — resets only when mandatory count changes or app reloads, matching the requirement.",
+    "Frontend api.ts CGYM_TYPE_META uses a hardcoded Ionicons name 'handshake' in the type union but the winwin meta actually resolves to 'people' — minor TypeScript-only cosmetic (dead union member), not a runtime issue."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cgym_v1.py (new)",
+    "/app/test_reports/pytest/cgym_v1_results.xml (new — pytest JUnit output)",
+    "/app/test_reports/iteration_73.json (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "~70% (structural + sub-page verified; authenticated Home/team-card flows not verified via Playwright due to harness login issue)"},
+  "seed_data_creation": "During the backend pytest run, all TEST_-prefixed cgym sessions created by the test harness were deleted by the TestCleanup teardown. No residual cgym_sessions rows left by this iteration.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Corporate Gym Blocco 1 backend is 21/21 green (see /app/backend/tests/test_cgym_v1.py). If the next iteration needs authenticated UI testing, note that clicking [data-testid=auth-submit-button] via Playwright over the web preview timed out multiple times; the app's AsyncStorage-web key for the JWT is 'auth_token_v1' but pure localStorage.setItem of that key did not authenticate the SPA (the web AsyncStorage adapter appears to prefix or JSON-wrap). Prefer either (a) using real UI clicks with page.keyboard.press('Enter') after the password field, or (b) launching Expo Go native testing.",
+  "rca_of_issue": "N/A — no product bug identified. The single blocked-but-not-fixed item is a Playwright-side auth injection limitation."
+}

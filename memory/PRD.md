@@ -5955,3 +5955,9 @@ else Linking.openURL(url).catch(() => {});
 
 ## Bottom nav uniforme (Giugno 2026 — V50.z167)
 - Hook condiviso `useNavBarBottomInset()` per Tabs nativa e PersistentBottomNav (fallback initialWindowMetrics): padding-bottom identico su Home e altre schermate.
+
+## Corporate Gym — Blocco 1 (Giugno 2026 — V50.z168)
+- Modulo isolato: `backend/routes/corporate_gym.py` (cgym_sessions), `app/corporate-gym/*`, `src/corporate-gym/*`.
+- Master + drawer voce "Corporate Gym"; widget Home `cgym` (scadenze 7gg + progress giorno); striscia arancione solo con obbligatorie pendenti.
+- Sottosezioni Gym Obiezioni / WIN-WIN: banner header + placeholder "in arrivo" (contenuto nei blocchi successivi).
+- Prossimi blocchi: contenuto allenamento interattivo (Obiezioni, WIN-WIN), score.
