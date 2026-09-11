@@ -46,9 +46,16 @@ export const CGYM_HEADER_IMAGE =
 
 export const CGYM_ORANGE = "#F97316";
 
-export const CGYM_TYPE_META: Record<CgymType, { label: string; icon: "chatbubble-ellipses" | "handshake" | "people"; color: string; route: string }> = {
-  obiezioni: { label: "Gym Obiezioni", icon: "chatbubble-ellipses", color: "#DC2626", route: "/corporate-gym/obiezioni" },
-  winwin: { label: "Gym WIN-WIN", icon: "people", color: "#0F9D58", route: "/corporate-gym/win-win" },
+// Icone ufficiali delle due aree (immagini fornite dall'utente); `icon` Ionicons resta come fallback/righe compatte.
+export const CGYM_TYPE_META: Record<CgymType, { label: string; icon: "chatbubble-ellipses" | "handshake" | "people"; color: string; route: string; image: string }> = {
+  obiezioni: {
+    label: "Gym Obiezioni", icon: "chatbubble-ellipses", color: "#DC2626", route: "/corporate-gym/obiezioni",
+    image: "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/3efe302090d947e78e18f1eda6137539_obbiezioni%20logo2_0.png",
+  },
+  winwin: {
+    label: "Gym WIN-WIN", icon: "people", color: "#0F9D58", route: "/corporate-gym/win-win",
+    image: "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/7644430fa87e47c2a2b4b8a139f64318_logo%20winwin.png",
+  },
 };
 
 export const cgymApi = {

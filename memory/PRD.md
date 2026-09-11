@@ -5961,3 +5961,4 @@ else Linking.openURL(url).catch(() => {});
 - Master + drawer voce "Corporate Gym"; widget Home `cgym` (scadenze 7gg + progress giorno); striscia arancione solo con obbligatorie pendenti.
 - Sottosezioni Gym Obiezioni / WIN-WIN: banner header + placeholder "in arrivo" (contenuto nei blocchi successivi).
 - Prossimi blocchi: contenuto allenamento interattivo (Obiezioni, WIN-WIN), score.
+- V50.z169: tile Obiezioni/WIN-WIN con icone ufficiali (`CgymTileIcon`).

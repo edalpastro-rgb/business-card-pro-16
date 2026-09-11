@@ -7,6 +7,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CgymHeaderBanner } from "@/src/corporate-gym/CgymHeaderBanner";
+import { CgymTileIcon } from "@/src/corporate-gym/CgymTileIcon";
 import { cgymApi, CgymType, CGYM_TYPE_META, CGYM_ORANGE } from "@/src/corporate-gym/api";
 
 export function CgymSubsection({ type, description }: { type: CgymType; description: string }) {
@@ -36,9 +37,7 @@ export function CgymSubsection({ type, description }: { type: CgymType; descript
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad }}>
         <CgymHeaderBanner subtitle={meta.label} />
         <View style={styles.card} testID={`cgym-sub-${type}`}>
-          <View style={[styles.iconWrap, { backgroundColor: meta.color + "22" }]}>
-            <Ionicons name={meta.icon as any} size={30} color={meta.color} />
-          </View>
+          <CgymTileIcon type={type} size={96} />
           <Text style={styles.cardTitle}>{meta.label}</Text>
           <Text style={styles.cardSub}>{description}</Text>
           <View style={styles.soon} testID="cgym-sub-coming-soon">
@@ -66,7 +65,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary },
   title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
   card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, borderWidth: 1, borderColor: theme.color.border, padding: 20, alignItems: "center", gap: 8 },
-  iconWrap: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   cardTitle: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface },
   cardSub: { fontSize: 13, color: theme.color.muted, textAlign: "center", lineHeight: 19 },
   soon: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: CGYM_ORANGE + "22", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginTop: 6 },

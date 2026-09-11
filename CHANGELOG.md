@@ -325,6 +325,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z169 | Giu 2026 | Corporate Gym: tile Gym Obiezioni / Gym WIN-WIN con icone ufficiali (immagini utente via URL, `CGYM_TYPE_META[].image`, componente `CgymTileIcon` con fallback Ionicons) anche nell'header delle sottosezioni. Nessun'altra modifica |
 | V50.z168 | Giu 2026 | Corporate Gym Blocco 1 (modulo isolato): backend `routes/corporate_gym.py` + `cgym_sessions`, pagine `/corporate-gym` (+ obiezioni, win-win), widget Home `cgym`, striscia arancione obbligatorie, voce Master + drawer |
 | V50.z167 | Giu 2026 | Batch 4: bottom nav uniforme — nuovo hook condiviso `useNavBarBottomInset()` (`src/hooks/useSafeBottom.tsx`: max(insets.bottom, initialWindowMetrics.bottom, 20)) usato sia dalla Tabs nativa `(tabs)/_layout.tsx` (Home & tab) sia da `PersistentBottomNav` → stesso padding-bottom su tutte le schermate (in Home insets.bottom=0 dentro lo Stack Android edge-to-edge → barra attaccata alla navigation bar) |
 | V50.z166 | Giu 2026 | Scanner (job d664abc6): mutex fotocamera sample/scatto + timeout, reset rilevamento a ogni scatto, campionamento in pausa durante l'autocrop, autocrop per pagina con 3 tentativi/AbortController/45s + badge "riprova", suono scatto Basso/Muto/Sistema persistito (click soft expo-audio) |

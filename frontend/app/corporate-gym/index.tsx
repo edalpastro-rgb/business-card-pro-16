@@ -12,6 +12,7 @@ import { useAuth } from "@/src/auth";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding, useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { CgymHeaderBanner } from "@/src/corporate-gym/CgymHeaderBanner";
+import { CgymTileIcon } from "@/src/corporate-gym/CgymTileIcon";
 import { cgymApi, CgymSession, CgymType, CgymTeamRow, CGYM_TYPE_META, CGYM_ORANGE, fmtCgymDate, isPast } from "@/src/corporate-gym/api";
 
 type Member = { user_id: string; name?: string; email?: string; role?: string };
@@ -156,9 +157,7 @@ export default function CorporateGymHome() {
             const n = sessions.filter((s) => s.type === t && s.status !== "completata").length;
             return (
               <Pressable key={t} style={styles.tile} onPress={() => router.push(m.route as any)} testID={`cgym-tile-${t}`}>
-                <View style={[styles.tileIcon, { backgroundColor: m.color + "22" }]}>
-                  <Ionicons name={m.icon as any} size={22} color={m.color} />
-                </View>
+                <CgymTileIcon type={t} size={72} />
                 <Text style={styles.tileTitle}>{m.label}</Text>
                 <Text style={styles.tileSub}>{n > 0 ? `${n} da fare` : "Nessuna in sospeso"}</Text>
               </Pressable>
@@ -341,7 +340,6 @@ const styles = StyleSheet.create({
   headBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: CGYM_ORANGE, alignItems: "center", justifyContent: "center" },
   grid: { flexDirection: "row", gap: 10, marginBottom: 16 },
   tile: { flex: 1, backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12, gap: 6 },
-  tileIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   tileTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
   tileSub: { fontSize: 12, color: theme.color.muted },
   sectionHead: { gap: 8, marginBottom: 10 },
