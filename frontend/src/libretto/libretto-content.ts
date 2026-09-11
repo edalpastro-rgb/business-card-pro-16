@@ -228,7 +228,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
       ],
     },
     tips: [
-      { emoji: "🎙️", text: "Modalità Voice Copilot: usa in auto senza mani." },
+      { emoji: "🎙️", text: "Modalità Axon Drive: usa in auto senza mani." },
       { emoji: "🧠", text: "Chiedigli «riassumi la scheda di Mario Rossi» per un briefing rapido." },
     ],
   },
@@ -271,13 +271,13 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     icon: "mic",
     emoji: "🚗",
     color: "#F59E0B",
-    title: "11 · Voice Copilot (modalità auto)",
+    title: "11 · Axon Drive (modalità auto)",
     subtitle: "Comandi hands-free mentre guidi",
     paragraphs: [
-      "Attiva Voice Copilot dal microfono in alto a destra: apri la modalità full-screen dove Axon ti parla e tu rispondi a voce.",
+      "Attiva Axon Drive dal microfono in alto a destra: apri la modalità full-screen dove Axon ti parla e tu rispondi a voce.",
       "Perfetto in auto: chiedi «Ricordami di richiamare Colferai alle 15», «Programma un appuntamento con Bianchi giovedì alle 10», «Riassumi le ultime tre bollette di Rossi».",
     ],
-    warning: "Non guardare lo schermo mentre guidi. Voice Copilot funziona a occhi chiusi grazie al feedback vocale.",
+    warning: "Non guardare lo schermo mentre guidi. Axon Drive funziona a occhi chiusi grazie al feedback vocale.",
     tips: [
       { emoji: "🎧", text: "Meglio con auricolari bluetooth per riconoscimento vocale ottimale." },
     ],

@@ -61,7 +61,7 @@ export default function WakeWordSettingsScreen() {
         if (r.mode === "mock") {
           Alert.alert(
             "Wake-word in modalità TEST",
-            "Il modulo nativo di ascolto continuo verrà attivato nella prossima build.\n\nPer ora puoi provare tutto il flusso premendo il pulsante 'Simula rilevamento' qui sotto: aprirà automaticamente il Voice Copilot come farebbe la parola magica.",
+            "Il modulo nativo di ascolto continuo verrà attivato nella prossima build.\n\nPer ora puoi provare tutto il flusso premendo il pulsante 'Simula rilevamento' qui sotto: aprirà automaticamente il Axon Drive come farebbe la parola magica.",
           );
         }
       } else {

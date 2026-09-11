@@ -634,9 +634,9 @@ export default function HomeScreen() {
               </Pressable>
               <Pressable testID="qa-voice-copilot" style={styles.quick} onPress={() => router.push("/voice-copilot")}>
                 <View style={[styles.quickIcon, { backgroundColor: "#7C3AED" /* V50.z34 AI & Axon */ }]}>
-                  <Ionicons name="mic" size={22} color="#FFF" />
+                  <Ionicons name="car-sport" size={22} color="#FFF" />
                 </View>
-                <Text style={styles.quickTxt} numberOfLines={2}>Copilot Auto</Text>
+                <Text style={styles.quickTxt} numberOfLines={2}>Axon Drive</Text>
               </Pressable>
               {/* V50.z25 — Caselle mail (IMAP) — categoria Comunicazioni */}
               <Pressable testID="qa-email-accounts" style={styles.quick} onPress={() => router.push("/email-accounts")}>

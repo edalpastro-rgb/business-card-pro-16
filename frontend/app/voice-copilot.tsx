@@ -1,5 +1,6 @@
 /**
- * V50.o — Copilot Vocale in Auto (hands-free)
+ * V50.o — Axon Drive (ex "Copilot Vocale · Modalità Auto") — hands-free in auto
+ * V50.z177 — solo UI: sfondo interno auto, volante centrale, esempi in primo piano (logica invariata)
  *
  * Modalità full-screen con grande pulsante microfono per uso hands-free
  * (mentre l'utente guida). Flusso:
@@ -13,17 +14,15 @@
  * niente tastiera, niente scorrimento fine.
  */
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animated } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animated, Image, ScrollView } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
-
-const C = theme.color;
 
 type Phase = "idle" | "recording" | "transcribing" | "executing" | "speaking" | "error";
 type HistoryItem = {
@@ -176,130 +175,121 @@ export default function VoiceCopilotScreen() {
     error: "#EF4444",
   };
 
+  const busy = phase === "transcribing" || phase === "executing" || phase === "speaking";
+  const listening = phase === "recording";
+
   return (
-    <SafeAreaView style={styles.root} edges={["top"]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn} testID="voice-back">
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Copilot Vocale · Modalità Auto</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <View style={styles.root}>
+      {/* Sfondo: interno auto notturno (scuro, atmosferico) + velo per leggibilità */}
+      <Image source={require("../assets/images/axon-drive-bg.jpg")} style={styles.bg} resizeMode="cover" />
+      <LinearGradient colors={["rgba(6,14,26,0.42)", "rgba(6,14,26,0.30)", "rgba(6,14,26,0.86)", "#060E1A"]} locations={[0, 0.35, 0.72, 1]} style={styles.bg} />
 
-      <View style={styles.body}>
-        <View style={styles.statusBox}>
-          <View style={[styles.statusDot, { backgroundColor: phaseColor[phase] }]} />
-          <Text style={styles.statusText}>{phaseLabel[phase]}</Text>
-        </View>
-
-        {currentTranscript ? (
-          <View style={styles.bubble}>
-            <Text style={styles.bubbleLabel}>Tu hai detto</Text>
-            <Text style={styles.bubbleText}>{currentTranscript}</Text>
-          </View>
-        ) : null}
-
-        {currentConfirm ? (
-          <View style={[styles.bubble, { borderColor: "#10B981", backgroundColor: "rgba(16,185,129,0.12)" }]}>
-            <Text style={[styles.bubbleLabel, { color: "#10B981" }]}>Fatto ✓</Text>
-            <Text style={styles.bubbleText}>{currentConfirm}</Text>
-          </View>
-        ) : null}
-
-        <View style={styles.hints}>
-          <Text style={styles.hintTitle}>Esempi:</Text>
-          <Text style={styles.hint}>• &quot;Crea contatto Mario Rossi 333 1234567 Milano energia&quot;</Text>
-          <Text style={styles.hint}>• &quot;Aggiungi nota su Rossi: proposta gas entro venerdì&quot;</Text>
-          <Text style={styles.hint}>• &quot;Programma richiamata a Rossi domani alle 15&quot;</Text>
-        </View>
-      </View>
-
-      <View style={styles.footer}>
-        <Animated.View style={{ transform: [{ scale: phase === "recording" ? pulseAnim : 1 }] }}>
-          <Pressable
-            onPress={phase === "recording" ? stopAndProcess : startRecording}
-            disabled={phase !== "idle" && phase !== "recording"}
-            style={[
-              styles.mic,
-              { backgroundColor: phase === "recording" ? "#DC2626" : "#38BDF8" },
-              (phase !== "idle" && phase !== "recording") && { opacity: 0.5 },
-            ]}
-            testID="voice-mic-button"
-          >
-            {phase === "transcribing" || phase === "executing" || phase === "speaking" ? (
-              <ActivityIndicator size="large" color="#FFF" />
-            ) : (
-              <Ionicons
-                name={phase === "recording" ? "stop" : "mic"}
-                size={64}
-                color="#FFF"
-              />
-            )}
+      <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn} testID="voice-back">
+            <Ionicons name="chevron-back" size={24} color="#FFF" />
           </Pressable>
-        </Animated.View>
-        <Text style={styles.footerHint}>
-          {phase === "recording" ? "Tocca per fermare e inviare" : "Tocca per parlare"}
-        </Text>
-      </View>
-    </SafeAreaView>
+          <View style={styles.headerTitleRow}>
+            <Ionicons name="car-sport" size={18} color="#A78BFA" />
+            <Text style={styles.headerTitle}>Axon Drive</Text>
+          </View>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} bounces={false}>
+          {/* Volante grande al centro */}
+          <View style={styles.wheelWrap} testID="drive-wheel">
+            <View style={[styles.wheelGlow, { shadowColor: phaseColor[phase] }]} />
+            <MaterialCommunityIcons name="steering" size={112} color="rgba(255,255,255,0.92)" />
+          </View>
+
+          <Text style={styles.headline} testID="drive-headline">Parla con Axon mentre guidi</Text>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: phaseColor[phase] }]} />
+            <Text style={[styles.statusText, { color: phaseColor[phase] }]}>{phaseLabel[phase]}</Text>
+          </View>
+
+          {currentTranscript ? (
+            <View style={styles.bubble}>
+              <Text style={styles.bubbleLabel}>Tu hai detto</Text>
+              <Text style={styles.bubbleText}>{currentTranscript}</Text>
+            </View>
+          ) : null}
+
+          {currentConfirm ? (
+            <View style={[styles.bubble, { borderColor: "#10B981", backgroundColor: "rgba(16,185,129,0.16)" }]}>
+              <Text style={[styles.bubbleLabel, { color: "#10B981" }]}>Fatto ✓</Text>
+              <Text style={styles.bubbleText}>{currentConfirm}</Text>
+            </View>
+          ) : null}
+
+          {/* Esempi in primo piano: testo grande, icona a fianco */}
+          <View style={styles.examples} testID="drive-examples">
+            {EXAMPLES.map((ex) => (
+              <View key={ex.title} style={styles.exRow}>
+                <Text style={styles.exEmoji}>{ex.emoji}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.exTitle}>{ex.title}</Text>
+                  <Text style={styles.exSample} numberOfLines={2}>&ldquo;{ex.sample}&rdquo;</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* Microfono centrale e prominente */}
+        <View style={styles.footer}>
+          <Animated.View style={{ transform: [{ scale: listening ? pulseAnim : 1 }] }}>
+            <Pressable
+              onPress={listening ? stopAndProcess : startRecording}
+              disabled={busy}
+              style={[styles.mic, { backgroundColor: listening ? "#DC2626" : "#38BDF8", shadowColor: listening ? "#DC2626" : "#38BDF8" }, busy && { opacity: 0.55 }]}
+              testID="voice-mic-button"
+            >
+              {busy ? (
+                <ActivityIndicator size="large" color="#FFF" />
+              ) : (
+                <Ionicons name={listening ? "stop" : "mic"} size={64} color="#FFF" />
+              )}
+            </Pressable>
+          </Animated.View>
+          <Text style={styles.footerHint}>{listening ? "Tocca per fermare e inviare" : "Tocca per parlare"}</Text>
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
 
+const EXAMPLES = [
+  { emoji: "🧑", title: "Crea un contatto", sample: "Crea contatto Mario Rossi 333 1234567 Milano energia" },
+  { emoji: "📝", title: "Aggiungi una nota", sample: "Aggiungi nota su Rossi: proposta gas entro venerdì" },
+  { emoji: "📞", title: "Programma una richiamata", sample: "Programma richiamata a Rossi domani alle 15" },
+  { emoji: "💬", title: "Chiedi qualcosa ad Axon", sample: "Che appuntamenti ho oggi? Che tempo fa a Padova?" },
+];
+
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    alignItems: "center", justifyContent: "center",
-  },
-  headerTitle: { color: "#FFF", fontSize: 15, fontWeight: "800" },
-  body: { flex: 1, padding: 20, gap: 16 },
-  statusBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-  },
-  statusDot: { width: 12, height: 12, borderRadius: 6 },
-  statusText: { color: "#FFF", fontSize: 15, fontWeight: "700" },
-  bubble: {
-    borderWidth: 1.5,
-    borderColor: "#38BDF8",
-    backgroundColor: "rgba(56,189,248,0.12)",
-    borderRadius: 14,
-    padding: 14,
-  },
+  root: { flex: 1, backgroundColor: "#060E1A" },
+  bg: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%" },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
+  headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" },
+  headerTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(6,14,26,0.55)", paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999 },
+  headerTitle: { color: "#FFF", fontSize: 17, fontWeight: "900", letterSpacing: 0.3 },
+  body: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, gap: 14, alignItems: "center" },
+  wheelWrap: { width: 146, height: 146, borderRadius: 73, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,14,26,0.45)", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", marginTop: 4 },
+  wheelGlow: { position: "absolute", width: 128, height: 128, borderRadius: 64, backgroundColor: "rgba(56,189,248,0.10)", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 30, elevation: 0 },
+  headline: { color: "#FFF", fontSize: 24, fontWeight: "900", textAlign: "center", lineHeight: 32, textShadowColor: "rgba(0,0,0,0.6)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(6,14,26,0.6)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
+  statusDot: { width: 10, height: 10, borderRadius: 5 },
+  statusText: { fontSize: 14, fontWeight: "800" },
+  bubble: { alignSelf: "stretch", borderWidth: 1.5, borderColor: "#38BDF8", backgroundColor: "rgba(56,189,248,0.16)", borderRadius: 14, padding: 14 },
   bubbleLabel: { color: "#38BDF8", fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 },
-  bubbleText: { color: "#FFF", fontSize: 16, lineHeight: 22 },
-  hints: {
-    marginTop: "auto",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 12,
-    padding: 12,
-    gap: 4,
-  },
-  hintTitle: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "800", marginBottom: 4 },
-  hint: { color: "rgba(255,255,255,0.65)", fontSize: 12, lineHeight: 18 },
-  footer: {
-    alignItems: "center",
-    paddingBottom: 32,
-    gap: 12,
-  },
-  mic: {
-    width: 140, height: 140, borderRadius: 70,
-    alignItems: "center", justifyContent: "center",
-    shadowColor: "#38BDF8", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.5, shadowRadius: 30,
-    elevation: 20,
-  },
-  footerHint: { color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "600" },
+  bubbleText: { color: "#FFF", fontSize: 17, lineHeight: 23, fontWeight: "600" },
+  examples: { alignSelf: "stretch", backgroundColor: "rgba(6,14,26,0.66)", borderRadius: 18, padding: 12, gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+  exRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, paddingHorizontal: 6, minHeight: 56 },
+  exEmoji: { fontSize: 30, width: 40, textAlign: "center" },
+  exTitle: { color: "#FFF", fontSize: 18, fontWeight: "800" },
+  exSample: { color: "rgba(255,255,255,0.72)", fontSize: 13, lineHeight: 18, marginTop: 2 },
+  footer: { alignItems: "center", paddingTop: 10, paddingBottom: 16, gap: 10 },
+  mic: { width: 140, height: 140, borderRadius: 70, alignItems: "center", justifyContent: "center", borderWidth: 4, borderColor: "rgba(255,255,255,0.35)", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.6, shadowRadius: 30, elevation: 20 },
+  footerHint: { color: "rgba(255,255,255,0.85)", fontSize: 14, fontWeight: "700" },
 });
