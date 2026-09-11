@@ -41,9 +41,9 @@ const COPY_IT = {
   brand: "AdvisorOS",
   nav: { home: "Home", features: "Funzioni", pricing: "Prezzi", faq: "FAQ", cta: "Provalo" },
   hero: {
-    badge: "✨ AI-native CRM · 2026",
-    headline: "Il primo CRM per consulenti con AI nativa che lavora come un secondo cervello.",
-    subtitle: "Non uno strumento generico. Un ecosistema che si adatta a te al 100%, conosce i tuoi clienti, analizza i loro documenti e ti prepara prima di ogni incontro.",
+    badge: "✨ AdvisorOS 2.0 · AI-native CRM · 2026",
+    headline: "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati. Non ti chiede niente. Sa già tutto.",
+    subtitle: "AxonOS legge in tempo reale ogni contatto, contratto, appuntamento, richiamata e KPI del tuo team. Zero allegati. Zero screenshot. Zero attese.",
     ctaApp: "App Store",
     ctaPlay: "Google Play",
   },
@@ -53,7 +53,8 @@ const COPY_IT = {
     "Mentre guidi, AdvisorOS lavora.",
     "AdvisorOS non è un software che usi. È un ecosistema che lavora per te, si adatta a te al 100%: basta automazioni e integrazioni, benvenuta crescita adattiva e responsiva.",
     "AdvisorOS si adegua al cliente. Non il contrario.",
-    "Il primo CRM per consulenti con AI nativa che lavora come un secondo cervello.",
+    "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati. Non ti chiede niente. Sa già tutto.",
+    "AxonOS ti trova lui: l'AI che lavora anche quando tu non ci sei.",
   ],
   costs: {
     title: "Quanto ti costa lavorare senza AdvisorOS?",
@@ -79,6 +80,25 @@ const COPY_IT = {
   featuresTitle: "Le funzioni principali",
   featuresSub: "Tutto quello che ti serve, integrato nativamente. Ogni funzione parla con AxonOS.",
   featureGroups: [
+    { color: "#7C3AED", icon: "sparkles", title: "AxonOS — L'AI che conosce la tua azienda meglio di chiunque altro", items: [
+      { icon: "people", title: "Legge tutti i contatti in tempo reale", body: "In 0,03 secondi ha già tutto il contesto: zero allegati, zero screenshot." },
+      { icon: "calendar", title: "Conosce ogni appuntamento passato e futuro", body: "Esiti, contratti firmati, richiamate: tutto nella sua memoria di lavoro." },
+      { icon: "document-text", title: "Vede contratti, bollette, scadenze", body: "Ti avvisa prima che un contratto scada e ti prepara il rinnovo." },
+      { icon: "stats-chart", title: "Monitora i KPI di ogni collaboratore", body: "Il Master chiede, AxonOS risponde con i numeri veri del team." },
+      { icon: "barbell", title: "Accede a Corporate Gym, regole, impostazioni Master", body: "Come un direttore commerciale AI sempre acceso, sempre aggiornato." },
+      { icon: "notifications", title: "Ti avvisa autonomamente con notifiche push", body: "Tu parli, lui agisce. E ti cerca lui quando serve." },
+    ]},
+    { color: C.orange, icon: "barbell", title: "Corporate Gym — La palestra vocale per il tuo team di vendita", items: [
+      { icon: "mic", title: "Role-play vocale con AxonOS", body: "AxonOS interpreta il cliente, il consulente risponde a voce. Nessun corso, nessuna aula, nessun formatore esterno." },
+      { icon: "analytics", title: "Ogni sessione analizzata e valutata", body: "Punteggio, feedback e memoria dei progressi di ogni agente." },
+      { icon: "school", title: "Gym Obiezioni e Gym WIN-WIN", body: "Configurabile per qualsiasi settore e qualsiasi obiezione. Il Master aggiorna gli scenari in tempo reale e riceve insight settimanali." },
+    ]},
+    { color: C.blue, icon: "car-sport", title: "Axon Drive — Il tuo copilota vocale in macchina", items: [
+      { icon: "mic", title: "Parla, lui agisce", body: "Crea il contatto, aggiunge la nota, programma la richiamata. Mani sul volante, mente libera, lavoro fatto." },
+    ]},
+    { color: C.danger, icon: "notifications", title: "AxonOS ti trova lui — Notifiche push", items: [
+      { icon: "notifications", title: "Non devi aprire l'app per sapere cosa succede", body: "Sessioni Corporate Gym in scadenza, ritelefonate urgenti, report settimanali Master, avvisi crediti. L'AI che lavora anche quando tu non ci sei." },
+    ]},
     { color: C.blue, icon: "people", title: "Gestione contatti e anagrafica", items: [
       { icon: "person", title: "Scheda cliente completa", body: "Tutti i dati personali e contrattuali in un'unica vista." },
       { icon: "create", title: "Campi personalizzati", body: "Il master crea campi su misura (testo, numero, data, checkbox)." },
@@ -169,9 +189,9 @@ const COPY_IT = {
     { q: "È conforme GDPR?", a: "Sì, AdvisorOS è progettato nel rispetto della normativa europea sulla privacy. I tuoi dati e quelli dei tuoi clienti sono protetti secondo la normativa europea vigente." },
     { q: "I miei dati sono al sicuro?", a: "Sì. Connessione HTTPS sempre attiva, cifratura AES-256 su tutti i dati, backup automatici con recovery fino a 7 giorni al minuto, credenziali protette con cifratura KMS dedicata e server con aggiornamenti automatici continui." },
   ],
-  finalCta: { title: "Pronto a lavorare in modo diverso?", subtitle: "Più di 250+ consulenti usano già AdvisorOS ogni giorno." },
+  finalCta: { title: "AdvisorOS 2.0 non è un CRM con un chatbot.", subtitle: "È il primo sistema operativo per consulenti commerciali dove l'AI è il motore, non un accessorio. Costruito per chi vende ogni giorno, potenziato da un'intelligenza che non dorme mai." },
   footer: {
-    tagline: "Il tuo secondo cervello per la consulenza.",
+    tagline: "L'AI è il motore, non un accessorio.",
     copyright: "© 2026 AdvisorOS. Tutti i diritti riservati.",
     links: [
       { label: "Privacy", url: "https://advisoros.it/privacy" },

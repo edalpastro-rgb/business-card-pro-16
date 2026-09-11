@@ -29,6 +29,10 @@ export type LibrettoSection = {
   icons?: { image_key: string; label: string }[];
   /** V50.z178 — immagine orizzontale (banner) invece dello screenshot verticale. */
   image_wide?: boolean;
+  /** V50.z182 — frase d'impatto in evidenza (blocco scuro, testo grande). */
+  highlight?: string;
+  /** V50.z182 — lista visiva con icona grande (Ionicons) a fianco. */
+  bullets?: { icon: string; text: string }[];
 };
 
 export type LibrettoMeta = {
@@ -61,7 +65,7 @@ export const LIBRETTO_IMAGE_KEYS = Object.keys(LIBRETTO_IMAGE_MAP);
 
 export const LIBRETTO_META: LibrettoMeta = {
   title: "Libretto Informativo",
-  subtitle: "AdvisorOS + AxonOS · Guida operativa completa",
+  subtitle: "AdvisorOS 2.0 + AxonOS · L'AI che vive dentro i tuoi dati",
   version: "2.0 · Settembre 2026",
   footer: "© AdvisorOS. Documento generato dall'app.",
 };
@@ -72,10 +76,11 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     icon: "book",
     emoji: "📘",
     color: "#1C4869",
-    title: "Cos'è AdvisorOS + AxonOS",
-    subtitle: "La rete di consulenti energetici, potenziata dall'AI",
+    title: "AdvisorOS 2.0 + AxonOS",
+    subtitle: "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati",
+    highlight: "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati. Non ti chiede niente. Sa già tutto.",
     paragraphs: [
-      "AdvisorOS è un CRM completo pensato per Consulenti Energetici e Networker italiani, con isolamento multi-tenant, controllo dei ruoli e integrazioni cloud native.",
+      "AdvisorOS è il CRM completo per Consulenti Energetici e Networker italiani: isolamento multi-tenant, controllo dei ruoli, integrazioni cloud native e un'AI — AxonOS — che legge in tempo reale ogni dato della tua azienda.",
       "AxonOS è l'assistente AI integrato: risponde in chat, ricorda le informazioni del tuo team, ti aiuta a leggere bollette, a preparare messaggi commerciali e a gestire attività quotidiane senza uscire dall'app.",
       "L'obiettivo di questo libretto è portarti dal primo login all'utilizzo avanzato di ogni funzione, con schermate di esempio e suggerimenti pratici.",
     ],
@@ -217,13 +222,20 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     icon: "sparkles",
     emoji: "🤖",
     color: "#7C3AED",
-    title: "8 · AxonOS — Chat AI",
-    subtitle: "Il tuo assistente sempre disponibile",
+    title: "8 · AxonOS — L'AI che conosce la tua azienda meglio di chiunque altro",
+    subtitle: "Zero allegati. Zero screenshot. Zero attese.",
     image_key: "04_chat",
     paragraphs: [
-      "AxonOS è la chat integrata: gli fai domande e ti risponde in tempo reale usando il tuo contesto personale (contatti, bollette, appuntamenti, regole aziendali).",
-      "Nel campo di input trovi anche il pulsante microfono per parlare invece di scrivere e allegare file da Drive, Dropbox o dal telefono.",
-      "AxonOS usa un router intelligente: risposte semplici gestite da Claude Haiku 4.5 (istantaneo), analisi complesse da Sonnet 4.6 (dettagliato).",
+      "Mentre gli altri CRM ti chiedono allegati e screenshot, AxonOS legge in tempo reale ogni contatto, ogni contratto, ogni appuntamento, ogni richiamata, ogni KPI del tuo team. In 0,03 secondi ha già tutto il contesto.",
+      "Tu parli, lui agisce. Zero allegati. Zero screenshot. Zero attese. Come avere un direttore commerciale AI sempre acceso, sempre aggiornato, sempre pronto.",
+    ],
+    bullets: [
+      { icon: "people", text: "Legge tutti i contatti in tempo reale" },
+      { icon: "calendar", text: "Conosce ogni appuntamento passato e futuro" },
+      { icon: "document-text", text: "Vede contratti, bollette, scadenze" },
+      { icon: "stats-chart", text: "Monitora i KPI di ogni collaboratore" },
+      { icon: "barbell", text: "Accede a Corporate Gym, regole, impostazioni Master" },
+      { icon: "notifications", text: "Ti avvisa autonomamente con notifiche push" },
     ],
     mockup: {
       title: "Slash commands",
@@ -238,6 +250,25 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     tips: [
       { emoji: "🎙️", text: "Modalità Axon Drive: usa in auto senza mani." },
       { emoji: "🧠", text: "Chiedigli «riassumi la scheda di Mario Rossi» per un briefing rapido." },
+    ],
+  },
+  {
+    id: "corporate-gym",
+    icon: "barbell",
+    emoji: "🏋️",
+    color: "#F97316",
+    title: "Corporate Gym — La palestra vocale per il tuo team di vendita",
+    subtitle: "Nessun corso, nessuna aula, nessun formatore esterno",
+    image_key: "11_cgym_banner",
+    image_wide: true,
+    highlight: "AxonOS interpreta il cliente, il consulente risponde a voce. La formazione che si adatta alla tua azienda, non il contrario.",
+    paragraphs: [
+      "Nessun corso, nessun aula, nessun formatore esterno. AxonOS interpreta il cliente, il consulente risponde a voce. Ogni sessione viene analizzata, valutata e memorizzata.",
+      "Il Master vede i progressi di ogni agente, riceve insight settimanali e può aggiornare gli scenari in tempo reale. Configurabile per qualsiasi settore e qualsiasi tipo di obiezione. La formazione che si adatta alla tua azienda, non il contrario.",
+    ],
+    icons: [
+      { image_key: "cgym_obiezioni", label: "Gym Obiezioni" },
+      { image_key: "cgym_winwin", label: "Gym WIN-WIN" },
     ],
   },
   {
@@ -279,15 +310,38 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     icon: "mic",
     emoji: "🚗",
     color: "#F59E0B",
-    title: "11 · Axon Drive (modalità auto)",
-    subtitle: "Comandi hands-free mentre guidi",
+    title: "11 · Axon Drive — Il tuo copilota vocale in macchina",
+    subtitle: "Mani sul volante, mente libera, lavoro fatto",
+    highlight: "Stai guidando. Non puoi toccare il telefono. Parla ad Axon Drive e lui crea il contatto, aggiunge la nota, programma la richiamata.",
     paragraphs: [
-      "Attiva Axon Drive dal microfono in alto a destra: apri la modalità full-screen dove Axon ti parla e tu rispondi a voce.",
+      "Mani sul volante, mente libera, lavoro fatto. Attiva Axon Drive dal microfono in alto a destra o dall'azione rapida in Home: modalità full-screen dove Axon ti parla e tu rispondi a voce.",
       "Perfetto in auto: chiedi «Ricordami di richiamare Colferai alle 15», «Programma un appuntamento con Bianchi giovedì alle 10», «Riassumi le ultime tre bollette di Rossi».",
     ],
     warning: "Non guardare lo schermo mentre guidi. Axon Drive funziona a occhi chiusi grazie al feedback vocale.",
     tips: [
       { emoji: "🎧", text: "Meglio con auricolari bluetooth per riconoscimento vocale ottimale." },
+    ],
+  },
+  {
+    id: "notifiche-push",
+    icon: "notifications",
+    emoji: "🔔",
+    color: "#DC2626",
+    title: "AxonOS ti trova lui",
+    subtitle: "L'AI che lavora anche quando tu non ci sei",
+    highlight: "Non devi aprire l'app per sapere cosa succede.",
+    paragraphs: [
+      "Non devi aprire l'app per sapere cosa succede. AxonOS ti manda notifiche push per sessioni Corporate Gym in scadenza, ritelefonate urgenti, report settimanali Master e avvisi crediti. L'AI che lavora anche quando tu non ci sei.",
+    ],
+    bullets: [
+      { icon: "barbell", text: "Sessioni Corporate Gym obbligatorie in scadenza" },
+      { icon: "call", text: "Ritelefonate urgenti in scadenza" },
+      { icon: "stats-chart", text: "Report settimanale Master pronto" },
+      { icon: "flash", text: "Avvisi crediti AI al 50%, 80% e 100%" },
+    ],
+    tips: [
+      { emoji: "⚙️", text: "Gestisci i tipi di notifica in Impostazioni → AI & Axon → Notifiche push AxonOS." },
+      { emoji: "👥", text: "Il Master riceve anche gli avvisi del team; il collaboratore solo i propri." },
     ],
   },
   {
@@ -346,23 +400,6 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     ],
   },
   {
-    id: "corporate-gym",
-    icon: "barbell",
-    emoji: "🏋️",
-    color: "#F97316",
-    title: "Corporate Gym — Formazione vocale per il tuo team",
-    subtitle: "Role-play vocale con AxonOS · Gym Obiezioni e Gym WIN-WIN",
-    image_key: "11_cgym_banner",
-    image_wide: true,
-    paragraphs: [
-      "Allena i tuoi consulenti con sessioni di role-play vocale simulate da AxonOS. Gestisci obiezioni, trattative e qualsiasi scenario di vendita. Il Master assegna le sessioni, monitora i progressi e riceve insight settimanali da AxonOS per migliorare continuamente il team.",
-    ],
-    icons: [
-      { image_key: "cgym_obiezioni", label: "Gym Obiezioni" },
-      { image_key: "cgym_winwin", label: "Gym WIN-WIN" },
-    ],
-  },
-  {
     id: "consigli",
     icon: "bulb",
     emoji: "💡",
@@ -388,18 +425,48 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
       "Q: I miei dati sono privati? — Sì, isolamento multi-tenant: nessun altro Master vede i tuoi contatti.\n\nQ: Axon usa i miei dati per addestrarsi? — No. Le conversazioni non alimentano modelli esterni.\n\nQ: Posso disdire in ogni momento? — Sì, dal Profilo → Gestisci abbonamento.\n\nQ: Perde qualcosa se cambio telefono? — No, tutto è in cloud: rifai il login e ritrovi tutto.\n\nQ: Come contatto il supporto? — Tocca il pulsante 🎧 in alto a destra oppure invia una email a support@advisoros.it.",
     ],
   },
+  {
+    id: "chiusura",
+    icon: "rocket",
+    emoji: "🚀",
+    color: "#0F172A",
+    title: "AdvisorOS 2.0",
+    subtitle: "Il sistema operativo per consulenti commerciali",
+    highlight: "AdvisorOS 2.0 non è un CRM con un chatbot. È il primo sistema operativo per consulenti commerciali dove l'AI è il motore, non un accessorio.",
+    paragraphs: [
+      "Costruito per chi vende ogni giorno, potenziato da un'intelligenza che non dorme mai.",
+    ],
+  },
 ];
 
 /** Risolve la fonte immagine per una sezione. */
-/** V50.z178 — Sezione Corporate Gym statica (usata anche per integrare contenuti salvati dal Master che non la contengono). */
-export const LIBRETTO_CGYM_SECTION: LibrettoSection = LIBRETTO_SECTIONS.find((s) => s.id === "corporate-gym") as LibrettoSection;
+/** V50.z182 — Sezioni statiche "2.0" da integrare nei libretti personalizzati salvati dal Master che non le contengono. */
+const _LIBRETTO_NEW_SECTIONS: { id: string; after: string[] }[] = [
+  { id: "corporate-gym", after: ["axon-chat"] },
+  { id: "notifiche-push", after: ["voice-copilot", "corporate-gym", "axon-chat"] },
+  { id: "chiusura", after: [] },
+];
 
-/** Inserisce lo step Corporate Gym prima della chiusura (Consigli/FAQ) se manca. Non tocca gli step esistenti. */
+/** Inserisce le sezioni 2.0 mancanti (Corporate Gym dopo AxonOS, Notifiche push dopo Axon Drive, Chiusura in coda). Non tocca le esistenti. */
 export function withCorporateGymSection(sections: LibrettoSection[]): LibrettoSection[] {
-  if (!Array.isArray(sections) || sections.some((s) => s.id === "corporate-gym")) return sections;
-  const idx = sections.findIndex((s) => s.id === "consigli" || s.id === "faq");
+  if (!Array.isArray(sections)) return sections;
   const out = [...sections];
-  out.splice(idx >= 0 ? idx : out.length, 0, LIBRETTO_CGYM_SECTION);
+  for (const spec of _LIBRETTO_NEW_SECTIONS) {
+    if (out.some((s) => s.id === spec.id)) continue;
+    const sec = LIBRETTO_SECTIONS.find((s) => s.id === spec.id);
+    if (!sec) continue;
+    let idx = -1;
+    for (const a of spec.after) {
+      idx = out.findIndex((s) => s.id === a);
+      if (idx >= 0) break;
+    }
+    if (idx >= 0) out.splice(idx + 1, 0, sec);
+    else if (spec.id === "chiusura") out.push(sec);
+    else {
+      const c = out.findIndex((s) => s.id === "consigli" || s.id === "faq");
+      out.splice(c >= 0 ? c : out.length, 0, sec);
+    }
+  }
   return out;
 }
 

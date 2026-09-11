@@ -1,10 +1,10 @@
 [
  {
   "id": "intro",
-  "title": "Cos'è AdvisorOS + AxonOS",
-  "subtitle": "La rete di consulenti energetici, potenziata dall'AI",
+  "title": "AdvisorOS 2.0 + AxonOS",
+  "subtitle": "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati",
   "paragraphs": [
-   "AdvisorOS è un CRM completo pensato per Consulenti Energetici e Networker italiani, con isolamento multi-tenant, controllo dei ruoli e integrazioni cloud native.",
+   "AdvisorOS è il CRM completo per Consulenti Energetici e Networker italiani: isolamento multi-tenant, controllo dei ruoli, integrazioni cloud native e un'AI — AxonOS — che legge in tempo reale ogni dato della tua azienda.",
    "AxonOS è l'assistente AI integrato: risponde in chat, ricorda le informazioni del tuo team, ti aiuta a leggere bollette, a preparare messaggi commerciali e a gestire attività quotidiane senza uscire dall'app.",
    "L'obiettivo di questo libretto è portarti dal primo login all'utilizzo avanzato di ogni funzione, con schermate di esempio e suggerimenti pratici."
   ],
@@ -108,17 +108,30 @@
  },
  {
   "id": "axon-chat",
-  "title": "8 · AxonOS — Chat AI",
-  "subtitle": "Il tuo assistente sempre disponibile",
+  "title": "8 · AxonOS — L'AI che conosce la tua azienda meglio di chiunque altro",
+  "subtitle": "Zero allegati. Zero screenshot. Zero attese.",
   "paragraphs": [
-   "AxonOS è la chat integrata: gli fai domande e ti risponde in tempo reale usando il tuo contesto personale (contatti, bollette, appuntamenti, regole aziendali).",
-   "Nel campo di input trovi anche il pulsante microfono per parlare invece di scrivere e allegare file da Drive, Dropbox o dal telefono.",
-   "AxonOS usa un router intelligente: risposte semplici gestite da Claude Haiku 4.5 (istantaneo), analisi complesse da Sonnet 4.6 (dettagliato)."
+   "Mentre gli altri CRM ti chiedono allegati e screenshot, AxonOS legge in tempo reale ogni contatto, ogni contratto, ogni appuntamento, ogni richiamata, ogni KPI del tuo team. In 0,03 secondi ha già tutto il contesto.",
+   "Tu parli, lui agisce. Zero allegati. Zero screenshot. Zero attese. Come avere un direttore commerciale AI sempre acceso, sempre aggiornato, sempre pronto."
   ],
   "tips": [
-   "Modalità Axon Drive: usa in auto senza mani.",
-   "Chiedigli «riassumi la scheda di Mario Rossi» per un briefing rapido."
+   "Legge tutti i contatti in tempo reale",
+   "Conosce ogni appuntamento passato e futuro",
+   "Vede contratti, bollette, scadenze",
+   "Monitora i KPI di ogni collaboratore",
+   "Accede a Corporate Gym, regole, impostazioni Master",
+   "Ti avvisa autonomamente con notifiche push"
   ]
+ },
+ {
+  "id": "corporate-gym",
+  "title": "Corporate Gym — La palestra vocale per il tuo team di vendita",
+  "subtitle": "Nessun corso, nessuna aula, nessun formatore esterno",
+  "paragraphs": [
+   "Nessun corso, nessun aula, nessun formatore esterno. AxonOS interpreta il cliente, il consulente risponde a voce. Ogni sessione viene analizzata, valutata e memorizzata.",
+   "Il Master vede i progressi di ogni agente, riceve insight settimanali e può aggiornare gli scenari in tempo reale. Configurabile per qualsiasi settore e qualsiasi tipo di obiezione. La formazione che si adatta alla tua azienda, non il contrario."
+  ],
+  "tips": []
  },
  {
   "id": "insegna-axon",
@@ -149,14 +162,30 @@
  },
  {
   "id": "voice-copilot",
-  "title": "11 · Axon Drive (modalità auto)",
-  "subtitle": "Comandi hands-free mentre guidi",
+  "title": "11 · Axon Drive — Il tuo copilota vocale in macchina",
+  "subtitle": "Mani sul volante, mente libera, lavoro fatto",
   "paragraphs": [
-   "Attiva Axon Drive dal microfono in alto a destra: apri la modalità full-screen dove Axon ti parla e tu rispondi a voce.",
+   "Mani sul volante, mente libera, lavoro fatto. Attiva Axon Drive dal microfono in alto a destra o dall'azione rapida in Home: modalità full-screen dove Axon ti parla e tu rispondi a voce.",
    "Perfetto in auto: chiedi «Ricordami di richiamare Colferai alle 15», «Programma un appuntamento con Bianchi giovedì alle 10», «Riassumi le ultime tre bollette di Rossi»."
   ],
   "tips": [
    "Meglio con auricolari bluetooth per riconoscimento vocale ottimale."
+  ]
+ },
+ {
+  "id": "notifiche-push",
+  "title": "AxonOS ti trova lui",
+  "subtitle": "L'AI che lavora anche quando tu non ci sei",
+  "paragraphs": [
+   "Non devi aprire l'app per sapere cosa succede. AxonOS ti manda notifiche push per sessioni Corporate Gym in scadenza, ritelefonate urgenti, report settimanali Master e avvisi crediti. L'AI che lavora anche quando tu non ci sei."
+  ],
+  "tips": [
+   "Sessioni Corporate Gym obbligatorie in scadenza",
+   "Ritelefonate urgenti in scadenza",
+   "Report settimanale Master pronto",
+   "Avvisi crediti AI al 50%, 80% e 100%",
+   "Gestisci i tipi di notifica in Impostazioni → AI & Axon → Notifiche push AxonOS.",
+   "Il Master riceve anche gli avvisi del team; il collaboratore solo i propri."
   ]
  },
  {
@@ -203,15 +232,6 @@
   ]
  },
  {
-  "id": "corporate-gym",
-  "title": "Corporate Gym — Formazione vocale per il tuo team",
-  "subtitle": "Role-play vocale con AxonOS · Gym Obiezioni e Gym WIN-WIN",
-  "paragraphs": [
-   "Allena i tuoi consulenti con sessioni di role-play vocale simulate da AxonOS. Gestisci obiezioni, trattative e qualsiasi scenario di vendita. Il Master assegna le sessioni, monitora i progressi e riceve insight settimanali da AxonOS per migliorare continuamente il team."
-  ],
-  "tips": []
- },
- {
   "id": "consigli",
   "title": "16 · Consigli d'uso avanzati",
   "subtitle": "Diventa un power user",
@@ -228,6 +248,15 @@
   "subtitle": "Le domande più frequenti",
   "paragraphs": [
    "Q: I miei dati sono privati? — Sì, isolamento multi-tenant: nessun altro Master vede i tuoi contatti.\\n\\nQ: Axon usa i miei dati per addestrarsi? — No. Le conversazioni non alimentano modelli esterni.\\n\\nQ: Posso disdire in ogni momento? — Sì, dal Profilo → Gestisci abbonamento.\\n\\nQ: Perde qualcosa se cambio telefono? — No, tutto è in cloud: rifai il login e ritrovi tutto.\\n\\nQ: Come contatto il supporto? — Tocca il pulsante 🎧 in alto a destra oppure invia una email a support@advisoros.it."
+  ],
+  "tips": []
+ },
+ {
+  "id": "chiusura",
+  "title": "AdvisorOS 2.0",
+  "subtitle": "Il sistema operativo per consulenti commerciali",
+  "paragraphs": [
+   "Costruito per chi vende ogni giorno, potenziato da un'intelligenza che non dorme mai."
   ],
   "tips": []
  }

@@ -193,6 +193,16 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z182 — Libretto Informativo + Presentazione 2.0 (posizionamento di eccellenza)** — `src/libretto/libretto-content.ts`,
+  `app/libretto.tsx`, `app/adv-landing.tsx` (solo testi/UI). Nuovi campi `highlight` (blocco scuro, testo grande) e `bullets[]` (lista con
+  icona grande) resi in app e nel PDF. Intro → headline "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati. Non ti chiede
+  niente. Sa già tutto."; **8 · AxonOS** riscritto ("L'AI che conosce la tua azienda meglio di chiunque altro" + 6 bullet); **Corporate Gym**
+  riscritto ("La palestra vocale per il tuo team di vendita") e SPOSTATO subito dopo AxonOS (icone Gym Obiezioni/WIN-WIN); **11 · Axon Drive**
+  riscritto ("Il tuo copilota vocale in macchina"); nuova sezione **"AxonOS ti trova lui"** (notifiche push, 4 bullet) dopo Axon Drive;
+  nuova **Chiusura** "AdvisorOS 2.0 non è un CRM con un chatbot…" in coda. `withCorporateGymSection()` ora integra tutte le sezioni 2.0
+  mancanti nei libretti personalizzati (Gym dopo AxonOS, Push dopo Axon Drive, Chiusura in coda). Badge già dinamico (V50.z179).
+  Landing `/adv-landing`: hero/slogan/finalCta/footer riscritti + 4 gruppi funzioni in testa (AxonOS, Corporate Gym, Axon Drive, Push).
+  `axon_app_map.json` rigenerato (21 sezioni) → Axon conosce il nuovo posizionamento.
 - **V50.z181 — Notifiche push native AxonOS** — modulo isolato `backend/routes/axon_notifications.py` (scheduler proprio ogni 10 min,
   riusa `send_push` Emergent di 05, `cgym_weekly_report`, `_bill_deadline_entry`). Collection `axon_notifications` (per destinatario,
   dedupe_key idempotente) + `axon_notification_prefs`. Casi: **cgym_due** (sessione obbligatoria entro 24h / scaduta ≤12h),
@@ -438,6 +448,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z182 | Set 2026 | Libretto + Presentazione 2.0: headline, AxonOS/Corporate Gym/Axon Drive riscritti, nuove sezioni Notifiche push e Chiusura, blocchi highlight + bullet con icone (app e PDF), landing aggiornata |
 | V50.z181 | Set 2026 | Notifiche push AxonOS (Gym obbligatorie, richiamate urgenti, crediti 50/80/100%, report settimanale, messaggi critici): inbox + preferenze + badge icona/drawer, copie [Team] al Master, modulo isolato `axon_notifications.py` |
 | V50.z180 | Set 2026 | Axon omnisciente: prompt con mappa dell'app + dati completi di tutte le sezioni + schede complete dei contatti citati (`axon_crm_omniscience.py`), visibilità rispettata |
 | V50.z179 | Set 2026 | Libretto: badge versione dinamico (versione app reale + data ultimo aggiornamento build), app.json → 2.0.0, badge "2.0 · Settembre 2026" |

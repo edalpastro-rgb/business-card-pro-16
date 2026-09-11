@@ -112,6 +112,8 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
          </div>`
       : "";
     const warning = s.warning ? `<div class="warning">⚠️ ${s.warning}</div>` : "";
+    const highlight = s.highlight ? `<div class="highlight" style="background:${s.color}">${escapeHtml(s.highlight)}</div>` : "";
+    const bullets = s.bullets?.length ? `<ul class="bullets">${s.bullets.map((b) => `<li><span class="bdot" style="background:${s.color}"></span>${escapeHtml(b.text)}</li>`).join("")}</ul>` : "";
     return `
       <section class="sec page-break" style="border-left-color:${s.color}">
         <div class="sec-header" style="background:${s.color}">
@@ -122,7 +124,9 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
           </div>
         </div>
         <div class="sec-body">
+          ${highlight}
           ${s.paragraphs.map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`).join("")}
+          ${bullets}
           ${imgHtml}
           ${mockup}
           ${tips}
@@ -166,6 +170,10 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
   .mockup-body { font-family: "Menlo", "Consolas", monospace; font-size: 12px; margin: 0; white-space: pre-wrap; }
   .screenshot { text-align: center; margin: 16px 0; }
   .screenshot img { max-width: 55%; max-height: 380px; border-radius: 12px; box-shadow: 0 6px 20px rgba(15,23,42,0.15); border: 1px solid #E2E8F0; }
+  .highlight { color: #fff; font-weight: 800; font-size: 15px; line-height: 1.45; border-radius: 12px; padding: 14px 16px; margin: 0 0 12px; }
+  .bullets { list-style: none; padding: 0; margin: 10px 0 0; }
+  .bullets li { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 13px; font-weight: 700; border-bottom: 1px solid #EEF2F7; }
+  .bdot { width: 12px; height: 12px; border-radius: 4px; display: inline-block; flex: 0 0 12px; }
   .tips { list-style: none; padding: 0; margin: 14px 0 0; }
   .tips li { padding: 8px 12px; margin-bottom: 6px; background: #FEF3C7; border-radius: 8px; font-size: 12.5px; }
   .tip-em { display: inline-block; width: 22px; }
@@ -445,11 +453,28 @@ function SectionCard({ section }: { section: LibrettoSection }) {
         </View>
       </View>
       <View style={styles.secBody}>
+        {section.highlight ? (
+          <View style={[styles.highlight, { backgroundColor: section.color }]} testID={`libretto-highlight-${section.id}`}>
+            <Text style={styles.highlightTxt}>{section.highlight}</Text>
+          </View>
+        ) : null}
         {section.paragraphs.map((p, i) => (
           <Text key={i} style={styles.secP}>
             {p}
           </Text>
         ))}
+        {section.bullets?.length ? (
+          <View style={styles.bullets} testID={`libretto-bullets-${section.id}`}>
+            {section.bullets.map((b, i) => (
+              <View key={i} style={styles.bulletRow}>
+                <View style={[styles.bulletIcon, { backgroundColor: section.color }]}>
+                  <Ionicons name={b.icon as any} size={22} color="#FFF" />
+                </View>
+                <Text style={styles.bulletTxt}>{b.text}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
         {imgSrc ? (
           <View style={styles.screenshotWrap}>
             <Image source={imgSrc as any} style={section.image_wide ? styles.bannerImg : styles.screenshotImg} resizeMode="contain" />
@@ -602,6 +627,12 @@ const styles = StyleSheet.create({
   secSub: { color: "rgba(255,255,255,0.9)", fontSize: 12, marginTop: 3 },
   secBody: { padding: 18 },
   secP: { fontSize: 13.5, lineHeight: 21, color: "#0F172A", marginBottom: 10 },
+  highlight: { borderRadius: 14, padding: 16, marginBottom: 12 },
+  highlightTxt: { color: "#FFF", fontSize: 18, lineHeight: 26, fontWeight: "900", letterSpacing: 0.2 },
+  bullets: { gap: 8, marginTop: 6, marginBottom: 6 },
+  bulletRow: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 48 },
+  bulletIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  bulletTxt: { flex: 1, fontSize: 15, fontWeight: "800", color: "#111820", lineHeight: 20 },
   bannerImg: { width: "100%", height: 112, borderRadius: 10 },
   secIcons: { flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 10 },
   secIcon: { alignItems: "center", gap: 4, width: 120 },
