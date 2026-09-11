@@ -193,6 +193,18 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z176 — Scanner: rilevamento bordi robusto agli oggetti sul tavolo** (`backend/routes/26_scanner.py::_detect_document_quad`,
+  nessun altro file). Bug APK 1.0.55: dalla 2ª foto il foglio, circondato da telefono/penne/altri fogli, non veniva ritagliato (l'algoritmo
+  premiava l'area → sceglieva l'inviluppo foglio+oggetti o il quasi-intero-frame). Ora ogni candidato riceve un punteggio di
+  "somiglianza a un documento" INDIPENDENTE dall'area — `fill` (interno uniforme dopo chiusura morfologica che cancella il testo),
+  `edge_support` (quota del perimetro su bordi reali), gradino di luminanza dentro/fuori sui lati (scarta tabelle/blocchi dentro al foglio,
+  robusto alle ombre), rettangolarità ≥ 0.80, aspetto ≤ 3:1, ≥ 3 lati sul bordo foto = frame → scartato — e solo poi il più grande vince.
+  Candidati extra: segmentazione "carta" (chiaro + poco saturo) e **separazione dei fogli che si toccano** (erosione → componenti →
+  ri-dilatazione: la pagina già scansionata appoggiata accanto alla successiva non "fonde" più il rettangolo). Kernel scalati per i frame
+  live 400px. Stateless (nessuna memoria tra scatti; il reset lato app c'è già da V50.z166). Se fallisce → `detected=false`, foto
+  originale + badge "Bordi non rilevati" (flusso non bloccato, come prima). Benchmark sintetico `backend/tests/scanner_bench.py`
+  (documento + 3-7 oggetti attorno, ombre, tavoli colorati): 53/60 → 59/60 (IoU ≥ 0,85), fogli adiacenti 21/25 → 25/25, foglio su tavolo
+  chiaro/che tocca il bordo/intero frame invariati; detector 94 ms a 1200×1600, 28 ms su frame live.
 - **V50.z166 — Scanner: autocrop indipendente per ogni scatto + suono regolabile** (`LiveCameraScanner.tsx`, nessun altro file):
   (1) **mutex fotocamera** `runExclusiveCapture`: campionamento live e scatto vero non chiamano mai `takePictureAsync` in parallelo
   (su Android il 2° scatto poteva ricevere il frame 0.1 del campionamento o restare appeso → autocrop "a intermittenza" dalla 2ª foto);
@@ -381,6 +393,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z176 | Giu 2026 | Scanner: `_detect_document_quad` sceglie il "documento principale" tra oggetti sul tavolo con punteggio di somiglianza a documento (fill senza testo, bordi reali, gradino dentro/fuori, rettangolarità, aspetto) prima della dimensione; segmentazione carta + separazione fogli adiacenti; benchmark 59/60 (era 53/60) |
 | V50.z175 | Giu 2026 | Corporate Gym · Manuali Google Drive gestiti da AxonOS: il Master configura la cartella principale (sottocartelle Obiezioni/WIN-WIN per nome), "Leggi Manuale" nelle due sezioni elenca i PDF letti live dal Drive del Master (ricerca per nome, Apri/Scarica via link firmato 12h `/public/cgym-manual/{token}`), sempre ultima versione; solo il Master modifica il percorso |
 | V50.z174 | Giu 2026 | Corporate Gym fix: icone tile/header intere e centrate (`CgymTileIcon` prop `fill` + resizeMode contain; banner header con aspect ratio reale via Image.getSize, contain); widget Home nascosto se nessuna sessione oggi/in scadenza 7gg/assegnata pendente; card "Il tuo feedback AxonOS" nella Gym home per ogni collaboratore (`CgymMyFeedbackCard`; backend agent-feedback POST consentito anche per il proprio user_id) |
 | V50.z173 | Giu 2026 | Corporate Gym Blocco 5: obiezioni COSTO e DECISORE + Gym WIN-WIN (trattativa integrata vocale 45 min a 5 fasi, timer, score/feedback, salvataggio in cgym_sessions type winwin); `GET /api/cgym/roleplay/scenarios` |

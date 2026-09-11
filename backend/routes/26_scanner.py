@@ -40,6 +40,13 @@ def _detect_document_quad(src):
     - RETR_LIST + convex hull + più epsilon di approssimazione
     - punteggio = area × rettangolarità, angoli 60°–120°
     - fallback minAreaRect sul contorno più grande (≥ 30% frame)
+
+    V50.z176 — "documento principale" tra oggetti sul tavolo: ogni candidato è
+    valutato per somiglianza a un documento (interno uniforme senza testo, lati su
+    bordi reali, gradino di luminanza dentro/fuori, rettangolarità, aspetto ≤ 3:1)
+    e solo poi per dimensione; candidati extra dalla segmentazione "carta" con
+    separazione dei fogli che si toccano (erosione). Stateless: ogni chiamata
+    riparte da zero (nessuna memoria tra scatti).
     """
     import cv2
     import numpy as np
@@ -138,50 +145,211 @@ def _detect_document_quad(src):
         # Una scrivania, anche chiara, è più scura del foglio → non scatta.
         return mo > 200 and mo >= mi + 12
 
-    best = None; best_score = 0.0
-    fallback = None; fallback_area = 0.0
+    # ------------------------------------------------------------------
+    # V50.z176 — Selezione "documento principale" robusta agli oggetti sul tavolo.
+    # Ogni candidato (quadrilatero) riceve un punteggio di "somiglianza a un
+    # documento" indipendente dall'area:
+    #   fill       = uniformità dell'interno (carta: pixel vicini alla mediana, bassa saturazione)
+    #   edge_sup   = quota del perimetro appoggiata su bordi reali dell'immagine
+    #   rect       = rettangolarità (area / area del min-rect)
+    #   contrast   = contrasto dentro/fuori sui lati
+    # e solo DOPO viene premiato il più grande. Così l'inviluppo "foglio+telefono"
+    # (interno non uniforme, lati inventati) o il quasi-intero-frame (tavolo con
+    # oggetti) perdono contro il foglio vero. In più, candidati dalla segmentazione
+    # "carta" (chiaro + poco saturo) per scene con tavoli colorati/scuri.
+    # ------------------------------------------------------------------
+    # Scala dei kernel: 1.0 a 900px (autocrop), ~0.45 sui frame live a 400px
+    S_ = max(0.4, min(1.0, max(sh, sw) / 924.0))
+
+    def _ks(v, odd=True):
+        k = max(3, int(round(v * S_)))
+        return k + 1 if odd and k % 2 == 0 else k
+
+    gx = cv2.Sobel(blur, cv2.CV_32F, 1, 0, ksize=3); gy = cv2.Sobel(blur, cv2.CV_32F, 0, 1, ksize=3)
+    gmag = cv2.magnitude(gx, gy)
+    gmax = cv2.dilate(gmag, np.ones((5, 5), np.uint8))  # max locale: tolleranza ±2px sul bordo
+    sat_small = hsv[:, :, 1]
+
+    def _edge_support(q):
+        """Media (0..1) della quota di campioni su bordo reale per lato; lati sul
+        bordo foto → ignorati (None). Ritorna (support, n_lati_su_bordo_foto)."""
+        sups = []; on_frame = 0
+        for i in range(4):
+            p1, p2 = q[i], q[(i + 1) % 4]
+            hit = tot = 0; framed = 0
+            for t in np.linspace(0.05, 0.95, 36):
+                p = p1 + (p2 - p1) * t
+                x, y = int(round(p[0])), int(round(p[1]))
+                if not (0 <= x < sw and 0 <= y < sh):
+                    continue
+                if x < PAD + 4 or y < PAD + 4 or x >= sw - PAD - 4 or y >= sh - PAD - 4:
+                    framed += 1; continue
+                tot += 1
+                if gmax[y, x] >= 22.0:
+                    hit += 1
+            if framed >= 18:
+                on_frame += 1; sups.append(None)
+            elif tot >= 8:
+                sups.append(hit / tot)
+            else:
+                sups.append(None)
+        known = [v for v in sups if v is not None]
+        return (float(np.mean(known)) if known else 0.5), on_frame
+
+    # Sfondo "senza testo": sfocatura larga → il testo sparisce, restano carta/tavolo/oggetti
+    # Chiusura morfologica (max→min, 17px @900px): cancella i tratti scuri sottili (testo, righe di
+    # tabella) e conserva le zone scure estese (tavolo, telefono, oggetti).
+    _k_txt = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (_ks(17), _ks(17)))
+    bg_l = cv2.morphologyEx(blur, cv2.MORPH_CLOSE, _k_txt).astype(np.float32)
+    bg_s = cv2.morphologyEx(sat_small, cv2.MORPH_OPEN, _k_txt)  # loghi/colori piccoli via, oggetti colorati restano
+
+    def _fill_ratio(q):
+        """Quota dell'interno (esclusa una cornice di 13px) il cui SFONDO è uniforme:
+        luminanza entro ±22% della mediana interna e saturazione bassa. Il testo è
+        rimosso dalla sfocatura larga, le ombre graduali passano; tavolo/oggetti
+        inclusi in un inviluppo troppo largo fanno crollare il valore."""
+        poly = np.zeros((sh, sw), np.uint8)
+        cv2.fillPoly(poly, [np.int32(q)], 255)
+        er = cv2.erode(poly, np.ones((_ks(27), _ks(27)), np.uint8))
+        idx = er > 0
+        n = int(idx.sum())
+        if n < 400:
+            return 0.0
+        vals = bg_l[idx]
+        p90 = float(np.percentile(vals, 90))
+        # "carta" = non molto più scuro del bianco-carta (testo denso/ombre tollerati) e poco saturo
+        ok = (vals >= 0.62 * p90) & (bg_s[idx] < 110)
+        return float(ok.mean())
+
+    def _ring_is_paper(q):
+        """Robusto alle ombre: misura il GRADINO di luminanza dello sfondo senza testo
+        (bg_l) attraverso ogni lato (±12px). Se lungo i lati noti lo sfondo è continuo
+        (gradino mediano < 10), il candidato è una tabella/blocco dentro a un foglio
+        più grande (o comunque non il bordo di un documento) → scarta."""
+        cx, cy = q.mean(axis=0)
+        steps = []
+        for i in range(4):
+            p1, p2 = q[i], q[(i + 1) % 4]
+            mid = (p1 + p2) / 2.0
+            n = np.array([cx, cy]) - mid
+            nn = np.linalg.norm(n)
+            if nn < 1e-3:
+                continue
+            n = n / nn * max(5.0, 12.0 * S_)
+            side = []
+            for t in np.linspace(0.1, 0.9, 17):
+                p = p1 + (p2 - p1) * t
+                pi = p + n; po = p - n
+                xi, yi, xo, yo = int(pi[0]), int(pi[1]), int(po[0]), int(po[1])
+                if not (PAD <= xi < sw - PAD and PAD <= yi < sh - PAD and PAD <= xo < sw - PAD and PAD <= yo < sh - PAD):
+                    continue
+                side.append(abs(float(bg_l[yi, xi]) - float(bg_l[yo, xo])))
+            if len(side) >= 6:
+                steps.append(float(np.median(side)))
+        if not steps:
+            return False
+        # Servono almeno 2 lati (o tutti quelli noti) con un vero gradino (≥ 14):
+        # altrimenti dentro e fuori è lo stesso materiale.
+        real = sum(1 for v in steps if v >= 14.0)
+        return real < min(2, len(steps))
+
+    def _score_candidate(q):
+        if _is_whole_frame(q) or not _angles_ok(q):
+            return None
+        area_q = cv2.contourArea(np.float32(q))
+        frac_q = area_q / frame_area
+        if frac_q < 0.12 or frac_q > 0.93:
+            return None
+        (_, (rw, rh), _) = cv2.minAreaRect(np.float32(q))
+        rect_area = float(rw * rh)
+        rectangularity = area_q / max(rect_area, 1.0)
+        if rectangularity < 0.80:
+            return None
+        if min(rw, rh) < 1 or max(rw, rh) / max(1.0, min(rw, rh)) > 3.0:
+            return None  # strisce: non è un documento
+        sup, on_frame = _edge_support(q)
+        if on_frame >= 3:
+            return None  # praticamente l'intero frame
+        if sup < 0.45:
+            return None  # lati non appoggiati a bordi reali (inviluppo inventato)
+        known = [c for c in _side_contrasts(q) if c is not None]
+        if known and sum(1 for c in known if c >= 10) < min(2, len(known)):
+            return None
+        if _outside_is_paper(q) or _ring_is_paper(q):
+            return None
+        fill = _fill_ratio(q)
+        if fill < 0.62:
+            return None
+        contrast = float(np.mean(known)) if known else 20.0
+        quality = fill * (0.35 + 0.65 * sup) * rectangularity * (0.5 + 0.5 * min(1.0, contrast / 40.0))
+        # Premio dimensione solo a parità di qualità (saturato oltre il 40% del frame)
+        return quality * (0.55 + 0.45 * min(1.0, frac_q / 0.40))
+
+    def _quads_from_contour(c):
+        hull = cv2.convexHull(c)
+        peri = cv2.arcLength(hull, True)
+        out = []
+        for eps in (0.015, 0.02, 0.03, 0.04, 0.05, 0.07, 0.09):
+            approx = cv2.approxPolyDP(hull, eps * peri, True)
+            if len(approx) == 4:
+                out.append(_order_quad(approx.reshape(4, 2).astype("float32")))
+                break
+        # Sempre anche il min-rect: robusto quando un oggetto tocca il foglio (l'hull
+        # diventa un pentagono ma il rettangolo minimo resta ~ il foglio).
+        out.append(_order_quad(cv2.boxPoints(cv2.minAreaRect(hull))))
+        return out
+
+    candidates = []
     for em in edge_maps:
         contours, _ = cv2.findContours(em, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         contours = sorted(contours, key=cv2.contourArea, reverse=True)[:10]
         for c in contours:
-            area = cv2.contourArea(c)
-            frac = area / frame_area
-            if frac < 0.15:
+            frac = cv2.contourArea(c) / frame_area
+            if frac < 0.10:
                 break
             if frac > 0.985:
                 continue
-            hull = cv2.convexHull(c)
-            peri = cv2.arcLength(hull, True)
-            quad = None
-            for eps in (0.02, 0.03, 0.04, 0.05, 0.07):
-                approx = cv2.approxPolyDP(hull, eps * peri, True)
-                if len(approx) == 4:
-                    quad = approx.reshape(4, 2).astype("float32"); break
-            if quad is None:
-                if frac > fallback_area and frac >= 0.30:
-                    fallback, fallback_area = hull, frac
+            candidates.extend(_quads_from_contour(c))
+    # Segmentazione "carta": regioni chiare e poco sature (foglio su tavolo colorato/scuro)
+    try:
+        paper = ((blur > max(110, min(200, med + 10))) & (sat_small < 80)).astype(np.uint8) * 255
+        paper = cv2.morphologyEx(paper, cv2.MORPH_OPEN, np.ones((_ks(7), _ks(7)), np.uint8))
+        paper = cv2.morphologyEx(paper, cv2.MORPH_CLOSE, np.ones((_ks(15), _ks(15)), np.uint8))
+        pc, _ = cv2.findContours(paper, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in sorted(pc, key=cv2.contourArea, reverse=True)[:4]:
+            if cv2.contourArea(c) / frame_area >= 0.10:
+                candidates.extend(_quads_from_contour(c))
+        # Fogli che si toccano (es. la pagina già scansionata appoggiata accanto alla
+        # successiva): erosione forte → le regioni si separano → ogni componente viene
+        # ri-dilatata singolarmente e proposta come candidato.
+        for er_px in (_ks(11), _ks(21)):
+            k_er = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (er_px, er_px))
+            eroded = cv2.erode(paper, k_er)
+            n_lbl, lbl = cv2.connectedComponents(eroded)
+            if n_lbl <= 1 or n_lbl > 12:
                 continue
-            q = _order_quad(quad)
-            if _is_whole_frame(q) or not _angles_ok(q):
-                continue
-            rect_area = cv2.contourArea(cv2.boxPoints(cv2.minAreaRect(quad)))
-            rectangularity = cv2.contourArea(quad) / max(rect_area, 1.0)
-            if rectangularity < 0.75:
-                continue
-            known = [c for c in _side_contrasts(q) if c is not None]
-            if known and sum(1 for c in known if c >= 10) < min(2, len(known)):
-                continue  # lati senza contrasto: non è il bordo di un documento
-            if _outside_is_paper(q):
-                continue  # fuori dal quadrilatero c'è ancora carta: il foglio riempie la foto
-            contrast = float(np.mean(known)) if known else 0.0
-            score = frac * rectangularity * (0.4 + 0.6 * min(1.0, contrast / 40.0))
-            if score > best_score:
-                best, best_score = q, score
-    if best is None and fallback is not None:
-        box = _order_quad(cv2.boxPoints(cv2.minAreaRect(fallback)))
-        known = [c for c in _side_contrasts(box) if c is not None]
-        if not _is_whole_frame(box) and (not known or sum(1 for c in known if c >= 10) >= min(2, len(known))):
-            best = box
+            for li in range(1, n_lbl):
+                comp = (lbl == li).astype(np.uint8) * 255
+                if comp.sum() / 255.0 / frame_area < 0.08:
+                    continue
+                comp = cv2.dilate(comp, k_er)
+                cc, _ = cv2.findContours(comp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for c in cc:
+                    if cv2.contourArea(c) / frame_area >= 0.10:
+                        candidates.extend(_quads_from_contour(c))
+    except Exception:
+        pass
+
+    best = None; best_score = 0.0
+    seen = []
+    for q in candidates:
+        # dedup (stesso quadrilatero da mappe diverse)
+        if any(np.abs(q - s_).max() < 4.0 for s_ in seen):
+            continue
+        seen.append(q)
+        sc = _score_candidate(q)
+        if sc is not None and sc > best_score:
+            best, best_score = q, sc
     if best is None:
         return None
     # Rimuovi padding, torna a coordinate full-res e clampa
