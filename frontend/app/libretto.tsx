@@ -26,7 +26,7 @@ import { Asset } from "expo-asset";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
-import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection, LibrettoMeta, LIBRETTO_IMAGE_MAP, resolveSectionImage } from "@/src/libretto/libretto-content";
+import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection, LibrettoMeta, LIBRETTO_IMAGE_MAP, resolveSectionImage, withCorporateGymSection } from "@/src/libretto/libretto-content";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 
@@ -223,7 +223,7 @@ export default function LibrettoScreen() {
       try {
         const r = await api<any>("/libretto/content");
         if (r && !r.is_default && Array.isArray(r.sections) && r.sections.length > 0) {
-          setSections(r.sections as LibrettoSection[]);
+          setSections(withCorporateGymSection(r.sections as LibrettoSection[]));
           if (r.meta) setMeta(r.meta as LibrettoMeta);
         }
       } catch { /* fallback statico */ }
@@ -446,7 +446,19 @@ function SectionCard({ section }: { section: LibrettoSection }) {
         ))}
         {imgSrc ? (
           <View style={styles.screenshotWrap}>
-            <Image source={imgSrc as any} style={styles.screenshotImg} resizeMode="contain" />
+            <Image source={imgSrc as any} style={section.image_wide ? styles.bannerImg : styles.screenshotImg} resizeMode="contain" />
+          </View>
+        ) : null}
+        {section.icons?.length ? (
+          <View style={styles.secIcons} testID={`libretto-icons-${section.id}`}>
+            {section.icons.map((ic) => (
+              LIBRETTO_IMAGE_MAP[ic.image_key] ? (
+                <View key={ic.image_key} style={styles.secIcon}>
+                  <Image source={LIBRETTO_IMAGE_MAP[ic.image_key]} style={styles.secIconImg} resizeMode="contain" />
+                  <Text style={styles.secIconLbl}>{ic.label}</Text>
+                </View>
+              ) : null
+            ))}
           </View>
         ) : null}
         {section.mockup ? (
@@ -584,6 +596,11 @@ const styles = StyleSheet.create({
   secSub: { color: "rgba(255,255,255,0.9)", fontSize: 12, marginTop: 3 },
   secBody: { padding: 18 },
   secP: { fontSize: 13.5, lineHeight: 21, color: "#0F172A", marginBottom: 10 },
+  bannerImg: { width: "100%", height: 112, borderRadius: 10 },
+  secIcons: { flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 10 },
+  secIcon: { alignItems: "center", gap: 4, width: 120 },
+  secIconImg: { width: 110, height: 80 },
+  secIconLbl: { fontSize: 12, fontWeight: "800", color: "#111820", textAlign: "center" },
   screenshotWrap: {
     alignItems: "center",
     marginTop: 10,

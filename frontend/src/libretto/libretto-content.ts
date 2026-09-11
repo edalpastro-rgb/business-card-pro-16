@@ -25,6 +25,10 @@ export type LibrettoSection = {
   /** Data URL (es. `data:image/jpeg;base64,...`) caricato dal Master. */
   image_data_url?: string | null;
   warning?: string | null;
+  /** V50.z178 — icone opzionali mostrate sotto l'immagine (es. sezioni Corporate Gym). */
+  icons?: { image_key: string; label: string }[];
+  /** V50.z178 — immagine orizzontale (banner) invece dello screenshot verticale. */
+  image_wide?: boolean;
 };
 
 export type LibrettoMeta = {
@@ -46,6 +50,10 @@ export const LIBRETTO_IMAGE_MAP: Record<string, number> = {
   "08_calendario": require("@/assets/images/libretto/08_calendario.jpg"),
   "09_report": require("@/assets/images/libretto/09_report.jpg"),
   "10_ai_teach": require("@/assets/images/libretto/10_ai_teach.jpg"),
+  // Corporate Gym (banner + icone sezioni) — V50.z178
+  "11_cgym_banner": require("@/assets/images/libretto/11_cgym_banner.jpg"),
+  "cgym_obiezioni": require("@/assets/images/libretto/cgym_obiezioni.png"),
+  "cgym_winwin": require("@/assets/images/libretto/cgym_winwin.png"),
 };
 
 /** Elenco chiavi disponibili per il selector nell'editor. */
@@ -338,6 +346,23 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     ],
   },
   {
+    id: "corporate-gym",
+    icon: "barbell",
+    emoji: "🏋️",
+    color: "#F97316",
+    title: "Corporate Gym — Formazione vocale per il tuo team",
+    subtitle: "Role-play vocale con AxonOS · Gym Obiezioni e Gym WIN-WIN",
+    image_key: "11_cgym_banner",
+    image_wide: true,
+    paragraphs: [
+      "Allena i tuoi consulenti con sessioni di role-play vocale simulate da AxonOS. Gestisci obiezioni, trattative e qualsiasi scenario di vendita. Il Master assegna le sessioni, monitora i progressi e riceve insight settimanali da AxonOS per migliorare continuamente il team.",
+    ],
+    icons: [
+      { image_key: "cgym_obiezioni", label: "Gym Obiezioni" },
+      { image_key: "cgym_winwin", label: "Gym WIN-WIN" },
+    ],
+  },
+  {
     id: "consigli",
     icon: "bulb",
     emoji: "💡",
@@ -366,6 +391,18 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
 ];
 
 /** Risolve la fonte immagine per una sezione. */
+/** V50.z178 — Sezione Corporate Gym statica (usata anche per integrare contenuti salvati dal Master che non la contengono). */
+export const LIBRETTO_CGYM_SECTION: LibrettoSection = LIBRETTO_SECTIONS.find((s) => s.id === "corporate-gym") as LibrettoSection;
+
+/** Inserisce lo step Corporate Gym prima della chiusura (Consigli/FAQ) se manca. Non tocca gli step esistenti. */
+export function withCorporateGymSection(sections: LibrettoSection[]): LibrettoSection[] {
+  if (!Array.isArray(sections) || sections.some((s) => s.id === "corporate-gym")) return sections;
+  const idx = sections.findIndex((s) => s.id === "consigli" || s.id === "faq");
+  const out = [...sections];
+  out.splice(idx >= 0 ? idx : out.length, 0, LIBRETTO_CGYM_SECTION);
+  return out;
+}
+
 export function resolveSectionImage(section: LibrettoSection): number | { uri: string } | null {
   if (section.image_data_url && section.image_data_url.startsWith("data:")) {
     return { uri: section.image_data_url };

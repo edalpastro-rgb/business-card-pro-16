@@ -193,6 +193,12 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z178 — Tour guidato: step Corporate Gym** (`src/libretto/libretto-content.ts`, `app/libretto.tsx`; step esistenti INTATTI).
+  Nuova sezione `corporate-gym` ("Corporate Gym — Formazione vocale per il tuo team", testo fornito dall'utente) inserita dopo il blocco
+  AxonOS/funzioni e PRIMA della chiusura (16 · Consigli, 17 · FAQ). Immagine = banner Corporate Gym bundled
+  (`assets/images/libretto/11_cgym_banner.jpg`, nuovo campo `image_wide` → resa orizzontale) + due icone sezione con etichetta
+  (`cgym_obiezioni.png` "Gym Obiezioni", `cgym_winwin.png` "Gym WIN-WIN"; nuovo campo opzionale `icons[]` in `LibrettoSection`).
+  `withCorporateGymSection()` aggiunge lo step anche ai libretti personalizzati salvati dal Master (`/libretto/content`) se manca.
 - **V50.z177 — Axon Drive (ex "Copilot Vocale · Modalità Auto")** — rinominato ovunque (drawer "Axon Drive" + icona auto a fianco,
   header pagina con icona auto, azione rapida Home, Libretto/tour, wake-word). Pagina `app/voice-copilot.tsx` ridisegnata SOLO UI
   (logica registrazione/trascrizione/execute/TTS invariata): sfondo interno auto notturno (`assets/images/axon-drive-bg.jpg`, generato con
@@ -399,6 +405,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z178 | Giu 2026 | Tour guidato/Libretto: nuovo step "Corporate Gym — Formazione vocale per il tuo team" (banner + icone Gym Obiezioni/WIN-WIN) prima di Consigli/FAQ; step esistenti invariati; integrato anche nei libretti personalizzati |
 | V50.z177 | Giu 2026 | Axon Drive: rinomina globale di "Copilot Vocale · Modalità Auto" (drawer+icona auto, header, Home, libretto) e redesign UI della pagina (sfondo interno auto, volante centrale, esempi grandi con icona, mic prominente); nessuna modifica funzionale |
 | V50.z176 | Giu 2026 | Scanner: `_detect_document_quad` sceglie il "documento principale" tra oggetti sul tavolo con punteggio di somiglianza a documento (fill senza testo, bordi reali, gradino dentro/fuori, rettangolarità, aspetto) prima della dimensione; segmentazione carta + separazione fogli adiacenti; benchmark 59/60 (era 53/60) |
 | V50.z175 | Giu 2026 | Corporate Gym · Manuali Google Drive gestiti da AxonOS: il Master configura la cartella principale (sottocartelle Obiezioni/WIN-WIN per nome), "Leggi Manuale" nelle due sezioni elenca i PDF letti live dal Drive del Master (ricerca per nome, Apri/Scarica via link firmato 12h `/public/cgym-manual/{token}`), sempre ultima versione; solo il Master modifica il percorso |
