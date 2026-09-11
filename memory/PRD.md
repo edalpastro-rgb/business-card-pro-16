@@ -5947,3 +5947,8 @@ else Linking.openURL(url).catch(() => {});
 ## Verifica utente (Giugno 2026)
 - Confermati da app telefono: scanner multi-scatto resta sulla fotocamera dopo "Usa questa"; padding inferiore safe-area su modali/pulsanti fissi (es. "Avvia analisi AI").
 - Backlog aperto: bug modali annidati (in pausa su richiesta utente), permessi fotocamera Android (richiede build nativa), registro chiamate Android, confronto KPI collaboratori.
+
+## Scanner V50.z166 (Giugno 2026 — job d664abc6)
+- Autocrop indipendente per ogni scatto: mutex fotocamera (sample vs scatto), reset rilevamento, pausa campionamento durante autocrop, 3 tentativi con timeout 45s + badge "riprova".
+- Suono scatto regolabile (Basso default / Muto / Sistema) persistito; click soft `assets/sounds/shutter-soft.wav`.
+- Flusso multi-pagina: resta nello scanner dopo "Usa questa" (già V50.z165, riverificato).

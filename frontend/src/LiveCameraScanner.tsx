@@ -29,12 +29,32 @@ import {
   Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraView, useCameraPermissions, type CameraCapturedPicture } from "expo-camera";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polygon, Circle } from "react-native-svg";
+import { useAudioPlayer } from "expo-audio";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { storage } from "@/src/utils/storage";
 import { ManualCropEditor } from "@/src/ManualCropEditor";
+
+// V50.z166 — Suono di scatto regolabile: "soft" (click discreto a basso volume,
+// default), "system" (otturatore di sistema, forte), "mute" (nessun suono).
+// Persistito per-device. Su iOS il suono di sistema non è disattivabile via API
+// (policy Apple): "soft"/"mute" evitano solo il click aggiuntivo dell'app.
+type ShutterSoundMode = "soft" | "system" | "mute";
+const SHUTTER_SOUND_KEY = "scanner_shutter_sound_v1";
+const SHUTTER_SOFT_SRC = require("@/assets/sounds/shutter-soft.wav");
+const SHUTTER_SOFT_VOLUME = 0.3;
+
+// V50.z166 — Timeout helper: nessuna promise (fotocamera o rete) può restare appesa
+// per sempre bloccando il rilevamento live o il ritaglio delle pagine successive.
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(label)), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
 
 export type LiveScannedPage = {
   data_base64: string;
@@ -46,6 +66,7 @@ export type LiveScannedPage = {
   manual?: boolean; // true = ritaglio manuale dell'utente (non sovrascrivere con l'autocrop)
   id?: string; // V50.z139 — id univoco dello scatto (l'autocrop asincrono aggiorna per id, non per indice)
   processed?: boolean; // V50.z139 — true quando /scanner/autocrop-preview ha risposto (ok o fallback)
+  autocrop_failed?: boolean; // V50.z166 — true se il ritaglio automatico NON è stato eseguito per errore di rete/timeout (riprovabile)
 };
 
 type Props = {
@@ -105,6 +126,55 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   const [sharpness, setSharpness] = useState<number | null>(null);
   const SHARPNESS_THRESHOLD = 90; // empirical (backend returns Laplacian var on 400px gray)
 
+  // V50.z166 — Mutex fotocamera: il campionamento live e lo scatto vero NON devono
+  // mai chiamare takePictureAsync in parallelo (su Android il secondo scatto poteva
+  // ricevere il frame a bassa qualità del campionamento o restare appeso → autocrop
+  // "a intermittenza" dalla seconda foto in poi). Tutte le catture passano da qui,
+  // in coda e con timeout.
+  const captureChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const shotPendingRef = useRef(false); // true = scatto utente richiesto: il campionamento si ferma subito
+  const runExclusiveCapture = useCallback(<T,>(fn: () => Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+    const run = captureChainRef.current.catch(() => {}).then(() => withTimeout(fn(), timeoutMs, label));
+    captureChainRef.current = run.catch(() => {});
+    return run;
+  }, []);
+  // Reset completo dello stato di rilevamento: ogni scatto è indipendente dai precedenti
+  // (prima i corner della pagina precedente restavano nello smoothing EMA → il frame verde
+  // "trascinava" la posizione del foglio già acquisito).
+  const resetDetection = useCallback(() => {
+    lastCornersRef.current = null;
+    stableSinceRef.current = null;
+    setLiveCorners(null);
+    setAutoCountdown(null);
+    setSharpness(null);
+  }, []);
+
+  // V50.z166 — Suono di scatto regolabile
+  const [shutterMode, setShutterMode] = useState<ShutterSoundMode>("soft");
+  const softClick = useAudioPlayer(SHUTTER_SOFT_SRC);
+  useEffect(() => {
+    storage.getItem<ShutterSoundMode>(SHUTTER_SOUND_KEY, "soft").then((m) => {
+      if (m === "soft" || m === "system" || m === "mute") setShutterMode(m);
+    }).catch(() => {});
+  }, []);
+  useEffect(() => {
+    try { softClick.volume = SHUTTER_SOFT_VOLUME; } catch {}
+  }, [softClick]);
+  const cycleShutterMode = useCallback(() => {
+    setShutterMode((m) => {
+      const next: ShutterSoundMode = m === "soft" ? "mute" : m === "mute" ? "system" : "soft";
+      storage.setItem(SHUTTER_SOUND_KEY, next).catch(() => {});
+      return next;
+    });
+  }, []);
+  const playSoftClick = useCallback(() => {
+    try {
+      softClick.volume = SHUTTER_SOFT_VOLUME;
+      softClick.seekTo(0);
+      softClick.play();
+    } catch {}
+  }, [softClick]);
+
   // Reset state when modal is closed
   useEffect(() => {
     if (!visible) {
@@ -117,6 +187,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
       setLiveCorners(null);
       lastCornersRef.current = null;
       detectBusyRef.current = false;
+      shotPendingRef.current = false;
       stableSinceRef.current = null;
       cooldownUntilRef.current = 0;
       setAutoCountdown(null);
@@ -183,6 +254,13 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
     // chiamare takePictureAsync (suono/flash otturatore ogni 0,9s) e l'auto-scatto
     // poteva ripartire dopo il cooldown → "continua a scattare".
     if (reviewIdx != null) return; // V50.z165 — in anteprima non campionare; dopo "Usa questa" si resta pronti
+    // V50.z166 — Mentre il ritaglio di una pagina è in corso NON si campiona: la banda
+    // (rete mobile) va tutta all'autocrop, che è il requisito principale. Il loop riparte
+    // da solo appena processingCount torna a 0 (timeout garantito lato applyAutocropAsync).
+    if (processingCount > 0) return;
+    // Ogni ripartenza del loop parte "pulita": nessun corner della pagina precedente.
+    lastCornersRef.current = null;
+    stableSinceRef.current = null;
     let cancelled = false;
     const SAMPLE_INTERVAL = 900; // faster sampling so auto-shutter feels responsive
     const ALPHA = 0.55; // 0 = no smoothing, 1 = only new value
@@ -215,23 +293,33 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
       if (cancelled) return;
       if (detectBusyRef.current) return;
       if (busy) return; // don't sample while user is capturing
+      if (shotPendingRef.current) return; // V50.z166 — scatto utente in arrivo: lascia libera la fotocamera
       if (!cameraRef.current) return;
       detectBusyRef.current = true;
       try {
-        const snap = await cameraRef.current.takePictureAsync({
-          base64: true,
-          quality: 0.1,
-          skipProcessing: true,
-          exif: false,
-          shutterSound: false, // V50.z162 — campionamento silenzioso (Android)
-        } as any);
-        if (cancelled) return;
-        if (!snap?.base64) return;
-        const r = await api<{ detected: boolean; corners: [number, number][] | null; sharpness?: number }>(
-          "/scanner/detect-corners",
-          { method: "POST", body: { data_base64: snap.base64, mime: "image/jpeg" } },
+        const cam = cameraRef.current;
+        const snap = await runExclusiveCapture(
+          () => cam.takePictureAsync({
+            base64: true,
+            quality: 0.1,
+            skipProcessing: true,
+            exif: false,
+            shutterSound: false, // V50.z162 — campionamento silenzioso (Android)
+          } as any) as unknown as Promise<CameraCapturedPicture | undefined>,
+          6000,
+          "sample-timeout",
         );
-        if (cancelled) return;
+        if (cancelled || shotPendingRef.current) return;
+        if (!snap?.base64) return;
+        const r = await withTimeout(
+          api<{ detected: boolean; corners: [number, number][] | null; sharpness?: number }>(
+            "/scanner/detect-corners",
+            { method: "POST", body: { data_base64: snap.base64, mime: "image/jpeg" } },
+          ),
+          8000,
+          "detect-timeout",
+        );
+        if (cancelled || shotPendingRef.current) return;
         const now = Date.now();
         const sh = typeof r?.sharpness === "number" ? r.sharpness : null;
         setSharpness(sh);
@@ -297,19 +385,38 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
     };
     // Note: takeShot is stable via useCallback below; adding it here would cause a re-subscribe cycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, edgeDetectOn, permission?.granted, busy, autoShutter, reviewIdx]);
+  }, [visible, edgeDetectOn, permission?.granted, busy, autoShutter, reviewIdx, processingCount]);
 
   const applyAutocropAsync = useCallback(
     async (pageId: string, data_base64: string) => {
       setProcessingCount((c) => c + 1);
+      setPages((prev) => prev.map((p) => (p.id === pageId ? { ...p, processed: false, autocrop_failed: false } : p)));
+      let failed = false;
       try {
-        // V50.z165 — 1 retry automatico su errore di rete (prima un errore → foto non ritagliata, senza avviso)
-        const call = () => api<{ detected: boolean; data_base64: string; mime: string; sharpness?: number }>(
-          "/scanner/autocrop-preview",
-          { method: "POST", body: { data_base64, mime: "image/jpeg", enhance, grayscale } },
-        );
-        let r: Awaited<ReturnType<typeof call>>;
-        try { r = await call(); } catch { r = await call(); }
+        // V50.z166 — Ogni pagina ha la sua richiesta indipendente: fino a 3 tentativi con
+        // backoff, ciascuno con AbortController + timeout 45s (prima: nessun timeout → una
+        // richiesta appesa lasciava la pagina in "Ritaglio in corso…" per sempre e bloccava
+        // "Usa questa" in Foto singola).
+        type R = { detected: boolean; data_base64: string; mime: string; sharpness?: number };
+        let r: R | null = null;
+        let lastErr: unknown = null;
+        for (let attempt = 0; attempt < 3 && !r; attempt++) {
+          const ac = new AbortController();
+          const t = setTimeout(() => ac.abort(), 45000);
+          try {
+            r = await api<R>("/scanner/autocrop-preview", {
+              method: "POST",
+              body: { data_base64, mime: "image/jpeg", enhance, grayscale },
+              signal: ac.signal,
+            });
+          } catch (e) {
+            lastErr = e;
+            if (attempt < 2) await new Promise((res) => setTimeout(res, 1200 * (attempt + 1)));
+          } finally {
+            clearTimeout(t);
+          }
+        }
+        if (!r) throw lastErr || new Error("autocrop failed");
         // Bug 11.d — Motion-blur detection on the actual captured frame.
         // On the FULL-res image the Laplacian variance is much higher than
         // the sampling frame (400px). Threshold ~250 empirically differentiates
@@ -332,9 +439,10 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
           }));
         }
       } catch {
-        // Silently keep original page — user can still crop server-side on save
+        // Rete/timeout: la pagina resta originale, ma viene marcata come riprovabile
+        failed = true;
       } finally {
-        setPages((prev) => prev.map((p) => (p.id === pageId ? { ...p, processed: true } : p)));
+        setPages((prev) => prev.map((p) => (p.id === pageId ? { ...p, processed: true, autocrop_failed: failed } : p)));
         setProcessingCount((c) => Math.max(0, c - 1));
       }
     },
@@ -343,19 +451,30 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
 
   const takeShot = useCallback(async () => {
     if (busy || !cameraRef.current) return;
-    stableSinceRef.current = null;
-    setAutoCountdown(null);
+    // V50.z166 — Blocca subito il campionamento live e azzera il rilevamento: lo scatto
+    // e il suo autocrop sono indipendenti dalle pagine già acquisite.
+    shotPendingRef.current = true;
+    resetDetection();
+    cooldownUntilRef.current = Date.now() + 2500;
     setBusy(true);
     try {
       // V50.z5 — Piccolo delay pre-scatto per dare tempo all'autofocus di
       // agganciare il documento (evita scatti sfocati in modalità manuale).
       await new Promise((res) => setTimeout(res, 350));
-      const photo = await cameraRef.current.takePictureAsync({
-        base64: true,
-        quality: 0.9,
-        skipProcessing: false,
-        exif: false,
-      });
+      const cam = cameraRef.current;
+      if (shutterMode === "soft") playSoftClick();
+      const photo = await runExclusiveCapture(
+        () => cam.takePictureAsync({
+          base64: true,
+          quality: 0.9,
+          skipProcessing: false,
+          exif: false,
+          // Android: suono di sistema solo in modalità "system"; iOS ignora l'opzione
+          shutterSound: shutterMode === "system",
+        } as any) as unknown as Promise<CameraCapturedPicture | undefined>,
+        20000,
+        "Fotocamera non ha risposto (timeout)",
+      );
       if (!photo?.base64) {
         notify("Errore", "Foto non acquisita — riprova.");
         return;
@@ -398,9 +517,10 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
     } catch (e: any) {
       notify("Errore fotocamera", e?.message || "");
     } finally {
+      shotPendingRef.current = false;
       setBusy(false);
     }
-  }, [busy, applyAutocropAsync]);
+  }, [busy, applyAutocropAsync, resetDetection, runExclusiveCapture, shutterMode, playSoftClick]);
 
   const removePage = (idx: number) => {
     setPages((prev) => prev.filter((_, i) => i !== idx));
@@ -582,7 +702,9 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
               />
               <Text style={styles.topBadgeTxt}>
                 {edgeDetectOn
-                  ? liveCorners && sharpness !== null && sharpness < SHARPNESS_THRESHOLD
+                  ? processingCount > 0
+                    ? "Ritaglio pagina in corso… attendi"
+                    : liveCorners && sharpness !== null && sharpness < SHARPNESS_THRESHOLD
                     ? "Immagine mossa · tieni fermo per fuoco"
                     : autoCountdown !== null
                       ? `Scatto tra ${Math.max(0, Math.ceil((1 - autoCountdown) * 1))}s…`
@@ -592,8 +714,23 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                           : "Documento rilevato · tocca per scattare"
                         : "Cerco i bordi… inquadra il foglio"
                   : "Autofocus attivo · rilevamento OFF"}
-                {processingCount > 0 ? ` · ${processingCount}` : ""}
+                {processingCount > 1 ? ` · ${processingCount}` : ""}
               </Text>
+            </Pressable>
+            <Pressable
+              onPress={cycleShutterMode}
+              hitSlop={12}
+              style={[styles.circleBtn, shutterMode === "system" && { backgroundColor: "#F59E0B" }]}
+              testID="live-scan-sound"
+              accessibilityLabel={
+                shutterMode === "soft" ? "Suono scatto: basso" : shutterMode === "mute" ? "Suono scatto: muto" : "Suono scatto: sistema"
+              }
+            >
+              <Ionicons
+                name={shutterMode === "soft" ? "volume-low" : shutterMode === "mute" ? "volume-mute" : "volume-high"}
+                size={18}
+                color="#FFF"
+              />
             </Pressable>
             <Pressable
               onPress={() => {
@@ -732,10 +869,20 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                   <Text style={styles.cropBadgeTxt}>Ritagliata automaticamente</Text>
                 </View>
               ) : pages[reviewIdx].processed ? (
-                <View style={styles.cropBadgeWarn}>
-                  <Ionicons name="information-circle" size={14} color="#F59E0B" />
-                  <Text style={styles.cropBadgeTxtWarn}>Bordi non rilevati · usa Ritaglia</Text>
-                </View>
+                <Pressable
+                  onPress={() => {
+                    const pg = pages[reviewIdx];
+                    if (pg?.id) applyAutocropAsync(pg.id, pg.original_base64 || pg.data_base64);
+                  }}
+                  style={styles.cropBadgeWarn}
+                  testID="live-review-autocrop-retry"
+                  hitSlop={6}
+                >
+                  <Ionicons name={pages[reviewIdx].autocrop_failed ? "refresh-circle" : "information-circle"} size={14} color="#F59E0B" />
+                  <Text style={styles.cropBadgeTxtWarn}>
+                    {pages[reviewIdx].autocrop_failed ? "Ritaglio non riuscito (rete) · tocca per riprovare" : "Bordi non rilevati · riprova o usa Ritaglia"}
+                  </Text>
+                </Pressable>
               ) : (
                 <View style={styles.cropBadgeWarn}>
                   <ActivityIndicator size="small" color="#F59E0B" />
@@ -831,8 +978,8 @@ const styles = StyleSheet.create({
   reviewTitle: { color: "#FFF", fontSize: 17, fontWeight: "900" },
   cropBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(15,157,88,0.2)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
   cropBadgeTxt: { color: "#0F9D58", fontSize: 11, fontWeight: "800" },
-  cropBadgeWarn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(245,158,11,0.2)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
-  cropBadgeTxtWarn: { color: "#F59E0B", fontSize: 11, fontWeight: "800" },
+  cropBadgeWarn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(245,158,11,0.2)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, flexShrink: 1, marginLeft: 8 },
+  cropBadgeTxtWarn: { color: "#F59E0B", fontSize: 11, fontWeight: "800", flexShrink: 1 },
   reviewImgWrap: { flex: 1, backgroundColor: "#111", borderRadius: 8, overflow: "hidden", marginBottom: 12 },
   reviewImg: { width: "100%", height: "100%" },
   reviewActions: { flexDirection: "row", gap: 10, paddingBottom: 20 },

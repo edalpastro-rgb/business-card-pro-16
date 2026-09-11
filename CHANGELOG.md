@@ -193,6 +193,18 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z166 — Scanner: autocrop indipendente per ogni scatto + suono regolabile** (`LiveCameraScanner.tsx`, nessun altro file):
+  (1) **mutex fotocamera** `runExclusiveCapture`: campionamento live e scatto vero non chiamano mai `takePictureAsync` in parallelo
+  (su Android il 2° scatto poteva ricevere il frame 0.1 del campionamento o restare appeso → autocrop "a intermittenza" dalla 2ª foto);
+  `shotPendingRef` ferma il campionamento appena l'utente tocca lo scatto; timeout 6s (sample) / 20s (scatto) → nulla resta bloccato;
+  (2) **reset rilevamento a ogni scatto** (`resetDetection`): i corner EMA della pagina precedente non "trascinano" più il frame verde;
+  il loop riparte pulito; (3) **campionamento in pausa mentre un autocrop è in corso** (`processingCount > 0`, badge "Ritaglio pagina in
+  corso… attendi") → tutta la banda alla richiesta principale; (4) **autocrop per pagina con AbortController**: 3 tentativi, backoff
+  1,2/2,4s, timeout 45s ciascuno; su fallimento rete la pagina è marcata `autocrop_failed` e il badge in anteprima diventa "Ritaglio non
+  riuscito (rete) · tocca per riprovare" (riesegue solo quella pagina); (5) **suono di scatto** a 3 stati persistiti (`scanner_shutter_sound_v1`):
+  🔉 Basso (default, click `assets/sounds/shutter-soft.wav` via expo-audio vol. 0.3, `shutterSound:false` Android), 🔇 Muto, 🔊 Sistema
+  (`shutterSound:true`). Su iOS il suono di sistema non è disattivabile via API (policy Apple). Flusso multi-pagina confermato: dopo
+  "Usa questa" si resta nello scanner (3 scatti consecutivi in test web, ognuno processato indipendentemente).
 - **V50.z139 — Foto singola = fotocamera in-app + permessi robusti**: "Foto singola" NON usa più `ImagePicker.launchCameraAsync`
   (nessun autofocus, nessun crop, loop permessi) ma `LiveCameraScanner` in modalità `singleShot` (autofocus continuo, rilevamento
   bordi live, autocrop via `/scanner/autocrop-preview` PRIMA di restituire la pagina; "Usa questa" attende il ritaglio, poi chiude e
@@ -295,6 +307,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z166 | Giu 2026 | Scanner (job d664abc6): mutex fotocamera sample/scatto + timeout, reset rilevamento a ogni scatto, campionamento in pausa durante l'autocrop, autocrop per pagina con 3 tentativi/AbortController/45s + badge "riprova", suono scatto Basso/Muto/Sistema persistito (click soft expo-audio) |
 | V50.z165 | Giu 2026 | Batch 3: scanner "Foto singola" resta nello scanner dopo "Usa questa" (strip + "Fine (N)" anche in single, si esce solo con Fine); foto ridimensionata a 1800px con expo-image-manipulator prima dell'upload autocrop (velocità/affidabilità) + 1 retry; **safe-bottom globale**: `useSafeBottom`/`useBottomSheetPadding`/`usePageBottomPadding` con fallback `initialWindowMetrics.insets.bottom` (dentro i Modal Android insets=0) e min Android 24; `useInsetsSafe()` applicato a 15 componenti/modal che usavano `insets.bottom` diretto; bill-quick "Avvia analisi AI" con paddingBottom |
 | V50.z164 | Giu 2026 | Batch 2: (1) indirizzo appuntamento — `composeAppointmentAddress` dà priorità a `location` (campo modificato nella scheda) sui campi strutturati copiati dal contatto → banner/condivisione mostrano l'indirizzo aggiornato; (2) **PDF parser AxonOS** modulo isolato `routes/36b_axon_pdf_link_parser.py`: link .pdf nel messaggio → download (15MB, 25s), testo + righe numeriche (formato IT), cache 6h, sezione "PDF DAL LINK" nel prompt tramite wrap non invasivo di `_build_axon_teach_section`; endpoint `POST /axon/pdf-link/parse` |
 | V50.z163 | Giu 2026 | Pagina Meteo: card "Cerca meteo per città" (temporanea): `/weather/forecast {address}` senza toccare user-settings; banner "Stai consultando: X · Torna alla mia posizione"; allerte nascoste durante la consultazione; errore se località non trovata (rilevato via `place` ≠ query); stato locale → tornando in Home si ripristina il default |
