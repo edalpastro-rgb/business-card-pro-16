@@ -193,6 +193,12 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z179 — Libretto: badge versione dinamico** (`src/libretto/appVersion.ts`, `app/libretto.tsx`, `app.json`). Badge da
+  "1.0 · Giugno 2026" → "**2.0 · Settembre 2026**" e reso automatico: versione = `Application.nativeApplicationVersion` (build installata;
+  fallback `Constants.expoConfig.version` su web/Expo Go, "x.y.0" mostrata come "x.y"), data = `getLastUpdateTimeAsync()` su Android /
+  `getInstallationTimeAsync()` su iOS (mese/anno in italiano; su web fallback alla data in `LIBRETTO_META.version`). Il badge dinamico
+  prevale anche sul libretto personalizzato dal Master e finisce nella copertina del PDF. `app.json` version 1.0.16 → **2.0.0**
+  (versionCode gestito dalla pipeline di build). Nota: cambio di `app.json` richiede cache Metro pulita in dev (`.metro-cache`).
 - **V50.z178 — Tour guidato: step Corporate Gym** (`src/libretto/libretto-content.ts`, `app/libretto.tsx`; step esistenti INTATTI).
   Nuova sezione `corporate-gym` ("Corporate Gym — Formazione vocale per il tuo team", testo fornito dall'utente) inserita dopo il blocco
   AxonOS/funzioni e PRIMA della chiusura (16 · Consigli, 17 · FAQ). Immagine = banner Corporate Gym bundled
@@ -405,6 +411,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z179 | Set 2026 | Libretto: badge versione dinamico (versione app reale + data ultimo aggiornamento build), app.json → 2.0.0, badge "2.0 · Settembre 2026" |
 | V50.z178 | Giu 2026 | Tour guidato/Libretto: nuovo step "Corporate Gym — Formazione vocale per il tuo team" (banner + icone Gym Obiezioni/WIN-WIN) prima di Consigli/FAQ; step esistenti invariati; integrato anche nei libretti personalizzati |
 | V50.z177 | Giu 2026 | Axon Drive: rinomina globale di "Copilot Vocale · Modalità Auto" (drawer+icona auto, header, Home, libretto) e redesign UI della pagina (sfondo interno auto, volante centrale, esempi grandi con icona, mic prominente); nessuna modifica funzionale |
 | V50.z176 | Giu 2026 | Scanner: `_detect_document_quad` sceglie il "documento principale" tra oggetti sul tavolo con punteggio di somiglianza a documento (fill senza testo, bordi reali, gradino dentro/fuori, rettangolarità, aspetto) prima della dimensione; segmentazione carta + separazione fogli adiacenti; benchmark 59/60 (era 53/60) |

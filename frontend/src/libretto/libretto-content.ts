@@ -62,7 +62,7 @@ export const LIBRETTO_IMAGE_KEYS = Object.keys(LIBRETTO_IMAGE_MAP);
 export const LIBRETTO_META: LibrettoMeta = {
   title: "Libretto Informativo",
   subtitle: "AdvisorOS + AxonOS · Guida operativa completa",
-  version: "1.0 · Giugno 2026",
+  version: "2.0 · Settembre 2026",
   footer: "© AdvisorOS. Documento generato dall'app.",
 };
 

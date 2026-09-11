@@ -2,7 +2,7 @@
   "expo": {
     "name": "AdvisorOS",
     "slug": "AdvisorOS",
-    "version": "1.0.16",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "frontend",

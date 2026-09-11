@@ -27,6 +27,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection, LibrettoMeta, LIBRETTO_IMAGE_MAP, resolveSectionImage, withCorporateGymSection } from "@/src/libretto/libretto-content";
+import { getAppVersion, getAppLastUpdateDate, buildVersionBadge } from "@/src/libretto/appVersion";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 
@@ -201,6 +202,11 @@ export default function LibrettoScreen() {
   const [sections, setSections] = useState<LibrettoSection[]>(LIBRETTO_SECTIONS);
   const [meta, setMeta] = useState<LibrettoMeta>(LIBRETTO_META);
   const [canEdit, setCanEdit] = useState(false);
+  // V50.z179 — badge versione dinamico: versione reale dell'app + data ultimo aggiornamento (build)
+  const [versionBadge, setVersionBadge] = useState<string>(() => buildVersionBadge(getAppVersion(), null, LIBRETTO_META.version));
+  useEffect(() => {
+    getAppLastUpdateDate().then((d) => setVersionBadge(buildVersionBadge(getAppVersion(), d, LIBRETTO_META.version)));
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -279,7 +285,7 @@ export default function LibrettoScreen() {
           }),
       );
       // 3) Costruisci HTML
-      const html = buildPdfHtml(logoAdvisor, logoAxon, sectionImages, sections, meta);
+      const html = buildPdfHtml(logoAdvisor, logoAxon, sectionImages, sections, { ...meta, version: versionBadge });
       // 4) Genera PDF
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       // 5) Condividi
@@ -300,7 +306,7 @@ export default function LibrettoScreen() {
     } finally {
       setExporting(false);
     }
-  }, [sections, meta]);
+  }, [sections, meta, versionBadge]);
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -356,7 +362,7 @@ export default function LibrettoScreen() {
               : meta.subtitle}
           </Text>
           <View style={styles.coverBadge}>
-            <Text style={styles.coverBadgeTxt}>{meta.version}</Text>
+            <Text style={styles.coverBadgeTxt} testID="libretto-version-badge">{versionBadge}</Text>
           </View>
         </View>
 
