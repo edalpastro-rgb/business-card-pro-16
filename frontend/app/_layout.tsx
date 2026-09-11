@@ -28,6 +28,7 @@ import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
 import { configureAlarmNotifications } from "@/src/alarmNotifs";
 import { registerForPush } from "@/src/pushRegister";
+import { AxnBadgeSync } from "@/src/AxnDrawerBadge";
 import { GlobalErrorBoundary } from "@/src/GlobalErrorBoundary";
 
 configureNotifHandler();
@@ -178,6 +179,8 @@ function StackWithCallBar() {
   return (
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+      {/* V50.z181 — badge icona app = notifiche AxonOS non lette */}
+      <AxnBadgeSync enabled={!!user?.user_id} />
       <AssistantFAB />
       {/* V50.z147 — Rimosso il bottone Help/Support Center dalle top header di tutte le pagine
           (`<SupportFab />`, V49.j/k): ridondante con il tab "Help" della bottom bar (V50.z141).

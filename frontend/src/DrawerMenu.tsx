@@ -16,6 +16,8 @@ import { theme } from "@/src/theme";
 import { MENU_CATEGORIES } from "@/src/menuCategories";
 import { CgymDrawerBadge } from "@/src/corporate-gym/CgymDrawerBadge"; // Corporate Gym (Blocco 3)
 
+import { AxnDrawerBadge } from "@/src/AxnDrawerBadge"; // V50.z181 — notifiche push AxonOS
+
 // Axon Drive — piccola icona automobile accanto al nome (solo UI)
 const AxonDriveCarBadge = () => <Ionicons name="car-sport" size={16} color="#7C3AED" style={{ marginRight: 6 }} />;
 
@@ -43,6 +45,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Cervello Axon",     icon: "bulb-outline",         href: "/axon-brain",         categoryKey: "axon" },
   { label: "Axon Drive",        icon: "mic",                  href: "/voice-copilot",      categoryKey: "axon", badge: AxonDriveCarBadge },
   { label: "Timer & Sveglie",   icon: "alarm-outline",        href: "/axon-alarms",        categoryKey: "axon" },
+  { label: "Notifiche Axon",    icon: "notifications",        href: "/axon-notifications", categoryKey: "axon", badge: AxnDrawerBadge },
   { label: "Avvisi Axon",       icon: "notifications-outline",href: "/axon-alerts",        categoryKey: "axon" },
   { label: "Home Assistant",    icon: "home-outline",         href: "/axon-homeassistant", categoryKey: "axon" },
   { label: "Help Center",       icon: "shield-checkmark-outline", href: "/help-center",    categoryKey: "axon" },

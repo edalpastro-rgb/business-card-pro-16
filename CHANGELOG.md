@@ -193,6 +193,20 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z181 — Notifiche push native AxonOS** — modulo isolato `backend/routes/axon_notifications.py` (scheduler proprio ogni 10 min,
+  riusa `send_push` Emergent di 05, `cgym_weekly_report`, `_bill_deadline_entry`). Collection `axon_notifications` (per destinatario,
+  dedupe_key idempotente) + `axon_notification_prefs`. Casi: **cgym_due** (sessione obbligatoria entro 24h / scaduta ≤12h),
+  **callback_urgent** (priorità alta/urgente entro 60 min / scaduta ≤6h), **credits** (richieste AxonOS del mese vs piano — default 1000,
+  modificabile dal Master — al 50/80/100%, una volta per soglia/mese), **weekly_report** (lunedì ≥08:00 Europe/Rome: genera/recupera il report
+  Gym e avvisa il Master), **axon_message** (autonomi: scadenze contratto da bollette ≤3gg o scadute ≤7gg → al consulente del contatto; +
+  `POST /axon-notifications/send` per invii programmatici/Master; `POST /test`). Visibilità: collaboratore solo le sue; Master riceve copia
+  "[Team · Nome]" (disattivabile). Push payload: title/message/deeplink/**badge** (n. non lette) — il tap usa il deeplink già gestito in
+  `_layout`. API: `GET /axon-notifications[?unread_only]`, `/unread-count`, `POST /{id}/read`, `/read-all`, `DELETE /{id}`, `GET/PUT /prefs`,
+  `POST /run-checks` (Master, test). Frontend: `app/axon-notifications.tsx` (lista + Preferenze: interruttore generale, per tipo, Master:
+  copie team + piano crediti, "Invia notifica di prova"), `src/axonNotifications.ts` (API + `useAxnUnread`: poll 60s/foreground/push →
+  `setBadgeCountAsync`), `src/AxnDrawerBadge.tsx` (badge rosso nel drawer + `AxnBadgeSync` nel layout), voce drawer "Notifiche Axon",
+  link in Impostazioni → AI & Axon. Test `backend/tests/test_axon_notifications.py` (7 blocchi) ✅ + check cgym/callback simulati ✅.
+  NOTA: push nativo attivo solo nella build pubblicata (EMERGENT_PUSH_KEY impostata dal deploy; in dev = placeholder → solo in-app).
 - **V50.z180 — Axon vede TUTTA l'app ("accesso a ogni riga")** — nuovo modulo isolato `backend/routes/axon_crm_omniscience.py`
   + `axon_app_map.json` (generato dal Libretto), agganciato in `21_axon_streaming.py` (stream e non-stream: `_safe_omni` nel gather,
   sezione `{omni_section}` dopo SNAPSHOT_CRM, regole di sistema aggiornate: "hai accesso a tutte le sezioni, non dire mai 'non ho accesso'").
@@ -424,6 +438,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z181 | Set 2026 | Notifiche push AxonOS (Gym obbligatorie, richiamate urgenti, crediti 50/80/100%, report settimanale, messaggi critici): inbox + preferenze + badge icona/drawer, copie [Team] al Master, modulo isolato `axon_notifications.py` |
 | V50.z180 | Set 2026 | Axon omnisciente: prompt con mappa dell'app + dati completi di tutte le sezioni + schede complete dei contatti citati (`axon_crm_omniscience.py`), visibilità rispettata |
 | V50.z179 | Set 2026 | Libretto: badge versione dinamico (versione app reale + data ultimo aggiornamento build), app.json → 2.0.0, badge "2.0 · Settembre 2026" |
 | V50.z178 | Giu 2026 | Tour guidato/Libretto: nuovo step "Corporate Gym — Formazione vocale per il tuo team" (banner + icone Gym Obiezioni/WIN-WIN) prima di Consigli/FAQ; step esistenti invariati; integrato anche nei libretti personalizzati |

@@ -709,6 +709,17 @@ function ImpostazioniScreen() {
               </Text>
             </View>
           </View>
+          {/* V50.z181 — Preferenze notifiche push AxonOS */}
+          <Pressable testID="open-axon-notifications-prefs" onPress={() => router.push("/axon-notifications?tab=prefs" as any)} style={[dashLinkStyles.row, { marginTop: 10 }]}>
+            <View style={dashLinkStyles.iconBox}>
+              <Ionicons name="notifications" size={16} color="#7C3AED" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={dashLinkStyles.title}>Notifiche push AxonOS</Text>
+              <Text style={dashLinkStyles.sub}>Sessioni Gym, richiamate urgenti, crediti, report, messaggi critici</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+          </Pressable>
           <Text style={[styles.label, { marginTop: 12 }]}>Nome dell&apos;assistente</Text>
           <TextInput
             testID="assistant-name-input"
