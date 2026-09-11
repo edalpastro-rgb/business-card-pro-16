@@ -37,6 +37,14 @@ function MeteoInner() {
   const [addrDraft, setAddrDraft] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // V50.z163 — Ricerca TEMPORANEA "Cerca meteo per città": consulta un'altra
+  // località senza toccare l'indirizzo di residenza né le allerte della Home.
+  // Stato solo locale alla pagina: tornando alla Home si perde (default ripristinato).
+  const [cityQuery, setCityQuery] = useState("");
+  const [cityActive, setCityActive] = useState<string | null>(null);
+  const [citySearching, setCitySearching] = useState(false);
+  const [cityError, setCityError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       const c = await getWeatherCoords();
@@ -55,6 +63,37 @@ function MeteoInner() {
     }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  const searchCity = useCallback(async () => {
+    const q = cityQuery.trim();
+    if (!q) return;
+    setCitySearching(true);
+    setCityError(null);
+    try {
+      // Solo `address`: il backend fa il geocoding della città (nessuna coordinata GPS,
+      // nessuna scrittura su user-settings). Se la città non viene trovata il server
+      // ripiega sull'indirizzo di residenza → lo rileviamo confrontando `place`.
+      const f = await api<Forecast>("/weather/forecast", { method: "POST", body: { address: q } });
+      if (f?.needs_address || (f?.place || "").trim().toLowerCase() !== q.toLowerCase()) {
+        setCityError(`Località «${q}» non trovata. Prova con città e provincia (es. "Verona" o "Bassano del Grappa VI").`);
+        return;
+      }
+      setFc(f);
+      setCityActive(q);
+    } catch (e: any) {
+      setCityError(e?.message || "Errore di rete");
+    } finally {
+      setCitySearching(false);
+    }
+  }, [cityQuery]);
+
+  const resetCity = useCallback(() => {
+    setCityActive(null);
+    setCityQuery("");
+    setCityError(null);
+    setLoading(true);
+    load();
+  }, [load]);
 
   const openAddr = async () => {
     try { const us = await api<{ home_address?: string }>("/user-settings"); setAddrDraft(us?.home_address || ""); } catch { setAddrDraft(""); }
@@ -88,7 +127,44 @@ function MeteoInner() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); if (cityActive) { setCityActive(null); setCityQuery(""); } load(); }} />}>
+        {/* V50.z163 — Cerca meteo per città (temporaneo, separato dalla residenza) */}
+        <View style={[styles.card, { marginBottom: 12 }]} testID="meteo-city-search">
+          <Text style={styles.cardTitle}>Cerca meteo per città</Text>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+            <TextInput
+              testID="meteo-city-input"
+              value={cityQuery}
+              onChangeText={(t) => { setCityQuery(t); if (cityError) setCityError(null); }}
+              placeholder="es. Milano, Roma, Cortina d'Ampezzo"
+              placeholderTextColor="#94A3B8"
+              returnKeyType="search"
+              onSubmitEditing={searchCity}
+              autoCorrect={false}
+              style={[styles.input, { flex: 1, marginTop: 0 }]}
+            />
+            <Pressable
+              testID="meteo-city-search-btn"
+              onPress={searchCity}
+              disabled={citySearching || !cityQuery.trim()}
+              style={[styles.primaryBtn, { marginTop: 0, paddingHorizontal: 14, opacity: citySearching || !cityQuery.trim() ? 0.5 : 1 }]}
+            >
+              {citySearching ? <ActivityIndicator color="#FFF" /> : <Ionicons name="search" size={18} color="#FFF" />}
+            </Pressable>
+          </View>
+          {!!cityError && <Text style={[styles.muted, { color: "#DC2626", marginTop: 8 }]} testID="meteo-city-error">{cityError}</Text>}
+          {cityActive ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 }} testID="meteo-city-active">
+              <Ionicons name="eye-outline" size={16} color={theme.color.brandPrimary} />
+              <Text style={[styles.muted, { flex: 1 }]} numberOfLines={1}>Stai consultando: <Text style={{ fontWeight: "800" }}>{cityActive}</Text></Text>
+              <Pressable testID="meteo-city-reset" onPress={resetCity} hitSlop={8} style={{ minHeight: 32, justifyContent: "center" }}>
+                <Text style={{ color: theme.color.brandPrimary, fontWeight: "800", fontSize: 12 }}>Torna alla mia posizione</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={[styles.muted, { marginTop: 8 }]}>Consultazione temporanea: non modifica l&apos;indirizzo di residenza né le allerte in Home.</Text>
+          )}
+        </View>
         {loading ? (
           <ActivityIndicator color={theme.color.brandPrimary} style={{ marginTop: 40 }} />
         ) : fc?.needs_address ? (
@@ -119,10 +195,10 @@ function MeteoInner() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.heroTemp}>{cur?.temp != null ? `${Math.round(cur.temp)}°` : today.temp_max != null ? `${Math.round(today.temp_max)}°` : "—"}</Text>
                   <Text style={styles.heroLabel}>{cur?.label || today.label}</Text>
-                  <Pressable onPress={openAddr} style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }} testID="meteo-place">
-                    <Ionicons name="location" size={12} color="rgba(255,255,255,0.9)" />
-                    <Text style={styles.heroPlace} numberOfLines={1}>{fc?.place || "Posizione attuale"}</Text>
-                    <Ionicons name="create-outline" size={12} color="rgba(255,255,255,0.9)" />
+                  <Pressable onPress={cityActive ? resetCity : openAddr} style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }} testID="meteo-place">
+                    <Ionicons name={cityActive ? "search" : "location"} size={12} color="rgba(255,255,255,0.9)" />
+                    <Text style={styles.heroPlace} numberOfLines={1}>{cityActive ? `${cityActive} (ricerca)` : (fc?.place || "Posizione attuale")}</Text>
+                    <Ionicons name={cityActive ? "close-circle-outline" : "create-outline"} size={12} color="rgba(255,255,255,0.9)" />
                   </Pressable>
                 </View>
               </View>
@@ -134,7 +210,7 @@ function MeteoInner() {
             </View>
 
             {/* Allerte */}
-            {alerts.length > 0 && (
+            {alerts.length > 0 && !cityActive && (
               <View style={{ gap: 8, marginTop: 12 }} testID="meteo-alerts">
                 {alerts.map((a) => (
                   <View key={a.id} style={[styles.alert, { backgroundColor: SEV[a.severity] || SEV.yellow }]}>

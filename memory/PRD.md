@@ -1,6 +1,11 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z163 (Giu 2026) — Meteo: ricerca temporanea per città
+
+`app/meteo.tsx`: stato locale `cityQuery/cityActive/citySearching/cityError`; `searchCity()` → `POST /weather/forecast {address}` (il backend geocoda `body.address` per primo; nessuna scrittura su `home_address`); se `needs_address` o `place.lower() !== query.lower()` (il server ha ripiegato sulla residenza) → errore "Località non trovata"; `resetCity()` → ricarica default GPS/residenza. Hero mostra "X (ricerca)" e il tap riporta al default; allerte (riferite alla posizione di casa) nascoste in modalità ricerca; pull-to-refresh esce dalla ricerca. Nessuna modifica a backend, Home, badge header. Test web: Milano → "Stai consultando: Milano", hero "Milano (ricerca)"; "Xyzqwvzz" → errore; reset → default ✅.
+
+
 ## V50.z162 (Giu 2026) — PROMPT 1: 6 bug fix
 
 1. **Scanner autocrop/edge detection** (`routes/26_scanner.py`): `/scanner/detect-corners` (overlay live + auto-scatto) usava un singolo Canny 60-180 + RETR_EXTERNAL → quasi mai agganciava; ora usa `_detect_document_quad` (stesso dell'autocrop). Aggiunte mappe CLAHE (Canny + Otsu su contrasto normalizzato) per ombre/luce radente; soglia lato minimo proporzionale (`max(60, 0.18·min(w,h))`) così funziona anche sui frame 400px. Test sintetici (5 sfondi × 3 angoli, foglio pieno, desk bianco, blocco testo/tabella dentro foglio) tutti corretti; live 400px 19ms, full 49ms; endpoint reali: detected=True, crop 746×1060.
