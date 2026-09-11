@@ -248,6 +248,16 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   (`cgym-assign-open`). Collaboratori: widget Home riga "Assegnate dal Master: done/total" + barra; drawer voce Corporate Gym con badge
   "done/total" (`CgymDrawerBadge`, `DrawerItem.badge` opzionale in `DrawerMenu.tsx`); striscia arancione attiva anche con sessioni
   assegnate non completate (`max(mandatory_pending, assigned_pending)`); nelle righe sessione etichetta "· dal Master".
+- **Blocco 4 — Dashboard statistiche Master (V50.z172)**: backend `GET /api/cgym/stats?days=7|30|90` (Titolare/Admin; aggrega cgym_sessions +
+  cgym_roleplays: per agente completate/assegnate/in ritardo, media-ultimo-migliore score, trend (terzo finale vs iniziale), timeline score,
+  tasso completamento, tasso "cliente convinto", forze/debolezze classificate su 5 criteri — ascolto, riformulazione, valore, chiusura, tono —
+  dai feedback dei role-play; team: KPI, media per settimana ISO, forze/lacune, classifica). AxonOS (claude-sonnet-5, cache in `cgym_ai_reports`):
+  `POST/GET /api/cgym/stats/agent-feedback/{agent_id}` (carattere, dove migliorare, azioni correttive, punti di forza, incoraggiamento, focus;
+  cache 24h, `force=true` rigenera; l'agente può leggere il proprio via GET) e `POST/GET /api/cgym/stats/weekly-report` (headline, lacune team,
+  highlights, agenti da seguire, nuovi scenari proposti, aggiornamenti manuale vendite, piano prossima settimana; cache per settimana ISO).
+  Frontend `app/corporate-gym/stats.tsx` (solo Master): range 7/30/90, KPI, LineChart score nel tempo (team per settimana o agente selezionato),
+  BarChart confronto agenti, forze/lacune team, card Report settimanale (Genera/Rigenera), card per agente (rank, media, trend, tag forze/debolezze,
+  Feedback personale AxonOS Genera/Rigenera). Entry: bottone "Statistiche" nella card Quadro team (`cgym-stats-open`). Grafici: react-native-chart-kit (già in uso).
 - **Punti di aggancio (1 riga ciascuno)**: bottone "Corporate Gym" in `master.tsx` (categoria Team #EAB308), voce drawer
   `DrawerMenu.tsx` (team), `DashboardWidgetsSection.tsx` (`w.id === "cgym"`), `dashboard-config.tsx` reset list,
   `home.tsx` `<CgymAlertStrip/>` sotto `HomeTipsBanner`.
@@ -346,6 +356,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z172 | Giu 2026 | Corporate Gym Blocco 4: dashboard statistiche Master (`/corporate-gym/stats`, `/api/cgym/stats`), feedback personale AxonOS per agente e report settimanale (lacune, scenari, manuale vendite) con cache `cgym_ai_reports` |
 | V50.z171 | Giu 2026 | Corporate Gym Blocco 3: assegnazioni Master (agente/team, tipo, 1-3 al giorno, scadenza → sessioni generate), piani con avanzamento, badge drawer done/total, widget riga assegnate, striscia attiva su assegnate non completate |
 | V50.z170 | Giu 2026 | Corporate Gym Blocco 2: role-play vocale Obiezione TEMPO (AxonOS = cliente via LLM+TTS interni, consulente a voce/STT o testo, score+feedback, salvataggio in cgym_sessions) — `/corporate-gym/roleplay` |
 | V50.z169 | Giu 2026 | Corporate Gym: tile Gym Obiezioni / Gym WIN-WIN con icone ufficiali (immagini utente via URL, `CGYM_TYPE_META[].image`, componente `CgymTileIcon` con fallback Ionicons) anche nell'header delle sottosezioni. Nessun'altra modifica |

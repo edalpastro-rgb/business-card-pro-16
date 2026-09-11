@@ -1,0 +1,35 @@
+{
+  "summary": "Backend-only tests for Corporate Gym Blocco 4 (Master stats dashboard + AxonOS agent feedback + weekly report). Created /app/backend/tests/test_cgym_v4_stats.py with 22 tests covering GET /api/cgym/stats (days 7/30/90 + clamp to 7..365 + owner/member RBAC + response shape + agents rank ordering by avg_score desc), the create-session→sub-completes→stats-reflect consistency flow (with cleanup), POST/GET /api/cgym/stats/agent-feedback/{agent_id} (LLM generate + 24h cache-hit stability of report_id + GET last cached + sub can GET own but not owner id + sub POST forbidden + unknown agent 404), POST/GET /api/cgym/stats/weekly-report (LLM generate + per-ISO-week cache stability + sub 403), and regression on /api/cgym/summary and /api/cgym/sessions. Result: 22/22 PASSED. Test file JUnit XML at /app/test_reports/pytest/cgym_v4_stats.xml. NOTE: Agent-feedback POST and weekly-report POST returned near-instantly (cache hit from a previous run), so the LLM generation path was not re-exercised during this run; the cache-stability, response schema, and RBAC assertions still hold.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cgym_v4_stats.py",
+    "/app/test_reports/pytest/cgym_v4_stats.xml"
+  ],
+  "action_items": [
+    "Consider removing the duplicated Blocco 4 code block in /app/backend/routes/corporate_gym.py (routes at lines 675-967 are re-declared identically at 970-1261). FastAPI resolves both to the same path; only the first-registered handler is invoked, so the second copy is dead code. Not a functional bug but a maintenance hazard."
+  ],
+  "critical_code_review_comments": [
+    "Duplicate route definitions: /api/cgym/stats, /api/cgym/stats/agent-feedback/{agent_id} (POST+GET), /api/cgym/stats/weekly-report (POST+GET) and helper _cgym_build_stats are defined twice in /app/backend/routes/corporate_gym.py (Blocco 4 block appears at 675-967 and again at 970-1261). The second definition of _cgym_build_stats overrides the first at import time; the second @api_router route registrations are effectively ignored by FastAPI (first match wins). Recommend deleting the duplicate block."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cgym_v4_stats.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "not tested (backend-only request)"
+  },
+  "seed_data_creation": "One TEST_stats_consistency session created for sub via owner POST /api/cgym/sessions, patched to completata with score=70, then deleted in the test's finally block. No residual data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "test_cgym_v4_stats.py is the canonical Blocco 4 regression suite. Uses OWNER=test@dalpastro.it/Test1234!, MEMBER=sub1@dalpastro.it/Sub12345!. Agent-feedback and weekly-report LLM cache persists between runs (24h and per-ISO-week respectively) — expect cache-hit fast responses on subsequent runs. Do NOT use force=true in tests: it costs LLM tokens. Session-consistency test requires the CgymSessionIn payload to include scheduled_at (ISO string).",
+  "rca_of_issue": "N/A — no bugs found. Only a code-review observation about duplicated route code in corporate_gym.py."
+}

@@ -669,3 +669,298 @@ async def cgym_delete_assignment(assignment_id: str, user=Depends(get_current_us
     res = await db.cgym_sessions.delete_many({"tenant_id": tid, "assignment_id": assignment_id, "status": {"$ne": "completata"}})
     await db.cgym_assignments.delete_one({"assignment_id": assignment_id})
     return {"ok": True, "deleted_sessions": res.deleted_count}
+
+
+# =========================================================================
+# Blocco 4 — Dashboard statistiche Master (solo Titolare/Admin)
+# Aggrega cgym_sessions + cgym_roleplays: score per agente nel tempo, completate vs
+# assegnate, aree di forza/debolezza (classificazione feedback per criterio), confronto,
+# trend. AxonOS (LLM) genera feedback personale per agente e report settimanale
+# (lacune team, nuovi scenari, aggiornamenti manuale vendite). Cache: cgym_ai_reports.
+# =========================================================================
+CGYM_CRITERIA = {
+    "ascolto": {"label": "Ascolto ed empatia", "kw": ["ascolt", "empat", "riconosc", "comprens", "capisco", "valid", "accogl"]},
+    "riformulazione": {"label": "Riformulazione", "kw": ["riformul", "isol", "parafras", "ripet", "chiarif", "domand"]},
+    "valore": {"label": "Valore e numeri", "kw": ["quantific", "numer", "benefic", "rispar", "valor", "concret", "euro", "€", "tempo richiesto", "minuti", "dati"]},
+    "chiusura": {"label": "Chiusura e appuntamento", "kw": ["chius", "appuntament", "slot", "propost", "data", "orario", "alternativ", "prossimo passo", "giovedì", "venerdì"]},
+    "tono": {"label": "Tono e chiarezza", "kw": ["tono", "chiar", "sicur", "brev", "gergo", "lung", "prolisso", "frasi", "ritmo", "energia", "insist", "pression"]},
+}
+
+
+def _cgym_classify(text: str) -> Optional[str]:
+    t = (text or "").lower()
+    best, score = None, 0
+    for key, c in CGYM_CRITERIA.items():
+        n = sum(1 for k in c["kw"] if k in t)
+        if n > score:
+            best, score = key, n
+    return best
+
+
+def _cgym_week_key(dt: datetime) -> str:
+    y, w, _ = dt.astimezone(_CGYM_TZ).isocalendar()
+    return f"{y}-W{w:02d}"
+
+
+async def _cgym_build_stats(tid: str, days: int) -> dict:
+    now = utcnow()
+    since = now - timedelta(days=days)
+    members = await db.users.find({"$or": [{"user_id": tid}, {"parent_user_id": tid}]},
+                                  {"_id": 0, "user_id": 1, "name": 1, "email": 1, "role": 1}).to_list(2000)
+    sessions = await db.cgym_sessions.find({"tenant_id": tid}).to_list(20000)
+    roleplays = await db.cgym_roleplays.find({"tenant_id": tid, "status": "finished"}).to_list(20000)
+    agents: Dict[str, Dict[str, Any]] = {}
+    for m in members:
+        agents[m["user_id"]] = {
+            "user_id": m["user_id"], "name": m.get("name") or m.get("email") or m["user_id"], "role": m.get("role"),
+            "assigned_total": 0, "assigned_done": 0, "self_total": 0, "completed_total": 0, "overdue": 0,
+            "scores": [], "timeline": [], "strengths": {}, "weaknesses": {}, "convinto": 0, "roleplays": 0,
+            "by_type": {"obiezioni": {"total": 0, "done": 0}, "winwin": {"total": 0, "done": 0}},
+        }
+    for s in sessions:
+        a = agents.get(s["user_id"])
+        if not a:
+            continue
+        created = _cgym_dt(s.get("created_at")) or now
+        if created < since and s.get("status") != "completata":
+            pass  # le assegnate vecchie contano comunque come pendenti
+        elif created < since:
+            continue
+        done = s.get("status") == "completata"
+        assigned_by_other = s.get("assigned_by") and s.get("assigned_by") != s["user_id"]
+        if assigned_by_other:
+            a["assigned_total"] += 1
+            if done:
+                a["assigned_done"] += 1
+        else:
+            a["self_total"] += 1
+        if done:
+            a["completed_total"] += 1
+        bt = a["by_type"].setdefault(s.get("type", "obiezioni"), {"total": 0, "done": 0})
+        bt["total"] += 1
+        if done:
+            bt["done"] += 1
+        dt = _cgym_dt(s.get("scheduled_at"))
+        if not done and dt and dt < now:
+            a["overdue"] += 1
+        if done and isinstance(s.get("score"), (int, float)):
+            when = _cgym_dt(s.get("completed_at")) or created
+            a["scores"].append((when, float(s["score"])))
+    for rp in roleplays:
+        a = agents.get(rp["user_id"])
+        if not a:
+            continue
+        fin = _cgym_dt(rp.get("finished_at")) or now
+        if fin < since:
+            continue
+        a["roleplays"] += 1
+        fb = rp.get("feedback") or {}
+        for t in fb.get("what_worked") or []:
+            k = _cgym_classify(t)
+            if k:
+                a["strengths"][k] = a["strengths"].get(k, 0) + 1
+        for t in fb.get("to_improve") or []:
+            k = _cgym_classify(t)
+            if k:
+                a["weaknesses"][k] = a["weaknesses"].get(k, 0) + 1
+        moods = [t.get("mood") for t in rp.get("turns", []) if t.get("role") == "cliente"]
+        if moods and moods[-1] == "convinto":
+            a["convinto"] += 1
+    out_agents = []
+    team_scores: List[float] = []
+    weekly: Dict[str, List[float]] = {}
+    for a in agents.values():
+        a["scores"].sort(key=lambda x: x[0])
+        vals = [v for _, v in a["scores"]]
+        a["timeline"] = [{"date": w.astimezone(_CGYM_TZ).strftime("%d/%m"), "at": w.isoformat(), "score": v} for w, v in a["scores"]][-30:]
+        for w, v in a["scores"]:
+            weekly.setdefault(_cgym_week_key(w), []).append(v)
+        team_scores.extend(vals)
+        a["avg_score"] = round(sum(vals) / len(vals), 1) if vals else None
+        a["last_score"] = vals[-1] if vals else None
+        a["best_score"] = max(vals) if vals else None
+        if len(vals) >= 2:
+            head = vals[: max(1, len(vals) // 3)]
+            tail = vals[-max(1, len(vals) // 3):]
+            a["trend"] = round(sum(tail) / len(tail) - sum(head) / len(head), 1)
+        else:
+            a["trend"] = None
+        a["completion_rate"] = round(a["assigned_done"] / a["assigned_total"], 3) if a["assigned_total"] else None
+        a["convinto_rate"] = round(a["convinto"] / a["roleplays"], 3) if a["roleplays"] else None
+        a["strengths"] = [{"key": k, "label": CGYM_CRITERIA[k]["label"], "count": n} for k, n in sorted(a["strengths"].items(), key=lambda x: -x[1])][:3]
+        a["weaknesses"] = [{"key": k, "label": CGYM_CRITERIA[k]["label"], "count": n} for k, n in sorted(a["weaknesses"].items(), key=lambda x: -x[1])][:3]
+        del a["scores"]
+        out_agents.append(a)
+    out_agents.sort(key=lambda x: (-(x["avg_score"] or -1), x["name"].lower()))
+    for i, a in enumerate(out_agents):
+        a["rank"] = i + 1
+    weekly_series = [{"week": k, "avg": round(sum(v) / len(v), 1), "n": len(v)} for k, v in sorted(weekly.items())][-12:]
+    team_weak: Dict[str, int] = {}
+    team_strong: Dict[str, int] = {}
+    for a in out_agents:
+        for w in a["weaknesses"]:
+            team_weak[w["key"]] = team_weak.get(w["key"], 0) + w["count"]
+        for s_ in a["strengths"]:
+            team_strong[s_["key"]] = team_strong.get(s_["key"], 0) + s_["count"]
+    assigned_total = sum(a["assigned_total"] for a in out_agents)
+    assigned_done = sum(a["assigned_done"] for a in out_agents)
+    return {
+        "days": days,
+        "generated_at": now.isoformat(),
+        "team": {
+            "agents": len(out_agents),
+            "active_agents": sum(1 for a in out_agents if a["completed_total"] > 0),
+            "assigned_total": assigned_total,
+            "assigned_done": assigned_done,
+            "completion_rate": round(assigned_done / assigned_total, 3) if assigned_total else None,
+            "completed_total": sum(a["completed_total"] for a in out_agents),
+            "overdue": sum(a["overdue"] for a in out_agents),
+            "avg_score": round(sum(team_scores) / len(team_scores), 1) if team_scores else None,
+            "roleplays": sum(a["roleplays"] for a in out_agents),
+            "weekly": weekly_series,
+            "weaknesses": [{"key": k, "label": CGYM_CRITERIA[k]["label"], "count": n} for k, n in sorted(team_weak.items(), key=lambda x: -x[1])][:3],
+            "strengths": [{"key": k, "label": CGYM_CRITERIA[k]["label"], "count": n} for k, n in sorted(team_strong.items(), key=lambda x: -x[1])][:3],
+        },
+        "agents": out_agents,
+    }
+
+
+@api_router.get("/cgym/stats")
+async def cgym_stats(days: int = 30, user=Depends(get_current_user)):
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo Titolare/Admin")
+    days = max(7, min(365, int(days)))
+    return await _cgym_build_stats(tenant_id(user), days)
+
+
+CGYM_AGENT_FEEDBACK_SYSTEM = """Sei AxonOS, coach commerciale del settore energia (consulenti luce/gas in Italia). Analizzi i dati di allenamento
+di UN agente nella Corporate Gym e scrivi un feedback personale, concreto e motivante, in italiano, rivolto al Master ma leggibile dall'agente.
+Basati SOLO sui dati forniti (statistiche + estratti dei role-play). Se i dati sono pochi dillo e resta prudente.
+RISPONDI SOLO con JSON valido:
+{{"character": "<profilo comunicativo dell'agente in 1-2 frasi: stile, punti di carattere emersi>",
+ "where_to_improve": ["<max 3 punti concreti, citando frasi reali se disponibili>"],
+ "corrective_actions": ["<max 3 azioni pratiche per la prossima settimana, misurabili>"],
+ "strengths": ["<max 3 punti di forza da consolidare>"],
+ "encouragement": "<2 frasi di incoraggiamento personalizzate, senza retorica>",
+ "suggested_focus": "<il criterio su cui concentrarsi: ascolto|riformulazione|valore|chiusura|tono>"}}"""
+
+CGYM_WEEKLY_REPORT_SYSTEM = """Sei AxonOS, direttore formazione di una rete di consulenti energetici (Italia). Prepari per il Master il REPORT SETTIMANALE
+della Corporate Gym partendo dalle statistiche del team e dagli estratti dei role-play. Sii concreto, operativo e sintetico, in italiano.
+RISPONDI SOLO con JSON valido:
+{{"headline": "<1 frase che riassume la settimana>",
+ "team_gaps": ["<max 4 lacune del team, con evidenza numerica dove possibile>"],
+ "highlights": ["<max 3 cose che vanno bene / agenti da lodare>"],
+ "agents_to_watch": ["<max 3 agenti che richiedono attenzione e perché>"],
+ "new_scenarios": [{{"title": "<nome scenario role-play>", "objection": "<obiezione o situazione>", "why": "<perché serve al team>"}}],
+ "manual_updates": ["<max 4 aggiornamenti/aggiunte proposte al manuale vendite (frasi-chiave, script, regole)>"],
+ "next_week_plan": "<proposta di assegnazione per la prossima settimana: chi, cosa, frequenza>"}}"""
+
+
+def _cgym_agent_excerpts(rps: List[dict], limit: int = 4) -> str:
+    parts = []
+    for rp in rps[:limit]:
+        fb = rp.get("feedback") or {}
+        cons = [t["text"] for t in rp.get("turns", []) if t.get("role") == "consulente"][:3]
+        parts.append(
+            f"- Role-play {rp.get('scenario')} del {(_cgym_dt(rp.get('finished_at')) or utcnow()).astimezone(_CGYM_TZ).strftime('%d/%m')} — score {rp.get('score')}: "
+            f"sintesi: {fb.get('summary', '')} | ha funzionato: {'; '.join(fb.get('what_worked') or [])} | da migliorare: {'; '.join(fb.get('to_improve') or [])} | "
+            f"frasi del consulente: " + " / ".join(f'"{c[:160]}"' for c in cons)
+        )
+    return "\n".join(parts) if parts else "(nessun role-play concluso)"
+
+
+@api_router.post("/cgym/stats/agent-feedback/{agent_id}")
+async def cgym_agent_feedback(agent_id: str, force: bool = False, days: int = 30, user=Depends(get_current_user)):
+    """Feedback personale AxonOS per un agente (cache 24h in cgym_ai_reports; force=true rigenera)."""
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo Titolare/Admin")
+    tid = tenant_id(user)
+    if not force:
+        cached = await db.cgym_ai_reports.find_one({"tenant_id": tid, "kind": "agent", "user_id": agent_id}, sort=[("generated_at", -1)])
+        if cached and (utcnow() - (_cgym_dt(cached.get("generated_at")) or utcnow())) < timedelta(hours=24):
+            return _cgym_report_out(cached)
+    stats = await _cgym_build_stats(tid, max(7, min(365, days)))
+    agent = next((a for a in stats["agents"] if a["user_id"] == agent_id), None)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agente non trovato")
+    rps = await db.cgym_roleplays.find({"tenant_id": tid, "user_id": agent_id, "status": "finished"}).sort("finished_at", -1).to_list(6)
+    data_txt = (
+        f"AGENTE: {agent['name']} (ruolo {agent.get('role')})\n"
+        f"Periodo: ultimi {stats['days']} giorni. Sessioni completate: {agent['completed_total']}; assegnate dal Master: {agent['assigned_done']}/{agent['assigned_total']}; "
+        f"in ritardo: {agent['overdue']}; role-play conclusi: {agent['roleplays']}; media score: {agent['avg_score']}; ultimo: {agent['last_score']}; "
+        f"migliore: {agent['best_score']}; trend (fine vs inizio periodo): {agent['trend']}; clienti convinti: {agent['convinto_rate']}.\n"
+        f"Punti di forza rilevati: {', '.join(s['label'] for s in agent['strengths']) or '-'}. Debolezze rilevate: {', '.join(w['label'] for w in agent['weaknesses']) or '-'}.\n"
+        f"Media team: {stats['team']['avg_score']}; posizione in classifica: {agent['rank']}/{len(stats['agents'])}.\n"
+        f"ESTRATTI ROLE-PLAY:\n{_cgym_agent_excerpts(rps)}"
+    )
+    raw = await _cgym_llm(CGYM_AGENT_FEEDBACK_SYSTEM, data_txt, "claude-sonnet-5")
+    content = _cgym_llm_json(raw) or {"character": "", "where_to_improve": [], "corrective_actions": [], "strengths": [], "encouragement": raw[:400], "suggested_focus": ""}
+    doc = {"report_id": str(uuid.uuid4()), "tenant_id": tid, "kind": "agent", "user_id": agent_id, "agent_name": agent["name"],
+           "generated_at": utcnow(), "generated_by": user["user_id"], "days": stats["days"], "content": content,
+           "snapshot": {k: agent[k] for k in ("avg_score", "last_score", "trend", "completed_total", "assigned_total", "assigned_done", "roleplays")}}
+    await db.cgym_ai_reports.insert_one(doc)
+    return _cgym_report_out(doc)
+
+
+def _cgym_report_out(doc: dict) -> dict:
+    d = {k: v for k, v in doc.items() if k != "_id"}
+    if isinstance(d.get("generated_at"), datetime):
+        d["generated_at"] = d["generated_at"].astimezone(timezone.utc).isoformat()
+    return d
+
+
+@api_router.get("/cgym/stats/agent-feedback/{agent_id}")
+async def cgym_agent_feedback_get(agent_id: str, user=Depends(get_current_user)):
+    """Ultimo feedback AxonOS salvato per l'agente (Master; l'agente stesso può leggere il proprio)."""
+    tid = tenant_id(user)
+    if not is_admin_or_owner(user) and user["user_id"] != agent_id:
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    cached = await db.cgym_ai_reports.find_one({"tenant_id": tid, "kind": "agent", "user_id": agent_id}, sort=[("generated_at", -1)])
+    return _cgym_report_out(cached) if cached else {"content": None}
+
+
+@api_router.post("/cgym/stats/weekly-report")
+async def cgym_weekly_report(force: bool = False, user=Depends(get_current_user)):
+    """Report settimanale AxonOS per il Master (cache per settimana ISO; force=true rigenera)."""
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo Titolare/Admin")
+    tid = tenant_id(user)
+    week = _cgym_week_key(utcnow())
+    if not force:
+        cached = await db.cgym_ai_reports.find_one({"tenant_id": tid, "kind": "weekly", "week": week}, sort=[("generated_at", -1)])
+        if cached:
+            return _cgym_report_out(cached)
+    stats = await _cgym_build_stats(tid, 7)
+    stats30 = await _cgym_build_stats(tid, 30)
+    rps = await db.cgym_roleplays.find({"tenant_id": tid, "status": "finished", "finished_at": {"$gte": utcnow() - timedelta(days=7)}}).sort("finished_at", -1).to_list(12)
+    t = stats["team"]
+    weak_txt = ", ".join(f"{w['label']} x{w['count']}" for w in t["weaknesses"])
+    weekly_txt = ", ".join(f"{w['week']}={w['avg']}" for w in stats30["team"]["weekly"])
+    agents_txt = "\n".join(
+        f"- {a['name']}: completate {a['completed_total']} (assegnate {a['assigned_done']}/{a['assigned_total']}, in ritardo {a['overdue']}), "
+        f"media {a['avg_score']}, trend {a['trend']}, forza: {', '.join(s['label'] for s in a['strengths']) or '-'}, debolezze: {', '.join(w['label'] for w in a['weaknesses']) or '-'}"
+        for a in stats30["agents"]
+    )
+    data_txt = (
+        f"SETTIMANA {week}. Team: {t['agents']} agenti ({t['active_agents']} attivi). Sessioni completate: {t['completed_total']}; assegnate dal Master completate "
+        f"{t['assigned_done']}/{t['assigned_total']} (tasso {t['completion_rate']}); in ritardo: {t['overdue']}; role-play: {t['roleplays']}; media score: {t['avg_score']}.\n"
+        f"Debolezze team (frequenza): {weak_txt or '-'}. Forze team: {', '.join(s['label'] for s in t['strengths']) or '-'}.\n"
+        f"Andamento medio settimanale (ultimi 30 gg): {weekly_txt or '-'}.\n"
+        f"AGENTI (30 gg):\n{agents_txt or '(nessun agente)'}\n"
+        f"Scenari disponibili oggi: Obiezione TEMPO (role-play vocale). Aree Gym: Obiezioni, WIN-WIN.\n"
+        f"ESTRATTI ROLE-PLAY DELLA SETTIMANA:\n{_cgym_agent_excerpts(rps, limit=6)}"
+    )
+    raw = await _cgym_llm(CGYM_WEEKLY_REPORT_SYSTEM, data_txt, "claude-sonnet-5")
+    content = _cgym_llm_json(raw) or {"headline": raw[:200], "team_gaps": [], "highlights": [], "agents_to_watch": [], "new_scenarios": [], "manual_updates": [], "next_week_plan": ""}
+    doc = {"report_id": str(uuid.uuid4()), "tenant_id": tid, "kind": "weekly", "week": week, "generated_at": utcnow(),
+           "generated_by": user["user_id"], "content": content, "snapshot": {k: t[k] for k in ("agents", "completed_total", "assigned_done", "assigned_total", "avg_score", "overdue")}}
+    await db.cgym_ai_reports.insert_one(doc)
+    return _cgym_report_out(doc)
+
+
+@api_router.get("/cgym/stats/weekly-report")
+async def cgym_weekly_report_get(user=Depends(get_current_user)):
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo Titolare/Admin")
+    cached = await db.cgym_ai_reports.find_one({"tenant_id": tenant_id(user), "kind": "weekly"}, sort=[("generated_at", -1)])
+    return _cgym_report_out(cached) if cached else {"content": None}

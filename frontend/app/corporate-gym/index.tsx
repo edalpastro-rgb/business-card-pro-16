@@ -250,12 +250,17 @@ export default function CorporateGymHome() {
               <Text style={styles.cardTitle}>Quadro team</Text>
               <Ionicons name={teamOpen ? "chevron-up" : "chevron-down"} size={18} color={theme.color.muted} />
             </Pressable>
-            {/* Blocco 3 — Assegnazioni Master */}
-            <Pressable onPress={() => router.push("/corporate-gym/assign" as any)} style={styles.assignBtn} testID="cgym-assign-open">
-              <Ionicons name="send" size={16} color="#FFF" />
-              <Text style={styles.assignTxt}>Assegna sessioni al team</Text>
-              <Ionicons name="chevron-forward" size={16} color="#FFF" />
-            </Pressable>
+            {/* Blocco 3 — Assegnazioni Master · Blocco 4 — Statistiche */}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable onPress={() => router.push("/corporate-gym/assign" as any)} style={[styles.assignBtn, { flex: 1 }]} testID="cgym-assign-open">
+                <Ionicons name="send" size={16} color="#FFF" />
+                <Text style={styles.assignTxt}>Assegna sessioni</Text>
+              </Pressable>
+              <Pressable onPress={() => router.push("/corporate-gym/stats" as any)} style={[styles.assignBtn, { flex: 1, backgroundColor: theme.color.brandPrimary }]} testID="cgym-stats-open">
+                <Ionicons name="stats-chart" size={16} color="#FFF" />
+                <Text style={styles.assignTxt}>Statistiche</Text>
+              </Pressable>
+            </View>
             {teamOpen && (
               team == null ? (
                 <ActivityIndicator color={CGYM_ORANGE} style={{ marginVertical: 10 }} />

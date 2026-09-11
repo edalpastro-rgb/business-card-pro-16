@@ -166,3 +166,74 @@ export function toYMD(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+
+// ---------------- Blocco 4 — Dashboard statistiche Master ----------------
+export type CgymCriterion = { key: string; label: string; count: number };
+export type CgymAgentStats = {
+  user_id: string;
+  name: string;
+  role?: string;
+  rank: number;
+  assigned_total: number;
+  assigned_done: number;
+  self_total: number;
+  completed_total: number;
+  overdue: number;
+  roleplays: number;
+  avg_score: number | null;
+  last_score: number | null;
+  best_score: number | null;
+  trend: number | null;
+  completion_rate: number | null;
+  convinto_rate: number | null;
+  timeline: { date: string; at: string; score: number }[];
+  strengths: CgymCriterion[];
+  weaknesses: CgymCriterion[];
+  by_type: Record<string, { total: number; done: number }>;
+};
+export type CgymStats = {
+  days: number;
+  generated_at: string;
+  team: {
+    agents: number;
+    active_agents: number;
+    assigned_total: number;
+    assigned_done: number;
+    completion_rate: number | null;
+    completed_total: number;
+    overdue: number;
+    avg_score: number | null;
+    roleplays: number;
+    weekly: { week: string; avg: number; n: number }[];
+    weaknesses: CgymCriterion[];
+    strengths: CgymCriterion[];
+  };
+  agents: CgymAgentStats[];
+};
+export type CgymAgentFeedback = {
+  character: string;
+  where_to_improve: string[];
+  corrective_actions: string[];
+  strengths: string[];
+  encouragement: string;
+  suggested_focus: string;
+};
+export type CgymWeeklyReport = {
+  headline: string;
+  team_gaps: string[];
+  highlights: string[];
+  agents_to_watch: string[];
+  new_scenarios: { title: string; objection: string; why: string }[];
+  manual_updates: string[];
+  next_week_plan: string;
+};
+export type CgymAiReport<T> = { report_id?: string; generated_at?: string; week?: string; content: T | null };
+
+export const cgymStatsApi = {
+  stats: (days: number) => api<CgymStats>("/cgym/stats", { query: { days } as any }),
+  agentFeedback: (id: string, force = false) =>
+    api<CgymAiReport<CgymAgentFeedback>>(`/cgym/stats/agent-feedback/${id}`, { method: "POST", query: { force: force ? "true" : "false" } as any }),
+  agentFeedbackGet: (id: string) => api<CgymAiReport<CgymAgentFeedback>>(`/cgym/stats/agent-feedback/${id}`),
+  weekly: (force = false) => api<CgymAiReport<CgymWeeklyReport>>("/cgym/stats/weekly-report", { method: "POST", query: { force: force ? "true" : "false" } as any }),
+  weeklyGet: () => api<CgymAiReport<CgymWeeklyReport>>("/cgym/stats/weekly-report"),
+};
