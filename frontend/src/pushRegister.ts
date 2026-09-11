@@ -10,6 +10,11 @@ import { api } from "@/src/api";
 
 let lastRegistered: { userId: string; token: string } | null = null;
 
+/** V50.z184 — true se il token push è registrato sul server: i promemoria/timer li consegna il server. */
+export function isPushRegistered(): boolean {
+  return lastRegistered !== null;
+}
+
 export async function registerForPush(userId: string): Promise<boolean> {
   if (!userId) return false;
   if (Platform.OS === "web") return false;

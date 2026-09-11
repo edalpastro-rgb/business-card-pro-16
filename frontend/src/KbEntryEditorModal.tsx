@@ -5,11 +5,18 @@
  * Regola modal: footer FISSO con Salva + Annulla sempre visibili.
  */
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, useWindowDimensions, Keyboard } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { openInAppLink } from "@/src/utils/openInAppLink";
+
+type KbDocLink = { name: string; mime: string; url: string; download_url: string };
+type KbDocText = { name: string; has_file: boolean; pages: { page: number; text: string }[] };
 
 export type KbCategory = "Documento" | "FAQ" | "Dati" | "Nota";
 export type KbDoc = { doc_id: string; name: string; kind?: "pdf" | "text"; category?: KbCategory; content?: string };
@@ -34,9 +41,24 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
   const [content, setContent] = useState("");
   const [loadingContent, setLoadingContent] = useState(false);
   const [saving, setSaving] = useState(false);
+  // V50.z185 — PDF: apri/scarica l'originale (Object Storage) o leggi il testo estratto (sempre disponibile)
+  const router = useRouter();
+  const [pdfBusy, setPdfBusy] = useState<"open" | "download" | "text" | null>(null);
+  const [textView, setTextView] = useState<KbDocText | null>(null);
+  // V50.z39-pattern — dentro Modal transparent su Android KeyboardAvoidingView non funziona:
+  // spingiamo la card sopra la tastiera con un listener manuale (campi Titolo/Contenuto non più coperti).
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const s = Keyboard.addListener("keyboardDidShow", (e) => setKbHeight(e.endCoordinates?.height || 0));
+    const h = Keyboard.addListener("keyboardDidHide", () => setKbHeight(0));
+    return () => { s.remove(); h.remove(); };
+  }, []);
 
   useEffect(() => {
     if (!visible) return;
+    setTextView(null);
+    setPdfBusy(null);
     setName(doc?.name || "");
     setCategory((doc?.category as KbCategory) || (doc ? (isPdf ? "Documento" : "Nota") : "FAQ"));
     setContent(doc?.content || "");
@@ -75,22 +97,110 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
 
   const cats = isPdf ? KB_CATEGORIES : KB_CATEGORIES.filter((c) => c.key !== "Documento");
 
+  const showExtractedText = async () => {
+    if (!doc) return;
+    setPdfBusy("text");
+    try {
+      const t = await api<KbDocText>(`/master-docs/${doc.doc_id}/text`);
+      setTextView(t);
+    } catch (e: any) {
+      notify("Testo non disponibile", e?.message || String(e));
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
+  const openOrDownloadPdf = async (mode: "open" | "download") => {
+    if (!doc) return;
+    setPdfBusy(mode);
+    try {
+      const link = await api<KbDocLink>(`/master-docs/${doc.doc_id}/link`, { method: "POST" });
+      if (mode === "open") {
+        if (Platform.OS === "web") {
+          if (typeof window !== "undefined") window.open(link.url, "_blank", "noopener");
+          return;
+        }
+        const url = Platform.OS === "android" ? `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(link.url)}` : link.url;
+        onClose();
+        openInAppLink(router, url, { title: link.name });
+        return;
+      }
+      if (Platform.OS === "web") {
+        if (typeof window !== "undefined") window.open(link.download_url, "_blank", "noopener");
+        return;
+      }
+      const safe = (link.name || "documento.pdf").replace(/[^\w.\-àèéìòù ]+/gi, "_");
+      const dest = `${FileSystem.cacheDirectory}kb-${safe}`;
+      const res = await FileSystem.downloadAsync(link.download_url, dest);
+      if (res.status && res.status >= 400) throw new Error(`Download fallito (HTTP ${res.status})`);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(res.uri, { mimeType: "application/pdf", dialogTitle: link.name, UTI: "com.adobe.pdf" });
+      } else {
+        throw new Error("Condivisione non disponibile su questo dispositivo");
+      }
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      // PDF caricato prima di V50.z185 (nessun file originale) → offri il testo estratto
+      if (/originale non disponibile/i.test(msg)) {
+        notify("PDF originale non disponibile", "Caricato prima dell'aggiornamento: mostro il testo estratto. Ricaricalo per aprire il PDF.");
+        await showExtractedText();
+      } else {
+        notify("Apertura fallita", msg);
+      }
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={() => !saving && onClose()}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.back}>
-        <View style={[styles.card, { maxHeight: winH * 0.92, paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={[styles.card, { maxHeight: Math.max(winH * 0.92 - kbHeight, 320), paddingBottom: Math.max(insets.bottom, 12), marginBottom: kbHeight }]}>
           <View style={styles.hdr}>
             <View style={styles.hdrIcon}><Ionicons name={isEdit ? "create" : "add"} size={18} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{isEdit ? (isPdf ? "Modifica documento" : "Modifica voce") : "Nuova voce knowledge base"}</Text>
-              <Text style={styles.sub}>{isPdf ? "Puoi rinominare e cambiare categoria" : "Axon la caricherà nel contesto quando la domanda è pertinente"}</Text>
+              <Text style={styles.title}>{textView ? "Testo estratto" : isEdit ? (isPdf ? "Modifica documento" : "Modifica voce") : "Nuova voce knowledge base"}</Text>
+              <Text style={styles.sub}>{textView ? `${textView.pages.length} pagine · quello che Axon legge` : isPdf ? "Apri il PDF, rinomina o cambia categoria" : "Axon la caricherà nel contesto quando la domanda è pertinente"}</Text>
             </View>
             <Pressable onPress={() => !saving && onClose()} hitSlop={10} testID="kb-editor-close">
               <Ionicons name="close" size={22} color="#1B2B4B" />
             </Pressable>
           </View>
 
+          {textView ? (
+            <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ padding: 14, gap: 14 }} testID="kb-editor-textview">
+              {textView.pages.length === 0 && <Text style={styles.hint}>Nessun testo estratto per questo documento.</Text>}
+              {textView.pages.map((p) => (
+                <View key={p.page}>
+                  <Text style={styles.pageLabel}>Pagina {p.page}</Text>
+                  <Text style={styles.pageText} selectable>{p.text}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
           <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ padding: 14, gap: 12 }} keyboardShouldPersistTaps="handled">
+            {isPdf && isEdit && (
+              <View style={styles.pdfBox}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons name="document-text" size={18} color={PURPLE} />
+                  <Text style={[styles.label, { marginBottom: 0, flex: 1 }]}>File PDF caricato</Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                  <Pressable onPress={() => openOrDownloadPdf("open")} disabled={!!pdfBusy} style={[styles.chip, styles.chipOn]} testID="kb-editor-open-pdf">
+                    {pdfBusy === "open" ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="eye" size={14} color="#FFF" />}
+                    <Text style={[styles.chipTxt, { color: "#FFF" }]}>Apri PDF</Text>
+                  </Pressable>
+                  <Pressable onPress={() => openOrDownloadPdf("download")} disabled={!!pdfBusy} style={styles.chip} testID="kb-editor-download-pdf">
+                    {pdfBusy === "download" ? <ActivityIndicator size="small" color={PURPLE} /> : <Ionicons name="download-outline" size={14} color={PURPLE} />}
+                    <Text style={styles.chipTxt}>Scarica</Text>
+                  </Pressable>
+                  <Pressable onPress={showExtractedText} disabled={!!pdfBusy} style={styles.chip} testID="kb-editor-show-text">
+                    {pdfBusy === "text" ? <ActivityIndicator size="small" color={PURPLE} /> : <Ionicons name="reader-outline" size={14} color={PURPLE} />}
+                    <Text style={styles.chipTxt}>Testo estratto</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
             <View>
               <Text style={styles.label}>Titolo</Text>
               <TextInput
@@ -141,15 +251,25 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
               </View>
             )}
           </ScrollView>
+          )}
 
           <View style={styles.footer}>
-            <Pressable onPress={() => !saving && onClose()} style={[styles.btn, { backgroundColor: "#F1F5F9" }]} testID="kb-editor-cancel">
-              <Text style={{ color: "#1B2B4B", fontWeight: "700" }}>Annulla</Text>
-            </Pressable>
-            <Pressable onPress={save} disabled={!canSave} style={[styles.btn, { backgroundColor: canSave ? PURPLE : "#C4B5FD", flex: 2 }]} testID="kb-editor-save">
-              {saving ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="checkmark" size={18} color="#FFF" />}
-              <Text style={styles.btnTxt}>{isEdit ? "Salva modifiche" : "Aggiungi alla knowledge base"}</Text>
-            </Pressable>
+            {textView ? (
+              <Pressable onPress={() => setTextView(null)} style={[styles.btn, { backgroundColor: "#F1F5F9" }]} testID="kb-editor-text-back">
+                <Ionicons name="arrow-back" size={16} color="#1B2B4B" />
+                <Text style={{ color: "#1B2B4B", fontWeight: "700" }}>Torna alla modifica</Text>
+              </Pressable>
+            ) : (
+              <>
+                <Pressable onPress={() => !saving && onClose()} style={[styles.btn, { backgroundColor: "#F1F5F9" }]} testID="kb-editor-cancel">
+                  <Text style={{ color: "#1B2B4B", fontWeight: "700" }}>Annulla</Text>
+                </Pressable>
+                <Pressable onPress={save} disabled={!canSave} style={[styles.btn, { backgroundColor: canSave ? PURPLE : "#C4B5FD", flex: 2 }]} testID="kb-editor-save">
+                  {saving ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="checkmark" size={18} color="#FFF" />}
+                  <Text style={styles.btnTxt}>{isEdit ? "Salva modifiche" : "Aggiungi alla knowledge base"}</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -172,6 +292,9 @@ const styles = StyleSheet.create({
   chipTxt: { fontSize: 12, fontWeight: "800", color: PURPLE },
   hint: { fontSize: 11, color: "#94A3B8", fontStyle: "italic", marginTop: 6 },
   footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  pdfBox: { backgroundColor: "#F5F3FF", borderRadius: 12, borderWidth: 1, borderColor: "#DDD6FE", padding: 12, gap: 10 },
+  pageLabel: { fontSize: 11, fontWeight: "800", color: PURPLE, marginBottom: 4 },
+  pageText: { fontSize: 13, lineHeight: 19, color: "#1B2B4B" },
   btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 46, borderRadius: 12 },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
 });

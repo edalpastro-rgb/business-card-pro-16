@@ -19,6 +19,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { EvolutionMotto } from "@/src/EvolutionMotto";
 import { useRouter } from "expo-router";
 
 // Loghi ufficiali (asset già presenti nel bucket customer-assets)
@@ -112,9 +113,10 @@ export default function LandingScreen() {
           >
             AdvisorOS
           </Text>
-          <Text style={[styles.heroTagline, isCompact && styles.heroTaglineSmall]}>
-            Il CRM che si evolve con te
-          </Text>
+          {/* V50.z183 — motto in stile "evoluzione" (lettere crescenti, baseline comune, "con te" in risalto) */}
+          <View style={{ alignSelf: "stretch", marginVertical: 6 }}>
+            <EvolutionMotto testID="landing-motto" />
+          </View>
           <View style={styles.heroBadge}>
             <Ionicons name="rocket" size={14} color="#FF6B35" />
             <Text style={styles.heroBadgeTxt}>

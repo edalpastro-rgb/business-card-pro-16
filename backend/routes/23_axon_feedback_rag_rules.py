@@ -401,6 +401,11 @@ async def create_master_doc(body: MasterDocIn, user=Depends(get_current_user)):
         await db.master_documents.delete_one({"doc_id": doc_id})
         raise HTTPException(status_code=500, detail="Salvataggio chunks fallito")
 
+    # V50.z185 — PDF originale salvato su Object Storage per poterlo aprire dall'app (master_docs_files.py)
+    file_path = None
+    if kind == "pdf" and body.data_base64:
+        file_path = await _mdf_store_pdf(tid, doc_id, body.data_base64)
+
     return {
         "doc_id": doc_id,
         "name": name,
@@ -409,6 +414,7 @@ async def create_master_doc(body: MasterDocIn, user=Depends(get_current_user)):
         "total_pages": len(pages),
         "total_chunks": len(chunk_docs),
         "size": approx_size,
+        "file_path": file_path,
         "created_at": now.isoformat(),
     }
 

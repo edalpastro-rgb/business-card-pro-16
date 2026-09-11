@@ -28,6 +28,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection, LibrettoMeta, LIBRETTO_IMAGE_MAP, resolveSectionImage, withCorporateGymSection } from "@/src/libretto/libretto-content";
 import { getAppVersion, getAppLastUpdateDate, buildVersionBadge } from "@/src/libretto/appVersion";
+import { EvolutionMotto } from "@/src/EvolutionMotto";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 
@@ -362,6 +363,10 @@ export default function LibrettoScreen() {
           <View style={styles.coverLogos}>
             <Image source={ADVISOR_LOGO} style={styles.coverLogo} resizeMode="contain" />
             <Image source={AXON_LOGO} style={styles.coverLogo} resizeMode="contain" />
+          </View>
+          {/* V50.z183 — motto "il CRM che si evolve con te" in stile evoluzione */}
+          <View style={{ alignSelf: "stretch", marginTop: 6, marginBottom: 4 }}>
+            <EvolutionMotto dark testID="libretto-motto" />
           </View>
           <Text style={styles.coverTitle}>{isOnboarding ? "Benvenuto in AdvisorOS" : meta.title}</Text>
           <Text style={styles.coverSub}>

@@ -663,9 +663,14 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                                "web_sources": [], "from_cache": False, "slash": _qa_result.get("cmd")})
             return
 
+        # V50.z184 — Comandi notifiche push ("mandami una notifica: …", "avvisami se ho
+        # ritelefonate urgenti", "notifica di prova") → axon_chat_push.py. PRIMA del comando
+        # sveglie perché "avvisami" è anche un intent promemoria.
+        _al_result = await _maybe_push_command(body.message or "", user)
         # V50.z125 — Comandi timer/sveglia/promemoria ("imposta timer 15 minuti",
         # "ricordami di chiamare Mario stasera"): crea la sveglia e conferma.
-        _al_result = await _maybe_alarm_command(body.message or "", user)
+        if not _al_result:
+            _al_result = await _maybe_alarm_command(body.message or "", user)
         if _al_result and _al_result.get("reply") is not None:
             _sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
             _mid = uuid.uuid4().hex[:16]

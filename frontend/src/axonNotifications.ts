@@ -4,7 +4,7 @@ import { AppState, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { api } from "@/src/api";
 
-export type AxnKind = "cgym_due" | "callback_urgent" | "credits" | "weekly_report" | "axon_message";
+export type AxnKind = "cgym_due" | "callback_urgent" | "credits" | "weekly_report" | "axon_message" | "reminder";
 
 export type AxnNotification = {
   notif_id: string; tenant_id: string; user_id: string; kind: AxnKind; title: string; body: string;
@@ -29,7 +29,7 @@ export const axnApi = {
 };
 
 export const AXN_KIND_ICON: Record<AxnKind, string> = {
-  cgym_due: "barbell", callback_urgent: "call", credits: "flash", weekly_report: "stats-chart", axon_message: "sparkles",
+  cgym_due: "barbell", callback_urgent: "call", credits: "flash", weekly_report: "stats-chart", axon_message: "sparkles", reminder: "alarm",
 };
 
 /** Aggiorna il badge sull'icona dell'app (solo nativo). */

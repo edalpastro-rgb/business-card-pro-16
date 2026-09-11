@@ -332,14 +332,17 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     highlight: "Non devi aprire l'app per sapere cosa succede.",
     paragraphs: [
       "Non devi aprire l'app per sapere cosa succede. AxonOS ti manda notifiche push per sessioni Corporate Gym in scadenza, ritelefonate urgenti, report settimanali Master e avvisi crediti. L'AI che lavora anche quando tu non ci sei.",
+      "E puoi comandarle direttamente in chat: «ricordami domani alle 10 di chiamare Rossi» crea un promemoria che AxonOS ti consegna come push dal server, anche ad app chiusa; «avvisami se ho ritelefonate urgenti» attiva il controllo; «mandami una notifica: …» la invia subito.",
     ],
     bullets: [
+      { icon: "alarm", text: "Promemoria e timer impostati in chat con Axon" },
       { icon: "barbell", text: "Sessioni Corporate Gym obbligatorie in scadenza" },
       { icon: "call", text: "Ritelefonate urgenti in scadenza" },
       { icon: "stats-chart", text: "Report settimanale Master pronto" },
       { icon: "flash", text: "Avvisi crediti AI al 50%, 80% e 100%" },
     ],
     tips: [
+      { emoji: "💬", text: "In chat: «ricordami…», «avvisami se…», «mandami una notifica: …», «notifica di prova»." },
       { emoji: "⚙️", text: "Gestisci i tipi di notifica in Impostazioni → AI & Axon → Notifiche push AxonOS." },
       { emoji: "👥", text: "Il Master riceve anche gli avvisi del team; il collaboratore solo i propri." },
     ],

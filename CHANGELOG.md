@@ -193,6 +193,32 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z185 — Knowledge Base Axon: PDF visibile + campi non coperti dalla tastiera (Android)** — (1) nuovo modulo isolato
+  `backend/routes/master_docs_files.py`: il PDF caricato in `POST /master-docs` viene salvato anche su Emergent Object Storage
+  (`file_path`/`file_size`, hook `_mdf_store_pdf` in 23); `POST /master-docs/{id}/link` (JWT 12h) → `GET /public/master-doc/{token}[?download=1]`
+  (inline/attachment); `GET /master-docs/{id}/text` = testo estratto per pagina dai chunk (sempre disponibile). (2) `src/KbEntryEditorModal.tsx`:
+  per i PDF box "File PDF caricato" con **Apri PDF** (web nuova scheda · iOS WebView · Android viewer Google Docs), **Scarica** (cache + share sheet)
+  e **Testo estratto** (vista interna al modal, "Torna alla modifica"); PDF caricati PRIMA di questa versione → nessun file originale: avviso +
+  testo estratto (ricaricare il PDF per aprirlo). (3) Tastiera Android dentro Modal transparent (pattern V50.z39): listener
+  `keyboardDidShow/Hide` → `marginBottom: kbHeight` + maxHeight ridotta sulla card, così Titolo/Contenuto e footer Salva restano visibili.
+  Nessun'altra modifica alla pagina `documenti-axon.tsx`.
+- **V50.z184 — AxonOS invia push in autonomia dalla chat** — nuovo modulo isolato `backend/routes/axon_chat_push.py`
+  (dopo `axon_notifications.py` in `routes/__init__.py::MODULES`). (1) **Consegna server-side di promemoria e timer** creati in chat
+  («ricordami domani alle 10 di chiamare Rossi», «timer 15 minuti») o dalla pagina Timer & Sveglie: al `trigger_at` il server invia il push
+  (nuovo kind `reminder` in `AXN_KINDS`, deeplink `/axon-alarms`) anche ad app chiusa / telefono cambiato. Precisione: arming esatto
+  in-process (`call_later`, wrap non invasivo di `_create_axon_alarm_doc`) + tick di recupero ogni 60s sullo scheduler `_axn_scheduler`;
+  claim atomico su `axon_alarms.push_sent_at` → nessun doppione; scaduti da >6h (server fermo) marcati `push_skipped`. Le SVEGLIE (HH:MM)
+  restano notifiche locali (DnD/suono). (2) **Comandi chat senza LLM** `_maybe_push_command`, agganciato in `22_axon_alarm_commit_teach.py`
+  PRIMA di `_maybe_alarm_command`: «mandami una notifica di prova», «mandami una notifica: testo», Master «manda una notifica a Mario: testo»,
+  «avvisami se/quando ho ritelefonate urgenti | scadenze | sessioni gym | crediti» (riattiva la categoria + controllo immediato + esito),
+  «quali notifiche push ho attive». (3) Mappa app Axon: sezione "Notifiche push AxonOS" aggiunta a `_OMNI_EXTRA_SECTIONS`.
+  Frontend: `src/pushRegister.ts` espone `isPushRegistered()`; `src/alarmNotifs.ts` NON schedula la notifica locale per reminder/timer se il
+  token push è registrato (evita doppione, il server consegna); `AxnKind` + icona `alarm` per `reminder`; Libretto sezione notifiche aggiornata.
+  Test: `backend/tests/test_axon_chat_push.py` (5 comandi + timer REST 5s + promemoria chat 2 min consegnati, 0 doppioni) ✅.
+- **V50.z183 — Motto "il CRM che si evolve con te" in stile evoluzione** — nuovo `src/EvolutionMotto.tsx` (lettere su baseline
+  comune, ogni lettera più grande e più alta della precedente, colore grigio→blu vivido, blocco finale "con te" grande/staccato/arancio con
+  bagliore; auto-fit alla larghezza; prop `dark`). Inserito nella copertina del Libretto (`app/libretto.tsx`, variante dark, sotto i loghi)
+  e nella landing `/landing` al posto della scritta testuale. Approvato dall'utente su anteprima. Nessun'altra modifica.
 - **V50.z182 — Libretto Informativo + Presentazione 2.0 (posizionamento di eccellenza)** — `src/libretto/libretto-content.ts`,
   `app/libretto.tsx`, `app/adv-landing.tsx` (solo testi/UI). Nuovi campi `highlight` (blocco scuro, testo grande) e `bullets[]` (lista con
   icona grande) resi in app e nel PDF. Intro → headline "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati. Non ti chiede
@@ -448,6 +474,9 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z185 | Set 2026 | Knowledge Base: PDF originale su Object Storage + Apri/Scarica/Testo estratto nel modal di modifica; fix campi coperti dalla tastiera Android (`master_docs_files.py`, `KbEntryEditorModal.tsx`) |
+| V50.z184 | Set 2026 | AxonOS invia push in autonomia dalla chat: consegna server-side promemoria/timer (kind `reminder`, arming esatto + tick 60s, no doppioni) + comandi «mandami una notifica…», «avvisami se…», «notifica di prova», «quali notifiche ho attive» (`routes/axon_chat_push.py`) |
+| V50.z183 | Set 2026 | Motto evolutivo "il CRM che si evolve con te" (`EvolutionMotto`) in copertina Libretto e landing |
 | V50.z182 | Set 2026 | Libretto + Presentazione 2.0: headline, AxonOS/Corporate Gym/Axon Drive riscritti, nuove sezioni Notifiche push e Chiusura, blocchi highlight + bullet con icone (app e PDF), landing aggiornata |
 | V50.z181 | Set 2026 | Notifiche push AxonOS (Gym obbligatorie, richiamate urgenti, crediti 50/80/100%, report settimanale, messaggi critici): inbox + preferenze + badge icona/drawer, copie [Team] al Master, modulo isolato `axon_notifications.py` |
 | V50.z180 | Set 2026 | Axon omnisciente: prompt con mappa dell'app + dati completi di tutte le sezioni + schede complete dei contatti citati (`axon_crm_omniscience.py`), visibilità rispettata |

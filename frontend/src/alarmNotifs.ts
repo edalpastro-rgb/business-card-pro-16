@@ -14,6 +14,7 @@ import { Platform } from "react-native";
 import { storage } from "@/src/utils/storage";
 import { api } from "@/src/api";
 import { ensureNotifPermission } from "@/src/notifs";
+import { isPushRegistered } from "@/src/pushRegister";
 
 export type AlarmKind = "timer" | "alarm" | "reminder";
 
@@ -131,6 +132,11 @@ export async function syncAlarmNotifs(a: Alarm): Promise<void> {
   // Cancella prima le vecchie
   await cancelAlarmNotifs(a.id);
   if (!a.enabled) return;
+
+  // V50.z184 — Promemoria e timer: se il token push è registrato li consegna il SERVER
+  // (push AxonOS al trigger_at, anche ad app chiusa / telefono cambiato) → niente
+  // notifica locale per evitare il doppione. Le sveglie restano locali (DnD, suono).
+  if ((a.kind === "reminder" || a.kind === "timer") && isPushRegistered()) return;
 
   // Assicura canale Android con vibrazione
   if (Platform.OS === "android") {
