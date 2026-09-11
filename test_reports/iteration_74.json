@@ -1,0 +1,29 @@
+{
+  "summary": "Backend-only testing of Corporate Gym Blocco 2 (voice role-play, obiezione TEMPO). All 15 pytest cases PASSED (53.5s total, LLM heavy). Covered: start (no session / linked own session / other user 404 / tts base64 mp3), turn (empty→400, other user 404, valid text increments counter, 5-turn max forces ended=true, turn after finish 404-alt 400), finish (linked session gets status=completata + matching score + roleplay_id; auto-created session when unlinked; idempotent double-finish; zero-turns → score 0 with explanatory feedback), GET (own OK / other user 404). Blocco 1 regressions (GET /api/cgym/summary and /api/cgym/sessions) still healthy. Cleanup of test-created cgym_sessions is performed automatically via module fixture. Audio-STT branch not exercised (as agreed by main agent). No code was modified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cgym_v2_roleplay.py",
+    "/app/test_reports/pytest/cgym_v2_roleplay.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "corporate_gym.py is now 529 lines and is starting to bundle two logical modules (Blocco 1 sessions CRUD + Blocco 2 role-play). Splitting Blocco 2 into a sub-module (e.g. corporate_gym_roleplay.py) would keep files under the 700-line guideline and simplify future ownership.",
+    "LLM prompt CGYM_RP_TURN_SYSTEM asks for JSON but _cgym_customer_turn falls back to raw[:300] when parsing fails. Consider logging the raw output when parsing fails to help debug prompt drift (currently silent)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "N/A"},
+  "seed_data_creation": "Test created transient cgym_sessions and cgym_roleplays under owner test@dalpastro.it; sessions were cleaned up via DELETE at test module teardown. cgym_roleplays documents remain (as per main-agent instruction).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Use test file /app/backend/tests/test_cgym_v2_roleplay.py — it drives real LLM calls (~50-90s total). BASE_URL is hardcoded to the preview URL. Fixtures depend on shared state via pytest module attributes (pytest.rp_no_session, rp_linked, etc.) — do not reorder tests.",
+  "rca_of_issue": "N/A — no issues found."
+}

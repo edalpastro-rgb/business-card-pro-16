@@ -40,10 +40,21 @@ export function CgymSubsection({ type, description }: { type: CgymType; descript
           <CgymTileIcon type={type} size={96} />
           <Text style={styles.cardTitle}>{meta.label}</Text>
           <Text style={styles.cardSub}>{description}</Text>
-          <View style={styles.soon} testID="cgym-sub-coming-soon">
-            <Ionicons name="time-outline" size={14} color={CGYM_ORANGE} />
-            <Text style={styles.soonTxt}>Allenamento interattivo in arrivo</Text>
-          </View>
+          {type === "obiezioni" ? (
+            <Pressable onPress={() => router.push("/corporate-gym/roleplay" as any)} style={styles.startBtn} testID="cgym-sub-start-roleplay">
+              <Ionicons name="mic" size={18} color="#FFF" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.startTitle}>Role-play vocale · Obiezione TEMPO</Text>
+                <Text style={styles.startSub}>AxonOS fa il cliente, tu rispondi a voce. Score e feedback alla fine.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#FFF" />
+            </Pressable>
+          ) : (
+            <View style={styles.soon} testID="cgym-sub-coming-soon">
+              <Ionicons name="time-outline" size={14} color={CGYM_ORANGE} />
+              <Text style={styles.soonTxt}>Allenamento interattivo in arrivo</Text>
+            </View>
+          )}
         </View>
         {counts && (
           <View style={styles.stats} testID="cgym-sub-stats">
@@ -69,6 +80,9 @@ const styles = StyleSheet.create({
   cardSub: { fontSize: 13, color: theme.color.muted, textAlign: "center", lineHeight: 19 },
   soon: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: CGYM_ORANGE + "22", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginTop: 6 },
   soonTxt: { color: CGYM_ORANGE, fontWeight: "800", fontSize: 12 },
+  startBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CGYM_ORANGE, borderRadius: 14, padding: 14, marginTop: 8, alignSelf: "stretch", minHeight: 56 },
+  startTitle: { color: "#FFF", fontWeight: "900", fontSize: 14 },
+  startSub: { color: "#FFF", opacity: 0.9, fontSize: 11, marginTop: 2 },
   stats: { flexDirection: "row", gap: 10, marginTop: 12 },
   stat: { flex: 1, backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 14, alignItems: "center" },
   statNum: { fontSize: 24, fontWeight: "900", color: CGYM_ORANGE },

@@ -247,3 +247,282 @@ async def cgym_team_overview(user=Depends(get_current_user)):
         out.append(a)
     out.sort(key=lambda x: (-x["mandatory_pending"], x["name"].lower()))
     return {"items": out}
+
+
+# =========================================================================
+# Blocco 2 — Role-play vocale: obiezione TEMPO (MVP)
+# AxonOS interpreta il cliente (LLM via LlmChat + TTS interno `assistant_tts`);
+# il consulente risponde a voce (STT interno `ai_transcribe`). Al termine: score,
+# feedback e salvataggio in cgym_sessions. Collection: cgym_roleplays.
+# Nessuna modifica al codice AxonOS: qui vengono SOLO richiamate le sue funzioni.
+# =========================================================================
+CGYM_RP_MAX_TURNS = 5  # turni del consulente prima della chiusura forzata
+
+CGYM_SCENARIOS = {
+    "tempo": {
+        "label": "Obiezione TEMPO",
+        "objection": "Non ho tempo",
+        "opening_hint": "Il consulente ha appena proposto un breve incontro/analisi della bolletta. Tu rispondi con l'obiezione del TEMPO: sei di fretta, non hai tempo, rimanda.",
+        "persona": (
+            "Sei Marco Bianchi, titolare di una piccola azienda (officina meccanica, 6 dipendenti) a Vicenza. "
+            "Sei un cliente potenziale di un consulente energetico che ti ha contattato per proporti un'analisi delle bollette luce/gas. "
+            "La tua obiezione principale è il TEMPO: sei sempre di corsa, hai già troppe cose da fare, rimandi. "
+            "Sei educato ma sbrigativo. Non sei ostile: se il consulente riconosce il tuo problema, ti fa capire in modo concreto "
+            "quanto poco tempo serve, quantifica il vantaggio e propone uno slot preciso e breve, puoi aprirti gradualmente e alla fine accettare. "
+            "Se il consulente insiste, è generico, parla troppo o ignora la tua obiezione, resti chiuso e concludi la telefonata."
+        ),
+    }
+}
+
+CGYM_RP_TURN_SYSTEM = """{persona}
+
+REGOLE DI RECITAZIONE:
+- Parla SOLO come il cliente, in italiano, prima persona, tono naturale da telefonata. MAX 2 frasi brevi (parlato, non scritto).
+- Resta nel personaggio: mai spiegare, mai dare consigli al consulente, mai uscire dal ruolo.
+- Valuta la risposta del consulente turno per turno: se gestisce bene l'obiezione (ascolta, riformula, quantifica il tempo richiesto, dà un beneficio concreto, propone uno slot preciso) il tuo "mood" migliora; altrimenti peggiora.
+- Chiudi la conversazione (end=true) quando: accetti un appuntamento concreto, OPPURE rifiuti definitivamente dopo risposte deboli, OPPURE hai raggiunto il turno {max_turns}.
+- Turno attuale del consulente: {turn} di {max_turns}.
+
+RISPONDI SOLO con JSON valido, senza testo attorno:
+{{"reply": "<battuta del cliente>", "mood": "chiuso|scettico|aperto|convinto", "end": true|false}}"""
+
+CGYM_RP_EVAL_SYSTEM = """Sei un formatore commerciale esperto nel settore energia (consulenti luce/gas B2B/B2C in Italia).
+Valuta la gestione dell'obiezione "{objection}" da parte del consulente nella trascrizione di un role-play telefonico.
+Criteri (peso uguale): 1) Ascolto e riconoscimento dell'obiezione (empatia, niente contro-attacco); 2) Riformulazione/isolamento dell'obiezione;
+3) Valore concreto e quantificato (tempo richiesto minimo, beneficio economico chiaro); 4) Proposta di chiusura precisa (slot breve, data/ora, alternativa);
+5) Tono e chiarezza (frasi brevi, sicurezza, niente gergo).
+Sii concreto: cita frasi realmente dette dal consulente. Feedback in italiano, diretto, utile, max 3 punti per lista.
+
+RISPONDI SOLO con JSON valido:
+{{"score": <intero 0-100>, "summary": "<2 frasi di sintesi>", "what_worked": ["..."], "to_improve": ["..."], "best_line": "<la frase migliore del consulente o stringa vuota>", "suggested_answer": "<esempio di risposta ideale all'obiezione, 2-3 frasi>"}}"""
+
+
+class CgymRoleplayStartIn(BaseModel):
+    session_id: Optional[str] = None
+    scenario: Literal["tempo"] = "tempo"
+    voice: Optional[str] = None  # voce TTS (default onyx = cliente uomo)
+    tts: bool = True
+
+
+class CgymRoleplayTurnIn(BaseModel):
+    audio_base64: Optional[str] = None
+    mime: Optional[str] = "audio/m4a"
+    text: Optional[str] = None  # fallback testuale (web senza microfono / test)
+    tts: bool = True
+
+
+def _cgym_rp_out(doc: dict) -> dict:
+    d = {k: v for k, v in doc.items() if k != "_id"}
+    for k in ("started_at", "finished_at"):
+        if isinstance(d.get(k), datetime):
+            d[k] = d[k].astimezone(timezone.utc).isoformat()
+    for t in d.get("turns", []):
+        if isinstance(t.get("at"), datetime):
+            t["at"] = t["at"].astimezone(timezone.utc).isoformat()
+    return d
+
+
+def _cgym_llm_json(raw: str) -> dict:
+    """Parser JSON tollerante (blocchi ```json, testo attorno)."""
+    s = (raw or "").strip()
+    if s.startswith("```"):
+        s = s.strip("`")
+        if s.lower().startswith("json"):
+            s = s[4:]
+    try:
+        return _json_stdlib.loads(s)
+    except Exception:
+        pass
+    m = re.search(r"\{.*\}", s, re.S)
+    if m:
+        try:
+            return _json_stdlib.loads(m.group(0))
+        except Exception:
+            pass
+    return {}
+
+
+async def _cgym_llm(system: str, user_text: str, model: str = "claude-haiku-4-5") -> str:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+    chat = LlmChat(api_key=key, session_id=f"cgym-rp-{uuid.uuid4().hex[:8]}", system_message=system).with_model("anthropic", model)
+    try:
+        resp = await chat.send_message(UserMessage(text=user_text))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Errore LLM: {str(e)[:200]}")
+    return (resp or "").strip()
+
+
+def _cgym_transcript_text(turns: List[dict]) -> str:
+    lines = []
+    for t in turns:
+        who = "CLIENTE" if t.get("role") == "cliente" else "CONSULENTE"
+        lines.append(f"{who}: {t.get('text', '')}")
+    return "\n".join(lines) if lines else "(nessun turno)"
+
+
+async def _cgym_tts_b64(text: str, voice: Optional[str], user: dict) -> Optional[str]:
+    """TTS via la funzione interna di AxonOS (`assistant_tts`). None se non disponibile."""
+    try:
+        r = await assistant_tts(AssistantTTSIn(text=text, voice=voice or "onyx"), user)
+        return r.get("audio_base64")
+    except Exception as e:
+        logger.warning("cgym tts failed: %s", e)
+        return None
+
+
+async def _cgym_customer_turn(rp: dict, turn_no: int) -> dict:
+    sc = CGYM_SCENARIOS[rp["scenario"]]
+    system = CGYM_RP_TURN_SYSTEM.format(persona=sc["persona"], max_turns=CGYM_RP_MAX_TURNS, turn=turn_no)
+    if turn_no == 0:
+        user_text = f"{sc['opening_hint']}\nApri tu la conversazione con la tua obiezione (il consulente ha appena finito di presentarsi e proporre l'incontro)."
+    else:
+        user_text = f"TRASCRIZIONE FINORA:\n{_cgym_transcript_text(rp['turns'])}\n\nRispondi come il cliente all'ultima battuta del consulente."
+    raw = await _cgym_llm(system, user_text, "claude-haiku-4-5")
+    data = _cgym_llm_json(raw)
+    reply = (data.get("reply") or "").strip() if isinstance(data, dict) else ""
+    if not reply:
+        reply = raw[:300] if raw else "Guardi, davvero, adesso non ho tempo. Mi richiami un'altra volta."
+    mood = data.get("mood") if isinstance(data, dict) else None
+    end = bool(data.get("end")) if isinstance(data, dict) else False
+    if turn_no >= CGYM_RP_MAX_TURNS:
+        end = True
+    return {"reply": reply, "mood": mood if mood in ("chiuso", "scettico", "aperto", "convinto") else "scettico", "end": end}
+
+
+async def _cgym_rp_get(roleplay_id: str, user: dict) -> dict:
+    rp = await db.cgym_roleplays.find_one({"roleplay_id": roleplay_id, "user_id": user["user_id"]})
+    if not rp:
+        raise HTTPException(status_code=404, detail="Role-play non trovato")
+    return rp
+
+
+@api_router.post("/cgym/roleplay/start")
+async def cgym_roleplay_start(body: CgymRoleplayStartIn, user=Depends(get_current_user)):
+    """Avvia un role-play: crea il record e genera la battuta di apertura del cliente (testo + audio TTS)."""
+    tid = tenant_id(user)
+    session_id = body.session_id
+    if session_id:
+        s = await db.cgym_sessions.find_one({"session_id": session_id, "tenant_id": tid})
+        if not s or s["user_id"] != user["user_id"]:
+            raise HTTPException(status_code=404, detail="Sessione non trovata")
+        await db.cgym_sessions.update_one({"session_id": session_id}, {"$set": {"status": "in_corso", "updated_at": utcnow()}})
+    now = utcnow()
+    rp = {
+        "roleplay_id": str(uuid.uuid4()),
+        "tenant_id": tid,
+        "user_id": user["user_id"],
+        "session_id": session_id,
+        "scenario": body.scenario,
+        "status": "active",
+        "turns": [],
+        "voice": body.voice or "onyx",
+        "started_at": now,
+        "finished_at": None,
+        "score": None,
+        "feedback": None,
+    }
+    first = await _cgym_customer_turn(rp, 0)
+    rp["turns"].append({"role": "cliente", "text": first["reply"], "mood": first["mood"], "at": now})
+    await db.cgym_roleplays.insert_one(rp)
+    audio = await _cgym_tts_b64(first["reply"], rp["voice"], user) if body.tts else None
+    return {
+        "roleplay_id": rp["roleplay_id"],
+        "scenario": body.scenario,
+        "scenario_label": CGYM_SCENARIOS[body.scenario]["label"],
+        "reply": first["reply"],
+        "mood": first["mood"],
+        "audio_base64": audio,
+        "audio_mime": "audio/mpeg",
+        "turn": 0,
+        "max_turns": CGYM_RP_MAX_TURNS,
+        "ended": False,
+    }
+
+
+@api_router.post("/cgym/roleplay/{roleplay_id}/turn")
+async def cgym_roleplay_turn(roleplay_id: str, body: CgymRoleplayTurnIn, user=Depends(get_current_user)):
+    """Turno del consulente (audio → STT interno, oppure testo) → risposta del cliente (LLM + TTS)."""
+    rp = await _cgym_rp_get(roleplay_id, user)
+    if rp.get("status") != "active":
+        raise HTTPException(status_code=400, detail="Role-play già concluso")
+    text = (body.text or "").strip()
+    if not text and body.audio_base64:
+        r = await ai_transcribe(AIVoiceIn(audio_base64=body.audio_base64, mime=body.mime or "audio/m4a"), user)
+        text = (r.get("transcript") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Non ho capito la risposta: riprova parlando più vicino al microfono")
+    now = utcnow()
+    rp["turns"].append({"role": "consulente", "text": text, "at": now})
+    turn_no = sum(1 for t in rp["turns"] if t["role"] == "consulente")
+    cust = await _cgym_customer_turn(rp, turn_no)
+    rp["turns"].append({"role": "cliente", "text": cust["reply"], "mood": cust["mood"], "at": utcnow()})
+    await db.cgym_roleplays.update_one({"roleplay_id": roleplay_id}, {"$set": {"turns": rp["turns"]}})
+    audio = await _cgym_tts_b64(cust["reply"], rp.get("voice"), user) if body.tts else None
+    return {
+        "transcript": text,
+        "reply": cust["reply"],
+        "mood": cust["mood"],
+        "audio_base64": audio,
+        "audio_mime": "audio/mpeg",
+        "turn": turn_no,
+        "max_turns": CGYM_RP_MAX_TURNS,
+        "ended": cust["end"],
+    }
+
+
+@api_router.post("/cgym/roleplay/{roleplay_id}/finish")
+async def cgym_roleplay_finish(roleplay_id: str, user=Depends(get_current_user)):
+    """Chiude il role-play: valutazione LLM (score + feedback) e salvataggio in cgym_sessions."""
+    rp = await _cgym_rp_get(roleplay_id, user)
+    if rp.get("status") == "finished" and rp.get("feedback"):
+        return _cgym_rp_out(rp)
+    sc = CGYM_SCENARIOS[rp["scenario"]]
+    n_cons = sum(1 for t in rp["turns"] if t["role"] == "consulente")
+    if n_cons == 0:
+        feedback = {"score": 0, "summary": "Nessuna risposta del consulente: il role-play è stato interrotto prima di iniziare.",
+                    "what_worked": [], "to_improve": ["Rispondi almeno una volta all'obiezione del cliente per ottenere una valutazione."],
+                    "best_line": "", "suggested_answer": ""}
+    else:
+        raw = await _cgym_llm(CGYM_RP_EVAL_SYSTEM.format(objection=sc["objection"]),
+                              f"TRASCRIZIONE ROLE-PLAY ({sc['label']}):\n{_cgym_transcript_text(rp['turns'])}", "claude-sonnet-5")
+        data = _cgym_llm_json(raw)
+        try:
+            score = int(round(float(data.get("score", 0))))
+        except Exception:
+            score = 0
+        feedback = {
+            "score": max(0, min(100, score)),
+            "summary": str(data.get("summary") or "").strip() or raw[:400],
+            "what_worked": [str(x) for x in (data.get("what_worked") or [])][:3],
+            "to_improve": [str(x) for x in (data.get("to_improve") or [])][:3],
+            "best_line": str(data.get("best_line") or "").strip(),
+            "suggested_answer": str(data.get("suggested_answer") or "").strip(),
+        }
+    now = utcnow()
+    upd = {"status": "finished", "finished_at": now, "score": feedback["score"], "feedback": feedback}
+    await db.cgym_roleplays.update_one({"roleplay_id": roleplay_id}, {"$set": upd})
+    rp.update(upd)
+    # Salvataggio risultato in cgym_sessions (sessione collegata o nuova sessione completata)
+    session_id = rp.get("session_id")
+    sess_upd = {"status": "completata", "score": float(feedback["score"]), "completed_at": now, "updated_at": now,
+                "roleplay_id": roleplay_id, "feedback": feedback}
+    if session_id and await db.cgym_sessions.find_one({"session_id": session_id}):
+        await db.cgym_sessions.update_one({"session_id": session_id}, {"$set": sess_upd})
+    else:
+        session_id = str(uuid.uuid4())
+        await db.cgym_sessions.insert_one({
+            "session_id": session_id, "tenant_id": rp["tenant_id"], "user_id": user["user_id"], "assigned_by": user["user_id"],
+            "type": "obiezioni", "title": f"Role-play {sc['label']}", "scheduled_at": rp.get("started_at") or now,
+            "mandatory": False, "created_at": now, **sess_upd,
+        })
+        await db.cgym_roleplays.update_one({"roleplay_id": roleplay_id}, {"$set": {"session_id": session_id}})
+        rp["session_id"] = session_id
+    return _cgym_rp_out(rp)
+
+
+@api_router.get("/cgym/roleplay/{roleplay_id}")
+async def cgym_roleplay_get(roleplay_id: str, user=Depends(get_current_user)):
+    return _cgym_rp_out(await _cgym_rp_get(roleplay_id, user))

@@ -227,6 +227,17 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   Index: banner header (immagine fornita dall'utente via URL), tile Gym Obiezioni / Gym WIN-WIN (placeholder "Allenamento
   interattivo in arrivo" + conteggi), "Le mie sessioni" (Da fare/Completate; inizia/completa/riapri/elimina), sheet "Nuova
   sessione" (tipo, giorno, ora, titolo, obbligatoria, assegnatario per Titolare/Admin da `/team/members`), "Quadro team" (Titolare/Admin).
+- **Blocco 2 — Role-play vocale Obiezione TEMPO (V50.z170)**: backend (stesso `corporate_gym.py`, collection `cgym_roleplays`):
+  `POST /api/cgym/roleplay/start` (persona "Marco Bianchi" officina, battuta di apertura LLM claude-haiku-4-5 + TTS via funzione interna
+  `assistant_tts`, voce onyx), `POST /api/cgym/roleplay/{id}/turn` (audio → STT interno `ai_transcribe`, oppure `text`; risposta cliente
+  JSON {reply, mood chiuso|scettico|aperto|convinto, end}; max 5 turni), `POST /api/cgym/roleplay/{id}/finish` (valutazione claude-sonnet-5:
+  score 0-100, summary, what_worked, to_improve, best_line, suggested_answer; salva in cgym_sessions: sessione collegata → completata+score,
+  altrimenti nuova sessione "Role-play Obiezione TEMPO"; idempotente), `GET /api/cgym/roleplay/{id}`. AxonOS NON modificato (solo chiamate interne).
+  Frontend `app/corporate-gym/roleplay.tsx` (intro con permesso microfono contestuale + fallback "Rispondo scrivendo" + Apri impostazioni;
+  live con bolle, mood cliente, mic tap-to-talk max 60s, stato; risultati con score ring/feedback/risposta ideale; Rifai / Torna al Gym),
+  `src/corporate-gym/voice.ts` (MediaRecorder web / expo-audio native, playback con fine via playbackStatusUpdate). Entry: card in
+  Gym Obiezioni (`cgym-sub-start-roleplay`) e bottone mic sulle sessioni di tipo obiezioni (`cgym-start-<id>` → roleplay?session_id=).
+  Controlli tenuti sopra la PersistentBottomNav e a sinistra della colonna FAB (calcolatrice/AxonOS). Test backend 15/15 (`tests/test_cgym_v2_roleplay.py`).
 - **Punti di aggancio (1 riga ciascuno)**: bottone "Corporate Gym" in `master.tsx` (categoria Team #EAB308), voce drawer
   `DrawerMenu.tsx` (team), `DashboardWidgetsSection.tsx` (`w.id === "cgym"`), `dashboard-config.tsx` reset list,
   `home.tsx` `<CgymAlertStrip/>` sotto `HomeTipsBanner`.
@@ -325,6 +336,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z170 | Giu 2026 | Corporate Gym Blocco 2: role-play vocale Obiezione TEMPO (AxonOS = cliente via LLM+TTS interni, consulente a voce/STT o testo, score+feedback, salvataggio in cgym_sessions) — `/corporate-gym/roleplay` |
 | V50.z169 | Giu 2026 | Corporate Gym: tile Gym Obiezioni / Gym WIN-WIN con icone ufficiali (immagini utente via URL, `CGYM_TYPE_META[].image`, componente `CgymTileIcon` con fallback Ionicons) anche nell'header delle sottosezioni. Nessun'altra modifica |
 | V50.z168 | Giu 2026 | Corporate Gym Blocco 1 (modulo isolato): backend `routes/corporate_gym.py` + `cgym_sessions`, pagine `/corporate-gym` (+ obiezioni, win-win), widget Home `cgym`, striscia arancione obbligatorie, voce Master + drawer |
 | V50.z167 | Giu 2026 | Batch 4: bottom nav uniforme — nuovo hook condiviso `useNavBarBottomInset()` (`src/hooks/useSafeBottom.tsx`: max(insets.bottom, initialWindowMetrics.bottom, 20)) usato sia dalla Tabs nativa `(tabs)/_layout.tsx` (Home & tab) sia da `PersistentBottomNav` → stesso padding-bottom su tutte le schermate (in Home insets.bottom=0 dentro lo Stack Android edge-to-edge → barra attaccata alla navigation bar) |

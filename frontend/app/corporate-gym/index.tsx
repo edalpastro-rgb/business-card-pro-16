@@ -209,9 +209,17 @@ export default function CorporateGymHome() {
                 </View>
                 {s.status !== "completata" ? (
                   <>
-                    {s.status === "assegnata" && (
-                      <Pressable onPress={() => setStatus(s, "in_corso")} hitSlop={6} style={styles.rowBtn} testID={`cgym-start-${s.session_id}`} accessibilityLabel="Inizia">
-                        <Ionicons name="play" size={16} color={theme.color.brandPrimary} />
+                    {(s.status === "assegnata" || s.type === "obiezioni") && (
+                      <Pressable
+                        onPress={() => (s.type === "obiezioni"
+                          ? router.push({ pathname: "/corporate-gym/roleplay", params: { session_id: s.session_id } } as any)
+                          : setStatus(s, "in_corso"))}
+                        hitSlop={6}
+                        style={[styles.rowBtn, s.type === "obiezioni" && { backgroundColor: CGYM_ORANGE }]}
+                        testID={`cgym-start-${s.session_id}`}
+                        accessibilityLabel={s.type === "obiezioni" ? "Avvia role-play" : "Inizia"}
+                      >
+                        <Ionicons name={s.type === "obiezioni" ? "mic" : "play"} size={16} color={s.type === "obiezioni" ? "#FFF" : theme.color.brandPrimary} />
                       </Pressable>
                     )}
                     <Pressable onPress={() => setStatus(s, "completata")} hitSlop={6} style={[styles.rowBtn, { backgroundColor: theme.color.success + "22" }]} testID={`cgym-done-${s.session_id}`} accessibilityLabel="Completa">
