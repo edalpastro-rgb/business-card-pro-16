@@ -1,0 +1,33 @@
+{
+  "summary": "Corporate Gym Blocco 3 (Master Assignments) — backend-only testing. Created /app/backend/tests/test_cgym_v3_assignments.py covering POST/GET/DELETE /api/cgym/assignments plus GET /api/cgym/summary (assigned_* fields) and Blocco 1/2 regression (sessions, team-overview, roleplay start). 18/18 tests passed. All created plans and completed sessions were cleaned up at teardown (0 assignments remaining). No app code changes were needed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cgym_v3_assignments.py",
+    "/app/test_reports/pytest/cgym_v3_assignments.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "corporate_gym.py:588 — target='users' silently drops unknown user_ids via `if u in by_id`. If ALL ids are unknown → 400; if only SOME are unknown → the plan is created for the valid subset without warning. Consider raising 400 when any submitted user_id is unknown (currently the review request wording implies 400 is expected only when the whole list resolves to empty targets, and this is how it behaves — verified in test_validation_unknown_user_id). Acceptable but worth documenting.",
+  "corporate_gym.py:655 — `overdue` is computed via string comparison on due_date (YYYY-MM-DD lexicographic) vs today.isoformat(); works while format stays YYYY-MM-DD but brittle if format ever changes.",
+  "corporate_gym.py:544 — CGYM_SLOT_TIMES defines 3 slots for per_day=3 (09:00/13:00/17:00), but the review request only mentions 09:00 and 15:00 for per_day=2. per_day=2 verified correct (09:00 + 15:00 Europe/Rome). Per-day=3 not exercised.",
+  "corporate_gym.py:582 — Tenant members query uses {parent_user_id: tid} OR {user_id: tid}; nested sub-users (grandchildren) would not appear. Not an issue for the current 2-level test setup."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cgym_v3_assignments.py (created)"
+  ],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "n/a"},
+  "seed_data_creation": "None persisted. Test fixture creates 2 assignments (users target 6 sessions, team target 1+ session) and completes 1 session; teardown deletes plans (auto-removes non-completed sessions) and the leftover completed session. Verified 0 lingering assignments post-run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Blocco 3 endpoints verified: POST /api/cgym/assignments (users + team targets, per_day validation, due_date validation, unknown user_id, member 403), GET /api/cgym/assignments (progress after sub PATCHes session to completata, per_user counts, overdue flag, 403 for member), GET /api/cgym/summary (assigned_total/done/pending + mandatory_pending), DELETE /api/cgym/assignments/{id} (only deletes non-completed sessions, 404 unknown, 403 member). Slot times verified 09:00/15:00 Europe/Rome for per_day=2 across 3 days. Regression on Blocco 1 (sessions, team-overview) and Blocco 2 (roleplay/start tts:false) all pass. Test file follows existing pattern (module-scoped cleanup, sessions/assignments tracking lists). Sub credentials: sub1@dalpastro.it/Sub12345!",
+  "rca_of_issue": "N/A — all tests passed on the intended behavior. Initial run had a fixture bug (KeyError user_id) because /api/auth/me returns {\"user\": {...}} not the user object directly; fixed by unwrapping `data.get('user') or data` in owner_me/member_me fixtures."
+}

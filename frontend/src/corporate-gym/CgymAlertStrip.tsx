@@ -20,7 +20,8 @@ export function CgymAlertStrip() {
   const load = useCallback(async () => {
     try {
       const s = await cgymApi.summary();
-      setPending(s.mandatory_pending || 0);
+      // Blocco 3 — si attiva anche per sessioni assegnate dal Master non completate
+      setPending(Math.max(s.mandatory_pending || 0, s.assigned_pending || 0));
       setOverdue(s.overdue || 0);
     } catch {
       setPending(0);
@@ -37,7 +38,7 @@ export function CgymAlertStrip() {
       <Pressable style={styles.body} onPress={() => router.push("/corporate-gym" as any)} testID="cgym-alert-strip-open" hitSlop={4}>
         <Ionicons name="barbell" size={13} color="#FFF" />
         <Text style={styles.txt} numberOfLines={1}>
-          Corporate Gym · {pending} {pending === 1 ? "obbligatoria da completare" : "obbligatorie da completare"}
+          Corporate Gym · {pending} {pending === 1 ? "sessione da completare" : "sessioni da completare"}
           {overdue > 0 ? ` · ${overdue} in ritardo` : ""}
         </Text>
       </Pressable>

@@ -4,7 +4,7 @@
 // Le quick actions della Home restano invariate: questo drawer è un menu
 // COMPLETO che si apre dal pulsante hamburger.
 
-import { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View, Text, StyleSheet, Modal, Pressable, ScrollView, Animated,
   Dimensions, Platform,
@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { theme } from "@/src/theme";
 import { MENU_CATEGORIES } from "@/src/menuCategories";
+import { CgymDrawerBadge } from "@/src/corporate-gym/CgymDrawerBadge"; // Corporate Gym (Blocco 3)
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -22,6 +23,7 @@ type DrawerItem = {
   icon: IconName;
   href: string;
   categoryKey: keyof typeof MENU_CATEGORIES;
+  badge?: React.ComponentType; // indicatore opzionale a destra (es. Corporate Gym "3/7")
 };
 
 const ITEMS: DrawerItem[] = [
@@ -55,7 +57,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Team Insights",     icon: "analytics-outline",    href: "/team-insights",      categoryKey: "team" },
   { label: "Invita Collaboratore", icon: "person-add-outline",href: "/invite-collaborator",categoryKey: "team" },
   { label: "Statistiche",       icon: "bar-chart-outline",    href: "/(tabs)/report",      categoryKey: "team" }, // V50.z141 — ex tab "Report"
-  { label: "Corporate Gym",     icon: "barbell-outline",      href: "/corporate-gym",      categoryKey: "team" }, // Corporate Gym (Blocco 1)
+  { label: "Corporate Gym",     icon: "barbell-outline",      href: "/corporate-gym",      categoryKey: "team", badge: CgymDrawerBadge }, // Corporate Gym (Blocco 1/3)
   // Amministrazione (grigio #475569)
   { label: "Impostazioni",      icon: "settings-outline",     href: "/(tabs)/impostazioni",categoryKey: "admin" },
   { label: "Setting App",       icon: "color-palette-outline",href: "/settings-app",       categoryKey: "admin" },
@@ -143,6 +145,7 @@ export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: ()
                     <Ionicons name={it.icon} size={18} color="#FFF" />
                   </View>
                   <Text style={styles.rowLabel} numberOfLines={1}>{it.label}</Text>
+                  {it.badge ? <it.badge /> : null}
                   <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
                 </Pressable>
               ))}

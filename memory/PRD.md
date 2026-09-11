@@ -5963,3 +5963,4 @@ else Linking.openURL(url).catch(() => {});
 - Prossimi blocchi: contenuto allenamento interattivo (Obiezioni, WIN-WIN), score.
 - V50.z169: tile Obiezioni/WIN-WIN con icone ufficiali (`CgymTileIcon`).
 - V50.z170 Blocco 2: role-play vocale Obiezione TEMPO (`/corporate-gym/roleplay`, endpoint `/api/cgym/roleplay/*`, collection cgym_roleplays). Voce reale testabile solo su build nativa/browser con microfono; fallback testo.
+- V50.z171 Blocco 3: assegnazioni Master (`/corporate-gym/assign`, `/api/cgym/assignments`, cgym_assignments), badge drawer, widget assegnate, striscia su assegnate pendenti.

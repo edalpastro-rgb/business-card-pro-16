@@ -189,9 +189,14 @@ async def cgym_summary(user=Depends(get_current_user)):
     horizon = now + timedelta(days=7)
     rows = await db.cgym_sessions.find({"tenant_id": tenant_id(user), "user_id": user["user_id"]}).to_list(2000)
     due_soon, today_total, today_done, mandatory_pending, overdue = [], 0, 0, 0, 0
+    assigned_total, assigned_done = 0, 0  # Blocco 3 — sessioni assegnate dal Master (assigned_by != me)
     for r in rows:
         dt = _cgym_dt(r.get("scheduled_at"))
         done = r.get("status") == "completata"
+        if r.get("assigned_by") and r.get("assigned_by") != user["user_id"]:
+            assigned_total += 1
+            if done:
+                assigned_done += 1
         if dt is not None and day_start <= dt.astimezone(_CGYM_TZ) < day_end:
             today_total += 1
             if done:
@@ -211,6 +216,9 @@ async def cgym_summary(user=Depends(get_current_user)):
         "today_done": today_done,
         "mandatory_pending": mandatory_pending,
         "overdue": overdue,
+        "assigned_total": assigned_total,
+        "assigned_done": assigned_done,
+        "assigned_pending": assigned_total - assigned_done,
         "server_time": now.isoformat(),
     }
 
@@ -526,3 +534,138 @@ async def cgym_roleplay_finish(roleplay_id: str, user=Depends(get_current_user))
 @api_router.get("/cgym/roleplay/{roleplay_id}")
 async def cgym_roleplay_get(roleplay_id: str, user=Depends(get_current_user)):
     return _cgym_rp_out(await _cgym_rp_get(roleplay_id, user))
+
+
+# =========================================================================
+# Blocco 3 — Assegnazioni Master (piani): agente o tutto il team, tipo, frequenza
+# 1/2/3 al giorno, scadenza → genera le sessioni (obbligatorie) in cgym_sessions.
+# Collection: cgym_assignments.
+# =========================================================================
+CGYM_SLOT_TIMES = {1: ["09:00"], 2: ["09:00", "15:00"], 3: ["09:00", "13:00", "17:00"]}
+CGYM_ASSIGN_MAX_SESSIONS = 300
+
+
+class CgymAssignmentIn(BaseModel):
+    target: Literal["team", "users"] = "users"
+    user_ids: List[str] = []
+    type: Literal["obiezioni", "winwin"]
+    per_day: int = 1  # 1..3
+    due_date: str  # YYYY-MM-DD (Europe/Rome), inclusa
+    title: Optional[str] = None
+    mandatory: bool = True
+
+
+def _cgym_assignment_out(doc: dict) -> dict:
+    d = {k: v for k, v in doc.items() if k != "_id"}
+    for k in ("created_at", "updated_at"):
+        if isinstance(d.get(k), datetime):
+            d[k] = d[k].astimezone(timezone.utc).isoformat()
+    return d
+
+
+@api_router.post("/cgym/assignments")
+async def cgym_create_assignment(body: CgymAssignmentIn, user=Depends(get_current_user)):
+    """Master: crea un piano di assegnazione e genera le sessioni per ogni collaboratore/giorno/slot."""
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo Titolare/Admin")
+    tid = tenant_id(user)
+    per_day = int(body.per_day)
+    if per_day not in (1, 2, 3):
+        raise HTTPException(status_code=400, detail="Frequenza: 1, 2 o 3 sessioni al giorno")
+    try:
+        due = datetime.strptime(body.due_date, "%Y-%m-%d").date()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Data di scadenza non valida (YYYY-MM-DD)")
+    today = utcnow().astimezone(_CGYM_TZ).date()
+    if due < today:
+        raise HTTPException(status_code=400, detail="La scadenza deve essere oggi o futura")
+    members = await db.users.find({"$or": [{"user_id": tid}, {"parent_user_id": tid}]},
+                                  {"_id": 0, "user_id": 1, "name": 1, "email": 1}).to_list(2000)
+    by_id = {m["user_id"]: m for m in members}
+    if body.target == "team":
+        targets = [m["user_id"] for m in members if m["user_id"] != user["user_id"]] or [user["user_id"]]
+    else:
+        targets = [u for u in dict.fromkeys(body.user_ids) if u in by_id]
+        if not targets:
+            raise HTTPException(status_code=400, detail="Seleziona almeno un collaboratore del team")
+    days = (due - today).days + 1
+    total = len(targets) * days * per_day
+    if total > CGYM_ASSIGN_MAX_SESSIONS:
+        raise HTTPException(status_code=400, detail=f"Troppe sessioni ({total}): riduci scadenza, frequenza o destinatari (max {CGYM_ASSIGN_MAX_SESSIONS})")
+    now = utcnow()
+    label = "Gym Obiezioni" if body.type == "obiezioni" else "Gym WIN-WIN"
+    title = (body.title or "").strip() or label
+    assignment_id = str(uuid.uuid4())
+    docs = []
+    for uid in targets:
+        for d in range(days):
+            day = today + timedelta(days=d)
+            for hhmm in CGYM_SLOT_TIMES[per_day]:
+                hh, mm = hhmm.split(":")
+                local = datetime(day.year, day.month, day.day, int(hh), int(mm), tzinfo=_CGYM_TZ)
+                docs.append({
+                    "session_id": str(uuid.uuid4()), "tenant_id": tid, "user_id": uid, "assigned_by": user["user_id"],
+                    "assignment_id": assignment_id, "type": body.type, "title": title,
+                    "scheduled_at": local.astimezone(timezone.utc), "status": "assegnata", "mandatory": bool(body.mandatory),
+                    "score": None, "created_at": now, "updated_at": now, "completed_at": None,
+                })
+    if docs:
+        await db.cgym_sessions.insert_many(docs)
+    plan = {
+        "assignment_id": assignment_id, "tenant_id": tid, "created_by": user["user_id"], "target": body.target,
+        "user_ids": targets, "user_names": [by_id[u].get("name") or by_id[u].get("email") or u for u in targets],
+        "type": body.type, "title": title, "per_day": per_day, "due_date": body.due_date, "mandatory": bool(body.mandatory),
+        "sessions_total": len(docs), "created_at": now, "updated_at": now,
+    }
+    await db.cgym_assignments.insert_one(plan)
+    out = _cgym_assignment_out(plan)
+    out["sessions_done"] = 0
+    return out
+
+
+@api_router.get("/cgym/assignments")
+async def cgym_list_assignments(user=Depends(get_current_user)):
+    """Master: piani del tenant con avanzamento (completate/totali, anche per collaboratore)."""
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo Titolare/Admin")
+    tid = tenant_id(user)
+    plans = await db.cgym_assignments.find({"tenant_id": tid}).sort("created_at", -1).to_list(200)
+    if not plans:
+        return {"items": []}
+    ids = [p["assignment_id"] for p in plans]
+    rows = await db.cgym_sessions.find({"tenant_id": tid, "assignment_id": {"$in": ids}},
+                                       {"_id": 0, "assignment_id": 1, "user_id": 1, "status": 1}).to_list(20000)
+    prog: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        a = prog.setdefault(r["assignment_id"], {"total": 0, "done": 0, "per_user": {}})
+        a["total"] += 1
+        pu = a["per_user"].setdefault(r["user_id"], {"total": 0, "done": 0})
+        pu["total"] += 1
+        if r.get("status") == "completata":
+            a["done"] += 1
+            pu["done"] += 1
+    out = []
+    for p in plans:
+        o = _cgym_assignment_out(p)
+        a = prog.get(p["assignment_id"], {"total": 0, "done": 0, "per_user": {}})
+        o["sessions_total"] = a["total"]
+        o["sessions_done"] = a["done"]
+        o["per_user"] = [{"user_id": u, "name": n, **a["per_user"].get(u, {"total": 0, "done": 0})}
+                         for u, n in zip(p.get("user_ids", []), p.get("user_names", []))]
+        o["overdue"] = p.get("due_date", "") < utcnow().astimezone(_CGYM_TZ).date().isoformat() and a["done"] < a["total"]
+        out.append(o)
+    return {"items": out}
+
+
+@api_router.delete("/cgym/assignments/{assignment_id}")
+async def cgym_delete_assignment(assignment_id: str, user=Depends(get_current_user)):
+    """Master: elimina il piano e le sue sessioni NON completate (le completate restano nello storico)."""
+    if not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="Solo Titolare/Admin")
+    tid = tenant_id(user)
+    plan = await db.cgym_assignments.find_one({"assignment_id": assignment_id, "tenant_id": tid})
+    if not plan:
+        raise HTTPException(status_code=404, detail="Piano non trovato")
+    res = await db.cgym_sessions.delete_many({"tenant_id": tid, "assignment_id": assignment_id, "status": {"$ne": "completata"}})
+    await db.cgym_assignments.delete_one({"assignment_id": assignment_id})
+    return {"ok": True, "deleted_sessions": res.deleted_count}

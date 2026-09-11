@@ -52,6 +52,16 @@ export function CgymWidget() {
         </View>
       )}
 
+      {data && data.assigned_total > 0 && (
+        <View style={styles.assignedRow} testID="widget-cgym-assigned">
+          <Ionicons name="person-circle-outline" size={14} color={theme.color.brandPrimary} />
+          <Text style={styles.assignedTxt}>Assegnate dal Master: {data.assigned_done}/{data.assigned_total} completate</Text>
+          <View style={styles.assignedBarBg}>
+            <View style={[styles.assignedBarFill, { width: `${Math.round((data.assigned_done / data.assigned_total) * 100)}%` }]} />
+          </View>
+        </View>
+      )}
+
       {upcoming.length > 0 ? (
         <View style={styles.list}>
           <Text style={styles.listHead}>In scadenza (7 giorni) · {data?.due_soon_count}</Text>
@@ -92,6 +102,10 @@ const styles = StyleSheet.create({
   badgeTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
   barBg: { height: 6, borderRadius: 3, backgroundColor: theme.color.surfaceTertiary, marginTop: 10, overflow: "hidden" },
   barFill: { height: 6, borderRadius: 3 },
+  assignedRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, flexWrap: "wrap" },
+  assignedTxt: { fontSize: 12, color: theme.color.onSurface, fontWeight: "700", flex: 1 },
+  assignedBarBg: { width: "100%", height: 4, borderRadius: 2, backgroundColor: theme.color.surfaceTertiary, overflow: "hidden" },
+  assignedBarFill: { height: 4, borderRadius: 2, backgroundColor: theme.color.brandPrimary },
   list: { marginTop: 10, gap: 6 },
   listHead: { fontSize: 11, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.4 },
   row: { flexDirection: "row", alignItems: "center", gap: 6 },

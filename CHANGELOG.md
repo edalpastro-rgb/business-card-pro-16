@@ -238,6 +238,16 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   `src/corporate-gym/voice.ts` (MediaRecorder web / expo-audio native, playback con fine via playbackStatusUpdate). Entry: card in
   Gym Obiezioni (`cgym-sub-start-roleplay`) e bottone mic sulle sessioni di tipo obiezioni (`cgym-start-<id>` → roleplay?session_id=).
   Controlli tenuti sopra la PersistentBottomNav e a sinistra della colonna FAB (calcolatrice/AxonOS). Test backend 15/15 (`tests/test_cgym_v2_roleplay.py`).
+- **Blocco 3 — Assegnazioni Master (V50.z171)**: backend collection `cgym_assignments`: `POST /api/cgym/assignments` (Titolare/Admin;
+  target team|users, type, per_day 1/2/3 → slot 09 / 09-15 / 09-13-17 Europe/Rome, due_date YYYY-MM-DD inclusa, title; genera sessioni
+  obbligatorie con `assignment_id` per ogni collaboratore/giorno/slot, max 300), `GET /api/cgym/assignments` (avanzamento totale e per
+  collaboratore, flag overdue), `DELETE /api/cgym/assignments/{id}` (rimuove piano + sessioni NON completate). `GET /cgym/summary` esteso con
+  `assigned_total/assigned_done/assigned_pending` (sessioni con assigned_by ≠ me). Frontend `app/corporate-gym/assign.tsx` (chip destinatari
+  "Tutto il team"/singoli, tipo con icone ufficiali, frequenza, scadenza rapida o GG/MM/AAAA, anteprima "N × giorni × freq = sessioni",
+  lista piani con barra avanzamento, dettaglio per collaboratore, elimina); pulsante "Assegna sessioni al team" nella card Quadro team
+  (`cgym-assign-open`). Collaboratori: widget Home riga "Assegnate dal Master: done/total" + barra; drawer voce Corporate Gym con badge
+  "done/total" (`CgymDrawerBadge`, `DrawerItem.badge` opzionale in `DrawerMenu.tsx`); striscia arancione attiva anche con sessioni
+  assegnate non completate (`max(mandatory_pending, assigned_pending)`); nelle righe sessione etichetta "· dal Master".
 - **Punti di aggancio (1 riga ciascuno)**: bottone "Corporate Gym" in `master.tsx` (categoria Team #EAB308), voce drawer
   `DrawerMenu.tsx` (team), `DashboardWidgetsSection.tsx` (`w.id === "cgym"`), `dashboard-config.tsx` reset list,
   `home.tsx` `<CgymAlertStrip/>` sotto `HomeTipsBanner`.
@@ -336,6 +346,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z171 | Giu 2026 | Corporate Gym Blocco 3: assegnazioni Master (agente/team, tipo, 1-3 al giorno, scadenza → sessioni generate), piani con avanzamento, badge drawer done/total, widget riga assegnate, striscia attiva su assegnate non completate |
 | V50.z170 | Giu 2026 | Corporate Gym Blocco 2: role-play vocale Obiezione TEMPO (AxonOS = cliente via LLM+TTS interni, consulente a voce/STT o testo, score+feedback, salvataggio in cgym_sessions) — `/corporate-gym/roleplay` |
 | V50.z169 | Giu 2026 | Corporate Gym: tile Gym Obiezioni / Gym WIN-WIN con icone ufficiali (immagini utente via URL, `CGYM_TYPE_META[].image`, componente `CgymTileIcon` con fallback Ionicons) anche nell'header delle sottosezioni. Nessun'altra modifica |
 | V50.z168 | Giu 2026 | Corporate Gym Blocco 1 (modulo isolato): backend `routes/corporate_gym.py` + `cgym_sessions`, pagine `/corporate-gym` (+ obiezioni, win-win), widget Home `cgym`, striscia arancione obbligatorie, voce Master + drawer |

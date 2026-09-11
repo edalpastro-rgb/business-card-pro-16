@@ -27,6 +27,9 @@ export type CgymSummary = {
   today_done: number;
   mandatory_pending: number;
   overdue: number;
+  assigned_total: number; // Blocco 3 — assegnate dal Master
+  assigned_done: number;
+  assigned_pending: number;
   server_time: string;
 };
 
@@ -133,3 +136,33 @@ export const CGYM_MOOD_META: Record<CgymMood, { label: string; color: string }> 
   aperto: { label: "Aperto", color: "#0EA5E9" },
   convinto: { label: "Convinto", color: "#0F9D58" },
 };
+
+// ---------------- Blocco 3 — Assegnazioni Master ----------------
+export type CgymAssignment = {
+  assignment_id: string;
+  target: "team" | "users";
+  user_ids: string[];
+  user_names: string[];
+  type: CgymType;
+  title: string;
+  per_day: number;
+  due_date: string; // YYYY-MM-DD
+  mandatory: boolean;
+  sessions_total: number;
+  sessions_done: number;
+  per_user?: { user_id: string; name: string; total: number; done: number }[];
+  overdue?: boolean;
+  created_at: string;
+};
+
+export const cgymAssignApi = {
+  create: (body: { target: "team" | "users"; user_ids?: string[]; type: CgymType; per_day: number; due_date: string; title?: string }) =>
+    api<CgymAssignment>("/cgym/assignments", { method: "POST", body }),
+  list: () => api<{ items: CgymAssignment[] }>("/cgym/assignments"),
+  remove: (id: string) => api<{ ok: boolean; deleted_sessions: number }>(`/cgym/assignments/${id}`, { method: "DELETE" }),
+};
+
+export function toYMD(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}

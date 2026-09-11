@@ -203,6 +203,7 @@ export default function CorporateGymHome() {
                   <Text style={[styles.rowSub, late && { color: theme.color.error }]}>
                     {late ? "In ritardo · " : ""}{fmtCgymDate(s.scheduled_at)}
                     {s.mandatory ? " · Obbligatoria" : ""}
+                    {s.assigned_by && s.assigned_by !== s.user_id ? " · dal Master" : ""}
                     {s.status === "in_corso" ? " · In corso" : ""}
                     {s.status === "completata" && s.score != null ? ` · Score ${s.score}` : ""}
                   </Text>
@@ -248,6 +249,12 @@ export default function CorporateGymHome() {
               <Ionicons name="people" size={18} color="#EAB308" />
               <Text style={styles.cardTitle}>Quadro team</Text>
               <Ionicons name={teamOpen ? "chevron-up" : "chevron-down"} size={18} color={theme.color.muted} />
+            </Pressable>
+            {/* Blocco 3 — Assegnazioni Master */}
+            <Pressable onPress={() => router.push("/corporate-gym/assign" as any)} style={styles.assignBtn} testID="cgym-assign-open">
+              <Ionicons name="send" size={16} color="#FFF" />
+              <Text style={styles.assignTxt}>Assegna sessioni al team</Text>
+              <Ionicons name="chevron-forward" size={16} color="#FFF" />
             </Pressable>
             {teamOpen && (
               team == null ? (
@@ -368,6 +375,8 @@ const styles = StyleSheet.create({
   rowBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surfaceTertiary },
   card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12, marginTop: 8 },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  assignBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: CGYM_ORANGE, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, marginTop: 10, minHeight: 44 },
+  assignTxt: { flex: 1, color: "#FFF", fontWeight: "800", fontSize: 13 },
   cardTitle: { flex: 1, fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
   teamRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.color.divider, marginTop: 8 },
   pill: { backgroundColor: CGYM_ORANGE, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
