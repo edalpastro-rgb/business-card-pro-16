@@ -112,7 +112,7 @@ export default function MyAudiosScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
           {items.map((rec) => {
             const isPlaying = playingId === rec.audio_id;
             const isBusy = busyId === rec.audio_id;

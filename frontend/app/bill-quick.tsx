@@ -542,7 +542,7 @@ function BillQuickScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         {/* Intro card — mirrors BillsSection */}
         <View style={styles.introCard}>
           <Ionicons name="sparkles" size={20} color={theme.color.brandPrimary} />
@@ -947,7 +947,7 @@ function BillQuickScreen() {
                     </Text>
                   </View>
 
-                  <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 12 }}>
+                  <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 12, paddingBottom: 140 }}>
                     <TextInput
                       testID="quick-label-input"
                       value={labelInput}

@@ -42,7 +42,7 @@ export default function SecurityInfoPage() {
         <View style={styles.iconBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <View style={styles.hero}>
           <View style={styles.heroIcon}>
             <Ionicons name="shield-checkmark" size={36} color="#3B82F6" />

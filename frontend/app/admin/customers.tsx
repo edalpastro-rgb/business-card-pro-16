@@ -279,7 +279,7 @@ export default function AdminCustomersPage() {
                 <Ionicons name="close" size={22} color={theme.color.onSurface} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16 }}>
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
               {detail ? (
                 <>
                   <View style={styles.section}>
@@ -379,7 +379,7 @@ export default function AdminCustomersPage() {
                 <Ionicons name="close" size={22} color={theme.color.onSurface} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16 }}>
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
               <Text style={styles.lbl}>Categoria destinatari</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
                 <FilterChip label={`Tutti`} active={bcTarget === "all"} color={theme.color.brandPrimary} onPress={() => setBcTarget("all")} />

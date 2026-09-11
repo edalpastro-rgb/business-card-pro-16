@@ -126,7 +126,7 @@ export default function ContactsImportScreen() {
           </View>
         ))}
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         {step === "upload" && (
           <View style={{ gap: 16, alignItems: "center", padding: 20 }}>
             <Ionicons name="cloud-upload" size={72} color={theme.color.brandPrimary} />

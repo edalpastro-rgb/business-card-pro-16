@@ -507,7 +507,7 @@ function MasterFilesScreen() {
         )}
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 60 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 140 }}>
         {loading ? (
           <ActivityIndicator style={{ marginTop: 30 }} color={catMeta.color} />
         ) : items.length === 0 ? (

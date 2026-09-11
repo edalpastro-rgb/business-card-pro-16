@@ -311,7 +311,7 @@ export default function AxonScriptsScreen() {
             <View style={{ width: 30 }} />
           </View>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-            <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
+            <ScrollView contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
               <Text style={styles.formLabel}>Incolla qui il tuo materiale: Axon lo dividerà automaticamente in N script</Text>
               <TextInput
                 value={pasteText}
@@ -384,7 +384,7 @@ function ScriptEditor({ script, onClose, onSaved }: { script: Script | null; onC
           <View style={{ width: 30 }} />
         </View>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-          <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
             <Text style={styles.formLabel}>Categoria</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
               {CATEGORIES.map((c) => (

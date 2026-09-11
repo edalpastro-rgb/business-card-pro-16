@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   backBtn: { padding: 8 },
   reloadBtn: { padding: 8 },
   title: { flex: 1, fontSize: 17, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
-  scroll: { padding: 16, paddingBottom: 80 },
+  scroll: { padding: 16, paddingBottom: 140 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   errTxt: { color: theme.color.error, marginTop: 8, textAlign: "center" },
   btn: { marginTop: 14, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: theme.color.brandPrimary },

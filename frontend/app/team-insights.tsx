@@ -504,7 +504,7 @@ export default function TeamInsightsScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140, gap: 12 }}>
         {selected ? (
           <TeamDetailView
             data={detail}

@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.surface },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
   title: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface },
-  content: { padding: 16 },
+  content: { padding: 16, paddingBottom: 140 },
   lbl: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary, marginTop: 14, marginBottom: 6 },
   input: { backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: theme.color.onSurface },
   pillsRow: { flexDirection: "row", gap: 8 },

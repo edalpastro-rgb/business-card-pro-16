@@ -88,7 +88,7 @@ function MeteoInner() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
         {loading ? (
           <ActivityIndicator color={theme.color.brandPrimary} style={{ marginTop: 40 }} />
         ) : fc?.needs_address ? (

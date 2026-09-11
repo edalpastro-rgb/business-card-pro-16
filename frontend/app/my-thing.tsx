@@ -346,7 +346,7 @@ export default function MyThingScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }}>
           {items.map((it) => (
             <View key={it.item_id} style={[styles.card, { borderLeftColor: it.color, borderLeftWidth: 4 }]}>
               {it.kind === "image" && it.image_base64 ? (
@@ -412,7 +412,7 @@ export default function MyThingScreen() {
                 <Ionicons name="close" size={22} color={theme.color.onSurface} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
               <TextInput
                 testID="mt-title-input"
                 value={title}

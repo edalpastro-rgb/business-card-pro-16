@@ -355,7 +355,7 @@ function HAEditor({ initial, onClose, onSaved }: {
           <Text style={styles.headerTitle}>Configura Home Assistant</Text>
           <View style={{ width: 30 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 14, gap: 14 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
           <View>
             <Text style={styles.fieldLabel}>URL Home Assistant</Text>
             <TextInput

@@ -55,7 +55,7 @@ export default function NewChatScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <Text style={styles.lbl}>Nome (opzionale — per chat di gruppo)</Text>
         <TextInput
           testID="chat-name-input"

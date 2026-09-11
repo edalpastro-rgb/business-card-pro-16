@@ -81,7 +81,7 @@ export default function NewContractScreen() {
         <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
         <Text style={styles.headerTitle}>Nuovo Contratto</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <Text style={styles.label}>Cliente (opzionale)</Text>
         <Pressable onPress={() => setPickerOpen(true)} style={styles.pickerBtn} testID="contract-contact-picker">
           {contact ? (

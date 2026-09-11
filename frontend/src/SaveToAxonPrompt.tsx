@@ -7,7 +7,7 @@
  * L'utente resta nella chat: nessun redirect.
  */
 import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
@@ -47,6 +47,7 @@ export function SaveToAxonPrompt({
   const [savedRule, setSavedRule] = useState(false);
   const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
   const [ruleModalOpen, setRuleModalOpen] = useState(false);
+  const { height: winH } = useWindowDimensions(); // V50.z162
   const safeBottom = useSafeBottom(); // V29.aq
   const [urlModalOpen, setUrlModalOpen] = useState(false);
   const [ruleTitle, setRuleTitle] = useState("");
@@ -141,8 +142,9 @@ export function SaveToAxonPrompt({
 
       {/* Rule creation modal */}
       <Modal transparent visible={ruleModalOpen} animationType="fade" onRequestClose={() => !busy && setRuleModalOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <Pressable style={styles.backdrop} onPress={() => !busy && setRuleModalOpen(false)}>
-          <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }]} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12, maxHeight: winH * 0.9 }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.sheetHdr}>
               <Ionicons name="bookmark" size={20} color={assistantColor} />
               <Text style={styles.sheetTitle}>Salva come regola</Text>
@@ -150,26 +152,36 @@ export function SaveToAxonPrompt({
                 <Ionicons name="close" size={22} color="#1B2B4B" />
               </Pressable>
             </View>
-            <Text style={styles.lbl}>Titolo</Text>
-            <TextInput
-              value={ruleTitle}
-              onChangeText={setRuleTitle}
-              placeholder="Titolo breve della regola"
-              placeholderTextColor="#94A3B8"
-              maxLength={120}
-              style={styles.input}
-            />
-            <Text style={styles.lbl}>Testo</Text>
-            <TextInput
-              value={ruleText}
-              onChangeText={setRuleText}
-              placeholder="Contenuto della regola"
-              placeholderTextColor="#94A3B8"
-              multiline
-              maxLength={2000}
-              style={[styles.input, { minHeight: 120, textAlignVertical: "top" }]}
-            />
-            <Text style={styles.helper}>Verrà salvata in Insegna ad Axon nella categoria &quot;Generale&quot; e potrai modificarla in seguito.</Text>
+            {/* V50.z162 — Form scrollabile (max ~50% schermo) + bottone Salva SEMPRE
+                visibile sotto: con testo lungo o tastiera aperta il bottone era irraggiungibile. */}
+            <ScrollView
+              style={{ maxHeight: Math.max(160, winH * 0.5) }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+              testID="save-rule-scroll"
+            >
+              <Text style={styles.lbl}>Titolo</Text>
+              <TextInput
+                value={ruleTitle}
+                onChangeText={setRuleTitle}
+                placeholder="Titolo breve della regola"
+                placeholderTextColor="#94A3B8"
+                maxLength={120}
+                style={styles.input}
+              />
+              <Text style={styles.lbl}>Testo</Text>
+              <TextInput
+                value={ruleText}
+                onChangeText={setRuleText}
+                placeholder="Contenuto della regola"
+                placeholderTextColor="#94A3B8"
+                multiline
+                maxLength={2000}
+                scrollEnabled={false}
+                style={[styles.input, { minHeight: 120, textAlignVertical: "top" }]}
+              />
+              <Text style={styles.helper}>Verrà salvata in Insegna ad Axon nella categoria &quot;Generale&quot; e potrai modificarla in seguito.</Text>
+            </ScrollView>
             <Pressable
               testID="save-rule-confirm"
               onPress={saveRule}
@@ -180,6 +192,7 @@ export function SaveToAxonPrompt({
             </Pressable>
           </Pressable>
         </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* URL sources modal */}

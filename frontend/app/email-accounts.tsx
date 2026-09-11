@@ -467,7 +467,7 @@ function CombinedInbox() {
                 <Text style={styles.detailHeaderTxt} numberOfLines={1}>Messaggio</Text>
                 <View style={{ width: 24 }} />
               </View>
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
                 <View style={styles.detailAcctPill}>
                   <Text style={styles.detailAcctPillTxt}>{detail.account_label}</Text>
                 </View>
@@ -712,7 +712,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
               <Ionicons name="close" size={24} color={theme.color.onSurface} />
             </Pressable>
           </View>
-          <ScrollView contentContainerStyle={{ padding: 14, gap: 12 }}>
+          <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: 140 }}>
             <Text style={styles.sectionLabel}>Provider</Text>
             <View style={styles.presetGrid}>
               {presets.map((p) => (
@@ -924,7 +924,7 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
             </Pressable>
           </View>
 
-          <ScrollView contentContainerStyle={{ padding: 12, gap: 8, paddingBottom: 40 }}>
+          <ScrollView contentContainerStyle={{ padding: 12, gap: 8, paddingBottom: 140 }}>
             {loading ? (
               <View style={styles.empty}><ActivityIndicator size="large" color="#0EA5E9" /></View>
             ) : messages.length === 0 ? (

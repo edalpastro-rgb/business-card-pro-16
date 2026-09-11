@@ -178,6 +178,12 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   useEffect(() => {
     if (!visible || !edgeDetectOn) return;
     if (!permission?.granted) return;
+    // V50.z162 — Stop del campionamento live mentre è aperta l'anteprima e, in
+    // modalità scatto singolo, dopo il primo scatto: prima il loop continuava a
+    // chiamare takePictureAsync (suono/flash otturatore ogni 0,9s) e l'auto-scatto
+    // poteva ripartire dopo il cooldown → "continua a scattare".
+    if (reviewIdx != null) return;
+    if (singleShot && pages.length > 0) return;
     let cancelled = false;
     const SAMPLE_INTERVAL = 900; // faster sampling so auto-shutter feels responsive
     const ALPHA = 0.55; // 0 = no smoothing, 1 = only new value
@@ -218,6 +224,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
           quality: 0.1,
           skipProcessing: true,
           exif: false,
+          shutterSound: false, // V50.z162 — campionamento silenzioso (Android)
         } as any);
         if (cancelled) return;
         if (!snap?.base64) return;
@@ -291,7 +298,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
     };
     // Note: takeShot is stable via useCallback below; adding it here would cause a re-subscribe cycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, edgeDetectOn, permission?.granted, busy, autoShutter]);
+  }, [visible, edgeDetectOn, permission?.granted, busy, autoShutter, reviewIdx, singleShot, pages.length]);
 
   const applyAutocropAsync = useCallback(
     async (pageId: string, data_base64: string) => {
@@ -337,6 +344,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
 
   const takeShot = useCallback(async () => {
     if (busy || !cameraRef.current) return;
+    if (singleShot && pagesRef.current.length > 0) return; // V50.z162 — un solo scatto
     stableSinceRef.current = null;
     setAutoCountdown(null);
     setBusy(true);
@@ -378,7 +386,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
     } finally {
       setBusy(false);
     }
-  }, [busy, applyAutocropAsync]);
+  }, [busy, applyAutocropAsync, singleShot]);
 
   const removePage = (idx: number) => {
     setPages((prev) => prev.filter((_, i) => i !== idx));

@@ -1,6 +1,16 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z162 (Giu 2026) — PROMPT 1: 6 bug fix
+
+1. **Scanner autocrop/edge detection** (`routes/26_scanner.py`): `/scanner/detect-corners` (overlay live + auto-scatto) usava un singolo Canny 60-180 + RETR_EXTERNAL → quasi mai agganciava; ora usa `_detect_document_quad` (stesso dell'autocrop). Aggiunte mappe CLAHE (Canny + Otsu su contrasto normalizzato) per ombre/luce radente; soglia lato minimo proporzionale (`max(60, 0.18·min(w,h))`) così funziona anche sui frame 400px. Test sintetici (5 sfondi × 3 angoli, foglio pieno, desk bianco, blocco testo/tabella dentro foglio) tutti corretti; live 400px 19ms, full 49ms; endpoint reali: detected=True, crop 746×1060.
+2. **Scatto singolo** (`LiveCameraScanner.tsx`): il loop di campionamento (takePictureAsync ogni 0,9s → suono otturatore) continuava con anteprima aperta e l'auto-scatto ripartiva dopo il cooldown. Ora: return se `reviewIdx != null` o (`singleShot && pages.length>0`), guard in `takeShot`, `shutterSound:false` sul sampling.
+3. **Widget Meteo Home**: `DashboardWidgetsSection` → `<WeatherWidget />` senza `alwaysVisible` → null se 0 allerte (badge header z157 resta).
+4. **Scorciatoie**: voce `meteo` in `SHORTCUTS` EdgePanel.
+5. **Padding bottom**: `/tmp/fix_bottom_pad.py` → `paddingBottom: 140` (= valore di `usePageBottomPadding`) su contentContainerStyle inline/styles senza padding o con valore 24-99, in 28 file (Meteo, Sicurezza, scadenze, master-files, bill-quick, email-accounts, …). Esclusi: sheet interne (<24), login, landing, pagine pubbliche, libretto-editor.
+6. **Salva come regola** (`SaveToAxonPrompt.tsx`): form in ScrollView (maxHeight 50% schermo, `keyboardShouldPersistTaps`), sheet `maxHeight 90%`, `KeyboardAvoidingView`, bottone "Salva regola" fuori dallo scroll → sempre raggiungibile.
+
+
 ## V50.z161 (Giu 2026) — Refactoring server.py → backend/routes/*.py (zero breaking changes)
 
 **Scelta tecnica**: il monolite ha migliaia di riferimenti incrociati fra helper/modelli/route; uno split in veri package con import avrebbe richiesto riscrivere ogni riferimento (rischio altissimo di NameError/import circolari). Soluzione: split **meccanico per range contigui** (script `/tmp/split_server.py`, boundary = header `# ====` di sezione) in 38 file `routes/NN_<area>.py`, eseguiti da `server.py` con `exec(compile(src, path))` nel namespace globale del modulo `server` → semantica identica (stesso ordine route, modelli definiti prima dell'uso, side-effect at import), tracce con filename reale, `uvicorn --reload` continua a osservare `routes/*.py`.

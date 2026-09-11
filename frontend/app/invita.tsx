@@ -25,7 +25,7 @@ export default function InvitaHubScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 140 }}>
         <Text style={styles.intro}>
           Scegli chi vuoi invitare: un <Text style={{ fontWeight: "800" }}>Prospect</Text> esterno che avrà accesso solo alla sua area personale, oppure un <Text style={{ fontWeight: "800" }}>Collaboratore</Text> che entra nella tua squadra con un ruolo.
         </Text>

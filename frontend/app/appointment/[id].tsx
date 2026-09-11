@@ -1020,7 +1020,7 @@ function AppointmentDetail() {
               style={omstyles.input}
               autoFocus
             />
-            <ScrollView style={{ maxHeight: 360, marginTop: 10 }} contentContainerStyle={{ gap: 6 }}>
+            <ScrollView style={{ maxHeight: 360, marginTop: 10 }} contentContainerStyle={{ gap: 6, paddingBottom: 140 }}>
               {linkLoading ? (
                 <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
               ) : linkContacts.length === 0 ? (

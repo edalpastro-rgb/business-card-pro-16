@@ -77,7 +77,7 @@ function ScannerScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 140 }}>
         <View style={styles.heroCard}>
           <View style={styles.heroIcon}>
             <Ionicons name="scan" size={44} color="#FFF" />

@@ -130,7 +130,7 @@ function EventScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
         <View style={styles.hero}>
           {cover ? (
             <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} resizeMode="cover" />

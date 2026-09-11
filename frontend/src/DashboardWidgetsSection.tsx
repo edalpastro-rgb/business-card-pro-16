@@ -63,7 +63,7 @@ export function DashboardWidgetsSection({ only, exclude }: { only?: string[]; ex
     <View style={styles.wrap} testID="home-dashboard-widgets">
       {active.map((w) => {
         if (w.id === "weather") return <WeatherAlertsCard key="weather" />;
-        if (w.id === "meteo") return <WeatherWidget key="meteo" alwaysVisible />; // V50.z150 — sempre visibile
+        if (w.id === "meteo") return <WeatherWidget key="meteo" />; // V50.z162 — visibile SOLO con allerte attive (la temperatura resta nel badge header)
         if (w.id === "appointments_today") {
           return <MiniStatCard key="appointments_today" testID="widget-appt-today" icon="calendar" label="Appuntamenti di oggi" value={counts.apptToday ?? "…"} color="#7C3AED" onPress={() => router.push("/(tabs)/calendario" as any)} />;
         }

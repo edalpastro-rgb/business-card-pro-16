@@ -482,7 +482,7 @@ function EventBannersScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <View style={styles.introCard}>
           <Ionicons name="megaphone" size={22} color="#F59E0B" />
           <View style={{ flex: 1, marginLeft: 10 }}>
@@ -547,7 +547,7 @@ function EventBannersScreen() {
               </Pressable>
             </View>
 
-            <ScrollView style={{ maxHeight: 560 }} contentContainerStyle={{ padding: 14 }}>
+            <ScrollView style={{ maxHeight: 560 }} contentContainerStyle={{ padding: 14, paddingBottom: 140 }}>
               {/* Cover */}
               <Text style={styles.lbl}>Copertina</Text>
               <Pressable testID="event-cover-pick" onPress={pickCover} style={styles.coverBox}>

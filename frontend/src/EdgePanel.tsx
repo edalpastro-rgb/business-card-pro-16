@@ -50,6 +50,7 @@ export const EDGE_ACTIONS: EdgeAction[] = [
   { id: "quick", label: "Azioni Rapide", icon: "flash", color: "#8B5CF6", href: "/quick-actions" },
   { id: "banners", label: "Banner Evento", icon: "megaphone", color: "#F59E0B", href: "/event-banners" },
   { id: "ha", label: "Home Assistant", icon: "home-outline", color: "#3B82F6", href: "/axon-homeassistant" },
+  { id: "meteo", label: "Meteo", icon: "partly-sunny", color: "#0EA5E9", href: "/meteo" }, // V50.z162
 ];
 
 const KEY_IDS = "edge_panel_ids_v1";

@@ -70,6 +70,14 @@ def _detect_document_quad(src):
     e5 = cv2.Canny(sat, 20, 80); edge_maps.append(cv2.morphologyEx(cv2.dilate(e5, np.ones((3, 3), np.uint8)), cv2.MORPH_CLOSE, kernel))
     # Foglio chiaro: il "bianco" del documento come regione (utile su fondo chiaro)
     bright = cv2.inRange(blur, int(min(250, max(140, med + 15))), 255); edge_maps.append(cv2.morphologyEx(bright, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8)))
+    # V50.z162 — Normalizzazione locale del contrasto (CLAHE): recupera i bordi del
+    # foglio in scene con ombre marcate / luce radente / fondo poco contrastato.
+    try:
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(blur)
+        e6 = cv2.Canny(clahe, 40, 120); edge_maps.append(cv2.morphologyEx(cv2.dilate(e6, np.ones((3, 3), np.uint8)), cv2.MORPH_CLOSE, kernel))
+        _, otsu2 = cv2.threshold(clahe, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU); edge_maps.append(cv2.morphologyEx(otsu2, cv2.MORPH_CLOSE, kernel))
+    except Exception:
+        pass
 
     def _angles_ok(q):
         ok = True
@@ -182,7 +190,9 @@ def _detect_document_quad(src):
     best[:, 1] = np.clip(best[:, 1], 0, h0 - 1)
     wA = np.linalg.norm(best[2] - best[3]); wB = np.linalg.norm(best[1] - best[0])
     hA = np.linalg.norm(best[1] - best[2]); hB = np.linalg.norm(best[0] - best[3])
-    if max(wA, wB) < 200 or max(hA, hB) < 200:
+    # V50.z162 — soglia minima proporzionale al frame (i frame live sono 400px)
+    min_side = max(60.0, 0.18 * min(w0, h0))
+    if max(wA, wB) < min_side or max(hA, hB) < min_side:
         return None
     return best
 
@@ -375,30 +385,19 @@ async def scanner_detect_corners(body: ScannerCornersIn, user=Depends(get_curren
         except Exception:
             sharpness = 0.0
 
-        gray_b = cv2.GaussianBlur(gray, (5, 5), 0)
-        edges = cv2.Canny(gray_b, 60, 180)
-        edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
-
+        # V50.z162 — Stesso detector robusto dell'autocrop (_detect_document_quad:
+        # multi-mappa Canny/Otsu/adaptive/CLAHE, hull, contrasto lati). Prima il
+        # live usava un singolo Canny + RETR_EXTERNAL → overlay quasi mai agganciato
+        # e auto-scatto che non partiva, mentre il ritaglio finale usava un altro
+        # algoritmo (incoerenza percepita come "l'edge detection non isola il foglio").
         detected_corners = None
-        for c in contours:
-            peri = cv2.arcLength(c, True)
-            approx = cv2.approxPolyDP(c, 0.02 * peri, True)
-            if len(approx) == 4 and cv2.contourArea(approx) > (small.shape[0] * small.shape[1] * 0.15):
-                pts = approx.reshape(4, 2).astype("float32")
-                s = pts.sum(axis=1); diff = np.diff(pts, axis=1)
-                tl = pts[np.argmin(s)]; br = pts[np.argmax(s)]
-                tr = pts[np.argmin(diff)]; bl = pts[np.argmax(diff)]
-                # Normalize to 0..1 (based on the SMALL frame size, same aspect as original)
-                sh, sw = small.shape[:2]
-                detected_corners = [
-                    [float(tl[0]) / sw, float(tl[1]) / sh],
-                    [float(tr[0]) / sw, float(tr[1]) / sh],
-                    [float(br[0]) / sw, float(br[1]) / sh],
-                    [float(bl[0]) / sw, float(bl[1]) / sh],
-                ]
-                break
+        try:
+            quad = _detect_document_quad(cv2.cvtColor(small, cv2.COLOR_RGB2BGR))
+        except Exception:
+            quad = None
+        if quad is not None:
+            sh, sw = small.shape[:2]
+            detected_corners = [[float(x) / sw, float(y) / sh] for x, y in quad]
 
         if detected_corners:
             return {"detected": True, "corners": detected_corners, "sharpness": round(sharpness, 2)}

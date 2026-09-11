@@ -434,7 +434,7 @@ export default function LeadsPage() {
                 <Ionicons name="close" size={22} color={theme.color.onSurface} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16 }}>
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
               {detail ? (
                 <>
                   <View style={styles.detailBox}>
@@ -562,7 +562,7 @@ export default function LeadsPage() {
                 <Ionicons name="close" size={22} color={theme.color.onSurface} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16 }}>
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
               <Text style={{ fontSize: 12, color: theme.color.muted, marginBottom: 10, lineHeight: 16 }}>
                 Puoi avere da 1 a 12 esigenze. L&apos;ID viene generato automaticamente dal nome.
                 I lead già ricevuti mantengono le esigenze originali.

@@ -190,7 +190,7 @@ export default function CustomFieldsScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <View style={styles.infoBox}>
           <Text style={styles.infoTxt}>
             Aggiungi campi non presenti di default alla scheda anagrafica. Puoi decidere se ogni campo è visibile a tutti oppure solo al Master.

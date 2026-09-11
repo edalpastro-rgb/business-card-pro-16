@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     backgroundColor: NEO_COLOR,
   },
   title: { color: "#FFF", fontSize: 17, fontWeight: "800", flex: 1, textAlign: "center" },
-  content: { padding: 16, gap: 8, paddingBottom: 32 },
+  content: { padding: 16, gap: 8, paddingBottom: 140 },
   infoCard: {
     flexDirection: "row",
     gap: 12,

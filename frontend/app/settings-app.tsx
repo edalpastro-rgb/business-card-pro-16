@@ -52,7 +52,7 @@ export default function SettingsAppScreen() {
       </View>
 
       {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} /> : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
           <Text style={styles.section}>Tema</Text>
           <View style={styles.row}>
             {(["light","dark","auto"] as const).map((t) => (
