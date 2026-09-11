@@ -283,9 +283,19 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 
 ---
 
+## Architettura backend (V50.z161 — split del monolite)
+
+`backend/server.py` è ora solo l'**entrypoint** (`uvicorn server:app`): esegue in ordine i moduli elencati in
+`backend/routes/__init__.py::MODULES` nel proprio namespace globale. Semantica identica al file unico: ogni
+funzione/modello/costante è visibile da tutti i moduli senza import, ordine di registrazione route preservato.
+Regole: modificare il modulo dell'area (`routes/07_contacts.py`, `routes/08_calendar.py`, `routes/21_axon_streaming.py`, `routes/28_google_drive.py`, …);
+nuovo modulo → file in `routes/` + voce in `MODULES` nella posizione giusta (prima di `37_app_startup_scheduler.py`, che fa `app.include_router`).
+I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite originale: non conservato nel repo (git history).
+
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z161 | Giu 2026 | **Refactoring server.py** (26.212 righe) → 38 moduli per area funzionale in `backend/routes/NN_<area>.py`; `server.py` è un loader di 30 righe che li esegue in ordine nello stesso namespace (zero breaking changes: 416 route identiche, stessi nomi/startup/middleware, tracce d'errore con file reale). Ordine in `routes/__init__.py::MODULES` |
 | V50.z160 | Giu 2026 | AxonOS chat esportabile/condivisibile: header "⋯ Altro" → Condividi conversazione (share sheet nativo: WhatsApp/gruppi/mail/social), Esporta PDF (expo-print+expo-sharing), Copia tutto; su ogni messaggio azioni Copia · Condividi · PDF (`src/utils/chatExport.ts`) |
 | V50.z159 | Giu 2026 | Home: tap sulla card Scadenze apriva l'Edge Panel → hitSlop sinistro linguetta 16→4 e ⋯ non più a filo bordo; orologio header ri-sincronizzato al rientro in foreground (AppState) e al focus (ora locale del dispositivo) |
 | V50.z158 | Giu 2026 | Tour primo avvio (APK 1.0.50 ancora assente): apertura con `push` alternato a `replace`, verifica `usePathname` e fino a 5 tentativi (1s), nessun blocco su navReady; `android.allowBackup: false` (il backup automatico Android ripristinava AsyncStorage al reinstall → flag `onboarding_done_*` già "1" → nessun tour) |

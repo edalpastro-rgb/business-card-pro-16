@@ -1,0 +1,47 @@
+"""Moduli del backend AdvisorOS (split di server.py — V50.z161).
+
+Ordine di caricamento OBBLIGATORIO: server.py esegue i file in questa sequenza nel
+proprio namespace globale (stessa semantica del monolite originale: ordine di
+registrazione route, modelli definiti prima dell'uso, side-effect a import time).
+Per aggiungere un modulo: crearlo in routes/ e inserirlo QUI nella posizione corretta.
+"""
+MODULES = [
+    "00_core.py",
+    "01_helpers.py",
+    "02_models.py",
+    "03_auth.py",
+    "04_settings_dashboard.py",
+    "05_push_object_storage.py",
+    "06_team.py",
+    "07_contacts.py",
+    "08_calendar.py",
+    "09_callbacks_calls_reports.py",
+    "10_invites_groups_smtp_bulk.py",
+    "11_team_chat_vcard_mything.py",
+    "12_ai_contact_copilot.py",
+    "13_bills.py",
+    "14_deadlines_axon_analysis.py",
+    "15_cte_quick_bills.py",
+    "16_master_files_business_card.py",
+    "17_company_offers_docs.py",
+    "18_master_interface.py",
+    "19_axon_assistant_core.py",
+    "20_axon_memory.py",
+    "21_axon_streaming.py",
+    "22_axon_alarm_commit_teach.py",
+    "23_axon_feedback_rag_rules.py",
+    "24_axon_quick_actions_memory.py",
+    "25_health_birthday_banners.py",
+    "26_scanner.py",
+    "27_teach_ai_kb.py",
+    "28_google_drive.py",
+    "29_dropbox.py",
+    "30_support_help_alerts.py",
+    "31_mail_imap_autocrm_outlook.py",
+    "32_team_profile.py",
+    "33_cruscotto.py",
+    "34_alarms_homeassistant.py",
+    "35_reviews_leads.py",
+    "36_admin_clients.py",
+    "37_app_startup_scheduler.py",
+]

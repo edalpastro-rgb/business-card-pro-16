@@ -1,6 +1,13 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z161 (Giu 2026) — Refactoring server.py → backend/routes/*.py (zero breaking changes)
+
+**Scelta tecnica**: il monolite ha migliaia di riferimenti incrociati fra helper/modelli/route; uno split in veri package con import avrebbe richiesto riscrivere ogni riferimento (rischio altissimo di NameError/import circolari). Soluzione: split **meccanico per range contigui** (script `/tmp/split_server.py`, boundary = header `# ====` di sezione) in 38 file `routes/NN_<area>.py`, eseguiti da `server.py` con `exec(compile(src, path))` nel namespace globale del modulo `server` → semantica identica (stesso ordine route, modelli definiti prima dell'uso, side-effect at import), tracce con filename reale, `uvicorn --reload` continua a osservare `routes/*.py`.
+**Verifica**: codice byte-identico ignorando righe vuote ai bordi (23.635 righe non vuote); confronto monolite vs nuovo: 416 route identiche (path+metodi+nome), stessi nomi globali, 3 startup handler, stesso middleware; smoke API (auth, settings, contatti, scadenze, drive status, chat + SSE) 200; pytest `tests/` (suite storica) eseguita — i fallimenti presenti sono preesistenti (dati/aspettative vecchie), non regressioni.
+**Nota**: `@api_router.post("/admin/birthday/run-now")` era già registrata DOPO `app.include_router` nel monolite (quindi non esposta) — comportamento preservato volutamente.
+
+
 ## V50.z160 (Giu 2026) — Chat AxonOS esportabile e condivisibile
 
 **Richiesta** (ripetuta più volte): dal telefono il testo della chat non è selezionabile; serve un'icona ⋯ per condividere in chat di gruppo, mail, social.

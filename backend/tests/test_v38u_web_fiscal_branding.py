@@ -89,8 +89,9 @@ class TestBillDraftsFiscal:
         sys.path.insert(0, "/app/backend")
         # We cannot easily call the async LLM path without hitting Claude — instead
         # verify the parsing logic by inspecting the module source (contract test).
-        with open("/app/backend/server.py", "r") as f:
-            src = f.read()
+        # V50.z161 — il sorgente è ora suddiviso in backend/routes/*.py
+        import glob
+        src = "".join(open(p, "r").read() for p in sorted(glob.glob("/app/backend/routes/*.py")))
         assert 'fiscal_directives: List[str] = []' in src
         assert 's.startswith("__verifica_")' in src
         assert 'PARAMETRI PRIORITARI RICHIESTI DALL' in src
