@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 
@@ -25,7 +25,7 @@ export const KB_CATEGORIES: { key: KbCategory; icon: keyof typeof Ionicons.glyph
 ];
 
 export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const { height: winH } = useWindowDimensions();
   const isEdit = !!doc;
   const isPdf = (doc?.kind || (doc ? "pdf" : "text")) === "pdf";

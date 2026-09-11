@@ -1080,7 +1080,7 @@ function BillQuickScreen() {
                     </View>
                   </ScrollView>
 
-                  <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF", gap: 8 }}>
+                  <View style={{ padding: 12, paddingBottom: bottomPad, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF", gap: 8 }}>
                     <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center" }}>
                       Selezionati: <Text style={{ fontWeight: "800", color: meta.color }}>{selectedParams.size}</Text> parametri
                     </Text>

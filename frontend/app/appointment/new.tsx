@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Modal, Image, KeyboardAvoidingView, useWindowDimensions } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -115,7 +116,7 @@ export default function NewAppointmentRoute() {
 
 function NewAppointmentScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const { height: winH } = useWindowDimensions();
   const { user } = useAuth();
   const safeBottom = useSafeBottom(); // V29.ar — sticky footer safe-area

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Switch, ActivityIndicator, Platform } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
@@ -25,7 +26,7 @@ const ICONS: Record<string, keyof typeof import("@expo/vector-icons/build/Ionico
 
 export default function DashboardConfigScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   // Sulla web preview c'è la tab bar persistente (~64px). Aggiungiamo margine.
   const footerBottom = (Platform.OS === "web" ? 72 : 0) + Math.max(insets.bottom, 8);
   const [items, setItems] = useState<Widget[]>([]);

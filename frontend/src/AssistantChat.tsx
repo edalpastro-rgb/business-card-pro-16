@@ -18,7 +18,7 @@ import {
   PanResponder,
   Dimensions,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 // V29.au — Import expo-audio per il pulsante microfono su native (APK Android/iOS).
 // Prima era solo web (MediaRecorder), quindi su APK i pulsanti mic + ascolto
 // continuo sparivano. Ora usiamo useAudioRecorder di expo-audio in modo nativo.
@@ -154,7 +154,7 @@ async function playAudioBase64(
 export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const { user } = useAuth();
   const router = useRouter();
-  const insets = useSafeAreaInsets(); // V29.ao — safe area insets per non finire sotto la gesture bar
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal // V29.ao — safe area insets per non finire sotto la gesture bar
   // V28.y — Only the Master can save rules/URLs to Insegna ad Axon
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -2288,7 +2288,7 @@ export function AssistantFAB() {
   const [unreadInfoReq, setUnreadInfoReq] = useState(0);
   const pulse = useRef(new Animated.Value(1)).current;
   const blink = useRef(new Animated.Value(1)).current;
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
 
   // V50.z100 — FAB trascinabile con snap agli edge e persistenza posizione.
   const FAB_SIZE = 56;

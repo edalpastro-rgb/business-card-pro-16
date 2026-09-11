@@ -1,6 +1,12 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z165 (Giu 2026) — Batch 3: flusso scanner + safe-bottom modal globale
+
+1. **Scanner** (`LiveCameraScanner.tsx`): "Foto singola" (`singleShot`) usciva con `onDone([pg])` su "Usa questa" → ora chiude solo l'anteprima e resta pronto (rimossi i guard z162 "un solo scatto"; strip miniature e "Fine (N)" visibili anche in single; `DocumentScannerModal.onLiveScanDone` riceve N pagine). Autocrop lento/intermittente: la foto full-res (12MP, 4-6MB base64) veniva inviata a `/scanner/autocrop-preview` → timeout/rete → fallback silenzioso alla foto non ritagliata. Ora `expo-image-manipulator` ridimensiona a 1800px (compress 0.85) prima dell'upload (`uploadB64` usato per data/original/autocrop) + 1 retry automatico della chiamata.
+2. **Bottoni coperti dalla nav bar**: causa = dentro `Modal` nativo Android `useSafeAreaInsets().bottom` è 0 → `useSafeBottom` dava il minimo 20px (< nav bar 48dp). Fix in un punto: `safeBottomFallback()` = `initialWindowMetrics.insets.bottom` (misurato dalla finestra principale) usato da `useSafeBottom` (min Android 24), `useBottomSheetPadding`, `usePageBottomPadding`; nuovo `useInsetsSafe()` sostituisce `useSafeAreaInsets()` in DistillConversationModal, KbEntryEditorModal, ChatTableExport, EdgePanel, AssistantChat (×2), CallScriptOverlay, DrawerMenu, appointment/new, libretto, libretto-editor, axon-scripts-import, google-drive-picker, dashboard-config, info-request-chat, info-requests. `bill-quick.tsx` container "Avvia analisi AI" → `paddingBottom: bottomPad`. Tab bar / PersistentBottomNav non toccati.
+
+
 ## V50.z164 (Giu 2026) — Batch 2: indirizzo appuntamento + PDF parser AxonOS
 
 1. **Indirizzo appuntamento non aggiornato**: in Home non esiste un "banner appuntamento" con indirizzo (verificato: home.tsx, DashboardWidgetsSection, HomeEventBanner, HomeTipsBanner, StatMetrics ricaricano al focus). L'unica incoerenza reale trovata: `src/AppointmentShareActions.tsx::composeAppointmentAddress` preferiva i campi strutturati `address_*` (snapshot del contatto alla creazione) a `location` (il campo modificato nella scheda) → il testo mostrato/condiviso restava vecchio. Fix: `location` ha priorità. Se l'utente intende un altro banner → chiedere screenshot.
@@ -5937,3 +5943,7 @@ else Linking.openURL(url).catch(() => {});
 - Timeout: `xhr.timeout = 120s` in `assistantStream.ts` (prima assente → richiesta appesa su nativo); watchdog 90s senza dati in `AssistantChat.send` → abort + messaggio "⏱️ Axon non ha risposto entro 90 secondi…" + notify. Errori generici già mostrati come "⚠️ Errore: …".
 - Grafici: decimali asse Y dinamici (`decimalsFor`) → PUN 0,11 €/kWh non più mostrato come "0".
 - Backend verificato: prompt "PUN medio per fasce" risponde in ~9s con tabella+grafico.
+
+## Verifica utente (Giugno 2026)
+- Confermati da app telefono: scanner multi-scatto resta sulla fotocamera dopo "Usa questa"; padding inferiore safe-area su modali/pulsanti fissi (es. "Avvia analisi AI").
+- Backlog aperto: bug modali annidati (in pausa su richiesta utente), permessi fotocamera Android (richiede build nativa), registro chiamate Android, confronto KPI collaboratori.

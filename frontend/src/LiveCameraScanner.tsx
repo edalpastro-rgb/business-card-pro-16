@@ -182,8 +182,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
     // modalità scatto singolo, dopo il primo scatto: prima il loop continuava a
     // chiamare takePictureAsync (suono/flash otturatore ogni 0,9s) e l'auto-scatto
     // poteva ripartire dopo il cooldown → "continua a scattare".
-    if (reviewIdx != null) return;
-    if (singleShot && pages.length > 0) return;
+    if (reviewIdx != null) return; // V50.z165 — in anteprima non campionare; dopo "Usa questa" si resta pronti
     let cancelled = false;
     const SAMPLE_INTERVAL = 900; // faster sampling so auto-shutter feels responsive
     const ALPHA = 0.55; // 0 = no smoothing, 1 = only new value
@@ -298,19 +297,19 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
     };
     // Note: takeShot is stable via useCallback below; adding it here would cause a re-subscribe cycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, edgeDetectOn, permission?.granted, busy, autoShutter, reviewIdx, singleShot, pages.length]);
+  }, [visible, edgeDetectOn, permission?.granted, busy, autoShutter, reviewIdx]);
 
   const applyAutocropAsync = useCallback(
     async (pageId: string, data_base64: string) => {
       setProcessingCount((c) => c + 1);
       try {
-        const r = await api<{ detected: boolean; data_base64: string; mime: string; sharpness?: number }>(
+        // V50.z165 — 1 retry automatico su errore di rete (prima un errore → foto non ritagliata, senza avviso)
+        const call = () => api<{ detected: boolean; data_base64: string; mime: string; sharpness?: number }>(
           "/scanner/autocrop-preview",
-          {
-            method: "POST",
-            body: { data_base64, mime: "image/jpeg", enhance, grayscale },
-          },
+          { method: "POST", body: { data_base64, mime: "image/jpeg", enhance, grayscale } },
         );
+        let r: Awaited<ReturnType<typeof call>>;
+        try { r = await call(); } catch { r = await call(); }
         // Bug 11.d — Motion-blur detection on the actual captured frame.
         // On the FULL-res image the Laplacian variance is much higher than
         // the sampling frame (400px). Threshold ~250 empirically differentiates
@@ -344,7 +343,6 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
 
   const takeShot = useCallback(async () => {
     if (busy || !cameraRef.current) return;
-    if (singleShot && pagesRef.current.length > 0) return; // V50.z162 — un solo scatto
     stableSinceRef.current = null;
     setAutoCountdown(null);
     setBusy(true);
@@ -362,6 +360,22 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
         notify("Errore", "Foto non acquisita — riprova.");
         return;
       }
+      // V50.z165 — Ridimensiona a max 1800px PRIMA dell'upload: la foto 12MP in base64
+      // (~4-6 MB) rendeva l'autocrop lento e "a intermittenza" (timeout/rete → fallback
+      // silenzioso alla foto originale). Il detector lavora comunque a 900px.
+      let uploadB64 = photo.base64;
+      try {
+        if (photo.uri && ((photo.width || 0) > 1800 || (photo.height || 0) > 1800 || !photo.width)) {
+          const ImageManipulator = await import("expo-image-manipulator");
+          const landscape = (photo.width || 0) > (photo.height || 0);
+          const small = await ImageManipulator.manipulateAsync(
+            photo.uri,
+            [{ resize: landscape ? { width: 1800 } : { height: 1800 } }],
+            { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+          );
+          if (small?.base64) uploadB64 = small.base64;
+        }
+      } catch { /* fallback: base64 originale */ }
       const preview_uri = photo.uri || `data:image/jpeg;base64,${photo.base64}`;
       // Add page immediately so the user sees a thumbnail
       const pageId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -370,7 +384,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
         ...prev,
         {
           id: pageId,
-          data_base64: photo.base64!,
+          data_base64: uploadB64,
           mime: "image/jpeg",
           preview_uri,
           cropped: false,
@@ -378,7 +392,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
         },
       ]);
       // Fire-and-forget autocrop in background (aggiorna la pagina per id)
-      setTimeout(() => applyAutocropAsync(pageId, photo.base64!), 0);
+      setTimeout(() => applyAutocropAsync(pageId, uploadB64), 0);
       // V50.z9 — Apri preview OBBLIGATORIA prima di scattare la prossima
       setReviewIdx(newIndex);
     } catch (e: any) {
@@ -386,7 +400,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
     } finally {
       setBusy(false);
     }
-  }, [busy, applyAutocropAsync, singleShot]);
+  }, [busy, applyAutocropAsync]);
 
   const removePage = (idx: number) => {
     setPages((prev) => prev.filter((_, i) => i !== idx));
@@ -607,8 +621,8 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
 
         {/* Bottom controls */}
         <SafeAreaView edges={["bottom"]} style={styles.bottomBar} pointerEvents="box-none">
-          {/* Thumbnails strip (non in modalità Foto singola) */}
-          {!singleShot && pages.length > 0 && (
+          {/* Thumbnails strip — V50.z165 anche in "Foto singola" */}
+          {pages.length > 0 && (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -687,11 +701,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
               </View>
             </Pressable>
 
-            {singleShot ? (
-              <View style={[styles.sideBtn, { backgroundColor: "transparent" }]} pointerEvents="none">
-                <Text style={[styles.doneTxt, { color: "rgba(255,255,255,0.7)" }]}>1 foto</Text>
-              </View>
-            ) : (
+            {/* V50.z165 — "Fine (N)" anche in Foto singola: si esce solo su richiesta */}
             <Pressable
               onPress={finish}
               hitSlop={12}
@@ -707,7 +717,6 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                 <Text style={styles.doneTxt}>Fine</Text>
               )}
             </Pressable>
-            )}
           </View>
 
         </SafeAreaView>
@@ -763,13 +772,8 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
               </Pressable>
               <Pressable
                 onPress={() => {
-                  if (singleShot) {
-                    // V50.z139 — Foto singola: restituisci subito la pagina (già ritagliata) e chiudi
-                    const pg = pages[reviewIdx];
-                    setReviewIdx(null);
-                    if (pg) onDone([pg]);
-                    return;
-                  }
+                  // V50.z165 — Flusso: scatta → ritaglia → conferma → RESTA nello scanner
+                  // pronto per lo scatto successivo (anche in "Foto singola"). Si esce con "Fine".
                   setReviewIdx(null);
                 }}
                 disabled={singleShot && !pages[reviewIdx].processed}

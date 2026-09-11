@@ -15,7 +15,8 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Print from "expo-print";
@@ -193,7 +194,7 @@ export default function LibrettoScreen() {
   const isOnboarding = params.onboarding === "1";
   const [exporting, setExporting] = useState(false);
   // V50.n — usa insets nativi per la sticky bar
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const bottomInset = Math.max(insets.bottom, 12);
 
   // V50.v — Contenuto remoto (editabile dal Super Master) con fallback statico

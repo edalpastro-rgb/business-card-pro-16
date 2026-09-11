@@ -16,7 +16,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator, Platform, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
@@ -293,7 +293,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
   const { user } = useAuth();
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
   const safeBottom = useSafeBottom(); // V29.aq
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState(false); // V50.z140 — modal a schermo intero
   const [busyFormat, setBusyFormat] = useState<"pdf" | "png" | null>(null);

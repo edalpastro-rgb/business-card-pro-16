@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Platform, Image } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -52,7 +53,7 @@ type ContactMini = { contact_id: string; first_name?: string; last_name?: string
 export default function InfoRequestChatScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const params = useLocalSearchParams<{ id?: string }>();
   const rid = params.id as string;
   const [detail, setDetail] = useState<ReqDetail | null>(null);

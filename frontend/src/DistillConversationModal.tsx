@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 
@@ -21,7 +21,7 @@ type Props = { visible: boolean; onClose: () => void; onDone?: (created: Created
 const PURPLE = "#7C3AED";
 
 export function DistillConversationModal({ visible, onClose, onDone }: Props) {
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const { height: winH } = useWindowDimensions();
   const [mode, setMode] = useState<"paste" | "history">("paste");
   const [text, setText] = useState("");

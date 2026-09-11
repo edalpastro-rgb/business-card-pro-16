@@ -13,7 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 
 // ── Elenco azioni disponibili ──────────────────────────────────────
 export type EdgeAction = {
@@ -74,7 +74,7 @@ export function EdgePanel() {
   // V50.z38 — Safe area insets per evitare che il pulsante Modifica e altre
   // parti in fondo al pannello vengano coperte dalla barra di sistema Android
   // (tasti navigazione) o dalla home indicator iOS.
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
 
   const [enabled, setEnabled] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>(DEFAULT_IDS);

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Platform, RefreshControl } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { api } from "@/src/api";
@@ -37,7 +38,7 @@ export default function InfoRequestsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ mode?: string }>();
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const isMaster = user?.role === "owner" && !user?.parent_user_id;
   const [items, setItems] = useState<Req[]>([]);
   const [loading, setLoading] = useState(true);

@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { theme } from "@/src/theme";
 import { MENU_CATEGORIES } from "@/src/menuCategories";
 
@@ -66,7 +66,7 @@ const DRAWER_W = Math.min(SCREEN_W * 0.85, 340);
 
 export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const slideX = useRef(new Animated.Value(-DRAWER_W)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 

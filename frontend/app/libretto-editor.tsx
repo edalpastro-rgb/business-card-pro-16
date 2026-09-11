@@ -13,7 +13,8 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image,
   ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -43,7 +44,7 @@ function uid(): string {
 
 export default function LibrettoEditorScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const bottomInset = Math.max(insets.bottom, 12);
 
   const [loading, setLoading] = useState(true);

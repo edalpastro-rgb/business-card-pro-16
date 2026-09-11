@@ -15,7 +15,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Linking, Platform, Animated, PanResponder, Dimensions } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -35,7 +35,7 @@ const HEADER_HEIGHT = 64; // altezza barra minima (solo titolo)
 
 export function CallScriptOverlay({ visible, onClose, contactName, contactPhone }: Props) {
   const { user } = useAuth();
-  const insets = useSafeAreaInsets(); // V29.ao — non finire sotto la gesture bar Android
+  const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal // V29.ao — non finire sotto la gesture bar Android
   const [scripts, setScripts] = useState<NamedScript[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const [waGlobal, setWaGlobal] = useState<string>("");

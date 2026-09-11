@@ -31,11 +31,13 @@
 //   In quei casi va bene `Math.max(insets.bottom, 16)`.
 // ══════════════════════════════════════════════════════════════════════════════
 
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets, initialWindowMetrics } from "react-native-safe-area-context";
 
 export function useBottomSheetPadding(minPad: number = 28): number {
   const insets = useSafeAreaInsets();
-  return Math.max((insets?.bottom || 0) + 12, minPad);
+  // V50.z165 — fallback a initialWindowMetrics: dentro i Modal Android insets.bottom è spesso 0
+  const bottom = Math.max(insets?.bottom || 0, initialWindowMetrics?.insets?.bottom || 0);
+  return Math.max(bottom + 12, minPad);
 }
 
 /**
@@ -52,5 +54,6 @@ export function useBottomSheetPadding(minPad: number = 28): number {
 export function usePageBottomPadding(extraGap: number = 24): number {
   const insets = useSafeAreaInsets();
   const NAV_HEIGHT = 60;
-  return Math.max(140, NAV_HEIGHT + (insets?.bottom || 0) + extraGap);
+  const bottom = Math.max(insets?.bottom || 0, initialWindowMetrics?.insets?.bottom || 0); // V50.z165
+  return Math.max(140, NAV_HEIGHT + bottom + extraGap);
 }

@@ -26,14 +26,32 @@
  */
 import React from "react";
 import { View, ViewStyle } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Platform } from "react-native";
+import { useSafeAreaInsets, initialWindowMetrics } from "react-native-safe-area-context";
 
-/** Minimo padding-bottom garantito: 20px. Aggiornabile in un solo punto. */
-const MIN_SAFE_BOTTOM = 20;
+/** Minimo padding-bottom garantito: 20px (Android 24). Aggiornabile in un solo punto. */
+const MIN_SAFE_BOTTOM = Platform.OS === "android" ? 24 : 20;
+
+/**
+ * V50.z165 — Dentro un `Modal` nativo (nuova window Android) `useSafeAreaInsets()`
+ * spesso riporta bottom=0 → il minimo di 20px non copriva la navigation bar
+ * (48dp a 3 tasti, ~24-34dp gesture) e i bottoni in fondo ai modal risultavano
+ * tagliati. `initialWindowMetrics` è misurato all'avvio dalla finestra principale
+ * ed è affidabile anche dentro i Modal: lo usiamo come fallback globale.
+ */
+export function safeBottomFallback(): number {
+  return initialWindowMetrics?.insets?.bottom || 0;
+}
+
+/** Insets con fallback bottom (per componenti che usano `insets.bottom` direttamente, es. dentro Modal). */
+export function useInsetsSafe() {
+  const insets = useSafeAreaInsets();
+  return { ...insets, bottom: Math.max(insets.bottom || 0, safeBottomFallback()) };
+}
 
 export function useSafeBottom(): number {
   const insets = useSafeAreaInsets();
-  return Math.max(insets.bottom || 0, MIN_SAFE_BOTTOM);
+  return Math.max(insets.bottom || 0, safeBottomFallback(), MIN_SAFE_BOTTOM);
 }
 
 /**
