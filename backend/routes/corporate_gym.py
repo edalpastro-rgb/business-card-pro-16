@@ -264,12 +264,33 @@ async def cgym_team_overview(user=Depends(get_current_user)):
 # feedback e salvataggio in cgym_sessions. Collection: cgym_roleplays.
 # Nessuna modifica al codice AxonOS: qui vengono SOLO richiamate le sue funzioni.
 # =========================================================================
-CGYM_RP_MAX_TURNS = 5  # turni del consulente prima della chiusura forzata
+CGYM_RP_MAX_TURNS = 5  # default turni del consulente (obiezioni) prima della chiusura forzata
+
+# Blocco 5 — Scenari: obiezioni TEMPO / COSTO / DECISORE (area obiezioni, ~5 turni) e trattativa
+# integrata WIN-WIN (area winwin, sessione vocale completa da 45 minuti, fino a 30 turni, a fasi).
+CGYM_OBJ_RULES = (
+    "- Valuta la risposta del consulente turno per turno: se gestisce bene l'obiezione (ascolta, riformula, dà valore concreto e "
+    "quantificato, propone un prossimo passo preciso) il tuo \"mood\" migliora; altrimenti peggiora.\n"
+    "- Chiudi la conversazione (end=true) quando: accetti il prossimo passo concreto proposto, OPPURE rifiuti definitivamente dopo "
+    "risposte deboli, OPPURE hai raggiunto il turno {max_turns}."
+)
+CGYM_WW_RULES = (
+    "- È una TRATTATIVA INTEGRATA (win-win) su un contratto di fornitura energia: le variabili sono prezzo, durata contratto, termini di "
+    "pagamento, servizi (monitoraggio consumi, efficientamento, referente dedicato), penali/uscita, decorrenza. Hai INTERESSI NASCOSTI "
+    "che riveli solo se il consulente fa domande e ascolta: stabilità del budget annuale, cassa (pagamento a 60 gg), immagine sostenibile "
+    "verso i clienti, zero sorprese in bolletta.\n"
+    "- Segui le FASI: 1 apertura e clima (0-5 min), 2 esplorazione bisogni (5-15), 3 proposta e creazione di opzioni (15-30), 4 scambio "
+    "di concessioni (30-40), 5 accordo e prossimi passi (40-45). Fase attuale suggerita: {phase}. Minuti trascorsi: {elapsed}.\n"
+    "- Chiedi concessioni (sconto, uscita libera) ma cedi qualcosa in cambio SOLO se il consulente scambia (non regala) e collega le "
+    "concessioni ai tuoi interessi. Se il consulente regala sconti senza contropartita, chiedi di più. Se ignora i tuoi interessi o forza, "
+    "il mood peggiora.\n"
+    "- Chiudi (end=true) SOLO quando avete un accordo concreto su almeno prezzo, durata e pagamento, OPPURE quando i minuti trascorsi "
+    "superano 45, OPPURE al turno {max_turns}. Non chiudere prima della fase 4 senza un motivo forte."
+)
 
 CGYM_SCENARIOS = {
     "tempo": {
-        "label": "Obiezione TEMPO",
-        "objection": "Non ho tempo",
+        "area": "obiezioni", "label": "Obiezione TEMPO", "objection": "Non ho tempo", "max_turns": 5, "duration_min": 5, "voice": "onyx",
         "opening_hint": "Il consulente ha appena proposto un breve incontro/analisi della bolletta. Tu rispondi con l'obiezione del TEMPO: sei di fretta, non hai tempo, rimanda.",
         "persona": (
             "Sei Marco Bianchi, titolare di una piccola azienda (officina meccanica, 6 dipendenti) a Vicenza. "
@@ -279,26 +300,93 @@ CGYM_SCENARIOS = {
             "quanto poco tempo serve, quantifica il vantaggio e propone uno slot preciso e breve, puoi aprirti gradualmente e alla fine accettare. "
             "Se il consulente insiste, è generico, parla troppo o ignora la tua obiezione, resti chiuso e concludi la telefonata."
         ),
-    }
+        "eval_criteria": (
+            "1) Ascolto e riconoscimento dell'obiezione (empatia, niente contro-attacco); 2) Riformulazione/isolamento dell'obiezione; "
+            "3) Valore concreto e quantificato (tempo richiesto minimo, beneficio economico chiaro); 4) Proposta di chiusura precisa (slot breve, data/ora, alternativa); "
+            "5) Tono e chiarezza (frasi brevi, sicurezza, niente gergo)."
+        ),
+    },
+    "costo": {
+        "area": "obiezioni", "label": "Obiezione COSTO", "objection": "Costa troppo / il mio fornitore è più economico", "max_turns": 5, "duration_min": 5, "voice": "onyx",
+        "opening_hint": "Il consulente ti ha appena presentato la proposta di fornitura/consulenza. Tu rispondi con l'obiezione del COSTO: è cara, il tuo fornitore attuale ti fa un prezzo migliore, vuoi uno sconto.",
+        "persona": (
+            "Sei Giuseppe Ferraro, titolare di un bar-pasticceria a Verona con bollette luce alte (forni e frigoriferi). "
+            "Un consulente energetico ti ha presentato una proposta di cambio fornitura con servizio di analisi. "
+            "La tua obiezione principale è il COSTO: ti sembra cara, il tuo fornitore attuale ti ha promesso un prezzo migliore, chiedi subito uno sconto. "
+            "Sei un negoziatore istintivo: guardi solo il prezzo al kWh e diffidi dei 'costi nascosti'. "
+            "Ti apri se il consulente sposta il confronto dal prezzo unitario al costo totale annuo, ti mostra il valore (garanzie, "
+            "servizi, prevedibilità), chiede cosa confronti esattamente e ti dà numeri concreti. Ti chiudi se abbassa il prezzo subito senza "
+            "spiegazioni (ti fa pensare che stesse gonfiando) o se svaluta il concorrente."
+        ),
+        "eval_criteria": (
+            "1) Ascolto e comprensione di cosa il cliente confronta davvero (senza svalutare il concorrente); 2) Riformulazione dell'obiezione (prezzo vs costo totale/valore); "
+            "3) Valore quantificato: costo annuo, garanzie, servizi, rischi evitati, numeri concreti; 4) Gestione dello sconto (niente sconti immediati, eventuale concessione in cambio di qualcosa) e prossimo passo preciso; "
+            "5) Tono e sicurezza (calma, niente difensiva, frasi brevi)."
+        ),
+    },
+    "decisore": {
+        "area": "obiezioni", "label": "Obiezione DECISORE", "objection": "Devo parlarne con il socio / non decido io", "max_turns": 5, "duration_min": 5, "voice": "nova",
+        "opening_hint": "Il consulente ha appena proposto di procedere. Tu rispondi con l'obiezione del DECISORE: non decidi da sola, devi parlarne con il socio/titolare/marito, richiamerai tu.",
+        "persona": (
+            "Sei Laura Conti, responsabile amministrativa di uno studio dentistico con tre sedi a Padova. "
+            "Il consulente energetico ti ha fatto la proposta e ora ti chiede di procedere. "
+            "La tua obiezione principale è il DECISORE: 'devo parlarne con il dottore/socio, non decido io', 'le faccio sapere'. "
+            "In realtà hai una forte influenza sulla decisione ma non vuoi esporti; usi il socio anche come scudo per prendere tempo. "
+            "Ti apri se il consulente rispetta il tuo ruolo, capisce come si decide davvero (chi, quando, con quali criteri), ti aiuta "
+            "a presentare la proposta al decisore (materiale sintetico, numeri) e propone un incontro a tre o un passo concreto con data. "
+            "Ti chiudi se ti scavalca ('mi dia il numero del dottore'), ti mette fretta o insiste per una decisione ora."
+        ),
+        "eval_criteria": (
+            "1) Ascolto e rispetto del ruolo dell'interlocutore (niente scavalcamenti); 2) Domande per capire il processo decisionale reale (chi decide, quando, criteri) e riformulazione; "
+            "3) Valore: rendere facile presentare la proposta al decisore (sintesi, numeri, materiali); 4) Chiusura: proposta concreta di incontro a tre / prossimo passo con data e ora; "
+            "5) Tono: alleanza, niente pressione, frasi brevi e chiare."
+        ),
+    },
+    "winwin": {
+        "area": "winwin", "label": "Trattativa WIN-WIN", "objection": "Trattativa integrata contratto di fornitura energia", "max_turns": 30, "duration_min": 45, "voice": "nova",
+        "opening_hint": "Sei al tavolo (videocall) con il consulente per la trattativa finale sul contratto di fornitura energia della tua azienda. Apri tu: saluta brevemente e metti subito sul tavolo la tua richiesta iniziale (prezzo più basso e uscita libera), senza rivelare i tuoi interessi nascosti.",
+        "persona": (
+            "Sei Elena Rossi, direttrice acquisti di una PMI con tre supermercati in Veneto (spesa energia ~180.000 €/anno). "
+            "Stai negoziando con un consulente energetico il nuovo contratto di fornitura luce/gas per i tre punti vendita. "
+            "Posizione dichiarata: vuoi il prezzo più basso possibile, contratto breve (12 mesi) e possibilità di uscita libera. "
+            "Interessi reali (nascosti): budget annuale stabile senza sorprese (preferisci prezzo fisso), pagamento a 60 giorni per la cassa, "
+            "un referente dedicato perché la precedente fornitura ha avuto bollette sbagliate, e una comunicazione 'energia verde' da usare "
+            "con i clienti. Puoi accettare 24-36 mesi se hai garanzie e servizi. Sei professionale, preparata, ferma ma corretta: "
+            "apprezzi chi fa domande, ascolta, crea opzioni e scambia concessioni; punisci chi regala sconti senza contropartita o forza la chiusura."
+        ),
+        "eval_criteria": (
+            "1) Preparazione ed esplorazione degli interessi (domande aperte, ascolto, scoperta degli interessi nascosti: budget stabile, pagamento 60 gg, referente, energia verde); "
+            "2) Creazione di valore (più opzioni/pacchetti, allargare la torta oltre il prezzo: durata, servizi, pagamento, green); "
+            "3) Gestione delle concessioni (scambio condizionato 'se... allora', mai regali, ancoraggio e giustificazione delle richieste); "
+            "4) Equilibrio e relazione (fermezza sui propri interessi, rispetto, gestione delle pressioni, niente cedimenti sul prezzo puro); "
+            "5) Chiusura dell'accordo (sintesi dei punti, accordo concreto su prezzo/durata/pagamento, prossimi passi con date) e gestione del tempo nelle 5 fasi."
+        ),
+    },
 }
+CGYM_WW_PHASES = [(5, "1 · Apertura e clima"), (15, "2 · Esplorazione bisogni"), (30, "3 · Proposta e opzioni"), (40, "4 · Scambio concessioni"), (46, "5 · Accordo e prossimi passi")]
+
+
+def _cgym_ww_phase(elapsed_min: float) -> str:
+    for lim, name in CGYM_WW_PHASES:
+        if elapsed_min < lim:
+            return name
+    return CGYM_WW_PHASES[-1][1]
+
 
 CGYM_RP_TURN_SYSTEM = """{persona}
 
 REGOLE DI RECITAZIONE:
-- Parla SOLO come il cliente, in italiano, prima persona, tono naturale da telefonata. MAX 2 frasi brevi (parlato, non scritto).
+- Parla SOLO come il cliente, in italiano, prima persona, tono naturale ({channel}). MAX {max_sentences} frasi brevi (parlato, non scritto).
 - Resta nel personaggio: mai spiegare, mai dare consigli al consulente, mai uscire dal ruolo.
-- Valuta la risposta del consulente turno per turno: se gestisce bene l'obiezione (ascolta, riformula, quantifica il tempo richiesto, dà un beneficio concreto, propone uno slot preciso) il tuo "mood" migliora; altrimenti peggiora.
-- Chiudi la conversazione (end=true) quando: accetti un appuntamento concreto, OPPURE rifiuti definitivamente dopo risposte deboli, OPPURE hai raggiunto il turno {max_turns}.
+{rules}
 - Turno attuale del consulente: {turn} di {max_turns}.
 
 RISPONDI SOLO con JSON valido, senza testo attorno:
 {{"reply": "<battuta del cliente>", "mood": "chiuso|scettico|aperto|convinto", "end": true|false}}"""
 
 CGYM_RP_EVAL_SYSTEM = """Sei un formatore commerciale esperto nel settore energia (consulenti luce/gas B2B/B2C in Italia).
-Valuta la gestione dell'obiezione "{objection}" da parte del consulente nella trascrizione di un role-play telefonico.
-Criteri (peso uguale): 1) Ascolto e riconoscimento dell'obiezione (empatia, niente contro-attacco); 2) Riformulazione/isolamento dell'obiezione;
-3) Valore concreto e quantificato (tempo richiesto minimo, beneficio economico chiaro); 4) Proposta di chiusura precisa (slot breve, data/ora, alternativa);
-5) Tono e chiarezza (frasi brevi, sicurezza, niente gergo).
+Valuta la prestazione del consulente nella trascrizione del role-play "{label}" (tema: {objection}).
+Criteri (peso uguale): {criteria}
 Sii concreto: cita frasi realmente dette dal consulente. Feedback in italiano, diretto, utile, max 3 punti per lista.
 
 RISPONDI SOLO con JSON valido:
@@ -307,8 +395,8 @@ RISPONDI SOLO con JSON valido:
 
 class CgymRoleplayStartIn(BaseModel):
     session_id: Optional[str] = None
-    scenario: Literal["tempo"] = "tempo"
-    voice: Optional[str] = None  # voce TTS (default onyx = cliente uomo)
+    scenario: Literal["tempo", "costo", "decisore", "winwin"] = "tempo"
+    voice: Optional[str] = None  # voce TTS (default: voce dello scenario)
     tts: bool = True
 
 
@@ -383,7 +471,16 @@ async def _cgym_tts_b64(text: str, voice: Optional[str], user: dict) -> Optional
 
 async def _cgym_customer_turn(rp: dict, turn_no: int) -> dict:
     sc = CGYM_SCENARIOS[rp["scenario"]]
-    system = CGYM_RP_TURN_SYSTEM.format(persona=sc["persona"], max_turns=CGYM_RP_MAX_TURNS, turn=turn_no)
+    max_turns = sc.get("max_turns", CGYM_RP_MAX_TURNS)
+    if sc["area"] == "winwin":
+        started = _cgym_dt(rp.get("started_at")) or utcnow()
+        elapsed = max(0.0, (utcnow() - started).total_seconds() / 60.0)
+        rules = CGYM_WW_RULES.format(max_turns=max_turns, phase=_cgym_ww_phase(elapsed), elapsed=f"{elapsed:.0f}")
+        channel, max_sentences = "videocall di trattativa", 4
+    else:
+        rules = CGYM_OBJ_RULES.format(max_turns=max_turns)
+        channel, max_sentences = "telefonata", 2
+    system = CGYM_RP_TURN_SYSTEM.format(persona=sc["persona"], rules=rules, channel=channel, max_sentences=max_sentences, max_turns=max_turns, turn=turn_no)
     if turn_no == 0:
         user_text = f"{sc['opening_hint']}\nApri tu la conversazione con la tua obiezione (il consulente ha appena finito di presentarsi e proporre l'incontro)."
     else:
@@ -395,8 +492,12 @@ async def _cgym_customer_turn(rp: dict, turn_no: int) -> dict:
         reply = raw[:300] if raw else "Guardi, davvero, adesso non ho tempo. Mi richiami un'altra volta."
     mood = data.get("mood") if isinstance(data, dict) else None
     end = bool(data.get("end")) if isinstance(data, dict) else False
-    if turn_no >= CGYM_RP_MAX_TURNS:
+    if turn_no >= max_turns:
         end = True
+    if sc["area"] == "winwin" and turn_no > 0:
+        started = _cgym_dt(rp.get("started_at")) or utcnow()
+        if (utcnow() - started).total_seconds() / 60.0 >= sc.get("duration_min", 45):
+            end = True
     return {"reply": reply, "mood": mood if mood in ("chiuso", "scettico", "aperto", "convinto") else "scettico", "end": end}
 
 
@@ -405,6 +506,11 @@ async def _cgym_rp_get(roleplay_id: str, user: dict) -> dict:
     if not rp:
         raise HTTPException(status_code=404, detail="Role-play non trovato")
     return rp
+
+
+@api_router.get("/cgym/roleplay/scenarios")
+async def cgym_roleplay_scenarios(user=Depends(get_current_user)):
+    return {"items": [{"key": k, "label": v["label"], "area": v["area"], "objection": v["objection"], "max_turns": v.get("max_turns", CGYM_RP_MAX_TURNS), "duration_min": v.get("duration_min", 5)} for k, v in CGYM_SCENARIOS.items()]}
 
 
 @api_router.post("/cgym/roleplay/start")
@@ -426,7 +532,7 @@ async def cgym_roleplay_start(body: CgymRoleplayStartIn, user=Depends(get_curren
         "scenario": body.scenario,
         "status": "active",
         "turns": [],
-        "voice": body.voice or "onyx",
+        "voice": body.voice or CGYM_SCENARIOS[body.scenario].get("voice", "onyx"),
         "started_at": now,
         "finished_at": None,
         "score": None,
@@ -440,12 +546,15 @@ async def cgym_roleplay_start(body: CgymRoleplayStartIn, user=Depends(get_curren
         "roleplay_id": rp["roleplay_id"],
         "scenario": body.scenario,
         "scenario_label": CGYM_SCENARIOS[body.scenario]["label"],
+        "area": CGYM_SCENARIOS[body.scenario]["area"],
+        "duration_min": CGYM_SCENARIOS[body.scenario].get("duration_min", 5),
+        "started_at": now.isoformat(),
         "reply": first["reply"],
         "mood": first["mood"],
         "audio_base64": audio,
         "audio_mime": "audio/mpeg",
         "turn": 0,
-        "max_turns": CGYM_RP_MAX_TURNS,
+        "max_turns": CGYM_SCENARIOS[body.scenario].get("max_turns", CGYM_RP_MAX_TURNS),
         "ended": False,
     }
 
@@ -476,7 +585,8 @@ async def cgym_roleplay_turn(roleplay_id: str, body: CgymRoleplayTurnIn, user=De
         "audio_base64": audio,
         "audio_mime": "audio/mpeg",
         "turn": turn_no,
-        "max_turns": CGYM_RP_MAX_TURNS,
+        "max_turns": CGYM_SCENARIOS[rp["scenario"]].get("max_turns", CGYM_RP_MAX_TURNS),
+        "phase": _cgym_ww_phase(((utcnow() - (_cgym_dt(rp.get("started_at")) or utcnow())).total_seconds()) / 60.0) if CGYM_SCENARIOS[rp["scenario"]]["area"] == "winwin" else None,
         "ended": cust["end"],
     }
 
@@ -494,7 +604,7 @@ async def cgym_roleplay_finish(roleplay_id: str, user=Depends(get_current_user))
                     "what_worked": [], "to_improve": ["Rispondi almeno una volta all'obiezione del cliente per ottenere una valutazione."],
                     "best_line": "", "suggested_answer": ""}
     else:
-        raw = await _cgym_llm(CGYM_RP_EVAL_SYSTEM.format(objection=sc["objection"]),
+        raw = await _cgym_llm(CGYM_RP_EVAL_SYSTEM.format(label=sc["label"], objection=sc["objection"], criteria=sc["eval_criteria"]),
                               f"TRASCRIZIONE ROLE-PLAY ({sc['label']}):\n{_cgym_transcript_text(rp['turns'])}", "claude-sonnet-5")
         data = _cgym_llm_json(raw)
         try:
@@ -523,7 +633,7 @@ async def cgym_roleplay_finish(roleplay_id: str, user=Depends(get_current_user))
         session_id = str(uuid.uuid4())
         await db.cgym_sessions.insert_one({
             "session_id": session_id, "tenant_id": rp["tenant_id"], "user_id": user["user_id"], "assigned_by": user["user_id"],
-            "type": "obiezioni", "title": f"Role-play {sc['label']}", "scheduled_at": rp.get("started_at") or now,
+            "type": sc["area"], "title": f"Role-play {sc['label']}", "scheduled_at": rp.get("started_at") or now,
             "mandatory": False, "created_at": now, **sess_upd,
         })
         await db.cgym_roleplays.update_one({"roleplay_id": roleplay_id}, {"$set": {"session_id": session_id}})
@@ -947,7 +1057,7 @@ async def cgym_weekly_report(force: bool = False, user=Depends(get_current_user)
         f"Debolezze team (frequenza): {weak_txt or '-'}. Forze team: {', '.join(s['label'] for s in t['strengths']) or '-'}.\n"
         f"Andamento medio settimanale (ultimi 30 gg): {weekly_txt or '-'}.\n"
         f"AGENTI (30 gg):\n{agents_txt or '(nessun agente)'}\n"
-        f"Scenari disponibili oggi: Obiezione TEMPO (role-play vocale). Aree Gym: Obiezioni, WIN-WIN.\n"
+        f"Scenari disponibili oggi: {', '.join(v['label'] for v in CGYM_SCENARIOS.values())} (role-play vocali). Aree Gym: Obiezioni, WIN-WIN.\n"
         f"ESTRATTI ROLE-PLAY DELLA SETTIMANA:\n{_cgym_agent_excerpts(rps, limit=6)}"
     )
     raw = await _cgym_llm(CGYM_WEEKLY_REPORT_SYSTEM, data_txt, "claude-sonnet-5")

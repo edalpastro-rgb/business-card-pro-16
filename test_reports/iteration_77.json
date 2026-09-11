@@ -1,0 +1,17 @@
+{
+  "summary": "Blocco 5 role-play scenarios (COSTO, DECISORE, WIN-WIN + TEMPO regression) tested end-to-end against public backend URL. 9/9 pytest cases passed in ~42s. Scenarios endpoint validated (4 items with correct area/max_turns/duration_min). Invalid scenario 'xyz' correctly returns 422. COSTO and DECISORE start responses have area='obiezioni', max_turns=5, duration_min=5, ISO started_at, ended=false, and Italian replies about price/decisore respectively. WIN-WIN start returns area='winwin', max_turns=30, duration_min=45; first text turn returns phase starting with '1 ·' and ended=false; finish returns int score, feedback with what_worked/to_improve; saved session has type='winwin' and title 'Role-play Trattativa WIN-WIN'. COSTO finish saves session type='obiezioni' with title 'Role-play Obiezione COSTO'. TEMPO regression start returns scenario_label='Obiezione TEMPO'. All created sessions cleaned up by module-scoped teardown.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": ["/app/backend/tests/test_cgym_v5_scenarios.py", "/app/test_reports/pytest/cgym_v5_scenarios.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "corporate_gym.py is 1076 lines — consider splitting into submodules (roleplay, assignments, stats) for maintainability. Not blocking."
+  ],
+  "updated_files": ["/app/backend/tests/test_cgym_v5_scenarios.py"],
+  "success_rate": {"backend": "100%", "frontend": "n/a"},
+  "seed_data_creation": "None persisted; two cgym_sessions were auto-created by finish endpoints and deleted by module-scoped cleanup fixture.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "test_cgym_v5_scenarios.py covers Blocco 5 (COSTO/DECISORE/WIN-WIN scenarios + TEMPO regression). Uses 4 starts + 2 finishes total; 90s timeouts. Owner creds test@dalpastro.it. Cleanup is autouse module fixture.",
+  "rca_of_issue": ""
+}

@@ -258,6 +258,18 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   Frontend `app/corporate-gym/stats.tsx` (solo Master): range 7/30/90, KPI, LineChart score nel tempo (team per settimana o agente selezionato),
   BarChart confronto agenti, forze/lacune team, card Report settimanale (Genera/Rigenera), card per agente (rank, media, trend, tag forze/debolezze,
   Feedback personale AxonOS Genera/Rigenera). Entry: bottone "Statistiche" nella card Quadro team (`cgym-stats-open`). Grafici: react-native-chart-kit (già in uso).
+- **Blocco 5 — Obiezioni COSTO e DECISORE + Gym WIN-WIN (V50.z173)**: `CGYM_SCENARIOS` esteso (tempo, costo, decisore → area obiezioni,
+  5 turni, ~5 min; winwin → area winwin, 30 turni, 45 min). Persone: Giuseppe Ferraro bar-pasticceria (COSTO: prezzo vs costo totale, niente
+  sconti regalati), Laura Conti studio dentistico (DECISORE: rispetto del ruolo, processo decisionale, incontro a tre), Elena Rossi direttrice
+  acquisti PMI 3 supermercati (WIN-WIN: trattativa integrata su prezzo/durata/pagamento/servizi/green con interessi nascosti; regole a 5 fasi
+  temporizzate, concessioni solo in scambio, fine solo con accordo su prezzo+durata+pagamento o allo scadere dei 45 min). Prompt turno generico
+  (`{rules}`, canale telefonata/videocall, 2 o 4 frasi) e valutazione con `eval_criteria` per scenario (WIN-WIN: esplorazione interessi, creazione
+  valore, gestione concessioni, equilibrio/relazione, chiusura e tempo). Nuovo `GET /api/cgym/roleplay/scenarios`; `start` accetta
+  `scenario` tempo|costo|decisore|winwin e restituisce area/duration_min/started_at; `turn` restituisce `phase` (WIN-WIN); `finish` salva la
+  sessione con `type` = area. Frontend: `CGYM_SCENARIO_META` (label, cliente, descrizione, tips, durata), `roleplay.tsx` parametrico
+  (`?scenario=`; intro per scenario; per WIN-WIN timer 45:00 conto alla rovescia + fase nella barra live, bolle con nome cliente); sottosezioni:
+  Gym Obiezioni con 3 card TEMPO/COSTO/DECISORE, Gym WIN-WIN con card "Trattativa WIN-WIN · 45 min" (placeholder rimosso); pulsante mic sulle
+  sessioni (obiezioni→tempo, winwin→winwin). Report settimanale elenca gli scenari disponibili dinamicamente.
 - **Punti di aggancio (1 riga ciascuno)**: bottone "Corporate Gym" in `master.tsx` (categoria Team #EAB308), voce drawer
   `DrawerMenu.tsx` (team), `DashboardWidgetsSection.tsx` (`w.id === "cgym"`), `dashboard-config.tsx` reset list,
   `home.tsx` `<CgymAlertStrip/>` sotto `HomeTipsBanner`.
@@ -356,6 +368,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z173 | Giu 2026 | Corporate Gym Blocco 5: obiezioni COSTO e DECISORE + Gym WIN-WIN (trattativa integrata vocale 45 min a 5 fasi, timer, score/feedback, salvataggio in cgym_sessions type winwin); `GET /api/cgym/roleplay/scenarios` |
 | V50.z172 | Giu 2026 | Corporate Gym Blocco 4: dashboard statistiche Master (`/corporate-gym/stats`, `/api/cgym/stats`), feedback personale AxonOS per agente e report settimanale (lacune, scenari, manuale vendite) con cache `cgym_ai_reports` |
 | V50.z171 | Giu 2026 | Corporate Gym Blocco 3: assegnazioni Master (agente/team, tipo, 1-3 al giorno, scadenza → sessioni generate), piani con avanzamento, badge drawer done/total, widget riga assegnate, striscia attiva su assegnate non completate |
 | V50.z170 | Giu 2026 | Corporate Gym Blocco 2: role-play vocale Obiezione TEMPO (AxonOS = cliente via LLM+TTS interni, consulente a voce/STT o testo, score+feedback, salvataggio in cgym_sessions) — `/corporate-gym/roleplay` |

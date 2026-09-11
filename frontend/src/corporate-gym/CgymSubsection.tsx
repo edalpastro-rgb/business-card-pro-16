@@ -8,7 +8,7 @@ import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CgymHeaderBanner } from "@/src/corporate-gym/CgymHeaderBanner";
 import { CgymTileIcon } from "@/src/corporate-gym/CgymTileIcon";
-import { cgymApi, CgymType, CGYM_TYPE_META, CGYM_ORANGE } from "@/src/corporate-gym/api";
+import { cgymApi, CgymType, CGYM_TYPE_META, CGYM_ORANGE, CGYM_SCENARIO_META, CgymScenarioKey } from "@/src/corporate-gym/api";
 
 export function CgymSubsection({ type, description }: { type: CgymType; description: string }) {
   const router = useRouter();
@@ -40,21 +40,22 @@ export function CgymSubsection({ type, description }: { type: CgymType; descript
           <CgymTileIcon type={type} size={96} />
           <Text style={styles.cardTitle}>{meta.label}</Text>
           <Text style={styles.cardSub}>{description}</Text>
-          {type === "obiezioni" ? (
-            <Pressable onPress={() => router.push("/corporate-gym/roleplay" as any)} style={styles.startBtn} testID="cgym-sub-start-roleplay">
-              <Ionicons name="mic" size={18} color="#FFF" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.startTitle}>Role-play vocale · Obiezione TEMPO</Text>
-                <Text style={styles.startSub}>AxonOS fa il cliente, tu rispondi a voce. Score e feedback alla fine.</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#FFF" />
-            </Pressable>
-          ) : (
-            <View style={styles.soon} testID="cgym-sub-coming-soon">
-              <Ionicons name="time-outline" size={14} color={CGYM_ORANGE} />
-              <Text style={styles.soonTxt}>Allenamento interattivo in arrivo</Text>
-            </View>
-          )}
+          {/* Blocco 5 — scenari role-play dell'area */}
+          <View style={{ alignSelf: "stretch", gap: 8, marginTop: 8 }}>
+            {(Object.keys(CGYM_SCENARIO_META) as CgymScenarioKey[]).filter((k) => CGYM_SCENARIO_META[k].area === type).map((k) => {
+              const sc = CGYM_SCENARIO_META[k];
+              return (
+                <Pressable key={k} onPress={() => router.push({ pathname: "/corporate-gym/roleplay", params: { scenario: k } } as any)} style={[styles.startBtn, type === "winwin" && { backgroundColor: "#0F9D58" }]} testID={`cgym-sub-start-${k}`}>
+                  <Ionicons name={sc.icon as any} size={20} color="#FFF" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.startTitle}>{sc.label} · {sc.duration_min} min</Text>
+                    <Text style={styles.startSub} numberOfLines={2}>{sc.customer} — {type === "winwin" ? "trattativa integrata completa, a voce" : "role-play vocale, score e feedback"}</Text>
+                  </View>
+                  <Ionicons name="mic" size={18} color="#FFF" />
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
         {counts && (
           <View style={styles.stats} testID="cgym-sub-stats">
@@ -78,9 +79,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, borderWidth: 1, borderColor: theme.color.border, padding: 20, alignItems: "center", gap: 8 },
   cardTitle: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface },
   cardSub: { fontSize: 13, color: theme.color.muted, textAlign: "center", lineHeight: 19 },
-  soon: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: CGYM_ORANGE + "22", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginTop: 6 },
-  soonTxt: { color: CGYM_ORANGE, fontWeight: "800", fontSize: 12 },
-  startBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CGYM_ORANGE, borderRadius: 14, padding: 14, marginTop: 8, alignSelf: "stretch", minHeight: 56 },
+  startBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CGYM_ORANGE, borderRadius: 14, padding: 14, alignSelf: "stretch", minHeight: 56 },
   startTitle: { color: "#FFF", fontWeight: "900", fontSize: 14 },
   startSub: { color: "#FFF", opacity: 0.9, fontSize: 11, marginTop: 2 },
   stats: { flexDirection: "row", gap: 10, marginTop: 12 },

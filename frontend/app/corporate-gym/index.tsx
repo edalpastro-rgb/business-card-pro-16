@@ -210,19 +210,15 @@ export default function CorporateGymHome() {
                 </View>
                 {s.status !== "completata" ? (
                   <>
-                    {(s.status === "assegnata" || s.type === "obiezioni") && (
-                      <Pressable
-                        onPress={() => (s.type === "obiezioni"
-                          ? router.push({ pathname: "/corporate-gym/roleplay", params: { session_id: s.session_id } } as any)
-                          : setStatus(s, "in_corso"))}
-                        hitSlop={6}
-                        style={[styles.rowBtn, s.type === "obiezioni" && { backgroundColor: CGYM_ORANGE }]}
-                        testID={`cgym-start-${s.session_id}`}
-                        accessibilityLabel={s.type === "obiezioni" ? "Avvia role-play" : "Inizia"}
-                      >
-                        <Ionicons name={s.type === "obiezioni" ? "mic" : "play"} size={16} color={s.type === "obiezioni" ? "#FFF" : theme.color.brandPrimary} />
-                      </Pressable>
-                    )}
+                    <Pressable
+                      onPress={() => router.push({ pathname: "/corporate-gym/roleplay", params: { session_id: s.session_id, scenario: s.type === "winwin" ? "winwin" : "tempo" } } as any)}
+                      hitSlop={6}
+                      style={[styles.rowBtn, { backgroundColor: s.type === "winwin" ? "#0F9D58" : CGYM_ORANGE }]}
+                      testID={`cgym-start-${s.session_id}`}
+                      accessibilityLabel="Avvia role-play"
+                    >
+                      <Ionicons name="mic" size={16} color="#FFF" />
+                    </Pressable>
                     <Pressable onPress={() => setStatus(s, "completata")} hitSlop={6} style={[styles.rowBtn, { backgroundColor: theme.color.success + "22" }]} testID={`cgym-done-${s.session_id}`} accessibilityLabel="Completa">
                       <Ionicons name="checkmark" size={18} color={theme.color.success} />
                     </Pressable>

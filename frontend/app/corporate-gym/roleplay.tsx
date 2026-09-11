@@ -10,7 +10,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { useNavBarBottomInset } from "@/src/hooks/useSafeBottom";
 import { CgymTileIcon } from "@/src/corporate-gym/CgymTileIcon";
-import { cgymRoleplayApi, CgymRoleplay, CgymMood, CGYM_MOOD_META, CGYM_ORANGE } from "@/src/corporate-gym/api";
+import { cgymRoleplayApi, CgymRoleplay, CgymMood, CGYM_MOOD_META, CGYM_ORANGE, CGYM_SCENARIO_META, CgymScenarioKey } from "@/src/corporate-gym/api";
 import { getMicPermission, requestMicPermission, openAppSettings, startRecording, stopRecording, playBase64, stopPlayback, MicPermissionState } from "@/src/corporate-gym/voice";
 
 type Phase = "intro" | "live" | "evaluating" | "results";
@@ -21,8 +21,11 @@ const MAX_REC_SECONDS = 60;
 
 export default function CgymRoleplayScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ session_id?: string }>();
+  const params = useLocalSearchParams<{ session_id?: string; scenario?: string }>();
   const sessionId = typeof params.session_id === "string" && params.session_id ? params.session_id : undefined;
+  const scenarioKey: CgymScenarioKey = (["tempo", "costo", "decisore", "winwin"] as CgymScenarioKey[]).includes(params.scenario as CgymScenarioKey) ? (params.scenario as CgymScenarioKey) : "tempo";
+  const meta = CGYM_SCENARIO_META[scenarioKey];
+  const isWinWin = meta.area === "winwin";
   // La PersistentBottomNav (60 + inset) copre il fondo pagina: i controlli stanno sopra di essa.
   const navPad = 60 + useNavBarBottomInset() + 8;
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -34,7 +37,10 @@ export default function CgymRoleplayScreen() {
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [live, setLive] = useState<LiveState>("idle");
   const [turn, setTurn] = useState(0);
-  const [maxTurns, setMaxTurns] = useState(5);
+  const [maxTurns, setMaxTurns] = useState(meta.max_turns);
+  const [wwPhase, setWwPhase] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const [mood, setMood] = useState<CgymMood>("chiuso");
   const [ended, setEnded] = useState(false);
   const [recSec, setRecSec] = useState(0);
@@ -47,6 +53,12 @@ export default function CgymRoleplayScreen() {
   liveRef.current = live;
 
   useEffect(() => { getMicPermission().then(setMic); }, []);
+  // Timer sessione (WIN-WIN 45 min): conto alla rovescia nella barra live
+  useEffect(() => {
+    if (!startedAt || !isWinWin) return;
+    const id = setInterval(() => setElapsedSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [startedAt, isWinWin]);
   useEffect(() => () => { stopPlayback(); if (recTimer.current) clearInterval(recTimer.current); }, []);
 
   const pushBubble = (b: Bubble) => {
@@ -71,9 +83,11 @@ export default function CgymRoleplayScreen() {
     }
     setStarting(true);
     try {
-      const r = await cgymRoleplayApi.start({ session_id: sessionId, scenario: "tempo", tts: true });
+      const r = await cgymRoleplayApi.start({ session_id: sessionId, scenario: scenarioKey, tts: true });
       setRpId(r.roleplay_id);
       setMaxTurns(r.max_turns);
+      setStartedAt(Date.now());
+      setWwPhase(isWinWin ? "1 · Apertura e clima" : null);
       setTurn(0);
       setMood(r.mood);
       setBubbles([{ id: "c0", role: "cliente", text: r.reply, mood: r.mood }]);
@@ -131,6 +145,7 @@ export default function CgymRoleplayScreen() {
       setTurn(r.turn);
       setMood(r.mood);
       setEnded(r.ended);
+      if (r.phase) setWwPhase(r.phase);
       await speak(r.audio_base64, r.audio_mime);
     } catch (e: any) {
       notify("Role-play", e?.message || "Errore");
@@ -162,7 +177,7 @@ export default function CgymRoleplayScreen() {
 
   const restart = () => {
     stopPlayback();
-    setRpId(null); setBubbles([]); setTurn(0); setEnded(false); setResult(null); setLive("idle");
+    setRpId(null); setBubbles([]); setTurn(0); setEnded(false); setResult(null); setLive("idle"); setStartedAt(null); setWwPhase(null); setElapsedSec(0);
     setPhase("intro");
   };
 
@@ -184,20 +199,22 @@ export default function CgymRoleplayScreen() {
         <Pressable testID="cgym-rp-back" onPress={goBack} hitSlop={10}>
           <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
         </Pressable>
-        <Text style={styles.title}>Role-play · Obiezione TEMPO</Text>
+        <Text style={styles.title} numberOfLines={1}>Role-play · {meta.label}</Text>
         <View style={{ width: 26 }} />
       </View>
 
       {phase === "intro" && (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: navPad + 16 }} testID="cgym-rp-intro">
           <View style={styles.card}>
-            <View style={{ alignItems: "center", marginBottom: 8 }}><CgymTileIcon type="obiezioni" size={80} /></View>
-            <Text style={styles.cardTitle}>{"Obiezione “Non ho tempo”"}</Text>
-            <Text style={styles.cardSub}>
-              {"AxonOS interpreta Marco, titolare di un'officina, che hai appena contattato per proporgli un'analisi delle bollette. Ti risponderà a voce con l'obiezione del tempo: gestiscila come faresti al telefono."}
-            </Text>
+            <View style={{ alignItems: "center", marginBottom: 8 }}><CgymTileIcon type={meta.area} size={80} /></View>
+            <Text style={styles.cardTitle}>{meta.label}</Text>
+            <Text style={styles.cardSub}>{`AxonOS interpreta ${meta.customer}. ${meta.description}`}</Text>
+            <View style={styles.durRow} testID="cgym-rp-duration">
+              <Ionicons name="time-outline" size={14} color={CGYM_ORANGE} />
+              <Text style={styles.durTxt}>{isWinWin ? `Sessione completa: ${meta.duration_min} minuti · fino a ${maxTurns} interventi` : `Circa ${meta.duration_min} minuti · fino a ${maxTurns} risposte`}</Text>
+            </View>
             <View style={styles.tips}>
-              {["Riconosci l'obiezione senza contrastarla", "Quantifica il tempo che chiedi e il beneficio", "Proponi uno slot preciso e breve", `Hai fino a ${maxTurns} risposte: chiudi quando vuoi`].map((t) => (
+              {[...meta.tips, isWinWin ? "Puoi chiudere quando raggiungi l'accordo: la valutazione considera anche il tempo" : `Hai fino a ${maxTurns} risposte: chiudi quando vuoi`].map((t) => (
                 <View key={t} style={styles.tipRow}><Ionicons name="checkmark-circle" size={16} color={CGYM_ORANGE} /><Text style={styles.tipTxt}>{t}</Text></View>
               ))}
             </View>
@@ -240,7 +257,14 @@ export default function CgymRoleplayScreen() {
       {(phase === "live" || phase === "evaluating") && (
         <View style={{ flex: 1 }} testID="cgym-rp-live">
           <View style={styles.liveBar}>
-            <Text style={styles.liveTurn}>Risposta {Math.min(turn + 1, maxTurns)}/{maxTurns}</Text>
+            <View>
+              <Text style={styles.liveTurn}>{isWinWin ? "Intervento" : "Risposta"} {Math.min(turn + 1, maxTurns)}/{maxTurns}</Text>
+              {isWinWin && startedAt && (
+                <Text style={[styles.liveTimer, elapsedSec >= meta.duration_min * 60 && { color: theme.color.error }]} testID="cgym-rp-timer">
+                  {(() => { const rem = Math.max(0, meta.duration_min * 60 - elapsedSec); return `${String(Math.floor(rem / 60)).padStart(2, "0")}:${String(rem % 60).padStart(2, "0")}`; })()} · {wwPhase || "1 · Apertura e clima"}
+                </Text>
+              )}
+            </View>
             <View style={[styles.moodPill, { backgroundColor: CGYM_MOOD_META[mood].color + "22" }]} testID="cgym-rp-mood">
               <View style={[styles.moodDot, { backgroundColor: CGYM_MOOD_META[mood].color }]} />
               <Text style={[styles.moodTxt, { color: CGYM_MOOD_META[mood].color }]}>Cliente: {CGYM_MOOD_META[mood].label}</Text>
@@ -249,7 +273,7 @@ export default function CgymRoleplayScreen() {
           <ScrollView ref={(r) => { scrollRef.current = r; }} contentContainerStyle={{ padding: 14, gap: 10 }} style={{ flex: 1 }}>
             {bubbles.map((b) => (
               <View key={b.id} style={[styles.bubble, b.role === "cliente" ? styles.bubbleClient : styles.bubbleMe]} testID={`cgym-rp-bubble-${b.role}`}>
-                <Text style={styles.bubbleWho}>{b.role === "cliente" ? "Marco (cliente)" : "Tu"}</Text>
+                <Text style={styles.bubbleWho}>{b.role === "cliente" ? `${meta.customer.split(",")[0]} (cliente)` : "Tu"}</Text>
                 <Text style={[styles.bubbleTxt, b.role !== "cliente" && { color: "#FFF" }]}>{b.text}</Text>
               </View>
             ))}
@@ -370,6 +394,9 @@ const styles = StyleSheet.create({
   primaryTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
   liveBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 8, backgroundColor: theme.color.surfaceSecondary, borderBottomWidth: 1, borderBottomColor: theme.color.divider },
   liveTurn: { fontSize: 12, fontWeight: "800", color: theme.color.muted },
+  liveTimer: { fontSize: 11, fontWeight: "800", color: CGYM_ORANGE, marginTop: 1 },
+  durRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 2 },
+  durTxt: { fontSize: 12, color: CGYM_ORANGE, fontWeight: "800" },
   moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   moodDot: { width: 8, height: 8, borderRadius: 4 },
   moodTxt: { fontSize: 12, fontWeight: "800" },

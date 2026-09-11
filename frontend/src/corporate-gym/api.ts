@@ -100,9 +100,39 @@ export type CgymRoleplayTurnOut = {
   audio_mime: string;
   turn: number;
   max_turns: number;
+  phase?: string | null;
   ended: boolean;
 };
-export type CgymRoleplayStartOut = CgymRoleplayTurnOut & { roleplay_id: string; scenario: string; scenario_label: string };
+export type CgymRoleplayStartOut = CgymRoleplayTurnOut & { roleplay_id: string; scenario: string; scenario_label: string; area: CgymType; duration_min: number; started_at: string };
+
+// Blocco 5 — scenari role-play
+export type CgymScenarioKey = "tempo" | "costo" | "decisore" | "winwin";
+export const CGYM_SCENARIO_META: Record<CgymScenarioKey, { label: string; short: string; area: CgymType; duration_min: number; max_turns: number; icon: "time" | "cash" | "people-circle" | "handshake" | "briefcase"; customer: string; description: string; tips: string[] }> = {
+  tempo: {
+    label: "Obiezione TEMPO", short: "TEMPO", area: "obiezioni", duration_min: 5, max_turns: 5, icon: "time",
+    customer: "Marco, titolare di un'officina",
+    description: "Hai appena proposto un'analisi delle bollette: il cliente non ha tempo e rimanda. Gestisci l'obiezione come faresti al telefono.",
+    tips: ["Riconosci l'obiezione senza contrastarla", "Quantifica il tempo che chiedi e il beneficio", "Proponi uno slot preciso e breve"],
+  },
+  costo: {
+    label: "Obiezione COSTO", short: "COSTO", area: "obiezioni", duration_min: 5, max_turns: 5, icon: "cash",
+    customer: "Giuseppe, titolare di un bar-pasticceria",
+    description: "La proposta gli sembra cara e il fornitore attuale promette un prezzo migliore: chiede subito uno sconto.",
+    tips: ["Chiedi cosa sta confrontando davvero", "Sposta dal prezzo unitario al costo totale annuo e al valore", "Niente sconti immediati: concessioni solo in cambio di qualcosa"],
+  },
+  decisore: {
+    label: "Obiezione DECISORE", short: "DECISORE", area: "obiezioni", duration_min: 5, max_turns: 5, icon: "people-circle",
+    customer: "Laura, responsabile amministrativa di uno studio dentistico",
+    description: "\"Devo parlarne con il dottore, non decido io.\" Rispetta il suo ruolo e porta la trattativa al decisore senza scavalcarla.",
+    tips: ["Capisci come si decide davvero: chi, quando, con quali criteri", "Aiutala a presentare la proposta (sintesi e numeri)", "Proponi un incontro a tre con data e ora"],
+  },
+  winwin: {
+    label: "Trattativa WIN-WIN", short: "WIN-WIN", area: "winwin", duration_min: 45, max_turns: 30, icon: "briefcase",
+    customer: "Elena Rossi, direttrice acquisti di una PMI con 3 supermercati (≈180.000 €/anno di energia)",
+    description: "Sessione completa da 45 minuti: trattativa integrata sul contratto di fornitura (prezzo, durata, pagamento, servizi, green). Elena chiede il prezzo più basso e uscita libera, ma ha interessi nascosti da scoprire.",
+    tips: ["Fase 1-2: clima e domande aperte per scoprire gli interessi reali", "Fase 3: crea opzioni e pacchetti, allarga la torta oltre il prezzo", "Fase 4: scambia concessioni (\"se... allora\"), mai regali", "Fase 5: sintesi e accordo concreto su prezzo, durata, pagamento"],
+  },
+};
 export type CgymFeedback = {
   score: number;
   summary: string;
@@ -122,7 +152,7 @@ export type CgymRoleplay = {
 };
 
 export const cgymRoleplayApi = {
-  start: (body: { session_id?: string; scenario?: "tempo"; tts?: boolean }) =>
+  start: (body: { session_id?: string; scenario?: CgymScenarioKey; tts?: boolean }) =>
     api<CgymRoleplayStartOut>("/cgym/roleplay/start", { method: "POST", body }),
   turn: (id: string, body: { audio_base64?: string; mime?: string; text?: string; tts?: boolean }) =>
     api<CgymRoleplayTurnOut>(`/cgym/roleplay/${id}/turn`, { method: "POST", body }),
