@@ -43,5 +43,6 @@ MODULES = [
     "34_alarms_homeassistant.py",
     "35_reviews_leads.py",
     "36_admin_clients.py",
+    "36b_axon_pdf_link_parser.py",  # V50.z164 — modulo isolato (wrap di _build_axon_teach_section)
     "37_app_startup_scheduler.py",
 ]

@@ -39,6 +39,11 @@ export type ApptDetails = {
 };
 
 export function composeAppointmentAddress(appt: ApptDetails): string {
+  // V50.z164 — L'indirizzo modificato dall'utente nella scheda appuntamento è
+  // `location`: ha priorità sui campi strutturati copiati dal contatto alla
+  // creazione (altrimenti il banner/condivisione mostrava l'indirizzo vecchio).
+  const loc = (appt.location || "").trim();
+  if (loc) return loc;
   const street = (appt.address_street || "").trim();
   const number = (appt.address_number || "").trim();
   const city = (appt.address_city || "").trim();

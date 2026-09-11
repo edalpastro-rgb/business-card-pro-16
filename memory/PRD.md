@@ -1,6 +1,12 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z164 (Giu 2026) — Batch 2: indirizzo appuntamento + PDF parser AxonOS
+
+1. **Indirizzo appuntamento non aggiornato**: in Home non esiste un "banner appuntamento" con indirizzo (verificato: home.tsx, DashboardWidgetsSection, HomeEventBanner, HomeTipsBanner, StatMetrics ricaricano al focus). L'unica incoerenza reale trovata: `src/AppointmentShareActions.tsx::composeAppointmentAddress` preferiva i campi strutturati `address_*` (snapshot del contatto alla creazione) a `location` (il campo modificato nella scheda) → il testo mostrato/condiviso restava vecchio. Fix: `location` ha priorità. Se l'utente intende un altro banner → chiedere screenshot.
+2. **PDF parser** (`routes/36b_axon_pdf_link_parser.py`, inserito in `MODULES` prima di 37): `_axon_pdf_links_in` (URL con .pdf / format=pdf / /pdf/), `axon_fetch_pdf_link` (httpx stream, cap 15MB, magic %PDF, testo via `_extract_pdf_text_bytes` → fallback pdfplumber tabelle, numeri via `_axon_pdf_extract_numbers` formato IT 1.234,56/%/€), cache Mongo `axon_pdf_link_cache` (epoch `fetched_ts`, TTL 6h), `axon_pdf_links_section` (max 3 link, 30s ciascuno, 14k char testo + 40 righe numeriche) e **wrap** di `_build_axon_teach_section` (riassegnazione del nome globale nel namespace condiviso → nessuna modifica ai file esistenti). Endpoint `POST /axon/pdf-link/parse {url, force}`. Test: dummy.pdf → ok/testo/cache; URL non-PDF → errore chiaro; chat con link → Axon risponde col contenuto reale ✅.
+
+
 ## V50.z163 (Giu 2026) — Meteo: ricerca temporanea per città
 
 `app/meteo.tsx`: stato locale `cityQuery/cityActive/citySearching/cityError`; `searchCity()` → `POST /weather/forecast {address}` (il backend geocoda `body.address` per primo; nessuna scrittura su `home_address`); se `needs_address` o `place.lower() !== query.lower()` (il server ha ripiegato sulla residenza) → errore "Località non trovata"; `resetCity()` → ricarica default GPS/residenza. Hero mostra "X (ricerca)" e il tap riporta al default; allerte (riferite alla posizione di casa) nascoste in modalità ricerca; pull-to-refresh esce dalla ricerca. Nessuna modifica a backend, Home, badge header. Test web: Milano → "Stai consultando: Milano", hero "Milano (ricerca)"; "Xyzqwvzz" → errore; reset → default ✅.
