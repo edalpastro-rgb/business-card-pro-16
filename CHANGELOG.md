@@ -193,6 +193,14 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z190 — Brain+ Branding (claim ufficiale AxonOS)** — nuovo modulo isolato `src/BrainPlus.tsx`: componente `<BrainPlus>` ("AxonOS — Brain+",
+  "+" SEMPRE arancione CTA #F97316, ×1.45 e bold; "Brain" bianco su sfondo scuro / navy #1B2B4B su chiaro; tagline opzionale «Il sistema
+  operativo che potenzia il tuo cervello.»), `brainPlusHtml()` per l'export PDF, costanti `BRAIN_PLUS_*` e `BRAIN_PLUS_SECTION_IDS`
+  (intro, perche-diverso, vantaggio-tempo, chiusura → vale anche per i libretti personalizzati del Master, riconoscimento per id).
+  Applicato in: copertina Libretto/Tour (app + PDF), sezioni 1/18/21/chiusura (app + PDF), slide AxonOS del WowIntro (prima presentazione),
+  hero della landing pubblica. Testi: sottotitoli/highlight delle 4 sezioni ora accompagnano il nome con il claim ("AxonOS Brain+ — Non
+  dimentica nulla, non si stanca mai, conosce la tua vita."), sincronizzati in `axon_app_map.json`. Nessuna occorrenza di "secondo cervello"
+  esisteva nel codice (verificato). AxonOS resta il nome del prodotto, Brain+ il claim.
 - **V50.z189 — PROMPT 3: Fix + copy + posizionamento Tour Guidato (Libretto)** — `src/libretto/libretto-content.ts` + copia Axon
   `routes/axon_app_map.json`: (1) sezione 11 già "Axon Drive"; ripuliti gli ultimi riferimenti testuali "Voice Copilot / modalità auto"
   (commenti/log in `voice-copilot.tsx`, `_layout.tsx`). (2) FAQ 17 allineata: «AxonOS utilizza dati aggregati anonimi per migliorare il
@@ -528,6 +536,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z190 | Set 2026 | Claim ufficiale "AxonOS — Brain+" (`src/BrainPlus.tsx`, "+" arancione più grande bold) in copertina/sezioni 1-18-21-chiusura del Libretto (app+PDF), libretti Master, WowIntro, landing |
 | V50.z189 | Set 2026 | Tour Guidato: FAQ privacy allineata, target ampliato, sezioni 18–21 (Perché diverso / Per chi / Vita privata / Vantaggio nel tempo), headline finale, riferimenti "Voice Copilot" → Axon Drive |
 | V50.z188 | Set 2026 | Blocco 7: autoapprendimento anonimizzato AxonOS (`axon_self_learning.py`: estrazione insight in background, `axon_knowledge_base`, contesto nelle chat, dashboard Master `/axon-insights`) |
 | V50.z187 | Set 2026 | Batch 5 (4–7): Edge Panel per area/colore come Master, privacy Help/FAQ (dati aggregati), accesso rapido login impronta/Face ID/PIN (`auth_quick_unlock.py`, `QuickUnlockCard`), inset bottom radice uniforme (`RootInsetsProbe`) |

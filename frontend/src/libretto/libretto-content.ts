@@ -77,8 +77,8 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     emoji: "📘",
     color: "#1C4869",
     title: "AdvisorOS 2.0 + AxonOS",
-    subtitle: "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati",
-    highlight: "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati. Non ti chiede niente. Sa già tutto.",
+    subtitle: "AxonOS Brain+ · Il sistema operativo che potenzia il tuo cervello",
+    highlight: "AxonOS Brain+ — Non dimentica nulla, non si stanca mai, conosce la tua vita. Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati.",
     paragraphs: [
       "AdvisorOS è nato per i consulenti commerciali (energia e network) ma è il CRM completo per chiunque gestisca relazioni, scadenze e documenti: agenzie, aziende, studi professionali e anche privati. Isolamento multi-tenant, controllo dei ruoli, integrazioni cloud native e un'AI — AxonOS — che legge in tempo reale ogni dato del tuo lavoro.",
       "AxonOS è l'assistente AI integrato: risponde in chat, ricorda le informazioni del tuo team, ti aiuta a leggere bollette, a preparare messaggi commerciali e a gestire attività quotidiane senza uscire dall'app.",
@@ -435,7 +435,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     emoji: "⚡",
     color: "#7C3AED",
     title: "18 · Perché AdvisorOS è diverso",
-    subtitle: "L'AI è il motore, non un accessorio",
+    subtitle: "AxonOS Brain+ · L'AI è il motore, non un accessorio",
     highlight: "AdvisorOS non è un CRM con un chatbot aggiunto. È il primo sistema gestionale dove l'AI è il motore, non un accessorio.",
     paragraphs: [
       "Salesforce, HubSpot, Pipedrive hanno tutti un assistente AI innestato sopra il database. AxonOS legge il tuo database in tempo reale, agisce dentro il sistema e impara dalle tue interazioni.",
@@ -483,8 +483,8 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     emoji: "📈",
     color: "#F59E0B",
     title: "21 · Il vantaggio che cresce nel tempo",
-    subtitle: "La memoria è tua",
-    highlight: "Ogni giorno che usi AdvisorOS, AxonOS ti conosce meglio.",
+    subtitle: "AxonOS Brain+ · La memoria è tua",
+    highlight: "Ogni giorno che usi AdvisorOS, AxonOS Brain+ ti conosce meglio: il sistema operativo che potenzia il tuo cervello.",
     paragraphs: [
       "La memoria accumulata nel tuo sistema non va da nessuna parte: è tua. Questo è il motivo per cui chi inizia a usare AdvisorOS non torna indietro.",
       "Il sistema diventa parte del tuo modo di lavorare.",
@@ -496,7 +496,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     emoji: "🚀",
     color: "#0F172A",
     title: "AdvisorOS 2.0",
-    subtitle: "Il CRM più intelligente per chi lavora sul campo",
+    subtitle: "AxonOS Brain+ · Il CRM più intelligente per chi lavora sul campo",
     highlight: "AdvisorOS non è il CRM più grande. È il CRM più intelligente per chi lavora sul campo. Ogni giorno che lo usi, diventa più tuo.",
     paragraphs: [
       "Costruito per chi vende ogni giorno — e per agenzie, aziende, studi professionali e privati — potenziato da un'intelligenza che non dorme mai.",

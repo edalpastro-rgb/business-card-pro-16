@@ -33,6 +33,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 
 import { WowIntro } from "@/src/WowIntro";
+import { BrainPlus, brainPlusHtml, BRAIN_PLUS_SECTION_IDS } from "@/src/BrainPlus"; // V50.z190 — claim AxonOS Brain+
 const ADVISOR_LOGO = require("@/assets/images/advisoros-logo-transparent.png");
 const AXON_LOGO = require("@/assets/images/axonos-logo-transparent.png");
 const ADVISOR_ICON = require("@/assets/images/advisoros-icon-1024.png");
@@ -77,6 +78,7 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
         ${logoAxonB64 ? `<img class="cover-logo" src="${dataUri(logoAxonB64)}" />` : ""}
       </div>
       <div class="cover-title">${meta.title}</div>
+      ${brainPlusHtml({ dark: true, size: 26, tagline: true, align: "center" })}
       <div class="cover-sub">${meta.subtitle}</div>
       <div class="cover-version">${meta.version}</div>
       <div class="cover-footer">${meta.footer}</div>
@@ -125,6 +127,7 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
           </div>
         </div>
         <div class="sec-body">
+          ${BRAIN_PLUS_SECTION_IDS.has(s.id) ? brainPlusHtml({ dark: false, size: 20, tagline: s.id === "intro" || s.id === "chiusura" }) : ""}
           ${highlight}
           ${s.paragraphs.map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`).join("")}
           ${bullets}
@@ -369,6 +372,8 @@ export default function LibrettoScreen() {
             <EvolutionMotto dark testID="libretto-motto" />
           </View>
           <Text style={styles.coverTitle}>{isOnboarding ? "Benvenuto in AdvisorOS" : meta.title}</Text>
+          {/* V50.z190 — claim ufficiale AxonOS Brain+ */}
+          <BrainPlus dark size={24} tagline align="center" style={{ marginBottom: 6 }} testID="libretto-brainplus-cover" />
           <Text style={styles.coverSub}>
             {isOnboarding
               ? "Ecco un giro guidato di tutto quello che puoi fare. Scorri, esplora, poi tocca «Iniziamo!» in fondo."
@@ -458,6 +463,9 @@ function SectionCard({ section }: { section: LibrettoSection }) {
         </View>
       </View>
       <View style={styles.secBody}>
+        {BRAIN_PLUS_SECTION_IDS.has(section.id) ? (
+          <BrainPlus dark={false} size={20} tagline={section.id === "intro" || section.id === "chiusura"} style={{ marginBottom: 8 }} testID={`libretto-brainplus-${section.id}`} />
+        ) : null}
         {section.highlight ? (
           <View style={[styles.highlight, { backgroundColor: section.color }]} testID={`libretto-highlight-${section.id}`}>
             <Text style={styles.highlightTxt}>{section.highlight}</Text>

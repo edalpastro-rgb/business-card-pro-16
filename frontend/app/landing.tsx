@@ -19,6 +19,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { BrainPlus } from "@/src/BrainPlus";
 import { EvolutionMotto } from "@/src/EvolutionMotto";
 import { useRouter } from "expo-router";
 
@@ -117,6 +118,8 @@ export default function LandingScreen() {
           <View style={{ alignSelf: "stretch", marginVertical: 6 }}>
             <EvolutionMotto testID="landing-motto" />
           </View>
+          {/* V50.z190 — claim ufficiale AxonOS Brain+ (prima presentazione di AxonOS) */}
+          <BrainPlus dark={false} size={22} tagline align="center" style={{ marginBottom: 8 }} testID="landing-brainplus" />
           <View style={styles.heroBadge}>
             <Ionicons name="rocket" size={14} color="#FF6B35" />
             <Text style={styles.heroBadgeTxt}>

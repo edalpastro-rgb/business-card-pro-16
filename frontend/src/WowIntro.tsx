@@ -15,6 +15,7 @@ import Animated, {
   ZoomIn,
 } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
+import { BrainPlus } from "@/src/BrainPlus"; // V50.z190 — claim AxonOS Brain+
 
 /**
  * V50.z136 — Intro animata "effetto wow" del tour di onboarding.
@@ -116,6 +117,11 @@ export function WowIntro({ onDone }: { onDone: () => void }) {
 
       <View key={`t-${slide.key}`} style={styles.textWrap}>
         <Animated.Text entering={FadeInUp.delay(150).duration(550)} style={styles.title}>{slide.title}</Animated.Text>
+        {slide.key === "axon" ? (
+          <Animated.View entering={FadeInUp.delay(250).duration(550)}>
+            <BrainPlus dark size={24} tagline align="center" style={{ marginBottom: 8 }} testID="wow-brainplus" />
+          </Animated.View>
+        ) : null}
         <Animated.Text entering={FadeInUp.delay(320).duration(550)} style={styles.body}>{slide.body}</Animated.Text>
       </View>
 

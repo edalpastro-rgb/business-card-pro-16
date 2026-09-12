@@ -5997,3 +5997,5 @@ else Linking.openURL(url).catch(() => {});
 - V50.z188 Blocco 7: `routes/axon_self_learning.py` (job 10 min su sessioni concluse → Claude Haiku → insight anonimizzati in `axon_knowledge_base`; doppio scrub regex+caps; wrap `_build_crm_omniscience_section` per contesto; API `/axon/kb-insights*`), `app/axon-insights.tsx` dashboard Master (in Axon Center).
 
 - V50.z189 PROMPT 3 Libretto: FAQ privacy verbatim, intro target ampliato, sezioni perche-diverso/per-chi/vita-privata/vantaggio-tempo (anche in `_LIBRETTO_NEW_SECTIONS`), chiusura headline finale; axon_app_map.json sincronizzato; commenti Voice Copilot → Axon Drive.
+
+- V50.z190 Brain+: `src/BrainPlus.tsx` (componente + html PDF + BRAIN_PLUS_SECTION_IDS); integrato in libretto.tsx (cover + sezioni per id, app e PDF), WowIntro slide axon, landing hero; testi sezioni intro/18/21/chiusura + axon_app_map.json.
