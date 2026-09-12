@@ -193,6 +193,36 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z193 — Fix notifiche push autonome: bridge persistente AxonOS → Push Service** — nuovo modulo isolato
+  `backend/routes/axon_push_bridge.py` (dopo `axon_chat_push.py`, prima di 37) + `src/pushBridge.ts` + `src/PushStatusCard.tsx`.
+  **STATO PRIMA**: il server inviava già i push in autonomia (`axon_notify` → `send_push`, scheduler 10 min, promemoria server-side),
+  ma (a) `send_push` inghiottiva ogni errore → `push_sent=True` anche senza consegna, nessun log/esito, nessun retry; (b) nessuna
+  traccia dello stato del telefono (token registrato? permesso negato? Firebase?); (c) Android: canale `default` creato solo lazy
+  in `notifications.ts` (non a livello modulo) → push data-only ad app chiusa a rischio; (d) **causa radice dei "push solo ad app
+  aperta"**: manca `google-services.json` + `android.googleServicesFile` in `app.json` → `getDevicePushTokenAsync()` fallisce in
+  silenzio → `/register-push` mai chiamato → il push service non ha alcun dispositivo; le notifiche si vedevano solo dall'inbox
+  in-app/notifiche locali. In dev `EMERGENT_PUSH_KEY=placeholder` (impostata solo al Publish).
+  **STATO DOPO**: (1) wrapper `send_push` per nome nel namespace (stessa firma, stesso `_push_client`): esito reale in `axon_push_log`
+  {status sent|not_configured|rejected|failed|queued, http_status, error, attempt, source}, `push_status` truthful sulla notifica in
+  `axon_notifications`, **outbox `axon_push_outbox` con retry a backoff 1/2/5/10/30/60 min** (job `apb-outbox-tick` 60s su
+  `_axn_scheduler`) su 5xx/429/timeout. (2) `push_devices` {user_id, platform, registered, permission, can_ask_again, token_hint (ultimi 6),
+  error, app_env standalone|expo_go|dev, registered_at, last_seen_at, last_delivered_at, **last_failed_at**, last_push_status,
+  last_nudge_at} alimentata da `POST /axon/push/device` (client dopo ogni tentativo). (3) `GET /axon/push/status` → `level`
+  ok|warn|off + `summary` in linguaggio semplice (mai token/HTTP), `last_test_label` "Test inviato alle HH:MM — Consegnato/Ricevuto/Non
+  consegnato"; `GET /axon/push/log`. (4) Test programmato `POST /axon/push/test-scheduled {minutes}` → `axon_push_tests` (arming esatto
+  + tick di recupero 60s, riavvio-safe) → `axon_notify` kind axon_message con `data.test_id`; `POST /axon/push/tests/{id}/ack` dal
+  telefono (listener received/tap) → "Ricevuto sul telefono ✅". (5) Chat: wrapper di `_maybe_push_command` → «il mio telefono riceve le
+  notifiche?» / «mi arrivano le push?» → risposta semplice (`cmd push_diag`); «programma un test push tra 2 minuti» (`push_test_scheduled`);
+  i comandi esistenti (manda/avvisami/ricordami…) restano all'originale. (6) Nudge permesso negato: `POST /axon/push/nudge` inserisce
+  un messaggio **in chat AxonOS** (non popup) max 1/settimana (throttle client `pushNudgeAt` + server). Frontend: `pushBridge.ts` crea il
+  canale Android `default` (MAX) a livello modulo, `syncPushDevice` = `registerForPush` con retry 3× (2s/6s/15s) + cattura errore reale del
+  token + report al server; `<PushBridgeSync userId>` nel layout (avvio, foreground ≤1/30 min, ack test); card **"Stato canale push"** in
+  Notifiche AxonOS → Preferenze (stato, ultima consegna/problema, esito test, «Test push tra 2 minuti», «Apri impostazioni» se negato,
+  «Ricollega»). Test `backend/tests/test_axon_push_bridge.py` ✅ (device report/nudge/diag/no falsi positivi/log/test programmato 2 min
+  puntuale/ack). **DA FARE dall'utente**: fornire `google-services.json` (Firebase, package `com.emergent.consulenteapp.zkleir`) → salvare in
+  `frontend/google-services.json` + `"googleServicesFile": "./google-services.json"` in `expo.android` → Publish → nuova build. Senza il
+  file, Android non ottiene il token FCM e nessun push nativo può arrivare (la card lo dirà: "manca la configurazione Firebase").
+
 - **V50.z192 — BLOCCO 9b: Memoria visibile AxonOS «Cosa sa Axon di me»** — nuovo modulo isolato `backend/routes/axon_memory.py`
   (collection `axon_user_memory` {section, text, source auto|manual, confidence, evidence}; `axon_user_memory_forgotten` = voci cancellate/
   modificate che l'analisi NON ripropone). Analisi = euristiche sui dati reali (clienti più seguiti da appuntamenti+richiamate, anticipo
@@ -553,6 +583,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z193 | Set 2026 | Fix push autonome: bridge persistente AxonOS → Push Service (`routes/axon_push_bridge.py`: wrapper `send_push` con esito reale + outbox retry backoff, `push_devices` con `last_failed_at`, `GET /axon/push/status` in linguaggio semplice, test programmato a N minuti + ack dal telefono, nudge in chat se permesso negato; `src/pushBridge.ts` canale Android default a livello modulo + registrazione con retry; card «Stato canale push»). Causa radice: manca `google-services.json` (da fornire) |
 | V50.z192 | Set 2026 | Blocco 9b «Cosa sa Axon di me»: `routes/axon_memory.py` + `app/axon-memory.tsx` (Profilo → Memoria AxonOS: preferenze, clienti chiave, scadenze, stile, argomenti, integrazioni; modifica/cancella/analizza/cancella tutto) |
 | V50.z191 | Set 2026 | Splash/branding: AdvisorOS + AxonOS (60%) impilati, via "CRM per consulenti e network" e "powered by AxonOS", tagline «Il tuo "Tuttunizzatore"» (splash, copertina e chiusura Tour/Libretto app+PDF, libretti Master) |
 | V50.z190 | Set 2026 | Claim ufficiale "AxonOS — Brain+" (`src/BrainPlus.tsx`, "+" arancione più grande bold) in copertina/sezioni 1-18-21-chiusura del Libretto (app+PDF), libretti Master, WowIntro, landing |

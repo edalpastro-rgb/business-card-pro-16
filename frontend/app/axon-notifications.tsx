@@ -8,6 +8,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { axnApi, AxnNotification, AxnPrefs, AxnKind, AXN_KIND_ICON, setAppBadge } from "@/src/axonNotifications";
+import { PushStatusCard } from "@/src/PushStatusCard"; // V50.z193 — Stato canale push + test a 2 minuti
 
 const AXON = "#7C3AED";
 
@@ -126,6 +127,7 @@ export default function AxonNotificationsScreen() {
         </ScrollView>
       ) : prefs && (
         <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad, gap: 12 }}>
+          <PushStatusCard />
           <View style={styles.card}>
             <View style={styles.prefRow}>
               <View style={{ flex: 1 }}>
