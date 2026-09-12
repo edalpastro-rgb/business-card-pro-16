@@ -1,263 +1,334 @@
 [
- {
-  "id": "intro",
-  "title": "AdvisorOS 2.0 + AxonOS",
-  "subtitle": "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati",
-  "paragraphs": [
-   "AdvisorOS è il CRM completo per Consulenti Energetici e Networker italiani: isolamento multi-tenant, controllo dei ruoli, integrazioni cloud native e un'AI — AxonOS — che legge in tempo reale ogni dato della tua azienda.",
-   "AxonOS è l'assistente AI integrato: risponde in chat, ricorda le informazioni del tuo team, ti aiuta a leggere bollette, a preparare messaggi commerciali e a gestire attività quotidiane senza uscire dall'app.",
-   "L'obiettivo di questo libretto è portarti dal primo login all'utilizzo avanzato di ogni funzione, con schermate di esempio e suggerimenti pratici."
-  ],
-  "tips": [
-   "Segui l'ordine dei capitoli la prima volta.",
-   "Puoi scaricare questo libretto in PDF dal pulsante in alto."
-  ]
- },
- {
-  "id": "install",
-  "title": "1 · Installazione",
-  "subtitle": "Da Play Store / App Store al primo lancio",
-  "paragraphs": [
-   "AdvisorOS è disponibile su Google Play (Android) e su App Store (iOS). Cerca «AdvisorOS» e installa la versione ufficiale con logo blu/oro. Il download è gratuito.",
-   "Alla prima apertura l'app scarica i pacchetti aggiornati (bundle) via OTA: aspetta il caricamento della splash con il logo animato."
-  ],
-  "tips": [
-   "Il primo avvio richiede connessione dati o Wi-Fi.",
-   "Su Android puoi abilitare l'installazione automatica degli aggiornamenti dal Play Store."
-  ]
- },
- {
-  "id": "login",
-  "title": "2 · Accesso e registrazione",
-  "subtitle": "Email + password oppure invito Master",
-  "paragraphs": [
-   "Se sei un Master, registrati con email e password. Se sei un Agente, riceverai un link di invito dal tuo Master: apriti crea la password personale e sei dentro.",
-   "Puoi abilitare l'accesso biometrico (Face ID / Touch ID / Impronta) da Impostazioni → Sicurezza per accedere in un tocco."
-  ],
-  "tips": [
-   "Password consigliata: minimo 10 caratteri, con maiuscole e numeri.",
-   "Puoi resettare la password dalla stessa schermata di login."
-  ]
- },
- {
-  "id": "home",
-  "title": "3 · Home",
-  "subtitle": "Il tuo cruscotto operativo del giorno",
-  "paragraphs": [
-   "La Home mostra in alto il tuo brand personalizzato (Cognome, Nome, logo agenzia opzionale) e sotto le sezioni operative: appuntamenti di oggi, scadenze in arrivo, ultimi contatti aggiunti e KPI mensili.",
-   "Ogni card è tap-friendly: toccala per andare direttamente alla sezione approfondita."
-  ],
-  "tips": [
-   "Trascina verso il basso per aggiornare (pull-to-refresh)."
-  ]
- },
- {
-  "id": "contatti",
-  "title": "4 · Contatti · Anagrafica",
-  "subtitle": "Il cuore del tuo CRM",
-  "paragraphs": [
-   "Ogni contatto ha: dati anagrafici, referente/i, aree merceologiche, tag, script personalizzato, note vocali e allegati.",
-   "Puoi aggiungere campi personalizzati per adattare l'anagrafica al tuo processo commerciale (Es.: «Vendita fissa», «PV installato», «Data ultimo contratto»)."
-  ],
-  "tips": [
-   "Usa le AREE per filtrare rapidamente per servizio.",
-   "I TAG sono liberi e si aggiungono digitando."
-  ]
- },
- {
-  "id": "nuovo-contatto",
-  "title": "5 · Aggiungere un contatto",
-  "subtitle": "5 modi rapidissimi",
-  "paragraphs": [
-   "Puoi aggiungere un nuovo contatto in cinque modi:",
-   "1) Manualmente compilando il form.\\n2) Dal biglietto da visita (fotografato: OCR + AI).\\n3) Dalla rubrica del telefono (import massivo o singolo).\\n4) Da un URL / vCard (incolla e AxonOS riempie i campi).\\n5) A voce, dettando i dati ad AxonOS.",
-   "Al salvataggio l'app ti chiede se vuoi copiare il contatto anche nella rubrica del telefono. Se il contatto esiste già in rubrica, ti avvisa prima di creare duplicati."
-  ],
-  "tips": [
-   "Per il biglietto: buona luce, inquadratura dritta, testo nitido.",
-   "Modalità voce: «Aggiungi Mario Rossi, telefono 335 12 34 567, mail rossi at energia punto it»."
-  ]
- },
- {
-  "id": "appuntamenti",
-  "title": "6 · Appuntamenti & Calendario",
-  "subtitle": "Prenotazione, promemoria, cronologia",
-  "paragraphs": [
-   "Dal contatto o dalla tab Calendario puoi creare un appuntamento: data, ora, tipologia (sopralluogo, chiamata, riunione online, ecc.), note e link Meet/Zoom.",
-   "Ricevi promemoria push 30 minuti prima e vedi tutti gli appuntamenti passati per ogni contatto.",
-   "La tab Calendario mostra vista giornaliera, settimanale e mensile con codice colore per tipo appuntamento."
-  ],
-  "tips": [
-   "Doppio promemoria: 1 ora e 5 minuti prima (configurabile).",
-   "Se metti un link Meet o Zoom lo apri con un tap dalla scheda."
-  ]
- },
- {
-  "id": "biglietto",
-  "title": "7 · Biglietto da visita digitale",
-  "subtitle": "Condividi il tuo profilo in un tap",
-  "paragraphs": [
-   "Ogni consulente ha un biglietto digitale a due facce: fronte con logo aziendale (che ora occupa l'intero fronte come sfondo) e retro con foto, dati e QR code.",
-   "Condividi il biglietto via WhatsApp, email, AirDrop o NFC. Il destinatario può salvarlo direttamente nella sua rubrica.",
-   "Le statistiche mostrano quante volte è stato aperto e da quali città."
-  ],
-  "tips": [
-   "Logo consigliato: 900×567 px (rapporto biglietto standard).",
-   "Vai a «Statistiche biglietto» per vedere aperture e provenienza."
-  ]
- },
- {
-  "id": "axon-chat",
-  "title": "8 · AxonOS — L'AI che conosce la tua azienda meglio di chiunque altro",
-  "subtitle": "Zero allegati. Zero screenshot. Zero attese.",
-  "paragraphs": [
-   "Mentre gli altri CRM ti chiedono allegati e screenshot, AxonOS legge in tempo reale ogni contatto, ogni contratto, ogni appuntamento, ogni richiamata, ogni KPI del tuo team. In 0,03 secondi ha già tutto il contesto.",
-   "Tu parli, lui agisce. Zero allegati. Zero screenshot. Zero attese. Come avere un direttore commerciale AI sempre acceso, sempre aggiornato, sempre pronto."
-  ],
-  "tips": [
-   "Legge tutti i contatti in tempo reale",
-   "Conosce ogni appuntamento passato e futuro",
-   "Vede contratti, bollette, scadenze",
-   "Monitora i KPI di ogni collaboratore",
-   "Accede a Corporate Gym, regole, impostazioni Master",
-   "Ti avvisa autonomamente con notifiche push"
-  ]
- },
- {
-  "id": "corporate-gym",
-  "title": "Corporate Gym — La palestra vocale per il tuo team di vendita",
-  "subtitle": "Nessun corso, nessuna aula, nessun formatore esterno",
-  "paragraphs": [
-   "Nessun corso, nessun aula, nessun formatore esterno. AxonOS interpreta il cliente, il consulente risponde a voce. Ogni sessione viene analizzata, valutata e memorizzata.",
-   "Il Master vede i progressi di ogni agente, riceve insight settimanali e può aggiornare gli scenari in tempo reale. Configurabile per qualsiasi settore e qualsiasi tipo di obiezione. La formazione che si adatta alla tua azienda, non il contrario."
-  ],
-  "tips": []
- },
- {
-  "id": "insegna-axon",
-  "title": "9 · Insegna ad Axon",
-  "subtitle": "Regole, URL sorgente, documenti",
-  "paragraphs": [
-   "Da Impostazioni → Insegna ad Axon puoi creare regole personalizzate per rendere Axon esperto del TUO business: linee guida di vendita, script preferiti, terminologia tecnica.",
-   "Aggiungi anche URL di siti sorgente (es. autorità energia, il tuo sito) e documenti PDF che Axon leggerà come contesto RAG (embeddings semantici).",
-   "Le regole si possono organizzare per categoria e attivare/disattivare al volo."
-  ],
-  "tips": [
-   "Una regola tipica: «Rispondi sempre in italiano, tono professionale ma amichevole».",
-   "PDF supportati fino a ~50 pagine per documento."
-  ]
- },
- {
-  "id": "drive-dropbox",
-  "title": "10 · Google Drive & Dropbox",
-  "subtitle": "Bollette, contratti e allegati sempre a portata",
-  "paragraphs": [
-   "Collega Google Drive o Dropbox da Impostazioni → Integrazioni. Con Drive puoi anche scegliere una o più cartelle specifiche («Cartelle Axon») dal Google Picker: Axon leggerà SOLO i file al loro interno per rispettare la tua privacy.",
-   "In chat, tocca la graffetta 📎 e scegli «Da Google Drive» o «Da Dropbox» per allegare direttamente file al messaggio."
-  ],
-  "tips": [
-   "Scope drive.file: Axon vede solo le cartelle che scegli, non tutto il tuo Drive.",
-   "Puoi cambiare cartelle in ogni momento."
-  ]
- },
- {
-  "id": "voice-copilot",
-  "title": "11 · Axon Drive — Il tuo copilota vocale in macchina",
-  "subtitle": "Mani sul volante, mente libera, lavoro fatto",
-  "paragraphs": [
-   "Mani sul volante, mente libera, lavoro fatto. Attiva Axon Drive dal microfono in alto a destra o dall'azione rapida in Home: modalità full-screen dove Axon ti parla e tu rispondi a voce.",
-   "Perfetto in auto: chiedi «Ricordami di richiamare Colferai alle 15», «Programma un appuntamento con Bianchi giovedì alle 10», «Riassumi le ultime tre bollette di Rossi»."
-  ],
-  "tips": [
-   "Meglio con auricolari bluetooth per riconoscimento vocale ottimale."
-  ]
- },
- {
-  "id": "notifiche-push",
-  "title": "AxonOS ti trova lui",
-  "subtitle": "L'AI che lavora anche quando tu non ci sei",
-  "paragraphs": [
-   "Non devi aprire l'app per sapere cosa succede. AxonOS ti manda notifiche push per sessioni Corporate Gym in scadenza, ritelefonate urgenti, report settimanali Master e avvisi crediti. L'AI che lavora anche quando tu non ci sei."
-  ],
-  "tips": [
-   "Sessioni Corporate Gym obbligatorie in scadenza",
-   "Ritelefonate urgenti in scadenza",
-   "Report settimanale Master pronto",
-   "Avvisi crediti AI al 50%, 80% e 100%",
-   "Gestisci i tipi di notifica in Impostazioni → AI & Axon → Notifiche push AxonOS.",
-   "Il Master riceve anche gli avvisi del team; il collaboratore solo i propri."
-  ]
- },
- {
-  "id": "team-master",
-  "title": "12 · Team & Master Dashboard",
-  "subtitle": "Solo per Master · gerarchia e KPI",
-  "paragraphs": [
-   "Se sei un Master vedi la sezione Master: cruscotto con KPI aggregati di tutta la rete (contratti, appuntamenti, lead nuovi, uso Axon per collaboratore).",
-   "Da qui invii inviti, gestisci ruoli, personalizzi lo script telefonata comune, i documenti Axon del team, i banner degli eventi e la brand identity."
-  ],
-  "tips": [
-   "Confronta 2-3 collaboratori side-by-side dalla vista Team Insights (in arrivo)."
-  ]
- },
- {
-  "id": "my-thing",
-  "title": "13 · My Thing (Gallery personale)",
-  "subtitle": "Foto, moodboard, materiali brand",
-  "paragraphs": [
-   "My Thing è una gallery privata per raccogliere immagini, sfondi, referenze commerciali. Puoi nasconderle o mostrarle a tuo piacimento.",
-   "Utile per: brand guidelines aziendali, esempi di installazione, foto prima/dopo di lavori fatti dai tuoi clienti."
-  ],
-  "tips": []
- },
- {
-  "id": "report",
-  "title": "14 · Report",
-  "subtitle": "Analytics chiari, decisioni migliori",
-  "paragraphs": [
-   "La tab Report mostra grafici a barre, torta e trend nel tempo: contratti chiusi, tipologie di appuntamento, area geografica, provenienza lead, uso di Axon.",
-   "Puoi filtrare per periodo (7/30/90 giorni, YTD) ed esportare CSV/PDF."
-  ],
-  "tips": []
- },
- {
-  "id": "impostazioni",
-  "title": "15 · Impostazioni",
-  "subtitle": "Personalizza AdvisorOS a modo tuo",
-  "paragraphs": [
-   "In Impostazioni trovi tutto: profilo, biglietto da visita, integrazioni cloud, aree e categorie personalizzate, gestione team, memoria di Axon, SMTP per invio email, sicurezza biometrica, invito collaboratori."
-  ],
-  "tips": [
-   "Personalizza le aree merceologiche per il tuo settore (energia, telco, assicurazioni, PV)."
-  ]
- },
- {
-  "id": "consigli",
-  "title": "16 · Consigli d'uso avanzati",
-  "subtitle": "Diventa un power user",
-  "paragraphs": [
-   "1) Chiedi ad Axon di riassumere le note vocali di un contatto: risparmi 5 minuti a scheda.",
-   "2) Usa i tag come mini-CRM: «lead caldo», «da richiamare», «trattativa avanzata».",
-   "3) Fissa appuntamenti direttamente dalla chat: «Programma call con Rossi domani ore 11»."
-  ],
-  "tips": []
- },
- {
-  "id": "faq",
-  "title": "17 · FAQ",
-  "subtitle": "Le domande più frequenti",
-  "paragraphs": [
-   "Q: I miei dati sono privati? — Sì, isolamento multi-tenant: nessun altro Master vede i tuoi contatti.\\n\\nQ: Axon usa i miei dati per addestrarsi? — AdvisorOS utilizza dati aggregati e anonimizzati delle conversazioni per migliorare AxonOS. Non vengono raccolti dati sensibili: nomi, cifre, numeri di telefono e riferimenti personali sono rimossi prima dell'aggregazione; contatti, bollette e documenti restano isolati nel tuo spazio.\\n\\nQ: Posso disdire in ogni momento? — Sì, dal Profilo → Gestisci abbonamento.\\n\\nQ: Perde qualcosa se cambio telefono? — No, tutto è in cloud: rifai il login e ritrovi tutto.\\n\\nQ: Come contatto il supporto? — Tocca il pulsante 🎧 in alto a destra oppure invia una email a support@advisoros.it."
-  ],
-  "tips": []
- },
- {
-  "id": "chiusura",
-  "title": "AdvisorOS 2.0",
-  "subtitle": "Il sistema operativo per consulenti commerciali",
-  "paragraphs": [
-   "Costruito per chi vende ogni giorno, potenziato da un'intelligenza che non dorme mai."
-  ],
-  "tips": []
- }
+  {
+    "id": "intro",
+    "title": "AdvisorOS 2.0 + AxonOS",
+    "subtitle": "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati",
+    "paragraphs": [
+      "AdvisorOS è nato per i consulenti commerciali (energia e network) ma è il CRM completo per chiunque gestisca relazioni, scadenze e documenti: agenzie, aziende, studi professionali e anche privati. Isolamento multi-tenant, controllo dei ruoli, integrazioni cloud native e un'AI — AxonOS — che legge in tempo reale ogni dato del tuo lavoro.",
+      "AxonOS è l'assistente AI integrato: risponde in chat, ricorda le informazioni del tuo team, ti aiuta a leggere bollette, a preparare messaggi commerciali e a gestire attività quotidiane senza uscire dall'app.",
+      "L'obiettivo di questo libretto è portarti dal primo login all'utilizzo avanzato di ogni funzione, con schermate di esempio e suggerimenti pratici."
+    ],
+    "tips": [
+      "Segui l'ordine dei capitoli la prima volta.",
+      "Puoi scaricare questo libretto in PDF dal pulsante in alto."
+    ]
+  },
+  {
+    "id": "install",
+    "title": "1 · Installazione",
+    "subtitle": "Da Play Store / App Store al primo lancio",
+    "paragraphs": [
+      "AdvisorOS è disponibile su Google Play (Android) e su App Store (iOS). Cerca «AdvisorOS» e installa la versione ufficiale con logo blu/oro. Il download è gratuito.",
+      "Alla prima apertura l'app scarica i pacchetti aggiornati (bundle) via OTA: aspetta il caricamento della splash con il logo animato."
+    ],
+    "tips": [
+      "Il primo avvio richiede connessione dati o Wi-Fi.",
+      "Su Android puoi abilitare l'installazione automatica degli aggiornamenti dal Play Store."
+    ]
+  },
+  {
+    "id": "login",
+    "title": "2 · Accesso e registrazione",
+    "subtitle": "Email + password oppure invito Master",
+    "paragraphs": [
+      "Se sei un Master, registrati con email e password. Se sei un Agente, riceverai un link di invito dal tuo Master: apriti crea la password personale e sei dentro.",
+      "Puoi abilitare l'accesso biometrico (Face ID / Touch ID / Impronta) da Impostazioni → Sicurezza per accedere in un tocco."
+    ],
+    "tips": [
+      "Password consigliata: minimo 10 caratteri, con maiuscole e numeri.",
+      "Puoi resettare la password dalla stessa schermata di login."
+    ]
+  },
+  {
+    "id": "home",
+    "title": "3 · Home",
+    "subtitle": "Il tuo cruscotto operativo del giorno",
+    "paragraphs": [
+      "La Home mostra in alto il tuo brand personalizzato (Cognome, Nome, logo agenzia opzionale) e sotto le sezioni operative: appuntamenti di oggi, scadenze in arrivo, ultimi contatti aggiunti e KPI mensili.",
+      "Ogni card è tap-friendly: toccala per andare direttamente alla sezione approfondita."
+    ],
+    "tips": [
+      "Trascina verso il basso per aggiornare (pull-to-refresh)."
+    ]
+  },
+  {
+    "id": "contatti",
+    "title": "4 · Contatti · Anagrafica",
+    "subtitle": "Il cuore del tuo CRM",
+    "paragraphs": [
+      "Ogni contatto ha: dati anagrafici, referente/i, aree merceologiche, tag, script personalizzato, note vocali e allegati.",
+      "Puoi aggiungere campi personalizzati per adattare l'anagrafica al tuo processo commerciale (Es.: «Vendita fissa», «PV installato», «Data ultimo contratto»)."
+    ],
+    "tips": [
+      "Usa le AREE per filtrare rapidamente per servizio.",
+      "I TAG sono liberi e si aggiungono digitando."
+    ]
+  },
+  {
+    "id": "nuovo-contatto",
+    "title": "5 · Aggiungere un contatto",
+    "subtitle": "5 modi rapidissimi",
+    "paragraphs": [
+      "Puoi aggiungere un nuovo contatto in cinque modi:",
+      "1) Manualmente compilando il form.\\n2) Dal biglietto da visita (fotografato: OCR + AI).\\n3) Dalla rubrica del telefono (import massivo o singolo).\\n4) Da un URL / vCard (incolla e AxonOS riempie i campi).\\n5) A voce, dettando i dati ad AxonOS.",
+      "Al salvataggio l'app ti chiede se vuoi copiare il contatto anche nella rubrica del telefono. Se il contatto esiste già in rubrica, ti avvisa prima di creare duplicati."
+    ],
+    "tips": [
+      "Per il biglietto: buona luce, inquadratura dritta, testo nitido.",
+      "Modalità voce: «Aggiungi Mario Rossi, telefono 335 12 34 567, mail rossi at energia punto it»."
+    ]
+  },
+  {
+    "id": "appuntamenti",
+    "title": "6 · Appuntamenti & Calendario",
+    "subtitle": "Prenotazione, promemoria, cronologia",
+    "paragraphs": [
+      "Dal contatto o dalla tab Calendario puoi creare un appuntamento: data, ora, tipologia (sopralluogo, chiamata, riunione online, ecc.), note e link Meet/Zoom.",
+      "Ricevi promemoria push 30 minuti prima e vedi tutti gli appuntamenti passati per ogni contatto.",
+      "La tab Calendario mostra vista giornaliera, settimanale e mensile con codice colore per tipo appuntamento."
+    ],
+    "tips": [
+      "Doppio promemoria: 1 ora e 5 minuti prima (configurabile).",
+      "Se metti un link Meet o Zoom lo apri con un tap dalla scheda."
+    ]
+  },
+  {
+    "id": "biglietto",
+    "title": "7 · Biglietto da visita digitale",
+    "subtitle": "Condividi il tuo profilo in un tap",
+    "paragraphs": [
+      "Ogni consulente ha un biglietto digitale a due facce: fronte con logo aziendale (che ora occupa l'intero fronte come sfondo) e retro con foto, dati e QR code.",
+      "Condividi il biglietto via WhatsApp, email, AirDrop o NFC. Il destinatario può salvarlo direttamente nella sua rubrica.",
+      "Le statistiche mostrano quante volte è stato aperto e da quali città."
+    ],
+    "tips": [
+      "Logo consigliato: 900×567 px (rapporto biglietto standard).",
+      "Vai a «Statistiche biglietto» per vedere aperture e provenienza."
+    ]
+  },
+  {
+    "id": "axon-chat",
+    "title": "8 · AxonOS — L'AI che conosce la tua azienda meglio di chiunque altro",
+    "subtitle": "Zero allegati. Zero screenshot. Zero attese.",
+    "paragraphs": [
+      "Mentre gli altri CRM ti chiedono allegati e screenshot, AxonOS legge in tempo reale ogni contatto, ogni contratto, ogni appuntamento, ogni richiamata, ogni KPI del tuo team. In 0,03 secondi ha già tutto il contesto.",
+      "Tu parli, lui agisce. Zero allegati. Zero screenshot. Zero attese. Come avere un direttore commerciale AI sempre acceso, sempre aggiornato, sempre pronto."
+    ],
+    "tips": [
+      "Legge tutti i contatti in tempo reale",
+      "Conosce ogni appuntamento passato e futuro",
+      "Vede contratti, bollette, scadenze",
+      "Monitora i KPI di ogni collaboratore",
+      "Accede a Corporate Gym, regole, impostazioni Master",
+      "Ti avvisa autonomamente con notifiche push"
+    ]
+  },
+  {
+    "id": "corporate-gym",
+    "title": "Corporate Gym — La palestra vocale per il tuo team di vendita",
+    "subtitle": "Nessun corso, nessuna aula, nessun formatore esterno",
+    "paragraphs": [
+      "Nessun corso, nessun aula, nessun formatore esterno. AxonOS interpreta il cliente, il consulente risponde a voce. Ogni sessione viene analizzata, valutata e memorizzata.",
+      "Il Master vede i progressi di ogni agente, riceve insight settimanali e può aggiornare gli scenari in tempo reale. Configurabile per qualsiasi settore e qualsiasi tipo di obiezione. La formazione che si adatta alla tua azienda, non il contrario."
+    ],
+    "tips": []
+  },
+  {
+    "id": "insegna-axon",
+    "title": "9 · Insegna ad Axon",
+    "subtitle": "Regole, URL sorgente, documenti",
+    "paragraphs": [
+      "Da Impostazioni → Insegna ad Axon puoi creare regole personalizzate per rendere Axon esperto del TUO business: linee guida di vendita, script preferiti, terminologia tecnica.",
+      "Aggiungi anche URL di siti sorgente (es. autorità energia, il tuo sito) e documenti PDF che Axon leggerà come contesto RAG (embeddings semantici).",
+      "Le regole si possono organizzare per categoria e attivare/disattivare al volo."
+    ],
+    "tips": [
+      "Una regola tipica: «Rispondi sempre in italiano, tono professionale ma amichevole».",
+      "PDF supportati fino a ~50 pagine per documento."
+    ]
+  },
+  {
+    "id": "drive-dropbox",
+    "title": "10 · Google Drive & Dropbox",
+    "subtitle": "Bollette, contratti e allegati sempre a portata",
+    "paragraphs": [
+      "Collega Google Drive o Dropbox da Impostazioni → Integrazioni. Con Drive puoi anche scegliere una o più cartelle specifiche («Cartelle Axon») dal Google Picker: Axon leggerà SOLO i file al loro interno per rispettare la tua privacy.",
+      "In chat, tocca la graffetta 📎 e scegli «Da Google Drive» o «Da Dropbox» per allegare direttamente file al messaggio."
+    ],
+    "tips": [
+      "Scope drive.file: Axon vede solo le cartelle che scegli, non tutto il tuo Drive.",
+      "Puoi cambiare cartelle in ogni momento."
+    ]
+  },
+  {
+    "id": "voice-copilot",
+    "title": "11 · Axon Drive — Il tuo copilota vocale in macchina",
+    "subtitle": "Mani sul volante, mente libera, lavoro fatto",
+    "paragraphs": [
+      "Mani sul volante, mente libera, lavoro fatto. Attiva Axon Drive dal microfono in alto a destra o dall'azione rapida in Home: modalità full-screen dove Axon ti parla e tu rispondi a voce.",
+      "Perfetto in auto: chiedi «Ricordami di richiamare Colferai alle 15», «Programma un appuntamento con Bianchi giovedì alle 10», «Riassumi le ultime tre bollette di Rossi»."
+    ],
+    "tips": [
+      "Meglio con auricolari bluetooth per riconoscimento vocale ottimale."
+    ]
+  },
+  {
+    "id": "notifiche-push",
+    "title": "AxonOS ti trova lui",
+    "subtitle": "L'AI che lavora anche quando tu non ci sei",
+    "paragraphs": [
+      "Non devi aprire l'app per sapere cosa succede. AxonOS ti manda notifiche push per sessioni Corporate Gym in scadenza, ritelefonate urgenti, report settimanali Master e avvisi crediti. L'AI che lavora anche quando tu non ci sei."
+    ],
+    "tips": [
+      "Sessioni Corporate Gym obbligatorie in scadenza",
+      "Ritelefonate urgenti in scadenza",
+      "Report settimanale Master pronto",
+      "Avvisi crediti AI al 50%, 80% e 100%",
+      "Gestisci i tipi di notifica in Impostazioni → AI & Axon → Notifiche push AxonOS.",
+      "Il Master riceve anche gli avvisi del team; il collaboratore solo i propri."
+    ]
+  },
+  {
+    "id": "team-master",
+    "title": "12 · Team & Master Dashboard",
+    "subtitle": "Solo per Master · gerarchia e KPI",
+    "paragraphs": [
+      "Se sei un Master vedi la sezione Master: cruscotto con KPI aggregati di tutta la rete (contratti, appuntamenti, lead nuovi, uso Axon per collaboratore).",
+      "Da qui invii inviti, gestisci ruoli, personalizzi lo script telefonata comune, i documenti Axon del team, i banner degli eventi e la brand identity."
+    ],
+    "tips": [
+      "Confronta 2-3 collaboratori side-by-side dalla vista Team Insights (in arrivo)."
+    ]
+  },
+  {
+    "id": "my-thing",
+    "title": "13 · My Thing (Gallery personale)",
+    "subtitle": "Foto, moodboard, materiali brand",
+    "paragraphs": [
+      "My Thing è una gallery privata per raccogliere immagini, sfondi, referenze commerciali. Puoi nasconderle o mostrarle a tuo piacimento.",
+      "Utile per: brand guidelines aziendali, esempi di installazione, foto prima/dopo di lavori fatti dai tuoi clienti."
+    ],
+    "tips": []
+  },
+  {
+    "id": "report",
+    "title": "14 · Report",
+    "subtitle": "Analytics chiari, decisioni migliori",
+    "paragraphs": [
+      "La tab Report mostra grafici a barre, torta e trend nel tempo: contratti chiusi, tipologie di appuntamento, area geografica, provenienza lead, uso di Axon.",
+      "Puoi filtrare per periodo (7/30/90 giorni, YTD) ed esportare CSV/PDF."
+    ],
+    "tips": []
+  },
+  {
+    "id": "impostazioni",
+    "title": "15 · Impostazioni",
+    "subtitle": "Personalizza AdvisorOS a modo tuo",
+    "paragraphs": [
+      "In Impostazioni trovi tutto: profilo, biglietto da visita, integrazioni cloud, aree e categorie personalizzate, gestione team, memoria di Axon, SMTP per invio email, sicurezza biometrica, invito collaboratori."
+    ],
+    "tips": [
+      "Personalizza le aree merceologiche per il tuo settore (energia, telco, assicurazioni, PV)."
+    ]
+  },
+  {
+    "id": "consigli",
+    "title": "16 · Consigli d'uso avanzati",
+    "subtitle": "Diventa un power user",
+    "paragraphs": [
+      "1) Chiedi ad Axon di riassumere le note vocali di un contatto: risparmi 5 minuti a scheda.",
+      "2) Usa i tag come mini-CRM: «lead caldo», «da richiamare», «trattativa avanzata».",
+      "3) Fissa appuntamenti direttamente dalla chat: «Programma call con Rossi domani ore 11»."
+    ],
+    "tips": []
+  },
+  {
+    "id": "faq",
+    "title": "17 · FAQ",
+    "subtitle": "Le domande più frequenti",
+    "paragraphs": [
+      "Q: I miei dati sono privati? — Sì, isolamento multi-tenant: nessun altro Master vede i tuoi contatti.\\n\\nQ: Axon usa i miei dati per addestrarsi? — AxonOS utilizza dati aggregati anonimi per migliorare il servizio, senza raccogliere dati sensibili come nomi, cifre o riferimenti personali. Contatti, bollette e documenti restano isolati nel tuo spazio.\\n\\nQ: Posso disdire in ogni momento? — Sì, dal Profilo → Gestisci abbonamento.\\n\\nQ: Perde qualcosa se cambio telefono? — No, tutto è in cloud: rifai il login e ritrovi tutto.\\n\\nQ: Come contatto il supporto? — Tocca il pulsante 🎧 in alto a destra oppure invia una email a support@advisoros.it."
+    ],
+    "tips": []
+  },
+  {
+    "id": "perche-diverso",
+    "title": "18 · Perché AdvisorOS è diverso",
+    "subtitle": "L'AI è il motore, non un accessorio",
+    "highlight": "AdvisorOS non è un CRM con un chatbot aggiunto. È il primo sistema gestionale dove l'AI è il motore, non un accessorio.",
+    "paragraphs": [
+      "Salesforce, HubSpot, Pipedrive hanno tutti un assistente AI innestato sopra il database. AxonOS legge il tuo database in tempo reale, agisce dentro il sistema e impara dalle tue interazioni.",
+      "Non devi spiegargli chi sei ogni volta: ti conosce già."
+    ],
+    "tips": []
+  },
+  {
+    "id": "per-chi",
+    "title": "19 · Per chi è AdvisorOS",
+    "subtitle": "Cambia il vocabolario, il motore è lo stesso",
+    "highlight": "La base di AdvisorOS è stata costruita per consulenti commerciali ma la sua architettura si adatta a qualsiasi professionista che gestisce relazioni, scadenze e documenti.",
+    "paragraphs": [
+      "Esempi concreti:"
+    ],
+    "bullets": [
+      {
+        "icon": "briefcase",
+        "text": "Servizi professionali: avvocati, commercialisti, consulenti del lavoro, notai. Gestione clienti, scadenze fiscali e processuali, archivio documentale, comunicazioni massive."
+      },
+      {
+        "icon": "medkit",
+        "text": "Sanità e benessere: fisioterapisti, psicologi, coach, dentisti, centri estetici. Cartelle clienti, piani di trattamento, richiami automatici, follow-up."
+      },
+      {
+        "icon": "cart",
+        "text": "Commercio e vendita: agenti di commercio, concessionarie, agenzie immobiliari, assicurazioni multi-ramo. Portafoglio clienti, trattative, scadenze, obiettivi."
+      },
+      {
+        "icon": "school",
+        "text": "Formazione: coach aziendali, scuole private, personal trainer, nutrizionisti. Percorsi personalizzati, materiali, sessioni, progressi."
+      },
+      {
+        "icon": "construct",
+        "text": "Artigianato e tecnici: idraulici, elettricisti, architetti, agenzie di comunicazione. Interventi, preventivi, scadenze manutenzione, clienti abituali."
+      }
+    ],
+    "tips": [
+      {
+        "emoji": "⚙️",
+        "text": "In ogni settore cambia solo il vocabolario e i campi. Il motore è lo stesso."
+      }
+    ]
+  },
+  {
+    "id": "vita-privata",
+    "title": "20 · AdvisorOS per la vita privata",
+    "subtitle": "Una famiglia è una piccola impresa",
+    "highlight": "AxonOS non è solo per il lavoro. Una famiglia oggi gestisce scadenze, documenti e impegni come una piccola impresa.",
+    "paragraphs": [
+      "AxonOS legge la circolare della scuola e aggiorna il calendario. Ricorda bollo, revisione, tasse, compleanni. Fotografa lo scontrino e costruisce la nota spese. Legge l'estratto conto e produce un report. Gestisce password, documenti assicurativi, pratiche sanitarie.",
+      "Un solo assistente che conosce tutta la tua vita, senza che tu debba spiegargli nulla ogni volta."
+    ],
+    "tips": []
+  },
+  {
+    "id": "vantaggio-tempo",
+    "title": "21 · Il vantaggio che cresce nel tempo",
+    "subtitle": "La memoria è tua",
+    "highlight": "Ogni giorno che usi AdvisorOS, AxonOS ti conosce meglio.",
+    "paragraphs": [
+      "La memoria accumulata nel tuo sistema non va da nessuna parte: è tua. Questo è il motivo per cui chi inizia a usare AdvisorOS non torna indietro.",
+      "Il sistema diventa parte del tuo modo di lavorare."
+    ],
+    "tips": []
+  },
+  {
+    "id": "chiusura",
+    "title": "AdvisorOS 2.0",
+    "subtitle": "Il CRM più intelligente per chi lavora sul campo",
+    "paragraphs": [
+      "Costruito per chi vende ogni giorno — e per agenzie, aziende, studi professionali e privati — potenziato da un'intelligenza che non dorme mai."
+    ],
+    "tips": [],
+    "highlight": "AdvisorOS non è il CRM più grande. È il CRM più intelligente per chi lavora sul campo. Ogni giorno che lo usi, diventa più tuo."
+  }
 ]

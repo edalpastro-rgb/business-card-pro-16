@@ -5995,3 +5995,5 @@ else Linking.openURL(url).catch(() => {});
 - V50.z187 Batch 5 (4–7): `src/edgePanelCategories.tsx` (Edge Panel per area/colore Master), Help Center + FAQ privacy "dati aggregati", `routes/auth_quick_unlock.py` + `src/quickUnlock/QuickUnlockCard.tsx` (login con impronta/Face ID/PIN via dispositivo fidato; `loginWithSession` in auth.tsx; riga in Sicurezza), `RootInsetsProbe` in useSafeBottom/_layout per bottom bar uniforme.
 
 - V50.z188 Blocco 7: `routes/axon_self_learning.py` (job 10 min su sessioni concluse → Claude Haiku → insight anonimizzati in `axon_knowledge_base`; doppio scrub regex+caps; wrap `_build_crm_omniscience_section` per contesto; API `/axon/kb-insights*`), `app/axon-insights.tsx` dashboard Master (in Axon Center).
+
+- V50.z189 PROMPT 3 Libretto: FAQ privacy verbatim, intro target ampliato, sezioni perche-diverso/per-chi/vita-privata/vantaggio-tempo (anche in `_LIBRETTO_NEW_SECTIONS`), chiusura headline finale; axon_app_map.json sincronizzato; commenti Voice Copilot → Axon Drive.

@@ -193,6 +193,15 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z189 — PROMPT 3: Fix + copy + posizionamento Tour Guidato (Libretto)** — `src/libretto/libretto-content.ts` + copia Axon
+  `routes/axon_app_map.json`: (1) sezione 11 già "Axon Drive"; ripuliti gli ultimi riferimenti testuali "Voice Copilot / modalità auto"
+  (commenti/log in `voice-copilot.tsx`, `_layout.tsx`). (2) FAQ 17 allineata: «AxonOS utilizza dati aggregati anonimi per migliorare il
+  servizio, senza raccogliere dati sensibili come nomi, cifre o riferimenti personali». (3) Intro: target ampliato (consulenti commerciali +
+  agenzie, aziende, studi professionali, privati). (4) Nuove sezioni 18 «Perché AdvisorOS è diverso», 19 «Per chi è AdvisorOS» (5 bullet
+  settoriali + tip «cambia solo il vocabolario…»), 20 «AdvisorOS per la vita privata», 21 «Il vantaggio che cresce nel tempo» — testi
+  dell'utente verbatim; aggiunte a `_LIBRETTO_NEW_SECTIONS` così compaiono anche nei libretti personalizzati salvati dal Master.
+  (5) Chiusura: headline finale «AdvisorOS non è il CRM più grande. È il CRM più intelligente per chi lavora sul campo. Ogni giorno che lo
+  usi, diventa più tuo.» + sottotitolo/paragrafo con il nuovo target. Landing/WowIntro non toccati (fuori scope Tour).
 - **V50.z188 — PROMPT 2 Blocco 7: Autoapprendimento anonimizzato di AxonOS** — nuovo modulo isolato `backend/routes/axon_self_learning.py`
   (dopo `auth_quick_unlock.py`). (a) Job in background ogni 10 min (`_axn_scheduler`): ogni sessione chat conclusa (ultimo messaggio >20 min,
   ≥2 messaggi, non ancora in `axon_kb_processed_sessions`) viene pre-anonimizzata via regex (email, telefono, IBAN, POD/PDR, CF, P.IVA,
@@ -519,6 +528,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z189 | Set 2026 | Tour Guidato: FAQ privacy allineata, target ampliato, sezioni 18–21 (Perché diverso / Per chi / Vita privata / Vantaggio nel tempo), headline finale, riferimenti "Voice Copilot" → Axon Drive |
 | V50.z188 | Set 2026 | Blocco 7: autoapprendimento anonimizzato AxonOS (`axon_self_learning.py`: estrazione insight in background, `axon_knowledge_base`, contesto nelle chat, dashboard Master `/axon-insights`) |
 | V50.z187 | Set 2026 | Batch 5 (4–7): Edge Panel per area/colore come Master, privacy Help/FAQ (dati aggregati), accesso rapido login impronta/Face ID/PIN (`auth_quick_unlock.py`, `QuickUnlockCard`), inset bottom radice uniforme (`RootInsetsProbe`) |
 | V50.z186 | Set 2026 | Batch 5: stop vocale nativo (barge-in + parole di stop, pause/resume SentenceSpeaker), audio/registrazione in background (plugin expo-audio, UIBackgroundModes), padding tastiera Android globale + Modal lunghi; fix `api.post` Axon Drive |

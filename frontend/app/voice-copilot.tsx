@@ -4,7 +4,7 @@
  *
  * Modalità full-screen con grande pulsante microfono per uso hands-free
  * (mentre l'utente guida). Flusso:
- *  1. Utente tocca il mic (o attiva "modalità auto" con auto-stop dopo silenzio)
+ *  1. Utente tocca il mic (o attiva Axon Drive con auto-stop dopo silenzio)
  *  2. Registra audio → invia a /api/ai/transcribe (whisper)
  *  3. Trascritto → invia a /api/voice/copilot/execute (intent parsing + esecuzione)
  *  4. Legge ad alta voce la confermatext via TTS emergent

@@ -221,7 +221,7 @@ export default function RootLayout() {
 
   // V50.x — Wake Word globale: se l'utente ha attivato il toggle in Impostazioni,
   // avvia il servizio (native se disponibile, mock altrimenti) e alla rilevazione
-  // apre la schermata Voice Copilot in modalità automatica.
+  // apre la schermata Axon Drive in modalità automatica.
   useEffect(() => {
     let unsub: (() => void) | null = null;
     let mounted = true;
@@ -231,7 +231,7 @@ export default function RootLayout() {
         if (!mounted || enabled !== "1") return;
         await WakeWordService.start({ threshold: 0.8 });
         unsub = WakeWordService.onWake(({ score, source }) => {
-          console.log(`[WakeWord] Axon rilevato (${source}, score=${score.toFixed(2)}) → Voice Copilot`);
+          console.log(`[WakeWord] Axon rilevato (${source}, score=${score.toFixed(2)}) → Axon Drive`);
           try { expoRouter.push("/voice-copilot?auto=1" as any); } catch {/* noop */}
         });
       } catch (e) { console.warn("[WakeWord] init error:", e); }

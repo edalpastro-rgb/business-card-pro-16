@@ -80,7 +80,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     subtitle: "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati",
     highlight: "Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati. Non ti chiede niente. Sa già tutto.",
     paragraphs: [
-      "AdvisorOS è il CRM completo per Consulenti Energetici e Networker italiani: isolamento multi-tenant, controllo dei ruoli, integrazioni cloud native e un'AI — AxonOS — che legge in tempo reale ogni dato della tua azienda.",
+      "AdvisorOS è nato per i consulenti commerciali (energia e network) ma è il CRM completo per chiunque gestisca relazioni, scadenze e documenti: agenzie, aziende, studi professionali e anche privati. Isolamento multi-tenant, controllo dei ruoli, integrazioni cloud native e un'AI — AxonOS — che legge in tempo reale ogni dato del tuo lavoro.",
       "AxonOS è l'assistente AI integrato: risponde in chat, ricorda le informazioni del tuo team, ti aiuta a leggere bollette, a preparare messaggi commerciali e a gestire attività quotidiane senza uscire dall'app.",
       "L'obiettivo di questo libretto è portarti dal primo login all'utilizzo avanzato di ogni funzione, con schermate di esempio e suggerimenti pratici.",
     ],
@@ -425,7 +425,69 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     title: "17 · FAQ",
     subtitle: "Le domande più frequenti",
     paragraphs: [
-      "Q: I miei dati sono privati? — Sì, isolamento multi-tenant: nessun altro Master vede i tuoi contatti.\n\nQ: Axon usa i miei dati per addestrarsi? — AdvisorOS utilizza dati aggregati e anonimizzati delle conversazioni per migliorare AxonOS. Non vengono raccolti dati sensibili: nomi, cifre, numeri di telefono e riferimenti personali sono rimossi prima dell'aggregazione; contatti, bollette e documenti restano isolati nel tuo spazio.\n\nQ: Posso disdire in ogni momento? — Sì, dal Profilo → Gestisci abbonamento.\n\nQ: Perde qualcosa se cambio telefono? — No, tutto è in cloud: rifai il login e ritrovi tutto.\n\nQ: Come contatto il supporto? — Tocca il pulsante 🎧 in alto a destra oppure invia una email a support@advisoros.it.",
+      "Q: I miei dati sono privati? — Sì, isolamento multi-tenant: nessun altro Master vede i tuoi contatti.\n\nQ: Axon usa i miei dati per addestrarsi? — AxonOS utilizza dati aggregati anonimi per migliorare il servizio, senza raccogliere dati sensibili come nomi, cifre o riferimenti personali. Contatti, bollette e documenti restano isolati nel tuo spazio.\n\nQ: Posso disdire in ogni momento? — Sì, dal Profilo → Gestisci abbonamento.\n\nQ: Perde qualcosa se cambio telefono? — No, tutto è in cloud: rifai il login e ritrovi tutto.\n\nQ: Come contatto il supporto? — Tocca il pulsante 🎧 in alto a destra oppure invia una email a support@advisoros.it.",
+    ],
+  },
+  // V50.z189 — PROMPT 3: nuove sezioni di posizionamento (18–21) + chiusura con headline finale
+  {
+    id: "perche-diverso",
+    icon: "flash",
+    emoji: "⚡",
+    color: "#7C3AED",
+    title: "18 · Perché AdvisorOS è diverso",
+    subtitle: "L'AI è il motore, non un accessorio",
+    highlight: "AdvisorOS non è un CRM con un chatbot aggiunto. È il primo sistema gestionale dove l'AI è il motore, non un accessorio.",
+    paragraphs: [
+      "Salesforce, HubSpot, Pipedrive hanno tutti un assistente AI innestato sopra il database. AxonOS legge il tuo database in tempo reale, agisce dentro il sistema e impara dalle tue interazioni.",
+      "Non devi spiegargli chi sei ogni volta: ti conosce già.",
+    ],
+  },
+  {
+    id: "per-chi",
+    icon: "people",
+    emoji: "🧭",
+    color: "#0EA5E9",
+    title: "19 · Per chi è AdvisorOS",
+    subtitle: "Cambia il vocabolario, il motore è lo stesso",
+    highlight: "La base di AdvisorOS è stata costruita per consulenti commerciali ma la sua architettura si adatta a qualsiasi professionista che gestisce relazioni, scadenze e documenti.",
+    paragraphs: [
+      "Esempi concreti:",
+    ],
+    bullets: [
+      { icon: "briefcase", text: "Servizi professionali: avvocati, commercialisti, consulenti del lavoro, notai. Gestione clienti, scadenze fiscali e processuali, archivio documentale, comunicazioni massive." },
+      { icon: "medkit", text: "Sanità e benessere: fisioterapisti, psicologi, coach, dentisti, centri estetici. Cartelle clienti, piani di trattamento, richiami automatici, follow-up." },
+      { icon: "cart", text: "Commercio e vendita: agenti di commercio, concessionarie, agenzie immobiliari, assicurazioni multi-ramo. Portafoglio clienti, trattative, scadenze, obiettivi." },
+      { icon: "school", text: "Formazione: coach aziendali, scuole private, personal trainer, nutrizionisti. Percorsi personalizzati, materiali, sessioni, progressi." },
+      { icon: "construct", text: "Artigianato e tecnici: idraulici, elettricisti, architetti, agenzie di comunicazione. Interventi, preventivi, scadenze manutenzione, clienti abituali." },
+    ],
+    tips: [
+      { emoji: "⚙️", text: "In ogni settore cambia solo il vocabolario e i campi. Il motore è lo stesso." },
+    ],
+  },
+  {
+    id: "vita-privata",
+    icon: "home",
+    emoji: "🏠",
+    color: "#10B981",
+    title: "20 · AdvisorOS per la vita privata",
+    subtitle: "Una famiglia è una piccola impresa",
+    highlight: "AxonOS non è solo per il lavoro. Una famiglia oggi gestisce scadenze, documenti e impegni come una piccola impresa.",
+    paragraphs: [
+      "AxonOS legge la circolare della scuola e aggiorna il calendario. Ricorda bollo, revisione, tasse, compleanni. Fotografa lo scontrino e costruisce la nota spese. Legge l'estratto conto e produce un report. Gestisce password, documenti assicurativi, pratiche sanitarie.",
+      "Un solo assistente che conosce tutta la tua vita, senza che tu debba spiegargli nulla ogni volta.",
+    ],
+  },
+  {
+    id: "vantaggio-tempo",
+    icon: "trending-up",
+    emoji: "📈",
+    color: "#F59E0B",
+    title: "21 · Il vantaggio che cresce nel tempo",
+    subtitle: "La memoria è tua",
+    highlight: "Ogni giorno che usi AdvisorOS, AxonOS ti conosce meglio.",
+    paragraphs: [
+      "La memoria accumulata nel tuo sistema non va da nessuna parte: è tua. Questo è il motivo per cui chi inizia a usare AdvisorOS non torna indietro.",
+      "Il sistema diventa parte del tuo modo di lavorare.",
     ],
   },
   {
@@ -434,10 +496,10 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     emoji: "🚀",
     color: "#0F172A",
     title: "AdvisorOS 2.0",
-    subtitle: "Il sistema operativo per consulenti commerciali",
-    highlight: "AdvisorOS 2.0 non è un CRM con un chatbot. È il primo sistema operativo per consulenti commerciali dove l'AI è il motore, non un accessorio.",
+    subtitle: "Il CRM più intelligente per chi lavora sul campo",
+    highlight: "AdvisorOS non è il CRM più grande. È il CRM più intelligente per chi lavora sul campo. Ogni giorno che lo usi, diventa più tuo.",
     paragraphs: [
-      "Costruito per chi vende ogni giorno, potenziato da un'intelligenza che non dorme mai.",
+      "Costruito per chi vende ogni giorno — e per agenzie, aziende, studi professionali e privati — potenziato da un'intelligenza che non dorme mai.",
     ],
   },
 ];
@@ -447,6 +509,10 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
 const _LIBRETTO_NEW_SECTIONS: { id: string; after: string[] }[] = [
   { id: "corporate-gym", after: ["axon-chat"] },
   { id: "notifiche-push", after: ["voice-copilot", "corporate-gym", "axon-chat"] },
+  { id: "perche-diverso", after: ["faq", "consigli"] },
+  { id: "per-chi", after: ["perche-diverso", "faq"] },
+  { id: "vita-privata", after: ["per-chi", "perche-diverso", "faq"] },
+  { id: "vantaggio-tempo", after: ["vita-privata", "per-chi", "faq"] },
   { id: "chiusura", after: [] },
 ];
 
