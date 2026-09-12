@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Easing, StyleSheet, Text, View, Image } from "react-native";
+import { Animated, Easing, StyleSheet, View, Image } from "react-native";
 import { ADVISOROS_LOGO_URI } from "@/src/BrandLogos";
 import { TuttunizzatoreTagline } from "@/src/Tuttunizzatore"; // V50.z191 — tagline «Il tuo "Tuttunizzatore"»
 
@@ -183,19 +183,8 @@ export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
         </Animated.View>
       </View>
 
-      <View style={styles.captionWrap}>
-        <Animated.Text
-          style={[
-            styles.word,
-            {
-              opacity: wordOpacity,
-              transform: [{ translateY: wordTranslate }],
-            },
-          ]}
-        >
-          Advisor<Text style={styles.wordAccent}>OS</Text>
-        </Animated.Text>
-      </View>
+      {/* V50.z195 — rimossa la scritta "AdvisorOS" grande sotto il logo (ripetizione del logo). captionWrap resta come spaziatura. */}
+      <View style={styles.captionWrap} />
 
       {/* V29.w — Powered by AxonOS: logo trasparente + testo grigio chiaro */}
       <Animated.View
@@ -207,12 +196,15 @@ export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
           },
         ]}
       >
-        <Image
-          source={{ uri: AXONOS_LOGO_URI }}
-          style={styles.axonosLogo}
-          resizeMode="contain"
-          testID="splash-axonos-logo"
-        />
+        {/* V50.z195 — logo AxonOS completamente visibile (opacità 100%, card navy) */}
+        <View style={styles.axonosLogoBox}>
+          <Image
+            source={{ uri: AXONOS_LOGO_URI }}
+            style={styles.axonosLogo}
+            resizeMode="contain"
+            testID="splash-axonos-logo"
+          />
+        </View>
         {/* V50.z191 — tagline «Il tuo "Tuttunizzatore"» (sostituisce "CRM per consulenti e network" e "powered by AxonOS") */}
         <Animated.View style={{ opacity: taglineOpacity }}>
           <TuttunizzatoreTagline dark size={15} style={{ marginTop: 4 }} testID="splash-tuttunizzatore" />
@@ -306,11 +298,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   axonosLogo: {
-    // V50.z191 — ~60% del logo AdvisorOS (card 108px): logo orizzontale AxonOS
-    width: 124,
-    height: 32,
+    // V50.z195 — logo AxonOS al 100%: più grande e su card navy solida
+    width: 150,
+    height: 40,
     backgroundColor: "transparent",
   },
+  axonosLogoBox: { backgroundColor: "#0B1E38", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 8 },
 });
 
 export default AnimatedSplash;

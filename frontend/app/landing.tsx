@@ -19,7 +19,6 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { BrainPlus } from "@/src/BrainPlus";
 import { EvolutionMotto } from "@/src/EvolutionMotto";
 import { useRouter } from "expo-router";
 
@@ -100,26 +99,22 @@ export default function LandingScreen() {
               accessibilityLabel="AdvisorOS"
             />
             <View style={[styles.logoDivider, isCompact && styles.logoDividerH]} />
-            <Image
-              source={{ uri: AXONOS_LOGO_URI }}
-              style={[styles.brandLogoAxon, isCompact && styles.brandLogoAxonSmall]}
-              resizeMode="contain"
-              accessibilityLabel="AxonOS"
-            />
+            {/* V50.z195 — logo AxonOS completamente visibile: sfondo blu navy solido dietro il logo (era illeggibile su chiaro) */}
+            <View style={styles.axonLogoBox} testID="landing-axon-logo-box">
+              <Image
+                source={{ uri: AXONOS_LOGO_URI }}
+                style={[styles.brandLogoAxon, isCompact && styles.brandLogoAxonSmall]}
+                resizeMode="contain"
+                accessibilityLabel="AxonOS"
+              />
+            </View>
           </View>
 
-          <Text
-            style={[styles.heroTitle, isCompact && styles.heroTitleSmall]}
-            accessibilityRole="header"
-          >
-            AdvisorOS
-          </Text>
+          {/* V50.z195 — rimossi: titolo "AdvisorOS" grande (ripetizione del logo) e claim "AxonOS — Brain+" (resta nel Libretto) */}
           {/* V50.z183 — motto in stile "evoluzione" (lettere crescenti, baseline comune, "con te" in risalto) */}
           <View style={{ alignSelf: "stretch", marginVertical: 6 }}>
             <EvolutionMotto testID="landing-motto" />
           </View>
-          {/* V50.z190 — claim ufficiale AxonOS Brain+ (prima presentazione di AxonOS) */}
-          <BrainPlus dark={false} size={22} tagline align="center" style={{ marginBottom: 8 }} testID="landing-brainplus" />
           <View style={styles.heroBadge}>
             <Ionicons name="rocket" size={14} color="#FF6B35" />
             <Text style={styles.heroBadgeTxt}>
@@ -287,6 +282,7 @@ const styles = StyleSheet.create({
   brandLogoSmall: { width: 220, height: 62 },
   brandLogoAxon: { width: 200, height: 56 },
   brandLogoAxonSmall: { width: 200, height: 56 },
+  axonLogoBox: { backgroundColor: "#0B1E38", borderRadius: 16, paddingHorizontal: 18, paddingVertical: 10 }, // V50.z195 — navy dietro il logo AxonOS
   logoDivider: {
     width: 1,
     height: 46,

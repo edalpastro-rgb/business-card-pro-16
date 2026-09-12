@@ -193,6 +193,16 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z195 — Splash + branding: struttura finale** — (1) `app/landing.tsx` (hero/"splash" all'avvio da sloggato): resta il logo
+  AdvisorOS in alto; sotto il logo AxonOS **completamente visibile** su card blu navy solida (`axonLogoBox`, prima era illeggibile su
+  fondo chiaro); RIMOSSI il titolo "AdvisorOS" grande (ripetizione), il claim "AxonOS — Brain+" (`BrainPlus` non più importato nella landing,
+  resta nel Libretto) — restano invariati il motto "il CRM che si evolve con te" e lo spot arancione "La nostra risposta: prepararci al
+  futuro". (2) `src/AnimatedSplash.tsx`: rimossa la scritta animata "AdvisorOS" sotto il logo; logo AxonOS al 100% (150×40) su card navy;
+  "powered by AxonOS" e "CRM per consulenti e network" erano già stati rimossi in V50.z191 (confermato: nessuna occorrenza). (3) Sezione
+  introduttiva del Libretto "AdvisorOS 2.0 + AxonOS" (`src/libretto/libretto-content.ts` app+PDF e `backend/routes/axon_app_map.json`
+  per la mappa app di Axon): nuovi 3 paragrafi verbatim dell'utente ("AdvisorOS è il sistema operativo per chiunque gestisca relazioni,
+  scadenze e decisioni… Non è un CRM con un chatbot aggiunto…", "AxonOS è il motore AI nativo… ti conosce già.", "Questo libretto ti
+  porta dal primo login…"). Nessun'altra modifica.
 - **V50.z194 — Stato visibile durante elaborazioni lunghe + Persistenza dati importati** (moduli isolati, hook minimi).
   **(2) STATO PRIMA**: il server emetteva già eventi SSE `progress` (ack/preflight/cache/thinking) mostrati come testo piccolo nella bolla
   "typing"; dopo `meta` il testo tornava generico ("Neo sta scrivendo…") con bolla assistente vuota per 6-15 s (Sonnet) → percepito come
@@ -613,6 +623,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z195 | Set 2026 | Splash/landing: logo AxonOS 100% su card navy, rimossi titolo "AdvisorOS" grande e "AxonOS — Brain+" dalla hero (restano motto e spot arancione); AnimatedSplash senza scritta AdvisorOS; nuova intro Libretto "AdvisorOS 2.0 + AxonOS" (contenuto + mappa app) |
 | V50.z194 | Set 2026 | Stato visibile >3 s durante elaborazioni lunghe (bolla intermedia contestuale: tabella/PDF/GME/meteo/web, `src/axonProgress.tsx`) + Persistenza dati importati da PDF/Excel/CSV su conferma «Vuoi che memorizzi questi dati per uso futuro?» (`routes/axon_imported_data.py`, `axon_imported_data` condivisa col team, iniettata nelle chat, pulsanti rapidi, sezione «Dati importati» in Memoria AxonOS) |
 | V50.z193 | Set 2026 | Fix push autonome: bridge persistente AxonOS → Push Service (`routes/axon_push_bridge.py`: wrapper `send_push` con esito reale + outbox retry backoff, `push_devices` con `last_failed_at`, `GET /axon/push/status` in linguaggio semplice, test programmato a N minuti + ack dal telefono, nudge in chat se permesso negato; `src/pushBridge.ts` canale Android default a livello modulo + registrazione con retry; card «Stato canale push»). Causa radice: manca `google-services.json` (da fornire) |
 | V50.z192 | Set 2026 | Blocco 9b «Cosa sa Axon di me»: `routes/axon_memory.py` + `app/axon-memory.tsx` (Profilo → Memoria AxonOS: preferenze, clienti chiave, scadenze, stile, argomenti, integrazioni; modifica/cancella/analizza/cancella tutto) |
