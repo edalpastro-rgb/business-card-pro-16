@@ -101,7 +101,7 @@ export default function AxonIntegrationsScreen() {
           ) : (
             <Pressable onPress={() => it.manage_route && router.push(it.manage_route as any)} style={[styles.btn, it.connected ? [styles.ghost, { borderColor: color }] : { backgroundColor: color }]} testID={`axi-manage-${it.key}`}>
               <Ionicons name={it.connected ? "settings-outline" : "key"} size={15} color={it.connected ? color : "#FFF"} />
-              <Text style={[styles.btnTxt, { color: it.connected ? color : "#FFF" }]}>{it.connected ? "Gestisci" : "Concedi accesso"}</Text>
+              <Text style={[styles.btnTxt, { color: it.connected ? color : "#FFF" }]}>{it.connected ? (it.provider === "axon" ? "Apri" : "Gestisci") : "Concedi accesso"}</Text>
             </Pressable>
           )}
         </View>

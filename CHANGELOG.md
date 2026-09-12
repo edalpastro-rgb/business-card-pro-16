@@ -193,6 +193,47 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z199 — BLOCCO 8 · Fase 3: Archivio intelligente foto / audio / video a due sfere** — modulo isolato `backend/routes/axon_media.py`
+  (dopo `axon_expenses.py`, prima di 37) + `app/axon-media.tsx` + `src/MediaVoiceRecorder.tsx`. **STATO PRIMA**: foto/audio/video finivano in
+  posti diversi (scanner, audio Master, chat) senza sfera, trascrizione né ricerca. **STATO DOPO**: `POST /axon/media {kind photo|audio|video,
+  data_base64, mime, name, sphere?, duration_sec}` → file su Object Storage `media/{tenant}/{id}.ext` (3 tentativi, max 25 MB) → riga in
+  `axon_media` {sphere business|home|unclassified, status processing|ready|error} → **elaborazione in background** (`asyncio.create_task`):
+  audio/video → Whisper (trascrizione, stesso pattern di `/ai/transcribe`) + Haiku (titolo, riassunto, tag, «cose da fare» citate, sfera
+  suggerita); foto → Gemini 3 Flash vision (titolo, descrizione, **testo leggibile/OCR**, tag, sfera suggerita). Senza `sphere` la risposta ha
+  `ask_sphere=true` («**È privata o aziendale?**»); il frontend mostra il modal di Axon 🟢 Privata / 🔵 Aziendale / «Dopo» → resta ⚪ **Non
+  classificato**. **Reminder**: job `axm-remind-tick` (30 min) → elementi non classificati da > 2 h e mai ricordati → UN alert proattivo
+  `media_unclassified` (via `_apx_emit`: chat + push, disattivabile in `alerts`), poi `reminded_at` (idempotente). API: `GET /axon/media?sphere&kind&q`
+  (ricerca regex in titolo/trascrizione/riassunto/descrizione/OCR/note/tag, counts per sfera, `processing`), `GET|PUT|DELETE /{id}`
+  (PUT: sfera, titolo, note, contatto, tag; risposta `reply`), `POST /{id}/reprocess`, `GET /{id}/file[?token=]` (foto/audio/video originale).
+  Archivio **personale** (user_id): mai condiviso col team. Chat (wrapper `_maybe_push_command`): «privata» / «aziendale» entro 30 min dalla
+  cattura classifica l'ultimo elemento; «cerca nelle foto/audio/video …», «cosa ho registrato …» → elenco per sfera. Contesto Axon (wrapper
+  `_prepare_assistant_prompt`): sezione «📂 ARCHIVIO MEDIA» con ultimi 5 per sfera + regola MAI mescolare. Frontend `/axon-media`: selettore
+  🔵 Business / 🟢 Home / ⚪ Da classificare (con conteggi), bottoni Foto (fotocamera), Video (max 60 s), Audio (registratore compatto web
+  MediaRecorder / nativo expo-audio con permessi contestuali + «Apri impostazioni»), Allega (foto/video/audio); ricerca live; elenco con stato
+  «⏳ Axon sta trascrivendo…» (polling 4 s), snippet, tag, bottoni rapidi Privata/Aziendale sui non classificati; dettaglio (bottom sheet):
+  anteprima foto, Ascolta (audio) / Guarda il video (webviewer), riassunto, cose da fare, trascrizione, testo OCR, tag, riclassifica, riprova,
+  elimina. Ingressi: Integrazioni AxonOS (card «Archivio foto, audio e video» Business, «Foto, audio e video personali» Home → Apri).
+  Test `backend/tests/test_axon_media.py` ✅ 14/14 (foto → OCR/descrizione/tag/sfera suggerita, ricerca, classifica, sfere separate, file
+  header+token, audio Home senza domanda + Whisper, chat «privata» e ricerca, card hub, reprocess, delete, validazione) + reminder verificato
+  (1 alert, secondo tick 0). Video ≤ 25 MB (~60 s): Whisper riceve direttamente l'mp4 (nessun ffmpeg).
+- **V50.z198 — BLOCCO 8 · Fase 2: Scontrini → Nota spese per sfera + Estratto conto** — modulo isolato `backend/routes/axon_expenses.py`
+  (dopo `axon_integrations.py`, prima di 37) + `app/axon-expenses.tsx`. **STATO PRIMA**: nessuna gestione spese; le card «Estratto conto»,
+  «Scontrini» e «Spese personali» in Integrazioni erano «in arrivo». **STATO DOPO**: (a) `POST /axon/expenses/receipt {sphere, data_base64,
+  mime}` → foto (Gemini 3 Flash vision, stesso pattern OCR biglietti) o PDF (`_extract_attachment_text` + Haiku) → {esercente, importo, data,
+  categoria, iva, pagamento, affidabilità}; categorie per sfera (🔵 Business: carburante, vitto, alloggio, trasporti, ufficio, telefonia,
+  formazione, rappresentanza, altro · 🟢 Home: spesa, casa, svago, salute, trasporti, abbigliamento, altro) → `axon_expenses` {sphere, month,
+  …}; file su Object Storage `expenses/{tenant}/{id}` (`GET /{id}/file`). Nota spese mese `GET /axon/expenses?sphere&month[&user_id]`
+  (totale, per categoria, mesi, team per il Master), `POST /manual`, `PUT` (riclassifica Privato/Business, categoria, importo), `DELETE`,
+  **PDF** `GET /axon/expenses/pdf?sphere&month[&user_id][&token=]` (reportlab; Master esporta anche quella dei collaboratori; Home sempre
+  solo propria). (b) `POST /axon/expenses/statement` → PDF/foto estratto conto → LLM categorizza movimenti (max 300), entrate/uscite/netto,
+  per categoria, insight, anomalie → `axon_statement_reports` (`GET /statements`, `GET|DELETE /statements/{id}`); nessuna connessione alla
+  banca. Chat: «quanto ho speso questo mese?» / «nota spese di agosto» (+ «personali/casa» → Home) senza LLM (wrapper a catena di
+  `_maybe_push_command`). Frontend `/axon-expenses`: selettore sfera (colore + 🔵/🟢, header «AxonOS opera solo in questa sfera»), tab Nota
+  spese (Fotografa scontrino con permessi fotocamera gestiti / Allega foto-PDF, navigazione mesi, totale + chip categorie, Esporta PDF, elenco
+  con swap sfera e cancella, riquadro Team per il Master) e tab Estratti conto (allega, dettaglio KPI/categorie/insight/anomalie/movimenti,
+  elenco). Ingressi: Integrazioni AxonOS (card Scontrini/Estratto conto Business, Spese personali Home → «Apri»), Sezione Report (card in
+  alto). Test `backend/tests/test_axon_expenses.py` ✅ 13/13 (scontrino sintetico 8,80 € vitto, sfere separate, riclassifica, file, PDF,
+  chat, manuale, estratto conto sintetico 9 movimenti). Fix: `json` non importato nel namespace → `_axe_json`.
 - **V50.z197 — BLOCCO 8 · Fase 1: Integrazioni con un click a DUE SFERE** — modulo isolato `backend/routes/axon_integrations.py` (dopo
   `axon_proactive.py`, prima di 37) + `app/axon-integrations.tsx`. **STATO PRIMA**: Google Drive, Dropbox e Domotica avevano schermate separate
   e nessun concetto di sfera; nessun Google Calendar/Contacts; Axon non distingueva dati di lavoro e personali. **STATO DOPO**: Impostazioni →
@@ -677,6 +718,8 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z199 | Set 2026 | BLOCCO 8 Fase 3: archivio intelligente foto/audio/video a due sfere («Privata o aziendale?», ⚪ Non classificato + reminder 2 h, Whisper + Gemini vision/OCR, ricerca, chat) (`routes/axon_media.py`, `app/axon-media.tsx`, `src/MediaVoiceRecorder.tsx`, card in Integrazioni) |
+| V50.z198 | Set 2026 | BLOCCO 8 Fase 2: scontrini → nota spese per sfera con PDF (Master anche team), estratto conto → report categorizzato (`routes/axon_expenses.py`, `app/axon-expenses.tsx`, ingressi da Integrazioni e Report, chat «quanto ho speso») |
 | V50.z197 | Set 2026 | BLOCCO 8 Fase 1: hub Integrazioni AxonOS a due sfere 🔵 Business / 🟢 Home (`routes/axon_integrations.py`, `app/axon-integrations.tsx`): Google Calendar (bidirezionale) + Contacts per sfera con OAuth distinto un tap, revoca un tap, dati referenziati, Drive/Dropbox/Domotica collegati, contesto Axon per sfera |
 | V50.z196 | Set 2026 | BLOCCO 9 Proattività AxonOS (`routes/axon_proactive.py`): briefing mattutino 07:30, suggerimenti contestuali max N/g, alert critici (scadenze, richiamate, anomalie dati, promemoria di Axon), report lunedì; trigger unico ViolaWake-ready; bubble Home, schermata /axon-proactive, impostazioni in Preferenze, log in Memoria |
 | V50.z195 | Set 2026 | Splash/landing: logo AxonOS 100% su card navy, rimossi titolo "AdvisorOS" grande e "AxonOS — Brain+" dalla hero (restano motto e spot arancione); AnimatedSplash senza scritta AdvisorOS; nuova intro Libretto "AdvisorOS 2.0 + AxonOS" (contenuto + mappa app) |

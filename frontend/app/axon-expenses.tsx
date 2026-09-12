@@ -1,0 +1,229 @@
+// axon-expenses.tsx — V50.z198 — BLOCCO 8 · Fase 2: Nota spese per sfera + Estratto conto (schermata ISOLATA)
+// Sfera 🔵 Business / 🟢 Home (mai mescolate). Fotografa uno scontrino → Axon estrae importo/data/categoria → nota spese del mese.
+// PDF esportabile (Master: anche per collaboratore). Estratto conto: PDF/foto → report categorizzato.
+import React, { useCallback, useEffect, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform, Alert, Linking } from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
+import { api, getToken } from "@/src/api";
+import { notify } from "@/src/utils/notify";
+import Constants from "expo-constants";
+
+type Sphere = "business" | "home";
+type Expense = { expense_id: string; merchant: string; amount: number; date: string; category: string; payment?: string | null; user_name?: string; file_path?: string | null };
+type ListResp = { sphere: Sphere; month: string; items: Expense[]; total: number; by_category: Record<string, number>; categories: string[]; months: string[]; team: { user_id: string; name?: string; total: number; count: number }[]; can_export_team: boolean };
+type Statement = { report_id: string; bank?: string | null; period?: string | null; income: number; outcome: number; net: number; sphere: Sphere; created_at: string; insights?: string[]; anomalies?: string[]; by_category?: { categoria: string; totale: number; n: number }[]; movements?: { data: string; descrizione: string; importo: number; categoria: string }[] };
+
+const COLOR: Record<Sphere, string> = { business: "#2563EB", home: "#059669" };
+const ICON: Record<Sphere, string> = { business: "🔵", home: "🟢" };
+const backendUrl = () => (process.env.EXPO_PUBLIC_BACKEND_URL || (Constants.expoConfig?.extra as any)?.backendUrl || "").replace(/\/$/, "");
+
+async function pickFile(camera: boolean): Promise<{ data_base64: string; mime: string; name: string } | null> {
+  if (camera) {
+    const perm = await ImagePicker.getCameraPermissionsAsync();
+    if (!perm.granted) {
+      const r = await (perm.canAskAgain ? ImagePicker.requestCameraPermissionsAsync() : Promise.resolve(perm));
+      if (!r.granted) {
+        if (!r.canAskAgain) Alert.alert("Fotocamera disattivata", "Per fotografare gli scontrini abilita la fotocamera nelle impostazioni.", [{ text: "Annulla", style: "cancel" }, { text: "Apri impostazioni", onPress: () => Linking.openSettings() }]);
+        return null;
+      }
+    }
+    const res = await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true });
+    if (res.canceled || !res.assets?.[0]?.base64) return null;
+    return { data_base64: res.assets[0].base64, mime: res.assets[0].mimeType || "image/jpeg", name: res.assets[0].fileName || "scontrino.jpg" };
+  }
+  const res = await DocumentPicker.getDocumentAsync({ type: ["image/*", "application/pdf"], copyToCacheDirectory: true });
+  if (res.canceled || !res.assets?.[0]) return null;
+  const a = res.assets[0];
+  const blob = await (await fetch(a.uri)).blob();
+  const b64: string = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(blob); });
+  return { data_base64: b64, mime: a.mimeType || (a.name?.endsWith(".pdf") ? "application/pdf" : "image/jpeg"), name: a.name || "file" };
+}
+
+export default function AxonExpensesScreen() {
+  const router = useRouter();
+  const insets = useInsetsSafe();
+  const params = useLocalSearchParams<{ sphere?: string }>();
+  const [sphere, setSphere] = useState<Sphere>(params.sphere === "home" ? "home" : "business");
+  const [tab, setTab] = useState<"note" | "statements">("note");
+  const [month, setMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const [data, setData] = useState<ListResp | null>(null);
+  const [stmts, setStmts] = useState<Statement[] | null>(null);
+  const [open, setOpen] = useState<Statement | null>(null);
+  const [busy, setBusy] = useState<string>("");
+  const [teamUser, setTeamUser] = useState<string | null>(null);
+  const color = COLOR[sphere];
+
+  const load = useCallback(async () => {
+    try {
+      setData(await api<ListResp>("/axon/expenses", { query: { sphere, month, user_id: teamUser || undefined } }));
+      setStmts((await api<{ items: Statement[] }>("/axon/expenses/statements", { query: { sphere } })).items);
+    } catch (e: any) { notify("Spese", e?.message || String(e)); }
+  }, [sphere, month, teamUser]);
+  useEffect(() => { void load(); }, [load]);
+
+  const upload = async (kind: "receipt" | "statement", camera: boolean) => {
+    setBusy(kind);
+    try {
+      const f = await pickFile(camera);
+      if (!f) return;
+      const r = await api<any>(`/axon/expenses/${kind}`, { method: "POST", body: { sphere, ...f } });
+      notify(`${ICON[sphere]} ${kind === "receipt" ? "Scontrino aggiunto" : "Estratto conto analizzato"}`, (r.reply || r.report?.reply || "").replace(/\*\*/g, ""));
+      if (kind === "statement" && r.report) { setTab("statements"); setOpen(r.report); }
+      await load();
+    } catch (e: any) { notify("Axon", e?.message || String(e)); } finally { setBusy(""); }
+  };
+
+  const openPdf = async () => {
+    const tok = await getToken();
+    const url = `${backendUrl()}/api/axon/expenses/pdf?sphere=${sphere}&month=${month}${teamUser ? `&user_id=${teamUser}` : ""}&token=${encodeURIComponent(tok || "")}`;
+    if (Platform.OS === "web") (globalThis as any).window.open(url, "_blank");
+    else router.push({ pathname: "/(tabs)/webviewer", params: { url, title: `Nota spese ${month}` } } as any);
+  };
+
+  const removeExpense = (e: Expense) => {
+    const go = async () => { await api(`/axon/expenses/${e.expense_id}`, { method: "DELETE" }); await load(); };
+    if (Platform.OS === "web") { if ((globalThis as any).window.confirm(`Cancellare ${e.merchant} · ${e.amount.toFixed(2)} €?`)) void go(); return; }
+    Alert.alert("Cancella spesa", `${e.merchant} · ${e.amount.toFixed(2)} €`, [{ text: "Annulla", style: "cancel" }, { text: "Cancella", style: "destructive", onPress: () => void go() }]);
+  };
+  const toggleSphere = async (e: Expense) => {
+    await api(`/axon/expenses/${e.expense_id}`, { method: "PUT", body: { sphere: sphere === "business" ? "home" : "business" } }); await load();
+    notify("Riclassificato", `Spostato nella sfera ${sphere === "business" ? "Home (privato)" : "Business"}`);
+  };
+
+  return (
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <View style={[styles.header, { backgroundColor: color }]}>
+        <Pressable onPress={() => router.back()} hitSlop={10} testID="axe-back"><Ionicons name="arrow-back" size={22} color="#FFF" /></Pressable>
+        <View style={{ flex: 1 }}><Text style={styles.title}>Nota spese & Estratto conto</Text><Text style={styles.sub}>{ICON[sphere]} Sfera {sphere === "business" ? "Business" : "Home"} — AxonOS opera solo in questa sfera</Text></View>
+      </View>
+
+      <View style={styles.sphereRow}>
+        {(["business", "home"] as Sphere[]).map((s) => (
+          <Pressable key={s} onPress={() => { setSphere(s); setTeamUser(null); setOpen(null); }} style={[styles.sphereBtn, sphere === s && { backgroundColor: COLOR[s], borderColor: COLOR[s] }]} testID={`axe-sphere-${s}`}>
+            <Text style={[styles.sphereTxt, sphere === s && { color: "#FFF" }]}>{ICON[s]} {s === "business" ? "Business" : "Home (privato)"}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={styles.tabs}>
+        <Pressable onPress={() => setTab("note")} style={[styles.tab, tab === "note" && { borderBottomColor: color }]} testID="axe-tab-note"><Text style={[styles.tabTxt, tab === "note" && { color }]}>Nota spese</Text></Pressable>
+        <Pressable onPress={() => setTab("statements")} style={[styles.tab, tab === "statements" && { borderBottomColor: color }]} testID="axe-tab-statements"><Text style={[styles.tabTxt, tab === "statements" && { color }]}>Estratti conto</Text></Pressable>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: insets.bottom + 120 }}>
+        {tab === "note" ? (
+          <>
+            <View style={styles.actions}>
+              <Pressable onPress={() => upload("receipt", true)} disabled={!!busy} style={[styles.big, { backgroundColor: color }]} testID="axe-receipt-camera">
+                {busy === "receipt" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="camera" size={22} color="#FFF" /><Text style={styles.bigTxt}>Fotografa scontrino</Text></>}
+              </Pressable>
+              <Pressable onPress={() => upload("receipt", false)} disabled={!!busy} style={[styles.big, styles.ghost, { borderColor: color }]} testID="axe-receipt-file">
+                <Ionicons name="attach" size={22} color={color} /><Text style={[styles.bigTxt, { color }]}>Allega foto/PDF</Text>
+              </Pressable>
+            </View>
+            <View style={styles.monthRow}>
+              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() - 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-prev"><Ionicons name="chevron-back" size={20} color="#1B2B4B" /></Pressable>
+              <Text style={styles.monthTxt}>{new Date(month + "-01T00:00:00").toLocaleDateString("it-IT", { month: "long", year: "numeric" })}</Text>
+              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() + 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-next"><Ionicons name="chevron-forward" size={20} color="#1B2B4B" /></Pressable>
+            </View>
+            {!data ? <ActivityIndicator color={color} /> : (
+              <>
+                <View style={[styles.card, { borderColor: color + "66" }]} testID="axe-summary">
+                  <Text style={styles.total}>{data.total.toFixed(2).replace(".", ",")} €</Text>
+                  <Text style={styles.totalSub}>{data.items.length} spese · {ICON[sphere]} {sphere === "business" ? "Business" : "Home"}{teamUser ? ` · ${data.team.find((t) => t.user_id === teamUser)?.name || "collaboratore"}` : ""}</Text>
+                  <View style={styles.cats}>{Object.entries(data.by_category).sort((a, b) => b[1] - a[1]).map(([k, v]) => <View key={k} style={[styles.chip, { borderColor: color + "55" }]}><Text style={styles.chipTxt}>{k} · {v.toFixed(2)} €</Text></View>)}</View>
+                  <Pressable onPress={openPdf} disabled={!data.items.length} style={[styles.pdfBtn, { backgroundColor: data.items.length ? color : "#CBD5E1" }]} testID="axe-pdf"><Ionicons name="document-text" size={16} color="#FFF" /><Text style={styles.pdfTxt}>Esporta PDF nota spese</Text></Pressable>
+                </View>
+                {data.can_export_team && data.team.length > 0 && (
+                  <View style={styles.card} testID="axe-team">
+                    <Text style={styles.secTitle}>Team (Master) — tocca per vedere/esportare</Text>
+                    <Pressable onPress={() => setTeamUser(null)} style={[styles.teamRow, !teamUser && { backgroundColor: "#EFF6FF" }]}><Text style={styles.teamName}>Tutto il team</Text></Pressable>
+                    {data.team.map((t) => <Pressable key={t.user_id} onPress={() => setTeamUser(t.user_id)} style={[styles.teamRow, teamUser === t.user_id && { backgroundColor: "#EFF6FF" }]} testID={`axe-team-${t.user_id}`}><Text style={styles.teamName}>{t.name || t.user_id}</Text><Text style={styles.teamTot}>{t.count} · {t.total.toFixed(2)} €</Text></Pressable>)}
+                  </View>
+                )}
+                {data.items.length === 0 ? <Text style={styles.empty}>Nessuna spesa in questo mese. Fotografa uno scontrino: Axon fa il resto.</Text> : data.items.map((e) => (
+                  <View key={e.expense_id} style={styles.row} testID={`axe-item-${e.expense_id}`}>
+                    <View style={[styles.catDot, { backgroundColor: color }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowTitle}>{e.merchant}</Text>
+                      <Text style={styles.rowMeta}>{e.date} · {e.category}{e.payment ? ` · ${e.payment}` : ""}{e.user_name && data.can_export_team ? ` · ${e.user_name}` : ""}</Text>
+                    </View>
+                    <Text style={[styles.rowAmt, { color }]}>{e.amount.toFixed(2).replace(".", ",")} €</Text>
+                    <Pressable onPress={() => toggleSphere(e)} hitSlop={6} style={styles.iconBtn} testID={`axe-swap-${e.expense_id}`}><Ionicons name="swap-horizontal" size={18} color="#64748B" /></Pressable>
+                    <Pressable onPress={() => removeExpense(e)} hitSlop={6} style={styles.iconBtn} testID={`axe-del-${e.expense_id}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
+                  </View>
+                ))}
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <View style={styles.actions}>
+              <Pressable onPress={() => upload("statement", false)} disabled={!!busy} style={[styles.big, { backgroundColor: color }]} testID="axe-statement-file">
+                {busy === "statement" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="document-attach" size={22} color="#FFF" /><Text style={styles.bigTxt}>Allega estratto conto (PDF/foto)</Text></>}
+              </Pressable>
+            </View>
+            <Text style={styles.hint}>Nessuna connessione alla banca: Axon legge solo il file che alleghi, categorizza i movimenti e produce il report qui e in Sezione Report.</Text>
+            {open && (
+              <View style={[styles.card, { borderColor: color + "66" }]} testID="axe-statement-detail">
+                <View style={{ flexDirection: "row", alignItems: "center" }}><Text style={[styles.secTitle, { flex: 1 }]}>{open.bank || "Estratto conto"} · {open.period || ""}</Text><Pressable onPress={() => setOpen(null)} hitSlop={8}><Ionicons name="close" size={20} color="#64748B" /></Pressable></View>
+                <View style={styles.kpis}>
+                  <View style={styles.kpi}><Text style={styles.kpiL}>Entrate</Text><Text style={[styles.kpiV, { color: "#059669" }]}>{open.income.toFixed(2)} €</Text></View>
+                  <View style={styles.kpi}><Text style={styles.kpiL}>Uscite</Text><Text style={[styles.kpiV, { color: "#DC2626" }]}>{open.outcome.toFixed(2)} €</Text></View>
+                  <View style={styles.kpi}><Text style={styles.kpiL}>Netto</Text><Text style={styles.kpiV}>{open.net.toFixed(2)} €</Text></View>
+                </View>
+                {(open.by_category || []).slice(0, 8).map((c, i) => <Text key={i} style={styles.line}>• {c.categoria}: {Number(c.totale).toFixed(2)} € ({c.n})</Text>)}
+                {(open.insights || []).map((s, i) => <Text key={`i${i}`} style={styles.insight}>💡 {s}</Text>)}
+                {(open.anomalies || []).map((s, i) => <Text key={`a${i}`} style={[styles.insight, { color: "#B45309" }]}>⚠️ {s}</Text>)}
+                {(open.movements || []).slice(0, 40).map((m, i) => <Text key={`m${i}`} style={styles.mov}>{m.data} · {m.descrizione} · <Text style={{ fontWeight: "800", color: Number(m.importo) < 0 ? "#DC2626" : "#059669" }}>{Number(m.importo).toFixed(2)} €</Text> · {m.categoria}</Text>)}
+              </View>
+            )}
+            {!stmts ? <ActivityIndicator color={color} /> : stmts.length === 0 ? <Text style={styles.empty}>Nessun estratto conto analizzato in questa sfera.</Text> : stmts.map((s) => (
+              <Pressable key={s.report_id} onPress={async () => setOpen(await api<Statement>(`/axon/expenses/statements/${s.report_id}`))} style={styles.row} testID={`axe-statement-${s.report_id}`}>
+                <Ionicons name="document-text" size={20} color={color} />
+                <View style={{ flex: 1 }}><Text style={styles.rowTitle}>{s.bank || "Estratto conto"} · {s.period || ""}</Text><Text style={styles.rowMeta}>Entrate {s.income.toFixed(2)} € · Uscite {s.outcome.toFixed(2)} € · {new Date(s.created_at).toLocaleDateString("it-IT")}</Text></View>
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </Pressable>
+            ))}
+          </>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#F4F5FA" },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  title: { color: "#FFF", fontWeight: "800", fontSize: 17 }, sub: { color: "#FFFFFFCC", fontSize: 12 },
+  sphereRow: { flexDirection: "row", gap: 8, padding: 12, paddingBottom: 4 },
+  sphereBtn: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#FFF", alignItems: "center", justifyContent: "center" },
+  sphereTxt: { fontWeight: "800", color: "#1B2B4B", fontSize: 13 },
+  tabs: { flexDirection: "row", paddingHorizontal: 12 },
+  tab: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderBottomWidth: 3, borderBottomColor: "transparent" },
+  tabTxt: { fontWeight: "800", color: "#64748B", fontSize: 13.5 },
+  actions: { flexDirection: "row", gap: 8 },
+  big: { flex: 1, minHeight: 64, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8 },
+  ghost: { backgroundColor: "#FFF", borderWidth: 1.5 },
+  bigTxt: { color: "#FFF", fontWeight: "800", fontSize: 12.5, textAlign: "center" },
+  monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12 },
+  arrow: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: "#FFF" },
+  monthTxt: { fontSize: 15, fontWeight: "800", color: "#1B2B4B", textTransform: "capitalize", minWidth: 150, textAlign: "center" },
+  card: { backgroundColor: "#FFF", borderRadius: 16, borderWidth: 1.5, borderColor: "#EEF0F6", padding: 14, gap: 8 },
+  total: { fontSize: 32, fontWeight: "900", color: "#1B2B4B" }, totalSub: { fontSize: 12.5, color: "#64748B" },
+  cats: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  chip: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 }, chipTxt: { fontSize: 12, fontWeight: "700", color: "#1B2B4B" },
+  pdfBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 46, borderRadius: 12, marginTop: 4 }, pdfTxt: { color: "#FFF", fontWeight: "800", fontSize: 13.5 },
+  secTitle: { fontSize: 12.5, fontWeight: "800", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.4 },
+  teamRow: { flexDirection: "row", alignItems: "center", minHeight: 44, paddingHorizontal: 10, borderRadius: 10 }, teamName: { flex: 1, fontWeight: "700", color: "#1B2B4B", fontSize: 13.5 }, teamTot: { fontWeight: "800", color: "#1B2B4B", fontSize: 13 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: "#EEF0F6", padding: 10, minHeight: 56 },
+  catDot: { width: 8, height: 8, borderRadius: 4 }, rowTitle: { fontSize: 14, fontWeight: "700", color: "#1B2B4B" }, rowMeta: { fontSize: 11.5, color: "#64748B", marginTop: 1 }, rowAmt: { fontSize: 15, fontWeight: "900" },
+  iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  empty: { fontSize: 13, color: "#94A3B8", fontStyle: "italic", textAlign: "center", paddingVertical: 12 },
+  hint: { fontSize: 12, color: "#64748B", lineHeight: 17 },
+  kpis: { flexDirection: "row", gap: 8 }, kpi: { flex: 1, backgroundColor: "#F8FAFC", borderRadius: 10, padding: 8, alignItems: "center" }, kpiL: { fontSize: 11, color: "#64748B" }, kpiV: { fontSize: 15, fontWeight: "900", color: "#1B2B4B" },
+  line: { fontSize: 13, color: "#1B2B4B" }, insight: { fontSize: 12.5, color: "#1E3A8A", lineHeight: 17 }, mov: { fontSize: 11.5, color: "#334155", borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingTop: 4 },
+});

@@ -327,8 +327,9 @@ async def axi_status(user=Depends(get_current_user)):
          "account": (drive or {}).get("google_email"), "one_tap": False, "manage_route": "/google-drive", "sphere": "business", "configured": _gd_configured()},
         {"key": "dropbox", "label": "Dropbox", "desc": "Cartella aziendale per report e documenti.", "provider": "dropbox", "connected": bool(dbx),
          "account": (dbx or {}).get("account_email") or (dbx or {}).get("email"), "one_tap": False, "manage_route": "/dropbox", "sphere": "business", "configured": True},
-        {"key": "bank_statement", "label": "Estratto conto", "desc": "Allega PDF o foto: Axon analizza e produce il report (Fase 2).", "provider": "axon", "connected": False, "one_tap": False, "coming": True, "sphere": "business"},
-        {"key": "receipts", "label": "Scontrini e nota spese", "desc": "Fotografa lo scontrino: importo, data, categoria nella nota spese del mese (Fase 2).", "provider": "axon", "connected": False, "one_tap": False, "coming": True, "sphere": "business"},
+        {"key": "bank_statement", "label": "Estratto conto", "desc": "Allega PDF o foto: Axon analizza, categorizza e produce il report. Nessuna connessione alla banca.", "provider": "axon", "connected": True, "one_tap": False, "manage_route": "/axon-expenses?sphere=business", "sphere": "business", "configured": True},
+        {"key": "receipts", "label": "Scontrini e nota spese", "desc": "Fotografa lo scontrino: importo, data, categoria nella nota spese del mese. PDF esportabile (Master anche per il team).", "provider": "axon", "connected": True, "one_tap": False, "manage_route": "/axon-expenses?sphere=business", "sphere": "business", "configured": True},
+        {"key": "media_archive", "label": "Archivio foto, audio e video", "desc": "Cattura o allega: Axon trascrive audio/video, descrive le foto e rende tutto ricercabile. Chiede «Privata o aziendale?».", "provider": "axon", "connected": True, "one_tap": False, "manage_route": "/axon-media?sphere=business", "sphere": "business", "configured": True},
     ]
     home = [
         {"key": "homeassistant", "label": "Domotica", "desc": "Casa intelligente: luci, clima, scene con la voce di Axon.", "provider": "homeassistant", "connected": bool(ha),
@@ -338,7 +339,8 @@ async def axi_status(user=Depends(get_current_user)):
         {"key": "google_drive_home", "label": "Drive Home", "desc": "Cartella personale «AxonOS Home» (creata dall'app), separata da quella aziendale.", "provider": "google",
          "connected": bool(g.get("home")) and "https://www.googleapis.com/auth/drive.file" in ((g.get("home") or {}).get("scopes") or []), "account": (g.get("home") or {}).get("google_email"),
          "one_tap": True, "shared_with": "google_calendar_home", "sphere": "home", "configured": _gd_configured()},
-        {"key": "personal_expenses", "label": "Spese personali", "desc": "Scontrini con categorie personali: spesa, casa, svago, salute (Fase 2).", "provider": "axon", "connected": False, "one_tap": False, "coming": True, "sphere": "home"},
+        {"key": "personal_expenses", "label": "Spese personali", "desc": "Scontrini con categorie personali: spesa, casa, svago, salute. Separate dalla nota spese Business.", "provider": "axon", "connected": True, "one_tap": False, "manage_route": "/axon-expenses?sphere=home", "sphere": "home", "configured": True},
+        {"key": "media_archive_home", "label": "Foto, audio e video personali", "desc": "Ricordi, note vocali e video privati: trascritti e ricercabili, separati dall'archivio Business.", "provider": "axon", "connected": True, "one_tap": False, "manage_route": "/axon-media?sphere=home", "sphere": "home", "configured": True},
     ]
     return {"spheres": {"business": {"label": "Business", "color": "#2563EB", "icon": "🔵", "items": business}, "home": {"label": "Home", "color": "#059669", "icon": "🟢", "items": home}},
             "google_configured": _gd_configured()}

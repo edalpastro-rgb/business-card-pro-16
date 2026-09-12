@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons"; // V50.z198
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
@@ -23,6 +24,7 @@ export default function ReportScreen() {
   const [loading, setLoading] = useState(true);
   const [drill, setDrill] = useState<{ metric: MetricKey; area: "energy" | "network" | null; color: string; title: string } | null>(null);
   const pagePad = usePageBottomPadding();
+  const router = useRouter(); // V50.z198
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,6 +75,15 @@ export default function ReportScreen() {
         <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: pagePad }}>
+          {/* V50.z198 — Blocco 8 Fase 2: Nota spese ed Estratti conto (sfere Business/Home) */}
+          <Pressable onPress={() => router.push("/axon-expenses" as any)} style={[styles.areaCard, { flexDirection: "row", alignItems: "center", gap: 12 }]} testID="report-open-expenses">
+            <Ionicons name="receipt-outline" size={22} color={theme.color.brandPrimary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.areaTitle, { color: theme.color.brandPrimary }]}>Nota spese & Estratti conto</Text>
+              <Text style={{ color: theme.color.muted, fontSize: 12.5 }}>Scontrini fotografati, nota spese mensile per sfera (PDF), estratti conto analizzati da Axon</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+          </Pressable>
           {renderArea("energy")}
           {renderArea("network")}
 
