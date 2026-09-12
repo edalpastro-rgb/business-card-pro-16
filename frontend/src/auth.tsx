@@ -45,6 +45,8 @@ type AuthCtx = {
   loginGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** V50.z187 — sessione già emessa dal server (accesso rapido con impronta/Face ID/PIN) */
+  loginWithSession: (token: string, user: User) => Promise<void>;
   // App lock
   locked: boolean;
   setLocked: (l: boolean) => void;
@@ -305,6 +307,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return ok;
   };
 
+  // V50.z187 — usata dal modulo isolato `src/quickUnlock`
+  const loginWithSession = async (token: string, u: User) => {
+    await setToken(token);
+    await storage.secureSet(LAST_UNLOCK_KEY, Date.now());
+    setUser(u);
+    setLocked(false);
+  };
+
   const markUnlocked = async () => {
     await storage.secureSet(LAST_UNLOCK_KEY, Date.now());
     setLocked(false);
@@ -312,7 +322,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <Ctx.Provider value={{
-      user, loading, loginEmail, verify2FA, register, loginGoogle, logout, refresh,
+      user, loading, loginEmail, verify2FA, register, loginGoogle, logout, refresh, loginWithSession,
       locked, setLocked, unlockWithPin, hasPinConfigured: hasPin, isBiometricEnabled: biometricEnabled, markUnlocked,
       trustExpiresAt, isTrustValid: isTrustStillValid,
     }}>

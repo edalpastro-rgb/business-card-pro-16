@@ -5991,3 +5991,5 @@ else Linking.openURL(url).catch(() => {});
 - V50.z185 KB Axon: PDF originale salvato su Object Storage (`routes/master_docs_files.py`: link firmato + `/public/master-doc/{token}` + `/master-docs/{id}/text`); modal editor con Apri PDF / Scarica / Testo estratto; fix tastiera Android (marginBottom=kbHeight). PDF pre-esistenti: solo testo estratto (ricaricare per l'originale).
 
 - V50.z186 Batch 5: `src/voice/useNativeBargeIn.ts` (stop vocale nativo; pause/resume in `sentenceSpeaker.ts`), `src/voice/voiceAudioMode.ts` + plugin expo-audio `enableBackgroundRecording` + UIBackgroundModes audio (richiede build nativa), `src/keyboard/AndroidKeyboardPadding.tsx` attorno allo Stack e nei Modal di libretto-editor/axon-scripts/event-banners. Fix Axon Drive `api.post` → `api(...)`.
+
+- V50.z187 Batch 5 (4–7): `src/edgePanelCategories.tsx` (Edge Panel per area/colore Master), Help Center + FAQ privacy "dati aggregati", `routes/auth_quick_unlock.py` + `src/quickUnlock/QuickUnlockCard.tsx` (login con impronta/Face ID/PIN via dispositivo fidato; `loginWithSession` in auth.tsx; riga in Sicurezza), `RootInsetsProbe` in useSafeBottom/_layout per bottom bar uniforme.

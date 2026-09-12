@@ -247,7 +247,7 @@
   "title": "17 · FAQ",
   "subtitle": "Le domande più frequenti",
   "paragraphs": [
-   "Q: I miei dati sono privati? — Sì, isolamento multi-tenant: nessun altro Master vede i tuoi contatti.\\n\\nQ: Axon usa i miei dati per addestrarsi? — No. Le conversazioni non alimentano modelli esterni.\\n\\nQ: Posso disdire in ogni momento? — Sì, dal Profilo → Gestisci abbonamento.\\n\\nQ: Perde qualcosa se cambio telefono? — No, tutto è in cloud: rifai il login e ritrovi tutto.\\n\\nQ: Come contatto il supporto? — Tocca il pulsante 🎧 in alto a destra oppure invia una email a support@advisoros.it."
+   "Q: I miei dati sono privati? — Sì, isolamento multi-tenant: nessun altro Master vede i tuoi contatti.\\n\\nQ: Axon usa i miei dati per addestrarsi? — AdvisorOS utilizza dati aggregati e anonimizzati delle conversazioni per migliorare AxonOS. Non vengono raccolti dati sensibili: nomi, cifre, numeri di telefono e riferimenti personali sono rimossi prima dell'aggregazione; contatti, bollette e documenti restano isolati nel tuo spazio.\\n\\nQ: Posso disdire in ogni momento? — Sì, dal Profilo → Gestisci abbonamento.\\n\\nQ: Perde qualcosa se cambio telefono? — No, tutto è in cloud: rifai il login e ritrovi tutto.\\n\\nQ: Come contatto il supporto? — Tocca il pulsante 🎧 in alto a destra oppure invia una email a support@advisoros.it."
   ],
   "tips": []
  },

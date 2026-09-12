@@ -28,7 +28,8 @@ import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
 import { configureAlarmNotifications } from "@/src/alarmNotifs";
 import { registerForPush } from "@/src/pushRegister";
-import { AndroidKeyboardPadding } from "@/src/keyboard/AndroidKeyboardPadding"; // V50.z186 — tastiera Android edge-to-edge
+import { AndroidKeyboardPadding } from "@/src/keyboard/AndroidKeyboardPadding";
+import { RootInsetsProbe } from "@/src/hooks/useSafeBottom"; // V50.z187 — inset bottom radice uniforme // V50.z186 — tastiera Android edge-to-edge
 import { AxnBadgeSync } from "@/src/AxnDrawerBadge";
 import { GlobalErrorBoundary } from "@/src/GlobalErrorBoundary";
 
@@ -255,6 +256,7 @@ export default function RootLayout() {
               scroll-into-view su iOS). Copertura globale senza modifiche
               per singola pagina. */}
           <KeyboardProvider>
+            <RootInsetsProbe />
             <AuthProvider>
               <LockGate />
               <AnimatedSplash />

@@ -158,11 +158,21 @@ export default function HelpCenterScreen() {
           Chatbot.
         </Text>
 
+        <Text style={styles.h2}>Utilizzo dei dati delle conversazioni</Text>
+        <Text style={styles.p} testID="help-privacy-training">
+          AdvisorOS utilizza dati aggregati e anonimizzati delle conversazioni con AxonOS per
+          migliorare la qualità delle risposte, delle regole e dei modelli di AxonOS. In questo
+          processo NON vengono raccolti né utilizzati dati sensibili: nomi di persone e aziende,
+          cifre, importi, numeri di telefono, indirizzi, e-mail e ogni riferimento personale vengono
+          rimossi o resi anonimi prima dell&apos;aggregazione. I tuoi contatti, le tue bollette e i tuoi
+          documenti restano isolati nel tuo spazio (multi-tenant) e non sono mai visibili ad altri
+          clienti né condivisi con terze parti.
+        </Text>
+
         <Text style={styles.h2}>Registri delle sessioni</Text>
         <Text style={styles.p}>
           I registri delle sessioni vengono conservati per un massimo di 24 ore dalla conclusione
-          della sessione e possono essere utilizzati per la formazione del chatbot entro tale
-          periodo. Gli operatori del servizio clienti possono accedere al registro delle sessioni
+          della sessione. Gli operatori del servizio clienti possono accedere al registro delle sessioni
           per fornirti ulteriore assistenza. Se desideri che AdvisorOS elimini il registro delle
           tue sessioni prima della scadenza del periodo di conservazione, ti preghiamo di
           contattarci utilizzando i recapiti indicati di seguito.

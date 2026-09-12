@@ -6,6 +6,7 @@
 // Persistenza: lista ID selezionati in AsyncStorage (`edge_panel_ids_v1`).
 // Posizione verticale linguetta: `edge_panel_tab_y_v1`.
 
+import React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, Animated, Dimensions,
@@ -14,6 +15,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
+// V50.z187 — bottoni organizzati per area/colore come nel menu Master (modulo isolato)
+import { edgeColor, groupEdgeActions, EdgeCategoryHeader } from "@/src/edgePanelCategories";
 
 // ── Elenco azioni disponibili ──────────────────────────────────────
 export type EdgeAction = {
@@ -290,13 +293,18 @@ export function EdgePanel() {
               <Text style={styles.emptyTxt}>Nessuna azione ancora. Tocca &quot;Modifica&quot;.</Text>
             </View>
           ) : (
-            actionsSelected.map((a) => (
-              <Pressable key={a.id} onPress={() => onPickAction(a)} style={styles.tile} testID={`edge-a-${a.id}`}>
-                <View style={[styles.tileIcon, { backgroundColor: a.color }]}>
-                  <Ionicons name={a.icon} size={22} color="#FFF" />
-                </View>
-                <Text style={styles.tileTxt} numberOfLines={2}>{a.label}</Text>
-              </Pressable>
+            groupEdgeActions(actionsSelected).map((g) => (
+              <React.Fragment key={g.cat.key}>
+                <EdgeCategoryHeader cat={g.cat} dark />
+                {g.items.map((a) => (
+                  <Pressable key={a.id} onPress={() => onPickAction(a)} style={styles.tile} testID={`edge-a-${a.id}`}>
+                    <View style={[styles.tileIcon, { backgroundColor: edgeColor(a) }]}>
+                      <Ionicons name={a.icon} size={22} color="#FFF" />
+                    </View>
+                    <Text style={styles.tileTxt} numberOfLines={2}>{a.label}</Text>
+                  </Pressable>
+                ))}
+              </React.Fragment>
             ))
           )}
         </ScrollView>
@@ -321,11 +329,13 @@ export function EdgePanel() {
             </View>
             <Text style={styles.editSub}>Tocca per aggiungere/rimuovere. Puoi averne quante vuoi.</Text>
             <ScrollView style={{ maxHeight: 460 }}>
-              {EDGE_ACTIONS.map((a) => {
+              {groupEdgeActions(EDGE_ACTIONS).map((g) => g.items.map((a, i) => {
                 const on = selectedIds.includes(a.id);
                 return (
-                  <Pressable key={a.id} onPress={() => toggleId(a.id)} style={[styles.editRow, on && styles.editRowOn]}>
-                    <View style={[styles.editRowIcon, { backgroundColor: a.color }]}>
+                  <React.Fragment key={a.id}>
+                  {i === 0 ? <EdgeCategoryHeader cat={g.cat} dark /> : null}
+                  <Pressable onPress={() => toggleId(a.id)} style={[styles.editRow, on && styles.editRowOn]}>
+                    <View style={[styles.editRowIcon, { backgroundColor: edgeColor(a) }]}>
                       <Ionicons name={a.icon} size={16} color="#FFF" />
                     </View>
                     <Text style={styles.editRowLabel}>{a.label}</Text>
@@ -335,8 +345,9 @@ export function EdgePanel() {
                       color={on ? "#22C55E" : "#64748B"}
                     />
                   </Pressable>
+                  </React.Fragment>
                 );
-              })}
+              }))}
             </ScrollView>
             <View style={styles.editFoot}>
               <Pressable

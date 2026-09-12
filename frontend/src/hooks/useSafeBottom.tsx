@@ -39,8 +39,27 @@ const MIN_SAFE_BOTTOM = Platform.OS === "android" ? 24 : 20;
  * tagliati. `initialWindowMetrics` è misurato all'avvio dalla finestra principale
  * ed è affidabile anche dentro i Modal: lo usiamo come fallback globale.
  */
+// V50.z187 — Inset bottom "vivo" misurato alla RADICE (dentro SafeAreaProvider, fuori dagli Stack/Tabs
+// dove `useSafeAreaInsets().bottom` può valere 0). Aggiornato da `<RootInsetsProbe />` in `_layout.tsx`
+// → tutte le barre (Tabs nativa, PersistentBottomNav, footer) usano lo STESSO valore, uniforme su ogni pagina.
+let _rootLiveBottom = 0;
+const _rootListeners = new Set<(v: number) => void>();
+export function RootInsetsProbe() {
+  const insets = useSafeAreaInsets();
+  React.useEffect(() => {
+    const v = insets.bottom || 0;
+    if (v !== _rootLiveBottom) { _rootLiveBottom = v; _rootListeners.forEach((l) => l(v)); }
+  }, [insets.bottom]);
+  return null;
+}
+function useRootLiveBottom(): number {
+  const [v, setV] = React.useState(_rootLiveBottom);
+  React.useEffect(() => { _rootListeners.add(setV); return () => { _rootListeners.delete(setV); }; }, []);
+  return v;
+}
+
 export function safeBottomFallback(): number {
-  return initialWindowMetrics?.insets?.bottom || 0;
+  return Math.max(initialWindowMetrics?.insets?.bottom || 0, _rootLiveBottom);
 }
 
 /** Insets con fallback bottom (per componenti che usano `insets.bottom` direttamente, es. dentro Modal). */
@@ -51,7 +70,8 @@ export function useInsetsSafe() {
 
 export function useSafeBottom(): number {
   const insets = useSafeAreaInsets();
-  return Math.max(insets.bottom || 0, safeBottomFallback(), MIN_SAFE_BOTTOM);
+  const live = useRootLiveBottom();
+  return Math.max(insets.bottom || 0, live, safeBottomFallback(), MIN_SAFE_BOTTOM);
 }
 
 /**
@@ -66,7 +86,8 @@ export function useSafeBottom(): number {
 const NAV_BAR_MIN_BOTTOM = 20;
 export function useNavBarBottomInset(): number {
   const insets = useSafeAreaInsets();
-  return Math.max(insets.bottom || 0, safeBottomFallback(), NAV_BAR_MIN_BOTTOM);
+  const live = useRootLiveBottom(); // V50.z187 — stesso inset radice su TUTTE le pagine (riferimento: pagina Help)
+  return Math.max(insets.bottom || 0, live, safeBottomFallback(), NAV_BAR_MIN_BOTTOM);
 }
 
 /**

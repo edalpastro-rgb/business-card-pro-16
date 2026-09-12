@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Pla
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { QuickUnlockCard, maybeOfferQuickUnlock } from "@/src/quickUnlock/QuickUnlockCard"; // V50.z187 — accesso rapido (isolato)
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 
@@ -30,6 +31,7 @@ export default function LoginScreen() {
   // 2FA state
   const [twoFAToken, setTwoFAToken] = useState<string | null>(null);
   const [twoFACode, setTwoFACode] = useState("");
+  const [quickHidden, setQuickHidden] = useState(false); // V50.z187
 
   const doAuth = async () => {
     setErr(null);
@@ -46,6 +48,7 @@ export default function LoginScreen() {
         await register(email.trim(), password, name.trim() || email.split("@")[0]);
       }
       router.replace("/(tabs)/home");
+      setTimeout(() => { void maybeOfferQuickUnlock(); }, 1500); // V50.z187
     } catch (e: any) {
       setErr(e.message || "Errore");
     } finally {
@@ -60,6 +63,7 @@ export default function LoginScreen() {
     try {
       await verify2FA(twoFAToken, twoFACode.trim());
       router.replace("/(tabs)/home");
+      setTimeout(() => { void maybeOfferQuickUnlock(); }, 1500); // V50.z187
     } catch (e: any) {
       setErr(e.message || "Codice non valido");
     } finally {
@@ -125,6 +129,10 @@ export default function LoginScreen() {
               />
             </View>
 
+            {/* V50.z187 — accesso rapido con impronta / Face ID / PIN (solo dispositivo registrato) */}
+            {!quickHidden && !twoFAToken && (
+              <QuickUnlockCard onUseOtherAccount={() => setQuickHidden(true)} onSuccess={() => router.replace("/(tabs)/home")} />
+            )}
             <View style={styles.formCard}>
               <View style={styles.segment}>
                 {(["login", "register"] as const).map((m) => (

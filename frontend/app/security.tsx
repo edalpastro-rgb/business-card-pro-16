@@ -4,6 +4,7 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import * as LocalAuthentication from "expo-local-authentication";
+import { QuickUnlockSettingRow } from "@/src/quickUnlock/QuickUnlockCard"; // V50.z187
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -402,6 +403,7 @@ function SecurityScreen() {
               <View style={[styles.toggleKnob, bioEnabled && styles.toggleKnobOn]} />
             </Pressable>
           </View>
+          <QuickUnlockSettingRow />
 
           <View style={{ marginTop: 8 }}>
             <View style={styles.toggleRow}>

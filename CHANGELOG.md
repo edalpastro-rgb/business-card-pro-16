@@ -193,6 +193,22 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z187 — PROMPT 1 Batch 5 (punti 4–7)** —
+  (4) **Edge Panel (menu slide laterale) per area e colore come il Master**: nuovo `src/edgePanelCategories.tsx` (mappa id/route →
+  categoria `MENU_CATEGORIES`, colore del bottone = colore dell'area, `groupEdgeActions` nell'ordine delle aree, `EdgeCategoryHeader`
+  = stesso header badge+etichetta+linea del Master; "Utility" per Sveglia/Meteo/Libretto/Profilo). `EdgePanel.tsx`: griglia e checklist
+  "Modifica" raggruppate con header; i colori casuali del catalogo non sono più usati.
+  (5) **Privacy**: Help Center nuova sezione "Utilizzo dei dati delle conversazioni" (dati aggregati e anonimizzati per migliorare AxonOS,
+  nessun dato sensibile: nomi, cifre, telefoni, indirizzi, e-mail rimossi; tenant isolato), rimosso "formazione del chatbot" dai registri;
+  Libretto FAQ (Q "Axon usa i miei dati per addestrarsi?") allineata in `libretto-content.ts` e `axon_app_map.json`.
+  (6) **Accesso rapido al login** (impronta / Face ID / PIN) — backend isolato `routes/auth_quick_unlock.py` (dispositivo fidato:
+  `device_id` + secret 48B in SecureStore, server salva solo SHA-256; `/auth/quick-unlock/enroll|login|devices`, scadenza 180 gg, max 5
+  dispositivi, revoca) + frontend `src/quickUnlock/QuickUnlockCard.tsx` (card «Bentornato» in `login.tsx` con Impronta/Face ID e PIN
+  locale, proposta di attivazione una volta dopo il primo login, riga Attiva/Disattiva in Sicurezza). `auth.tsx`: `loginWithSession`
+  additiva. La 2FA TOTP (Google Authenticator, pyotp) e il blocco app PIN/biometria esistevano già (Sicurezza → /security).
+  (7) **Bottom bar safe-area uniforme**: `RootInsetsProbe` (in `_layout`, dentro SafeAreaProvider) misura l'inset bottom alla radice e
+  `useNavBarBottomInset`/`useSafeBottom` lo usano come minimo → Tabs nativa e PersistentBottomNav hanno lo stesso padding su tutte le
+  pagine (riferimento: Help), anche dove `useSafeAreaInsets().bottom` vale 0 dentro Stack/Tabs.
 - **V50.z186 — PROMPT 1 Batch 5: stop vocale, audio in background, tastiera (moduli isolati)** —
   (1) **Stop vocale nativo** `src/voice/useNativeBargeIn.ts`: su Android/iOS mentre Axon parla resta acceso un recorder di servizio con
   metering; voce utente (> −22 dB e > rumore/eco +8 dB per ~450 ms) → pausa IMMEDIATA della voce, poi registra fino al silenzio e trascrive:
@@ -491,6 +507,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z187 | Set 2026 | Batch 5 (4–7): Edge Panel per area/colore come Master, privacy Help/FAQ (dati aggregati), accesso rapido login impronta/Face ID/PIN (`auth_quick_unlock.py`, `QuickUnlockCard`), inset bottom radice uniforme (`RootInsetsProbe`) |
 | V50.z186 | Set 2026 | Batch 5: stop vocale nativo (barge-in + parole di stop, pause/resume SentenceSpeaker), audio/registrazione in background (plugin expo-audio, UIBackgroundModes), padding tastiera Android globale + Modal lunghi; fix `api.post` Axon Drive |
 | V50.z185 | Set 2026 | Knowledge Base: PDF originale su Object Storage + Apri/Scarica/Testo estratto nel modal di modifica; fix campi coperti dalla tastiera Android (`master_docs_files.py`, `KbEntryEditorModal.tsx`) |
 | V50.z184 | Set 2026 | AxonOS invia push in autonomia dalla chat: consegna server-side promemoria/timer (kind `reminder`, arming esatto + tick 60s, no doppioni) + comandi «mandami una notifica…», «avvisami se…», «notifica di prova», «quali notifiche ho attive» (`routes/axon_chat_push.py`) |
