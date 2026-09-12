@@ -15,7 +15,8 @@
         "NSFaceIDUsageDescription": "Sblocca rapidamente Dal Pastro CRM",
         "NSPhotoLibraryUsageDescription": "Aggiungi immagini motivazionali al tuo spazio personale",
         "NSCameraUsageDescription": "Scatta foto e scansiona bollette e QR",
-        "NSMicrophoneUsageDescription": "Registra note vocali sui tuoi contatti",
+        "NSMicrophoneUsageDescription": "Parla con AxonOS e registra note vocali",
+        "UIBackgroundModes": ["audio"],
         "NSContactsUsageDescription": "Importa i contatti dalla tua rubrica",
         "NSLocationWhenInUseUsageDescription": "Meteo e allerte per la tua zona"
       }
@@ -38,6 +39,8 @@
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
         "RECORD_AUDIO",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MICROPHONE",
         "READ_CONTACTS",
         "WRITE_CONTACTS",
         "ACCESS_COARSE_LOCATION",
@@ -60,7 +63,13 @@
           "backgroundColor": "#0F2438"
         }
       ],
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Parla con AxonOS e registra note vocali",
+          "enableBackgroundRecording": true
+        }
+      ],
       "@react-native-community/datetimepicker",
       [
         "expo-camera",

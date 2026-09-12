@@ -10,6 +10,7 @@ import {
   ActivityIndicator, Modal, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AndroidKeyboardPadding } from "@/src/keyboard/AndroidKeyboardPadding"; // V50.z186 — tastiera Android dentro Modal
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -310,7 +311,7 @@ export default function AxonScriptsScreen() {
             <Text style={styles.hTitle}>📝 Incolla Testo</Text>
             <View style={{ width: 30 }} />
           </View>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <AndroidKeyboardPadding><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
             <ScrollView contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
               <Text style={styles.formLabel}>Incolla qui il tuo materiale: Axon lo dividerà automaticamente in N script</Text>
               <TextInput
@@ -328,7 +329,7 @@ export default function AxonScriptsScreen() {
                 )}
               </Pressable>
             </ScrollView>
-          </KeyboardAvoidingView>
+          </KeyboardAvoidingView></AndroidKeyboardPadding>
         </SafeAreaView>
       </Modal>
 
@@ -383,7 +384,7 @@ function ScriptEditor({ script, onClose, onSaved }: { script: Script | null; onC
           <Text style={styles.hTitle}>{script ? "Modifica" : "Nuovo Script"}</Text>
           <View style={{ width: 30 }} />
         </View>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <AndroidKeyboardPadding><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
             <Text style={styles.formLabel}>Categoria</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
@@ -412,7 +413,7 @@ function ScriptEditor({ script, onClose, onSaved }: { script: Script | null; onC
               )}
             </Pressable>
           </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAvoidingView></AndroidKeyboardPadding>
       </SafeAreaView>
     </Modal>
   );

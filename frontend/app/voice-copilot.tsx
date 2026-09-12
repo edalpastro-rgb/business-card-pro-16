@@ -23,6 +23,9 @@ import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+// V50.z186 — stop vocale (barge-in nativo) + audio in background (moduli isolati)
+import { useNativeBargeIn } from "@/src/voice/useNativeBargeIn";
+import { ensureVoiceAudioMode } from "@/src/voice/voiceAudioMode";
 
 type Phase = "idle" | "recording" | "transcribing" | "executing" | "speaking" | "error";
 type HistoryItem = {
@@ -43,6 +46,25 @@ export default function VoiceCopilotScreen() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [permission, setPermission] = useState<boolean | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  // V50.z186 — player TTS corrente + testo pronunciato (per lo stop vocale)
+  const ttsPlayerRef = useRef<any>(null);
+  const ttsTextRef = useRef("");
+  const ttsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopSpeaking = () => {
+    if (ttsTimerRef.current) { clearTimeout(ttsTimerRef.current); ttsTimerRef.current = null; }
+    const p = ttsPlayerRef.current; ttsPlayerRef.current = null;
+    try { p?.pause?.(); } catch { /* ignore */ }
+    try { p?.release?.(); } catch { /* ignore */ }
+    ttsTextRef.current = "";
+    setPhase("idle");
+  };
+  useNativeBargeIn({
+    active: phase === "speaking",
+    onInterrupt: () => { try { ttsPlayerRef.current?.pause?.(); } catch { /* ignore */ } },
+    onStop: stopSpeaking,
+    onFalseAlarm: () => { try { ttsPlayerRef.current?.play?.(); } catch { /* ignore */ } },
+    speakingText: () => ttsTextRef.current,
+  });
 
   useEffect(() => {
     (async () => {
@@ -74,7 +96,7 @@ export default function VoiceCopilotScreen() {
     setPhase("speaking");
     try {
       // Emergent OpenAI TTS via backend
-      const res = await api.post("/ai/tts", { text: text.slice(0, 500), voice: "nova" });
+      const res = await api("/ai/tts", { method: "POST", body: { text: text.slice(0, 500), voice: "nova" } }); // V50.z186 fix: api.post non esiste
       const b64 = (res as any)?.data?.audio_base64 || (res as any)?.audio_base64;
       if (b64) {
         if (Platform.OS === "web") {
@@ -85,9 +107,12 @@ export default function VoiceCopilotScreen() {
           const AudioMod: any = await import("expo-audio");
           const path = FileSystem.cacheDirectory + `tts-${Date.now()}.mp3`;
           await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
+          await ensureVoiceAudioMode({ recording: true }); // V50.z186 — voce anche a schermo bloccato
           const player = AudioMod.createAudioPlayer({ uri: path });
+          ttsPlayerRef.current = player;
+          ttsTextRef.current = text;
           player.play();
-          setTimeout(() => setPhase("idle"), Math.max(2000, text.length * 60));
+          ttsTimerRef.current = setTimeout(() => { if (ttsPlayerRef.current === player) stopSpeaking(); }, Math.max(2000, text.length * 60));
         }
       } else {
         setPhase("idle");
@@ -99,7 +124,7 @@ export default function VoiceCopilotScreen() {
 
   const startRecording = async () => {
     if (permission === false) {
-      notify.warning("Permesso microfono negato. Vai in Impostazioni per abilitarlo.");
+      notify("Microfono", "Permesso microfono negato. Vai in Impostazioni per abilitarlo.");
       return;
     }
     if (phase !== "idle") return;
@@ -107,11 +132,12 @@ export default function VoiceCopilotScreen() {
     setCurrentConfirm("");
     setPhase("recording");
     try {
+      await ensureVoiceAudioMode({ recording: true }); // V50.z186 — registrazione continua in background
       await recorder.prepareToRecordAsync();
       recorder.record();
     } catch (e: any) {
       setPhase("error");
-      notify.error(`Registrazione fallita: ${e?.message || e}`);
+      notify("Errore", `Registrazione fallita: ${e?.message || e}`);
     }
   };
 
@@ -124,14 +150,14 @@ export default function VoiceCopilotScreen() {
       if (!uri) throw new Error("Nessun audio registrato");
       // Read as base64 and send to /api/ai/transcribe
       const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-      const tRes: any = await api.post("/ai/transcribe", { audio_base64: b64, mime: "audio/m4a" });
+      const tRes: any = await api("/ai/transcribe", { method: "POST", body: { audio_base64: b64, mime: "audio/m4a" } });
       const transcript = (tRes?.data?.transcript || tRes?.transcript || "").trim();
       if (!transcript) throw new Error("Trascrizione vuota");
       setCurrentTranscript(transcript);
 
       // Execute intent
       setPhase("executing");
-      const eRes: any = await api.post("/voice/copilot/execute", { transcript });
+      const eRes: any = await api("/voice/copilot/execute", { method: "POST", body: { transcript } });
       const j = eRes?.data || eRes;
       const confirmation = j?.confirmation || "Fatto.";
       const intent = j?.intent || "";

@@ -14,6 +14,7 @@ import {
   ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AndroidKeyboardPadding } from "@/src/keyboard/AndroidKeyboardPadding"; // V50.z186 — tastiera Android dentro Modal
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -290,12 +291,12 @@ function MetaEditor({ visible, meta, onChange, onClose }: {
           <Text style={styles.hTitle}>Copertina</Text>
           <View style={{ width: 30 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 14, gap: 12 }}>
+        <AndroidKeyboardPadding><ScrollView contentContainerStyle={{ padding: 14, gap: 12 }} keyboardShouldPersistTaps="handled">
           <Field label="Titolo" value={meta.title} onChange={(t) => onChange({ ...meta, title: t })} />
           <Field label="Sottotitolo" value={meta.subtitle} onChange={(t) => onChange({ ...meta, subtitle: t })} multiline />
           <Field label="Versione" value={meta.version} onChange={(t) => onChange({ ...meta, version: t })} />
           <Field label="Footer" value={meta.footer} onChange={(t) => onChange({ ...meta, footer: t })} />
-        </ScrollView>
+        </ScrollView></AndroidKeyboardPadding>
       </SafeAreaView>
     </Modal>
   );
@@ -374,7 +375,7 @@ function SectionEditor({ section, onChange, onClose }: {
           <Text style={styles.hTitle}>Modifica Sezione</Text>
           <View style={{ width: 30 }} />
         </View>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <AndroidKeyboardPadding><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
             <Field label="Titolo" value={section.title} onChange={(t) => onChange({ title: t })} />
             <Field label="Sottotitolo" value={section.subtitle || ""} onChange={(t) => onChange({ subtitle: t })} />
@@ -508,7 +509,7 @@ function SectionEditor({ section, onChange, onClose }: {
               <Text style={styles.sectionEditorSaveTxt}>Salva sezione</Text>
             </Pressable>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAvoidingView></AndroidKeyboardPadding>
       </SafeAreaView>
     </Modal>
   );

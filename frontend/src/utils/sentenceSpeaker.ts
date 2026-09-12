@@ -59,6 +59,11 @@ export class SentenceSpeaker {
   private ended = false;
   private fedChars = 0;
   private currentCleanup: (() => void) | null = null;
+  // V50.z186 — pausa/riprendi per il barge-in nativo (stop vocale)
+  private paused = false;
+  private currentText = "";
+  private currentPause: (() => void) | null = null;
+  private currentResume: (() => void) | null = null;
 
   constructor(private voice: string | undefined, private handlers: SentenceSpeakerHandlers = {}) {}
 
@@ -87,9 +92,29 @@ export class SentenceSpeaker {
     this.flush();
   }
 
+  /** Testo della frase attualmente in riproduzione (per distinguere l'eco del TTS dalla voce utente). */
+  get speakingText() { return this.currentText; }
+  get isPaused() { return this.paused; }
+
+  /** V50.z186 — Silenzia subito la voce (senza perdere la coda). */
+  pause() {
+    if (this.stopped || this.paused) return;
+    this.paused = true;
+    try { this.currentPause?.(); } catch {}
+  }
+
+  /** V50.z186 — Riprende dal punto in cui era stata messa in pausa. */
+  resume() {
+    if (this.stopped || !this.paused) return;
+    this.paused = false;
+    if (this.currentResume) { try { this.currentResume(); } catch {} }
+    else void this.playNext();
+  }
+
   stop() {
     if (this.stopped) return;
     this.stopped = true;
+    this.paused = false;
     this.queue = [];
     this.buffer = "";
     if (this.currentCleanup) { try { this.currentCleanup(); } catch {} this.currentCleanup = null; }
@@ -168,7 +193,7 @@ export class SentenceSpeaker {
   }
 
   private async playNext() {
-    if (this.playing || this.stopped) return;
+    if (this.playing || this.stopped || this.paused) return;
     const item = this.queue[0];
     if (!item) { this.maybeFinish(); return; }
     if (!item.audio) { this.pump(); return; }
@@ -185,12 +210,14 @@ export class SentenceSpeaker {
     const done = () => {
       if (this.stopped) return;
       this.currentCleanup = null;
+      this.currentPause = null; this.currentResume = null; this.currentText = "";
       this.handlers.onAudioElement?.(null);
       this.queue.shift();
       this.playing = false;
       this.pump();
       void this.playNext();
     };
+    this.currentText = item.text;
     this.currentCleanup = await this.play(audio, item.text, done);
   }
 
@@ -216,6 +243,8 @@ export class SentenceSpeaker {
       this.handlers.onAudioElement?.(el);
       el.addEventListener("ended", () => { clearTimeout(fallback); fire(); }, { once: true });
       el.addEventListener("error", () => { clearTimeout(fallback); fire(); }, { once: true });
+      this.currentPause = () => { try { el.pause(); } catch {} };
+      this.currentResume = () => { try { void el.play(); } catch {} };
       try { await el.play(); } catch { clearTimeout(fallback); fire(); }
       return () => { clearTimeout(fallback); try { el.pause(); } catch {} };
     }
@@ -223,14 +252,20 @@ export class SentenceSpeaker {
       const AudioMod: any = await import("expo-audio");
       const player = AudioMod.createAudioPlayer({ uri });
       let sub: any = null;
+      let fb: any = fallback;
       try {
         sub = player.addListener?.("playbackStatusUpdate", (st: any) => {
-          if (st?.didJustFinish) { clearTimeout(fallback); try { sub?.remove?.(); } catch {} try { player.release?.(); } catch {} fire(); }
+          if (st?.didJustFinish) { clearTimeout(fb); try { sub?.remove?.(); } catch {} try { player.release?.(); } catch {} fire(); }
         });
       } catch {}
+      this.currentPause = () => { clearTimeout(fb); try { player.pause?.(); } catch {} };
+      this.currentResume = () => {
+        fb = setTimeout(fire, Math.max(1500, Math.min(60000, text.length * 65 + 1500)));
+        try { player.play?.(); } catch { clearTimeout(fb); fire(); }
+      };
       try { player.play(); } catch { clearTimeout(fallback); fire(); }
       return () => {
-        clearTimeout(fallback);
+        clearTimeout(fb);
         try { sub?.remove?.(); } catch {}
         try { player.pause?.(); } catch {}
         try { player.release?.(); } catch {}

@@ -28,6 +28,7 @@ import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
 import { configureAlarmNotifications } from "@/src/alarmNotifs";
 import { registerForPush } from "@/src/pushRegister";
+import { AndroidKeyboardPadding } from "@/src/keyboard/AndroidKeyboardPadding"; // V50.z186 — tastiera Android edge-to-edge
 import { AxnBadgeSync } from "@/src/AxnDrawerBadge";
 import { GlobalErrorBoundary } from "@/src/GlobalErrorBoundary";
 
@@ -178,7 +179,10 @@ function StackWithCallBar() {
   }, [user?.user_id]);
   return (
     <View style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+      {/* V50.z186 — padding dinamico = altezza tastiera (solo Android): il campo attivo resta visibile */}
+      <AndroidKeyboardPadding>
+        <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+      </AndroidKeyboardPadding>
       {/* V50.z181 — badge icona app = notifiche AxonOS non lette */}
       <AxnBadgeSync enabled={!!user?.user_id} />
       <AssistantFAB />

@@ -193,6 +193,23 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z186 — PROMPT 1 Batch 5: stop vocale, audio in background, tastiera (moduli isolati)** —
+  (1) **Stop vocale nativo** `src/voice/useNativeBargeIn.ts`: su Android/iOS mentre Axon parla resta acceso un recorder di servizio con
+  metering; voce utente (> −22 dB e > rumore/eco +8 dB per ~450 ms) → pausa IMMEDIATA della voce, poi registra fino al silenzio e trascrive:
+  parola di stop («stop», «basta», «fermati», «zitto», «aspetta»…) → stop definitivo; frase nuova (≥3 parole, non eco del TTS) → stop + invio
+  come domanda; vuoto/eco (≥60% parole uguali alla frase in riproduzione) → riprende. `SentenceSpeaker` esteso in modo additivo con
+  `pause()/resume()/speakingText` (player nativo mantenuto, fallback timer ri-armato). Agganci: `AssistantChat.tsx` (`speakerRef`, hook
+  attivo con playingIdx≠null e mic libero) e `voice-copilot.tsx` (Axon Drive: `ttsPlayerRef` + `stopSpeaking`). Il detector web V38T resta.
+  (2) **Audio in background** `src/voice/voiceAudioMode.ts` (`ensureVoiceAudioMode`: allowsRecording + allowsBackgroundRecording +
+  shouldPlayInBackground + duckOthers; `releaseVoiceAudioMode` alla chiusura chat); `app.json`: plugin `expo-audio` con
+  `enableBackgroundRecording: true` (foreground service microfono Android + notifica persistente), `UIBackgroundModes: ["audio"]`,
+  permessi FOREGROUND_SERVICE / FOREGROUND_SERVICE_MICROPHONE. Verificato con `expo config --type introspect`. **Richiede nuova build nativa.**
+  (3) **Tastiera Android** `src/keyboard/AndroidKeyboardPadding.tsx` (`useAndroidKeyboardHeight` + wrapper): con edge-to-edge
+  `softwareKeyboardLayoutMode: resize` non ridimensiona più la finestra → paddingBottom dinamico = altezza tastiera attorno allo `<Stack>`
+  in `_layout.tsx` (tutte le schermate) e dentro i Modal full-screen con campi lunghi: `libretto-editor.tsx` (Copertina + Sezione),
+  `axon-scripts.tsx` (Incolla + Editor), `event-banners.tsx` (Modifica evento). iOS/web invariati.
+  (4) Fix collaterale Axon Drive: `api.post(...)`/`notify.warning|error` non esistevano (TypeError a runtime) → `api(path,{method:"POST",body})`,
+  `notify(titolo, msg)`. Voce e barge-in verificabili SOLO su build nativa (APK/IPA), non in Expo Go/web.
 - **V50.z185 — Knowledge Base Axon: PDF visibile + campi non coperti dalla tastiera (Android)** — (1) nuovo modulo isolato
   `backend/routes/master_docs_files.py`: il PDF caricato in `POST /master-docs` viene salvato anche su Emergent Object Storage
   (`file_path`/`file_size`, hook `_mdf_store_pdf` in 23); `POST /master-docs/{id}/link` (JWT 12h) → `GET /public/master-doc/{token}[?download=1]`
@@ -474,6 +491,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z186 | Set 2026 | Batch 5: stop vocale nativo (barge-in + parole di stop, pause/resume SentenceSpeaker), audio/registrazione in background (plugin expo-audio, UIBackgroundModes), padding tastiera Android globale + Modal lunghi; fix `api.post` Axon Drive |
 | V50.z185 | Set 2026 | Knowledge Base: PDF originale su Object Storage + Apri/Scarica/Testo estratto nel modal di modifica; fix campi coperti dalla tastiera Android (`master_docs_files.py`, `KbEntryEditorModal.tsx`) |
 | V50.z184 | Set 2026 | AxonOS invia push in autonomia dalla chat: consegna server-side promemoria/timer (kind `reminder`, arming esatto + tick 60s, no doppioni) + comandi «mandami una notifica…», «avvisami se…», «notifica di prova», «quali notifiche ho attive» (`routes/axon_chat_push.py`) |
 | V50.z183 | Set 2026 | Motto evolutivo "il CRM che si evolve con te" (`EvolutionMotto`) in copertina Libretto e landing |

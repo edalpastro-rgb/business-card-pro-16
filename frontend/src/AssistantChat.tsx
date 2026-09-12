@@ -23,6 +23,9 @@ import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 // Prima era solo web (MediaRecorder), quindi su APK i pulsanti mic + ascolto
 // continuo sparivano. Ora usiamo useAudioRecorder di expo-audio in modo nativo.
 import { useAudioRecorder, useAudioRecorderState, AudioModule, RecordingPresets } from "expo-audio";
+// V50.z186 — stop vocale nativo (barge-in) + sessione audio in background (moduli isolati)
+import { useNativeBargeIn } from "@/src/voice/useNativeBargeIn";
+import { ensureVoiceAudioMode, releaseVoiceAudioMode } from "@/src/voice/voiceAudioMode";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -225,6 +228,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const timerRef = useRef<any>(null);
   const durRef = useRef(0);
   const cleanupAudioRef = useRef<(() => void) | null>(null);
+  // V50.z186 — SentenceSpeaker corrente (pausa/riprendi dal barge-in nativo)
+  const speakerRef = useRef<SentenceSpeaker | null>(null);
   // V38T — Reference to current HTMLAudioElement for pause/resume
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   // V28.v — Drag-and-drop desktop: ref al contenitore + state per evidenziare la drop zone
@@ -301,6 +306,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       // era eseguito solo se `convModeRef.current` era true → audio residuo.
       if (cleanupAudioRef.current) { try { cleanupAudioRef.current(); } catch {} cleanupAudioRef.current = null; }
       setPlayingIdx(null);
+      void releaseVoiceAudioMode(); // V50.z186 — niente microfono in background dopo la chiusura
       // Also end continuous conversation (se attiva)
       if (convModeRef.current) {
         cleanupConversation();
@@ -666,6 +672,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         onAudioElement: (el) => { currentAudioRef.current = el; },
         onEnd: () => {
           currentAudioRef.current = null;
+          speakerRef.current = null;
           setPlayingIdx((v) => (v === -1 ? null : v));
           setPaused(false);
           cleanupAudioRef.current = null;
@@ -673,6 +680,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         },
       });
       const sp = speaker;
+      speakerRef.current = sp;
       cleanupAudioRef.current = () => sp.stop();
     }
     try {
@@ -873,6 +881,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
     setPlayingIdx(null); setPaused(false);
   };
+
+  // V50.z186 — Stop vocale su Android/iOS: mentre Axon parla il microfono resta in ascolto;
+  // "stop/basta/fermati" → si ferma subito; una nuova domanda detta sopra la voce → la invia.
+  useNativeBargeIn({
+    active: Platform.OS !== "web" && visible && playingIdx !== null && !paused && !recording && !transcribing,
+    onInterrupt: () => { if (speakerRef.current) speakerRef.current.pause(); else stopPlayback(); },
+    onStop: () => stopPlayback(),
+    onFalseAlarm: () => { speakerRef.current?.resume(); },
+    onUtterance: (t) => { void send(t, { forceSpeak: true }); },
+    speakingText: () => speakerRef.current?.speakingText || "",
+  });
 
   // V38T — Save an assistant reply to Master files (opens confirm modal)
   const openSaveToMaster = (content: string) => {
@@ -1263,7 +1282,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       try {
         const perm = await AudioModule.requestRecordingPermissionsAsync();
         if (!perm.granted) { notify("Permesso negato", "Consenti l'accesso al microfono nelle impostazioni."); return; }
-        await AudioModule.setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+        await ensureVoiceAudioMode({ recording: true }); // V50.z186 — registrazione anche in background/schermo bloccato
         await nativeRecorder.prepareToRecordAsync();
         nativeRecorder.record();
         setRecording(true);

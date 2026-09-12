@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Image, Platform, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AndroidKeyboardPadding } from "@/src/keyboard/AndroidKeyboardPadding"; // V50.z186 — tastiera Android dentro Modal
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
@@ -538,7 +539,7 @@ function EventBannersScreen() {
 
       {/* Create/Edit modal */}
       <Modal visible={!!editing} animationType="slide" transparent onRequestClose={() => setEditing(null)}>
-        <View style={styles.modalBack}>
+        <AndroidKeyboardPadding><View style={styles.modalBack}>
           <View style={[styles.modalCard, { paddingBottom: bottomPad }]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>{editing?.event_id ? "Modifica evento" : "Nuovo evento"}</Text>
@@ -896,7 +897,7 @@ function EventBannersScreen() {
               </Pressable>
             </View>
           </View>
-        </View>
+        </View></AndroidKeyboardPadding>
       </Modal>
 
       {/* v2.18 — Native DateTimePicker (iOS/Android). Web uses TextInput fallback above. */}
