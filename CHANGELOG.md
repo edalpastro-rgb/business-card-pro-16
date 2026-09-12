@@ -212,6 +212,11 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   `backend/tests/test_axon_integrations.py` ✅ 15/15 (status, scope per sfera, state axi, handled=false per Drive, connessione simulata Home
   senza toccare Business, eventi separati, sync pulita, revoca). **DA FARE dall'utente (guida)**: abilitare Google Calendar API e People API +
   scope calendar/contacts.readonly/drive.file nella schermata di consenso del progetto Google Cloud del Drive.
+  **BLOCCO 8 — BACKLOG (aggiunto dall'utente, da fare nelle fasi successive, nessuna modifica ancora)**: Fase 2 scontrini/nota spese
+  per sfera + estratto conto; Fase 3 archivio intelligente foto/audio/video («Privata o aziendale?», Non classificato + reminder,
+  trascrizione ricercabile, contesto per sfera); **Fase 4**: unificare `/my-thing`, `/my-web`, `/my-audios` sotto la Sfera Home come area unica
+  «Spazio Personale»; aggiungere il tag sfera (Privato/Business) a ogni elemento in `/axon-memory`; estendere `/my-audios` con classificazione
+  sfera e trascrizione automatica.
 - **V50.z196 — BLOCCO 9: Proattività AxonOS** — modulo isolato `backend/routes/axon_proactive.py` (dopo `axon_imported_data.py`, prima di 37).
   **STATO PRIMA**: AxonOS parlava solo se interrogato; lo scheduler inviava solo cgym_due / callback_urgent (−6h..+60min) / crediti / report
   Corporate Gym; nessun briefing, nessun suggerimento contestuale, nessun promemoria impostato da Axon, nessun report attività del consulente.
