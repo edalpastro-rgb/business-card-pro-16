@@ -193,6 +193,27 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z200 — AxonOS vede il backend in tempo reale (System Awareness)** — modulo isolato `backend/routes/axon_system_awareness.py`
+  (dopo `axon_media.py`, prima di 37) + `app/axon-system.tsx` + `src/systemHeartbeat.tsx` (montato in `_layout.tsx`) + card «🛰️ Stato
+  sistema» in Axon Hub. **STATO PRIMA**: Axon in chat dichiarava «non ho visibilità su build/aggiornamenti dell'app, devi dirmelo tu»: conosceva
+  i dati CRM ma non il sistema (versione installata, nuove build, novità, riavvii, job, errori, azioni API). **STATO DOPO**, quattro canali:
+  (1) **Eventi backend** `axon_system_events` (retention 14 gg): middleware HTTP (ogni POST/PUT/DELETE/PATCH con esito, utente, tenant, ms
+  + ogni 5xx/eccezione; esclusi heartbeat, chat stream, push tick, meteo), handler di logging sul root logger (tutti i WARNING/ERROR di
+  qualunque modulo, dedupe 60 s), boot/deploy del backend (`axon_backend_meta`: boot_id, versione CHANGELOG, «Deploy/riavvio · versione
+  A → B»), esiti job scheduler (listener APScheduler: fallimenti + job principali), `axs_event()` riusabile. (2) **Versioni app installate**
+  `axon_client_versions`: `POST /axon/system/heartbeat` (device_key stabile, piattaforma, versione nativa APK/IPA + build da expo-application,
+  versione JS, dispositivo, ambiente) all'avvio e al rientro in foreground (max 1/30 min); versione nuova su un dispositivo → evento
+  `client_update` + **messaggio proattivo** (`_apx_emit`, chat + push, alert `client_update` disattivabile) «🚀 Ho rilevato da solo che hai
+  aggiornato l'app: X → Y … ultime novità dal CHANGELOG». (3) **CHANGELOG** letto da `/app/CHANGELOG.md` (cache su mtime): versione backend
+  = prima riga dell'indice + ultime novità. (4) **Prompt**: wrapper `_prepare_assistant_prompt` → sezione «🛰️ STATO SISTEMA IN TEMPO REALE»
+  (backend/uptime/boot, LLM/push, dispositivi e versioni con ultimo heartbeat, novità, job e prossime esecuzioni, integrazioni, contatori 24h,
+  ultimi 18 eventi) con REGOLA: mai dire «non ho visibilità / devi avvisarmi». Chat senza LLM (wrapper `_maybe_push_command`, messaggi ≤ 60
+  caratteri): «che versione ho?», «hai aggiornamenti?», «cosa c'è di nuovo?», «stato sistema», «cosa è successo nel backend». API: `GET
+  /axon/system/status|events|changelog`. Schermata `/axon-system`: backend + chip stato, KPI 24h (errori/warning/azioni API), dispositivi
+  (+ team per il Master), novità, job, eventi filtrabili (Tutti/Errori/Azioni API/Deploy-App-Job) con dettaglio; pull-to-refresh invia anche
+  un heartbeat. Visibilità: Master = eventi del tenant + sistema; collaboratore = solo i propri + deploy/job. Test `backend/tests/test_axon_system.py`
+  ✅ 10/10 (heartbeat + rilevamento aggiornamento, device previous_version, status, eventi deploy/client, proattivo emesso, middleware 400 →
+  warning, chat, changelog) + LLM in streaming risponde con versioni reali («App Pixel: v1.0.60, aggiornata da 1.0.57. Backend: V50.z199»).
 - **V50.z199 — BLOCCO 8 · Fase 3: Archivio intelligente foto / audio / video a due sfere** — modulo isolato `backend/routes/axon_media.py`
   (dopo `axon_expenses.py`, prima di 37) + `app/axon-media.tsx` + `src/MediaVoiceRecorder.tsx`. **STATO PRIMA**: foto/audio/video finivano in
   posti diversi (scanner, audio Master, chat) senza sfera, trascrizione né ricerca. **STATO DOPO**: `POST /axon/media {kind photo|audio|video,
@@ -718,6 +739,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z200 | Set 2026 | Axon vede il backend in tempo reale: eventi API/log/deploy/job, versioni app installate via heartbeat + alert proattivo «App aggiornata» con novità CHANGELOG, sezione prompt «Stato sistema», chat «hai aggiornamenti?», schermata `/axon-system` (`routes/axon_system_awareness.py`, `src/systemHeartbeat.tsx`) |
 | V50.z199 | Set 2026 | BLOCCO 8 Fase 3: archivio intelligente foto/audio/video a due sfere («Privata o aziendale?», ⚪ Non classificato + reminder 2 h, Whisper + Gemini vision/OCR, ricerca, chat) (`routes/axon_media.py`, `app/axon-media.tsx`, `src/MediaVoiceRecorder.tsx`, card in Integrazioni) |
 | V50.z198 | Set 2026 | BLOCCO 8 Fase 2: scontrini → nota spese per sfera con PDF (Master anche team), estratto conto → report categorizzato (`routes/axon_expenses.py`, `app/axon-expenses.tsx`, ingressi da Integrazioni e Report, chat «quanto ho speso») |
 | V50.z197 | Set 2026 | BLOCCO 8 Fase 1: hub Integrazioni AxonOS a due sfere 🔵 Business / 🟢 Home (`routes/axon_integrations.py`, `app/axon-integrations.tsx`): Google Calendar (bidirezionale) + Contacts per sfera con OAuth distinto un tap, revoca un tap, dati referenziati, Drive/Dropbox/Domotica collegati, contesto Axon per sfera |

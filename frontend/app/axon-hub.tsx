@@ -43,6 +43,8 @@ const CARDS: Card[] = [
     title: "⏰ Timer & Sveglie", sub: "Sveglie, timer e promemoria in-app" },
   { id: "axon-homeassistant", href: "/axon-homeassistant", icon: "home", color: "#7C3AED",
     title: "🏠 Home Assistant", sub: "Controlla luci, tapparelle, serrature" },
+  { id: "axon-system", href: "/axon-system", icon: "pulse", color: "#7C3AED",
+    title: "🛰️ Stato sistema", sub: "Cosa vede Axon del backend: versioni app, novità, eventi, job, errori" },
   // Comunicazioni
   { id: "outlook", href: "/outlook", icon: "mail", color: "#F97316",
     title: "📧 Outlook (Microsoft)", sub: "Collega la casella e leggi le mail con Axon" },

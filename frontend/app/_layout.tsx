@@ -32,6 +32,7 @@ import { AndroidKeyboardPadding } from "@/src/keyboard/AndroidKeyboardPadding";
 import { RootInsetsProbe } from "@/src/hooks/useSafeBottom"; // V50.z187 — inset bottom radice uniforme // V50.z186 — tastiera Android edge-to-edge
 import { AxnBadgeSync } from "@/src/AxnDrawerBadge";
 import { PushBridgeSync } from "@/src/pushBridge"; // V50.z193 — canale Android default (modulo) + registrazione token con retry + stato al server
+import { SystemHeartbeat } from "@/src/systemHeartbeat"; // V50.z200 — versione app installata → Axon
 import { GlobalErrorBoundary } from "@/src/GlobalErrorBoundary";
 
 configureNotifHandler();
@@ -189,6 +190,8 @@ function StackWithCallBar() {
       <AxnBadgeSync enabled={!!user?.user_id} />
       {/* V50.z193 — Bridge push: token con retry + stato dispositivo al server + ack test programmati */}
       <PushBridgeSync userId={user?.user_id} />
+      {/* V50.z200 — Heartbeat versione app → Axon rileva da solo gli aggiornamenti (APK/IPA) */}
+      <SystemHeartbeat userId={user?.user_id} />
       <AssistantFAB />
       {/* V50.z147 — Rimosso il bottone Help/Support Center dalle top header di tutte le pagine
           (`<SupportFab />`, V49.j/k): ridondante con il tab "Help" della bottom bar (V50.z141).
