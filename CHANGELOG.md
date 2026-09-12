@@ -249,9 +249,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   token + report al server; `<PushBridgeSync userId>` nel layout (avvio, foreground ≤1/30 min, ack test); card **"Stato canale push"** in
   Notifiche AxonOS → Preferenze (stato, ultima consegna/problema, esito test, «Test push tra 2 minuti», «Apri impostazioni» se negato,
   «Ricollega»). Test `backend/tests/test_axon_push_bridge.py` ✅ (device report/nudge/diag/no falsi positivi/log/test programmato 2 min
-  puntuale/ack). **DA FARE dall'utente**: fornire `google-services.json` (Firebase, package `com.emergent.consulenteapp.zkleir`) → salvare in
-  `frontend/google-services.json` + `"googleServicesFile": "./google-services.json"` in `expo.android` → Publish → nuova build. Senza il
-  file, Android non ottiene il token FCM e nessun push nativo può arrivare (la card lo dirà: "manca la configurazione Firebase").
+  puntuale/ack). **FATTO (V50.z194b)**: `frontend/google-services.json` fornito dall'utente (Firebase project `advisoros-a406d`, package
+  `com.emergent.consulenteapp.zkleir`) + `"googleServicesFile": "./google-services.json"` in `expo.android` di `app.json`. Ora serve
+  Publish → nuova build Android: il telefono otterrà il token FCM e i push arriveranno anche ad app chiusa.
 
 - **V50.z192 — BLOCCO 9b: Memoria visibile AxonOS «Cosa sa Axon di me»** — nuovo modulo isolato `backend/routes/axon_memory.py`
   (collection `axon_user_memory` {section, text, source auto|manual, confidence, evidence}; `axon_user_memory_forgotten` = voci cancellate/

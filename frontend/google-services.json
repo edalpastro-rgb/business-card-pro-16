@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "948175560174",
+    "project_id": "advisoros-a406d",
+    "storage_bucket": "advisoros-a406d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:948175560174:android:2c8feb375ca91a507702ff",
+        "android_client_info": {
+          "package_name": "com.emergent.consulenteapp.zkleir"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuEcE42NJRR6BsUVv0TlVXrj6Mm0mvU0s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
