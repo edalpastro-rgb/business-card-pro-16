@@ -4,7 +4,8 @@ import { AppState, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { api } from "@/src/api";
 
-export type AxnKind = "cgym_due" | "callback_urgent" | "credits" | "weekly_report" | "axon_message" | "reminder";
+export type AxnKind = "cgym_due" | "callback_urgent" | "credits" | "weekly_report" | "axon_message" | "reminder"
+  | "proactive_briefing" | "proactive_suggestion" | "proactive_alert" | "proactive_weekly"; // V50.z196 — Blocco 9 proattività
 
 export type AxnNotification = {
   notif_id: string; tenant_id: string; user_id: string; kind: AxnKind; title: string; body: string;
@@ -30,6 +31,7 @@ export const axnApi = {
 
 export const AXN_KIND_ICON: Record<AxnKind, string> = {
   cgym_due: "barbell", callback_urgent: "call", credits: "flash", weekly_report: "stats-chart", axon_message: "sparkles", reminder: "alarm",
+  proactive_briefing: "sunny", proactive_suggestion: "bulb", proactive_alert: "warning", proactive_weekly: "calendar", // V50.z196
 };
 
 /** Aggiorna il badge sull'icona dell'app (solo nativo). */

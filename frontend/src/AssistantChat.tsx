@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  DeviceEventEmitter, // V50.z196
   View,
   Text,
   StyleSheet,
@@ -48,6 +49,7 @@ import { AxonOSLogo } from "@/src/BrandLogos";
 import { streamAssistantChat } from "@/src/utils/assistantStream";
 import { useAxonProgress, AxonProgressBubble } from "@/src/axonProgress"; // V50.z194 — stato visibile >3s
 import { ImportConfirmChips, hasImportQuestion } from "@/src/ImportConfirmChips"; // V50.z194 — «Vuoi che memorizzi…?»
+import { AXON_OPEN_CHAT_EVENT, consumePendingPrompt } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
 import { conversationToText, copyText, shareText, exportConversationPdf } from "@/src/utils/chatExport";
@@ -280,6 +282,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   useEffect(() => {
     if (visible) {
       loadHistory();
+      // V50.z196 — Blocco 9: prompt in attesa (tap su bubble/notifica proattiva o voce) → inviato appena la chat è aperta
+      const pending = consumePendingPrompt();
+      if (pending) setTimeout(() => { void sendRef.current?.(pending); }, 900);
       // V50.z17 — Al primo avvio dell'assistente AxonOS, apri l'HELP CENTER
       // (termini d'uso + richiesta cancellazione dati). Flag salvato su
       // AsyncStorage: `helpcenter_seen_v1`.
@@ -812,6 +817,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       setSending(false);
     }
   };
+  // V50.z196 — ref stabile a send() per il prompt proattivo in attesa (evita chiusure stantie nell'effect di apertura)
+  const sendRef = useRef(send);
+  useEffect(() => { sendRef.current = send; });
 
   // V29.n — Interrompe immediatamente la risposta in corso.
   const stopGeneration = () => {
@@ -2488,6 +2496,11 @@ export function AssistantFAB() {
   };
   const handlePressRef = useRef(handlePress);
   useEffect(() => { handlePressRef.current = handlePress; });
+  // V50.z196 — Blocco 9: apertura chat da bubble proattive / notifiche / segnale vocale esterno (ViolaWake-ready).
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(AXON_OPEN_CHAT_EVENT, () => setOpen(true));
+    return () => sub.remove();
+  }, []);
   // V50.z131 — Tap robusto: la Pressable interna gestisce il tap in modo
   // nativo (indipendente dalla negoziazione del PanResponder, che su alcune
   // schermate con liste lunghe — es. Contatti — non arrivava al release).

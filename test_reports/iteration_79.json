@@ -1,0 +1,28 @@
+{
+  "summary": "V50.z196 BLOCCO 9 — Proattività AxonOS frontend testing on web preview (mobile viewport 390x844). Login required dispatch_event('click') on submit (force=True was a no-op). All 5 flows (A/B/C/D/E) executed. RESULTS: A) /axon-proactive — header, 3 quick buttons, current card, items list all render; 'Briefing ora' produces card with 'Briefing di' and 'Obiettivi settimanali'; 'Report settimana' produces card with 'Report settimana' — PASS. B) Tap proactive-action-0 opens chat modal (AxonOS bottom sheet), auto-sends prompt (e.g. 'Preparami il briefing completo su TEST_Luca Rossi…') as user message, streams Axon reply; ☀️ Briefing and 📊 Report proactive messages present in chat history — PASS. C) Home '/' shows proactive-bubbles with 3 bubbles; ✕ dismiss removes a bubble (3→2); 'Vedi tutte' navigates to /axon-proactive — PASS. D) /axon-notifications?tab=prefs shows proactive-settings-card; toggle inactive alert off/on works; threshold inactive_days=45 persists after reload; all 4 notification-type labels present (Briefing mattutino AxonOS, Suggerimenti proattivi AxonOS, Alert critici proattivi, Report settimanale AxonOS); ISSUE: briefing_time change to '07:45' did NOT persist after reload (stayed 07:30) — same pattern used by proactive-weekly-time, proactive-quiet-start, proactive-quiet-end. E) /axon-memory memory-sec-proactive visible with 7 proactive-log-* rows + open button navigating to /axon-proactive — PASS. No red-screen errors; chat normale continua a funzionare. Console noise: standard RN-web deprecations (shadow*, textShadow*, pointerEvents, useNativeDriver).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProactiveSettingsCard.tsx", "issue": "briefing_time TextInput does not persist on web. Root cause: uses `defaultValue={cfg.briefing_time}` + `onEndEditing={(e) => save({ briefing_time: e.nativeEvent.text })}`. On react-native-web, `e.nativeEvent.text` is often empty/undefined so save() is called with empty string (or the save is a no-op). Verified: typing 07:45 → Tab → reload → still 07:30. Same issue affects proactive-weekly-time, proactive-quiet-start, proactive-quiet-end (all use identical pattern lines 67, 85, 107, 109). Reference: /app/frontend/src/ProactiveSettingsCard.tsx:67. Suggested fix: use controlled state like NumField pattern (local useState + onBlur reading from state), NOT e.nativeEvent.text.", "testID": "proactive-briefing-time", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix persistence for time TextInputs in ProactiveSettingsCard.tsx (briefing_time, weekly_report_time, quiet_start, quiet_end). Replace `onEndEditing={(e) => save({ key: e.nativeEvent.text })}` with a controlled input (local useState + onBlur/onSubmitEditing reading from the state variable). Pattern already correctly used by NumField in the same file — reuse it or clone the same idea for HH:mm strings."
+  ],
+  "critical_code_review_comments": [
+    "ProactiveSettingsCard.tsx: 4 TextInputs rely on `e.nativeEvent.text` which is unreliable on react-native-web — refactor to controlled inputs.",
+    "axon-proactive.tsx: `respondToItem` fires respond → openAxonChat; but the FAB modal must be listening at time of dispatch. On the /axon-proactive screen the FAB is present in root _layout, verified working. OK.",
+    "ProactiveBubbles.tsx: `setInterval(load, 120000)` — polling every 2 min may cause unnecessary API load if the page is left open; consider WebSocket/eventing later."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (backend testing skipped per request; 18/18 already passing per agent-to-agent note)", "frontend": "~95% — 4/5 flows pass fully; D has 1 persistence bug on briefing_time"},
+  "seed_data_creation": "None. Existing TEST_* data (TEST_Luca Rossi, TEST_V20 callback, TEST_soon, TEST_E2E Retest, TEST_later, TEST_E2E ritelefonata) was used by the briefing generator.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login on web preview: TouchableOpacity buttons often ignore Playwright click(force=True) — use `page.locator(...).dispatch_event('click')` instead. Also need to type into inputs (page.fill on TextInput doesn't always trigger the RN state — use page.click + page.keyboard.type). Set localStorage 'helpcenter_seen_v1'='1' before opening the assistant chat modal. Post-login onboarding page at /libretto?onboarding=1 — can be bypassed by navigating directly to target routes. Auth token is stored via AsyncStorage under key 'auth_token_v1' (localStorage on web).",
+  "rca_of_issue": "briefing_time persistence bug — In ProactiveSettingsCard.tsx line 67: `<TextInput defaultValue={cfg.briefing_time} onEndEditing={(e) => save({ briefing_time: e.nativeEvent.text })} ... testID='proactive-briefing-time' />`. On react-native-web `onEndEditing`'s SyntheticEvent shape does not populate `nativeEvent.text` the same way as native, so `e.nativeEvent.text` is undefined/empty → save() writes an empty string (or gets rejected server-side) → config unchanged. inactive_days uses NumField which stores value in local state `v` and reads it in `onBlur`/`onSubmitEditing` — this works. Reproduction: 1) Login as test@dalpastro.it. 2) Open /axon-notifications?tab=prefs. 3) Focus proactive-briefing-time, clear, type '07:45', Tab out. 4) Reload page. 5) Field is still 07:30 (unchanged). Mitigation: replace the 4 time TextInputs with controlled components (local state + explicit onBlur that reads from state)."
+}

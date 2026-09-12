@@ -19,6 +19,7 @@ import { DeadlineActionsSheet, DeadlineItem } from "@/src/DeadlineActionsSheet";
 const APPT_TODAY_WIDGET = ["appointments_today"];
 import { HomeTipsBanner } from "@/src/HomeTipsBanner";
 import { CgymAlertStrip } from "@/src/corporate-gym/CgymAlertStrip"; // Corporate Gym (Blocco 1)
+import { ProactiveBubbles } from "@/src/ProactiveBubbles"; // V50.z196 — Blocco 9: bubble proattive AxonOS
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 // V29.aq — Header dashboard image (loaded as local bundled asset so it works
@@ -446,6 +447,8 @@ export default function HomeScreen() {
         <HomeTipsBanner />
         {/* Corporate Gym (Blocco 1) — striscia sottile: solo con sessioni obbligatorie non completate */}
         <CgymAlertStrip />
+        {/* V50.z196 — Blocco 9: suggerimenti/alert proattivi di AxonOS (tap → chat) */}
+        <ProactiveBubbles />
         {/* ── Trial banners ── */}
         {subscription?.status === "trial" && (subscription.days_left ?? 999) <= 7 && (
           <View style={[styles.banner, { backgroundColor: (subscription.days_left ?? 0) <= 3 ? C.dangerSoft : C.warningSoft, borderColor: (subscription.days_left ?? 0) <= 3 ? C.danger : C.warning }]}>

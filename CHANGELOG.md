@@ -193,6 +193,36 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z196 — BLOCCO 9: Proattività AxonOS** — modulo isolato `backend/routes/axon_proactive.py` (dopo `axon_imported_data.py`, prima di 37).
+  **STATO PRIMA**: AxonOS parlava solo se interrogato; lo scheduler inviava solo cgym_due / callback_urgent (−6h..+60min) / crediti / report
+  Corporate Gym; nessun briefing, nessun suggerimento contestuale, nessun promemoria impostato da Axon, nessun report attività del consulente.
+  **STATO DOPO**: event listener interno (job `apx-tick` 60 s su `_axn_scheduler`, scan per utente ogni 10 min, ore di silenzio 21:00-08:00
+  configurabili). (a) **Briefing mattutino** (default 07:30 Europe/Rome, giorni Lun-Sab, orario/giorni per utente; finestra di recupero +4 h
+  dopo riavvio): appuntamenti di oggi, richiamate in scadenza/scadute, clienti non contattati da > N gg (ultima interazione = max chiamate /
+  appuntamenti passati / creazione), contratti in scadenza ≤ N gg, obiettivi settimanali % (telefonate/appuntamenti/contratti/nuovi contatti vs
+  target), domani. (b) **Suggerimenti contestuali** (max N/giorno per utente — default 3 — con tetto Master `team_max_suggestions_per_day`):
+  cliente inattivo («Sono passati 30 giorni da …. Vuoi che prepari un messaggio di follow-up?»), appuntamento domani (dalle 16:00), contratto in
+  scadenza, obiettivo settimanale ≤ N % da mercoledì 12:00. (c) **Alert critici** (max 5/giorno): scadenza critica entro N h (contratti,
+  richiamate ≤ 24 h), richiamata urgente non evasa da > N h, anomalia dati importati (ultimo valore vs media serie > N %), **promemoria impostati
+  da AxonOS in chat**: istruzione nel system prompt (wrapper a catena di `_prepare_assistant_prompt`) → riga «📌 Promemoria proattivo:
+  GG/MM/AAAA HH:MM — testo» → harvest dallo scan (idempotente per message_id, `apx_harvested`) → `axon_proactive_reminders` → notifica alla
+  scadenza. (d) **Report settimanale** lunedì (default 08:00): telefonate, appuntamenti completati, contratti, clienti aggiunti con trend vs
+  settimana prima e obiettivi vs target, leggibile in 30 s. Ogni comunicazione passa da `_apx_emit`: log `axon_proactive_log` {kind
+  briefing|suggestion|alert|weekly, type, title, body, chat_text, actions[{label,prompt}], deeplink /axon-proactive?item=…, source, push_status,
+  read/dismissed/responded_at} → **messaggio già in chat** (`assistant_messages`, kind proactive) → push via `axon_notify` (→ bridge push z193,
+  esito reale + retry) con nuovi kind in `AXN_KINDS` (`proactive_briefing/suggestion/alert/weekly`: toggle per utente nelle Preferenze esistenti).
+  **TRIGGER UNICO ViolaWake-ready**: `POST /axon/proactive/trigger {action: briefing|weekly_report|scan|open, source: manual|notification_tap|
+  voice|wake_word, item_id}` → stessa funzione da tap notifica o da segnale vocale esterno; lato app `openAxonChat(prompt)` (evento
+  `axon:open-chat`, `src/axonProactive.ts`) apre la chat e invia il prompt (hook minimi in `AssistantChat.tsx`: listener nel FAB + `consumePendingPrompt`
+  all'apertura, `sendRef`). API: `GET/PUT /axon/proactive/config` (soglie, orari, giorni, max/giorno, quiet hours, alerts on/off, weekly_targets),
+  `GET /axon/proactive/items[?home=1]`, `GET /items/{id}`, `POST /items/{id}/dismiss|respond|read`, `GET/POST/DELETE /axon/proactive/reminders`.
+  Chat: «briefing di oggi» / «report della settimana» (wrapper a catena di `_maybe_push_command`). Frontend: `app/axon-proactive.tsx`
+  (schermata: comunicazione corrente con azioni → chat, «Rispondi a voce in chat», Briefing ora / Report settimana / Controlla ora, elenco),
+  `src/ProactiveBubbles.tsx` in Home sotto CgymAlertStrip (≤ 3 bubble 36 h non gestite: tap → chat, ✕ ignora), `src/ProactiveSettingsCard.tsx`
+  in Notifiche AxonOS → Preferenze (tutte le soglie/orari/toggle/target), `src/ProactiveLogSection.tsx` in Memoria AxonOS («Comunicazioni
+  proattive»). `AXN_KIND_ICON`/`AxnKind` estesi (additivo). Test `backend/tests/test_axon_proactive.py` ✅ 18/18 (config merge, trigger voce,
+  chat precaricata, push bridge, report, scan+anomalia sintetica, bubble/dismiss, comandi chat, promemoria Axon harvest→firing, reminders API);
+  test frontend agente ✅ (schermata, azione→chat con prompt auto-inviato, bubble Home, preferenze, log Memoria) — fix: campi orario con `TimeField` controllato (onEndEditing non affidabile su web).
 - **V50.z195 — Splash + branding: struttura finale** — (1) `app/landing.tsx` (hero/"splash" all'avvio da sloggato): resta il logo
   AdvisorOS in alto; sotto il logo AxonOS **completamente visibile** su card blu navy solida (`axonLogoBox`, prima era illeggibile su
   fondo chiaro); RIMOSSI il titolo "AdvisorOS" grande (ripetizione), il claim "AxonOS — Brain+" (`BrainPlus` non più importato nella landing,
@@ -623,6 +653,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z196 | Set 2026 | BLOCCO 9 Proattività AxonOS (`routes/axon_proactive.py`): briefing mattutino 07:30, suggerimenti contestuali max N/g, alert critici (scadenze, richiamate, anomalie dati, promemoria di Axon), report lunedì; trigger unico ViolaWake-ready; bubble Home, schermata /axon-proactive, impostazioni in Preferenze, log in Memoria |
 | V50.z195 | Set 2026 | Splash/landing: logo AxonOS 100% su card navy, rimossi titolo "AdvisorOS" grande e "AxonOS — Brain+" dalla hero (restano motto e spot arancione); AnimatedSplash senza scritta AdvisorOS; nuova intro Libretto "AdvisorOS 2.0 + AxonOS" (contenuto + mappa app) |
 | V50.z194 | Set 2026 | Stato visibile >3 s durante elaborazioni lunghe (bolla intermedia contestuale: tabella/PDF/GME/meteo/web, `src/axonProgress.tsx`) + Persistenza dati importati da PDF/Excel/CSV su conferma «Vuoi che memorizzi questi dati per uso futuro?» (`routes/axon_imported_data.py`, `axon_imported_data` condivisa col team, iniettata nelle chat, pulsanti rapidi, sezione «Dati importati» in Memoria AxonOS) |
 | V50.z193 | Set 2026 | Fix push autonome: bridge persistente AxonOS → Push Service (`routes/axon_push_bridge.py`: wrapper `send_push` con esito reale + outbox retry backoff, `push_devices` con `last_failed_at`, `GET /axon/push/status` in linguaggio semplice, test programmato a N minuti + ack dal telefono, nudge in chat se permesso negato; `src/pushBridge.ts` canale Android default a livello modulo + registrazione con retry; card «Stato canale push»). Causa radice: manca `google-services.json` (da fornire) |
