@@ -46,6 +46,8 @@ import { DropboxPickerModal } from "@/src/DropboxPickerModal";
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { AxonOSLogo } from "@/src/BrandLogos";
 import { streamAssistantChat } from "@/src/utils/assistantStream";
+import { useAxonProgress, AxonProgressBubble } from "@/src/axonProgress"; // V50.z194 — stato visibile >3s
+import { ImportConfirmChips, hasImportQuestion } from "@/src/ImportConfirmChips"; // V50.z194 — «Vuoi che memorizzi…?»
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
 import { conversationToText, copyText, shareText, exportConversationPdf } from "@/src/utils/chatExport";
@@ -191,6 +193,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [transcribing, setTranscribing] = useState(false);
   // V50.z126 — Testo di stato del preflight streaming ("Sto raccogliendo il contesto…")
   const [progressText, setProgressText] = useState<string | null>(null);
+  const prog = useAxonProgress(); // V50.z194 — bolla intermedia contestuale dopo 3 s senza risposta
   const [recDuration, setRecDuration] = useState(0);
   const [responseMode, setResponseMode] = useState<ResponseMode>("text");
   // V28.o — Quick actions personalizzabili (mostrate nell'empty state della chat).
@@ -687,6 +690,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       // V50.z142 — Feedback immediato locale: mostra subito "Sto ragionando…" nella bolla
       // di typing; il server invia lo stesso ack come primo evento SSE (stage "ack").
       setProgressText("Sto ragionando…");
+      prog.start({ message: msg, attachmentNames: attachmentsPayload.map((a) => a.name) });
       // V40 — Streaming path via SSE. Append delta chunks to the last message
       // in real time. Falls back to a regular POST if streaming fails.
       const streamResult = await streamAssistantChat({
@@ -699,6 +703,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           // V50.z126 — Stato del preflight visibile ("Sto raccogliendo il contesto…")
           armWatchdog();
           if (p?.text) setProgressText(p.text);
+          prog.onServer(p || {});
         },
         onMeta: (meta) => {
           setProgressText(null);
@@ -719,6 +724,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         },
         onDelta: (chunk) => {
           armWatchdog();
+          prog.onFirstDelta();
           speaker?.feed(chunk);
           setMessages((prev) => {
             if (!prev.length) return prev;
@@ -802,6 +808,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       if (watchdog) clearTimeout(watchdog);
       abortRef.current = null;
       setProgressText(null);
+      prog.stop();
       setSending(false);
     }
   };
@@ -1604,12 +1611,23 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   onFeedback={m.role === "assistant" ? (rating) => handleFeedback(i, rating) : undefined}
                 />
               ))}
-              {sending && (
+              {/* V50.z194 — Pulsanti rapidi sotto la domanda «Vuoi che memorizzi questi dati per uso futuro?» */}
+              {!sending && messages.length > 0 && messages[messages.length - 1].role === "assistant" && !messages[messages.length - 1].streaming && hasImportQuestion(messages[messages.length - 1].content) && (
+                <ImportConfirmChips onAnswer={(t) => void send(t)} />
+              )}
+              {sending && prog.visible && (
+                <AxonProgressBubble text={prog.text} elapsed={prog.elapsed} assistantName={assistantName} />
+              )}
+              {sending && !prog.visible && (
                 <>
                   <View style={styles.typingBubble}>
                     <TypingDots />
                     <Text style={styles.typingTxt}>{progressText || `${assistantName} sta scrivendo…`}</Text>
                   </View>
+                </>
+              )}
+              {sending && (
+                <>
                   <Pressable
                     testID="assistant-stop-btn"
                     onPress={stopGeneration}

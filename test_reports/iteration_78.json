@@ -1,0 +1,33 @@
+{
+  "summary": "V50.z194 frontend testing (Expo web preview, mobile 390x844). All 3 requested flows PASSED. A) axon-progress-bubble: after sending long PUN analytical prompt, at t~3s a bubble with testID 'axon-progress-bubble' appeared with contextual text 'Sto cercando i dati su GME…' + line '<Neo> sta lavorando · 3 s'. Bubble disappeared once the response streaming began (first delta), and the final markdown response with the PUN Gen/Ago table + risparmio annuo estimation was rendered. B) /axon-memory 'Dati importati': memory-sec-imported card visible, imported-cat-toggle-PUN expands (31 valori), inline edit of first row (valore 99.9999) persisted after save (count now shows '31 valori' with the edited value '99,9999 €/MWh' visible), delete of that same row succeeded (row disappeared, count decreased). C) 'quali dati hai memorizzato?' → response mentions PUN as expected; no import-confirm-chips shown (correct, since no import context). No red screens, no functional console errors — only deprecation warnings (see below).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Chat bottom sheet", "issues": ["The upper action strip (Annunci/Audio/Nuova chat/Altro/Chiudi) overlaps the transparent AdvisorOS header banner; visually the icons are legible but sit on top of the star-field background. Minor cosmetic — not blocking."]}
+    ],
+    "react_native_issues": [
+      {"component": "Console warnings", "issue": "'shadow*' style props are deprecated (use 'boxShadow') and 'textShadow*' deprecated (use 'textShadow'); 'props.pointerEvents is deprecated (use style.pointerEvents)'; 'useNativeDriver' fallback to JS animation (expected on web). Not regressions of this iteration but reported for hygiene."},
+      {"component": "React DOM warning", "issue": "'Invalid DOM property transform-origin. Did you mean transformOrigin?' — one component emits camelCase-vs-kebab mismatch on web. Non-blocking but should be tracked."}
+    ]
+  },
+  "test_report_links": ["/tmp/03_progress.png", "/tmp/04_response.png", "/tmp/05_memory_q.png", "/tmp/07_expanded.png", "/tmp/08_after_edit.png", "/tmp/09_after_delete.png"],
+  "action_items": [
+    "Optional cleanup: address 'shadow*'/'textShadow*'/'pointerEvents' deprecation warnings and 'transform-origin' DOM-prop warning to keep the web build clean.",
+    "No blocking issues on V50.z194 features — main agent can proceed."
+  ],
+  "critical_code_review_comments": [
+    "axonProgress.tsx: pure progressHint() helper is well-scoped and testable — good separation of concerns.",
+    "ImportedDataSection.tsx: fmtValore() handles small (<1000) values with 4-decimal precision replacing '.' with ',' — this matches the it-IT display and the observed '99,9999 €/MWh' render.",
+    "ImportedDataSection.tsx: confirmAsync uses window.confirm on web — verified working (page.on('dialog', d.accept()) handled the row delete).",
+    "AxonMemoryScreen: the ImportedDataSection is rendered inside the scroll after the standard memory sections — correct placement per spec."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (3/3 flows A/B/C)"},
+  "seed_data_creation": "None. Used existing ~30 PUN values seeded by backend tests; one row was edited (value → 99.9999) and then deleted during test. Net effect: 1 row deleted from PUN category (from 31 back to 30).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login flow tip: (1) set localStorage 'helpcenter_seen_v1'='1' BEFORE submitting login, (2) click auth-submit-button via btn.dispatch_event('click') — plain click(force=True) was flaky on the animated button, (3) after login the app redirects to /libretto?onboarding=1 — click text 'Salta intro' then 'Salta' to dismiss and land on /home. Token is stored under localStorage key 'auth_token_v1'. Chat bottom sheet opens via [data-testid='assistant-fab'] then use [data-testid='assistant-input'] + [data-testid='assistant-send'] with dispatch_event('click') for reliability. Backend test file for imported data: /app/backend/tests/test_axon_imported_data.py (already 100% per main agent).",
+  "rca_of_issue": "N/A — no bugs found. Feature works as spec."
+}

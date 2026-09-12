@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { ImportedDataSection } from "@/src/ImportedDataSection"; // V50.z194 — dati importati da PDF/Excel
 
 const PURPLE = "#7C3AED";
 type Item = { id: string; section: string; text: string; source: "auto" | "manual"; confidence: number; evidence?: string | null; updated_at: string };
@@ -129,6 +130,9 @@ export default function AxonMemoryScreen() {
             ))}
           </View>
         ))}
+
+        {/* V50.z194 — Dati strutturati importati (PUN, tariffe, futures…) condivisi con il team */}
+        <ImportedDataSection />
 
         <Pressable onPress={removeAll} style={styles.dangerBtn} testID="memory-delete-all">
           <Ionicons name="trash" size={16} color="#B91C1C" /><Text style={styles.dangerTxt}>Cancella tutta la memoria</Text>

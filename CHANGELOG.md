@@ -193,6 +193,36 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z194 — Stato visibile durante elaborazioni lunghe + Persistenza dati importati** (moduli isolati, hook minimi).
+  **(2) STATO PRIMA**: il server emetteva già eventi SSE `progress` (ack/preflight/cache/thinking) mostrati come testo piccolo nella bolla
+  "typing"; dopo `meta` il testo tornava generico ("Neo sta scrivendo…") con bolla assistente vuota per 6-15 s (Sonnet) → percepito come
+  silenzio; nessun messaggio contestuale (GME, tabella, PDF). **DOPO**: `src/axonProgress.tsx` (`useAxonProgress`, `progressHint` pura,
+  `AxonProgressBubble`): dopo **3 s** senza primo delta compare in chat una bolla intermedia di Axon con frase contestuale — Excel/CSV
+  «Sto analizzando la tabella, ci vogliono circa 15 secondi…», PDF «Sto leggendo il PDF…», immagine, PUN/GME/prezzi «Sto cercando i dati su
+  GME…», meteo, ricerca web/ARERA, bollette/scadenze, CRM; fase server `thinking` → «Sto scrivendo la risposta…»/«Sto analizzando in
+  profondità…», `cache` → testo server; fallback «Elaborazione in corso…» → 10 s «Ci sto lavorando…» → 20 s «Analisi complessa in corso…»;
+  mostra «{nome} sta lavorando · N s». Scompare al primo carattere della risposta (`onFirstDelta`) o a fine/errore (`stop`). Hook in
+  `AssistantChat.tsx`: `prog.start` in `send()`, `prog.onServer` in onProgress, `prog.onFirstDelta` in onDelta, `prog.stop` in finally;
+  render: bolla intermedia al posto della bolla typing quando visibile.
+  **(3) STATO PRIMA**: i file caricati in chat venivano letti solo nella conversazione corrente (sezione ALLEGATI nel prompt); nessuna
+  memoria dei valori → ricaricare il file ogni volta. **DOPO**: `backend/routes/axon_imported_data.py` (dopo `axon_push_bridge.py`):
+  wrapper `_build_attachments_section_advanced` (utente via ContextVar impostata dal wrapper di `_prepare_assistant_prompt`) → se
+  l'allegato è PDF/XLSX/XLS/CSV/TXT con ≥ 8 valori numerici crea `axon_import_pending` {status extracting} + task background Claude Haiku
+  (`claude-haiku-4-5-20251001`) che estrae {categoria, fonte, descrizione, righe[{etichetta, valore, unita, data}]} (≤150) e aggiunge al
+  prompt l'istruzione di chiudere con «**Vuoi che memorizzi questi dati per uso futuro?**». Conferma SENZA LLM (wrapper di
+  `_maybe_push_command`, a catena dopo apb): «sì/ok/memorizza/salva…» → upsert in **`axon_imported_data`** {tenant_id (CONDIVISI CON IL
+  TEAM), user_id, categoria, fonte, etichetta, valore, unita, data, note} chiave (tenant, categoria, etichetta, data); «no/scarta…» → declined;
+  i «sì/no» generici valgono solo se l'ULTIMA risposta di Axon conteneva la domanda (niente falsi positivi); «quali dati hai memorizzato?»
+  → riepilogo per categoria. Iniezione in OGNI chat: wrapper `_prepare_assistant_prompt` aggiunge al system message «📦 DATI IMPORTATI
+  MEMORIZZATI DAL TEAM» (≤ 6000 caratteri, per categoria/fonte/data). API: `GET /axon/imported-data` (items + categories + pending),
+  `POST` (manuale), `PUT/DELETE /{item_id}` (autore o Master), `DELETE ?categoria=` (bulk), `POST /pending/{id}/confirm|decline`.
+  Frontend: `src/ImportConfirmChips.tsx` — pulsanti «Sì, memorizza» / «No grazie» sotto l'ultima risposta che contiene la domanda (inviano
+  frasi esplicite intercettate dal server); `src/ImportedDataSection.tsx` in `app/axon-memory.tsx` (Profilo → Memoria AxonOS → **Dati
+  importati**: categorie espandibili, righe etichetta·data·valore unità, modifica inline valore/unità/data, cancella riga o categoria).
+  Mappa app: sezione "Dati importati (Memoria AxonOS)" in `_OMNI_EXTRA_SECTIONS`. Test `backend/tests/test_axon_imported_data.py` ✅
+  (upload CSV PUN → domanda; «Sì, memorizza i dati» → 32 valori; nuova chat senza file → «112,9 €/MWh»; lista; «sì» fuori contesto non
+  intercettato; PUT/DELETE/POST/bulk; percorso «no»).
+
 - **V50.z193 — Fix notifiche push autonome: bridge persistente AxonOS → Push Service** — nuovo modulo isolato
   `backend/routes/axon_push_bridge.py` (dopo `axon_chat_push.py`, prima di 37) + `src/pushBridge.ts` + `src/PushStatusCard.tsx`.
   **STATO PRIMA**: il server inviava già i push in autonomia (`axon_notify` → `send_push`, scheduler 10 min, promemoria server-side),
@@ -583,6 +613,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z194 | Set 2026 | Stato visibile >3 s durante elaborazioni lunghe (bolla intermedia contestuale: tabella/PDF/GME/meteo/web, `src/axonProgress.tsx`) + Persistenza dati importati da PDF/Excel/CSV su conferma «Vuoi che memorizzi questi dati per uso futuro?» (`routes/axon_imported_data.py`, `axon_imported_data` condivisa col team, iniettata nelle chat, pulsanti rapidi, sezione «Dati importati» in Memoria AxonOS) |
 | V50.z193 | Set 2026 | Fix push autonome: bridge persistente AxonOS → Push Service (`routes/axon_push_bridge.py`: wrapper `send_push` con esito reale + outbox retry backoff, `push_devices` con `last_failed_at`, `GET /axon/push/status` in linguaggio semplice, test programmato a N minuti + ack dal telefono, nudge in chat se permesso negato; `src/pushBridge.ts` canale Android default a livello modulo + registrazione con retry; card «Stato canale push»). Causa radice: manca `google-services.json` (da fornire) |
 | V50.z192 | Set 2026 | Blocco 9b «Cosa sa Axon di me»: `routes/axon_memory.py` + `app/axon-memory.tsx` (Profilo → Memoria AxonOS: preferenze, clienti chiave, scadenze, stile, argomenti, integrazioni; modifica/cancella/analizza/cancella tutto) |
 | V50.z191 | Set 2026 | Splash/branding: AdvisorOS + AxonOS (60%) impilati, via "CRM per consulenti e network" e "powered by AxonOS", tagline «Il tuo "Tuttunizzatore"» (splash, copertina e chiusura Tour/Libretto app+PDF, libretti Master) |
