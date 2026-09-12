@@ -14,6 +14,7 @@ import { openInAppLink } from "@/src/utils/openInAppLink";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { invalidateTableBrandHeader } from "@/src/ChatTableExport";
+import { AxonMemoryEntryCard } from "@/src/AxonMemoryEntryCard"; // V50.z192 — Profilo → Memoria AxonOS
 
 type Settings = {
   energy_title: string; energy_color: string;
@@ -400,6 +401,8 @@ function ImpostazioniScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}><Text style={styles.title}>Profilo & Impostazioni</Text></View>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: pagePad }}>
+        {/* V50.z192 — Profilo → Memoria AxonOS: cosa sa Axon di me */}
+        <AxonMemoryEntryCard />
         <View style={styles.card}>
           <View style={styles.profileHead}>
             <Pressable testID="profile-avatar-btn" onPress={changeAvatar} style={styles.avatarWrap} disabled={avatarBusy}>

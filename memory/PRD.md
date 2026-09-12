@@ -6001,3 +6001,5 @@ else Linking.openURL(url).catch(() => {});
 - V50.z190 Brain+: `src/BrainPlus.tsx` (componente + html PDF + BRAIN_PLUS_SECTION_IDS); integrato in libretto.tsx (cover + sezioni per id, app e PDF), WowIntro slide axon, landing hero; testi sezioni intro/18/21/chiusura + axon_app_map.json.
 
 - V50.z191 Tuttunizzatore: `src/Tuttunizzatore.tsx` (tagline + BrandLogosBlock + html); AnimatedSplash senza "CRM per consulenti e network"/"powered by AxonOS"; libretto cover + chiusura (app e PDF) con loghi impilati e tagline.
+
+- V50.z192 Blocco 9b: `routes/axon_memory.py` (axon_user_memory + forgotten; euristiche + Haiku; API /axon/memory*; wrap omniscience), `app/axon-memory.tsx`, `src/AxonMemoryEntryCard.tsx` in impostazioni (Profilo), voci in axon-hub e master hub.

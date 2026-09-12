@@ -870,6 +870,7 @@ function SettingsHubSection({
       color: "#7C3AED", label: "AI & Axon", icon: "sparkles",
       items: [
         { icon: "sparkles", label: "Axon Center", hint: "Regole, documenti, cervello, script, sveglie, domotica", onPress: () => onGoto("/axon-hub"), ownerOnly: true, testID: "hub-axon-hub" },
+        { icon: "eye", label: "Memoria AxonOS", hint: "Cosa sa Axon di me · vedi, correggi, cancella", onPress: () => onGoto("/axon-memory"), testID: "hub-axon-memory" },
         { icon: "chatbox-ellipses", label: "Personalizza Assistente", hint: "Nome, modalità (testo/voce), voce", onPress: () => onGoto("/(tabs)/impostazioni"), testID: "hub-assistant" },
       ],
     },

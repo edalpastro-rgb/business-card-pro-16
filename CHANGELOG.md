@@ -193,6 +193,16 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z192 — BLOCCO 9b: Memoria visibile AxonOS «Cosa sa Axon di me»** — nuovo modulo isolato `backend/routes/axon_memory.py`
+  (collection `axon_user_memory` {section, text, source auto|manual, confidence, evidence}; `axon_user_memory_forgotten` = voci cancellate/
+  modificate che l'analisi NON ripropone). Analisi = euristiche sui dati reali (clienti più seguiti da appuntamenti+richiamate, anticipo
+  pianificazione, telefono vs presenza, giorno più pieno, fascia oraria d'uso, concentrazione fine/inizio mese, titoli ricorrenti, Gym,
+  integrazioni: Drive/e-mail/Home Assistant/push/accesso rapido/2FA + volumi CRM, profilo Cervello Axon) + Claude Haiku per preferenze di
+  comunicazione e argomenti frequenti in linguaggio semplice (fallback keyword). API `GET/POST/DELETE /axon/memory`, `POST /axon/memory/analyze`,
+  `PUT/DELETE /axon/memory/{id}`; DELETE totale cancella anche `axon_brain_profile` e `neo_memory` dell'utente. La memoria visibile è
+  iniettata nel contesto Axon (wrap non invasivo di `_build_crm_omniscience_section`, dopo axon_self_learning). Frontend `app/axon-memory.tsx`
+  (6 sezioni, ogni voce modificabile/cancellabile, «+» per aggiungere, «Analizza di nuovo», «Cancella tutta la memoria» con conferma,
+  testi rassicuranti) + `src/AxonMemoryEntryCard.tsx` in Profilo (tab Impostazioni, in alto), voce in Axon Center e hub Master.
 - **V50.z191 — Splash screen e branding: loghi impilati + «Il tuo "Tuttunizzatore"»** — nuovo modulo isolato `src/Tuttunizzatore.tsx`
   (`TuttunizzatoreTagline`: virgolette doppie sempre presenti, "Tutto" arancione Brain+ #F97316, resto bianco/navy; `BrandLogosBlock`:
   logo AdvisorOS → logo AxonOS sotto al 60% → tagline; `tuttunizzatoreHtml()` per il PDF). Applicato a: **splash animato**
@@ -543,6 +553,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z192 | Set 2026 | Blocco 9b «Cosa sa Axon di me»: `routes/axon_memory.py` + `app/axon-memory.tsx` (Profilo → Memoria AxonOS: preferenze, clienti chiave, scadenze, stile, argomenti, integrazioni; modifica/cancella/analizza/cancella tutto) |
 | V50.z191 | Set 2026 | Splash/branding: AdvisorOS + AxonOS (60%) impilati, via "CRM per consulenti e network" e "powered by AxonOS", tagline «Il tuo "Tuttunizzatore"» (splash, copertina e chiusura Tour/Libretto app+PDF, libretti Master) |
 | V50.z190 | Set 2026 | Claim ufficiale "AxonOS — Brain+" (`src/BrainPlus.tsx`, "+" arancione più grande bold) in copertina/sezioni 1-18-21-chiusura del Libretto (app+PDF), libretti Master, WowIntro, landing |
 | V50.z189 | Set 2026 | Tour Guidato: FAQ privacy allineata, target ampliato, sezioni 18–21 (Perché diverso / Per chi / Vita privata / Vantaggio nel tempo), headline finale, riferimenti "Voice Copilot" → Axon Drive |
