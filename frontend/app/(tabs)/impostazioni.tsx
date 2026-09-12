@@ -723,6 +723,17 @@ function ImpostazioniScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
           </Pressable>
+          {/* V50.z197 — Blocco 8: Integrazioni AxonOS a due sfere (Business / Home) */}
+          <Pressable testID="open-axon-integrations" onPress={() => router.push("/axon-integrations" as any)} style={[dashLinkStyles.row, { marginTop: 10 }]}>
+            <View style={dashLinkStyles.iconBox}>
+              <Ionicons name="link" size={16} color="#7C3AED" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={dashLinkStyles.title}>Integrazioni AxonOS</Text>
+              <Text style={dashLinkStyles.sub}>🔵 Business · 🟢 Home — Google Calendar, Contatti, Drive, Dropbox, Domotica: un tap</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+          </Pressable>
           <Text style={[styles.label, { marginTop: 12 }]}>Nome dell&apos;assistente</Text>
           <TextInput
             testID="assistant-name-input"

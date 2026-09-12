@@ -33,14 +33,22 @@ export default function GoogleCallbackScreen() {
     }
     (async () => {
       try {
-        await api("/google-drive/oauth/exchange", { method: "POST", body: { code, state: stt } });
+        // V50.z197 — Blocco 8: se lo state appartiene alle Integrazioni AxonOS (Calendar/Contacts per sfera) lo gestisce
+        // il modulo isolato; altrimenti {handled:false} e si prosegue con lo scambio Drive come prima.
+        let dest = "/google-drive";
+        const axi = await api<{ handled: boolean; redirect?: string }>("/axon/integrations/oauth/exchange", { method: "POST", body: { code, state: stt } }).catch(() => ({ handled: false } as { handled: boolean; redirect?: string }));
+        if (axi?.handled) {
+          dest = axi.redirect || "/axon-integrations";
+        } else {
+          await api("/google-drive/oauth/exchange", { method: "POST", body: { code, state: stt } });
+        }
         setState("success");
-        // Naviga alla pagina Google Drive dopo 1.5s
+        // Naviga alla pagina di destinazione dopo 1.5s
         setTimeout(() => {
           if (Platform.OS === "web") {
-            (globalThis as any).window.location.replace("/google-drive");
+            (globalThis as any).window.location.replace(dest);
           } else {
-            router.replace("/google-drive" as any);
+            router.replace(dest as any);
           }
         }, 1500);
       } catch (e: any) {

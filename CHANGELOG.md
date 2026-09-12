@@ -193,6 +193,25 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z197 — BLOCCO 8 · Fase 1: Integrazioni con un click a DUE SFERE** — modulo isolato `backend/routes/axon_integrations.py` (dopo
+  `axon_proactive.py`, prima di 37) + `app/axon-integrations.tsx`. **STATO PRIMA**: Google Drive, Dropbox e Domotica avevano schermate separate
+  e nessun concetto di sfera; nessun Google Calendar/Contacts; Axon non distingueva dati di lavoro e personali. **STATO DOPO**: Impostazioni →
+  **Integrazioni AxonOS** (voce anche nel menu slide) con sfera 🔵 **Business** (Google Calendar bidirezionale, Google Contacts, Google Drive,
+  Dropbox, Estratto conto e Scontrini «in arrivo» Fase 2) e sfera 🟢 **Home** (Domotica, Google Calendar Home, Google Contacts Home, Drive Home,
+  Spese personali «in arrivo»). **Un tap «Concedi accesso»** per Google per sfera (OAuth DISTINTO, anche account diverso): riusa l'infrastruttura
+  OAuth Drive già configurata (`_gd_client_config`, redirect, Fernet, `google_oauth_states` con `purpose: axi` + `sphere`); scope Business =
+  calendar + contacts.readonly; Home = + drive.file (cartella app). Web: `/auth/google/callback` chiama PRIMA `POST /axon/integrations/oauth/exchange`
+  (→ `{handled:false}` senza consumare lo state se è un flusso Drive: hook minimo nel callback) ; mobile: `POST /axon/integrations/google/mobile-exchange`.
+  **Un tap «Revoca»** (`DELETE /axon/integrations/{sphere}/google`: revoke presso Google + connessione e riferimenti cancellati). Dati
+  **referenziati, non duplicati**: `axon_integration_refs` {sphere, kind event|contact, external_id, campi minimi, crm_contact_id (match per
+  email/telefono, solo Business), appointment_id}. Sync ogni 30 min (`axi-sync-tick`) + `POST /axon/integrations/{sphere}/sync`: eventi Google
+  −1/+30 gg, contatti People API (500), **push appuntamenti CRM → Google Calendar Business** (extendedProperties `advisoros_appointment_id`,
+  mapping in refs). `GET /axon/integrations/status|{sphere}/events|{sphere}/contacts`. Drive/Dropbox Business e Domotica = stato letto dalle
+  connessioni esistenti + «Gestisci» verso le schermate esistenti (invariate). Contesto Axon (wrapper a catena `_prepare_assistant_prompt`):
+  sezione «🔵🟢 INTEGRAZIONI A DUE SFERE» con regola: indica SEMPRE la sfera, MAI incrociare Business/Home senza richiesta esplicita. Test
+  `backend/tests/test_axon_integrations.py` ✅ 15/15 (status, scope per sfera, state axi, handled=false per Drive, connessione simulata Home
+  senza toccare Business, eventi separati, sync pulita, revoca). **DA FARE dall'utente (guida)**: abilitare Google Calendar API e People API +
+  scope calendar/contacts.readonly/drive.file nella schermata di consenso del progetto Google Cloud del Drive.
 - **V50.z196 — BLOCCO 9: Proattività AxonOS** — modulo isolato `backend/routes/axon_proactive.py` (dopo `axon_imported_data.py`, prima di 37).
   **STATO PRIMA**: AxonOS parlava solo se interrogato; lo scheduler inviava solo cgym_due / callback_urgent (−6h..+60min) / crediti / report
   Corporate Gym; nessun briefing, nessun suggerimento contestuale, nessun promemoria impostato da Axon, nessun report attività del consulente.
@@ -653,6 +672,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z197 | Set 2026 | BLOCCO 8 Fase 1: hub Integrazioni AxonOS a due sfere 🔵 Business / 🟢 Home (`routes/axon_integrations.py`, `app/axon-integrations.tsx`): Google Calendar (bidirezionale) + Contacts per sfera con OAuth distinto un tap, revoca un tap, dati referenziati, Drive/Dropbox/Domotica collegati, contesto Axon per sfera |
 | V50.z196 | Set 2026 | BLOCCO 9 Proattività AxonOS (`routes/axon_proactive.py`): briefing mattutino 07:30, suggerimenti contestuali max N/g, alert critici (scadenze, richiamate, anomalie dati, promemoria di Axon), report lunedì; trigger unico ViolaWake-ready; bubble Home, schermata /axon-proactive, impostazioni in Preferenze, log in Memoria |
 | V50.z195 | Set 2026 | Splash/landing: logo AxonOS 100% su card navy, rimossi titolo "AdvisorOS" grande e "AxonOS — Brain+" dalla hero (restano motto e spot arancione); AnimatedSplash senza scritta AdvisorOS; nuova intro Libretto "AdvisorOS 2.0 + AxonOS" (contenuto + mappa app) |
 | V50.z194 | Set 2026 | Stato visibile >3 s durante elaborazioni lunghe (bolla intermedia contestuale: tabella/PDF/GME/meteo/web, `src/axonProgress.tsx`) + Persistenza dati importati da PDF/Excel/CSV su conferma «Vuoi che memorizzi questi dati per uso futuro?» (`routes/axon_imported_data.py`, `axon_imported_data` condivisa col team, iniettata nelle chat, pulsanti rapidi, sezione «Dati importati» in Memoria AxonOS) |

@@ -58,6 +58,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Anagrafica Master",   icon: "id-card-outline",      href: "/anagrafica-master",   categoryKey: "docs" },
   { label: "Master Files",        icon: "folder-outline",       href: "/master-files",        categoryKey: "docs" },
   { label: "Google Drive",        icon: "cloud-outline",        href: "/google-drive",        categoryKey: "docs" },
+  { label: "Integrazioni AxonOS", icon: "link-outline",         href: "/axon-integrations",   categoryKey: "docs" }, // V50.z197 — Blocco 8: due sfere
   { label: "Biglietto da visita", icon: "card-outline",         href: "/business-card",       categoryKey: "docs" },
   // Team & Insights (giallo #EAB308)
   { label: "Team Insights",     icon: "analytics-outline",    href: "/team-insights",      categoryKey: "team" },
