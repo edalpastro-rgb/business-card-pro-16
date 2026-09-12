@@ -193,6 +193,21 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z201 — Google Drive: file nella ROOT sempre visibili ad Axon + shortcut + OCR** — modulo isolato `backend/routes/axon_drive_root.py`
+  (dopo `axon_system_awareness.py`, prima di 37). Origine: prompt generato da AxonOS («i PDF nella root della cartella collegata NON vengono
+  parsati», es. `00_POWER/Link Corporate Club Library.pdf`, `MODELLO POWER_v.2026070.pdf`). **VERIFICA**: la BFS (`_drive_walk_and_collect`,
+  34) indicizzava GIÀ i file a profondità 0; i veri limiti erano: (a) gli **shortcut** Drive (`application/vnd.google-apps.shortcut`, tipici dei
+  file «Link …») esclusi dal filtro mime → mai indicizzati; (b) PDF **scansionati** senza layer testo → snapshot con testo vuoto (Axon vedeva
+  il nome, non il contenuto); (c) nel prompt l'elenco era «i 40 più recenti» senza distinzione root/sottocartella → i PDF root più vecchi
+  sparivano. **STATO DOPO**: ridefiniti nel namespace `_drive_walk_and_collect` (root per prima, shortcut risolti al target col nome dello
+  shortcut, `_is_root`, `supportsAllDrives`) e `_drive_download_text` (3 tentativi con backoff; PDF con < 40 caratteri di testo → **OCR
+  Gemini 3 Flash** su max 3 pagine renderizzate con PyMuPDF; log «Parsed [ROOT] nome — N pagine, K KB (OCR)»); wrapper
+  `_reindex_drive_files_for_user` → flag `is_root` sui `drive_snapshots` + `root_files`/`empty_text_files` in `drive_index_meta` + evento
+  sistema; wrapper `_fetch_teach_drive_pdfs_for_query` → sezione **«📁 [ROOT FILES]»** (elenco COMPLETO per cartella monitorata, mai tagliato,
+  «⚠️ nessun testo estraibile» se vuoto) inserita dopo «FILE INDICIZZATI» + testo del PDF root citato nel messaggio incluso nel contesto.
+  Nuovo `GET /google-drive/root-files`. Nessun toggle, stessa cadenza (job `drive-reindex` 30 min, «Reindicizza» manuale). Test
+  `backend/tests/test_axon_drive_root.py` ✅ 9/9 con Drive simulato (root prima, shortcut, stesso nome root/sottocartella, OCR reale su PDF
+  immagine, sezione [ROOT FILES] con file root più vecchi di 45 file recenti). **Azione utente**: Impostazioni → Google Drive → «Reindicizza».
 - **V50.z200 — AxonOS vede il backend in tempo reale (System Awareness)** — modulo isolato `backend/routes/axon_system_awareness.py`
   (dopo `axon_media.py`, prima di 37) + `app/axon-system.tsx` + `src/systemHeartbeat.tsx` (montato in `_layout.tsx`) + card «🛰️ Stato
   sistema» in Axon Hub. **STATO PRIMA**: Axon in chat dichiarava «non ho visibilità su build/aggiornamenti dell'app, devi dirmelo tu»: conosceva
@@ -739,6 +754,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z201 | Set 2026 | Google Drive: file ROOT sempre visibili ad Axon (sezione «📁 [ROOT FILES]» completa nel prompt), shortcut Drive risolti, OCR Gemini per PDF scansionati, retry download, `GET /google-drive/root-files` (`routes/axon_drive_root.py`) |
 | V50.z200 | Set 2026 | Axon vede il backend in tempo reale: eventi API/log/deploy/job, versioni app installate via heartbeat + alert proattivo «App aggiornata» con novità CHANGELOG, sezione prompt «Stato sistema», chat «hai aggiornamenti?», schermata `/axon-system` (`routes/axon_system_awareness.py`, `src/systemHeartbeat.tsx`) |
 | V50.z199 | Set 2026 | BLOCCO 8 Fase 3: archivio intelligente foto/audio/video a due sfere («Privata o aziendale?», ⚪ Non classificato + reminder 2 h, Whisper + Gemini vision/OCR, ricerca, chat) (`routes/axon_media.py`, `app/axon-media.tsx`, `src/MediaVoiceRecorder.tsx`, card in Integrazioni) |
 | V50.z198 | Set 2026 | BLOCCO 8 Fase 2: scontrini → nota spese per sfera con PDF (Master anche team), estratto conto → report categorizzato (`routes/axon_expenses.py`, `app/axon-expenses.tsx`, ingressi da Integrazioni e Report, chat «quanto ho speso») |
