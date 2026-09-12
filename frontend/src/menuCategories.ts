@@ -45,6 +45,7 @@ export const ROUTE_CATEGORY: Record<string, MenuCategoryKey> = {
 
   // AI & Axon
   "/axon-hub":            "axon",
+  "/axon-insights":       "axon",
   "/axon-alarms":         "axon",
   "/axon-alerts":         "axon",
   "/axon-homeassistant":  "axon",

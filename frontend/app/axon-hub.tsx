@@ -27,6 +27,8 @@ const CARDS: Card[] = [
     title: "📄 Documenti Axon", sub: "PDF (contratti, listini, brochure) letti da Axon" },
   { id: "axon-brain", href: "/axon-brain", icon: "sparkles", color: "#7C3AED",
     title: "🧠 Cervello Axon", sub: "Memoria distillata e profilo appreso dalle chat" },
+  { id: "axon-insights", href: "/axon-insights", icon: "school", color: "#7C3AED",
+    title: "🎓 Autoapprendimento", sub: "Insight anonimizzati dalle conversazioni · revisione e cancellazione" },
   { id: "axon-scripts", href: "/axon-scripts", icon: "library", color: "#7C3AED",
     title: "📚 Playbook Script", sub: "Libreria script vincenti · modello di Axon" },
   { id: "axon-cheatsheet", href: "/axon-cheatsheet", icon: "analytics", color: "#7C3AED",
