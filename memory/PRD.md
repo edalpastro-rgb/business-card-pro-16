@@ -5999,3 +5999,5 @@ else Linking.openURL(url).catch(() => {});
 - V50.z189 PROMPT 3 Libretto: FAQ privacy verbatim, intro target ampliato, sezioni perche-diverso/per-chi/vita-privata/vantaggio-tempo (anche in `_LIBRETTO_NEW_SECTIONS`), chiusura headline finale; axon_app_map.json sincronizzato; commenti Voice Copilot → Axon Drive.
 
 - V50.z190 Brain+: `src/BrainPlus.tsx` (componente + html PDF + BRAIN_PLUS_SECTION_IDS); integrato in libretto.tsx (cover + sezioni per id, app e PDF), WowIntro slide axon, landing hero; testi sezioni intro/18/21/chiusura + axon_app_map.json.
+
+- V50.z191 Tuttunizzatore: `src/Tuttunizzatore.tsx` (tagline + BrandLogosBlock + html); AnimatedSplash senza "CRM per consulenti e network"/"powered by AxonOS"; libretto cover + chiusura (app e PDF) con loghi impilati e tagline.

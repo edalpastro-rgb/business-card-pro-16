@@ -34,6 +34,7 @@ import { useAuth } from "@/src/auth";
 
 import { WowIntro } from "@/src/WowIntro";
 import { BrainPlus, brainPlusHtml, BRAIN_PLUS_SECTION_IDS } from "@/src/BrainPlus"; // V50.z190 — claim AxonOS Brain+
+import { BrandLogosBlock, tuttunizzatoreHtml } from "@/src/Tuttunizzatore"; // V50.z191 — loghi impilati + «Il tuo "Tuttunizzatore"»
 const ADVISOR_LOGO = require("@/assets/images/advisoros-logo-transparent.png");
 const AXON_LOGO = require("@/assets/images/axonos-logo-transparent.png");
 const ADVISOR_ICON = require("@/assets/images/advisoros-icon-1024.png");
@@ -75,7 +76,8 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
     <div class="cover">
       <div class="cover-logos">
         ${logoAdvisorB64 ? `<img class="cover-logo" src="${dataUri(logoAdvisorB64)}" />` : ""}
-        ${logoAxonB64 ? `<img class="cover-logo" src="${dataUri(logoAxonB64)}" />` : ""}
+        ${logoAxonB64 ? `<img class="cover-logo-axon" src="${dataUri(logoAxonB64)}" />` : ""}
+        ${tuttunizzatoreHtml({ dark: true, size: 18 })}
       </div>
       <div class="cover-title">${meta.title}</div>
       ${brainPlusHtml({ dark: true, size: 26, tagline: true, align: "center" })}
@@ -135,6 +137,7 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
           ${mockup}
           ${tips}
           ${warning}
+          ${s.id === "chiusura" ? `<div class="brand-close">${logoAdvisorB64 ? `<img class="cover-logo" src="${dataUri(logoAdvisorB64)}" />` : ""}${logoAxonB64 ? `<img class="cover-logo-axon" src="${dataUri(logoAxonB64)}" />` : ""}${tuttunizzatoreHtml({ dark: true, size: 16 })}</div>` : ""}
         </div>
       </section>
     `;
@@ -152,8 +155,12 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
     background: linear-gradient(160deg, #0F2438 0%, #1C4869 55%, #0F2438 100%);
     color: #FFF; display: flex; flex-direction: column; justify-content: center; align-items: center;
   }
-  .cover-logos { display: flex; gap: 32px; align-items: center; margin-bottom: 46px; }
+  .cover-logos { display: flex; flex-direction: column; gap: 10px; align-items: center; margin-bottom: 40px; }
   .cover-logo { max-height: 96px; max-width: 240px; object-fit: contain; }
+  .cover-logo-axon { max-height: 58px; max-width: 144px; object-fit: contain; }
+  .brand-close { display: flex; flex-direction: column; align-items: center; gap: 8px; background: #0F2438; border-radius: 14px; padding: 22px 16px; margin-top: 14px; }
+  .brand-close .cover-logo { max-height: 70px; max-width: 200px; }
+  .brand-close .cover-logo-axon { max-height: 42px; max-width: 120px; }
   .cover-title { font-size: 46px; font-weight: 900; letter-spacing: -1px; text-align: center; margin-bottom: 12px; }
   .cover-sub { font-size: 18px; opacity: 0.85; text-align: center; margin-bottom: 40px; }
   .cover-version { font-size: 13px; color: #FBBF24; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
@@ -363,10 +370,8 @@ export default function LibrettoScreen() {
       >
         {/* Cover */}
         <View style={styles.cover}>
-          <View style={styles.coverLogos}>
-            <Image source={ADVISOR_LOGO} style={styles.coverLogo} resizeMode="contain" />
-            <Image source={AXON_LOGO} style={styles.coverLogo} resizeMode="contain" />
-          </View>
+          {/* V50.z191 — AdvisorOS, sotto AxonOS al 60%, tagline «Il tuo "Tuttunizzatore"» */}
+          <BrandLogosBlock advisorLogo={ADVISOR_LOGO} axonLogo={AXON_LOGO} width={170} dark style={{ marginBottom: 22 }} testID="libretto-brand-block" />
           {/* V50.z183 — motto "il CRM che si evolve con te" in stile evoluzione */}
           <View style={{ alignSelf: "stretch", marginTop: 6, marginBottom: 4 }}>
             <EvolutionMotto dark testID="libretto-motto" />
@@ -531,6 +536,11 @@ function SectionCard({ section }: { section: LibrettoSection }) {
             <Text style={styles.warningTxt}>{section.warning}</Text>
           </View>
         ) : null}
+        {section.id === "chiusura" ? (
+          <View style={{ backgroundColor: "#0F2438", borderRadius: 14, paddingVertical: 22, paddingHorizontal: 16, marginTop: 8 }}>
+            <BrandLogosBlock advisorLogo={ADVISOR_LOGO} axonLogo={AXON_LOGO} width={150} dark testID="libretto-brand-block-close" />
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -590,8 +600,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#0F2438",
     alignItems: "center",
   },
-  coverLogos: { flexDirection: "row", gap: 22, alignItems: "center", marginBottom: 28 },
-  coverLogo: { width: 130, height: 60 },
   coverTitle: {
     color: "#FFF",
     fontSize: 30,

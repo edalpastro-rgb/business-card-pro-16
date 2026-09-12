@@ -193,6 +193,13 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z191 — Splash screen e branding: loghi impilati + «Il tuo "Tuttunizzatore"»** — nuovo modulo isolato `src/Tuttunizzatore.tsx`
+  (`TuttunizzatoreTagline`: virgolette doppie sempre presenti, "Tutto" arancione Brain+ #F97316, resto bianco/navy; `BrandLogosBlock`:
+  logo AdvisorOS → logo AxonOS sotto al 60% → tagline; `tuttunizzatoreHtml()` per il PDF). Applicato a: **splash animato**
+  (`AnimatedSplash.tsx`: rimossi "CRM per consulenti e network" e "powered by AxonOS", logo AxonOS 124×32 ≈60%, tagline sotto i loghi;
+  stili inutilizzati rimossi), **copertina del Tour/Libretto** (app + PDF: loghi in colonna, AxonOS 60%, tagline), **ultima schermata
+  del Tour** (blocco brand su fondo navy in coda alla sezione "chiusura", app + PDF) — riconoscimento per id → vale anche per i libretti
+  personalizzati del Master.
 - **V50.z190 — Brain+ Branding (claim ufficiale AxonOS)** — nuovo modulo isolato `src/BrainPlus.tsx`: componente `<BrainPlus>` ("AxonOS — Brain+",
   "+" SEMPRE arancione CTA #F97316, ×1.45 e bold; "Brain" bianco su sfondo scuro / navy #1B2B4B su chiaro; tagline opzionale «Il sistema
   operativo che potenzia il tuo cervello.»), `brainPlusHtml()` per l'export PDF, costanti `BRAIN_PLUS_*` e `BRAIN_PLUS_SECTION_IDS`
@@ -536,6 +543,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z191 | Set 2026 | Splash/branding: AdvisorOS + AxonOS (60%) impilati, via "CRM per consulenti e network" e "powered by AxonOS", tagline «Il tuo "Tuttunizzatore"» (splash, copertina e chiusura Tour/Libretto app+PDF, libretti Master) |
 | V50.z190 | Set 2026 | Claim ufficiale "AxonOS — Brain+" (`src/BrainPlus.tsx`, "+" arancione più grande bold) in copertina/sezioni 1-18-21-chiusura del Libretto (app+PDF), libretti Master, WowIntro, landing |
 | V50.z189 | Set 2026 | Tour Guidato: FAQ privacy allineata, target ampliato, sezioni 18–21 (Perché diverso / Per chi / Vita privata / Vantaggio nel tempo), headline finale, riferimenti "Voice Copilot" → Axon Drive |
 | V50.z188 | Set 2026 | Blocco 7: autoapprendimento anonimizzato AxonOS (`axon_self_learning.py`: estrazione insight in background, `axon_knowledge_base`, contesto nelle chat, dashboard Master `/axon-insights`) |

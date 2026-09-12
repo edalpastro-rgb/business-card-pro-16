@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, Text, View, Image } from "react-native";
 import { ADVISOROS_LOGO_URI } from "@/src/BrandLogos";
+import { TuttunizzatoreTagline } from "@/src/Tuttunizzatore"; // V50.z191 — tagline «Il tuo "Tuttunizzatore"»
 
 /**
  * V29.w — AnimatedSplash.
@@ -9,8 +10,8 @@ import { ADVISOROS_LOGO_URI } from "@/src/BrandLogos";
  *  1) Fondo navy brand (stesso colore dello splash nativo → nessun flash)
  *  2) Anello orbitale che ruota attorno al logo (idea "orbit" del brand)
  *  3) Logo AdvisorOS entra con scale-spring
- *  4) Wordmark "AdvisorOS" + tagline "CRM per consulenti e network" con fade-up
- *  5) Logo AxonOS (160px) + "powered by AxonOS" grigio chiaro con fade-up
+ *  4) Wordmark "AdvisorOS" con fade-up
+ *  5) Logo AxonOS (~60%) + tagline «Il tuo "Tuttunizzatore"» con fade-up (V50.z191)
  *  6) Fade-out totale dell'overlay → viene rivelata la schermata di login
  *
  * Zero blocco funzionale: pointerEvents="none" durante il fade-out finale.
@@ -194,9 +195,6 @@ export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
         >
           Advisor<Text style={styles.wordAccent}>OS</Text>
         </Animated.Text>
-        <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
-          CRM per consulenti e network
-        </Animated.Text>
       </View>
 
       {/* V29.w — Powered by AxonOS: logo trasparente + testo grigio chiaro */}
@@ -215,7 +213,10 @@ export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
           resizeMode="contain"
           testID="splash-axonos-logo"
         />
-        <Text style={styles.poweredTxt}>powered by AxonOS</Text>
+        {/* V50.z191 — tagline «Il tuo "Tuttunizzatore"» (sostituisce "CRM per consulenti e network" e "powered by AxonOS") */}
+        <Animated.View style={{ opacity: taglineOpacity }}>
+          <TuttunizzatoreTagline dark size={15} style={{ marginTop: 4 }} testID="splash-tuttunizzatore" />
+        </Animated.View>
       </Animated.View>
     </Animated.View>
   );
@@ -299,27 +300,16 @@ const styles = StyleSheet.create({
   wordAccent: {
     color: ORANGE,
   },
-  tagline: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.3,
-  },
   poweredWrap: {
-    marginTop: 32,
+    marginTop: 18,
     alignItems: "center",
     gap: 6,
   },
   axonosLogo: {
-    width: 160,
-    height: 42,
+    // V50.z191 — ~60% del logo AdvisorOS (card 108px): logo orizzontale AxonOS
+    width: 124,
+    height: 32,
     backgroundColor: "transparent",
-  },
-  poweredTxt: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 0.4,
   },
 });
 
