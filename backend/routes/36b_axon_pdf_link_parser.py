@@ -118,22 +118,13 @@ async def axon_fetch_pdf_link(url: str, force: bool = False) -> Dict[str, Any]:
         except Exception:
             pass
         try:
-            text = _extract_pdf_text_bytes(data) or ""
+            text = await asyncio.to_thread(_extract_pdf_text_bytes, data) or ""   # V50.z210 — worker in thread
         except Exception:
             text = ""
         if not text.strip():
-            # fallback: pdfplumber (se presente) con tabelle → righe TSV
+            # fallback: pdfplumber con tabelle → righe TSV (V50.z210: nel sottoprocesso worker)
             try:
-                import pdfplumber  # type: ignore
-                parts = []
-                with pdfplumber.open(io.BytesIO(data)) as pdf:
-                    for pg in pdf.pages[:40]:
-                        t = pg.extract_text() or ""
-                        parts.append(t)
-                        for tb in (pg.extract_tables() or [])[:5]:
-                            for row in tb:
-                                parts.append("\t".join((c or "").strip() for c in row))
-                text = "\n".join(parts)
+                text = (await heavy_call("pdf_tables_text", data=data, max_pages=40, mode="tsv", max_tables=5)).get("text") or ""
             except Exception:
                 pass
         text = re.sub(r"[ \t]{2,}", " ", text or "").strip()

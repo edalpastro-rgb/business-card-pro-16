@@ -102,12 +102,8 @@ def _adr_ocr_pdf_sync(data: bytes, name: str) -> str:
     if not key:
         return ""
     try:
-        import fitz  # type: ignore
-        images: List[str] = []
-        with fitz.open(stream=data, filetype="pdf") as pdf:
-            for page in pdf.pages(stop=min(pdf.page_count, _ADR_OCR_PAGES)):
-                pix = page.get_pixmap(dpi=110)
-                images.append(base64.b64encode(pix.tobytes("png")).decode())
+        # V50.z210 — rasterizzazione nel sottoprocesso worker (PyMuPDF mai nel processo API)
+        images: List[str] = [base64.b64encode(b).decode() for b in (heavy_call_sync("pdf_render_pages", data=data, max_pages=_ADR_OCR_PAGES, dpi=110, fmt="png").get("images") or [])]
         if not images:
             return ""
         from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent  # type: ignore
@@ -157,9 +153,7 @@ def _drive_download_text(creds, f: Dict[str, Any]) -> str:  # noqa: F811
     text = ""; pages = 0; ocr = False
     if mt == "application/pdf" or data[:5] == b"%PDF-":
         try:
-            import fitz  # type: ignore
-            with fitz.open(stream=data, filetype="pdf") as pdf:
-                pages = pdf.page_count
+            pages = int(heavy_call_sync("pdf_page_count", data=data).get("page_count") or 0)   # V50.z210 — worker
         except Exception:  # noqa: BLE001
             pages = 0
         try:

@@ -641,39 +641,20 @@ async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
     # PDF
     if mime == "application/pdf" or name.endswith(".pdf"):
         try:
-            import fitz  # PyMuPDF
-            doc = fitz.open(stream=raw, filetype="pdf")
-            pages = []
-            # V49.o — cap 60k char (era 18k): sufficiente per PDF di
-            # 30-60 pagine di testo realistico. Se il PDF eccede,
-            # tronca sulla pagina che raggiunge il limite, non prima.
-            for p in doc:
-                t = (p.get_text() or "").strip()
-                if t:
-                    pages.append(t)
-                if sum(len(x) for x in pages) > 60000:
-                    break
-            doc.close()
-            text_out = "\n\n".join(pages) if pages else ""
+            # V50.z210 — PyMuPDF nel sottoprocesso worker (mai nel processo API). Cap 60k char, tronca sulla pagina che supera il limite.
+            text_out = (await heavy_call("pdf_text", data=raw, max_pages=0, max_chars=60000)).get("text") or ""
             # V50.z7 — Fallback OCR con Claude Vision se PyMuPDF non estrae testo
             # (PDF scansionato / immagine). Max 5 pagine per non essere lento.
             if len(text_out) < 100:
                 try:
-                    import pypdfium2 as pdfium  # type: ignore
-                    from io import BytesIO
                     key = os.environ.get("EMERGENT_LLM_KEY")
                     if key:
-                        pdf = pdfium.PdfDocument(raw)
-                        n_pages = min(len(pdf), 5)
+                        pages_img = (await heavy_call("pdf_render_pages", data=raw, max_pages=5, scale=2.0, fmt="jpeg", quality=80)).get("images") or []
                         ocr_parts: List[str] = []
                         from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent  # type: ignore
-                        for i in range(n_pages):
+                        for i, jpg in enumerate(pages_img):
                             try:
-                                page = pdf[i]
-                                pil_image = page.render(scale=2.0).to_pil()
-                                buf = BytesIO()
-                                pil_image.save(buf, format="JPEG", quality=80)
-                                b64 = _b64.b64encode(buf.getvalue()).decode()
+                                b64 = _b64.b64encode(jpg).decode()
                                 chat = LlmChat(
                                     api_key=key,
                                     session_id=f"pdf-ocr-att-{uuid.uuid4().hex[:8]}",

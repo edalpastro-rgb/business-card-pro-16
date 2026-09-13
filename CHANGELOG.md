@@ -193,6 +193,21 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z210 — Memoria piatta: OpenCV/PyMuPDF/pdfplumber/Pillow fuori dal processo API (worker a vita breve)** — PRIMA: `cv2`, `numpy`, `fitz`,
+  `pdfplumber`, `PIL`, `pypdfium2` importati «dentro le funzioni» (scanner, allegati PDF in chat, RAG memoria, banner eventi, link PDF, Drive root,
+  KB) restavano caricati per sempre nel processo uvicorn → RSS in crescita fino a superare i 512 MB dopo ore. ORA: nuova libreria pura
+  `backend/workers/heavy_ops.py` (tutto il codice OpenCV dello scanner spostato da `26_scanner.py` + `pdf_text`, `pdf_page_count`,
+  `pdf_render_pages`, `pdf_tables_text`, `pdf_cover`, `merge_pdf`, `manual_crop`, `detect_corners`, `autocrop_preview`, `scan_document`),
+  eseguita SOLO dal sottoprocesso `backend/workers/heavy_worker.py` (stdin JSON → import librerie → 1 operazione → stdout JSON → exit; bytes come
+  `{"__b64__":…}`; usa `import pymupdf as fitz` perché il vecchio alias stampa un warning su stdout). Ponte `routes/01b_heavy_bridge.py`:
+  `await heavy_call(op, **args)` (asyncio subprocess, semaforo 2 paralleli, timeout 180 s) e `heavy_call_sync` per il codice nei thread
+  (`_extract_pdf_text_bytes`, Drive root OCR, banner). Call-site aggiornati: `26_scanner.py` (4 endpoint riscritti sul worker, stessi contratti
+  HTTP/JSON, 400 «Area di ritaglio troppo piccola» / «Pagina N: …» preservati), `27_teach_ai_kb._extract_pdf_text_bytes`, `19` allegati PDF
+  (testo + OCR Vision con pagine rasterizzate dal worker), `20` `_extract_pdf_bytes` (tabelle pdfplumber + OCR), `25` `_extract_best_image_from_pdf`
+  (+ `asyncio.to_thread`), `36b` link PDF (pdfplumber TSV), `axon_drive_root` (page count + OCR). `pandas` rimosso da `requirements.txt` (mai
+  importato; litellm e tokenizers intatti). VERIFICA `tests/test_heavy_worker.py` ✅ 9/9: 3 giri scanner (detect/autocrop/manual-crop/merge) +
+  PDF allegato in chat + 24 PDF GME riparsati → RSS del processo API **piatta** (226 → 235 MB, Δ +8 MB) e `/proc/<pid>/maps` senza
+  cv2/fitz/pdfplumber/pdfium/numpy; detect-corners ~250 ms incluso lo spawn. Nota: la PRIMA chat carica lo stack LLM (~130 MB una tantum, voluto).
 - **V50.z209 — Profilo APK: «Novità della versione» + avviso aggiornamento in chat** — `routes/axon_app_info.py`: `whats_new` (ultime 3 righe della
   tabella CHANGELOG, senza backtick, max 220 caratteri) nel `GET /axon/app-info`; `_api_check_outdated` (dispositivi `app_env=standalone` con
   `app_version` < `expo.version` di app.json, confronto numerico `_api_vcmp`) → alert proattivo `app_update` («📲 La tua app è da aggiornare… hai la
@@ -866,6 +881,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z210 | Set 2026 | Memoria piatta: cv2/fitz/pdfplumber/PIL eseguiti in sottoprocessi a vita breve (`workers/heavy_ops.py` + `heavy_worker.py`, ponte `01b_heavy_bridge.py`), tutti i call-site migrati, `pandas` rimosso da requirements; RSS API Δ +8 MB dopo scanner+PDF, nessuna lib pesante mappata |
 | V50.z209 | Set 2026 | Profilo APK: ultime 3 novità CHANGELOG nella card espansa; avviso proattivo `app_update` in chat quando l'APK installata è più vecchia di quella disponibile (apertura Profilo + job orario, idempotente) |
 | V50.z208 | Set 2026 | Profilo: card in cima «Piano attivo · versione APK installata» espandibile (installazione, ultimo aggiornamento, versione disponibile/aggiornata) — `AppInfoCard.tsx`, `routes/axon_app_info.py` |
 | V50.z207 | Set 2026 | Pulsanti ✅ Sì / ❌ No / ❓ Forse sotto le domande chiuse di Axon (riconoscimento euristico, invio automatico, toast, 60 s, ≥320 px; `src/axon-quick-reply.tsx`, `POST /axon/quick-reply`, nota nel prompt); fix `**` nelle celle tabella; tabella PUN reale nel prompt anche su risposte brevi |

@@ -8,6 +8,7 @@ Per aggiungere un modulo: crearlo in routes/ e inserirlo QUI nella posizione cor
 MODULES = [
     "00_core.py",
     "01_helpers.py",
+    "01b_heavy_bridge.py",  # V50.z210 — heavy_call/heavy_call_sync → sottoprocesso workers/heavy_worker.py (cv2/fitz/pdfplumber MAI nel processo API)
     "02_models.py",
     "03_auth.py",
     "04_settings_dashboard.py",

@@ -1446,20 +1446,12 @@ async def _ai_teach_refresh_url(doc: Dict[str, Any]) -> Dict[str, Any]:
 
 # V28.ab — Helper: estrae testo da bytes PDF via PyMuPDF (fitz già installato per bill analysis).
 def _extract_pdf_text_bytes(data: bytes) -> str:
-    """Estrae testo dai primi ~30 pagine di un PDF. Restituisce stringa vuota se fallisce."""
+    """Estrae testo dai primi ~30 pagine di un PDF (cap ~8000 char). Restituisce stringa vuota se fallisce.
+    V50.z210: PyMuPDF gira nel sottoprocesso worker (heavy_call_sync), mai nel processo API."""
     if not data or data[:5] != b"%PDF-":
         return ""
     try:
-        import fitz  # PyMuPDF
-        text_parts: List[str] = []
-        with fitz.open(stream=data, filetype="pdf") as pdf:
-            for page in pdf.pages(stop=min(pdf.page_count, 30)):
-                t = page.get_text("text") or ""
-                if t.strip():
-                    text_parts.append(t.strip())
-        joined = "\n\n".join(text_parts)
-        # Cap a ~8000 char per PDF così la memoria non esplode
-        return joined[:8000]
+        return heavy_call_sync("pdf_text", data=data, max_pages=30, max_chars=8000).get("text") or ""
     except Exception:
         return ""
 

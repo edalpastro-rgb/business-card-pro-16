@@ -490,94 +490,22 @@ async def get_event_program(event_id: str, user=Depends(get_current_user)):
 
 
 def _extract_best_image_from_pdf(pdf_b64: str) -> Optional[Tuple[bytes, str]]:
-    """v2.11 — Extract the "most significant" image from a PDF and return
-    (jpeg_bytes, mime) resized to a banner-friendly 16:9 (1600x900).
-
-    Strategy:
-      1. Iterate all embedded images across pages (PyMuPDF `get_images`)
-      2. Score each by area (w*h) — larger = more likely to be the hero image
-      3. Also render the first page at 2x as fallback if no embedded images
-         are found (e.g. text-only PDFs with vector cover)
-      4. Center-crop the winner to 16:9 aspect and resize to 1600x900
-      5. Return JPEG bytes at quality 85
-    """
+    """v2.11 — Immagine «più significativa» del PDF → (jpeg_bytes, mime) 16:9 1600x900.
+    V50.z210: PyMuPDF + Pillow girano nel sottoprocesso worker (`pdf_cover`), mai nel processo API."""
     import base64 as _b64
-    import io
-    try:
-        import fitz  # PyMuPDF
-        from PIL import Image
-    except Exception as e:
-        logger.warning("PDF cover extraction deps missing: %s", e)
-        return None
-
     try:
         raw = _b64.b64decode(pdf_b64.split(",", 1)[-1])
-        doc = fitz.open(stream=raw, filetype="pdf")
     except Exception as e:
-        logger.warning("PDF open failed: %s", e)
+        logger.warning("PDF decode failed: %s", e)
         return None
-
-    best_bytes: Optional[bytes] = None
-    best_area = 0
-
     try:
-        # Pass 1 — embedded raster images
-        for page_index in range(min(len(doc), 8)):
-            page = doc[page_index]
-            for img in page.get_images(full=True):
-                xref = img[0]
-                try:
-                    pix = fitz.Pixmap(doc, xref)
-                    # Skip masks / tiny thumbnails
-                    if pix.width < 200 or pix.height < 200:
-                        pix = None
-                        continue
-                    area = pix.width * pix.height
-                    if area > best_area:
-                        # Convert CMYK / alpha to RGB before saving
-                        if pix.n >= 5:
-                            pix = fitz.Pixmap(fitz.csRGB, pix)
-                        best_bytes = pix.tobytes("png")
-                        best_area = area
-                    pix = None
-                except Exception:
-                    continue
-        # Pass 2 — fallback: rasterize first page at 2x if nothing worthwhile
-        if best_bytes is None and len(doc) > 0:
-            page = doc[0]
-            mat = fitz.Matrix(2.0, 2.0)
-            pix = page.get_pixmap(matrix=mat, alpha=False)
-            best_bytes = pix.tobytes("png")
-            best_area = pix.width * pix.height
-    finally:
-        doc.close()
-
-    if not best_bytes:
+        r = heavy_call_sync("pdf_cover", data=raw)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("PDF cover extraction failed: %s", e)
         return None
+    jpg = r.get("jpeg")
+    return (jpg, "image/jpeg") if jpg else None
 
-    # Load with Pillow → center-crop 16:9 → resize 1600x900 → JPEG
-    try:
-        im = Image.open(io.BytesIO(best_bytes)).convert("RGB")
-        target_ratio = 16 / 9
-        w, h = im.size
-        cur_ratio = w / h
-        if cur_ratio > target_ratio:
-            # Too wide → crop sides
-            new_w = int(h * target_ratio)
-            x0 = (w - new_w) // 2
-            im = im.crop((x0, 0, x0 + new_w, h))
-        elif cur_ratio < target_ratio:
-            # Too tall → crop top/bottom
-            new_h = int(w / target_ratio)
-            y0 = (h - new_h) // 2
-            im = im.crop((0, y0, w, y0 + new_h))
-        im = im.resize((1600, 900), Image.LANCZOS)
-        out = io.BytesIO()
-        im.save(out, "JPEG", quality=85, optimize=True)
-        return out.getvalue(), "image/jpeg"
-    except Exception as e:
-        logger.warning("Pillow resize failed: %s", e)
-        return None
 
 
 class EventCoverExtractIn(BaseModel):
@@ -597,7 +525,7 @@ async def extract_event_cover_from_pdf(event_id: str, body: EventCoverExtractIn,
     if not pdf_b64:
         raise HTTPException(status_code=400, detail="Nessun PDF programma caricato. Carica il PDF prima di estrarre la copertina.")
 
-    result = _extract_best_image_from_pdf(pdf_b64)
+    result = await asyncio.to_thread(_extract_best_image_from_pdf, pdf_b64)  # V50.z210 — worker in thread, non blocca il loop
     if not result:
         raise HTTPException(status_code=422, detail="Impossibile estrarre un'immagine significativa dal PDF.")
     import base64 as _b64

@@ -931,35 +931,11 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
         """Estrae testo + tabelle da un PDF. Prova prima pdfplumber (tabelle),
         fallback pypdf. Ritorna stringa formattata."""
         text_parts: List[str] = []
-        # Tentativo 1: pdfplumber
+        # Tentativo 1: pdfplumber — V50.z210: nel sottoprocesso worker (mai nel processo API)
         try:
-            import pdfplumber  # type: ignore
-            from io import BytesIO
-            with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
-                for pg_i, page in enumerate(pdf.pages[:max_pages]):
-                    # Testo pulito
-                    try:
-                        t = page.extract_text() or ""
-                        if t.strip():
-                            text_parts.append(t.strip())
-                    except Exception:
-                        pass
-                    # Tabelle come Markdown-like
-                    try:
-                        tables = page.extract_tables() or []
-                        for t_i, table in enumerate(tables):
-                            if not table:
-                                continue
-                            # Filtra righe/colonne vuote
-                            rows = [[(c or "").strip() for c in row] for row in table if any(c for c in row)]
-                            if not rows or len(rows[0]) < 2:
-                                continue
-                            md = f"\n[TABELLA pag.{pg_i+1}]"
-                            for row in rows[:30]:
-                                md += "\n| " + " | ".join(row) + " |"
-                            text_parts.append(md)
-                    except Exception:
-                        pass
+            t_all = (await heavy_call("pdf_tables_text", data=pdf_bytes, max_pages=max_pages, mode="markdown")).get("text") or ""
+            if t_all.strip():
+                text_parts.append(t_all)
         except Exception as exc:
             logger.debug("[pdf-extract] pdfplumber failed: %s (fallback pypdf)", exc)
         # Fallback pypdf se il testo è vuoto
@@ -987,21 +963,15 @@ async def _axon_refresh_teach_snapshot(u_doc: Dict[str, Any]) -> Optional[Dict[s
         # il PDF è probabilmente SCANSIONATO (immagine). Fallback: Claude Vision.
         if len(out) < 100:
             try:
-                import pypdfium2 as pdfium  # type: ignore
-                from io import BytesIO
                 key = os.environ.get("EMERGENT_LLM_KEY")
                 if key:
-                    pdf = pdfium.PdfDocument(pdf_bytes)
-                    n_pages = min(len(pdf), 3)  # max 3 pagine per non essere lenti
+                    # V50.z210 — rasterizzazione nel worker (max 3 pagine per non essere lenti)
+                    pages_img = (await heavy_call("pdf_render_pages", data=pdf_bytes, max_pages=3, scale=2.0, fmt="jpeg", quality=80)).get("images") or []
                     ocr_parts: List[str] = []
                     from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent  # type: ignore
-                    for i in range(n_pages):
+                    for i, jpg in enumerate(pages_img):
                         try:
-                            page = pdf[i]
-                            pil_image = page.render(scale=2.0).to_pil()
-                            buf = BytesIO()
-                            pil_image.save(buf, format="JPEG", quality=80)
-                            b64 = _b64.b64encode(buf.getvalue()).decode()
+                            b64 = _b64.b64encode(jpg).decode()
                             chat = LlmChat(
                                 api_key=key,
                                 session_id=f"pdf-ocr-{uuid.uuid4().hex[:8]}",
