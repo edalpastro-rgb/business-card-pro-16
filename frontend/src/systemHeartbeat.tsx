@@ -10,7 +10,7 @@ import { api } from "@/src/api";
 
 const KEY = "axs_device_key_v1";
 
-async function deviceKey(): Promise<string> {
+export async function deviceKey(): Promise<string> {
   let k = await AsyncStorage.getItem(KEY);
   if (!k) {
     k = `${Platform.OS}-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;

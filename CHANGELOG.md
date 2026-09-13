@@ -193,6 +193,14 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z208 — Profilo: piano attivo + versione APK installata (in cima, sempre visibile)** — nuovo `src/AppInfoCard.tsx` (prima card di
+  `(tabs)/impostazioni.tsx`): riga compatta «Piano Pro · APK installata · v1.0.60 (build N)» con badge «Aggiornata ✓» / «Nuova vX.Y.Z»; tap →
+  data installazione (`expo-application.getInstallationTimeAsync`, fallback primo heartbeat), ultimo aggiornamento (`getLastUpdateTimeAsync` Android /
+  heartbeat `updated_at`), versione disponibile con data, versione precedente, versione backend (CHANGELOG) e frase di stato. Versione installata =
+  `Application.nativeApplicationVersion` (su web/Expo Go: versione JS con etichetta esplicita). Nuovo modulo backend isolato `routes/axon_app_info.py`:
+  `GET /axon/app-info?device_key=` (piano del Master del tenant — `users.plan_name`, default «Piano Pro» —, `latest_version` = `expo.version` di
+  `frontend/app.json` con data = mtime, `android_version_code`, versione CHANGELOG, dati dispositivo da `axon_client_versions`), `PUT /axon/app-info/plan`
+  (solo Master). `deviceKey()` esportata da `systemHeartbeat.tsx`. Nota: il numero APK reale compare solo nella build nativa.
 - **V50.z207 — Pulsanti ✅ Sì / ❌ No / ❓ Forse sotto le domande chiuse di Axon** — nuovo `src/axon-quick-reply.tsx` (componente
   `QuickReplyButtons`, `QuickReplyToast`, euristica `isClosedQuestion`: ultima riga della risposta che termina con «?», contiene una formula di
   conferma/scelta binaria — procediamo, ti va bene, vuoi che, confermi, cancello, stesso orario, … — oppure è brevissima («Procediamo?»), e NON
@@ -852,6 +860,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z208 | Set 2026 | Profilo: card in cima «Piano attivo · versione APK installata» espandibile (installazione, ultimo aggiornamento, versione disponibile/aggiornata) — `AppInfoCard.tsx`, `routes/axon_app_info.py` |
 | V50.z207 | Set 2026 | Pulsanti ✅ Sì / ❌ No / ❓ Forse sotto le domande chiuse di Axon (riconoscimento euristico, invio automatico, toast, 60 s, ≥320 px; `src/axon-quick-reply.tsx`, `POST /axon/quick-reply`, nota nel prompt); fix `**` nelle celle tabella; tabella PUN reale nel prompt anche su risposte brevi |
 | V50.z206 | Set 2026 | Azioni Rapide PUN deterministiche: job GME giornaliero → `gme_pun_cache` 24 mesi, `GET /quick-action/pun-18` JSON+Markdown pronti (~25 ms), hook `_qa_deterministic`, chat «tabella pun…», inserimento manuale Master, «⚖️ REGOLE ASSOLUTE» anti-allucinazione nel prompt (`axon_pun_quick.py`) |
 | V50.z205 | Set 2026 | Blocco 8 Fase 4 «Spazio Personale» (Sfera Home): hub `/spazio-personale` con conteggi, I miei audio con sfera + trascrizione automatica (Whisper+Haiku) + player nativo, tag sfera 🔵/🟢 su ogni voce della memoria Axon con filtro e toggle (`axon_personal_space.py`, `spazio-personale.tsx`) |
