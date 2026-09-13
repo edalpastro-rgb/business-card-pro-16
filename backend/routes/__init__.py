@@ -71,5 +71,6 @@ MODULES = [
     "axon_setup_wizard.py",  # V50.z211 — Wizard onboarding «Set Up and Go»: stato per utente (GET/PUT /axon/setup/state, nudge, reset) + avviso Axon in chat se la configurazione manca (isolato; avvolge _prepare_assistant_prompt)
     "axon_wizard_anagrafica.py",  # V50.z212 — Blocco 2 Step 1: decodifica codice fiscale, anagrafica nel prompt (mai richiedere), chat → Anagrafica (isolato; avvolge _prepare_assistant_prompt e _maybe_push_command)
     "axon_wizard_sphere.py",  # V50.z214 — Blocco 3 Step 2+3: sfera obbligatoria (business|home|both) + catalogo aree con switch e interessi futuri (GET /axon/setup/areas, PUT /axon/setup/sphere-areas) (isolato; avvolge _prepare_assistant_prompt)
+    "axon_wizard_talk.py",  # V50.z215 — Blocco 4 Step 4 «Parla a Neo»: testo/file multipart 50MB/audio Whisper → Neo estrae proposte (mail principale, indirizzo, …) + fatti; confirm un tap → master_profiles/users/axon_user_memory (isolato; riusa axon_uploads, heavy_call, _axm_llm_json)
     "37_app_startup_scheduler.py",
 ]

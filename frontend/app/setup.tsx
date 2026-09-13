@@ -2,7 +2,7 @@
 // Arriva dopo ToS → Tour → /permessi. Modalità: «Set Up and Go» = Step 1 + Step 2 + 3 preferenze core (pannello core dello Step 3);
 // «Full and Go» = tutti e 4 gli step, ogni area saltabile senza invalidare il completamento; «Dopo» = rimanda (Impostazioni → Configurazione
 // guidata; Axon ricorda con un avviso in chat quando una risposta soffre della configurazione mancante).
-// Il CONTENUTO dei singoli step arriva nel BLOCCO 2: `StepBody` è il punto d'innesto (placeholder ora).
+// Step: 1 Chi sei (Blocco 2) · 2 Sfera + 3 Aree (Blocco 3) · 4 Parla a Neo (Blocco 4). `StepBody` monta il componente dello step.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -14,6 +14,7 @@ import { api } from "@/src/api";
 import { Step1Anagrafica, type StepBinder } from "@/src/wizard/Step1Anagrafica"; // V50.z212 — Blocco 2 · Step 1
 import { Step2Sfera, type Sphere } from "@/src/wizard/Step2Sfera"; // V50.z214 — Blocco 3 · Step 2
 import { Step3Aree } from "@/src/wizard/Step3Aree"; // V50.z214 — Blocco 3 · Step 3
+import { Step4ParlaNeo } from "@/src/wizard/Step4ParlaNeo"; // V50.z215 — Blocco 4 · Step 4
 
 const PURPLE = "#7C3AED";
 type Mode = "setup" | "full";
@@ -28,7 +29,7 @@ export const STEP_META: Array<{ n: number; key: string; title: string; subtitle:
   { n: 1, key: "chi-sei", title: "Chi sei", subtitle: "Il tuo profilo e la tua attività", icon: "person-circle" },
   { n: 2, key: "sfera", title: "Sfera", subtitle: "Business, Home o entrambe: dove userai AdvisorOS", icon: "planet" },
   { n: 3, key: "aree", title: "Aree", subtitle: "Accendi le aree che ti servono, spegni il resto", icon: "toggle" },
-  { n: 4, key: "collega", title: "Collega e importa", subtitle: "Integrazioni, dati e team", icon: "link" },
+  { n: 4, key: "parla-a-neo", title: "Parla a Neo", subtitle: "Neo impara da te e compila l'app al posto tuo", icon: "chatbubble-ellipses" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────── Popup di benvenuto (effetto WOW)
@@ -100,12 +101,7 @@ function StepBody({ step, bind, state, onNext, onSkipAll }: { step: number; bind
       {step === 1 ? <Step1Anagrafica bind={bind} />
         : step === 2 ? <Step2Sfera bind={bind} initial={state.sphere} />
         : step === 3 ? <Step3Aree bind={bind} sphere={state.sphere || "both"} initial={state.areas} onNext={onNext} onSkipAll={onSkipAll} />
-        : (
-        <View style={styles.placeholder}>
-          <Ionicons name="construct-outline" size={18} color="#94A3B8" />
-          <Text style={styles.placeholderTxt}>Contenuto di questo passo in arrivo. Puoi già proseguire per provare il flusso.</Text>
-        </View>
-      )}
+        : <Step4ParlaNeo bind={bind} />}
     </View>
   );
 }
@@ -254,8 +250,6 @@ const styles = StyleSheet.create({
   stepIcon: { width: 52, height: 52, borderRadius: 18, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },
   stepTitle: { fontSize: 22, fontWeight: "900", color: "#1B2B4B" },
   stepSub: { fontSize: 13.5, color: "#64748B", lineHeight: 19 },
-  placeholder: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#F8FAFC", borderRadius: 12, padding: 12, marginTop: 8, borderWidth: 1, borderColor: "#E2E8F0", borderStyle: "dashed" },
-  placeholderTxt: { flex: 1, fontSize: 12.5, color: "#64748B", lineHeight: 17 },
   footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, gap: 6, backgroundColor: "#FAF5FF" },
   primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: PURPLE, borderRadius: 16, minHeight: 52 },
   primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 16 },
