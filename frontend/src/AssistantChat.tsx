@@ -52,6 +52,7 @@ import { ImportConfirmChips, hasImportQuestion } from "@/src/ImportConfirmChips"
 import { QuickReplyButtons, QuickReplyToast, QUICK_REPLY_TOAST_MS, isClosedQuestion } from "@/src/axon-quick-reply"; // V50.z207 — Sì/No/Forse su domande chiuse
 import { SetupNudgeCard, hasSetupNudge } from "@/src/SetupNudgeCard"; // V50.z211 — avviso configurazione incompleta → wizard
 import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 — avviso interessi futuri (CarPlay…) dal wizard
+import { ChatQueuePanel, ChatTabsBar, type QueueItem, type ChatTab } from "@/src/ChatQueuePanel"; // V50.z223 — coda messaggi non bloccante + chat parallele
 import { AXON_OPEN_CHAT_EVENT, consumePendingPrompt } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
@@ -208,6 +209,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [showModeMenu, setShowModeMenu] = useState(false);
   // V50.z160 — Menu ⋯ "Altro": condividi / PDF / copia intera conversazione
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  // V50.z223 — coda messaggi (input sempre attivo) + tab chat parallele (sessioni)
+  const [showQueue, setShowQueue] = useState(false);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [queueDone, setQueueDone] = useState<QueueItem[]>([]);
+  const [tabs, setTabs] = useState<ChatTab[]>([]);
+  const queueBusyRef = useRef(false);
   // V38T — Save-to-master modal state (opens with default filename)
   const [saveTarget, setSaveTarget] = useState<{ content: string; defaultName: string } | null>(null);
   const [paused, setPaused] = useState(false);
@@ -832,6 +839,61 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // V50.z196 — ref stabile a send() per il prompt proattivo in attesa (evita chiusure stantie nell'effect di apertura)
   const sendRef = useRef(send);
   useEffect(() => { sendRef.current = send; });
+
+  // V50.z223 — CODA: refresh, enqueue, elaborazione sequenziale (URGENT > HIGH > NORMAL, poi FIFO), toast «Bozza elaborata»
+  const refreshQueue = useCallback(async () => {
+    try { const q = await api<{ items: QueueItem[]; recent_done: QueueItem[] }>("/chat/queue?include_done=true"); setQueue(q.items || []); setQueueDone(q.recent_done || []); } catch {}
+  }, []);
+  const refreshTabs = useCallback(async () => { try { const t = await api<{ tabs: ChatTab[] }>("/chat/tabs"); setTabs(t.tabs || []); } catch {} }, []);
+  const enqueue = async (content: string, priority: "URGENT" | "HIGH" | "NORMAL" = "NORMAL") => {
+    try {
+      const r = await api<{ draft_id: string; position_in_queue: number; estimated_time: string }>("/chat/messages", { method: "POST", body: { content, priority, session_id: sessionId || undefined } });
+      notify("⏳ In coda", `Posizione ${r.position_in_queue} · parte tra ~${r.estimated_time}. Puoi continuare a scrivere.`);
+      await refreshQueue();
+    } catch (e: any) { notify("Non in coda", String(e?.message || e)); }
+  };
+  const processQueue = useCallback(async () => {
+    if (queueBusyRef.current) return;
+    queueBusyRef.current = true;
+    try {
+      // una bozza alla volta, finché la coda non è vuota
+      for (let guard = 0; guard < 20; guard++) {
+        const r = await api<{ item: QueueItem | null; reason?: string }>("/chat/queue/next", { method: "POST" });
+        if (!r.item) break;
+        await refreshQueue();
+        try {
+          await sendRef.current(r.item.content);
+          await api(`/chat/queue/${r.item.draft_id}`, { method: "PATCH", body: { status: "done" } });
+          notify("✅ Bozza elaborata", r.item.content.slice(0, 60));
+        } catch (e: any) {
+          await api(`/chat/queue/${r.item.draft_id}`, { method: "PATCH", body: { status: "failed", error: String(e?.message || e) } }).catch(() => {});
+        }
+        await refreshQueue();
+      }
+    } finally { queueBusyRef.current = false; }
+  }, [refreshQueue]);
+  // quando Axon finisce una risposta → parte la prossima bozza in coda
+  useEffect(() => { if (!sending && queue.some((q) => q.status === "pending")) void processQueue(); }, [sending, queue, processQueue]);
+  useEffect(() => { void refreshQueue(); void refreshTabs(); }, [refreshQueue, refreshTabs]);
+  const sendNow = async (it: QueueItem) => {
+    // «Invia ora»: priorità URGENT → è la prossima a partire (se Axon è libero parte subito)
+    await api(`/chat/queue/${it.draft_id}`, { method: "PATCH", body: { priority: "URGENT" } }).catch(() => {});
+    await refreshQueue();
+    if (!sending) void processQueue();
+  };
+  const switchTab = async (sid: string) => {
+    if (sid === sessionId) { setShowQueue(false); return; }
+    try {
+      const h = await api<{ session_id?: string | null; messages?: { role: string; content: string }[] }>(`/assistant/history?session_id=${encodeURIComponent(sid)}`);
+      setSessionId(sid);
+      setMessages((h.messages || []).map((m) => ({ role: m.role as any, content: m.content })));
+      setShowQueue(false);
+    } catch (e: any) { notify("Chat non caricata", String(e?.message || e)); }
+  };
+  const newTab = async () => {
+    try { const r = await api<{ session_id: string; title: string }>("/chat/tabs", { method: "POST", body: { title: `Chat ${tabs.length + 1}` } }); setSessionId(r.session_id); setMessages([]); setShowQueue(false); await refreshTabs(); }
+    catch (e: any) { notify("Nuova chat non creata", String(e?.message || e)); }
+  };
 
   // V29.n — Interrompe immediatamente la risposta in corso.
   const stopGeneration = () => {
@@ -1521,6 +1583,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 </Pressable>
               </View>
               <View style={styles.headerModeRow}>
+                {/* V50.z223 — tab «Coda» nell'header */}
+                <Pressable onPress={() => { setShowQueue((v) => !v); void refreshQueue(); void refreshTabs(); }} style={[styles.modeDropdown, showQueue && { backgroundColor: "#F97316" }]} hitSlop={6} testID="assistant-queue-tab" accessibilityLabel="Coda messaggi">
+                  <Ionicons name="list" size={13} color="#FFF" />
+                  <Text style={styles.modeDropdownTxt}>Coda{queue.length ? ` (${queue.length})` : ""}</Text>
+                </Pressable>
                 <Pressable
                   onPress={() => setShowModeMenu((v) => !v)}
                   style={styles.modeDropdown}
@@ -1612,9 +1679,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 <Text style={styles.backToTopTxt}>Inizio</Text>
               </Pressable>
             )}
+            {/* V50.z223 — chat parallele: barra tab (sessioni) sempre visibile sopra i messaggi */}
+            {tabs.length > 0 && !loadingHist && <ChatTabsBar tabs={tabs} current={sessionId} onSelect={(sid) => void switchTab(sid)} onNew={() => void newTab()} />}
+            {/* V50.z223 — tab «Coda»: pannello bozze al posto dei messaggi */}
+            {showQueue && <ChatQueuePanel items={queue} recentDone={queueDone} onChanged={() => void refreshQueue()} onSendNow={(it) => void sendNow(it)} busy={sending} />}
             <ScrollView
               ref={scrollRef}
-              style={styles.chatArea}
+              style={[styles.chatArea, showQueue && { display: "none" }]}
               contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 24 }}
               onContentSizeChange={() => { if (!autoScrollOffRef.current) scrollRef.current?.scrollToEnd({ animated: true }); }}
             >
@@ -1742,19 +1813,23 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     placeholderTextColor="#94A3B8"
                     style={styles.input}
                     multiline
-                    onSubmitEditing={() => send()}
+                    onSubmitEditing={() => { if (sending && input.trim()) { const t = input.trim(); setInput(""); void enqueue(t); } else void send(); }}
                     blurOnSubmit={false}
                     returnKeyType="send"
                     testID="assistant-input"
                   />
+                  {/* V50.z223 — input SEMPRE attivo: se Axon sta elaborando, il messaggio va in coda (⏳) e parte da solo dopo */}
                   <Pressable
-                    onPress={() => send()}
-                    disabled={sending || (!input.trim() && pendingAttachments.length === 0)}
-                    style={[styles.sendBtn, { opacity: sending || (!input.trim() && pendingAttachments.length === 0) ? 0.5 : 1 }]}
+                    onPress={() => { if (sending) { const t = input.trim(); if (!t) return; setInput(""); void enqueue(t); } else void send(); }}
+                    disabled={!input.trim() && pendingAttachments.length === 0}
+                    style={[styles.sendBtn, { opacity: !input.trim() && pendingAttachments.length === 0 ? 0.5 : 1 }, sending && input.trim() ? { backgroundColor: "#F97316" } : null]}
                     testID="assistant-send"
+                    accessibilityLabel={sending ? "Metti in coda" : "Invia"}
                   >
-                    {sending ? (
+                    {sending && !input.trim() ? (
                       <ActivityIndicator size="small" color="#FFF" />
+                    ) : sending ? (
+                      <Ionicons name="time-outline" size={20} color="#FFF" />
                     ) : (
                       <Ionicons name="arrow-up" size={20} color="#FFF" />
                     )}

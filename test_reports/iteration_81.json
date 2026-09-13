@@ -1,0 +1,56 @@
+{
+  "summary": "V50.z223 — Regression coda chat AxonOS. BACKEND: 7/7 test pytest passano su /app/backend/tests/test_v50_chat_queue.py (enqueue + 400 vuoto, priorità URGENT>HIGH>NORMAL + fallback su valore non valido, claim atomico /chat/queue/next con busy sulla seconda chiamata e sblocco dopo status=done, PATCH status invalido→400 e id inesistente→404, PATCH content/priority + DELETE + 404 su cancellazione ripetuta, include_done ritorna recent_done, isolamento demo↔collab su GET/PATCH/DELETE, /chat/tabs GET+POST+PATCH riflessi, /assistant/history 200 su session_id nuovo). Un bug minore trovato: POST /chat/queue/next ritorna lo snapshot PRE-update del documento (item.status resta 'pending' anche se il DB passa correttamente a 'processing') — non user-facing perché il frontend usa solo item.draft_id, ma comunque da correggere per contratto API. FRONTEND: verifica statica testID OK — assistant-fab, assistant-queue-tab, chat-queue-panel, chat-tabs, chat-tab-new, assistant-input, assistant-send, assistant-more-btn, assistant-new-chat tutti presenti nel codice. Test dinamico via Playwright NON completato: il tap sul FAB non fa aprire il modal chat in ambiente headless (né con page.click force, né con mouse down/up, né con PointerEvent + MouseEvent dispatched via JS). Rilevato inoltre che l'API frontend perde il token dopo alcune navigazioni (401 su /api/chat/queue in un caso), verosimilmente causa il flusso onboarding /libretto?onboarding=1 al primo login. Cleanup: nessuna bozza residua lato backend (il fixture di teardown ripulisce). Deprecated packages: nessuno rilevato in questa area del codice.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/chat/queue/next",
+        "issue": "find_one_and_update senza ReturnDocument.AFTER → response.item.status resta 'pending' anche se DB è 'processing'. Il frontend non lo usa (guarda solo draft_id) quindi non c'è impatto UX, ma il contratto API è ambiguo. Fix: passare return_document=ReturnDocument.AFTER (motor) in /app/backend/routes/axon_chat_queue.py:126."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Tap FAB assistant-fab per aprire chat modal",
+        "issue": "In ambiente Playwright headless (viewport 390x844) il click sul FAB (Pressable RN-web contenente <Image>) NON fa scattare onPress: né con click force=True, né con page.mouse.click al centro del bbox, né con sequenza pointerdown/pointerup+mousedown/mouseup+click dispatch via JS. document.elementFromPoint restituisce l'<img> figlio, senza handler. Possibile causa: RN-web usa il responder system che richiede eventi touch/pointer con pointerType coerente, oppure c'è un overlay 'assistant-drop-overlay' (linea 1517) con pointerEvents='none' ma testID visibile che può confondere. Da verificare manualmente su browser reale se il tap funziona (screenshot precedenti dell'agente E1 mostrano il modal aperto correttamente).",
+        "affected_testIDs": ["assistant-fab", "assistant-fab-logo"]
+      },
+      {
+        "flow": "Sessione auth dopo onboarding",
+        "issue": "Dopo login riuscito l'app redireziona a /libretto?onboarding=1; navigando manualmente a /home il token in localStorage risulta assente in un tentativo (fetch /api/chat/queue → 401). In altri tentativi il token era presente. Non riproducibile 100%. Da monitorare."
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50_chat_queue.py",
+    "/app/test_reports/pytest/v50_chat_queue.xml"
+  ],
+  "action_items": [
+    "MINOR BACKEND FIX (opzionale): in /app/backend/routes/axon_chat_queue.py:126 passare ReturnDocument.AFTER a find_one_and_update per restituire lo stato aggiornato (processing) — allineare il contratto API alla realtà DB.",
+    "VERIFICARE MANUALMENTE su browser reale (Chrome mobile emulation, viewport 390x844) l'apertura del FAB → modal chat → tab Coda: se il flusso funziona in manuale, il fallimento Playwright è una limitazione dell'ambiente headless (RN-web + responder system) e NON un bug applicativo. In alternativa aggiungere onPressIn/onClick esplicito sul Pressable assistant-fab per aumentare la robustezza dell'automazione (già ha onPress).",
+    "Regression coda backend: 7/7 pass, feature funzionante server-side. Nessuna azione richiesta lato coda.",
+    "Nessun test agent ha potuto verificare in modo dinamico i requisiti frontend (typing bubble, invio secondo msg mentre Axon risponde, persistenza dopo chiusura chat, badge counter). Sono coperti dai test backend (persistenza server-side confermata) + testID grep, ma serve una passata manuale/browser reale per il visual/UX."
+  ],
+  "critical_code_review_comments": [
+    "axon_chat_queue.py:126 — find_one_and_update ritorna il doc PRE-update: usare ReturnDocument.AFTER.",
+    "axon_chat_queue.py:117 — _cq_out include position_in_queue=0 e estimated_time='ora' per lo status 'processing' (via _cq_list) ma poi in cq_next viene passato pos=0 con il doc pre-update: se lo status finto 'pending' fosse mai letto dal client, la posizione sarebbe fuorviante.",
+    "ChatQueuePanel.tsx:17 — patch() e del() ignorano errori con try/catch vuoto: eventuali fallimenti (es. 404) sono silenziati, l'utente non riceve feedback. Considerare notify() in caso di errore.",
+    "axon_chat_queue.py:74-76 — update_one con upsert usa {draft_id, user_id} come filtro: OK per idempotenza. Nessun problema."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50_chat_queue.py (creato)"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "N/A - static testID verified in code, dynamic Playwright FAB tap non riproducibile in headless"
+  },
+  "seed_data_creation": "Nessuna. Le bozze TEST_ create durante i test backend sono ripulite dal fixture di teardown module-level.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Il backend coda chat è pienamente funzionante e coperto da test_v50_chat_queue.py (7 casi). Per i test frontend è necessario ambiente browser reale (non headless Playwright) perché il tap sul FAB Pressable non innesca onPress via automazione. Se serve automation E2E, valutare l'aggiunta di un handler onClick esplicito sul FAB (oltre a onPress) o usare Detox su native. Le API /api/chat/messages, /chat/queue, /chat/queue/next, /chat/queue/{id} (PATCH/DELETE), /chat/tabs (GET/POST/PATCH), /assistant/history sono tutte OK. Credenziali: demo@advisoros.it / Demo1234! + collab.demo@advisoros.it / Demo1234!.",
+  "rca_of_issue": "Bug minore: motor's find_one_and_update di default ritorna il documento PRIMA dell'update (ReturnDocument.BEFORE). In /app/backend/routes/axon_chat_queue.py:126 il claim atomico ritorna correttamente il draft che viene aggiornato, ma il campo status del payload di risposta è 'pending'. Il DB viene aggiornato correttamente (verificato dal fatto che la chiamata successiva risponde reason='busy'). Repro: enqueue almeno 1 bozza pendente → POST /chat/queue/next → response.item.status='pending' anziché 'processing'. Fix: `from pymongo import ReturnDocument` e passare `return_document=ReturnDocument.AFTER` a find_one_and_update."
+}

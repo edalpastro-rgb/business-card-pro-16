@@ -77,5 +77,6 @@ MODULES = [
     "axon_wizard_complete.py",  # V50.z216 — Blocco 5: completamento wizard (messaggio personalizzato, stats), Profilo → «La mia configurazione Set Up» (GET /axon/setup/config, POST /axon/setup/reopen), FAQ post-wizard nel prompt Axon (isolato; avvolge _prepare_assistant_prompt)
     "axon_push_urgency.py",  # V50.z220 — push a livelli di urgenza CRITICAL/HIGH/NORMAL: canali Android urgent_alerts/standard_alerts/default, campi iOS-ready, helper send_critical_alert/send_standard_notif, wrapper send_push (dopo axon_push_bridge)
     "axon_ops_status.py",  # V50.z222 — autonomia Axon: GET /integrations/outbox/status|recent (message_id per ogni push), GET /jobs/gme-fetcher/status (+run), POST /notify, wrapper _punq_refresh (durata/errori/timeout 20s), sezione prompt live (dopo axon_push_urgency)
+    "axon_chat_queue.py",  # V50.z223 — chat non bloccante: coda messaggi con priorità (POST /chat/messages, GET/PATCH/DELETE /chat/queue, /chat/queue/next) + tab = sessioni (GET/POST/PATCH /chat/tabs)
     "37_app_startup_scheduler.py",
 ]
