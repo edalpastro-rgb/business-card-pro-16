@@ -61,5 +61,6 @@ MODULES = [
     "axon_media.py",  # V50.z199 — Blocco 8 Fase 3: archivio intelligente foto/audio/video a due sfere («Privata o aziendale?», Whisper + Gemini, ricerca, reminder Non classificato) (isolato; avvolge _maybe_push_command e _prepare_assistant_prompt)
     "axon_system_awareness.py",  # V50.z200 — Axon vede il backend in tempo reale: eventi API/log/deploy/job, versioni app installate (heartbeat) + alert «app aggiornata», CHANGELOG nel prompt, stato sistema (isolato; middleware HTTP, logging handler, avvolge _maybe_push_command e _prepare_assistant_prompt)
     "axon_drive_root.py",  # V50.z201 — Drive: file ROOT sempre visibili ([ROOT FILES] nel prompt), shortcut risolti, OCR Gemini per PDF senza testo, retry download (isolato; ridefinisce _drive_walk_and_collect/_drive_download_text, avvolge _reindex_drive_files_for_user e _fetch_teach_drive_pdfs_for_query)
+    "axon_uploads.py",  # V50.z202 — Upload multipart a chunk (Master Files → Object Storage, solo riferimento in Mongo; trascrizione Whisper da file) (isolato; usato anche dalla patch JSON legacy in 16)
     "37_app_startup_scheduler.py",
 ]

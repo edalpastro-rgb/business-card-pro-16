@@ -193,6 +193,23 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z202 — Upload MULTIPART a chunk: Master Files → Object Storage (solo riferimento in Mongo) + trascrizione da file** — modulo
+  isolato `backend/routes/axon_uploads.py` (dopo `axon_drive_root.py`) + patch minima in 16 + `src/utils/upload.ts`. **STATO PRIMA**:
+  `POST /master-files` e `POST /ai/transcribe` ricevevano JSON con base64 (+33% banda, payload intero in RAM per il parse) e i Master Files
+  erano salvati INLINE in MongoDB (`data_base64`) → oltre ~12 MB fallivano (limite documento 16 MB), ogni lettura caricava tutto.
+  **STATO DOPO**: `POST /master-files/upload` (multipart `file`, `category`, `name?`, `title?`) → `UploadFile` letto a **chunk da 1 MB** su
+  file temporaneo con **limite 50 MB** (413) e SHA-256 → Object Storage `master-files/{tenant}/{id}.ext` (3 tentativi) → Mongo salva SOLO
+  {storage:"object", storage_path, sha256, size, mime}. `GET /master-files/{id}/content[?token=]` serve il contenuto; `GET /master-files/{id}`
+  ricarica `data_base64` dallo storage solo su richiesta (compatibilità viewer) + `content_url`. L'endpoint JSON legacy `POST /master-files`
+  resta (scanner, altri client) ma **non salva più inline**: decodifica su temp → stesso percorso storage. `POST /ai/transcribe/upload`
+  (multipart `file`, `mime?`, **limite 25 MB**) → chunk su temp → Whisper direttamente dal file; l'endpoint JSON resta per i chiamanti
+  esistenti (chat vocale, copilot). Frontend: `uploadMasterFile()` / `transcribeUpload()` (FormData: `{uri,name,type}` su nativo = stream;
+  `File` su web) usati da `master-files.tsx` (registrazione audio, Carica file, Foto/Video, hook legacy — rimosso `uriToBase64`) e
+  `VoiceDictationButton.tsx`. **Drive/Dropbox NON usati come storage**: le connessioni esistenti hanno solo scope di LETTURA
+  (`drive.readonly`, `files.content.read`); scrivere lì richiede una nuova autorizzazione con scope di scrittura (da decidere con l'utente).
+  Test `backend/tests/test_axon_uploads.py` ✅ 9/9: PDF **15 MB** multipart in 0,8 s (1,3 s via URL pubblico), riferimento senza contenuto,
+  download identico header+token, limite 50 MB → 413, JSON legacy → storage, **trascrizione ~2 minuti** (TTS → Whisper, 3,1 MB, 13,5 s,
+  2.699 caratteri), audio vuoto → 400. Web e2e: «Carica file» 3 MB → in elenco (storage object).
 - **V50.z201 — Google Drive: file nella ROOT sempre visibili ad Axon + shortcut + OCR** — modulo isolato `backend/routes/axon_drive_root.py`
   (dopo `axon_system_awareness.py`, prima di 37). Origine: prompt generato da AxonOS («i PDF nella root della cartella collegata NON vengono
   parsati», es. `00_POWER/Link Corporate Club Library.pdf`, `MODELLO POWER_v.2026070.pdf`). **VERIFICA**: la BFS (`_drive_walk_and_collect`,
@@ -754,6 +771,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z202 | Set 2026 | Upload multipart a chunk: `POST /master-files/upload` (50 MB) → Object Storage, solo riferimento in Mongo, `GET /master-files/{id}/content`; `POST /ai/transcribe/upload` (25 MB) Whisper da file; JSON legacy non più inline; `src/utils/upload.ts` (`routes/axon_uploads.py`) |
 | V50.z201 | Set 2026 | Google Drive: file ROOT sempre visibili ad Axon (sezione «📁 [ROOT FILES]» completa nel prompt), shortcut Drive risolti, OCR Gemini per PDF scansionati, retry download, `GET /google-drive/root-files` (`routes/axon_drive_root.py`) |
 | V50.z200 | Set 2026 | Axon vede il backend in tempo reale: eventi API/log/deploy/job, versioni app installate via heartbeat + alert proattivo «App aggiornata» con novità CHANGELOG, sezione prompt «Stato sistema», chat «hai aggiornamenti?», schermata `/axon-system` (`routes/axon_system_awareness.py`, `src/systemHeartbeat.tsx`) |
 | V50.z199 | Set 2026 | BLOCCO 8 Fase 3: archivio intelligente foto/audio/video a due sfere («Privata o aziendale?», ⚪ Non classificato + reminder 2 h, Whisper + Gemini vision/OCR, ricerca, chat) (`routes/axon_media.py`, `app/axon-media.tsx`, `src/MediaVoiceRecorder.tsx`, card in Integrazioni) |

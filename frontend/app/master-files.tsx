@@ -9,7 +9,7 @@ import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
-import { uriToBase64 } from "@/src/utils/media";
+import { uploadMasterFile } from "@/src/utils/upload"; // V50.z202 — multipart a chunk, niente base64
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { FileViewer } from "@/src/FileViewer";
 import { ShareSheet, type ShareTarget } from "@/src/ShareSheet";
@@ -126,20 +126,9 @@ function MasterFilesScreen() {
       const uri = audioRecorder.uri;
       setRecording(false);
       if (!uri) { notify("Registrazione vuota", ""); return; }
-      const b64 = await uriToBase64(uri);
-      const bytes = Math.round((b64.length * 3) / 4);
       const durSec = Math.round((Date.now() - recStart) / 1000);
       const nm = `nota-vocale-${new Date().toISOString().replace(/[:.]/g, "-")}.m4a`;
-      await api("/master-files", {
-        method: "POST",
-        body: {
-          category: "audio",
-          name: nm,
-          mime: Platform.OS === "ios" ? "audio/m4a" : "audio/mp4",
-          data_base64: b64,
-          size: bytes,
-        },
-      });
+      await uploadMasterFile({ uri, name: nm, mime: Platform.OS === "ios" ? "audio/m4a" : "audio/mp4" }, "audio");
       try { await FileSystem.deleteAsync(uri, { idempotent: true }); } catch {}
       await load();
       notify("Audio salvato ✅", `Durata ${durSec}s`);
@@ -230,19 +219,8 @@ function MasterFilesScreen() {
         if (res.canceled || !res.assets?.[0]) { setBusy(false); return; }
         asset = res.assets[0];
       }
-      const b64 = await uriToBase64(asset.uri);
-      const bytes = Math.round((b64.length * 3) / 4);
-      if (bytes > 20 * 1024 * 1024) { notify("File troppo grande", "Max 20 MB."); setBusy(false); return; }
-      await api("/master-files", {
-        method: "POST",
-        body: {
-          category,
-          name: asset.name || `file-${Date.now()}`,
-          mime: asset.mimeType || "application/octet-stream",
-          data_base64: b64,
-          size: bytes,
-        },
-      });
+      if ((asset.size || 0) > 50 * 1024 * 1024) { notify("File troppo grande", "Max 50 MB."); setBusy(false); return; }
+      await uploadMasterFile({ uri: asset.uri, name: asset.name || `file-${Date.now()}`, mime: asset.mimeType || "application/octet-stream" }, category as any);
       await load();
     } catch (e: any) {
       notify("Errore caricamento", e?.message || "");
@@ -274,28 +252,9 @@ function MasterFilesScreen() {
       }
       if (res.canceled || !res.assets?.[0]?.uri) { setBusy(false); return; }
       const a = res.assets[0];
-      // On web the uri is already a data URL — extract base64.
-      // On native, read the file using expo-file-system.
-      let b64: string;
-      if (a.uri.startsWith("data:")) {
-        const idx = a.uri.indexOf(",");
-        b64 = idx >= 0 ? a.uri.slice(idx + 1) : "";
-      } else {
-        b64 = await uriToBase64(a.uri);
-      }
-      const bytes = Math.round((b64.length * 3) / 4);
-      if (bytes > 20 * 1024 * 1024) { notify("File troppo grande", "Max 20 MB."); setBusy(false); return; }
+      if ((a.fileSize || 0) > 50 * 1024 * 1024) { notify("File troppo grande", "Max 50 MB."); setBusy(false); return; }
       const isVideo = kind.endsWith("video");
-      await api("/master-files", {
-        method: "POST",
-        body: {
-          category: "files",
-          name: a.fileName || (isVideo ? `video-${Date.now()}.mp4` : `foto-${Date.now()}.jpg`),
-          mime: a.mimeType || (isVideo ? "video/mp4" : "image/jpeg"),
-          data_base64: b64,
-          size: bytes,
-        },
-      });
+      await uploadMasterFile({ uri: a.uri, name: a.fileName || (isVideo ? `video-${Date.now()}.mp4` : `foto-${Date.now()}.jpg`), mime: a.mimeType || (isVideo ? "video/mp4" : "image/jpeg") }, "files");
       await load();
     } catch (e: any) {
       notify("Errore", e?.message || "");
@@ -312,13 +271,8 @@ function MasterFilesScreen() {
   const _saveRecordedAudio = async (audio: { uri: string; mimeType?: string; fileName?: string; durationMs?: number }) => {
     setBusy(true);
     try {
-      const b64 = await uriToBase64(audio.uri);
-      const bytes = Math.round((b64.length * 3) / 4);
       const nm = audio.fileName || `audio-${Date.now()}.m4a`;
-      await api("/master-files", {
-        method: "POST",
-        body: { category: "audio", name: nm, mime: audio.mimeType || "audio/m4a", data_base64: b64, size: bytes },
-      });
+      await uploadMasterFile({ uri: audio.uri, name: nm, mime: audio.mimeType || "audio/m4a" }, "audio");
       await load();
     } catch (e: any) {
       notify("Errore salvataggio audio", e?.message || "");

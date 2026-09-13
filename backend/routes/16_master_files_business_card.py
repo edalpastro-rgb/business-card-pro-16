@@ -34,18 +34,29 @@ async def add_master_file(body: MasterFileIn, user=Depends(get_current_user)):
     if b64.startswith("data:"):
         b64 = b64.split(",", 1)[1]
     est_size = int(len(b64) * 0.75) if b64 else 0
-    if est_size > 20 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File troppo grande (max ~20 MB)")
+    if est_size > 50 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File troppo grande (max 50 MB)")
+    name = (body.name or "").strip() or (body.title or "senza titolo")
+    if b64 and body.category != "notes":
+        # V50.z202 — mai più inline in MongoDB: contenuto su Object Storage, qui solo il riferimento (endpoint legacy JSON;
+        # i client nuovi usano POST /master-files/upload multipart a chunk).
+        import tempfile as _mf_tempfile
+        tmp = _mf_tempfile.NamedTemporaryFile(suffix="." + _upl_ext(name, body.mime or ""), delete=False)
+        try:
+            raw = base64.b64decode(b64); tmp.write(raw); tmp.close()
+        except Exception:
+            tmp.close(); os.unlink(tmp.name)
+            raise HTTPException(status_code=400, detail="Base64 non valido")
+        return await _upl_master_store(user, body.category, name, body.mime or "application/octet-stream", tmp.name, len(raw), __import__('hashlib').sha256(raw).hexdigest(), body.title)
     doc = {
         "file_id": file_id,
         "user_id": tenant_id(user),
         "created_by": user["user_id"],
         "category": body.category,
-        "name": (body.name or "").strip() or (body.title or "senza titolo"),
+        "name": name,
         "title": (body.title or "").strip() or None,
         "body": body.body if body.category == "notes" else None,
         "mime": body.mime or "application/octet-stream",
-        "data_base64": b64,
         "size": body.size if body.size is not None else est_size,
         "created_at": utcnow(),
         "updated_at": utcnow(),
@@ -811,6 +822,11 @@ async def get_master_file(file_id: str, user=Depends(get_current_user)):
     d = await db.master_files.find_one({"user_id": tenant_id(user), "file_id": file_id}, {"_id": 0})
     if not d:
         raise HTTPException(status_code=404, detail="File non trovato")
+    # V50.z202 — contenuto su Object Storage: ricaricato SOLO qui su richiesta (compatibilità viewer che legge data_base64)
+    if d.get("storage_path") and not d.get("data_base64"):
+        got = await run_in_threadpool(_get_object_sync, d["storage_path"])
+        d["data_base64"] = base64.b64encode(got[0]).decode() if got else ""
+    d["content_url"] = f"/api/master-files/{file_id}/content"
     return d
 
 

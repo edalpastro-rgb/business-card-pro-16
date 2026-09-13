@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "@/src/api";
+import { transcribeUpload } from "@/src/utils/upload";
 import { notify } from "@/src/utils/notify";
 import { theme } from "@/src/theme";
 
@@ -143,13 +143,8 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
         setProcessing(false);
         return;
       }
-      // Convert blob to base64
-      const b64 = await blobToBase64(blob);
-      const r = await api<{ transcript: string }>("/ai/transcribe", {
-        method: "POST",
-        body: { audio_base64: b64, mime: blob.type || "audio/webm" },
-      });
-      const txt = (r?.transcript || "").trim();
+      // V50.z202 — multipart a chunk (niente base64 in RAM/JSON)
+      const txt = await transcribeUpload({ blob, name: `dettato.${(blob.type || "audio/webm").includes("mp4") ? "m4a" : "webm"}`, mime: blob.type || "audio/webm" });
       if (!txt) {
         notify("Trascrizione vuota", "Non è stato possibile riconoscere il parlato. Riprova.");
       } else {
@@ -207,19 +202,6 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
   );
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => {
-      const res = fr.result as string;
-      // strip "data:...;base64,"
-      const i = res.indexOf(",");
-      resolve(i >= 0 ? res.slice(i + 1) : res);
-    };
-    fr.onerror = () => reject(fr.error);
-    fr.readAsDataURL(blob);
-  });
-}
 
 const styles = StyleSheet.create({
   wrap: {
