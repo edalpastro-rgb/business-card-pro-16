@@ -385,7 +385,8 @@ async def _punq_daily_tick() -> dict:
 async def _punq_start():
     try:
         await db.axon_pun_meta.create_index([("key", 1)], unique=True)
-        _axn_scheduler.add_job(_punq_daily_tick, "cron", hour=6, minute=40, id="punq-daily", replace_existing=True)
+        _axn_scheduler.add_job(_punq_daily_tick, "cron", day=1, hour=7, minute=0, id="punq-monthly", replace_existing=True)      # 1° del mese: aggiornamento tabella
+        _axn_scheduler.add_job(_punq_daily_tick, "cron", hour=6, minute=40, id="punq-daily", replace_existing=True)             # recupero: il PDF GME esce tra il 1° e il 6°
 
         async def _boot():
             await _punq_asyncio.sleep(20)

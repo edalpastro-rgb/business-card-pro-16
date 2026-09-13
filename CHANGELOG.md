@@ -208,7 +208,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   (visto in test: senza dati in contesto il modello inventava una tabella).
 - **V50.z206 — Azioni Rapide PUN come CALCOLATORE (1+1=2, sempre) + Regole Assolute anti-allucinazione** — nuovo modulo isolato
   `routes/axon_pun_quick.py` (dopo `axon_personal_space.py`), hook `_qa_deterministic` in `24_axon_quick_actions_memory.py` (3 righe).
-  **Cache backend**: job `punq-daily` (cron 06:40 Europe/Rome + refresh 20 s dopo il boot) → per gli ultimi 24 mesi scarica dal GME SOLO i
+  **Cache backend**: job `punq-monthly` (cron 1° del mese 07:00 Europe/Rome) + `punq-daily` (06:40, recupero: il PDF GME esce tra il 1° e il 6°) + refresh 20 s dopo il boot → per gli ultimi 24 mesi scarica dal GME SOLO i
   PDF mancanti (pagina `?anno=YYYY`, quindi anche gli anni passati; il PDF di dicembre pubblicato a gennaio viene cercato anche nell'anno
   successivo; mese/anno letti dal NOME del mese nel file, non dal prefisso data) → F1/F2/F3 + ore → monorario ponderato → `gme_pun_cache`
   (24/24 mesi presenti, prima erano 8). Nuovo mese trovato → alert proattivo `pun_update` ai Master. **Endpoint pronto**:
