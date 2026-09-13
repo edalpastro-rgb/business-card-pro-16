@@ -193,6 +193,12 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z209 — Profilo APK: «Novità della versione» + avviso aggiornamento in chat** — `routes/axon_app_info.py`: `whats_new` (ultime 3 righe della
+  tabella CHANGELOG, senza backtick, max 220 caratteri) nel `GET /axon/app-info`; `_api_check_outdated` (dispositivi `app_env=standalone` con
+  `app_version` < `expo.version` di app.json, confronto numerico `_api_vcmp`) → alert proattivo `app_update` («📲 La tua app è da aggiornare… hai la
+  v1.0.60, disponibile la v2.0.0 · Cosa ti perdi: 3 novità · scarica la nuova build»), in chat + push, idempotente per coppia
+  `app_update:<installata>-><disponibile>`; scatta all'apertura del Profilo e con il job orario `app-info-outdated` (dispositivi visti negli ultimi
+  30 giorni). `AppInfoCard.tsx`: box «Ultime novità di questa versione» / «Novità che ti aspettano nella vX» con versione + descrizione (3 righe max).
 - **V50.z208 — Profilo: piano attivo + versione APK installata (in cima, sempre visibile)** — nuovo `src/AppInfoCard.tsx` (prima card di
   `(tabs)/impostazioni.tsx`): riga compatta «Piano Pro · APK installata · v1.0.60 (build N)» con badge «Aggiornata ✓» / «Nuova vX.Y.Z»; tap →
   data installazione (`expo-application.getInstallationTimeAsync`, fallback primo heartbeat), ultimo aggiornamento (`getLastUpdateTimeAsync` Android /
@@ -860,6 +866,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z209 | Set 2026 | Profilo APK: ultime 3 novità CHANGELOG nella card espansa; avviso proattivo `app_update` in chat quando l'APK installata è più vecchia di quella disponibile (apertura Profilo + job orario, idempotente) |
 | V50.z208 | Set 2026 | Profilo: card in cima «Piano attivo · versione APK installata» espandibile (installazione, ultimo aggiornamento, versione disponibile/aggiornata) — `AppInfoCard.tsx`, `routes/axon_app_info.py` |
 | V50.z207 | Set 2026 | Pulsanti ✅ Sì / ❌ No / ❓ Forse sotto le domande chiuse di Axon (riconoscimento euristico, invio automatico, toast, 60 s, ≥320 px; `src/axon-quick-reply.tsx`, `POST /axon/quick-reply`, nota nel prompt); fix `**` nelle celle tabella; tabella PUN reale nel prompt anche su risposte brevi |
 | V50.z206 | Set 2026 | Azioni Rapide PUN deterministiche: job GME giornaliero → `gme_pun_cache` 24 mesi, `GET /quick-action/pun-18` JSON+Markdown pronti (~25 ms), hook `_qa_deterministic`, chat «tabella pun…», inserimento manuale Master, «⚖️ REGOLE ASSOLUTE» anti-allucinazione nel prompt (`axon_pun_quick.py`) |

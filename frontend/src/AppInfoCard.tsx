@@ -13,6 +13,7 @@ const PURPLE = "#7C3AED";
 type Info = {
   plan_name: string; plan_scope: "master" | "team"; latest_version: string | null; latest_version_date: string | null; backend_version: string | null;
   device: { installed_version: string | null; build_number: string | null; first_seen: string | null; updated_at: string | null; previous_version: string | null; app_env: string | null } | null;
+  whats_new?: Array<{ version: string; date: string; desc: string }>;
 };
 
 function cmpVersion(a: string, b: string): number {
@@ -80,6 +81,17 @@ export function AppInfoCard() {
           <Row label="Versione disponibile" value={latest ? `v${latest}${info?.latest_version_date ? ` · ${fmt(info.latest_version_date).slice(0, 10)}` : ""}` : "—"} />
           {info?.device?.previous_version ? <Row label="Versione precedente" value={`v${info.device.previous_version}`} /> : null}
           {info?.backend_version ? <Row label="Backend / novità" value={info.backend_version} /> : null}
+          {info?.whats_new && info.whats_new.length > 0 && (
+            <View style={styles.newsBox} testID="app-info-news">
+              <Text style={styles.newsTitle}>{status === "update" ? `Novità che ti aspettano nella v${latest}` : "Ultime novità di questa versione"}</Text>
+              {info.whats_new.map((n) => (
+                <View key={n.version} style={styles.newsRow}>
+                  <Text style={styles.newsVer}>{n.version}</Text>
+                  <Text style={styles.newsTxt} numberOfLines={3}>{n.desc}</Text>
+                </View>
+              ))}
+            </View>
+          )}
           <Text style={[styles.hint, status === "update" && { color: "#9A3412", fontWeight: "700" }]}>
             {status === "ok" ? "Hai l'ultima versione disponibile." : status === "update" ? `È disponibile la versione v${latest}: scarica la nuova build dell'app per aggiornare.` : isNative ? "Stato aggiornamento non determinabile." : "In anteprima web/Expo Go la versione APK non è disponibile: qui vedi la versione del codice."}
           </Text>
@@ -112,4 +124,9 @@ const styles = StyleSheet.create({
   detailLbl: { fontSize: 12.5, color: "#64748B" },
   detailVal: { fontSize: 12.5, color: "#1B2B4B", fontWeight: "700", textAlign: "right", flexShrink: 1 },
   hint: { fontSize: 11.5, color: "#64748B", lineHeight: 16 },
+  newsBox: { backgroundColor: "#F8FAFC", borderRadius: 10, padding: 10, gap: 6 },
+  newsTitle: { fontSize: 12, fontWeight: "800", color: "#1B2B4B" },
+  newsRow: { flexDirection: "row", gap: 8 },
+  newsVer: { fontSize: 11, fontWeight: "800", color: PURPLE, width: 62 },
+  newsTxt: { flex: 1, fontSize: 11.5, color: "#475569", lineHeight: 15 },
 });
