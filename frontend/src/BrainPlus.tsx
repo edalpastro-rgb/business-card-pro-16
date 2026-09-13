@@ -8,7 +8,8 @@ import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from "react-na
 export const BRAIN_PLUS_ORANGE = "#F97316";
 export const BRAIN_PLUS_NAVY = "#1B2B4B";
 export const BRAIN_PLUS_CLAIM = "AxonOS — Brain+";
-export const BRAIN_PLUS_TAGLINE = "Il sistema operativo che potenzia il tuo cervello.";
+// DO NOT CHANGE - brand copy locked
+export const BRAIN_PLUS_TAGLINE = "Il sistema operativo che amplifica le tue capacità.";
 export const BRAIN_PLUS_EXAMPLE = "AxonOS Brain+ — Non dimentica nulla, non si stanca mai, conosce la tua vita.";
 /** Sezioni del Libretto / Tour dove il claim compare (anche nei libretti personalizzati del Master, per id). */
 export const BRAIN_PLUS_SECTION_IDS = new Set(["intro", "perche-diverso", "vantaggio-tempo", "chiusura"]);

@@ -569,7 +569,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   personalizzati del Master.
 - **V50.z190 — Brain+ Branding (claim ufficiale AxonOS)** — nuovo modulo isolato `src/BrainPlus.tsx`: componente `<BrainPlus>` ("AxonOS — Brain+",
   "+" SEMPRE arancione CTA #F97316, ×1.45 e bold; "Brain" bianco su sfondo scuro / navy #1B2B4B su chiaro; tagline opzionale «Il sistema
-  operativo che potenzia il tuo cervello.»), `brainPlusHtml()` per l'export PDF, costanti `BRAIN_PLUS_*` e `BRAIN_PLUS_SECTION_IDS`
+  operativo che amplifica le tue capacità.» — DO NOT CHANGE - brand copy locked), `brainPlusHtml()` per l'export PDF, costanti `BRAIN_PLUS_*` e `BRAIN_PLUS_SECTION_IDS`
   (intro, perche-diverso, vantaggio-tempo, chiusura → vale anche per i libretti personalizzati del Master, riconoscimento per id).
   Applicato in: copertina Libretto/Tour (app + PDF), sezioni 1/18/21/chiusura (app + PDF), slide AxonOS del WowIntro (prima presentazione),
   hero della landing pubblica. Testi: sottotitoli/highlight delle 4 sezioni ora accompagnano il nome con il claim ("AxonOS Brain+ — Non

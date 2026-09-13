@@ -6045,3 +6045,8 @@ else Linking.openURL(url).catch(() => {});
 - V50.z211 BLOCCO 1 wizard onboarding: `app/permessi.tsx`, `app/setup.tsx` (WelcomePopup, ProgressBar, StepBody placeholder → BLOCCO 2 innesta qui; STEP_META 4 step), `src/SetupEntryCard.tsx` (Impostazioni), `src/SetupNudgeCard.tsx` (chat), `routes/axon_setup_wizard.py` (state/nudge/reset + prompt). Utente: 3 preferenze core le indicherà lui nel Blocco 2; wizard per tutti. PENDING Blocco 2: contenuto step 1-4 + 3 preferenze core.
 
 - V50.z212 Step 1 Anagrafica: `src/wizard/Step1Anagrafica.tsx` (bind/submit pattern: setup.tsx `stepSubmit` ref), `routes/axon_wizard_anagrafica.py` (cf-decode, prompt anagrafica, chat→profilo), `/master/profile` esteso (31). Pattern per Step 2-4: componente in src/wizard/ con prop `bind`, innesto in StepBody. PENDING: Step 2, 3 (+3 preferenze core), 4.
+
+
+## V50.z213 (Giu 2026) — Brand copy lock: «potenzia il tuo cervello» → «amplifica le tue capacità»
+
+Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervello» con «Il sistema operativo che amplifica le tue capacità» (5 occorrenze codice: `src/BrainPlus.tsx` `BRAIN_PLUS_TAGLINE`, `src/libretto/libretto-content.ts` sezioni intro + vantaggio-tempo, `backend/routes/axon_app_map.json` idem) + citazione in CHANGELOG. Ogni punto marcato con commento `DO NOT CHANGE - brand copy locked` (nel JSON: chiave sibling `_brand_lock`, ignorata dal loader che legge per chiave). Nessuna occorrenza nel DB. **Regola per i prossimi agenti: non modificare mai queste stringhe.**

@@ -77,7 +77,8 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     emoji: "📘",
     color: "#1C4869",
     title: "AdvisorOS 2.0 + AxonOS",
-    subtitle: "AxonOS Brain+ · Il sistema operativo che potenzia il tuo cervello",
+    // DO NOT CHANGE - brand copy locked
+    subtitle: "AxonOS Brain+ · Il sistema operativo che amplifica le tue capacità",
     highlight: "AxonOS Brain+ — Non dimentica nulla, non si stanca mai, conosce la tua vita. Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati.",
     paragraphs: [
       "AdvisorOS è il sistema operativo per chiunque gestisca relazioni, scadenze e decisioni: consulenti, agenti, studi professionali, agenzie, aziende e privati. Non è un CRM con un chatbot aggiunto. È una piattaforma completa con isolamento multi-tenant, controllo dei ruoli e integrazioni cloud native.",
@@ -484,7 +485,8 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     color: "#F59E0B",
     title: "21 · Il vantaggio che cresce nel tempo",
     subtitle: "AxonOS Brain+ · La memoria è tua",
-    highlight: "Ogni giorno che usi AdvisorOS, AxonOS Brain+ ti conosce meglio: il sistema operativo che potenzia il tuo cervello.",
+    // DO NOT CHANGE - brand copy locked
+    highlight: "Ogni giorno che usi AdvisorOS, AxonOS Brain+ ti conosce meglio: il sistema operativo che amplifica le tue capacità.",
     paragraphs: [
       "La memoria accumulata nel tuo sistema non va da nessuna parte: è tua. Questo è il motivo per cui chi inizia a usare AdvisorOS non torna indietro.",
       "Il sistema diventa parte del tuo modo di lavorare.",
