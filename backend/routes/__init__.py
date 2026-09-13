@@ -65,5 +65,6 @@ MODULES = [
     "axon_uploads.py",  # V50.z202 — Upload multipart a chunk (Master Files → Object Storage, solo riferimento in Mongo; trascrizione Whisper da file) (isolato; usato anche dalla patch JSON legacy in 16)
     "axon_personal_space.py",  # V50.z205 — Blocco 8 Fase 4: «Spazio Personale» Sfera Home (riepilogo hub, audio personali con sfera + trascrizione automatica, tag sfera su ogni voce della memoria Axon) (isolato; hook _audio_record_hooks di 18, avvolge _am_analyze e _maybe_push_command)
     "axon_pun_quick.py",  # V50.z206 — Azioni Rapide PUN come calcolatore: job giornaliero GME (anche anni passati) → gme_pun_cache, GET /quick-action/pun-18 JSON+Markdown pronti, hook _qa_deterministic di 24, chat «tabella pun…», regole assolute anti-allucinazione nel prompt (isolato; avvolge _maybe_push_command e _prepare_assistant_prompt)
+    "axon_quick_reply.py",  # V50.z207 — Pulsanti Sì/No/Forse sulle domande chiuse di Axon: POST /axon/quick-reply (log) + nota nel prompt per interpretare la risposta breve come risposta all'ultima domanda (isolato; avvolge _prepare_assistant_prompt)
     "37_app_startup_scheduler.py",
 ]

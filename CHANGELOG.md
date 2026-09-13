@@ -193,6 +193,19 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z207 — Pulsanti ✅ Sì / ❌ No / ❓ Forse sotto le domande chiuse di Axon** — nuovo `src/axon-quick-reply.tsx` (componente
+  `QuickReplyButtons`, `QuickReplyToast`, euristica `isClosedQuestion`: ultima riga della risposta che termina con «?», contiene una formula di
+  conferma/scelta binaria — procediamo, ti va bene, vuoi che, confermi, cancello, stesso orario, … — oppure è brevissima («Procediamo?»), e NON
+  inizia con un interrogativo aperto che/cosa/quale/quando/dove/come/perché/chi/quanto/a che ora), 6 righe in `AssistantChat.tsx` (render sotto
+  l'ultimo messaggio di Axon non in streaming, escluse le domande «memorizzi questi dati» che hanno già i loro chip; `onQuickReply` → invio
+  automatico + toast «Risposta registrata ✓» 1,8 s reso dal genitore così resta visibile mentre Axon elabora), nuovo modulo backend isolato
+  `routes/axon_quick_reply.py` (`POST /axon/quick-reply` → log in `axon_quick_replies`; wrap `_prepare_assistant_prompt`: se il messaggio è una
+  risposta brevissima sì/no/forse aggiunge «🔘 RISPOSTA RAPIDA … all'ULTIMA domanda chiusa, prosegui senza richiedere conferma»). Regole: un tap
+  = testo inviato («Sì» / «No» / «Forse, aspetta un momento»), i pulsanti spariscono al tap o dopo 60 s, non compaiono sotto 320 px, se l'utente
+  digita il suo testo ha priorità (i pulsanti sono solo un'alternativa all'input). Collaterali: `ChatTableExport.splitRow` rimuove i marcatori
+  `**` dalle celle (le tabelle non renderizzano il Markdown → prima si vedevano gli asterischi accanto a 🔴/🟢); `axon_pun_quick.py` inietta la
+  tabella PUN reale della cache nel prompt anche quando il messaggio è breve («Sì», «procedi») ma l'ultima risposta di Axon parlava di PUN
+  (visto in test: senza dati in contesto il modello inventava una tabella).
 - **V50.z206 — Azioni Rapide PUN come CALCOLATORE (1+1=2, sempre) + Regole Assolute anti-allucinazione** — nuovo modulo isolato
   `routes/axon_pun_quick.py` (dopo `axon_personal_space.py`), hook `_qa_deterministic` in `24_axon_quick_actions_memory.py` (3 righe).
   **Cache backend**: job `punq-daily` (cron 06:40 Europe/Rome + refresh 20 s dopo il boot) → per gli ultimi 24 mesi scarica dal GME SOLO i
@@ -839,6 +852,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z207 | Set 2026 | Pulsanti ✅ Sì / ❌ No / ❓ Forse sotto le domande chiuse di Axon (riconoscimento euristico, invio automatico, toast, 60 s, ≥320 px; `src/axon-quick-reply.tsx`, `POST /axon/quick-reply`, nota nel prompt); fix `**` nelle celle tabella; tabella PUN reale nel prompt anche su risposte brevi |
 | V50.z206 | Set 2026 | Azioni Rapide PUN deterministiche: job GME giornaliero → `gme_pun_cache` 24 mesi, `GET /quick-action/pun-18` JSON+Markdown pronti (~25 ms), hook `_qa_deterministic`, chat «tabella pun…», inserimento manuale Master, «⚖️ REGOLE ASSOLUTE» anti-allucinazione nel prompt (`axon_pun_quick.py`) |
 | V50.z205 | Set 2026 | Blocco 8 Fase 4 «Spazio Personale» (Sfera Home): hub `/spazio-personale` con conteggi, I miei audio con sfera + trascrizione automatica (Whisper+Haiku) + player nativo, tag sfera 🔵/🟢 su ogni voce della memoria Axon con filtro e toggle (`axon_personal_space.py`, `spazio-personale.tsx`) |
 | V50.z204 | Set 2026 | Corporate Gym: anteprima manuali in-app (immagini zoom, PDF/Docs WebView) + role-play nuovi creati dal Master Coach (`POST /cgym/config/custom`, `cgym_custom_scenarios`, hook motore) |

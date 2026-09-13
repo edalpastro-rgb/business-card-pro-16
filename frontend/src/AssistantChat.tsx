@@ -49,6 +49,7 @@ import { AxonOSLogo } from "@/src/BrandLogos";
 import { streamAssistantChat } from "@/src/utils/assistantStream";
 import { useAxonProgress, AxonProgressBubble } from "@/src/axonProgress"; // V50.z194 — stato visibile >3s
 import { ImportConfirmChips, hasImportQuestion } from "@/src/ImportConfirmChips"; // V50.z194 — «Vuoi che memorizzi…?»
+import { QuickReplyButtons, QuickReplyToast, QUICK_REPLY_TOAST_MS, isClosedQuestion } from "@/src/axon-quick-reply"; // V50.z207 — Sì/No/Forse su domande chiuse
 import { AXON_OPEN_CHAT_EVENT, consumePendingPrompt } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
@@ -597,6 +598,14 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       setFeedbackSaving(false);
     }
   }, [feedbackDown, feedbackReason, feedbackComment, applyFeedbackLocally]);
+
+  // V50.z207 — Pulsanti Sì/No/Forse: la risposta parte da sola + toast «Risposta registrata ✓» per 1,8 s
+  const [quickReplyToast, setQuickReplyToast] = useState(false);
+  const onQuickReply = (t: string) => {
+    setQuickReplyToast(true);
+    setTimeout(() => setQuickReplyToast(false), QUICK_REPLY_TOAST_MS);
+    void send(t);
+  };
 
 
   const send = async (text?: string, opts?: { forceSpeak?: boolean; onSpoken?: () => void; quickLabel?: string }) => {
@@ -1648,6 +1657,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               {!sending && messages.length > 0 && messages[messages.length - 1].role === "assistant" && !messages[messages.length - 1].streaming && hasImportQuestion(messages[messages.length - 1].content) && (
                 <ImportConfirmChips onAnswer={(t) => void send(t)} />
               )}
+              {/* V50.z207 — ✅ Sì / ❌ No / ❓ Forse sotto le domande chiuse di Axon (un tap = risposta inviata) */}
+              {!sending && messages.length > 0 && messages[messages.length - 1].role === "assistant" && !messages[messages.length - 1].streaming
+                && !hasImportQuestion(messages[messages.length - 1].content) && isClosedQuestion(messages[messages.length - 1].content) && (
+                <QuickReplyButtons key={`qr-${messages.length}`} question={messages[messages.length - 1].content} messageId={messages[messages.length - 1].message_id} onSelect={onQuickReply} />
+              )}
+              <QuickReplyToast visible={quickReplyToast} />
               {sending && prog.visible && (
                 <AxonProgressBubble text={prog.text} elapsed={prog.elapsed} assistantName={assistantName} />
               )}

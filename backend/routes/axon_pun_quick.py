@@ -345,6 +345,16 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     try:
         if prep.get("system_message"):
             prep["system_message"] = f"{_PUNQ_ABSOLUTE_RULES}\n\n{prep['system_message']}"
+            # Conversazione sul PUN in corso (messaggio breve tipo «Sì», «procedi», «e agosto?») → i valori reali vanno SEMPRE nel contesto
+            msg = (getattr(body, "message", "") or "").strip()
+            inject = bool(_PUNQ_TRIGGER_RE.search(msg))
+            if not inject and len(msg) <= 60:
+                last = await db.assistant_messages.find_one({"user_id": user["user_id"], "role": "assistant"}, {"_id": 0, "content": 1}, sort=[("created_at", -1)])
+                inject = bool(last and _PUNQ_TRIGGER_RE.search(last.get("content") or ""))
+            if inject:
+                t = await _punq_table(_PUNQ_DEFAULT_MONTHS)
+                prep["system_message"] += ("\n\n--- DATI GME (calcolatore PUN, valori REALI dalla cache backend) ---\nSe devi mostrare o citare PUN/fasce usa SOLO questi valori, "
+                                           "riportando la tabella così com'è (non ricalcolare, non arrotondare, non inventare mesi):\n" + t["table_markdown"])
     except Exception as exc:  # noqa: BLE001
         logger.warning("[punq] prompt failed: %s", exc)
     return prep

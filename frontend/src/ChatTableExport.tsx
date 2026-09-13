@@ -110,7 +110,8 @@ function splitRow(line: string): string[] {
   let s = line.trim();
   if (s.startsWith("|")) s = s.slice(1);
   if (s.endsWith("|")) s = s.slice(0, -1);
-  return s.split(/\|/).map((c) => c.trim());
+  // V50.z207 — le celle non renderizzano il Markdown: rimuovi i marcatori **grassetto** (restano emoji 🔴/🟢)
+  return s.split(/\|/).map((c) => c.trim().replace(/\*\*(.+?)\*\*/g, "$1").replace(/__(.+?)__/g, "$1"));
 }
 
 function nowStamp(): string {
