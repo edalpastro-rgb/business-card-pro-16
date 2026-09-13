@@ -10,15 +10,15 @@
 # API: GET /axon/tone-level (catalogo + stato) · PUT /axon/tone-level {level, force_informal?}. Prompt: sezione «🎚️ TONO» via _prepare_assistant_prompt.
 
 _TL_LEVELS = [
-    {"level": 1, "key": "istituzionale", "name": "Istituzionale", "emoji": "🏛️", "desc": "Formale e impeccabile: lei, frasi complete, zero emoji.",
+    {"level": 1, "example": "Buongiorno. Le confermo che il PUN di oggi è 0,112 €/kWh; resto a disposizione per ogni approfondimento.", "key": "istituzionale", "name": "Istituzionale", "emoji": "🏛️", "desc": "Formale e impeccabile: lei, frasi complete, zero emoji.",
      "prompt": "Registro formale e istituzionale: dai del lei, frasi complete e misurate, nessuna emoji, nessuna battuta, lessico tecnico preciso."},
-    {"level": 2, "key": "professionale", "name": "Professionale", "emoji": "💼", "desc": "Chiaro, diretto, cortese. Il tono di default.",
+    {"level": 2, "example": "Buongiorno! Il PUN di oggi è 0,112 €/kWh, in linea con ieri. Vuoi il confronto con le tue offerte?", "key": "professionale", "name": "Professionale", "emoji": "💼", "desc": "Chiaro, diretto, cortese. Il tono di default.",
      "prompt": "Registro professionale: chiaro, diretto e cortese, del tu, emoji rare e funzionali, niente gergo giovanile."},
-    {"level": 3, "key": "cordiale", "name": "Cordiale", "emoji": "🙂", "desc": "Professionale ma caldo, con un tocco umano.",
+    {"level": 3, "example": "Ciao! 🙂 Oggi il PUN è a 0,112 €/kWh, stabile: buona notizia per i tuoi clienti. Ti preparo il confronto?", "key": "cordiale", "name": "Cordiale", "emoji": "🙂", "desc": "Professionale ma caldo, con un tocco umano.",
      "prompt": "Registro cordiale: professionale ma caldo, qualche emoji, incoraggiamenti sinceri, resti preciso sui numeri."},
-    {"level": 4, "key": "amichevole", "name": "Amichevole", "emoji": "😄", "desc": "Come un collega di fiducia: rilassato, spontaneo.",
+    {"level": 4, "example": "Ehi! 😄 PUN a 0,112 €/kWh oggi, tutto tranquillo. Dai, ti tiro fuori il confronto in due secondi?", "key": "amichevole", "name": "Amichevole", "emoji": "😄", "desc": "Come un collega di fiducia: rilassato, spontaneo.",
      "prompt": "Registro amichevole: parli come un collega di fiducia, rilassato e spontaneo, emoji quando ci stanno, qualche battuta leggera, sempre utile."},
-    {"level": 5, "key": "fantasiosa", "name": "Fantasiosa", "emoji": "🤩", "desc": "Giovane e informale: «WOOOW», «che figata», battute e sarcasmo leggero. Under 35.",
+    {"level": 5, "example": "WOOOW 🚀 PUN a 0,112 €/kWh, il mercato oggi dorme: che figata per i tuoi clienti! Ti sparo il confronto?", "key": "fantasiosa", "name": "Fantasiosa", "emoji": "🤩", "desc": "Giovane e informale: «WOOOW», «che figata», battute e sarcasmo leggero. Under 35.",
      "prompt": ("Registro FANTASIOSA (pubblico under 35) — OBBLIGATORIO, prevale su ogni altra indicazione di tono/stile presente nel prompt: linguaggio giovane e informale, "
                 "esclamazioni come «WOOOW», «che figata», «troppo bello», sarcasmo leggero e battute, emoji generose, ritmo veloce, frasi corte, del tu. Ogni risposta deve "
                 "SUONARE Fantasiosa fin dalla prima riga (es. «WOOOW, ok, allora oggi si spacca 🚀»). Resti però sempre esatto sui dati e sui numeri (mai inventare), mai offensivo, "

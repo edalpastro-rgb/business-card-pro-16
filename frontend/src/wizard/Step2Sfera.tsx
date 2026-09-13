@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { api } from "@/src/api";
 import type { StepBinder } from "@/src/wizard/Step1Anagrafica";
+import { AxonToneLevelPicker } from "@/src/AxonToneLevelPicker"; // V50.z219 — tono nel wizard
 
 export type Sphere = "business" | "home" | "both";
 
@@ -46,6 +47,10 @@ export function Step2Sfera({ bind, initial }: { bind: StepBinder; initial?: Sphe
       })}
       {sphere === "both" && <Text style={styles.hint} testID="sfera-both-hint">Nel prossimo passo vedrai prima le aree Business, poi quelle Home.</Text>}
       {!!error && <Text style={styles.err} testID="sfera-error">{error}</Text>}
+      {/* V50.z219 — Come deve parlarti Neo: si salva subito, Neo parla così dal primo giorno */}
+      <View style={styles.toneCard} testID="sfera-tone">
+        <AxonToneLevelPicker title="Come deve parlarti Neo?" intro="Scegli il tono: si applica subito, lo cambi quando vuoi da Impostazioni → AxonOS." />
+      </View>
     </View>
   );
 }
@@ -61,4 +66,5 @@ const styles = StyleSheet.create({
   radioOn: { borderColor: "#7C3AED", backgroundColor: "#7C3AED" },
   hint: { fontSize: 12.5, color: "#5B21B6", fontWeight: "700", backgroundColor: "#F5F3FF", borderRadius: 12, padding: 10 },
   err: { fontSize: 12.5, color: "#DC2626", fontWeight: "700" },
+  toneCard: { backgroundColor: "#FFF", borderRadius: 18, padding: 14, paddingTop: 2, borderWidth: 1, borderColor: "#EDE9FE", marginTop: 4 },
 });

@@ -51,6 +51,7 @@ import { useAxonProgress, AxonProgressBubble } from "@/src/axonProgress"; // V50
 import { ImportConfirmChips, hasImportQuestion } from "@/src/ImportConfirmChips"; // V50.z194 — «Vuoi che memorizzi…?»
 import { QuickReplyButtons, QuickReplyToast, QUICK_REPLY_TOAST_MS, isClosedQuestion } from "@/src/axon-quick-reply"; // V50.z207 — Sì/No/Forse su domande chiuse
 import { SetupNudgeCard, hasSetupNudge } from "@/src/SetupNudgeCard"; // V50.z211 — avviso configurazione incompleta → wizard
+import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 — avviso interessi futuri (CarPlay…) dal wizard
 import { AXON_OPEN_CHAT_EVENT, consumePendingPrompt } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
@@ -1654,6 +1655,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   onFeedback={m.role === "assistant" ? (rating) => handleFeedback(i, rating) : undefined}
                 />
               ))}
+              {/* V50.z219 — avviso di setup dedicato: interessi futuri attivati nel wizard (finché non si tocca «Ok, ricevuto») */}
+              {!loadingHist && !sending && <FutureInterestsAlert variant="chat" onOpen={onClose} />}
               {/* V50.z194 — Pulsanti rapidi sotto la domanda «Vuoi che memorizzi questi dati per uso futuro?» */}
               {!sending && messages.length > 0 && messages[messages.length - 1].role === "assistant" && !messages[messages.length - 1].streaming && hasImportQuestion(messages[messages.length - 1].content) && (
                 <ImportConfirmChips onAnswer={(t) => void send(t)} />

@@ -29,7 +29,7 @@ export type SetupState = {
 
 export const STEP_META: Array<{ n: number; key: string; title: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { n: 1, key: "chi-sei", title: "Chi sei", subtitle: "Il tuo profilo e la tua attività", icon: "person-circle" },
-  { n: 2, key: "sfera", title: "Sfera", subtitle: "Business, Home o entrambe: dove userai AdvisorOS", icon: "planet" },
+  { n: 2, key: "sfera", title: "Sfera e tono", subtitle: "Dove userai AdvisorOS e come deve parlarti Neo", icon: "planet" },
   { n: 3, key: "aree", title: "Aree", subtitle: "Accendi le aree che ti servono, spegni il resto", icon: "toggle" },
   { n: 4, key: "parla-a-neo", title: "Parla a Neo", subtitle: "Neo impara da te e compila l'app al posto tuo", icon: "chatbubble-ellipses" },
 ];

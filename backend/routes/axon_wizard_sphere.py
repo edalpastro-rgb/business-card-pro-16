@@ -111,3 +111,20 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     except Exception as exc:  # noqa: BLE001
         logger.warning("[wizard-sphere] prompt failed: %s", exc)
     return prep
+
+
+# ============================================================================ V50.z219 — Avviso «Interessi futuri» (chat + Impostazioni)
+@api_router.get("/axon/setup/alerts")
+async def ws_alerts(user=Depends(get_current_user)):
+    st = await db.axon_setup_state.find_one({"user_id": user["user_id"]}, {"_id": 0, "setup_alerts": 1, "future_interests": 1}) or {}
+    alerts = [{**a, "created_at": a["created_at"].isoformat() if isinstance(a.get("created_at"), datetime) else a.get("created_at")} for a in (st.get("setup_alerts") or [])]
+    return {"alerts": alerts, "unseen": sum(1 for a in alerts if not a.get("seen")), "future_interests": st.get("future_interests") or []}
+
+
+@api_router.post("/axon/setup/alerts/seen")
+async def ws_alerts_seen(user=Depends(get_current_user)):
+    """«Ok, ricevuto»: segna visti tutti gli avvisi di setup (restano elencati in Impostazioni/configurazione)."""
+    st = await db.axon_setup_state.find_one({"user_id": user["user_id"]}, {"_id": 0, "setup_alerts": 1}) or {}
+    alerts = [{**a, "seen": True, "seen_at": a.get("seen_at") or utcnow()} for a in (st.get("setup_alerts") or [])]
+    await db.axon_setup_state.update_one({"user_id": user["user_id"]}, {"$set": {"setup_alerts": alerts, "updated_at": utcnow()}})
+    return {"ok": True, "count": len(alerts)}

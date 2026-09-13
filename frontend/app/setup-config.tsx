@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge";
+import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219
 import type { Sphere } from "@/src/wizard/Step2Sfera";
 
 const PURPLE = "#7C3AED";
@@ -65,6 +66,7 @@ export default function SetupConfigScreen() {
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: pagePad }} testID="setup-config">
         <SetupProcessingBadge />
+        <FutureInterestsAlert />
         <View style={styles.infoBox}><Ionicons name="sync" size={16} color="#4C1D95" /><Text style={styles.infoTxt}>Ogni modifica qui, in Anagrafica o in chat con AxonOS si aggiorna ovunque, subito. Non serve riavviare l'app.</Text></View>
 
         {/* Sfera */}

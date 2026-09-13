@@ -7,10 +7,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 
 const PURPLE = "#7C3AED";
-type Level = { level: number; key: string; name: string; emoji: string; desc: string };
+type Level = { level: number; key: string; name: string; emoji: string; desc: string; example?: string };
 type St = { level: number; force_informal: boolean; levels: Level[] };
 
-export function AxonToneLevelPicker() {
+export function AxonToneLevelPicker({ title = "Tono di AxonOS", intro }: { title?: string; intro?: string }) {
   const [st, setSt] = useState<St | null>(null);
   const [saved, setSaved] = useState(false);
   useEffect(() => { api<St>("/axon/tone-level").then(setSt).catch(() => {}); }, []);
@@ -23,7 +23,8 @@ export function AxonToneLevelPicker() {
   const cur = st.levels.find((l) => l.level === st.level);
   return (
     <View style={{ marginTop: 14 }} testID="axon-tone-picker">
-      <Text style={styles.label}>Tono di AxonOS {saved ? <Text style={{ color: "#16A34A" }}>· ✓ Salvato</Text> : null}</Text>
+      <Text style={styles.label}>{title} {saved ? <Text style={{ color: "#16A34A" }}>· ✓ Salvato</Text> : null}</Text>
+      {!!intro && <Text style={styles.intro}>{intro}</Text>}
       <View style={styles.row}>
         {st.levels.map((l) => {
           const on = l.level === st.level;
@@ -37,6 +38,18 @@ export function AxonToneLevelPicker() {
         })}
       </View>
       {cur && <Text style={styles.desc} testID="axon-tone-desc">{cur.emoji} <Text style={{ fontWeight: "800" }}>{cur.name}</Text> · {cur.desc}</Text>}
+      {/* V50.z219 — anteprima: una riga d'esempio per ogni livello, tap = seleziona */}
+      <View style={styles.examples} testID="axon-tone-examples">
+        {st.levels.map((l) => {
+          const on = l.level === st.level;
+          return (
+            <Pressable key={l.level} onPress={() => save({ level: l.level })} style={[styles.exRow, on && styles.exRowOn, on && l.level === 5 && styles.exRowFun]} testID={`axon-tone-example-${l.level}`}>
+              <Text style={styles.exEmoji}>{l.emoji}</Text>
+              <Text style={[styles.exTxt, on && { color: "#1B2B4B", fontWeight: "700" }]} numberOfLines={2}>«{l.example}»</Text>
+            </Pressable>
+          );
+        })}
+      </View>
       {st.level === 5 && (
         <View style={styles.funBox} testID="axon-tone-fun-note">
           <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
@@ -62,7 +75,14 @@ const styles = StyleSheet.create({
   chipNum: { fontSize: 10, fontWeight: "800", color: "#94A3B8" },
   chipEmoji: { fontSize: 18 },
   chipName: { fontSize: 9.5, fontWeight: "700", color: "#475569" },
+  intro: { fontSize: 12, color: "#64748B", marginTop: 2, lineHeight: 16 },
   desc: { fontSize: 12, color: "#475569", marginTop: 8, lineHeight: 17 },
+  examples: { marginTop: 8, gap: 4 },
+  exRow: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 8, borderWidth: 1, borderColor: "transparent", minHeight: 40 },
+  exRowOn: { backgroundColor: "#F1EEFF", borderColor: "#DDD6FE" },
+  exRowFun: { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" },
+  exEmoji: { fontSize: 14 },
+  exTxt: { flex: 1, fontSize: 11.5, color: "#64748B", lineHeight: 15, fontStyle: "italic" },
   funBox: { marginTop: 8, backgroundColor: "#FFF7ED", borderRadius: 12, padding: 10, gap: 8, borderWidth: 1, borderColor: "#FED7AA" },
   funTxt: { flex: 1, fontSize: 11.5, color: "#7C2D12", lineHeight: 16 },
   forceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
