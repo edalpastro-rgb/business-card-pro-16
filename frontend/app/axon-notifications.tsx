@@ -9,6 +9,7 @@ import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { axnApi, AxnNotification, AxnPrefs, AxnKind, AXN_KIND_ICON, setAppBadge } from "@/src/axonNotifications";
 import { PushStatusCard } from "@/src/PushStatusCard"; // V50.z193 — Stato canale push + test a 2 minuti
+import { PushUrgencyCard } from "@/src/PushUrgencyCard"; // V50.z221 — priorità avvisi (CRITICAL/HIGH/NORMAL) + regole personalizzate
 import { ProactiveSettingsCard } from "@/src/ProactiveSettingsCard"; // V50.z196 — Blocco 9: impostazioni proattività
 
 const AXON = "#7C3AED";
@@ -129,6 +130,7 @@ export default function AxonNotificationsScreen() {
       ) : prefs && (
         <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad, gap: 12 }}>
           <PushStatusCard />
+          <PushUrgencyCard />
           <ProactiveSettingsCard />
           <View style={styles.card}>
             <View style={styles.prefRow}>

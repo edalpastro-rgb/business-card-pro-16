@@ -65,13 +65,30 @@ def apu_payload(title: str, message: str, urgency: str = "NORMAL", deeplink: Opt
     return data
 
 
-async def _apu_kind_map(tenant: Optional[str]) -> Dict[str, str]:
+async def _apu_config(tenant: Optional[str]) -> Tuple[Dict[str, str], List[dict]]:
+    """(mappa kind→urgenza, regole personalizzate per parola chiave) del tenant."""
     m = dict(_APU_DEFAULT_KIND_MAP)
+    rules: List[dict] = []
     if tenant:
-        doc = await db.axon_push_config.find_one({"tenant_id": tenant}, {"_id": 0, "urgency_map": 1}) or {}
+        doc = await db.axon_push_config.find_one({"tenant_id": tenant}, {"_id": 0, "urgency_map": 1, "custom_rules": 1}) or {}
         for k, v in (doc.get("urgency_map") or {}).items():
             m[k] = apu_normalize(v)
-    return m
+        rules = [r for r in (doc.get("custom_rules") or []) if r.get("match")]
+    return m, rules
+
+
+async def _apu_kind_map(tenant: Optional[str]) -> Dict[str, str]:
+    return (await _apu_config(tenant))[0]
+
+
+def _apu_rule_hit(rules: List[dict], title: str, message: str, kind: str) -> Optional[str]:
+    """Prima regola personalizzata che matcha (parola chiave in titolo/testo, o kind uguale) → urgenza."""
+    hay = f"{title}\n{message}".lower()
+    for r in rules:
+        m = str(r.get("match") or "").strip().lower()
+        if m and (m in hay or m == kind.lower()):
+            return apu_normalize(r.get("urgency"))
+    return None
 
 
 async def send_critical_alert(recipients: List[str], title: str, body: str, deeplink: Optional[str] = None, **extra) -> None:
@@ -96,13 +113,15 @@ async def send_push(recipients: List[str], data: dict, idempotency_key: Optional
     try:
         if isinstance(data, dict) and "channel_id" not in data:
             u = data.get("urgency")
-            if not u:
-                kind = str(data.get("kind") or "")
+            kind = str(data.get("kind") or "")
+            if not u or kind != "test":
                 tenant = None
                 if recipients:
                     urow = await db.users.find_one({"user_id": recipients[0]}, {"_id": 0, "tenant_id": 1, "user_id": 1})
                     tenant = (urow or {}).get("tenant_id") or (urow or {}).get("user_id")
-                u = (await _apu_kind_map(tenant)).get(kind, "NORMAL")
+                kmap, rules = await _apu_config(tenant)
+                # priorità: regola personalizzata (parola chiave) > urgenza esplicita > mappa per tipo evento > NORMAL
+                u = _apu_rule_hit(rules, str(data.get("title") or ""), str(data.get("message") or ""), kind) or u or kmap.get(kind, "NORMAL")
             enriched = apu_payload(data.get("title", ""), data.get("message", ""), u, data.get("deeplink") or data.get("action_url"), data.get("badge"))
             data = {**enriched, **{k: v for k, v in data.items() if k not in ("title", "message")}, "channel_id": enriched["channel_id"], "urgency": enriched["urgency"]}
     except Exception as exc:  # noqa: BLE001 — mai bloccare la push
@@ -112,7 +131,8 @@ async def send_push(recipients: List[str], data: dict, idempotency_key: Optional
 
 # ---------------------------------------------------------------------------- API
 class ApuMapIn(BaseModel):
-    urgency_map: Dict[str, str]
+    urgency_map: Optional[Dict[str, str]] = None
+    custom_rules: Optional[List[Dict[str, Any]]] = None  # [{id?, label, match, urgency}]
 
 
 class ApuTestIn(BaseModel):
@@ -121,8 +141,9 @@ class ApuTestIn(BaseModel):
 
 @api_router.get("/axon/push/urgency-map")
 async def apu_map_get(user=Depends(get_current_user)):
-    m = await _apu_kind_map(tenant_id(user))
-    return {"levels": list(_APU_LEVELS), "channels": _APU_CHANNEL, "urgency_map": m, "defaults": _APU_DEFAULT_KIND_MAP,
+    m, rules = await _apu_config(tenant_id(user))
+    return {"levels": list(_APU_LEVELS), "channels": _APU_CHANNEL, "urgency_map": m, "custom_rules": rules, "defaults": _APU_DEFAULT_KIND_MAP,
+            "dnd_bypass": True,  # scelta utente: le CRITICAL suonano sempre, anche di notte
             "labels": {**AXN_KINDS, "reminder": "Promemoria", "alarm": "Sveglie e timer", "deadline": "Scadenze contratti", "weather_alert": "Allerte meteo", "test": "Test"}}
 
 
@@ -130,9 +151,20 @@ async def apu_map_get(user=Depends(get_current_user)):
 async def apu_map_put(body: ApuMapIn, user=Depends(get_current_user)):
     if (user.get("role") or "owner") not in ("owner", "master", "admin"):
         raise HTTPException(status_code=403, detail="Solo il Master può cambiare le urgenze")
-    clean = {k: apu_normalize(v) for k, v in body.urgency_map.items() if k}
-    await db.axon_push_config.update_one({"tenant_id": tenant_id(user)}, {"$set": {"urgency_map": clean, "updated_at": utcnow()}}, upsert=True)
-    return {"ok": True, "urgency_map": await _apu_kind_map(tenant_id(user))}
+    upd: Dict[str, Any] = {"updated_at": utcnow()}
+    if body.urgency_map is not None:
+        upd["urgency_map"] = {k: apu_normalize(v) for k, v in body.urgency_map.items() if k}
+    if body.custom_rules is not None:
+        rules = []
+        for r in body.custom_rules[:50]:
+            match = str(r.get("match") or "").strip()[:80]
+            if not match:
+                continue
+            rules.append({"id": str(r.get("id") or uuid.uuid4().hex[:8]), "label": str(r.get("label") or match)[:80], "match": match, "urgency": apu_normalize(r.get("urgency"))})
+        upd["custom_rules"] = rules
+    await db.axon_push_config.update_one({"tenant_id": tenant_id(user)}, {"$set": upd}, upsert=True)
+    m, rules = await _apu_config(tenant_id(user))
+    return {"ok": True, "urgency_map": m, "custom_rules": rules}
 
 
 @api_router.post("/axon/push/test-urgency")
