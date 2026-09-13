@@ -175,8 +175,9 @@ async def apu_test(body: ApuTestIn, user=Depends(get_current_user)):
     body_txt = {"CRITICAL": "LED rosso, vibrazione lunga, suono: se lo senti, il canale urgenze funziona.",
                 "HIGH": "Canale standard: LED blu, vibrazione breve.", "NORMAL": "Canale default AxonOS."}[u]
     fn = {"CRITICAL": send_critical_alert, "HIGH": send_standard_notif, "NORMAL": send_normal_notif}[u]
-    await fn([user["user_id"]], title, body_txt, "/impostazioni", kind="test", idempotency_key=f"apu_test:{user['user_id']}:{int(utcnow().timestamp())}")
-    return {"ok": True, "urgency": u, "channel_id": _APU_CHANNEL[u], "push_configured": _apb_configured()}
+    mid = f"msg_test_{uuid.uuid4().hex[:10]}"
+    await fn([user["user_id"]], title, body_txt, "/impostazioni", kind="test", idempotency_key=mid)
+    return {"ok": True, "urgency": u, "channel_id": _APU_CHANNEL[u], "push_configured": _apb_configured(), "message_id": mid}
 
 
 _OMNI_EXTRA_SECTIONS.append((

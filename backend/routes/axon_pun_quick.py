@@ -87,7 +87,7 @@ def _punq_infer(name: str) -> Optional[dict]:
 
 async def _punq_fetch_year(client: httpx.AsyncClient, year: int) -> List[Tuple[str, str, dict]]:
     from urllib.parse import urljoin, urlparse
-    r = await client.get(_PUNQ_GME_PAGE, params={"anno": year}, timeout=15)
+    r = await client.get(_PUNQ_GME_PAGE, params={"anno": year}, timeout=20)
     if r.status_code != 200:
         return []
     out, seen = [], set()
@@ -127,7 +127,7 @@ async def _punq_refresh(n: int = _PUNQ_LOOKBACK, force: bool = False) -> dict:
                             if m["key"] not in wanted or m["key"] in added:
                                 continue
                             try:
-                                pr = await client.get(url, timeout=15)
+                                pr = await client.get(url, timeout=20)
                                 if pr.status_code != 200 or not pr.content:
                                     continue
                                 txt = re.sub(r"\s{3,}", " ", _extract_pdf_text_bytes(pr.content) or "").strip()

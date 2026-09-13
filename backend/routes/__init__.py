@@ -76,5 +76,6 @@ MODULES = [
     "axon_tone_level.py",  # V50.z218 — Blocco 6: tono AxonOS a 5 livelli (5 = Fantasiosa), fallback automatico al professionale nei contesti formali, comando «forza tono informale» (GET/PUT /axon/tone-level) (isolato; avvolge _prepare_assistant_prompt)
     "axon_wizard_complete.py",  # V50.z216 — Blocco 5: completamento wizard (messaggio personalizzato, stats), Profilo → «La mia configurazione Set Up» (GET /axon/setup/config, POST /axon/setup/reopen), FAQ post-wizard nel prompt Axon (isolato; avvolge _prepare_assistant_prompt)
     "axon_push_urgency.py",  # V50.z220 — push a livelli di urgenza CRITICAL/HIGH/NORMAL: canali Android urgent_alerts/standard_alerts/default, campi iOS-ready, helper send_critical_alert/send_standard_notif, wrapper send_push (dopo axon_push_bridge)
+    "axon_ops_status.py",  # V50.z222 — autonomia Axon: GET /integrations/outbox/status|recent (message_id per ogni push), GET /jobs/gme-fetcher/status (+run), POST /notify, wrapper _punq_refresh (durata/errori/timeout 20s), sezione prompt live (dopo axon_push_urgency)
     "37_app_startup_scheduler.py",
 ]
