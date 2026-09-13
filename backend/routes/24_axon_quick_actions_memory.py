@@ -19,6 +19,11 @@
 QA_CACHE_TTL_DAYS = 7
 
 
+async def _qa_deterministic(label: str, prompt: str, user: dict) -> Optional[dict]:
+    """V50.z206 — hook: risposta deterministica (calcolatore) per alcune azioni rapide. Ridefinito in axon_pun_quick.py."""
+    return None
+
+
 class AxonQuickActionIn(BaseModel):
     label: str
     prompt: str
@@ -51,6 +56,11 @@ async def axon_quick_action(body: AxonQuickActionIn, user=Depends(get_current_us
 
     now = utcnow()
     key = {"user_id": user["user_id"], "label": label}
+
+    # V50.z206 — Azioni rapide deterministiche (es. tabella PUN): risposta dal backend, mai dall'LLM, mai da cache stale.
+    det = await _qa_deterministic(label, prompt, user)
+    if det:
+        return det
 
     # 1) Cache lookup
     if not body.force_refresh:

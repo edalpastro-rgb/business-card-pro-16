@@ -193,6 +193,23 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z206 — Azioni Rapide PUN come CALCOLATORE (1+1=2, sempre) + Regole Assolute anti-allucinazione** — nuovo modulo isolato
+  `routes/axon_pun_quick.py` (dopo `axon_personal_space.py`), hook `_qa_deterministic` in `24_axon_quick_actions_memory.py` (3 righe).
+  **Cache backend**: job `punq-daily` (cron 06:40 Europe/Rome + refresh 20 s dopo il boot) → per gli ultimi 24 mesi scarica dal GME SOLO i
+  PDF mancanti (pagina `?anno=YYYY`, quindi anche gli anni passati; il PDF di dicembre pubblicato a gennaio viene cercato anche nell'anno
+  successivo; mese/anno letti dal NOME del mese nel file, non dal prefisso data) → F1/F2/F3 + ore → monorario ponderato → `gme_pun_cache`
+  (24/24 mesi presenti, prima erano 8). Nuovo mese trovato → alert proattivo `pun_update` ai Master. **Endpoint pronto**:
+  `GET /quick-action/pun-18?months=N` (JSON righe + estremi + `table_markdown`) in ~25 ms, zero LLM: 🔴 massimo / 🟢 minimo per colonna,
+  Δ% monorario mese su mese, €/kWh a 6 decimali, riga «n/d» ESPLICITA per i mesi non in cache + piè di pagina con i mesi mancanti e le
+  istruzioni per il Master (mai stime). **Esecuzione letterale**: qualsiasi Azione Rapida con «PUN» nel titolo/prompt (POST
+  `/axon/quick-action`, anche `cache_only`, e streaming SSE con `quick_label`) e le frasi in chat («tabella pun ultimi 6 mesi», «pun medio
+  per fasce») → tabella dal calcolatore (N mesi letto dal testo, default 18); domande concettuali («spiega cos'è il PUN», bolletta, offerta)
+  NON intercettate. Master: `POST /quick-action/pun/refresh`, `PUT /quick-action/pun/{YYYY-MM}` (ore opzionali → monorario ponderato),
+  chat «aggiorna cache pun», «inserisci pun marzo 2025 f1 94,93 f2 94,62 f3 81,32» (unità dedotta: <5 → €/kWh). **Regole assolute**:
+  sezione «⚖️ REGOLE ASSOLUTE» in testa al prompt di sistema (wrap `_prepare_assistant_prompt`): esegui alla lettera «segui regola X / usa
+  la cache», se la fonte manca → «Cache non trovata» esplicito senza compensare; se nel contesto ci sono numeri reali (DATI GME, PDF, dati
+  importati) DEVONO essere usati, vietato «n/d» quando il dato esiste; mai stime spacciate per dati. Test `tests/test_axon_pun_quick.py`
+  ✅ 12/12 (Agosto 2026 = 174,52 / 204,35 / 171,72 dal PDF GME).
 - **V50.z205 — BLOCCO 8 · Fase 4: «Spazio Personale» (Sfera 🟢 Home)** — nuovo modulo isolato `routes/axon_personal_space.py` (dopo
   `axon_uploads.py`), nuova pagina `app/spazio-personale.tsx`, patch minime: `18_master_interface.py` (hook `_audio_record_hooks`, campo
   `sphere`/`transcribe_status` alla creazione audio, filtro `?sphere=` nell'elenco), `axon_memory.py` (campo `sphere` in `AmItemIn`/voci +
@@ -822,6 +839,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z206 | Set 2026 | Azioni Rapide PUN deterministiche: job GME giornaliero → `gme_pun_cache` 24 mesi, `GET /quick-action/pun-18` JSON+Markdown pronti (~25 ms), hook `_qa_deterministic`, chat «tabella pun…», inserimento manuale Master, «⚖️ REGOLE ASSOLUTE» anti-allucinazione nel prompt (`axon_pun_quick.py`) |
 | V50.z205 | Set 2026 | Blocco 8 Fase 4 «Spazio Personale» (Sfera Home): hub `/spazio-personale` con conteggi, I miei audio con sfera + trascrizione automatica (Whisper+Haiku) + player nativo, tag sfera 🔵/🟢 su ogni voce della memoria Axon con filtro e toggle (`axon_personal_space.py`, `spazio-personale.tsx`) |
 | V50.z204 | Set 2026 | Corporate Gym: anteprima manuali in-app (immagini zoom, PDF/Docs WebView) + role-play nuovi creati dal Master Coach (`POST /cgym/config/custom`, `cgym_custom_scenarios`, hook motore) |
 | V50.z203 | Set 2026 | Corporate Gym: Drive senza nomi fissi (collegamento manuale cartella/file, root inclusa, avvisi soft), Pannello Master Coach (override role-play + fasi con manuali Drive), tasto «Inizio» in chat, Stop manuale registrazione (`corporate_gym_manuals.py`, `corporate_gym_config.py`, `coach-panel.tsx`) |
