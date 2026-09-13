@@ -11,14 +11,19 @@
 //   4) Ack dei test programmati: quando arriva la push con `data.test_id` (ricevuta o toccata) → `POST /tests/{id}/ack`
 //      → la card mostra "Ricevuto sul telefono ✅".
 import { useEffect, useRef } from "react";
-import { AppState, Platform } from "react-native";
+import { AppState, Platform, Vibration } from "react-native";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/src/api";
 import { registerForPush } from "@/src/pushRegister";
 
-// 1) Canale Android a livello modulo — deve esistere PRIMA che arrivi qualsiasi push.
+// 1) Canali Android a livello modulo — devono esistere PRIMA che arrivi qualsiasi push (Android 8+: priorità, suono, LED e
+//    vibrazione sono proprietà del canale; il backend sceglie il canale con `data.channel_id`, vedi routes/axon_push_urgency.py).
+//    V50.z220 — canali per livello di urgenza: `urgent_alerts` (CRITICAL: LED rosso, vibrazione lunga, MAX, bypass DND, lockscreen
+//    completo), `standard_alerts` (HIGH: LED blu, vibrazione breve), `default` (NORMAL, canale storico). Le proprietà di un canale sono
+//    congelate dall'OS alla creazione: per cambiarle serve un nuovo id (es. urgent_alerts_v2).
+//    iOS-ready: iOS non ha canali; suono/badge/interruption level arrivano dal payload (aps) e dal `setNotificationHandler`.
 if (Platform.OS === "android") {
   Notifications.setNotificationChannelAsync("default", {
     name: "AxonOS",
@@ -27,6 +32,44 @@ if (Platform.OS === "android") {
     vibrationPattern: [0, 250, 250, 250],
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   }).catch(() => {});
+  Notifications.setNotificationChannelAsync("urgent_alerts", {
+    name: "Avvisi urgenti",
+    description: "Notifiche critiche: scadenze, ritelefonate urgenti, allerte. LED rosso e vibrazione lunga.",
+    importance: Notifications.AndroidImportance.MAX,
+    sound: "default", // → "urgent.wav" quando il file sarà bundlato nel plugin expo-notifications (app.json → sounds)
+    vibrationPattern: [0, 500, 100, 500],
+    enableLights: true,
+    lightColor: "#FF0000",
+    enableVibrate: true,
+    bypassDnd: true,
+    showBadge: true,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  }).catch(() => {});
+  Notifications.setNotificationChannelAsync("standard_alerts", {
+    name: "Notifiche standard",
+    description: "Task completati, messaggi del team, aggiornamenti.",
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: "default",
+    vibrationPattern: [0, 300],
+    enableLights: true,
+    lightColor: "#0066FF",
+    enableVibrate: true,
+    showBadge: true,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  }).catch(() => {});
+}
+
+/** V50.z220 — Feedback locale quando una push arriva con l'app aperta: Android vibra (CRITICAL: 500-100-500 ms), iOS haptic pesante. */
+async function urgencyFeedback(data: any) {
+  const u = String(data?.urgency || "").toUpperCase();
+  if (!u || u === "NORMAL") return;
+  try {
+    if (Platform.OS === "android") Vibration.vibrate(u === "CRITICAL" ? [0, 500, 100, 500] : 300);
+    else if (Platform.OS === "ios") {
+      const Haptics = await import("expo-haptics");
+      await Haptics.notificationAsync(u === "CRITICAL" ? Haptics.NotificationFeedbackType.Error : Haptics.NotificationFeedbackType.Success);
+    }
+  } catch { /* opzionale */ }
 }
 
 export type PushDevice = {
@@ -47,6 +90,7 @@ export const pushApi = {
   ack: (testId: string) => api<{ ok: boolean }>(`/axon/push/tests/${testId}/ack`, { method: "POST" }),
   nudge: () => api<{ ok: boolean; skipped: boolean }>("/axon/push/nudge", { method: "POST" }),
   report: (body: Record<string, any>) => api<PushStatus>("/axon/push/device", { method: "POST", body }),
+  testUrgency: (urgency: "CRITICAL" | "HIGH" | "NORMAL") => api<{ ok: boolean; urgency: string; channel_id: string; push_configured: boolean }>("/axon/push/test-urgency", { method: "POST", body: { urgency } }), // V50.z220
 };
 
 function appEnv(): string {
@@ -120,7 +164,7 @@ export function PushBridgeSync({ userId }: { userId?: string | null }) {
     };
     const t = setTimeout(run, 1500);
     const appSub = AppState.addEventListener("change", (st) => { if (st === "active") run(); });
-    const recv = Notifications.addNotificationReceivedListener((n) => ackIfTest(n?.request?.content?.data));
+    const recv = Notifications.addNotificationReceivedListener((n) => { const d = n?.request?.content?.data; ackIfTest(d); void urgencyFeedback(d); });
     const tap = Notifications.addNotificationResponseReceivedListener((r) => ackIfTest(r?.notification?.request?.content?.data));
     return () => { clearTimeout(t); appSub.remove(); recv.remove(); tap.remove(); };
   }, [userId]);

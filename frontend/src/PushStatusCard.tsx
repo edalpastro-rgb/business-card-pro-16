@@ -20,7 +20,7 @@ function fmtWhen(iso?: string | null) {
 export function PushStatusCard() {
   const { user } = useAuth();
   const [st, setSt] = useState<PushStatus | null>(null);
-  const [busy, setBusy] = useState<"" | "test" | "sync">("");
+  const [busy, setBusy] = useState<"" | "test" | "sync" | "urg">("");
   const poll = useRef<any>(null);
 
   const load = useCallback(async () => {
@@ -37,6 +37,14 @@ export function PushStatusCard() {
     return () => { if (poll.current) { clearInterval(poll.current); poll.current = null; } };
   }, [st?.last_test?.status, st?.last_test?.test_id, load]);
 
+  const testUrgency = async (u: "CRITICAL" | "HIGH") => {
+    setBusy("urg");
+    try {
+      const r = await pushApi.testUrgency(u);
+      notify(u === "CRITICAL" ? "Test urgente inviato" : "Test standard inviato", r.push_configured ? `Canale ${r.channel_id}: sul telefono con l'app pubblicata arriva ${u === "CRITICAL" ? "con LED rosso e vibrazione lunga" : "con LED blu"}.` : "In questo ambiente il servizio push non è attivo: la push è registrata nel log e partirà sull'app pubblicata.");
+      await load();
+    } catch (e: any) { notify("Test non inviato", String(e?.message || e)); } finally { setBusy(""); }
+  };
   const scheduleTest = async () => {
     setBusy("test");
     try {
@@ -98,6 +106,15 @@ export function PushStatusCard() {
             </View>
           ) : null}
 
+          {/* V50.z220 — test dei livelli di urgenza (canali Android urgent_alerts / standard_alerts) */}
+          <View style={styles.actions}>
+            <Pressable onPress={() => testUrgency("CRITICAL")} disabled={busy !== ""} style={[styles.btn, { backgroundColor: "#DC2626", opacity: busy ? 0.6 : 1 }]} testID="push-test-critical">
+              {busy === "urg" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="warning-outline" size={16} color="#FFF" /><Text style={styles.btnTxt}>Test URGENTE (LED rosso)</Text></>}
+            </Pressable>
+            <Pressable onPress={() => testUrgency("HIGH")} disabled={busy !== ""} style={[styles.btn, styles.btnGhost]} testID="push-test-high">
+              <Ionicons name="notifications-outline" size={16} color={AXON} /><Text style={[styles.btnTxt, { color: AXON }]}>Test standard</Text>
+            </Pressable>
+          </View>
           <View style={styles.actions}>
             <Pressable onPress={scheduleTest} disabled={busy !== "" || !!testPending} style={[styles.btn, { backgroundColor: AXON, opacity: busy || testPending ? 0.6 : 1 }]} testID="push-test-2min">
               {busy === "test" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="timer-outline" size={16} color="#FFF" /><Text style={styles.btnTxt}>Test push tra 2 minuti</Text></>}
