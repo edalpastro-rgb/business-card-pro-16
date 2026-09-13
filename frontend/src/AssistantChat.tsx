@@ -213,6 +213,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [showQueue, setShowQueue] = useState(false);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [queueDone, setQueueDone] = useState<QueueItem[]>([]);
+  const [queueFailed, setQueueFailed] = useState<QueueItem[]>([]); // V50.z225 — bozze fallite (Riprova)
   const [tabs, setTabs] = useState<ChatTab[]>([]);
   const queueBusyRef = useRef(false);
   // V38T — Save-to-master modal state (opens with default filename)
@@ -842,7 +843,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
   // V50.z223 — CODA: refresh, enqueue, elaborazione sequenziale (URGENT > HIGH > NORMAL, poi FIFO), toast «Bozza elaborata»
   const refreshQueue = useCallback(async () => {
-    try { const q = await api<{ items: QueueItem[]; recent_done: QueueItem[] }>("/chat/queue?include_done=true"); setQueue(q.items || []); setQueueDone(q.recent_done || []); } catch {}
+    try { const q = await api<{ items: QueueItem[]; recent_done: QueueItem[]; failed?: QueueItem[] }>("/chat/queue?include_done=true"); setQueue(q.items || []); setQueueDone(q.recent_done || []); setQueueFailed(q.failed || []); } catch {}
   }, []);
   const refreshTabs = useCallback(async () => { try { const t = await api<{ tabs: ChatTab[] }>("/chat/tabs"); setTabs(t.tabs || []); } catch {} }, []);
   const enqueue = async (content: string, priority: "URGENT" | "HIGH" | "NORMAL" = "NORMAL") => {
@@ -1587,6 +1588,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 <Pressable onPress={() => { setShowQueue((v) => !v); void refreshQueue(); void refreshTabs(); }} style={[styles.modeDropdown, showQueue && { backgroundColor: "#F97316" }]} hitSlop={6} testID="assistant-queue-tab" accessibilityLabel="Coda messaggi">
                   <Ionicons name="list" size={13} color="#FFF" />
                   <Text style={styles.modeDropdownTxt}>Coda{queue.length ? ` (${queue.length})` : ""}</Text>
+                  {queueFailed.length > 0 && (
+                    <View style={styles.queueFailedBadge} testID="assistant-queue-failed-badge"><Text style={styles.queueFailedBadgeTxt}>{queueFailed.length}</Text></View>
+                  )}
                 </Pressable>
                 <Pressable
                   onPress={() => setShowModeMenu((v) => !v)}
@@ -1682,7 +1686,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             {/* V50.z223 — chat parallele: barra tab (sessioni) sempre visibile sopra i messaggi */}
             {tabs.length > 0 && !loadingHist && <ChatTabsBar tabs={tabs} current={sessionId} onSelect={(sid) => void switchTab(sid)} onNew={() => void newTab()} />}
             {/* V50.z223 — tab «Coda»: pannello bozze al posto dei messaggi */}
-            {showQueue && <ChatQueuePanel items={queue} recentDone={queueDone} onChanged={() => void refreshQueue()} onSendNow={(it) => void sendNow(it)} busy={sending} />}
+            {showQueue && <ChatQueuePanel items={queue} recentDone={queueDone} failed={queueFailed} onChanged={() => void refreshQueue()} onSendNow={(it) => void sendNow(it)} busy={sending} />}
             <ScrollView
               ref={scrollRef}
               style={[styles.chatArea, showQueue && { display: "none" }]}
@@ -2829,6 +2833,9 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
   },
   modeDropdownTxt: { color: "#FFF", fontSize: 11, fontWeight: "700", letterSpacing: 0.1 },
+  queueFailedBadge: { backgroundColor: "#DC2626", borderRadius: 999, minWidth: 15, height: 15, alignItems: "center", justifyContent: "center", paddingHorizontal: 3, marginLeft: 2 }, // V50.z225
+  queueFailedBadgeTxt: { color: "#FFF", fontSize: 9, fontWeight: "900" },
+
   iconBtn: {
     width: 34,
     height: 34,

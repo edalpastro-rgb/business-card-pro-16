@@ -5,20 +5,47 @@ import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from "react-
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 
-export type QueueItem = { draft_id: string; content: string; status: "pending" | "processing" | "done" | "failed"; priority: "URGENT" | "HIGH" | "NORMAL"; position_in_queue?: number; estimated_time?: string; session_id?: string | null; created_at?: string; error?: string };
+export type QueueItem = { draft_id: string; content: string; status: "pending" | "processing" | "done" | "failed"; priority: "URGENT" | "HIGH" | "NORMAL"; position_in_queue?: number; estimated_time?: string; session_id?: string | null; created_at?: string; error?: string; retry_count?: number };
 export type ChatTab = { session_id: string; title: string; count: number; queued: number };
 const PURPLE = "#7C3AED";
 const PRIO_NEXT: Record<QueueItem["priority"], QueueItem["priority"]> = { NORMAL: "HIGH", HIGH: "URGENT", URGENT: "NORMAL" };
 const PRIO_LABEL: Record<QueueItem["priority"], string> = { URGENT: "🔴 Urgente", HIGH: "🟠 Alta", NORMAL: "⚪ Normale" };
 const STATUS_ICON: Record<QueueItem["status"], string> = { pending: "⏳", processing: "🔄", done: "✅", failed: "🔴" };
 
-export function ChatQueuePanel({ items, recentDone, onChanged, onSendNow, busy }: { items: QueueItem[]; recentDone: QueueItem[]; onChanged: () => void; onSendNow: (it: QueueItem) => void; busy: boolean }) {
+export function ChatQueuePanel({ items, recentDone, failed, onChanged, onSendNow, busy }: { items: QueueItem[]; recentDone: QueueItem[]; failed: QueueItem[]; onChanged: () => void; onSendNow: (it: QueueItem) => void; busy: boolean }) {
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const patch = async (id: string, body: Record<string, unknown>) => { try { await api(`/chat/queue/${id}`, { method: "PATCH", body }); } catch {} onChanged(); };
   const del = async (id: string) => { try { await api(`/chat/queue/${id}`, { method: "DELETE" }); } catch {} onChanged(); };
+  // V50.z225 — Riprova bozze fallite (singola / tutte): tornano pending e ripartono da sole
+  const retry = async (id: string) => { try { await api(`/chat/queue/${id}/retry`, { method: "POST" }); } catch {} onChanged(); };
+  const retryAll = async () => { try { await api("/chat/queue/retry-all", { method: "POST" }); } catch {} onChanged(); };
 
   return (
     <ScrollView style={styles.wrap} contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled" testID="chat-queue-panel">
+      {failed.length > 0 && (
+        <View style={styles.failedBox} testID="queue-failed-section">
+          <View style={[styles.row, { alignItems: "center" }]}>
+            <Text style={[styles.h, { color: "#B91C1C", flex: 1 }]}>🔴 Non riuscite ({failed.length})</Text>
+            {failed.length > 1 && <Btn icon="refresh" label="Riprova tutte" onPress={() => void retryAll()} primary testID="queue-retry-all" />}
+          </View>
+          <Text style={styles.muted}>Axon non è riuscito a rispondere a queste domande. Nessuna è andata persa: riprova quando vuoi.</Text>
+          {failed.map((it) => (
+            <View key={it.draft_id} style={[styles.card, styles.cardFailed]} testID={`queue-failed-${it.draft_id}`}>
+              <View style={styles.row}>
+                <Text style={styles.icon}>{STATUS_ICON.failed}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.txt} numberOfLines={3}>{it.content}</Text>
+                  <Text style={[styles.meta, { color: "#B91C1C" }]} numberOfLines={2}>{it.error ? `Errore: ${it.error}` : "Errore sconosciuto"}{it.retry_count ? ` · tentativi: ${it.retry_count}` : ""}</Text>
+                </View>
+              </View>
+              <View style={styles.actions}>
+                <Btn icon="refresh" label="Riprova" onPress={() => void retry(it.draft_id)} primary testID={`queue-retry-${it.draft_id}`} />
+                <Btn icon="trash-outline" label="Cancella" onPress={() => void del(it.draft_id)} danger testID={`queue-del-${it.draft_id}`} />
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
       <Text style={styles.h}>📝 Bozze in coda ({items.length})</Text>
       {items.length === 0 && <Text style={styles.muted}>Nessuna bozza. Scrivi pure mentre Axon lavora: i messaggi entrano qui e partono da soli, uno alla volta, in ordine di priorità.</Text>}
       {items.map((it) => (
@@ -100,6 +127,8 @@ const styles = StyleSheet.create({
   muted: { fontSize: 12.5, color: "#64748B", lineHeight: 17 },
   card: { backgroundColor: "#FFF", borderRadius: 14, padding: 10, gap: 8, borderWidth: 1, borderColor: "#EDE9FE" },
   cardActive: { borderColor: PURPLE, backgroundColor: "#F5F3FF" },
+  cardFailed: { borderColor: "#FECACA", backgroundColor: "#FFF7F7" },
+  failedBox: { gap: 8, padding: 10, borderRadius: 14, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
   row: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
   icon: { fontSize: 16, marginTop: 1 },
   txt: { fontSize: 13.5, color: "#1B2B4B", fontWeight: "600", lineHeight: 18 },

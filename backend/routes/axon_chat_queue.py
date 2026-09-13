@@ -86,9 +86,34 @@ async def cq_queue(session_id: Optional[str] = None, include_done: bool = False,
     uid = user["user_id"]
     lst = await _cq_list(uid, session_id)
     done: List[dict] = []
+    failed: List[dict] = []
     if include_done:
-        done = [_cq_out(d) async for d in db.axon_chat_queue.find({"user_id": uid, "status": {"$in": ["done", "failed"]}}, {"_id": 0}).sort("updated_at", -1).limit(10)]
-    return {"items": lst, "recent_done": done, "pending": sum(1 for x in lst if x["status"] == "pending"), "processing": any(x["status"] == "processing" for x in lst)}
+        done = [_cq_out(d) async for d in db.axon_chat_queue.find({"user_id": uid, "status": "done"}, {"_id": 0}).sort("updated_at", -1).limit(10)]
+        # V50.z225 — bozze fallite SEMPRE tutte visibili (sezione «Non riuscite» con Riprova): nessuna domanda va persa
+        failed = [_cq_out(d) async for d in db.axon_chat_queue.find({"user_id": uid, "status": "failed"}, {"_id": 0}).sort("updated_at", -1).limit(50)]
+    return {"items": lst, "recent_done": done, "failed": failed, "pending": sum(1 for x in lst if x["status"] == "pending"), "processing": any(x["status"] == "processing" for x in lst)}
+
+
+# V50.z225 — Riprova bozza fallita: torna pending (stessa priorità, created_at originale → FIFO), errore azzerato, retry_count+1
+_CQ_RETRY_UPD = {"$set": {"status": "pending"}, "$unset": {"error": "", "done_at": "", "started_at": ""}, "$inc": {"retry_count": 1}}
+
+
+@api_router.post("/chat/queue/{draft_id}/retry")
+async def cq_retry(draft_id: str, user=Depends(get_current_user)):
+    uid = user["user_id"]
+    upd = {**_CQ_RETRY_UPD, "$set": {"status": "pending", "updated_at": utcnow()}}
+    r = await db.axon_chat_queue.update_one({"draft_id": draft_id, "user_id": uid, "status": "failed"}, upd)
+    if not r.matched_count:
+        raise HTTPException(status_code=404, detail="Bozza fallita non trovata")
+    return {"ok": True, "queue": await _cq_list(uid)}
+
+
+@api_router.post("/chat/queue/retry-all")
+async def cq_retry_all(user=Depends(get_current_user)):
+    uid = user["user_id"]
+    upd = {**_CQ_RETRY_UPD, "$set": {"status": "pending", "updated_at": utcnow()}}
+    r = await db.axon_chat_queue.update_many({"user_id": uid, "status": "failed"}, upd)
+    return {"ok": True, "retried": r.modified_count, "queue": await _cq_list(uid)}
 
 
 @api_router.patch("/chat/queue/{draft_id}")

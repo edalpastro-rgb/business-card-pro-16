@@ -1,6 +1,13 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z225 (Giu 2026) — Coda chat: Riprova bozze fallite
+
+**Backend** (`routes/axon_chat_queue.py`): `GET /chat/queue?include_done=true` → nuovo array `failed` (tutte le fallite, max 50, ordine recente) e `recent_done` solo `done`; `POST /chat/queue/{id}/retry` (404 se non fallita) e `POST /chat/queue/retry-all` → status `pending`, `$unset error/done_at/started_at`, `$inc retry_count`; `created_at` e priorità restano (FIFO originale).
+**Frontend**: `ChatQueuePanel` prop `failed` → sezione «🔴 Non riuscite (N)» sopra le bozze (card rossa: testo, «Errore: …», tentativi; bottoni Riprova/Cancella; «Riprova tutte» se N>1; testID `queue-failed-section`, `queue-retry-<id>`, `queue-retry-all`, `queue-failed-<id>`). `AssistantChat`: stato `queueFailed`, badge rosso `assistant-queue-failed-badge` sul tab Coda; dopo Riprova l'effetto esistente (`pending` + `!sending`) avvia `processQueue` da solo.
+**Test**: API enqueue → next → failed → retry (pending, failed=0) → retry su non-fallita 404 → retry-all (retry_count 2) ✅; web: 2 fallite → badge 2, «Riprova» → bozza elaborata automaticamente e in «Elaborate di recente», resta 1 fallita ✅. Dati di test rimossi.
+
+
 ## V50.z224 (Giu 2026) — Regressione coda chat AxonOS (testing agent + E2E web)
 
 - Testing agent: 7/7 pytest `tests/test_v50_chat_queue.py` (enqueue/400, priorità URGENT>HIGH>NORMAL, claim atomico `/chat/queue/next` + busy, PATCH/DELETE/404, isolamento utenti, tabs GET/POST/PATCH, history nuova sessione) ✅.

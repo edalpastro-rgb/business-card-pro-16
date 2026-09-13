@@ -179,6 +179,8 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Fix input chat coperto da tastiera Android (V50.z12, V50.z39), input riorganizzato (V50.h).
 - **V50.z224** — Regressione coda chat: 7/7 pytest `tests/test_v50_chat_queue.py` + E2E web (2 invii consecutivi → «Coda (1)», elaborazione
   automatica sequenziale). Fix `cq_next` → `return_document=ReturnDocument.AFTER` (status `processing` nella risposta).
+- **V50.z225** — Bozze fallite: sezione «🔴 Non riuscite (N)» in testa al pannello Coda con errore, n. tentativi, [Riprova] (→ pending, stessa
+  priorità/created_at, `retry_count+1`, riparte da sola) / [Cancella] / [Riprova tutte]; badge rosso sul tab «Coda». `recent_done` ora solo `done`.
 
 
 ## 6. Timer, Sveglie, Promemoria (Axon Alarms)
@@ -921,6 +923,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 |---|---|---|
 | V50.z223 | Set 2026 | Chat NON bloccante: input sempre attivo, messaggi scritti durante l'elaborazione → coda server-side con priorità URGENT>HIGH>NORMAL (⏳/🔄/✅, posizione, ETA; Invia ora/Modifica/Cancella/Priorità; toast «Bozza elaborata»), elaborazione una alla volta; tab «Coda» nell'header; chat parallele = tab sessioni (+ Nuova) (`axon_chat_queue.py`, `ChatQueuePanel.tsx`, `AssistantChat.tsx`) |
 | V50.z224 | Giu 2026 | Regressione coda chat (testing agent 7/7 + E2E web) + fix `cq_next` ReturnDocument.AFTER (`axon_chat_queue.py`) |
+| V50.z225 | Giu 2026 | Coda chat: sezione «Non riuscite» con Riprova / Riprova tutte + badge rosso sul tab Coda; `POST /chat/queue/{id}/retry`, `POST /chat/queue/retry-all`, `failed[]` in GET /chat/queue (`axon_chat_queue.py`, `ChatQueuePanel.tsx`, `AssistantChat.tsx`) |
 | V50.z222 | Set 2026 | Autonomia Axon: message_id per ogni push + `GET /api/integrations/outbox/status?message_id=` e `/recent` (pending|sent|failed|retry, retry_count, last_error, next_retry); `GET /api/jobs/gme-fetcher/status` (+ `/run`) con wrapper del fetcher PUN (stato, durata, PDF, errori, timeout 15→20 s); `POST /api/notify`; risposta deterministica in chat «stato invii / fetcher GME / msg_…» con formule ✅⚠️🔴 (`axon_ops_status.py`) |
 | V50.z221 | Set 2026 | Priorità degli avvisi configurabili: card «Priorità degli avvisi» in Notifiche AxonOS → Preferenze (per ogni evento 🔴/🟠/⚪) + priorità personalizzate per parola chiave (titolo/testo → livello, precedenza sulla mappa); CRITICAL suona sempre (bypass DND) (`PushUrgencyCard.tsx`, `axon_push_urgency.py` custom_rules) |
 | V50.z220 | Set 2026 | Push a livelli di urgenza (Android attivo + iOS-ready): canali `urgent_alerts` (LED rosso, vibrazione 500-100-500, MAX, bypass DND) / `standard_alerts` (LED blu, HIGH) / `default`; backend `apu_payload` + `send_critical_alert`/`send_standard_notif`/`send_normal_notif`, wrapper `send_push` (urgenza da `data.urgency` o mappa kind→urgenza per tenant, GET/PUT /axon/push/urgency-map), `POST /axon/push/test-urgency`; feedback locale (Vibration/Haptics); bottoni test in PushStatusCard (`axon_push_urgency.py`, `pushBridge.ts`) |
