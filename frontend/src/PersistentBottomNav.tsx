@@ -45,6 +45,7 @@ const TABS: TabDef[] = [
 const HIDE_ON_PATHS = [
   "/login", "/index", "/", "/auth",
   "/appointment/new", "/callback/new",
+  "/permessi", "/setup", // V50.z211 — flusso onboarding a schermo intero (footer sticky)
   // V50.w — Schermate con footer sticky che verrebbero coperti dalla tab bar
   "/google-drive-picker",
   "/axon-scripts-import",

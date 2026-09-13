@@ -277,7 +277,8 @@ export default function LibrettoScreen() {
       try { await AsyncStorage.setItem(`onboarding_done_${user.user_id}`, "1"); } catch { /* noop */ }
     }
     api("/user-settings", { method: "PUT", body: { onboarding_done: true } }).catch(() => {});
-    router.replace("/");
+    // V50.z211 — dopo il Tour (concluso o saltato): schermata permessi → popup «Set Up and Go»
+    router.replace("/permessi" as any);
   }, [router, user?.user_id]);
 
   const onExport = useCallback(async () => {

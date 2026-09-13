@@ -193,6 +193,22 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z211 — BLOCCO 1 · Wizard di onboarding «Set Up and Go»: popup di benvenuto + struttura** — flusso: ToS → Tour (o skip) →
+  NUOVA `app/permessi.tsx` (4 card Posizione/Microfono/Fotocamera/Contatti con beneficio, «Consenti» chiede il permesso solo al tap, stati
+  Attivo/Riprova/Impostazioni (`Linking.openSettings` se bloccato), «Solo su app» in web, «Continua»/«Salta per ora» → salva `permissions` nello stato)
+  → NUOVA `app/setup.tsx`: popup WOW (gradiente viola→blu, razzo con pulsazione reanimated, ingressi ZoomIn/FadeInUp, «Dai, iniziamo. Sei pronto?»,
+  bottoni «Set Up and Go» / «Full and Go» / «Dopo»), wizard 4 step con **barra di avanzamento sempre visibile** (pallini numerati: ✓ fatto, — saltato,
+  attivo; «Passo N di M · %»), header con modalità, «Continua/Completa», «Salta quest'area» (solo Full), X = rimanda; schermata finale «Fatto!» con
+  conteggio aree saltate, «Vai all'app», «Ripeti la configurazione». Set Up and Go = Step 1 + Step 2 + pannello «3 preferenze core» (Step 3);
+  Full and Go = 4 step, aree saltabili senza invalidare il completamento. Il CONTENUTO degli step arriva nel Blocco 2 (`StepBody` = punto d'innesto,
+  ora placeholder). Backend isolato `routes/axon_setup_wizard.py`: `axon_setup_state` per utente (status not_started|deferred|in_progress|completed,
+  mode, current_step, steps{1..4:{done,skipped}}, core_prefs, permissions, timestamps, nudges), `GET/PUT /axon/setup/state`, `POST /axon/setup/nudge`,
+  `POST /axon/setup/reset`. «Dopo»: `SetupEntryCard` in Impostazioni (stato + accesso in qualsiasi momento); Axon monitora le conversazioni:
+  wrap `_prepare_assistant_prompt` → se il wizard non è completato (e nessun avviso nelle ultime 12 h) istruisce il modello a chiudere con la frase
+  «Completa la configurazione così la prossima volta posso esserti davvero utile» SOLO quando la risposta soffre di configurazione mancante; il
+  client (`SetupNudgeCard` in `AssistantChat`) la riconosce e mostra l'avviso con «Apri il wizard» (link diretto a /setup) e registra il nudge.
+  `libretto.dismissOnboarding` → `/permessi`; `/permessi` e `/setup` nascondono la barra di navigazione persistente (footer sticky). Wizard per TUTTI
+  gli utenti (Master e collaboratori). Verificato in UI web: permessi → popup → Full and Go → step 1 fatto, 2 saltato, 3, 4 → Fatto! → card Impostazioni.
 - **V50.z210 — Memoria piatta: OpenCV/PyMuPDF/pdfplumber/Pillow fuori dal processo API (worker a vita breve)** — PRIMA: `cv2`, `numpy`, `fitz`,
   `pdfplumber`, `PIL`, `pypdfium2` importati «dentro le funzioni» (scanner, allegati PDF in chat, RAG memoria, banner eventi, link PDF, Drive root,
   KB) restavano caricati per sempre nel processo uvicorn → RSS in crescita fino a superare i 512 MB dopo ore. ORA: nuova libreria pura
@@ -881,6 +897,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z211 | Set 2026 | BLOCCO 1 onboarding «Set Up and Go»: schermata /permessi, popup WOW /setup (Set Up and Go / Full and Go / Dopo), wizard 4 step con progress bar (contenuti nel Blocco 2), stato `axon_setup_state`, card Impostazioni, avviso Axon in chat con link al wizard |
 | V50.z210 | Set 2026 | Memoria piatta: cv2/fitz/pdfplumber/PIL eseguiti in sottoprocessi a vita breve (`workers/heavy_ops.py` + `heavy_worker.py`, ponte `01b_heavy_bridge.py`), tutti i call-site migrati, `pandas` rimosso da requirements; RSS API Δ +8 MB dopo scanner+PDF, nessuna lib pesante mappata |
 | V50.z209 | Set 2026 | Profilo APK: ultime 3 novità CHANGELOG nella card espansa; avviso proattivo `app_update` in chat quando l'APK installata è più vecchia di quella disponibile (apertura Profilo + job orario, idempotente) |
 | V50.z208 | Set 2026 | Profilo: card in cima «Piano attivo · versione APK installata» espandibile (installazione, ultimo aggiornamento, versione disponibile/aggiornata) — `AppInfoCard.tsx`, `routes/axon_app_info.py` |

@@ -1,0 +1,243 @@
+// setup.tsx — V50.z211 — BLOCCO 1: wizard di onboarding «Set Up and Go» (popup WOW + struttura 4 step con progress bar).
+// Arriva dopo ToS → Tour → /permessi. Modalità: «Set Up and Go» = Step 1 + Step 2 + 3 preferenze core (pannello core dello Step 3);
+// «Full and Go» = tutti e 4 gli step, ogni area saltabile senza invalidare il completamento; «Dopo» = rimanda (Impostazioni → Configurazione
+// guidata; Axon ricorda con un avviso in chat quando una risposta soffre della configurazione mancante).
+// Il CONTENUTO dei singoli step arriva nel BLOCCO 2: `StepBody` è il punto d'innesto (placeholder ora).
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeInDown, FadeInUp, ZoomIn, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, Easing } from "react-native-reanimated";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
+import { api } from "@/src/api";
+
+const PURPLE = "#7C3AED";
+type Mode = "setup" | "full";
+type StepState = { done: boolean; skipped: boolean };
+export type SetupState = {
+  status: "not_started" | "deferred" | "in_progress" | "completed"; mode: Mode | null; current_step: number;
+  steps: Record<string, StepState>; core_prefs: Record<string, unknown>; mode_steps: number[]; permissions_done: boolean;
+};
+
+export const STEP_META: Array<{ n: number; key: string; title: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { n: 1, key: "chi-sei", title: "Chi sei", subtitle: "Il tuo profilo e la tua attività", icon: "person-circle" },
+  { n: 2, key: "come-lavori", title: "Come lavori", subtitle: "Ritmi, canali e obiettivi", icon: "briefcase" },
+  { n: 3, key: "preferenze", title: "Preferenze AxonOS", subtitle: "Come vuoi che Axon ti parli e ti aiuti", icon: "sparkles" },
+  { n: 4, key: "collega", title: "Collega e importa", subtitle: "Integrazioni, dati e team", icon: "link" },
+];
+
+// ─────────────────────────────────────────────────────────────────────────── Popup di benvenuto (effetto WOW)
+function WelcomePopup({ onPick }: { onPick: (m: Mode | "later") => void }) {
+  const pulse = useSharedValue(1);
+  useEffect(() => { pulse.value = withRepeat(withSequence(withTiming(1.08, { duration: 900, easing: Easing.inOut(Easing.ease) }), withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) })), -1, true); }, [pulse]);
+  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
+  return (
+    <LinearGradient colors={["#4C1D95", "#7C3AED", "#2563EB"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.welcome} testID="setup-welcome">
+      <Animated.View entering={ZoomIn.duration(700).springify()} style={[styles.orb, pulseStyle]}>
+        <Ionicons name="rocket" size={54} color="#FFF" />
+      </Animated.View>
+      <Animated.Text entering={FadeInUp.delay(300).duration(600)} style={styles.welcomeTitle}>Dai, iniziamo.{"\n"}Sei pronto?</Animated.Text>
+      <Animated.Text entering={FadeInUp.delay(550).duration(600)} style={styles.welcomeSub}>
+        Pochi minuti per dire ad AxonOS chi sei e come lavori: da domani ti parla come un collega che ti conosce.
+      </Animated.Text>
+      <Animated.View entering={FadeInDown.delay(800).duration(600)} style={styles.welcomeBtns}>
+        <Pressable onPress={() => onPick("setup")} style={styles.btnPrimary} testID="setup-pick-setup">
+          <Ionicons name="flash" size={18} color={PURPLE} />
+          <View style={{ flex: 1 }}><Text style={styles.btnPrimaryTxt}>Set Up and Go</Text><Text style={styles.btnHint}>L'essenziale · Step 1, Step 2 e 3 preferenze core</Text></View>
+        </Pressable>
+        <Pressable onPress={() => onPick("full")} style={styles.btnSecondary} testID="setup-pick-full">
+          <Ionicons name="layers" size={18} color="#FFF" />
+          <View style={{ flex: 1 }}><Text style={styles.btnSecondaryTxt}>Full and Go</Text><Text style={[styles.btnHint, { color: "#E9D5FF" }]}>Tutti e 4 gli step · puoi saltare le aree che vuoi</Text></View>
+        </Pressable>
+        <Pressable onPress={() => onPick("later")} style={styles.btnLater} testID="setup-pick-later">
+          <Text style={styles.btnLaterTxt}>Dopo</Text>
+        </Pressable>
+        <Text style={styles.laterHint}>Potrai configurare tutto in qualsiasi momento da Impostazioni.</Text>
+      </Animated.View>
+    </LinearGradient>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────── Barra di avanzamento (sempre visibile)
+function ProgressBar({ steps, current, state }: { steps: number[]; current: number; state: SetupState }) {
+  const idx = Math.max(0, steps.indexOf(current));
+  const pct = Math.round(((idx + 1) / steps.length) * 100);
+  return (
+    <View style={styles.progressWrap} testID="setup-progress">
+      <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
+      <View style={styles.progressDots}>
+        {steps.map((s) => {
+          const st = state.steps[String(s)] || { done: false, skipped: false };
+          const active = s === current;
+          return (
+            <View key={s} style={styles.dotCol}>
+              <View style={[styles.dot, active && styles.dotActive, st.done && styles.dotDone, st.skipped && styles.dotSkipped]} testID={`setup-dot-${s}`}>
+                {st.done ? <Ionicons name="checkmark" size={12} color="#FFF" /> : st.skipped ? <Ionicons name="remove" size={12} color="#FFF" /> : <Text style={[styles.dotTxt, active && { color: "#FFF" }]}>{s}</Text>}
+              </View>
+              <Text style={[styles.dotLabel, active && { color: PURPLE, fontWeight: "800" }]} numberOfLines={1}>{STEP_META[s - 1].title}</Text>
+            </View>
+          );
+        })}
+      </View>
+      <Text style={styles.progressTxt}>Passo {idx + 1} di {steps.length} · {pct}%</Text>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────── Corpo dello step (BLOCCO 2 si innesta qui)
+function StepBody({ step, mode }: { step: number; mode: Mode }) {
+  const meta = STEP_META[step - 1];
+  const coreOnly = mode === "setup" && step === 3;
+  return (
+    <View style={styles.stepBody} testID={`setup-step-${step}`}>
+      <View style={styles.stepIcon}><Ionicons name={meta.icon} size={26} color={PURPLE} /></View>
+      <Text style={styles.stepTitle}>{coreOnly ? "3 preferenze core" : meta.title}</Text>
+      <Text style={styles.stepSub}>{coreOnly ? "Le tre scelte essenziali per far partire AxonOS con il piede giusto." : meta.subtitle}</Text>
+      <View style={styles.placeholder}>
+        <Ionicons name="construct-outline" size={18} color="#94A3B8" />
+        <Text style={styles.placeholderTxt}>Contenuto di questo passo in arrivo (Blocco 2). Puoi già proseguire per provare il flusso.</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────── Schermata
+export default function SetupScreen() {
+  const router = useRouter();
+  const insets = useInsetsSafe();
+  const params = useLocalSearchParams<{ welcome?: string }>();
+  const [state, setState] = useState<SetupState | null>(null);
+  const [showWelcome, setShowWelcome] = useState<boolean>(params.welcome === "1");
+  const [finished, setFinished] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await api<SetupState>("/axon/setup/state");
+        setState(s);
+        if (params.welcome !== "1" && (s.status === "not_started" || s.status === "deferred" || !s.mode)) setShowWelcome(true);
+      } catch { setState(null); }
+    })();
+  }, [params.welcome]);
+
+  const save = useCallback(async (body: Record<string, unknown>) => {
+    try { const s = await api<SetupState>("/axon/setup/state", { method: "PUT", body }); setState(s); return s; } catch { return null; }
+  }, []);
+
+  const pick = useCallback(async (m: Mode | "later") => {
+    if (m === "later") { await save({ status: "deferred" }); router.replace("/" as any); return; }
+    await save({ status: "in_progress", mode: m, current_step: 1 });
+    setShowWelcome(false);
+  }, [router, save]);
+
+  const steps = useMemo(() => (state?.mode === "setup" ? [1, 2, 3] : [1, 2, 3, 4]), [state?.mode]);
+  const current = state?.current_step && steps.includes(state.current_step) ? state.current_step : steps[0];
+
+  const advance = useCallback(async (skipped: boolean) => {
+    if (!state) return;
+    const i = steps.indexOf(current);
+    const upd: Record<string, unknown> = { step_updates: { [String(current)]: skipped ? { skipped: true, done: false } : { done: true, skipped: false } } };
+    if (i + 1 < steps.length) { upd.current_step = steps[i + 1]; await save(upd); }
+    else { upd.status = "completed"; await save(upd); setFinished(true); }
+  }, [current, save, state, steps]);
+
+  const back = useCallback(async () => {
+    const i = steps.indexOf(current);
+    if (i > 0) await save({ current_step: steps[i - 1] }); else setShowWelcome(true);
+  }, [current, save, steps]);
+
+  if (showWelcome) return <WelcomePopup onPick={pick} />;
+  if (!state) return <View style={[styles.root, { justifyContent: "center" }]}><ActivityIndicator color={PURPLE} /></View>;
+
+  if (finished || state.status === "completed") {
+    const skippedN = Object.values(state.steps).filter((s) => s.skipped).length;
+    return (
+      <LinearGradient colors={["#065F46", "#059669"]} style={styles.welcome} testID="setup-done">
+        <Animated.View entering={ZoomIn.duration(600).springify()} style={styles.orb}><Ionicons name="checkmark-done" size={54} color="#FFF" /></Animated.View>
+        <Animated.Text entering={FadeInUp.delay(250)} style={styles.welcomeTitle}>Fatto!</Animated.Text>
+        <Animated.Text entering={FadeInUp.delay(400)} style={styles.welcomeSub}>
+          {state.mode === "setup" ? "Configurazione essenziale completata." : "Configurazione completa."}{skippedN ? ` Hai saltato ${skippedN} ${skippedN === 1 ? "area" : "aree"}: le trovi in Impostazioni quando vuoi.` : ""}
+        </Animated.Text>
+        <Animated.View entering={FadeInDown.delay(600)} style={styles.welcomeBtns}>
+          <Pressable onPress={() => router.replace("/" as any)} style={styles.btnPrimary} testID="setup-go-home"><Ionicons name="home" size={18} color="#059669" /><Text style={[styles.btnPrimaryTxt, { color: "#059669" }]}>Vai all'app</Text></Pressable>
+          <Pressable onPress={async () => { await api("/axon/setup/reset", { method: "POST" }).catch(() => {}); setFinished(false); setShowWelcome(true); }} style={styles.btnLater} testID="setup-redo"><Text style={styles.btnLaterTxt}>Ripeti la configurazione</Text></Pressable>
+        </Animated.View>
+      </LinearGradient>
+    );
+  }
+
+  const isLast = steps.indexOf(current) === steps.length - 1;
+  return (
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Pressable onPress={back} hitSlop={10} style={styles.headBtn} testID="setup-back"><Ionicons name="arrow-back" size={22} color="#1B2B4B" /></Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headTitle}>{state.mode === "setup" ? "Set Up and Go" : "Full and Go"}</Text>
+          <Text style={styles.headSub}>{state.mode === "setup" ? "L'essenziale, in pochi minuti" : "Configurazione completa · ogni area è saltabile"}</Text>
+        </View>
+        <Pressable onPress={async () => { await save({ status: "deferred" }); router.replace("/" as any); }} hitSlop={10} style={styles.headBtn} testID="setup-defer">
+          <Ionicons name="close" size={22} color="#64748B" />
+        </Pressable>
+      </View>
+      <ProgressBar steps={steps} current={current} state={state} />
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 150 }}>
+        <Animated.View key={current} entering={FadeInUp.duration(350)}>
+          <StepBody step={current} mode={state.mode || "full"} />
+        </Animated.View>
+      </ScrollView>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+        <Pressable onPress={() => advance(false)} style={styles.primary} testID="setup-next">
+          <Text style={styles.primaryTxt}>{isLast ? "Completa" : "Continua"}</Text><Ionicons name={isLast ? "checkmark" : "arrow-forward"} size={18} color="#FFF" />
+        </Pressable>
+        {state.mode === "full" && (
+          <Pressable onPress={() => advance(true)} style={styles.skip} testID="setup-skip-step"><Text style={styles.skipTxt}>Salta quest'area</Text></Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#FAF5FF" },
+  welcome: { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 16 },
+  orb: { width: 120, height: 120, borderRadius: 60, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.35)" },
+  welcomeTitle: { color: "#FFF", fontSize: 34, fontWeight: "900", textAlign: "center", lineHeight: 40, marginTop: 8 },
+  welcomeSub: { color: "#E9D5FF", fontSize: 15, textAlign: "center", lineHeight: 22, paddingHorizontal: 8 },
+  welcomeBtns: { width: "100%", gap: 10, marginTop: 16 },
+  btnPrimary: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 18, paddingHorizontal: 18, minHeight: 60 },
+  btnPrimaryTxt: { color: PURPLE, fontWeight: "900", fontSize: 17 },
+  btnHint: { fontSize: 11.5, color: "#64748B", marginTop: 1 },
+  btnSecondary: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.6)", borderRadius: 18, paddingHorizontal: 18, minHeight: 60 },
+  btnSecondaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 17 },
+  btnLater: { alignItems: "center", justifyContent: "center", minHeight: 48 },
+  btnLaterTxt: { color: "#FFF", fontWeight: "800", fontSize: 15, opacity: 0.9 },
+  laterHint: { color: "#E9D5FF", fontSize: 11.5, textAlign: "center", opacity: 0.85 },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  headBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  headTitle: { fontSize: 17, fontWeight: "900", color: "#1B2B4B" },
+  headSub: { fontSize: 12, color: "#64748B" },
+  progressWrap: { paddingHorizontal: 16, paddingBottom: 10, gap: 10, backgroundColor: "#FAF5FF" },
+  progressTrack: { height: 8, borderRadius: 4, backgroundColor: "#EDE9FE", overflow: "hidden" },
+  progressFill: { height: 8, backgroundColor: PURPLE, borderRadius: 4 },
+  progressDots: { flexDirection: "row", justifyContent: "space-between" },
+  dotCol: { flex: 1, alignItems: "center", gap: 4 },
+  dot: { width: 26, height: 26, borderRadius: 13, backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center" },
+  dotActive: { backgroundColor: PURPLE },
+  dotDone: { backgroundColor: "#059669" },
+  dotSkipped: { backgroundColor: "#94A3B8" },
+  dotTxt: { fontSize: 12, fontWeight: "800", color: PURPLE },
+  dotLabel: { fontSize: 10, color: "#64748B" },
+  progressTxt: { fontSize: 11.5, color: "#64748B", textAlign: "center", fontWeight: "700" },
+  stepBody: { backgroundColor: "#FFF", borderRadius: 18, padding: 18, gap: 8, borderWidth: 1, borderColor: "#EDE9FE" },
+  stepIcon: { width: 52, height: 52, borderRadius: 18, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },
+  stepTitle: { fontSize: 22, fontWeight: "900", color: "#1B2B4B" },
+  stepSub: { fontSize: 13.5, color: "#64748B", lineHeight: 19 },
+  placeholder: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#F8FAFC", borderRadius: 12, padding: 12, marginTop: 8, borderWidth: 1, borderColor: "#E2E8F0", borderStyle: "dashed" },
+  placeholderTxt: { flex: 1, fontSize: 12.5, color: "#64748B", lineHeight: 17 },
+  footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, gap: 6, backgroundColor: "#FAF5FF" },
+  primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: PURPLE, borderRadius: 16, minHeight: 52 },
+  primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 16 },
+  skip: { alignItems: "center", justifyContent: "center", minHeight: 44 },
+  skipTxt: { color: "#64748B", fontWeight: "700", fontSize: 14 },
+});

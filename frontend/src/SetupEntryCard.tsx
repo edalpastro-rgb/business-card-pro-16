@@ -1,0 +1,40 @@
+// SetupEntryCard.tsx — V50.z211 — Impostazioni → «Configurazione guidata»: stato del wizard «Set Up and Go» + accesso in qualsiasi momento.
+import React, { useCallback, useState } from "react";
+import { View, Text, StyleSheet, Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter, useFocusEffect } from "expo-router";
+import { api } from "@/src/api";
+
+const PURPLE = "#7C3AED";
+type S = { status: "not_started" | "deferred" | "in_progress" | "completed"; mode: "setup" | "full" | null; current_step: number; steps: Record<string, { done: boolean; skipped: boolean }> };
+
+export function SetupEntryCard() {
+  const router = useRouter();
+  const [s, setS] = useState<S | null>(null);
+  useFocusEffect(useCallback(() => { api<S>("/axon/setup/state").then(setS).catch(() => {}); }, []));
+
+  const done = s ? Object.values(s.steps).filter((x) => x.done).length : 0;
+  const label = !s ? "Configurazione guidata" : s.status === "completed" ? "Configurazione completata" : s.status === "in_progress" ? `Configurazione in corso · passo ${s.current_step}` : "Completa la configurazione";
+  const sub = !s ? "Set Up and Go" : s.status === "completed" ? `${s.mode === "setup" ? "Set Up and Go" : "Full and Go"} · ${done} aree compilate · tocca per rivedere o completare le aree saltate`
+    : s.status === "in_progress" ? "Riprendi da dove eri rimasto" : "Pochi minuti: così AxonOS ti conosce e ti aiuta davvero";
+  const ok = s?.status === "completed";
+
+  return (
+    <Pressable onPress={() => router.push("/setup" as any)} style={[styles.card, !ok && s && styles.cardTodo]} testID="setup-entry-card">
+      <View style={[styles.icon, ok && { backgroundColor: "#ECFDF5" }]}><Ionicons name={ok ? "checkmark-done" : "rocket"} size={20} color={ok ? "#059669" : PURPLE} /></View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.label}>{label}</Text>
+        <Text style={styles.sub}>{sub}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: "#EDE9FE", padding: 12, minHeight: 64 },
+  cardTodo: { borderColor: "#C4B5FD", backgroundColor: "#FAF5FF" },
+  icon: { width: 40, height: 40, borderRadius: 14, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },
+  label: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
+  sub: { fontSize: 12, color: "#64748B", marginTop: 2, lineHeight: 16 },
+});

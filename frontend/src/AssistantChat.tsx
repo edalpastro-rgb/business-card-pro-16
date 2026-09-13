@@ -50,6 +50,7 @@ import { streamAssistantChat } from "@/src/utils/assistantStream";
 import { useAxonProgress, AxonProgressBubble } from "@/src/axonProgress"; // V50.z194 — stato visibile >3s
 import { ImportConfirmChips, hasImportQuestion } from "@/src/ImportConfirmChips"; // V50.z194 — «Vuoi che memorizzi…?»
 import { QuickReplyButtons, QuickReplyToast, QUICK_REPLY_TOAST_MS, isClosedQuestion } from "@/src/axon-quick-reply"; // V50.z207 — Sì/No/Forse su domande chiuse
+import { SetupNudgeCard, hasSetupNudge } from "@/src/SetupNudgeCard"; // V50.z211 — avviso configurazione incompleta → wizard
 import { AXON_OPEN_CHAT_EVENT, consumePendingPrompt } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
@@ -1663,6 +1664,10 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 <QuickReplyButtons key={`qr-${messages.length}`} question={messages[messages.length - 1].content} messageId={messages[messages.length - 1].message_id} onSelect={onQuickReply} />
               )}
               <QuickReplyToast visible={quickReplyToast} />
+              {/* V50.z211 — avviso «Completa la configurazione…» → link diretto al wizard Set Up and Go */}
+              {messages.length > 0 && messages[messages.length - 1].role === "assistant" && !messages[messages.length - 1].streaming && hasSetupNudge(messages[messages.length - 1].content) && (
+                <SetupNudgeCard key={`nudge-${messages.length}`} onOpen={onClose} />
+              )}
               {sending && prog.visible && (
                 <AxonProgressBubble text={prog.text} elapsed={prog.elapsed} assistantName={assistantName} />
               )}
