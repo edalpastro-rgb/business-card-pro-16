@@ -70,9 +70,17 @@ async def master_profile_get(user=Depends(get_current_user)):
 @api_router.put("/master/profile")
 async def master_profile_update(payload: Dict[str, Any] = Body(...), user=Depends(get_current_user)):
     updates: Dict[str, Any] = {}
-    for k in ["first_name", "last_name", "phone", "address", "iban", "tax_id", "vat_id", "notes"]:
+    # V50.z212 — campi anagrafica estesi dal wizard Step 1 (stessa fonte di verità di /anagrafica-master → sync automatica)
+    for k in ["first_name", "last_name", "phone", "address", "iban", "tax_id", "vat_id", "notes",
+              "birth_date", "sex", "birth_place_code", "primary_email", "address_second", "address_relative", "primary_address"]:
         if k in payload:
             updates[k] = str(payload.get(k) or "").strip()
+    if "emails" in payload and isinstance(payload.get("emails"), list):
+        updates["emails"] = [str(e).strip().lower() for e in payload["emails"] if str(e).strip()][:5]
+    if "cf_confirmed" in payload:
+        updates["cf_confirmed"] = bool(payload.get("cf_confirmed"))
+    if "tax_id" in updates:
+        updates["tax_id"] = updates["tax_id"].upper()
     updates["updated_at"] = datetime.utcnow()
     await db.master_profiles.update_one(
         {"user_id": user["user_id"]},

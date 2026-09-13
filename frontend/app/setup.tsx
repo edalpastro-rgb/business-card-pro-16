@@ -3,7 +3,7 @@
 // «Full and Go» = tutti e 4 gli step, ogni area saltabile senza invalidare il completamento; «Dopo» = rimanda (Impostazioni → Configurazione
 // guidata; Axon ricorda con un avviso in chat quando una risposta soffre della configurazione mancante).
 // Il CONTENUTO dei singoli step arriva nel BLOCCO 2: `StepBody` è il punto d'innesto (placeholder ora).
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,6 +11,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInDown, FadeInUp, ZoomIn, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, Easing } from "react-native-reanimated";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
+import { Step1Anagrafica, type StepBinder } from "@/src/wizard/Step1Anagrafica"; // V50.z212 — Blocco 2 · Step 1
 
 const PURPLE = "#7C3AED";
 type Mode = "setup" | "full";
@@ -86,7 +87,7 @@ function ProgressBar({ steps, current, state }: { steps: number[]; current: numb
 }
 
 // ─────────────────────────────────────────────────────────────────────────── Corpo dello step (BLOCCO 2 si innesta qui)
-function StepBody({ step, mode }: { step: number; mode: Mode }) {
+function StepBody({ step, mode, bind }: { step: number; mode: Mode; bind: StepBinder }) {
   const meta = STEP_META[step - 1];
   const coreOnly = mode === "setup" && step === 3;
   return (
@@ -94,10 +95,12 @@ function StepBody({ step, mode }: { step: number; mode: Mode }) {
       <View style={styles.stepIcon}><Ionicons name={meta.icon} size={26} color={PURPLE} /></View>
       <Text style={styles.stepTitle}>{coreOnly ? "3 preferenze core" : meta.title}</Text>
       <Text style={styles.stepSub}>{coreOnly ? "Le tre scelte essenziali per far partire AxonOS con il piede giusto." : meta.subtitle}</Text>
-      <View style={styles.placeholder}>
-        <Ionicons name="construct-outline" size={18} color="#94A3B8" />
-        <Text style={styles.placeholderTxt}>Contenuto di questo passo in arrivo (Blocco 2). Puoi già proseguire per provare il flusso.</Text>
-      </View>
+      {step === 1 ? <Step1Anagrafica bind={bind} /> : (
+        <View style={styles.placeholder}>
+          <Ionicons name="construct-outline" size={18} color="#94A3B8" />
+          <Text style={styles.placeholderTxt}>Contenuto di questo passo in arrivo (Blocco 2). Puoi già proseguire per provare il flusso.</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -110,6 +113,10 @@ export default function SetupScreen() {
   const [state, setState] = useState<SetupState | null>(null);
   const [showWelcome, setShowWelcome] = useState<boolean>(params.welcome === "1");
   const [finished, setFinished] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // V50.z212 — lo step attivo registra qui la sua validazione/salvataggio: «Continua» avanza solo se ritorna true
+  const stepSubmit = useRef<(() => Promise<boolean>) | null>(null);
+  const bindStep: StepBinder = useCallback((fn) => { stepSubmit.current = fn; }, []);
 
   useEffect(() => {
     (async () => {
@@ -135,12 +142,19 @@ export default function SetupScreen() {
   const current = state?.current_step && steps.includes(state.current_step) ? state.current_step : steps[0];
 
   const advance = useCallback(async (skipped: boolean) => {
-    if (!state) return;
+    if (!state || saving) return;
+    if (!skipped && stepSubmit.current) {
+      setSaving(true);
+      const ok = await stepSubmit.current().catch(() => false);
+      setSaving(false);
+      if (!ok) return;
+    }
+    stepSubmit.current = null;
     const i = steps.indexOf(current);
     const upd: Record<string, unknown> = { step_updates: { [String(current)]: skipped ? { skipped: true, done: false } : { done: true, skipped: false } } };
     if (i + 1 < steps.length) { upd.current_step = steps[i + 1]; await save(upd); }
     else { upd.status = "completed"; await save(upd); setFinished(true); }
-  }, [current, save, state, steps]);
+  }, [current, save, saving, state, steps]);
 
   const back = useCallback(async () => {
     const i = steps.indexOf(current);
@@ -183,14 +197,14 @@ export default function SetupScreen() {
       <ProgressBar steps={steps} current={current} state={state} />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 150 }}>
         <Animated.View key={current} entering={FadeInUp.duration(350)}>
-          <StepBody step={current} mode={state.mode || "full"} />
+          <StepBody step={current} mode={state.mode || "full"} bind={bindStep} />
         </Animated.View>
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable onPress={() => advance(false)} style={styles.primary} testID="setup-next">
-          <Text style={styles.primaryTxt}>{isLast ? "Completa" : "Continua"}</Text><Ionicons name={isLast ? "checkmark" : "arrow-forward"} size={18} color="#FFF" />
+        <Pressable onPress={() => advance(false)} disabled={saving} style={[styles.primary, saving && { opacity: 0.7 }]} testID="setup-next">
+          {saving ? <ActivityIndicator color="#FFF" /> : <><Text style={styles.primaryTxt}>{isLast ? "Completa" : "Continua"}</Text><Ionicons name={isLast ? "checkmark" : "arrow-forward"} size={18} color="#FFF" /></>}
         </Pressable>
-        {state.mode === "full" && (
+        {state.mode === "full" && current !== 1 && (
           <Pressable onPress={() => advance(true)} style={styles.skip} testID="setup-skip-step"><Text style={styles.skipTxt}>Salta quest'area</Text></Pressable>
         )}
       </View>

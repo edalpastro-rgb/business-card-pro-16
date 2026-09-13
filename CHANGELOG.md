@@ -193,6 +193,19 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z212 — BLOCCO 2 · Step 1 «Anagrafica» del wizard** — nuovo `src/wizard/Step1Anagrafica.tsx` innestato in `setup.tsx` (`StepBody` step 1;
+  «Continua» avanza solo se `submit()` dello step ritorna true; step 1 non saltabile). Obbligatori: nome, cognome, data di nascita, codice fiscale,
+  telefono, mail · facoltativi: indirizzo principale, seconda abitazione, indirizzo di un parente. **Codice fiscale**: al 16° carattere
+  `POST /axon/anagrafica/cf-decode` (nuovo modulo isolato `routes/axon_wizard_anagrafica.py`: formato + carattere di controllo, data di nascita,
+  sesso, comune; proposta nome/cognome = valori digitati → altrimenti nome account; verifica di coerenza consonanti) → box «Dal codice fiscale
+  ho ricavato…» con **Conferma** / **Modifica**. **Mail**: fino a 3 indirizzi; a fine step popup «Quale mail uso per risponderti e ricevere file?»
+  (con una sola mail viene confermata da sola); tag «risposte & file» sulla scelta. **Indirizzo**: con più di un indirizzo popup «Qual è quello
+  principale?» → `primary_address` main|second|relative. **Sync bidirezionale**: fonte di verità unica `master_profiles` = `GET/PUT /master/profile`
+  (31 esteso con birth_date, sex, birth_place_code, emails[], primary_email, address_second, address_relative, primary_address, cf_confirmed;
+  tax_id sempre maiuscolo) → la pagina `/anagrafica-master` mostra e salva gli stessi campi; il prompt di Axon riceve «ANAGRAFICA UTENTE (già
+  fornita: NON chiedere mai di reinserire)»; in chat «il mio telefono/mail/indirizzo/codice fiscale/data di nascita è …» e «rispondimi sulla mail
+  X» / «usa X per i file» aggiornano l'Anagrafica (wrap `_maybe_push_command`; CF validato e decodificato anche da chat). Verificato in UI web:
+  validazione, CF → box → Conferma (data 01/01/1980), 2 mail → popup scelta, 2 indirizzi → popup principale → salvataggio → step 2.
 - **V50.z211 — BLOCCO 1 · Wizard di onboarding «Set Up and Go»: popup di benvenuto + struttura** — flusso: ToS → Tour (o skip) →
   NUOVA `app/permessi.tsx` (4 card Posizione/Microfono/Fotocamera/Contatti con beneficio, «Consenti» chiede il permesso solo al tap, stati
   Attivo/Riprova/Impostazioni (`Linking.openSettings` se bloccato), «Solo su app» in web, «Continua»/«Salta per ora» → salva `permissions` nello stato)
@@ -897,6 +910,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z212 | Set 2026 | BLOCCO 2 Step 1 «Anagrafica»: campi obbligatori/facoltativi, decodifica codice fiscale con Conferma/Modifica, popup mail per risposte/file, popup indirizzo principale, sync bidirezionale Anagrafica ⇄ wizard ⇄ chat Axon (`Step1Anagrafica.tsx`, `axon_wizard_anagrafica.py`) |
 | V50.z211 | Set 2026 | BLOCCO 1 onboarding «Set Up and Go»: schermata /permessi, popup WOW /setup (Set Up and Go / Full and Go / Dopo), wizard 4 step con progress bar (contenuti nel Blocco 2), stato `axon_setup_state`, card Impostazioni, avviso Axon in chat con link al wizard |
 | V50.z210 | Set 2026 | Memoria piatta: cv2/fitz/pdfplumber/PIL eseguiti in sottoprocessi a vita breve (`workers/heavy_ops.py` + `heavy_worker.py`, ponte `01b_heavy_bridge.py`), tutti i call-site migrati, `pandas` rimosso da requirements; RSS API Δ +8 MB dopo scanner+PDF, nessuna lib pesante mappata |
 | V50.z209 | Set 2026 | Profilo APK: ultime 3 novità CHANGELOG nella card espansa; avviso proattivo `app_update` in chat quando l'APK installata è più vecchia di quella disponibile (apertura Profilo + job orario, idempotente) |

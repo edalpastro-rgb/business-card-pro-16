@@ -16,6 +16,8 @@ type Cred = { cred_id: string; service: string; username?: string; url?: string;
 type Profile = {
   first_name?: string; last_name?: string; phone?: string; address?: string;
   iban?: string; tax_id?: string; vat_id?: string; notes?: string;
+  // V50.z212 — campi condivisi con il wizard Set Up and Go · Step 1 (stessa fonte: /master/profile)
+  birth_date?: string; primary_email?: string; address_second?: string; address_relative?: string; emails?: string[];
   credentials?: Cred[];
 };
 
@@ -45,6 +47,8 @@ export default function AnagraficaMasterScreen() {
       const r = await api<Profile>("/master/profile", { method: "PUT", body: {
         first_name: p.first_name, last_name: p.last_name, phone: p.phone,
         address: p.address, iban: p.iban, tax_id: p.tax_id, vat_id: p.vat_id, notes: p.notes,
+        birth_date: p.birth_date, primary_email: p.primary_email, address_second: p.address_second, address_relative: p.address_relative,
+        emails: Array.from(new Set([...(p.emails || []), p.primary_email || ""].filter(Boolean))),
       }});
       setP(r);
       Alert.alert("✓", "Dati salvati");
@@ -108,10 +112,12 @@ export default function AnagraficaMasterScreen() {
         {/* Dati anagrafici */}
         <View style={styles.card}>
           <Text style={styles.section}>Dati personali</Text>
+          <Text style={{ fontSize: 11.5, color: "#64748B", marginBottom: 8 }}>🔄 Sincronizzati con il wizard «Set Up and Go» e con AxonOS: ogni modifica qui si riflette ovunque.</Text>
           {([
-            ["first_name", "Nome"], ["last_name", "Cognome"], ["phone", "Telefono"],
-            ["address", "Indirizzo"], ["iban", "IBAN"], ["tax_id", "Codice Fiscale"],
-            ["vat_id", "P.IVA"], ["notes", "Note"],
+            ["first_name", "Nome"], ["last_name", "Cognome"], ["birth_date", "Data di nascita (AAAA-MM-GG)"], ["tax_id", "Codice Fiscale"],
+            ["phone", "Telefono"], ["primary_email", "Mail per risposte e file"],
+            ["address", "Indirizzo principale"], ["address_second", "Seconda abitazione"], ["address_relative", "Indirizzo di un parente"],
+            ["iban", "IBAN"], ["vat_id", "P.IVA"], ["notes", "Note"],
           ] as [keyof Profile, string][]).map(([k, label]) => (
             <View key={k} style={{ marginBottom: 8 }}>
               <Text style={styles.label}>{label}</Text>
