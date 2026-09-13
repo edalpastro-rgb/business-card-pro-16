@@ -11,7 +11,7 @@ const ID_CATEGORY: Record<string, MenuCategoryKey> = {
   home: "crm", agenda: "crm", contatti: "crm", "new-contact": "crm", "new-appt": "crm", "new-crt": "crm", cruscotto: "crm", quick: "crm",
   chat: "comm", "call-script": "comm", banners: "comm",
   "my-web": "axon", "bill-quick": "axon", "ai-teach": "axon", "axon-brain": "axon", "axon-scripts": "axon", ha: "axon",
-  "my-audios": "docs", "my-files": "docs", "business-card": "docs",
+  "my-audios": "docs", "my-files": "docs", "business-card": "docs", "spazio-personale": "docs",
   report: "team",
   master: "team", profilo: "admin", "axon-alarms": "admin", libretto: "admin", meteo: "admin",
 };

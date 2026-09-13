@@ -309,7 +309,7 @@ export default function MyThingScreen() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>My Thing</Text>
-          <Text style={styles.subtitle}>Il tuo spazio personale</Text>
+          <Text style={styles.subtitle}>🟢 Spazio Personale · il tuo banner</Text>
         </View>
         <Pressable testID="mt-add-btn" onPress={() => openEditor()} style={styles.addBtn}>
           <Ionicons name="add" size={22} color="#FFF" />

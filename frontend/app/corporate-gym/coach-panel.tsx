@@ -20,7 +20,9 @@ type Scenario = {
   key: string; area: "obiezioni" | "winwin"; label: string; description: string; image_url: string | null; duration_min: number; max_turns: number;
   tips: string[]; customer: { name?: string; role?: string; company?: string }; manual_ref: CgymManualRef | null; phases: Phase[];
   is_customized: boolean; customized_fields: string[]; defaults?: Scenario;
+  is_custom?: boolean; objection?: string; persona?: string; opening_hint?: string; eval_criteria?: string; voice?: string;
 };
+const VOICES = ["onyx", "nova", "alloy", "echo", "fable", "shimmer"];
 
 export default function CgymCoachPanel() {
   const router = useRouter();
@@ -31,6 +33,20 @@ export default function CgymCoachPanel() {
   const [form, setForm] = useState<Scenario | null>(null);
   const [saving, setSaving] = useState(false);
   const [picker, setPicker] = useState<{ target: "scenario" | number } | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState<{ area: "obiezioni" | "winwin"; label: string; objection: string; persona: string; customer: { name: string; role: string; company: string } }>({ area: "obiezioni", label: "", objection: "", persona: "", customer: { name: "", role: "", company: "" } });
+
+  const createScenario = async () => {
+    if (draft.label.trim().length < 3) { notify("Titolo", "Inserisci un titolo di almeno 3 caratteri."); return; }
+    setSaving(true);
+    try {
+      const r = await api<Scenario>("/cgym/config/custom", { method: "POST", body: { area: draft.area, label: draft.label, objection: draft.objection, persona: draft.persona, customer: draft.customer } });
+      setCreating(false); setDraft({ area: "obiezioni", label: "", objection: "", persona: "", customer: { name: "", role: "", company: "" } });
+      await load();
+      setSel(r); setForm({ ...r, tips: [...r.tips], phases: r.phases.map((p) => ({ ...p })) });
+      notify("Creato", "Il nuovo role-play è già visibile ai consulenti nella sua sezione. Completa i dettagli qui sotto.");
+    } catch (e: any) { notify("Creazione", e?.message || "Errore"); } finally { setSaving(false); }
+  };
 
   const load = useCallback(async () => {
     try { const r = await api<{ items: Scenario[]; can_edit: boolean }>("/cgym/config/scenarios"); setItems(r.items); setCanEdit(r.can_edit); }
@@ -51,6 +67,7 @@ export default function CgymCoachPanel() {
         label: form.label, description: form.description, image_url: form.image_url || "", duration_min: Number(form.duration_min) || sel.defaults?.duration_min,
         max_turns: Number(form.max_turns) || sel.defaults?.max_turns, tips: form.tips, customer: form.customer,
         manual_ref: form.manual_ref || undefined, clear_manual_ref: !form.manual_ref,
+        ...(form.is_custom ? { objection: form.objection, persona: form.persona, opening_hint: form.opening_hint, eval_criteria: form.eval_criteria, voice: form.voice, area: form.area } : {}),
         phases: form.phases.map((p) => ({ id: p.id, name: p.name, minutes_to: p.minutes_to ?? null, manual_ref: p.manual_ref || null })),
       } });
       setSel(r); setForm({ ...r, tips: [...r.tips], phases: r.phases.map((p) => ({ ...p })) });
@@ -60,7 +77,14 @@ export default function CgymCoachPanel() {
   };
 
   const reset = async () => {
-    if (!sel || !(await confirmAsync("Ripristinare i default?", "Tutte le personalizzazioni di questo role-play (fasi incluse) verranno rimosse."))) return;
+    if (!sel) return;
+    if (sel.is_custom) {
+      if (!(await confirmAsync("Eliminare il role-play?", "Sparirà dalla sezione Gym per tutti i consulenti."))) return;
+      setSaving(true);
+      try { await api(`/cgym/config/scenarios/${sel.key}`, { method: "DELETE" }); setSel(null); setForm(null); await load(); } catch (e: any) { notify("Eliminazione", e?.message || "Errore"); } finally { setSaving(false); }
+      return;
+    }
+    if (!(await confirmAsync("Ripristinare i default?", "Tutte le personalizzazioni di questo role-play (fasi incluse) verranno rimosse."))) return;
     setSaving(true);
     try { const r = await api<Scenario>(`/cgym/config/scenarios/${sel.key}`, { method: "DELETE" }); setSel(r); setForm({ ...r, tips: [...r.tips], phases: r.phases.map((p) => ({ ...p })) }); await load(); }
     catch (e: any) { notify("Ripristino", e?.message || "Errore"); } finally { setSaving(false); }
@@ -93,6 +117,35 @@ export default function CgymCoachPanel() {
         {!items ? <ActivityIndicator color={CGYM_ORANGE} style={{ marginTop: 30 }} /> : !form ? (
           <>
             <Text style={styles.hint}>{canEdit ? "Tocca un role-play per personalizzare testo, immagine, durata, interventi, checklist obiettivi, cliente simulato, manuale Drive e fasi di sessione." : "Solo il Master Coach può modificare i role-play. Qui vedi la configurazione attiva."}</Text>
+            {canEdit && !creating && (
+              <Pressable onPress={() => setCreating(true)} style={[styles.card, { borderStyle: "dashed", alignItems: "center", flexDirection: "row", gap: 10, justifyContent: "center" }]} testID="cgym-coach-new">
+                <Ionicons name="add-circle" size={22} color={CGYM_ORANGE} /><Text style={[styles.cardTitle, { color: CGYM_ORANGE }]}>Nuovo role-play</Text>
+              </Pressable>
+            )}
+            {creating && (
+              <View style={styles.card} testID="cgym-coach-create">
+                <Text style={styles.section}>Nuovo role-play</Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {(["obiezioni", "winwin"] as const).map((a) => (
+                    <Pressable key={a} onPress={() => setDraft({ ...draft, area: a })} style={[styles.smallBtn, draft.area !== a && styles.ghost, { flex: 1, alignItems: "center" }]} testID={`cgym-coach-new-area-${a}`}>
+                      <Text style={[styles.smallBtnTxt, draft.area !== a && { color: theme.color.muted }]}>{a === "obiezioni" ? "Gym Obiezioni" : "Gym WIN-WIN"}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {field("Titolo *", draft.label, (v) => setDraft({ ...draft, label: v }), { placeholder: "es. Obiezione FIDUCIA", testID: "cgym-coach-new-label" })}
+                {field("Obiezione / tema (una riga)", draft.objection, (v) => setDraft({ ...draft, objection: v }), { placeholder: "es. Non vi conosco, perché dovrei fidarmi?", testID: "cgym-coach-new-objection" })}
+                {field("Come si comporta il cliente (istruzioni all'AI)", draft.persona, (v) => setDraft({ ...draft, persona: v }), { multiline: true, placeholder: "Chi è, cosa vuole davvero, come reagisce, cosa lo convince…", testID: "cgym-coach-new-persona" })}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={{ flex: 1 }}>{field("Nome cliente", draft.customer.name, (v) => setDraft({ ...draft, customer: { ...draft.customer, name: v } }), { testID: "cgym-coach-new-cust" })}</View>
+                  <View style={{ flex: 1 }}>{field("Ruolo", draft.customer.role, (v) => setDraft({ ...draft, customer: { ...draft.customer, role: v } }))}</View>
+                </View>
+                {field("Azienda", draft.customer.company, (v) => setDraft({ ...draft, customer: { ...draft.customer, company: v } }))}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable onPress={createScenario} disabled={saving} style={[styles.primaryBtn, { flex: 1 }]} testID="cgym-coach-new-save">{saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryTxt}>Crea</Text>}</Pressable>
+                  <Pressable onPress={() => setCreating(false)} style={[styles.smallBtn, styles.ghost, { minHeight: 48 }]}><Text style={[styles.smallBtnTxt, { color: theme.color.muted }]}>Annulla</Text></Pressable>
+                </View>
+              </View>
+            )}
             {items.map((s) => (
               <Pressable key={s.key} onPress={() => openScenario(s)} style={styles.card} testID={`cgym-coach-scenario-${s.key}`}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -101,7 +154,7 @@ export default function CgymCoachPanel() {
                     <Text style={styles.cardTitle}>{s.label}</Text>
                     <Text style={styles.sub}>{s.customer?.name} · {s.duration_min} min · {s.max_turns} interventi · {s.phases.length} fasi{s.manual_ref ? " · manuale collegato" : ""}</Text>
                   </View>
-                  {s.is_customized ? <Text style={styles.badge}>Personalizzato</Text> : <Text style={[styles.badge, { backgroundColor: "#F1F5F9", color: theme.color.muted }]}>Default</Text>}
+                  {s.is_custom ? <Text style={[styles.badge, { backgroundColor: "#7C3AED" }]}>Nuovo</Text> : s.is_customized ? <Text style={styles.badge}>Personalizzato</Text> : <Text style={[styles.badge, { backgroundColor: "#F1F5F9", color: theme.color.muted }]}>Default</Text>}
                   <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
                 </View>
               </Pressable>
@@ -109,7 +162,8 @@ export default function CgymCoachPanel() {
           </>
         ) : (
           <>
-            {form.is_customized && <Text style={styles.hint}>Campi personalizzati: {form.customized_fields.join(", ")}. Gli altri usano i default.</Text>}
+            {form.is_customized && form.customized_fields.length > 0 && <Text style={styles.hint}>Campi personalizzati: {form.customized_fields.join(", ")}. Gli altri usano i default.</Text>}
+            {form.is_custom && <Text style={styles.hint}>Role-play creato dal Master Coach: visibile nella sezione {form.area === "winwin" ? "Gym WIN-WIN" : "Gym Obiezioni"} per tutti i consulenti.</Text>}
             <View style={styles.card} testID="cgym-coach-form">
               <Text style={styles.section}>Blocco role-play</Text>
               {field("Titolo", form.label, (v) => up({ label: v }), { testID: "cgym-coach-label" })}
@@ -122,6 +176,19 @@ export default function CgymCoachPanel() {
               </View>
             </View>
 
+            {form.is_custom && (
+              <View style={styles.card} testID="cgym-coach-custom-fields">
+                <Text style={styles.section}>Comportamento del cliente AI</Text>
+                {field("Obiezione / tema", form.objection || "", (v) => up({ objection: v }))}
+                {field("Istruzioni al cliente simulato", form.persona || "", (v) => up({ persona: v }), { multiline: true })}
+                {field("Come apre la conversazione", form.opening_hint || "", (v) => up({ opening_hint: v }), { multiline: true, placeholder: "vuoto = apertura automatica sul tema" })}
+                {field("Criteri di valutazione finale", form.eval_criteria || "", (v) => up({ eval_criteria: v }), { multiline: true, placeholder: "vuoto = criteri standard" })}
+                <Text style={styles.fieldLabel}>Voce</Text>
+                <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                  {VOICES.map((v) => <Pressable key={v} onPress={() => up({ voice: v })} style={[styles.smallBtn, form.voice !== v && styles.ghost]}><Text style={[styles.smallBtnTxt, form.voice !== v && { color: theme.color.muted }]}>{v}</Text></Pressable>)}
+                </View>
+              </View>
+            )}
             <View style={styles.card}>
               <Text style={styles.section}>Cliente simulato</Text>
               {field("Nome", form.customer?.name || "", (v) => up({ customer: { ...form.customer, name: v } }), { testID: "cgym-coach-cust-name" })}
@@ -182,7 +249,7 @@ export default function CgymCoachPanel() {
                 <Pressable onPress={save} disabled={saving} style={[styles.primaryBtn, { flex: 1 }, saving && { opacity: 0.6 }]} testID="cgym-coach-save">
                   {saving ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="save" size={18} color="#FFF" /><Text style={styles.primaryTxt}>Salva</Text></>}
                 </Pressable>
-                <Pressable onPress={reset} disabled={saving} style={[styles.smallBtn, styles.ghost, { minHeight: 48 }]} testID="cgym-coach-reset"><Text style={[styles.smallBtnTxt, { color: theme.color.muted }]}>Ripristina default</Text></Pressable>
+                <Pressable onPress={reset} disabled={saving} style={[styles.smallBtn, styles.ghost, { minHeight: 48 }]} testID="cgym-coach-reset"><Text style={[styles.smallBtnTxt, { color: form.is_custom ? "#DC2626" : theme.color.muted }]}>{form.is_custom ? "Elimina role-play" : "Ripristina default"}</Text></Pressable>
               </View>
             )}
           </>

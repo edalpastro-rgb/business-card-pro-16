@@ -101,6 +101,15 @@ def _axm_scope(user: dict) -> dict:
 
 
 # ============================================================================ ELABORAZIONE IN BACKGROUND
+_AXM_HALLUCINATION_RE = re.compile(r"amara\.org|sottotitoli (creati|a cura|e revisione)|qtss|www\.mooji", re.IGNORECASE)
+
+
+def _axm_clean_transcript(t: str) -> str:
+    """Whisper su audio senza parlato «inventa» frasi tipiche (es. «Sottotitoli creati dalla comunità Amara.org»): scartate."""
+    t = (t or "").strip()
+    return "" if (len(t) < 160 and _AXM_HALLUCINATION_RE.search(t)) else t
+
+
 async def _axm_transcribe(raw: bytes, ext: str) -> str:
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
@@ -117,10 +126,10 @@ async def _axm_transcribe(raw: bytes, ext: str) -> str:
         with open(path, "rb") as fh:
             result = await stt.transcribe(file=fh, model="whisper-1", language="it", response_format="text")
         if isinstance(result, str):
-            return result.strip()
+            return _axm_clean_transcript(result)
         if isinstance(result, dict):
-            return (result.get("text") or result.get("transcript") or "").strip()
-        return str(getattr(result, "text", result) or "").strip()
+            return _axm_clean_transcript(result.get("text") or result.get("transcript") or "")
+        return _axm_clean_transcript(str(getattr(result, "text", result) or ""))
     finally:
         try:
             os.unlink(path)

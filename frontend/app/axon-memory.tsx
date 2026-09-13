@@ -2,7 +2,7 @@
 // Linguaggio semplice e rassicurante: Axon ti conosce, ma il controllo è tuo (modifica, cancella, ri-analizza).
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Alert, Platform } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
@@ -11,7 +11,12 @@ import { ImportedDataSection } from "@/src/ImportedDataSection"; // V50.z194 —
 import { ProactiveLogSection } from "@/src/ProactiveLogSection"; // V50.z196 — log comunicazioni proattive
 
 const PURPLE = "#7C3AED";
-type Item = { id: string; section: string; text: string; source: "auto" | "manual"; confidence: number; evidence?: string | null; updated_at: string };
+// V50.z205 — Fase 4: ogni voce ha un tag sfera 🔵 Business / 🟢 Home (modificabile con un tap)
+type Sphere = "business" | "home";
+const SPH_ICON: Record<Sphere, string> = { business: "🔵", home: "🟢" };
+const SPH_LABEL: Record<Sphere, string> = { business: "Business", home: "Home" };
+const SPH_COLOR: Record<Sphere, string> = { business: "#2563EB", home: "#059669" };
+type Item = { id: string; section: string; text: string; source: "auto" | "manual"; confidence: number; evidence?: string | null; updated_at: string; sphere?: Sphere | null };
 type Section = { key: string; label: string; icon: string; intro: string; items: Item[] };
 type Data = { sections: Section[]; stats: { total: number; manual: number; forgotten: number }; last_analyzed_at: string | null };
 
@@ -23,6 +28,7 @@ function confirmAsync(title: string, msg: string, okLabel: string, onOk: () => v
 export default function AxonMemoryScreen() {
   const router = useRouter();
   const insets = useInsetsSafe();
+  const params = useLocalSearchParams<{ sphere?: string }>();
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -30,11 +36,21 @@ export default function AxonMemoryScreen() {
   const [editTxt, setEditTxt] = useState("");
   const [addSec, setAddSec] = useState<string | null>(null);
   const [addTxt, setAddTxt] = useState("");
+  const [addSphere, setAddSphere] = useState<Sphere>("business");
+  const [sphereFilter, setSphereFilter] = useState<"all" | Sphere>(params.sphere === "home" ? "home" : params.sphere === "business" ? "business" : "all");
 
   const load = useCallback(async () => {
     try { setData(await api<Data>("/axon/memory")); } catch (e: any) { notify("Errore", e?.message || String(e)); } finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+
+  const setSphere = async (it: Item, sphere: Sphere) => {
+    try {
+      await api(`/axon/memory/${it.id}/sphere`, { method: "PUT", body: { sphere } });
+      setData((d) => d ? { ...d, sections: d.sections.map((s) => ({ ...s, items: s.items.map((x) => (x.id === it.id ? { ...x, sphere } : x)) })) } : d);
+    } catch (e: any) { notify("Errore", e?.message || String(e)); }
+  };
+  const sphereCounts = (data?.sections || []).flatMap((s) => s.items).reduce((acc, i) => { const k = (i.sphere || "business") as Sphere; acc[k] += 1; return acc; }, { business: 0, home: 0 } as Record<Sphere, number>);
 
   const analyze = async () => {
     setAnalyzing(true);
@@ -55,7 +71,7 @@ export default function AxonMemoryScreen() {
   });
   const add = async () => {
     if (!addSec || addTxt.trim().length < 3) return;
-    try { await api("/axon/memory", { method: "POST", body: { section: addSec, text: addTxt.trim() } }); setAddSec(null); setAddTxt(""); await load(); }
+    try { await api("/axon/memory", { method: "POST", body: { section: addSec, text: addTxt.trim(), sphere: addSphere } }); setAddSec(null); setAddTxt(""); await load(); }
     catch (e: any) { notify("Errore", e?.message || String(e)); }
   };
 
@@ -89,7 +105,24 @@ export default function AxonMemoryScreen() {
           </View>
         )}
 
-        {loading && !data ? <ActivityIndicator color={PURPLE} style={{ marginTop: 30 }} /> : data?.sections.map((s) => (
+        {/* V50.z205 — filtro sfera: ogni voce è taggata 🔵 Business o 🟢 Home */}
+        {data && (
+          <View style={styles.sphereFilter} testID="memory-sphere-filter">
+            {([["all", "Tutte", sphereCounts.business + sphereCounts.home], ["business", "🔵 Business", sphereCounts.business], ["home", "🟢 Home", sphereCounts.home]] as Array<["all" | Sphere, string, number]>).map(([k, l, n]) => {
+              const on = sphereFilter === k;
+              const col = k === "all" ? PURPLE : SPH_COLOR[k];
+              return (
+                <Pressable key={k} onPress={() => setSphereFilter(k)} style={[styles.sphChip, on && { backgroundColor: col + "18", borderColor: col }]} testID={`memory-sphere-${k}`}>
+                  <Text style={[styles.sphChipTxt, on && { color: col }]}>{l} · {n}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {loading && !data ? <ActivityIndicator color={PURPLE} style={{ marginTop: 30 }} /> : data?.sections.map((s) => {
+          const shown = sphereFilter === "all" ? s.items : s.items.filter((i) => (i.sphere || "business") === sphereFilter);
+          return (
           <View key={s.key} style={styles.card} testID={`memory-sec-${s.key}`}>
             <View style={styles.cardHead}>
               <View style={styles.secIcon}><Ionicons name={s.icon as any} size={16} color={PURPLE} /></View>
@@ -97,19 +130,32 @@ export default function AxonMemoryScreen() {
                 <Text style={styles.secTitle}>{s.label}</Text>
                 <Text style={styles.secIntro}>{s.intro}</Text>
               </View>
-              <Pressable onPress={() => { setAddSec(addSec === s.key ? null : s.key); setAddTxt(""); }} hitSlop={8} style={styles.iconBtn} testID={`memory-add-${s.key}`}>
+              <Pressable onPress={() => { setAddSec(addSec === s.key ? null : s.key); setAddTxt(""); setAddSphere(sphereFilter === "home" ? "home" : "business"); }} hitSlop={8} style={styles.iconBtn} testID={`memory-add-${s.key}`}>
                 <Ionicons name="add-circle-outline" size={22} color={PURPLE} />
               </Pressable>
             </View>
             {addSec === s.key && (
-              <View style={styles.editRow}>
-                <TextInput value={addTxt} onChangeText={setAddTxt} placeholder="Scrivi qualcosa che Axon deve sapere…" placeholderTextColor="#94A3B8" style={styles.input} multiline testID="memory-add-input" />
-                <Pressable onPress={add} disabled={addTxt.trim().length < 3} style={[styles.saveBtn, addTxt.trim().length < 3 && { opacity: 0.5 }]} testID="memory-add-save"><Ionicons name="checkmark" size={18} color="#FFF" /></Pressable>
+              <View style={{ gap: 6 }}>
+                <View style={styles.editRow}>
+                  <TextInput value={addTxt} onChangeText={setAddTxt} placeholder="Scrivi qualcosa che Axon deve sapere…" placeholderTextColor="#94A3B8" style={styles.input} multiline testID="memory-add-input" />
+                  <Pressable onPress={add} disabled={addTxt.trim().length < 3} style={[styles.saveBtn, addTxt.trim().length < 3 && { opacity: 0.5 }]} testID="memory-add-save"><Ionicons name="checkmark" size={18} color="#FFF" /></Pressable>
+                </View>
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                  <Text style={styles.itemMeta}>Sfera:</Text>
+                  {(["business", "home"] as Sphere[]).map((k) => (
+                    <Pressable key={k} onPress={() => setAddSphere(k)} style={[styles.sphChip, addSphere === k && { backgroundColor: SPH_COLOR[k] + "18", borderColor: SPH_COLOR[k] }]} testID={`memory-add-sphere-${k}`}>
+                      <Text style={[styles.sphChipTxt, addSphere === k && { color: SPH_COLOR[k] }]}>{SPH_ICON[k]} {SPH_LABEL[k]}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
             )}
-            {s.items.length === 0 ? (
-              <Text style={styles.emptyTxt}>Axon non ha ancora notato nulla qui. Puoi aggiungere tu una voce con «+».</Text>
-            ) : s.items.map((it) => (
+            {shown.length === 0 ? (
+              <Text style={styles.emptyTxt}>{s.items.length === 0 ? "Axon non ha ancora notato nulla qui. Puoi aggiungere tu una voce con «+»." : "Nessuna voce in questa sfera."}</Text>
+            ) : shown.map((it) => {
+              const sph = (it.sphere || "business") as Sphere;
+              const other: Sphere = sph === "home" ? "business" : "home";
+              return (
               <View key={it.id} style={styles.item} testID={`memory-item-${it.id}`}>
                 {editId === it.id ? (
                   <View style={styles.editRow}>
@@ -121,16 +167,24 @@ export default function AxonMemoryScreen() {
                   <>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemTxt}>{it.text}</Text>
-                      <Text style={styles.itemMeta}>{it.source === "manual" ? "✎ scritto da te" : `dedotto da Axon${it.evidence ? ` · ${it.evidence}` : ""}`}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 3 }}>
+                        <Pressable onPress={() => setSphere(it, other)} style={[styles.sphTag, { borderColor: SPH_COLOR[sph] + "66", backgroundColor: SPH_COLOR[sph] + "12" }]} hitSlop={4} testID={`memory-item-sphere-${it.id}`}>
+                          <Text style={[styles.sphTagTxt, { color: SPH_COLOR[sph] }]}>{SPH_ICON[sph]} {SPH_LABEL[sph]}</Text>
+                          <Ionicons name="swap-horizontal" size={11} color={SPH_COLOR[sph]} />
+                        </Pressable>
+                        <Text style={styles.itemMeta}>{it.source === "manual" ? "✎ scritto da te" : `dedotto da Axon${it.evidence ? ` · ${it.evidence}` : ""}`}</Text>
+                      </View>
                     </View>
                     <Pressable onPress={() => { setEditId(it.id); setEditTxt(it.text); }} hitSlop={6} style={styles.iconBtn} testID={`memory-edit-${it.id}`}><Ionicons name="create-outline" size={18} color="#1B2B4B" /></Pressable>
                     <Pressable onPress={() => remove(it)} hitSlop={6} style={styles.iconBtn} testID={`memory-delete-${it.id}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
                   </>
                 )}
               </View>
-            ))}
+              );
+            })}
           </View>
-        ))}
+          );
+        })}
 
         {/* V50.z194 — Dati strutturati importati (PUN, tariffe, futures…) condivisi con il team */}
         <ImportedDataSection />
@@ -160,6 +214,11 @@ const styles = StyleSheet.create({
   statBox: { flex: 1, backgroundColor: "#FFF", borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: "#E9D5FF" },
   statNum: { fontSize: 20, fontWeight: "800", color: PURPLE },
   statLbl: { fontSize: 10, color: "#64748B", marginTop: 2, fontWeight: "700" },
+  sphereFilter: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  sphChip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1, borderColor: "#E9D5FF", justifyContent: "center" },
+  sphChipTxt: { fontSize: 12, fontWeight: "700", color: "#64748B" },
+  sphTag: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, minHeight: 24 },
+  sphTagTxt: { fontSize: 10.5, fontWeight: "800" },
   card: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: "#EDE9FE" },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   secIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },

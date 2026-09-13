@@ -193,6 +193,38 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z205 — BLOCCO 8 · Fase 4: «Spazio Personale» (Sfera 🟢 Home)** — nuovo modulo isolato `routes/axon_personal_space.py` (dopo
+  `axon_uploads.py`), nuova pagina `app/spazio-personale.tsx`, patch minime: `18_master_interface.py` (hook `_audio_record_hooks`, campo
+  `sphere`/`transcribe_status` alla creazione audio, filtro `?sphere=` nell'elenco), `axon_memory.py` (campo `sphere` in `AmItemIn`/voci +
+  icone sfera nel contesto omnisciente), `axon_integrations.py` (card Home «Spazio Personale»), `axon_media.py` (`_axm_clean_transcript`:
+  scarta le allucinazioni Whisper su audio muto tipo «Sottotitoli creati dalla comunità Amara.org»). **Unificazione**: hub `/spazio-personale`
+  (`GET /axon/personal-space/summary`) con conteggi reali per My Thing (messaggi/immagini/eventi/anniversari), My Web (link), I miei audio
+  (totale/trascritte/in corso/da classificare), archivio media Home, spese personali, memoria Axon Home + stato Google Home/Domotica; le pagine
+  `/my-thing`, `/my-web`, `/my-audios` mostrano «🟢 Spazio Personale» nell'header e un bottone casa verso l'hub. Voce «Spazio Personale» in
+  DrawerMenu (Anagrafica & DB), Edge Panel, utility Master, card Integrazioni sfera Home. **I miei audio**: ogni nota vocale personale ha una
+  sfera (⚪ da classificare → tap «🟢 Privata» / «🔵 Aziendale», `PUT /audio-records/{id}/sphere`), filtro chip per sfera, **trascrizione
+  automatica** alla creazione (hook → Whisper `_axm_transcribe` + Haiku `_axm_llm_json`: titolo se mancante, riassunto, tag, azioni,
+  `suggested_sphere`) + job `pspace-audio-catchup` ogni 10 min (3 audio storici per giro), `POST /audio-records/{id}/transcribe` per rifare,
+  `GET /audio-records/{id}/file?token=` per il player (ora funziona anche su nativo via expo-audio, prima solo web), card espandibile con
+  riassunto → trascrizione completa → «Da fare» → #tag, polling 5 s finché in corso. **Memoria Axon**: ogni voce di `axon_user_memory` ha
+  `sphere` business|home (euristica testo `_PS_HOME_RE`; override utente persistito in `axon_user_memory_sphere` per chiave e rispettato da
+  `_am_analyze` avvolto; backfill all'avvio per le voci esistenti); UI `/axon-memory`: chip filtro «Tutte · 🔵 Business · 🟢 Home» (param
+  `?sphere=home` dall'hub), tag sfera su ogni voce con tap per spostarla (`PUT /axon/memory/{id}/sphere`), selettore sfera nell'aggiunta
+  manuale; sezione «Dati importati» etichettata 🔵 Business · team. Chat: «cosa c'è nel mio spazio personale?» → riepilogo. Test
+  `tests/test_axon_personal_space.py` ✅ 14/14.
+
+- **V50.z204 — Corporate Gym: anteprima manuali in-app + role-play NUOVI creati dal Master Coach** — `src/corporate-gym/CgymManualPreview.tsx`
+  (nuovo), `CgymManualButton.tsx`, `routes/corporate_gym_config.py` (esteso), patch 1 riga `corporate_gym.py` (`scenario: str`), `coach-panel.tsx`,
+  `CgymSubsection.tsx`, `roleplay.tsx`, `api.ts`. **Anteprima**: tap su un manuale → modal a schermo intero DENTRO l'app: immagini con zoom
+  (pinch) e download; PDF/Google Docs via `InAppWebViewer` (WebView nativa; su Android viewer Google incorporato; su web iframe) — nessun browser
+  esterno. **Nuovi scenari**: `POST /cgym/config/custom` (Master) crea `cgym_custom_scenarios` {key `custom_<id>`, area, label, objection, persona
+  (istruzioni al cliente AI), opening_hint, eval_criteria, voice, durata, max interventi, descrizione, immagine, checklist, cliente simulato,
+  manuale Drive, fasi}; il motore role-play li usa tramite l'hook `_cgym_scenario_for` (stessa forma di CGYM_SCENARIOS, persona = identità
+  cliente + istruzioni + regole di ruolo); `GET /cgym/config/scenarios` li elenca (`is_custom`), `PUT` li modifica (anche persona/voce/area),
+  `DELETE` li elimina. UI: Pannello Master Coach → «Nuovo role-play» (area, titolo, tema, comportamento, cliente) → form completo con sezione
+  «Comportamento del cliente AI» e voce; badge «Nuovo»; i consulenti li vedono nella sezione Gym della loro area (`CgymSubsection`) e li
+  giocano in `roleplay.tsx` (chiavi `custom_…`). Verificato: creazione, start/turn LLM nel ruolo («Senta, io non la conosco…»), PUT fasi,
+  delete; UI creazione + elenco in Gym Obiezioni.
 - **V50.z203 — Corporate Gym: Drive manuale per sezione/fase, Pannello Master Coach, tasto «Inizio» in chat, Stop manuale voce** —
   `routes/corporate_gym_manuals.py` (riscritto), nuovo `routes/corporate_gym_config.py`, patch minima `routes/corporate_gym.py` (hook
   `_cgym_scenario_for` + `_cgym_ww_phase(…, phases)`), frontend `manuals-config.tsx` (riscritto), nuovo `coach-panel.tsx`,
@@ -790,6 +822,8 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z205 | Set 2026 | Blocco 8 Fase 4 «Spazio Personale» (Sfera Home): hub `/spazio-personale` con conteggi, I miei audio con sfera + trascrizione automatica (Whisper+Haiku) + player nativo, tag sfera 🔵/🟢 su ogni voce della memoria Axon con filtro e toggle (`axon_personal_space.py`, `spazio-personale.tsx`) |
+| V50.z204 | Set 2026 | Corporate Gym: anteprima manuali in-app (immagini zoom, PDF/Docs WebView) + role-play nuovi creati dal Master Coach (`POST /cgym/config/custom`, `cgym_custom_scenarios`, hook motore) |
 | V50.z203 | Set 2026 | Corporate Gym: Drive senza nomi fissi (collegamento manuale cartella/file, root inclusa, avvisi soft), Pannello Master Coach (override role-play + fasi con manuali Drive), tasto «Inizio» in chat, Stop manuale registrazione (`corporate_gym_manuals.py`, `corporate_gym_config.py`, `coach-panel.tsx`) |
 | V50.z202 | Set 2026 | Upload multipart a chunk: `POST /master-files/upload` (50 MB) → Object Storage, solo riferimento in Mongo, `GET /master-files/{id}/content`; `POST /ai/transcribe/upload` (25 MB) Whisper da file; JSON legacy non più inline; `src/utils/upload.ts` (`routes/axon_uploads.py`) |
 | V50.z201 | Set 2026 | Google Drive: file ROOT sempre visibili ad Axon (sezione «📁 [ROOT FILES]» completa nel prompt), shortcut Drive risolti, OCR Gemini per PDF scansionati, retry download, `GET /google-drive/root-files` (`routes/axon_drive_root.py`) |

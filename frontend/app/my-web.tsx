@@ -109,11 +109,14 @@ export default function MyWebScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.background }} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
-        <Text style={styles.headerTitle}>My Web</Text>
-        {/* V50.z64 — Pulsante Aggiungi link spostato in fondo alla griglia
-            (ben visibile). Il posto qui è mantenuto vuoto per bilanciare
-            l'header (chevron-back a sinistra). */}
-        <View style={styles.headerBtn} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>My Web</Text>
+          <Text style={styles.headerSubGreen}>🟢 Spazio Personale</Text>
+        </View>
+        {/* V50.z205 — link all'hub Spazio Personale (Sfera Home) */}
+        <Pressable onPress={() => router.push("/spazio-personale" as any)} style={styles.headerBtn} hitSlop={6} testID="my-web-hub">
+          <Ionicons name="home-outline" size={18} color="#059669" />
+        </Pressable>
       </View>
 
       {loading ? (
@@ -242,7 +245,8 @@ export default function MyWebScreen() {
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
   headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
-  headerTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
+  headerTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
+  headerSubGreen: { fontSize: 11, color: "#059669", fontWeight: "700", marginTop: 1 },
   empty: { alignItems: "center", padding: 40, marginTop: 40 },
   emptyTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface, marginTop: 12 },
   emptyTxt: { fontSize: 12, color: theme.color.muted, marginTop: 4, textAlign: "center" },

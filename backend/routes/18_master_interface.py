@@ -43,6 +43,7 @@ class AudioRecordIn(BaseModel):
     mime: Optional[str] = "audio/webm"
     duration_sec: Optional[float] = None
     title: Optional[str] = None
+    sphere: Optional[str] = None  # V50.z205 — business | home (None → unclassified)
 
 
 class QuickActionIn(BaseModel):
@@ -401,6 +402,7 @@ async def import_from_my_web(body: Optional[ImportMyWebIn] = None, user=Depends(
 
 # ---- Audio Records (Master recorder) ----
 ALLOWED_TARGETS = ("personal", "contact", "group")
+_audio_record_hooks: list = []  # V50.z205 — coroutine(doc) eseguite in background dopo la creazione (axon_personal_space: trascrizione)
 
 
 @api_router.post("/audio-records")
@@ -441,16 +443,20 @@ async def create_audio_record(body: AudioRecordIn, user=Depends(get_current_user
         "duration_sec": body.duration_sec,
         "size_bytes": approx,
         "title": body.title or None,
+        "sphere": body.sphere if body.sphere in ("business", "home") else "unclassified",  # V50.z205
+        "transcribe_status": "pending" if body.target_type == "personal" else None,
         "created_at": utcnow(),
     }
     await db.audio_records.insert_one(doc)
     strip_id(doc)
     doc.pop("audio_base64", None)
+    for _h in _audio_record_hooks:
+        asyncio.create_task(_h(dict(doc)))
     return doc
 
 
 @api_router.get("/audio-records")
-async def list_audio_records(target_type: Optional[str] = None, target_id: Optional[str] = None, user=Depends(get_current_user)):
+async def list_audio_records(target_type: Optional[str] = None, target_id: Optional[str] = None, sphere: Optional[str] = None, user=Depends(get_current_user)):
     q: Dict[str, Any] = {"user_id": tenant_id(user)}
     if target_type:
         if target_type not in ALLOWED_TARGETS:
@@ -458,12 +464,16 @@ async def list_audio_records(target_type: Optional[str] = None, target_id: Optio
         q["target_type"] = target_type
     if target_id:
         q["target_id"] = target_id
+    if sphere:  # V50.z205 — filtro sfera (gli audio storici senza campo contano come "unclassified")
+        q["sphere"] = {"$in": [None, "unclassified"]} if sphere == "unclassified" else sphere
     # personal recordings scoped to the creator
     if target_type == "personal" or (target_type is None and not target_id):
         # If listing personal, restrict to created_by
         if target_type == "personal":
             q["created_by"] = user["user_id"]
     items = await db.audio_records.find(q, {"_id": 0, "audio_base64": 0}).sort("created_at", -1).to_list(200)
+    for it in items:
+        it.setdefault("sphere", "unclassified")
     return {"items": items}
 
 

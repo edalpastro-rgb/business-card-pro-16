@@ -55,7 +55,7 @@ export function ImportedDataSection() {
       <View style={styles.head}>
         <View style={styles.icon}><Ionicons name="server-outline" size={16} color={PURPLE} /></View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Dati importati</Text>
+          <Text style={styles.title}>Dati importati  <Text style={{ fontSize: 11, color: "#2563EB" }}>🔵 Business · team</Text></Text>
           <Text style={styles.intro}>Valori che hai fatto memorizzare da PDF/Excel (PUN, tariffe, futures…). Condivisi con il team, disponibili in ogni chat senza ricaricare il file.</Text>
         </View>
         <Pressable onPress={load} hitSlop={8} style={styles.iconBtn} testID="imported-refresh"><Ionicons name="refresh" size={20} color={PURPLE} /></Pressable>

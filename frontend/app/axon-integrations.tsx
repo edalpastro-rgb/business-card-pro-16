@@ -19,7 +19,7 @@ type Sphere = { label: string; color: string; icon: string; items: Item[] };
 type Status = { spheres: { business: Sphere; home: Sphere }; google_configured: boolean };
 
 const ICONS: Record<string, string> = { google_calendar: "calendar", google_calendar_home: "calendar", google_contacts: "people", google_contacts_home: "people", google_drive: "cloud", google_drive_home: "cloud",
-  dropbox: "logo-dropbox", bank_statement: "document-text", receipts: "receipt", homeassistant: "home", personal_expenses: "wallet" };
+  dropbox: "logo-dropbox", bank_statement: "document-text", receipts: "receipt", homeassistant: "home", personal_expenses: "wallet", media_archive: "images", media_archive_home: "images", personal_space: "person-circle" };
 
 function confirmAsync(title: string, msg: string, ok: string, onOk: () => void) {
   if (Platform.OS === "web") { if ((globalThis as any).window?.confirm(`${title}\n\n${msg}`)) onOk(); return; }

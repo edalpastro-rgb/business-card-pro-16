@@ -1,0 +1,134 @@
+// spazio-personale.tsx — V50.z205 — BLOCCO 8 · Fase 4: «Spazio Personale» = hub della Sfera 🟢 Home (schermata ISOLATA)
+// Unifica My Thing, My Web, I miei audio (con trascrizione), archivio media Home, spese personali e memoria Home.
+// Ogni card mostra un conteggio reale (GET /axon/personal-space/summary) e apre la pagina esistente.
+import React, { useCallback, useEffect, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, RefreshControl } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
+import { api } from "@/src/api";
+
+const GREEN = "#059669";
+type Summary = {
+  my_thing: { message: number; image: number; event: number; anniversary: number; total: number };
+  web_links: number;
+  audios: { total: number; business: number; home: number; unclassified: number; transcribed: number; processing: number };
+  media_home: number; expenses_home: number;
+  memory: { total: number; home: number; business: number };
+  google_home: { connected: boolean; account?: string | null };
+  homeassistant: boolean;
+};
+
+type Card = { key: string; icon: string; label: string; desc: string; count: string; hint?: string; route: string; testID: string };
+
+export default function SpazioPersonaleScreen() {
+  const router = useRouter();
+  const insets = useInsetsSafe();
+  const [s, setS] = useState<Summary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try { setS(await api<Summary>("/axon/personal-space/summary")); setErr(null); }
+    catch (e: any) { setErr(e?.message || String(e)); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
+
+  const cards: Card[] = s ? [
+    { key: "my-thing", icon: "sparkles", label: "My Thing", desc: "Messaggi, immagini, eventi e anniversari che compaiono sul tuo banner personale.",
+      count: `${s.my_thing.total}`, hint: `${s.my_thing.message} messaggi · ${s.my_thing.image} immagini · ${s.my_thing.event + s.my_thing.anniversary} ricorrenze`, route: "/my-thing", testID: "ps-card-my-thing" },
+    { key: "my-web", icon: "globe", label: "My Web", desc: "I tuoi siti preferiti, ad accesso rapido dentro l'app.", count: `${s.web_links}`, hint: "link salvati", route: "/my-web", testID: "ps-card-my-web" },
+    { key: "my-audios", icon: "mic", label: "I miei audio", desc: "Note vocali personali: Axon le trascrive e le classifica Privata / Aziendale.", count: `${s.audios.total}`,
+      hint: `${s.audios.transcribed} trascritte${s.audios.processing ? ` · ${s.audios.processing} in corso` : ""}${s.audios.unclassified ? ` · ${s.audios.unclassified} da classificare` : ""}`, route: "/my-audios", testID: "ps-card-my-audios" },
+    { key: "media", icon: "images", label: "Foto, audio e video Home", desc: "Ricordi e note private: trascritti, descritti e ricercabili, separati dal Business.", count: `${s.media_home}`, hint: "elementi nella sfera Home", route: "/axon-media?sphere=home", testID: "ps-card-media" },
+    { key: "expenses", icon: "wallet", label: "Spese personali", desc: "Scontrini con categorie personali: spesa, casa, svago, salute.", count: `${s.expenses_home}`, hint: "scontrini personali", route: "/axon-expenses?sphere=home", testID: "ps-card-expenses" },
+    { key: "memory", icon: "eye", label: "Memoria Axon · Home", desc: "Cosa Axon sa di te nella vita privata: ogni voce ha il suo tag sfera, tu puoi cambiarlo.", count: `${s.memory.home}`, hint: `su ${s.memory.total} voci totali`, route: "/axon-memory?sphere=home", testID: "ps-card-memory" },
+  ] : [];
+
+  return (
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={10} testID="ps-back"><Ionicons name="arrow-back" size={22} color="#FFF" /></Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Spazio Personale</Text>
+          <Text style={styles.sub}>🟢 Sfera Home — dati personali, mai mescolati col CRM</Text>
+        </View>
+        <Pressable onPress={() => router.push("/axon-integrations" as any)} hitSlop={8} style={styles.headBtn} testID="ps-integrations">
+          <Ionicons name="link" size={18} color="#FFF" />
+        </Pressable>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 120, gap: 12 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
+        <View style={styles.trust}>
+          <Ionicons name="shield-checkmark" size={20} color="#065F46" />
+          <Text style={styles.trustTxt}>
+            Qui trovi tutto ciò che è tuo e non dell'azienda: My Thing, My Web, le tue note vocali, i ricordi e le spese personali.
+            Axon opera in questa sfera solo su tua richiesta e non incrocia mai questi dati con quelli Business.
+          </Text>
+        </View>
+
+        {loading && !s ? <ActivityIndicator color={GREEN} style={{ marginTop: 30 }} /> : !s && err ? (
+          <Pressable onPress={() => { setLoading(true); void load(); }} style={styles.card} testID="ps-retry">
+            <View style={styles.icon}><Ionicons name="cloud-offline-outline" size={20} color="#DC2626" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Impossibile caricare</Text>
+              <Text style={styles.desc}>{err}</Text>
+              <Text style={styles.hint}>Tocca per riprovare</Text>
+            </View>
+          </Pressable>
+        ) : cards.map((c) => (
+          <Pressable key={c.key} onPress={() => router.push(c.route as any)} style={styles.card} testID={c.testID}>
+            <View style={styles.icon}><Ionicons name={c.icon as any} size={20} color={GREEN} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>{c.label}</Text>
+              <Text style={styles.desc}>{c.desc}</Text>
+              {c.hint ? <Text style={styles.hint}>{c.hint}</Text> : null}
+            </View>
+            <View style={styles.countBox}>
+              <Text style={styles.count}>{c.count}</Text>
+              <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+            </View>
+          </Pressable>
+        ))}
+
+        {s && (
+          <View style={styles.linksRow}>
+            <View style={[styles.pill, s.google_home.connected && styles.pillOn]}>
+              <Ionicons name="logo-google" size={13} color={s.google_home.connected ? GREEN : "#64748B"} />
+              <Text style={[styles.pillTxt, s.google_home.connected && { color: GREEN }]}>{s.google_home.connected ? `Google Home · ${s.google_home.account || "collegato"}` : "Google Home non collegato"}</Text>
+            </View>
+            <View style={[styles.pill, s.homeassistant && styles.pillOn]}>
+              <Ionicons name="home" size={13} color={s.homeassistant ? GREEN : "#64748B"} />
+              <Text style={[styles.pillTxt, s.homeassistant && { color: GREEN }]}>{s.homeassistant ? "Domotica attiva" : "Domotica non collegata"}</Text>
+            </View>
+          </View>
+        )}
+        <Text style={styles.foot}>Le integrazioni della sfera Home (Google Calendar/Contatti Home, Drive Home, Domotica) si gestiscono da «Integrazioni AxonOS».</Text>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#F0FDF4" },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: GREEN },
+  title: { color: "#FFF", fontWeight: "800", fontSize: 17 },
+  sub: { color: "#D1FAE5", fontSize: 11.5, marginTop: 1 },
+  headBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.18)" },
+  trust: { flexDirection: "row", gap: 10, backgroundColor: "#ECFDF5", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "#A7F3D0" },
+  trustTxt: { flex: 1, fontSize: 12.5, color: "#065F46", lineHeight: 18 },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#D1FAE5", minHeight: 76 },
+  icon: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center" },
+  label: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
+  desc: { fontSize: 12, color: "#64748B", marginTop: 2, lineHeight: 16 },
+  hint: { fontSize: 11, color: GREEN, marginTop: 4, fontWeight: "700" },
+  countBox: { alignItems: "center", gap: 2, minWidth: 44 },
+  count: { fontSize: 20, fontWeight: "900", color: GREEN },
+  linksRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF", borderRadius: 999, paddingHorizontal: 12, minHeight: 36, borderWidth: 1, borderColor: "#E2E8F0" },
+  pillOn: { borderColor: "#A7F3D0", backgroundColor: "#ECFDF5" },
+  pillTxt: { fontSize: 12, fontWeight: "700", color: "#64748B" },
+  foot: { fontSize: 11.5, color: "#64748B", textAlign: "center", lineHeight: 16, paddingHorizontal: 8 },
+});

@@ -1,0 +1,32 @@
+{
+  "summary": "V50.z205 BLOCCO 8 Fase 4 (Spazio Personale) frontend testato via web preview (390x844). Login OK via /login (email/password), redirect a /libretto?onboarding=1. /spazio-personale mostra header 'Spazio Personale' + sottotitolo 🟢 Sfera Home e tutte le 6 card (ps-card-my-thing/my-web/my-audios/media/expenses/memory) con conteggi reali dal summary API. Tap su ps-card-my-web apre /my-web con header 'My Web' + sub '🟢 Spazio Personale'; il bottone my-web-hub riporta a /spazio-personale. /axon-memory?sphere=home rende i chip memory-sphere-all/business/home con conteggi corretti e memory-sphere-home risulta preselezionato (borderColor verde). Sui memory-item-<id> è presente il tag memory-item-sphere-<id> con icona swap. /my-audios rende header + sottotitolo 🟢 Spazio Personale, i 4 chip filtro (Tutti/Private/Aziendali/Da classificare) con conteggi; una card seed (via API POST /api/audio-records target_type=personal, WAV 1.5s sintetico) mostra ⚪ Da classificare + bottoni my-audio-sphere-home-<id>/business-<id>; tap su home passa a 🟢 Privata con 'Sposta in Aziendale' e la card resta visibile con filtro Private; la trascrizione (Whisper+Haiku) è tornata READY in ~5s con testID my-audio-transcript-<id> (contenuto 'Nessun parlato riconoscibile' — atteso su tono sintetico). Play button non genera errori. Un problema minore: il pulsante '+' memory-add-stile_lavoro non ha aperto il form memory-add-input (probabile intercept dell'AxonOS FAB che copre l'area destra della card; l'elemento è nel DOM ma non stabile per lo scroll_into_view). Deprecated packages / SafeAreaView issues: nessuno rilevato in questa feature.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "axon-memory / add memory item", "issue": "Il tap su memory-add-<section> (es. memory-add-stile_lavoro) non ha reso visibile memory-add-input in ambiente di test. L'elemento è presente nel DOM ma il pulsante '+' potrebbe essere coperto/intercettato dall'AxonOS FAB (assistente violet) ancorato in basso a destra, oppure il primo tap chiude l'onboarding. Riproducibile con click(force=True) + scroll_into_view_if_needed che fallisce (element not visible). Reference: /app/frontend/app/axon-memory.tsx:133 e /app/frontend/src/AssistantChat.tsx (FAB). Il flusso add/sphere/save/delete rimane manualmente testabile aprendo la sezione da desktop più largo o nascondendo temporaneamente il FAB.", "testID": "memory-add-stile_lavoro", "priority": "MINOR"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/axon-memory", "issues": ["L'AxonOS FAB e la Calcolatrice FAB si sovrappongono all'area '+' delle card memoria e potrebbero ridurre la tappabilità del bottone memory-add-<section> quando la sezione è nella parte bassa della viewport (390x844)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Verificare manualmente l'apertura del form 'Aggiungi voce alla memoria' su /axon-memory: se il '+' di ogni sezione risulta effettivamente coperto dal FAB Axon (o dalla Calcolatrice FAB) sui viewport 390x844, aumentare il paddingBottom del ScrollView o spostare il '+' in cardHead con maggior hitSlop / z-index. In alternativa, il FAB potrebbe usare useFabStack per shift verticale come già fatto in AssistantChat (V37).",
+    "Confermare che il chip filtro memory-sphere-home venga sempre preselezionato quando l'utente arriva da ps-card-memory (attualmente OK grazie al query param ?sphere=home).",
+    "Nessuna azione richiesta sul flusso audio: trascrizione Whisper+Haiku funziona e la card mostra correttamente la trascrizione entro ~5s."
+  ],
+  "critical_code_review_comments": [
+    "spazio-personale.tsx (135 righe) ben strutturato: usa summary API con RefreshControl, gestisce loading/err e mostra retry. OK.",
+    "my-audios.tsx: buon uso di polling condizionale (5s solo se qualche audio è in pending/processing). L'oggetto (globalThis as any).Audio è usato su web — funziona ma sarebbe più pulito importare esplicitamente window.Audio.",
+    "axon-memory.tsx: il chip filter è coerente e i conteggi vengono da flatMap+reduce delle voci; il tag di ogni item usa un unico Pressable per lo swap (buon UX). Nessun issue di ObjectId, tutti i testID richiesti presenti."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per richiesta)", "frontend": "90% — 5/6 flussi principali OK; il subflow 'aggiungi voce memoria manuale' non validato per intercept del FAB in ambiente di test"},
+  "seed_data_creation": "Creato 1 audio personale via POST /api/audio-records (target_type=personal, WAV 1.5s ~440Hz sintetico) con token del login test@dalpastro.it. La card è stata poi eliminata via UI (my-audio-delete-<id>); cleanup API di sicurezza ha restituito 404 (già cancellato).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login UI accessibile SOLO su /login (la root '/' mostra la landing marketing AdvisorOS). Dopo login redirect automatico a /libretto?onboarding=1. Per raggiungere le route della feature usare window.history.pushState + PopStateEvent('popstate'). Per test audio personale creare l'audio via API prima del test UI. Attenzione: l'AxonOS FAB (violet, robot icon) è sempre montato in root _layout e su viewport 390x844 può coprire la parte bassa-destra delle pagine; interferisce con il '+' di memoria (memory-add-<key>). Le conferme di eliminazione usano window.confirm su web — registrare `page.on('dialog', lambda d: d.accept())` prima di cliccare i delete.",
+  "rca_of_issue": "Il tap su memory-add-stile_lavoro non apre il form: la posizione del pulsante (icon '+') nella card è in alto-destra, ma nell'ordine di lista lo 'Stile di lavoro' si trova sotto la fold su 390x844 e il FAB Axon (bottom-right, ~72px sopra la tab bar) copre la zona d'intercept del touch. Riproduzione: /axon-memory?sphere=home → scroll fino a 'Stile di lavoro' → tap '+'. Mitigazione: usare useFabStack anche in axon-memory per far scorrere il FAB verso l'alto quando la ScrollView raggiunge il fondo, oppure aumentare il paddingBottom del ScrollView oltre insets.bottom + 120 (già presente) per allontanare i '+' dal FAB, o spostare il FAB dietro la card via zIndex/pointerEvents."
+}

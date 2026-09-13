@@ -152,7 +152,7 @@ export type CgymRoleplay = {
 };
 
 export const cgymRoleplayApi = {
-  start: (body: { session_id?: string; scenario?: CgymScenarioKey; tts?: boolean }) =>
+  start: (body: { session_id?: string; scenario?: CgymScenarioKey | string; tts?: boolean }) =>
     api<CgymRoleplayStartOut>("/cgym/roleplay/start", { method: "POST", body }),
   turn: (id: string, body: { audio_base64?: string; mime?: string; text?: string; tts?: boolean }) =>
     api<CgymRoleplayTurnOut>(`/cgym/roleplay/${id}/turn`, { method: "POST", body }),

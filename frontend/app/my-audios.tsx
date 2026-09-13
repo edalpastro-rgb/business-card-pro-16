@@ -3,9 +3,18 @@ import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platf
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
-import { api } from "@/src/api";
+import { api, buildFileUrl } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+
+// V50.z205 — Fase 4 Spazio Personale: sfera (Privata/Aziendale) + trascrizione automatica (Whisper + Haiku)
+type Sphere = "business" | "home" | "unclassified";
+const SPHERE_ICON: Record<Sphere, string> = { business: "🔵", home: "🟢", unclassified: "⚪" };
+const SPHERE_LABEL: Record<Sphere, string> = { business: "Aziendale", home: "Privata", unclassified: "Da classificare" };
+const SPHERE_COLOR: Record<Sphere, string> = { business: "#2563EB", home: "#059669", unclassified: "#94A3B8" };
+const FILTERS: Array<{ key: "all" | Sphere; label: string }> = [
+  { key: "all", label: "Tutti" }, { key: "home", label: "🟢 Private" }, { key: "business", label: "🔵 Aziendali" }, { key: "unclassified", label: "⚪ Da classificare" },
+];
 
 type AudioRecord = {
   audio_id: string;
@@ -15,6 +24,14 @@ type AudioRecord = {
   size_bytes?: number;
   title?: string | null;
   created_at: string;
+  sphere?: Sphere;
+  transcribe_status?: "pending" | "processing" | "ready" | "error" | null;
+  transcript?: string | null;
+  summary?: string | null;
+  tags?: string[];
+  actions?: string[];
+  suggested_sphere?: Sphere | null;
+  transcribe_error?: string | null;
 };
 
 export default function MyAudiosScreen() {
@@ -25,7 +42,9 @@ export default function MyAudiosScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [renameFor, setRenameFor] = useState<AudioRecord | null>(null);
   const [renameVal, setRenameVal] = useState("");
-  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const [filter, setFilter] = useState<"all" | Sphere>("all");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const audioElRef = useRef<any>(null);
 
   const load = useCallback(async () => {
     try {
@@ -36,35 +55,65 @@ export default function MyAudiosScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // Polling leggero finché c'è una trascrizione in corso
+  const processing = items.some((i) => i.transcribe_status === "processing" || i.transcribe_status === "pending");
+  useEffect(() => {
+    if (!processing) return;
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [processing, load]);
+
   useEffect(() => {
     return () => {
-      if (audioElRef.current) { try { audioElRef.current.pause(); } catch {} audioElRef.current = null; }
+      if (audioElRef.current) { try { audioElRef.current.pause?.(); audioElRef.current.remove?.(); } catch {} audioElRef.current = null; }
     };
   }, []);
 
   const stopPlayback = () => {
-    if (audioElRef.current) { try { audioElRef.current.pause(); } catch {} audioElRef.current = null; }
+    if (audioElRef.current) { try { audioElRef.current.pause?.(); audioElRef.current.remove?.(); } catch {} audioElRef.current = null; }
     setPlayingId(null);
   };
 
   const play = async (rec: AudioRecord) => {
     if (playingId === rec.audio_id) { stopPlayback(); return; }
     stopPlayback();
-    if (Platform.OS !== "web") { notify("Solo web", "Playback disponibile nel browser per ora."); return; }
     try {
       setBusyId(rec.audio_id);
-      const r = await api<{ audio_base64: string; mime?: string }>(`/audio-records/${rec.audio_id}`);
-      let b64 = r.audio_base64 || "";
-      if (b64.startsWith("data:")) b64 = b64.split(",", 1)[1] || b64;
-      const win: any = globalThis as any;
-      const el = new win.Audio(`data:${r.mime || rec.mime || "audio/webm"};base64,${b64}`);
-      audioElRef.current = el;
-      el.onended = () => setPlayingId(null);
-      el.onerror = () => { setPlayingId(null); notify("Errore", "Playback fallito"); };
-      await el.play();
+      const url = await buildFileUrl(`/audio-records/${rec.audio_id}/file`);
+      if (Platform.OS === "web") {
+        const el = new (globalThis as any).Audio(url);
+        audioElRef.current = el;
+        el.onended = () => setPlayingId(null);
+        el.onerror = () => { setPlayingId(null); notify("Errore", "Playback fallito"); };
+        await el.play();
+      } else {
+        const AudioMod: any = await import("expo-audio");
+        const player = AudioMod.createAudioPlayer({ uri: url });
+        audioElRef.current = player;
+        player.addListener?.("playbackStatusUpdate", (s: any) => { if (s?.didJustFinish) setPlayingId(null); });
+        player.play();
+      }
       setPlayingId(rec.audio_id);
     } catch (e: any) { notify("Errore", e?.message || ""); } finally { setBusyId(null); }
   };
+
+  const setSphere = async (rec: AudioRecord, sphere: Sphere) => {
+    try {
+      const r = await api<{ reply: string }>(`/audio-records/${rec.audio_id}/sphere`, { method: "PUT", body: { sphere } });
+      setItems((prev) => prev.map((i) => (i.audio_id === rec.audio_id ? { ...i, sphere } : i)));
+      notify("Axon", r.reply);
+    } catch (e: any) { notify("Errore", e?.message || ""); }
+  };
+
+  const transcribe = async (rec: AudioRecord) => {
+    try {
+      await api(`/audio-records/${rec.audio_id}/transcribe`, { method: "POST" });
+      setItems((prev) => prev.map((i) => (i.audio_id === rec.audio_id ? { ...i, transcribe_status: "processing" } : i)));
+    } catch (e: any) { notify("Errore", e?.message || ""); }
+  };
+
+  const visible = filter === "all" ? items : items.filter((i) => (i.sphere || "unclassified") === filter);
+  const counts = items.reduce((acc, i) => { const k = (i.sphere || "unclassified") as Sphere; acc[k] = (acc[k] || 0) + 1; return acc; }, {} as Record<Sphere, number>);
 
   const remove = (rec: AudioRecord) => notify("Elimina audio", `Rimuovere "${rec.title || 'Nota vocale'}"?`, [
     { text: "Annulla", style: "cancel" },
@@ -95,9 +144,26 @@ export default function MyAudiosScreen() {
         <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>I miei audio</Text>
-          <Text style={styles.headerSub}>Cartella personale del Master · {items.length} file</Text>
+          <Text style={styles.headerSub}>🟢 Spazio Personale · {items.length} note vocali · trascrizione automatica</Text>
         </View>
+        <Pressable onPress={() => router.push("/spazio-personale" as any)} style={styles.headerBtn} hitSlop={6} testID="my-audios-hub">
+          <Ionicons name="home-outline" size={18} color="#059669" />
+        </Pressable>
       </View>
+
+      {!loading && items.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {FILTERS.map((f) => {
+            const on = filter === f.key;
+            const n = f.key === "all" ? items.length : counts[f.key] || 0;
+            return (
+              <Pressable key={f.key} onPress={() => setFilter(f.key)} style={[styles.chip, on && styles.chipOn]} testID={`my-audios-filter-${f.key}`}>
+                <Text style={[styles.chipTxt, on && styles.chipTxtOn]}>{f.label} · {n}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
@@ -105,7 +171,7 @@ export default function MyAudiosScreen() {
         <View style={styles.empty}>
           <Ionicons name="folder-open-outline" size={54} color={theme.color.muted} />
           <Text style={styles.emptyTitle}>Nessun audio personale</Text>
-          <Text style={styles.emptyTxt}>Registra un audio dall&apos;Interfaccia Master e scegli &quot;Cartella personale&quot; come destinazione.</Text>
+          <Text style={styles.emptyTxt}>Registra un audio dall&apos;Interfaccia Master e scegli &quot;Cartella personale&quot; come destinazione. Axon lo trascrive automaticamente.</Text>
           <Pressable onPress={() => router.push("/master" as any)} style={styles.recordBtn}>
             <Ionicons name="mic" size={18} color="#FFF" />
             <Text style={styles.recordTxt}>Registra ora</Text>
@@ -113,35 +179,74 @@ export default function MyAudiosScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
-          {items.map((rec) => {
+          {visible.length === 0 && <Text style={styles.noneTxt}>Nessun audio in questa sfera.</Text>}
+          {visible.map((rec) => {
             const isPlaying = playingId === rec.audio_id;
             const isBusy = busyId === rec.audio_id;
+            const sphere = (rec.sphere || "unclassified") as Sphere;
+            const st = rec.transcribe_status;
+            const expanded = expandedId === rec.audio_id;
             return (
               <View key={rec.audio_id} style={styles.card} testID={`my-audio-${rec.audio_id}`}>
-                <Pressable onPress={() => play(rec)} disabled={isBusy} style={[styles.playBtn, { backgroundColor: isPlaying ? "#DC2626" : "#7C3AED" }]} testID={`my-audio-play-${rec.audio_id}`}>
-                  {isBusy ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name={isPlaying ? "pause" : "play"} size={22} color="#FFF" />}
-                </Pressable>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.title} numberOfLines={1}>{rec.title || "Nota vocale"}</Text>
-                  <View style={styles.metaRow}>
-                    <Ionicons name="calendar-outline" size={12} color={theme.color.muted} />
-                    <Text style={styles.metaTxt}>{fmtDateTime(rec.created_at)}</Text>
-                    {typeof rec.duration_sec === "number" && rec.duration_sec > 0 && (
-                      <>
-                        <Text style={styles.metaSep}>·</Text>
-                        <Ionicons name="time-outline" size={12} color={theme.color.muted} />
-                        <Text style={styles.metaTxt}>{fmtDuration(rec.duration_sec)}</Text>
-                      </>
-                    )}
+                <View style={styles.cardRow}>
+                  <Pressable onPress={() => play(rec)} disabled={isBusy} style={[styles.playBtn, { backgroundColor: isPlaying ? "#DC2626" : "#7C3AED" }]} testID={`my-audio-play-${rec.audio_id}`}>
+                    {isBusy ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name={isPlaying ? "pause" : "play"} size={22} color="#FFF" />}
+                  </Pressable>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.title} numberOfLines={1}>{rec.title || "Nota vocale"}</Text>
+                    <View style={styles.metaRow}>
+                      <Ionicons name="calendar-outline" size={12} color={theme.color.muted} />
+                      <Text style={styles.metaTxt}>{fmtDateTime(rec.created_at)}</Text>
+                      {typeof rec.duration_sec === "number" && rec.duration_sec > 0 && (
+                        <>
+                          <Text style={styles.metaSep}>·</Text>
+                          <Ionicons name="time-outline" size={12} color={theme.color.muted} />
+                          <Text style={styles.metaTxt}>{fmtDuration(rec.duration_sec)}</Text>
+                        </>
+                      )}
+                    </View>
+                    {isPlaying && <Text style={styles.playingHint}>▸ In riproduzione…</Text>}
                   </View>
-                  {isPlaying && <Text style={styles.playingHint}>▸ In riproduzione…</Text>}
+                  <Pressable onPress={() => openRename(rec)} style={styles.iconBtn} testID={`my-audio-rename-${rec.audio_id}`}>
+                    <Ionicons name="create-outline" size={18} color="#0891B2" />
+                  </Pressable>
+                  <Pressable onPress={() => remove(rec)} style={styles.iconBtn} testID={`my-audio-delete-${rec.audio_id}`}>
+                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                  </Pressable>
                 </View>
-                <Pressable onPress={() => openRename(rec)} style={styles.iconBtn} testID={`my-audio-rename-${rec.audio_id}`}>
-                  <Ionicons name="create-outline" size={18} color="#0891B2" />
-                </Pressable>
-                <Pressable onPress={() => remove(rec)} style={styles.iconBtn} testID={`my-audio-delete-${rec.audio_id}`}>
-                  <Ionicons name="trash-outline" size={18} color="#DC2626" />
-                </Pressable>
+
+                {/* Sfera: un tap per classificare */}
+                <View style={styles.sphereRow}>
+                  <Text style={[styles.sphereNow, { color: SPHERE_COLOR[sphere] }]}>{SPHERE_ICON[sphere]} {SPHERE_LABEL[sphere]}</Text>
+                  {(["home", "business"] as Sphere[]).filter((s) => s !== sphere).map((s) => (
+                    <Pressable key={s} onPress={() => setSphere(rec, s)} style={[styles.sphereBtn, { borderColor: SPHERE_COLOR[s] }]} testID={`my-audio-sphere-${s}-${rec.audio_id}`}>
+                      <Text style={[styles.sphereBtnTxt, { color: SPHERE_COLOR[s] }]}>{SPHERE_ICON[s]} {sphere === "unclassified" ? SPHERE_LABEL[s] : `Sposta in ${SPHERE_LABEL[s]}`}</Text>
+                    </Pressable>
+                  ))}
+                  {sphere === "unclassified" && rec.suggested_sphere && (
+                    <Text style={styles.suggestTxt}>Axon suggerisce: {SPHERE_ICON[rec.suggested_sphere]} {SPHERE_LABEL[rec.suggested_sphere]}</Text>
+                  )}
+                </View>
+
+                {/* Trascrizione */}
+                {st === "processing" || st === "pending" ? (
+                  <View style={styles.trRow}><ActivityIndicator size="small" color="#7C3AED" /><Text style={styles.trHint}>Axon sta trascrivendo…</Text></View>
+                ) : st === "ready" ? (
+                  <Pressable onPress={() => setExpandedId(expanded ? null : rec.audio_id)} style={styles.trBox} testID={`my-audio-transcript-${rec.audio_id}`}>
+                    {rec.summary ? <Text style={styles.trSummary} numberOfLines={expanded ? undefined : 2}>{rec.summary}</Text> : null}
+                    {expanded && rec.transcript ? <Text style={styles.trText}>{rec.transcript}</Text> : null}
+                    {expanded && rec.actions && rec.actions.length > 0 && (
+                      <Text style={styles.trActions}>Da fare: {rec.actions.join(" · ")}</Text>
+                    )}
+                    {rec.tags && rec.tags.length > 0 && <Text style={styles.trTags}>{rec.tags.map((t) => `#${t}`).join("  ")}</Text>}
+                    <Text style={styles.trMore}>{expanded ? "▴ Riduci" : "▾ Leggi trascrizione"}</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable onPress={() => transcribe(rec)} style={styles.trRow} testID={`my-audio-transcribe-${rec.audio_id}`}>
+                    <Ionicons name="text-outline" size={14} color="#7C3AED" />
+                    <Text style={[styles.trHint, { color: "#7C3AED", fontWeight: "800" }]}>{st === "error" ? "Trascrizione non riuscita · Riprova" : "Trascrivi con Axon"}</Text>
+                  </Pressable>
+                )}
               </View>
             );
           })}
@@ -206,7 +311,27 @@ const styles = StyleSheet.create({
   emptyTxt: { fontSize: 12, color: theme.color.muted, marginTop: 6, textAlign: "center", lineHeight: 16 },
   recordBtn: { marginTop: 24, flexDirection: "row", gap: 8, alignItems: "center", backgroundColor: "#7C3AED", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12 },
   recordTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-  card: { flexDirection: "row", alignItems: "center", backgroundColor: theme.color.surface, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: theme.color.border },
+  card: { backgroundColor: theme.color.surface, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: theme.color.border },
+  cardRow: { flexDirection: "row", alignItems: "center" },
+  filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  chip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 999, backgroundColor: "#F1F5F9", justifyContent: "center", borderWidth: 1, borderColor: "#E2E8F0" },
+  chipOn: { backgroundColor: "#ECFDF5", borderColor: "#059669" },
+  chipTxt: { fontSize: 12, fontWeight: "700", color: "#475569" },
+  chipTxtOn: { color: "#065F46" },
+  noneTxt: { textAlign: "center", color: theme.color.muted, fontSize: 12.5, marginTop: 30 },
+  sphereRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 10 },
+  sphereNow: { fontSize: 12, fontWeight: "800" },
+  sphereBtn: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, minHeight: 32, justifyContent: "center", backgroundColor: "#FFF" },
+  sphereBtnTxt: { fontSize: 11.5, fontWeight: "800" },
+  suggestTxt: { fontSize: 11, color: "#7C3AED", fontStyle: "italic" },
+  trRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, minHeight: 36 },
+  trHint: { fontSize: 12, color: theme.color.muted },
+  trBox: { marginTop: 10, backgroundColor: "#F5F3FF", borderRadius: 10, padding: 10, gap: 6 },
+  trSummary: { fontSize: 13, color: "#1B2B4B", lineHeight: 18 },
+  trText: { fontSize: 12.5, color: "#334155", lineHeight: 18, borderTopWidth: 1, borderTopColor: "#E9D5FF", paddingTop: 6 },
+  trActions: { fontSize: 12, color: "#B45309", fontWeight: "700" },
+  trTags: { fontSize: 11, color: "#7C3AED", fontWeight: "700" },
+  trMore: { fontSize: 11, color: "#7C3AED", fontWeight: "800", textAlign: "right" },
   playBtn: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
   title: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 4 },

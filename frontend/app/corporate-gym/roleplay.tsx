@@ -29,12 +29,14 @@ export default function CgymRoleplayScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ session_id?: string; scenario?: string }>();
   const sessionId = typeof params.session_id === "string" && params.session_id ? params.session_id : undefined;
-  const scenarioKey: CgymScenarioKey = (["tempo", "costo", "decisore", "winwin"] as CgymScenarioKey[]).includes(params.scenario as CgymScenarioKey) ? (params.scenario as CgymScenarioKey) : "tempo";
-  const baseMeta = CGYM_SCENARIO_META[scenarioKey];
+  const rawKey = String(params.scenario || "tempo");
+  const isCustomKey = rawKey.startsWith("custom_");   // V50.z204 — role-play creato dal Master Coach
+  const scenarioKey = (isCustomKey ? rawKey : ((["tempo", "costo", "decisore", "winwin"] as string[]).includes(rawKey) ? rawKey : "tempo")) as CgymScenarioKey;
+  const baseMeta = CGYM_SCENARIO_META[scenarioKey] || { ...CGYM_SCENARIO_META.tempo, label: "Role-play", customer: "cliente simulato", description: "", tips: [] as string[] };
   const [cfg, setCfg] = useState<ScenarioCfg | null>(null);
   useEffect(() => { api<ScenarioCfg>(`/cgym/config/scenarios/${scenarioKey}`).then(setCfg).catch(() => setCfg(null)); }, [scenarioKey]);
   const custLine = cfg ? [cfg.customer?.name, cfg.customer?.role && cfg.customer?.company ? `${cfg.customer.role} di ${cfg.customer.company}` : (cfg.customer?.role || cfg.customer?.company)].filter(Boolean).join(", ") : baseMeta.customer;
-  const meta = cfg ? { ...baseMeta, label: cfg.label, description: cfg.description || baseMeta.description, duration_min: cfg.duration_min, max_turns: cfg.max_turns, tips: cfg.tips.length ? cfg.tips : baseMeta.tips, customer: custLine || baseMeta.customer } : baseMeta;
+  const meta = cfg ? { ...baseMeta, area: (cfg as any).area || baseMeta.area, label: cfg.label, description: cfg.description || baseMeta.description, duration_min: cfg.duration_min, max_turns: cfg.max_turns, tips: cfg.tips.length ? cfg.tips : baseMeta.tips, customer: custLine || baseMeta.customer } : baseMeta;
   const phases = cfg?.phases || [];
   const isWinWin = meta.area === "winwin";
   // La PersistentBottomNav (60 + inset) copre il fondo pagina: i controlli stanno sopra di essa.

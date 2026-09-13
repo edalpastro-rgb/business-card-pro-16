@@ -36,6 +36,7 @@ _AM_DAYS = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato
 class AmItemIn(BaseModel):
     section: str
     text: str
+    sphere: Optional[str] = None  # V50.z205 — business | home (default: euristica testo)
 
 
 class AmUpdateIn(BaseModel):
@@ -267,8 +268,12 @@ async def am_add(body: AmItemIn, user=Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Testo troppo corto")
     now = utcnow()
     doc = {"id": uuid.uuid4().hex, "user_id": user["user_id"], "section": body.section, "text": text[:300], "source": "manual", "edited": True,
-           "confidence": 1.0, "evidence": "Aggiunto da te", "created_at": now, "updated_at": now}
+           "confidence": 1.0, "evidence": "Aggiunto da te", "created_at": now, "updated_at": now,
+           "sphere": body.sphere if body.sphere in ("business", "home") else _ps_guess_memory_sphere(body.section, text)}
     await db.axon_user_memory.insert_one(doc)
+    if body.sphere in ("business", "home"):
+        await db.axon_user_memory_sphere.update_one({"user_id": user["user_id"], "key": _am_key(body.section, text)},
+                                                    {"$set": {"user_id": user["user_id"], "key": _am_key(body.section, text), "sphere": body.sphere, "at": now}}, upsert=True)
     await db.axon_user_memory_forgotten.delete_one({"user_id": user["user_id"], "key": _am_key(body.section, text)})
     return _am_out(doc)
 
@@ -319,11 +324,12 @@ _am_orig_omni = _build_crm_omniscience_section
 async def _build_crm_omniscience_section(user: dict, msg: str) -> str:  # noqa: F811
     base = await _am_orig_omni(user, msg)
     try:
-        items = await db.axon_user_memory.find({"user_id": user["user_id"]}, {"_id": 0, "section": 1, "text": 1}).limit(40).to_list(40)
+        items = await db.axon_user_memory.find({"user_id": user["user_id"]}, {"_id": 0, "section": 1, "text": 1, "sphere": 1}).limit(40).to_list(40)
         if not items:
             return base
         lab = {k: l for k, l, _, _ in _AM_SECTIONS}
-        lines = "\n".join(f"- [{lab.get(i['section'], i['section'])}] {i['text']}" for i in items)
-        return f"{base}\n\n=== COSA SAI DI QUESTO UTENTE (memoria visibile in Profilo → Memoria AxonOS; rispetta le preferenze) ===\n{lines}"
+        ico = {"business": "🔵", "home": "🟢"}
+        lines = "\n".join(f"- {ico.get(i.get('sphere'), '')}[{lab.get(i['section'], i['section'])}] {i['text']}" for i in items)
+        return f"{base}\n\n=== COSA SAI DI QUESTO UTENTE (memoria visibile in Profilo → Memoria AxonOS; rispetta le preferenze; 🔵 = sfera Business, 🟢 = sfera Home/privata: non mescolarle) ===\n{lines}"
     except Exception:
         return base

@@ -403,7 +403,7 @@ RISPONDI SOLO con JSON valido:
 
 class CgymRoleplayStartIn(BaseModel):
     session_id: Optional[str] = None
-    scenario: Literal["tempo", "costo", "decisore", "winwin"] = "tempo"
+    scenario: str = "tempo"   # V50.z204: chiavi built-in o "custom_…" (scenari creati dal Master Coach, corporate_gym_config)
     voice: Optional[str] = None  # voce TTS (default: voce dello scenario)
     tts: bool = True
 

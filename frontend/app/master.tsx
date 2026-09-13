@@ -256,6 +256,8 @@ function MasterScreen() {
     // Documenti & Cloud (verde #10B981)
     { label: "Anagrafica", icon: "id-card", color: "#10B981", onPress: () => goto("/anagrafica-master") },
     { label: "I miei audio", icon: "folder-open", color: "#10B981", onPress: () => goto("/my-audios") },
+    // V50.z205 — Blocco 8 Fase 4: hub Sfera Home
+    { label: "Spazio Personale", icon: "home", color: "#10B981", onPress: () => goto("/spazio-personale") },
     // AI & Axon
     { label: "Analizza bolletta", icon: "flash", color: "#7C3AED", onPress: () => goto("/bill-quick") },
     // Documenti & Cloud

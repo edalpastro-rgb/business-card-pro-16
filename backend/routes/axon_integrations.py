@@ -332,6 +332,7 @@ async def axi_status(user=Depends(get_current_user)):
         {"key": "media_archive", "label": "Archivio foto, audio e video", "desc": "Cattura o allega: Axon trascrive audio/video, descrive le foto e rende tutto ricercabile. Chiede «Privata o aziendale?».", "provider": "axon", "connected": True, "one_tap": False, "manage_route": "/axon-media?sphere=business", "sphere": "business", "configured": True},
     ]
     home = [
+        {"key": "personal_space", "label": "Spazio Personale", "desc": "My Thing, My Web, I miei audio (con trascrizione), foto/video e spese personali, memoria Home: tutto in un unico posto.", "provider": "axon", "connected": True, "one_tap": False, "manage_route": "/spazio-personale", "sphere": "home", "configured": True},  # V50.z205
         {"key": "homeassistant", "label": "Domotica", "desc": "Casa intelligente: luci, clima, scene con la voce di Axon.", "provider": "homeassistant", "connected": bool(ha),
          "account": (ha or {}).get("base_url"), "one_tap": False, "manage_route": "/axon-homeassistant", "sphere": "home", "configured": True},
         gcard("home", "google_calendar_home", "Google Calendar Home", "Calendario personale, separato da quello professionale (OAuth distinto)."),

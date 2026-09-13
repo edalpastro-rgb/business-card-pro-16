@@ -39,6 +39,7 @@ export const EDGE_ACTIONS: EdgeAction[] = [
   { id: "new-appt", label: "Nuovo Appuntamento", icon: "add-circle", color: "#16A34A", href: "/appointment/new" },
   { id: "new-crt", label: "Nuovo Contratto", icon: "document-text", color: "#059669", href: "/contract/new" },
   { id: "my-audios", label: "I miei audio", icon: "folder-open", color: "#8B5CF6", href: "/my-audios" },
+  { id: "spazio-personale", label: "Spazio Personale", icon: "home", color: "#059669", href: "/spazio-personale" }, // V50.z205
   { id: "my-files", label: "I miei file", icon: "folder-open", color: "#0891B2", href: "/master-files" },
   { id: "my-web", label: "My Web", icon: "globe", color: "#DB2777", href: "/my-web" },
   { id: "bill-quick", label: "Analizza bolletta", icon: "flash", color: "#EA580C", href: "/bill-quick" },

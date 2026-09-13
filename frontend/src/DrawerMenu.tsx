@@ -59,6 +59,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Master Files",        icon: "folder-outline",       href: "/master-files",        categoryKey: "docs" },
   { label: "Google Drive",        icon: "cloud-outline",        href: "/google-drive",        categoryKey: "docs" },
   { label: "Integrazioni AxonOS", icon: "link-outline",         href: "/axon-integrations",   categoryKey: "docs" }, // V50.z197 — Blocco 8: due sfere
+  { label: "Spazio Personale",    icon: "home-outline",         href: "/spazio-personale",    categoryKey: "docs" }, // V50.z205 — Blocco 8 Fase 4: Sfera Home
   { label: "Biglietto da visita", icon: "card-outline",         href: "/business-card",       categoryKey: "docs" },
   // Team & Insights (giallo #EAB308)
   { label: "Team Insights",     icon: "analytics-outline",    href: "/team-insights",      categoryKey: "team" },

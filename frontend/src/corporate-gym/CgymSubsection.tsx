@@ -16,11 +16,13 @@ export function CgymSubsection({ type, description }: { type: CgymType; descript
   const router = useRouter();
   const pagePad = usePageBottomPadding();
   const meta = CGYM_TYPE_META[type];
-  const [custom, setCustom] = useState<Record<string, { label: string; duration_min: number; customer: { name?: string; role?: string } }>>({});
+  type CfgItem = { key: string; area: CgymType; label: string; duration_min: number; customer: { name?: string; role?: string }; is_customized: boolean; is_custom?: boolean };
+  const [custom, setCustom] = useState<Record<string, CfgItem>>({});
+  const [extra, setExtra] = useState<CfgItem[]>([]);   // V50.z204 — role-play creati dal Master Coach
   useEffect(() => {
-    api<{ items: { key: string; label: string; duration_min: number; customer: { name?: string; role?: string }; is_customized: boolean }[] }>("/cgym/config/scenarios")
-      .then((r) => setCustom(Object.fromEntries(r.items.filter((i) => i.is_customized).map((i) => [i.key, i])))).catch(() => {});
-  }, []);
+    api<{ items: CfgItem[] }>("/cgym/config/scenarios")
+      .then((r) => { setCustom(Object.fromEntries(r.items.filter((i) => i.is_customized && !i.is_custom).map((i) => [i.key, i]))); setExtra(r.items.filter((i) => i.is_custom && i.area === type)); }).catch(() => {});
+  }, [type]);
   const [counts, setCounts] = useState<{ todo: number; done: number } | null>(null);
 
   useFocusEffect(useCallback(() => {
@@ -51,9 +53,11 @@ export function CgymSubsection({ type, description }: { type: CgymType; descript
           <CgymManualButton type={type} />
           {/* Blocco 5 — scenari role-play dell'area */}
           <View style={{ alignSelf: "stretch", gap: 8, marginTop: 8 }}>
-            {(Object.keys(CGYM_SCENARIO_META) as CgymScenarioKey[]).filter((k) => CGYM_SCENARIO_META[k].area === type).map((k) => {
+            {[...(Object.keys(CGYM_SCENARIO_META) as CgymScenarioKey[]).filter((k) => CGYM_SCENARIO_META[k].area === type), ...extra.map((e) => e.key)].map((k) => {
               const ov = custom[k];   // V50.z203 — personalizzazioni Master Coach (se presenti)
-              const sc = ov ? { ...CGYM_SCENARIO_META[k], label: ov.label, duration_min: ov.duration_min, customer: [ov.customer?.name, ov.customer?.role].filter(Boolean).join(", ") || CGYM_SCENARIO_META[k].customer } : CGYM_SCENARIO_META[k];
+              const ex = extra.find((e) => e.key === k);
+              const sc = ex ? { icon: type === "winwin" ? "briefcase" : "sparkles", label: ex.label, duration_min: ex.duration_min, customer: [ex.customer?.name, ex.customer?.role].filter(Boolean).join(", ") || "cliente simulato" }
+                : ov ? { ...CGYM_SCENARIO_META[k as CgymScenarioKey], label: ov.label, duration_min: ov.duration_min, customer: [ov.customer?.name, ov.customer?.role].filter(Boolean).join(", ") || CGYM_SCENARIO_META[k as CgymScenarioKey].customer } : CGYM_SCENARIO_META[k as CgymScenarioKey];
               return (
                 <Pressable key={k} onPress={() => router.push({ pathname: "/corporate-gym/roleplay", params: { scenario: k } } as any)} style={[styles.startBtn, type === "winwin" && { backgroundColor: "#0F9D58" }]} testID={`cgym-sub-start-${k}`}>
                   <Ionicons name={sc.icon as any} size={20} color="#FFF" />
