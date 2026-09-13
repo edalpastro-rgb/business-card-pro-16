@@ -16,6 +16,7 @@ import { Step2Sfera, type Sphere } from "@/src/wizard/Step2Sfera"; // V50.z214 �
 import { Step3Aree } from "@/src/wizard/Step3Aree"; // V50.z214 — Blocco 3 · Step 3
 import { Step4ParlaNeo } from "@/src/wizard/Step4ParlaNeo"; // V50.z215 — Blocco 4 · Step 4
 import { Confetti } from "@/src/wizard/Confetti"; // V50.z216 — Blocco 5 · schermata finale
+import { PrivacyNote } from "@/src/wizard/PrivacyNote"; // V50.z217 — riga privacy (popup WOW + Step 4)
 
 const PURPLE = "#7C3AED";
 type Mode = "setup" | "full";
@@ -60,6 +61,7 @@ function WelcomePopup({ onPick }: { onPick: (m: Mode | "later") => void }) {
           <Text style={styles.btnLaterTxt}>Dopo</Text>
         </Pressable>
         <Text style={styles.laterHint}>Potrai configurare tutto in qualsiasi momento da Impostazioni.</Text>
+        <PrivacyNote light />
       </Animated.View>
     </LinearGradient>
   );
@@ -238,7 +240,7 @@ export default function SetupScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#FAF5FF" },
-  welcome: { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 16 },
+  welcome: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   orb: { width: 120, height: 120, borderRadius: 60, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.35)" },
   welcomeTitle: { color: "#FFF", fontSize: 34, fontWeight: "900", textAlign: "center", lineHeight: 40, marginTop: 8 },
   welcomeSub: { color: "#E9D5FF", fontSize: 15, textAlign: "center", lineHeight: 22, paddingHorizontal: 8 },

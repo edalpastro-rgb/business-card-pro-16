@@ -122,7 +122,7 @@ async def wc_reopen(body: WcReopenIn, user=Depends(get_current_user)):
 
 # ============================================================================ Axon sa spiegare cosa succede dopo il wizard
 _wc_prev_prepare_prompt = _prepare_assistant_prompt
-_WC_FAQ_RE = re.compile(r"(dove\s+(sono|son|è|e')\s+(finit|andat|salvat)|dove\s+(trovo|vedo|stanno)\s+(i miei dati|i dati|i file|le mie info)|posso\s+(modificare|cambiare)\s+(la\s+)?config|"
+_WC_FAQ_RE = re.compile(r"(privacy|cifrat|crittograf|terze parti|addestr|dove\s+(sono|son|è|e.)\s+(finit|andat|salvat)|dove\s+(trovo|vedo|stanno)\s+(i miei dati|i dati|i file|le mie info)|posso\s+(modificare|cambiare)\s+(la\s+)?config|"
                         r"modificare\s+(la\s+)?(configurazione|set ?up|wizard)|riavvi(are|o)\s+l'?app|devo\s+riavviare|quanto\s+(ci\s+)?(vuole|manca|tempo)|"
                         r"sta(i)?\s+(ancora\s+)?legg|elaborazion|set ?up\s+and\s+go|configurazione\s+guidata)", re.I)
 
@@ -147,7 +147,10 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
                "modifica si sincronizza con me automaticamente. Da lì si può riaprire qualunque step del wizard.\n"
                "• RIAVVIO APP: NON necessario, mai. Leggo i dati aggiornati a ogni risposta.\n"
                "• TEMPI: testo libero → pochi secondi; file e audio → elaborazione in background (in genere 10-60 secondi, i PDF lunghi o gli audio di diversi minuti "
-               "possono richiedere un paio di minuti); l'utente può navigare subito, l'indicatore «AxonOS sta leggendo i tuoi file…» scompare al termine.\n")
+               "possono richiedere un paio di minuti); l'utente può navigare subito, l'indicatore «AxonOS sta leggendo i tuoi file…» scompare al termine.\n"
+               "• PRIVACY: i dati restano nell'account AdvisorOS dell'utente; non condivisi con terze parti, non venduti, non usati per addestrare modelli AI esterni; "
+               "accessibili solo all'utente e ai collaboratori autorizzati. Codice fiscale, data di nascita, indirizzi e telefono del profilo sono cifrati a livello di campo nel database "
+               "(cifratura trasparente: l'utente li vede in chiaro). Privacy policy: https://advisoros.it/privacy\n")
         if running:
             sec += f"• STATO ADESSO: sto ancora leggendo {len(running)} file/audio ({', '.join(str(j.get('name')) for j in running[:3])}). Dillo se te lo chiedono.\n"
         elif jobs:

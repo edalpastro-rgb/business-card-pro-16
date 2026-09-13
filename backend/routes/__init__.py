@@ -9,6 +9,7 @@ MODULES = [
     "00_core.py",
     "01_helpers.py",
     "01b_heavy_bridge.py",  # V50.z210 — heavy_call/heavy_call_sync → sottoprocesso workers/heavy_worker.py (cv2/fitz/pdfplumber MAI nel processo API)
+    "01c_field_crypto.py",  # V50.z217 — cifratura trasparente a livello di campo di master_profiles (CF, data di nascita, indirizzi, telefono): proxy su db.master_profiles + migrazione all'avvio
     "02_models.py",
     "03_auth.py",
     "04_settings_dashboard.py",

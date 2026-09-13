@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { api, apiUpload } from "@/src/api";
 import type { StepBinder } from "@/src/wizard/Step1Anagrafica";
+import { PrivacyNote } from "@/src/wizard/PrivacyNote"; // V50.z217
 
 const PURPLE = "#7C3AED";
 const MAX_FILE = 50 * 1024 * 1024;
@@ -276,6 +277,9 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
         </View>
       )}
       {decidedN > 0 && pending.length === 0 && <Text style={styles.doneTxt} testID="neo-all-decided">✓ {decidedN} {decidedN === 1 ? "proposta gestita" : "proposte gestite"}: i campi dell'app sono aggiornati.</Text>}
+
+      {/* V50.z217 — privacy, sempre visibile prima del tasto «Completa» */}
+      <PrivacyNote />
 
       {/* Popup «file incompleto» */}
       <Modal visible={askIncomplete} transparent animationType="fade" onRequestClose={() => answer(false)}>
