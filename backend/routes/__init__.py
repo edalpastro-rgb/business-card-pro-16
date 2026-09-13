@@ -73,6 +73,7 @@ MODULES = [
     "axon_wizard_anagrafica.py",  # V50.z212 — Blocco 2 Step 1: decodifica codice fiscale, anagrafica nel prompt (mai richiedere), chat → Anagrafica (isolato; avvolge _prepare_assistant_prompt e _maybe_push_command)
     "axon_wizard_sphere.py",  # V50.z214 — Blocco 3 Step 2+3: sfera obbligatoria (business|home|both) + catalogo aree con switch e interessi futuri (GET /axon/setup/areas, PUT /axon/setup/sphere-areas) (isolato; avvolge _prepare_assistant_prompt)
     "axon_wizard_talk.py",  # V50.z215 — Blocco 4 Step 4 «Parla a Neo»: testo/file multipart 50MB/audio Whisper → Neo estrae proposte (mail principale, indirizzo, …) + fatti; confirm un tap → master_profiles/users/axon_user_memory (isolato; riusa axon_uploads, heavy_call, _axm_llm_json)
+    "axon_tone_level.py",  # V50.z218 — Blocco 6: tono AxonOS a 5 livelli (5 = Fantasiosa), fallback automatico al professionale nei contesti formali, comando «forza tono informale» (GET/PUT /axon/tone-level) (isolato; avvolge _prepare_assistant_prompt)
     "axon_wizard_complete.py",  # V50.z216 — Blocco 5: completamento wizard (messaggio personalizzato, stats), Profilo → «La mia configurazione Set Up» (GET /axon/setup/config, POST /axon/setup/reopen), FAQ post-wizard nel prompt Axon (isolato; avvolge _prepare_assistant_prompt)
     "37_app_startup_scheduler.py",
 ]

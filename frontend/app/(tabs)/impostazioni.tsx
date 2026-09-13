@@ -17,6 +17,7 @@ import { invalidateTableBrandHeader } from "@/src/ChatTableExport";
 import { AxonMemoryEntryCard } from "@/src/AxonMemoryEntryCard"; // V50.z192 — Profilo → Memoria AxonOS
 import { AppInfoCard } from "@/src/AppInfoCard"; // V50.z208 — Piano attivo + versione APK
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5
+import { AxonToneLevelPicker } from "@/src/AxonToneLevelPicker"; // V50.z218 — Blocco 6: tono a 5 livelli (5 = Fantasiosa)
 import { SetupEntryCard } from "@/src/SetupEntryCard"; // V50.z211 — Configurazione guidata
 
 type Settings = {
@@ -785,6 +786,9 @@ function ImpostazioniScreen() {
               );
             })}
           </View>
+
+          {/* V50.z218 — Blocco 6: tono di AxonOS (1 Istituzionale … 5 Fantasiosa) */}
+          <AxonToneLevelPicker />
 
           {(assistantMode === "voice" || assistantMode === "both") && (
             <>
