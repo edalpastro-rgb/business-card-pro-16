@@ -1,0 +1,230 @@
+// coach-panel.tsx — V50.z203 — Pannello Master Coach: personalizzazione dei blocchi role-play e delle fasi di sessione.
+// Ogni campo è modificabile (testo, immagine, durata, interventi, checklist obiettivi, cliente simulato, manuale Drive);
+// se il Master non modifica nulla il consulente vede i default. Le fasi si aggiungono/rimuovono/rinominano/riordinano,
+// ognuna con un riferimento Drive (cartella o file) opzionale come manuale.
+import React, { useCallback, useEffect, useState } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Image, Platform, KeyboardAvoidingView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { theme } from "@/src/theme";
+import { notify, confirmAsync } from "@/src/utils/notify";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { api } from "@/src/api";
+import { CGYM_ORANGE } from "@/src/corporate-gym/api";
+import { CgymManualRef } from "@/src/corporate-gym/manualsApi";
+import { CgymDrivePicker } from "@/src/corporate-gym/CgymDrivePicker";
+
+type Phase = { id?: string; name: string; minutes_to?: number | null; manual_ref?: CgymManualRef | null };
+type Scenario = {
+  key: string; area: "obiezioni" | "winwin"; label: string; description: string; image_url: string | null; duration_min: number; max_turns: number;
+  tips: string[]; customer: { name?: string; role?: string; company?: string }; manual_ref: CgymManualRef | null; phases: Phase[];
+  is_customized: boolean; customized_fields: string[]; defaults?: Scenario;
+};
+
+export default function CgymCoachPanel() {
+  const router = useRouter();
+  const pagePad = usePageBottomPadding();
+  const [items, setItems] = useState<Scenario[] | null>(null);
+  const [canEdit, setCanEdit] = useState(false);
+  const [sel, setSel] = useState<Scenario | null>(null);
+  const [form, setForm] = useState<Scenario | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [picker, setPicker] = useState<{ target: "scenario" | number } | null>(null);
+
+  const load = useCallback(async () => {
+    try { const r = await api<{ items: Scenario[]; can_edit: boolean }>("/cgym/config/scenarios"); setItems(r.items); setCanEdit(r.can_edit); }
+    catch (e: any) { notify("Pannello Coach", e?.message || "Errore"); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  const openScenario = async (s: Scenario) => {
+    try { const full = await api<Scenario>(`/cgym/config/scenarios/${s.key}`); setSel(full); setForm({ ...full, tips: [...full.tips], phases: full.phases.map((p) => ({ ...p })) }); }
+    catch (e: any) { notify("Pannello Coach", e?.message || "Errore"); }
+  };
+
+  const save = async () => {
+    if (!form || !sel) return;
+    setSaving(true);
+    try {
+      const r = await api<Scenario>(`/cgym/config/scenarios/${sel.key}`, { method: "PUT", body: {
+        label: form.label, description: form.description, image_url: form.image_url || "", duration_min: Number(form.duration_min) || sel.defaults?.duration_min,
+        max_turns: Number(form.max_turns) || sel.defaults?.max_turns, tips: form.tips, customer: form.customer,
+        manual_ref: form.manual_ref || undefined, clear_manual_ref: !form.manual_ref,
+        phases: form.phases.map((p) => ({ id: p.id, name: p.name, minutes_to: p.minutes_to ?? null, manual_ref: p.manual_ref || null })),
+      } });
+      setSel(r); setForm({ ...r, tips: [...r.tips], phases: r.phases.map((p) => ({ ...p })) });
+      notify("Salvato", "I consulenti vedranno subito la versione personalizzata.");
+      await load();
+    } catch (e: any) { notify("Salvataggio", e?.message || "Errore"); } finally { setSaving(false); }
+  };
+
+  const reset = async () => {
+    if (!sel || !(await confirmAsync("Ripristinare i default?", "Tutte le personalizzazioni di questo role-play (fasi incluse) verranno rimosse."))) return;
+    setSaving(true);
+    try { const r = await api<Scenario>(`/cgym/config/scenarios/${sel.key}`, { method: "DELETE" }); setSel(r); setForm({ ...r, tips: [...r.tips], phases: r.phases.map((p) => ({ ...p })) }); await load(); }
+    catch (e: any) { notify("Ripristino", e?.message || "Errore"); } finally { setSaving(false); }
+  };
+
+  const up = (patch: Partial<Scenario>) => setForm((f) => (f ? { ...f, ...patch } : f));
+  const movePhase = (i: number, dir: -1 | 1) => {
+    if (!form) return;
+    const ph = [...form.phases]; const j = i + dir; if (j < 0 || j >= ph.length) return;
+    [ph[i], ph[j]] = [ph[j], ph[i]]; up({ phases: ph });
+  };
+
+  const field = (label: string, value: string, onChange: (v: string) => void, opts?: { multiline?: boolean; keyboard?: "numeric" | "default"; testID?: string; placeholder?: string }) => (
+    <View style={{ gap: 4 }}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput value={value} onChangeText={onChange} multiline={opts?.multiline} keyboardType={opts?.keyboard || "default"} placeholder={opts?.placeholder} placeholderTextColor={theme.color.muted}
+        style={[styles.input, opts?.multiline && { minHeight: 80, textAlignVertical: "top" }]} editable={canEdit} testID={opts?.testID} />
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.root} edges={["top"]}>
+      <View style={styles.header}>
+        <Pressable onPress={() => (form ? (setForm(null), setSel(null)) : router.back())} hitSlop={10} testID="cgym-coach-back"><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
+        <Text style={styles.title} numberOfLines={1}>{form ? `Role-play · ${form.label}` : "Pannello Master Coach"}</Text>
+        <View style={{ width: 26 }} />
+      </View>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad + 40, gap: 12 }} keyboardShouldPersistTaps="handled">
+        {!items ? <ActivityIndicator color={CGYM_ORANGE} style={{ marginTop: 30 }} /> : !form ? (
+          <>
+            <Text style={styles.hint}>{canEdit ? "Tocca un role-play per personalizzare testo, immagine, durata, interventi, checklist obiettivi, cliente simulato, manuale Drive e fasi di sessione." : "Solo il Master Coach può modificare i role-play. Qui vedi la configurazione attiva."}</Text>
+            {items.map((s) => (
+              <Pressable key={s.key} onPress={() => openScenario(s)} style={styles.card} testID={`cgym-coach-scenario-${s.key}`}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Ionicons name={s.area === "winwin" ? "briefcase" : "chatbubbles"} size={22} color={s.area === "winwin" ? "#0F9D58" : CGYM_ORANGE} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>{s.label}</Text>
+                    <Text style={styles.sub}>{s.customer?.name} · {s.duration_min} min · {s.max_turns} interventi · {s.phases.length} fasi{s.manual_ref ? " · manuale collegato" : ""}</Text>
+                  </View>
+                  {s.is_customized ? <Text style={styles.badge}>Personalizzato</Text> : <Text style={[styles.badge, { backgroundColor: "#F1F5F9", color: theme.color.muted }]}>Default</Text>}
+                  <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                </View>
+              </Pressable>
+            ))}
+          </>
+        ) : (
+          <>
+            {form.is_customized && <Text style={styles.hint}>Campi personalizzati: {form.customized_fields.join(", ")}. Gli altri usano i default.</Text>}
+            <View style={styles.card} testID="cgym-coach-form">
+              <Text style={styles.section}>Blocco role-play</Text>
+              {field("Titolo", form.label, (v) => up({ label: v }), { testID: "cgym-coach-label" })}
+              {field("Testo descrittivo", form.description, (v) => up({ description: v }), { multiline: true, testID: "cgym-coach-description" })}
+              {field("Immagine (URL)", form.image_url || "", (v) => up({ image_url: v }), { placeholder: "https://… (vuoto = icona di default)", testID: "cgym-coach-image" })}
+              {!!form.image_url && <Image source={{ uri: form.image_url }} style={styles.preview} resizeMode="cover" />}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <View style={{ flex: 1 }}>{field("Durata (minuti)", String(form.duration_min ?? ""), (v) => up({ duration_min: Number(v.replace(",", ".")) || 0 }), { keyboard: "numeric", testID: "cgym-coach-duration" })}</View>
+                <View style={{ flex: 1 }}>{field("Max interventi", String(form.max_turns ?? ""), (v) => up({ max_turns: parseInt(v, 10) || 0 }), { keyboard: "numeric", testID: "cgym-coach-turns" })}</View>
+              </View>
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.section}>Cliente simulato</Text>
+              {field("Nome", form.customer?.name || "", (v) => up({ customer: { ...form.customer, name: v } }), { testID: "cgym-coach-cust-name" })}
+              {field("Ruolo", form.customer?.role || "", (v) => up({ customer: { ...form.customer, role: v } }), { testID: "cgym-coach-cust-role" })}
+              {field("Azienda", form.customer?.company || "", (v) => up({ customer: { ...form.customer, company: v } }), { testID: "cgym-coach-cust-company" })}
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.section}>Checklist obiettivi</Text>
+              {form.tips.map((t, i) => (
+                <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <TextInput value={t} onChangeText={(v) => { const tips = [...form.tips]; tips[i] = v; up({ tips }); }} style={[styles.input, { flex: 1 }]} editable={canEdit} testID={`cgym-coach-tip-${i}`} />
+                  {canEdit && <Pressable onPress={() => up({ tips: form.tips.filter((_, j) => j !== i) })} hitSlop={8} style={styles.iconBtn}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>}
+                </View>
+              ))}
+              {canEdit && <Pressable onPress={() => up({ tips: [...form.tips, ""] })} style={styles.addBtn} testID="cgym-coach-add-tip"><Ionicons name="add" size={16} color={CGYM_ORANGE} /><Text style={styles.addTxt}>Aggiungi obiettivo</Text></Pressable>}
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.section}>Manuale di riferimento (Drive)</Text>
+              <Text style={styles.sub}>{form.manual_ref ? `${form.manual_ref.kind === "folder" ? "📁" : "📄"} ${form.manual_ref.name || form.manual_ref.id}` : "Nessun manuale collegato (avviso soft per i consulenti)"}</Text>
+              {canEdit && (
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable onPress={() => setPicker({ target: "scenario" })} style={styles.smallBtn} testID="cgym-coach-pick-manual"><Text style={styles.smallBtnTxt}>{form.manual_ref ? "Cambia" : "Scegli cartella o file"}</Text></Pressable>
+                  {form.manual_ref && <Pressable onPress={() => up({ manual_ref: null })} style={[styles.smallBtn, styles.ghost]}><Text style={[styles.smallBtnTxt, { color: theme.color.muted }]}>Rimuovi</Text></Pressable>}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.card} testID="cgym-coach-phases">
+              <Text style={styles.section}>Fasi di sessione ({form.phases.length})</Text>
+              <Text style={styles.sub}>Ordine = ordine di lista. «Fino al minuto» indica quando finisce la fase (vuoto = suddivisione automatica). Ogni fase può avere un manuale Drive.</Text>
+              {form.phases.map((p, i) => (
+                <View key={p.id || i} style={styles.phase} testID={`cgym-coach-phase-${i}`}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={styles.phaseNum}>{i + 1}</Text>
+                    <TextInput value={p.name} onChangeText={(v) => { const ph = [...form.phases]; ph[i] = { ...p, name: v }; up({ phases: ph }); }} placeholder="Nome fase" placeholderTextColor={theme.color.muted} style={[styles.input, { flex: 1 }]} editable={canEdit} testID={`cgym-coach-phase-name-${i}`} />
+                    <TextInput value={p.minutes_to != null ? String(p.minutes_to) : ""} onChangeText={(v) => { const ph = [...form.phases]; ph[i] = { ...p, minutes_to: v.trim() ? Number(v.replace(",", ".")) : null }; up({ phases: ph }); }} placeholder="min" placeholderTextColor={theme.color.muted} keyboardType="numeric" style={[styles.input, { width: 62, textAlign: "center" }]} editable={canEdit} />
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <Text style={[styles.sub, { flex: 1 }]} numberOfLines={1}>{p.manual_ref ? `${p.manual_ref.kind === "folder" ? "📁" : "📄"} ${p.manual_ref.name || p.manual_ref.id}` : "Nessun manuale collegato"}</Text>
+                    {canEdit && (
+                      <>
+                        <Pressable onPress={() => setPicker({ target: i })} hitSlop={6} style={styles.iconBtn} testID={`cgym-coach-phase-manual-${i}`}><Ionicons name="link" size={18} color={theme.color.brandPrimary} /></Pressable>
+                        <Pressable onPress={() => movePhase(i, -1)} hitSlop={6} style={styles.iconBtn} testID={`cgym-coach-phase-up-${i}`}><Ionicons name="arrow-up" size={18} color={theme.color.onSurface} /></Pressable>
+                        <Pressable onPress={() => movePhase(i, 1)} hitSlop={6} style={styles.iconBtn} testID={`cgym-coach-phase-down-${i}`}><Ionicons name="arrow-down" size={18} color={theme.color.onSurface} /></Pressable>
+                        <Pressable onPress={() => up({ phases: form.phases.filter((_, j) => j !== i) })} hitSlop={6} style={styles.iconBtn} testID={`cgym-coach-phase-del-${i}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
+                      </>
+                    )}
+                  </View>
+                </View>
+              ))}
+              {canEdit && <Pressable onPress={() => up({ phases: [...form.phases, { name: `Fase ${form.phases.length + 1}`, minutes_to: null, manual_ref: null }] })} style={styles.addBtn} testID="cgym-coach-add-phase"><Ionicons name="add" size={16} color={CGYM_ORANGE} /><Text style={styles.addTxt}>Aggiungi fase</Text></Pressable>}
+            </View>
+
+            {canEdit && (
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Pressable onPress={save} disabled={saving} style={[styles.primaryBtn, { flex: 1 }, saving && { opacity: 0.6 }]} testID="cgym-coach-save">
+                  {saving ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="save" size={18} color="#FFF" /><Text style={styles.primaryTxt}>Salva</Text></>}
+                </Pressable>
+                <Pressable onPress={reset} disabled={saving} style={[styles.smallBtn, styles.ghost, { minHeight: 48 }]} testID="cgym-coach-reset"><Text style={[styles.smallBtnTxt, { color: theme.color.muted }]}>Ripristina default</Text></Pressable>
+              </View>
+            )}
+          </>
+        )}
+      </ScrollView>
+      </KeyboardAvoidingView>
+      <CgymDrivePicker
+        visible={!!picker}
+        title={picker?.target === "scenario" ? "Manuale del role-play" : `Manuale fase ${typeof picker?.target === "number" ? picker.target + 1 : ""}`}
+        onClose={() => setPicker(null)}
+        onPick={(ref) => {
+          if (!form || !picker) return;
+          if (picker.target === "scenario") up({ manual_ref: ref });
+          else { const ph = [...form.phases]; ph[picker.target] = { ...ph[picker.target], manual_ref: ref }; up({ phases: ph }); }
+          setPicker(null);
+        }}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.color.surface },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 },
+  title: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
+  hint: { fontSize: 12.5, color: theme.color.muted, lineHeight: 18 },
+  card: { backgroundColor: "#FFF", borderRadius: 16, borderWidth: 1, borderColor: theme.color.border, padding: 14, gap: 10 },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
+  section: { fontSize: 12, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.4 },
+  sub: { fontSize: 12, color: theme.color.muted, lineHeight: 16 },
+  badge: { fontSize: 10.5, fontWeight: "800", color: "#FFF", backgroundColor: CGYM_ORANGE, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 },
+  fieldLabel: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, fontSize: 14, color: theme.color.onSurface, minHeight: 42, backgroundColor: "#FFF" },
+  preview: { width: "100%", height: 140, borderRadius: 12, backgroundColor: "#E2E8F0" },
+  iconBtn: { minWidth: 36, minHeight: 36, alignItems: "center", justifyContent: "center" },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 40 },
+  addTxt: { color: CGYM_ORANGE, fontWeight: "800", fontSize: 13 },
+  phase: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 12, padding: 8, gap: 6, backgroundColor: "#FAFAFA" },
+  phaseNum: { width: 22, textAlign: "center", fontWeight: "900", color: CGYM_ORANGE },
+  smallBtn: { backgroundColor: CGYM_ORANGE, borderRadius: 12, paddingHorizontal: 12, minHeight: 40, justifyContent: "center" },
+  smallBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12.5 },
+  ghost: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
+  primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: CGYM_ORANGE, borderRadius: 14, minHeight: 48 },
+  primaryTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
+});

@@ -1,7 +1,7 @@
 // Corporate Gym — Blocco 2: role-play vocale, obiezione TEMPO.
 // Fasi: intro (permesso microfono contestuale) → live (cliente parla via TTS, consulente risponde a voce) → risultati.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platform, TextInput } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platform, TextInput, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -12,6 +12,12 @@ import { useNavBarBottomInset } from "@/src/hooks/useSafeBottom";
 import { CgymTileIcon } from "@/src/corporate-gym/CgymTileIcon";
 import { cgymRoleplayApi, CgymRoleplay, CgymMood, CGYM_MOOD_META, CGYM_ORANGE, CGYM_SCENARIO_META, CgymScenarioKey } from "@/src/corporate-gym/api";
 import { getMicPermission, requestMicPermission, openAppSettings, startRecording, stopRecording, playBase64, stopPlayback, MicPermissionState } from "@/src/corporate-gym/voice";
+import { api } from "@/src/api";
+import { CgymManualButton } from "@/src/corporate-gym/CgymManualButton";
+import type { CgymManualRef } from "@/src/corporate-gym/manualsApi";
+
+// V50.z203 — scenario EFFETTIVO (default + personalizzazioni Master Coach)
+type ScenarioCfg = { label: string; description: string; image_url: string | null; duration_min: number; max_turns: number; tips: string[]; customer: { name?: string; role?: string; company?: string }; manual_ref: CgymManualRef | null; phases: { id?: string; name: string; minutes_to: number; manual_ref?: CgymManualRef | null }[] };
 
 type Phase = "intro" | "live" | "evaluating" | "results";
 type LiveState = "idle" | "speaking" | "recording" | "sending" | "thinking";
@@ -24,7 +30,12 @@ export default function CgymRoleplayScreen() {
   const params = useLocalSearchParams<{ session_id?: string; scenario?: string }>();
   const sessionId = typeof params.session_id === "string" && params.session_id ? params.session_id : undefined;
   const scenarioKey: CgymScenarioKey = (["tempo", "costo", "decisore", "winwin"] as CgymScenarioKey[]).includes(params.scenario as CgymScenarioKey) ? (params.scenario as CgymScenarioKey) : "tempo";
-  const meta = CGYM_SCENARIO_META[scenarioKey];
+  const baseMeta = CGYM_SCENARIO_META[scenarioKey];
+  const [cfg, setCfg] = useState<ScenarioCfg | null>(null);
+  useEffect(() => { api<ScenarioCfg>(`/cgym/config/scenarios/${scenarioKey}`).then(setCfg).catch(() => setCfg(null)); }, [scenarioKey]);
+  const custLine = cfg ? [cfg.customer?.name, cfg.customer?.role && cfg.customer?.company ? `${cfg.customer.role} di ${cfg.customer.company}` : (cfg.customer?.role || cfg.customer?.company)].filter(Boolean).join(", ") : baseMeta.customer;
+  const meta = cfg ? { ...baseMeta, label: cfg.label, description: cfg.description || baseMeta.description, duration_min: cfg.duration_min, max_turns: cfg.max_turns, tips: cfg.tips.length ? cfg.tips : baseMeta.tips, customer: custLine || baseMeta.customer } : baseMeta;
+  const phases = cfg?.phases || [];
   const isWinWin = meta.area === "winwin";
   // La PersistentBottomNav (60 + inset) copre il fondo pagina: i controlli stanno sopra di essa.
   const navPad = 60 + useNavBarBottomInset() + 8;
@@ -37,10 +48,14 @@ export default function CgymRoleplayScreen() {
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [live, setLive] = useState<LiveState>("idle");
   const [turn, setTurn] = useState(0);
-  const [maxTurns, setMaxTurns] = useState(meta.max_turns);
+  const [maxTurns, setMaxTurns] = useState(baseMeta.max_turns);
+  useEffect(() => { if (cfg) setMaxTurns(cfg.max_turns); }, [cfg]);
   const [wwPhase, setWwPhase] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const startedAtRef = useRef<number | null>(null);
+  startedAtRef.current = startedAt;
   const [elapsedSec, setElapsedSec] = useState(0);
+  const curPhase = phases.length && startedAt ? (phases.find((p) => elapsedSec / 60 < p.minutes_to) || phases[phases.length - 1]) : null;
   const [mood, setMood] = useState<CgymMood>("chiuso");
   const [ended, setEnded] = useState(false);
   const [recSec, setRecSec] = useState(0);
@@ -55,10 +70,10 @@ export default function CgymRoleplayScreen() {
   useEffect(() => { getMicPermission().then(setMic); }, []);
   // Timer sessione (WIN-WIN 45 min): conto alla rovescia nella barra live
   useEffect(() => {
-    if (!startedAt || !isWinWin) return;
+    if (!startedAt || !(isWinWin || phases.length > 0)) return;
     const id = setInterval(() => setElapsedSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
     return () => clearInterval(id);
-  }, [startedAt, isWinWin]);
+  }, [startedAt, isWinWin, phases.length]);
   useEffect(() => () => { stopPlayback(); if (recTimer.current) clearInterval(recTimer.current); }, []);
 
   const pushBubble = (b: Bubble) => {
@@ -87,7 +102,7 @@ export default function CgymRoleplayScreen() {
       setRpId(r.roleplay_id);
       setMaxTurns(r.max_turns);
       setStartedAt(Date.now());
-      setWwPhase(isWinWin ? "1 · Apertura e clima" : null);
+      setWwPhase(phases.length ? phases[0].name : (isWinWin ? "1 · Apertura e clima" : null));
       setTurn(0);
       setMood(r.mood);
       setBubbles([{ id: "c0", role: "cliente", text: r.reply, mood: r.mood }]);
@@ -206,13 +221,25 @@ export default function CgymRoleplayScreen() {
       {phase === "intro" && (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: navPad + 16 }} testID="cgym-rp-intro">
           <View style={styles.card}>
-            <CgymTileIcon type={meta.area} size={90} fill />
+            {cfg?.image_url ? <Image source={{ uri: cfg.image_url }} style={{ width: 120, height: 120, borderRadius: 16 }} resizeMode="cover" testID="cgym-rp-custom-image" /> : <CgymTileIcon type={meta.area} size={90} fill />}
             <Text style={styles.cardTitle}>{meta.label}</Text>
             <Text style={styles.cardSub}>{`AxonOS interpreta ${meta.customer}. ${meta.description}`}</Text>
             <View style={styles.durRow} testID="cgym-rp-duration">
               <Ionicons name="time-outline" size={14} color={CGYM_ORANGE} />
               <Text style={styles.durTxt}>{isWinWin ? `Sessione completa: ${meta.duration_min} minuti · fino a ${maxTurns} interventi` : `Circa ${meta.duration_min} minuti · fino a ${maxTurns} risposte`}</Text>
             </View>
+            {cfg?.manual_ref && <CgymManualButton type={meta.area} manualRef={cfg.manual_ref} label="Manuale del role-play" />}
+            {phases.length > 0 && (
+              <View style={styles.tips} testID="cgym-rp-phases">
+                <Text style={[styles.tipTxt, { fontWeight: "800" }]}>Fasi della sessione</Text>
+                {phases.map((p, i) => (
+                  <View key={p.id || i} style={{ gap: 4 }}>
+                    <View style={styles.tipRow}><Ionicons name="flag" size={14} color={CGYM_ORANGE} /><Text style={styles.tipTxt}>{p.name} · fino al minuto {p.minutes_to}</Text></View>
+                    {p.manual_ref && <CgymManualButton type={meta.area} manualRef={p.manual_ref} label={`Manuale · ${p.name}`} />}
+                  </View>
+                ))}
+              </View>
+            )}
             <View style={styles.tips}>
               {[...meta.tips, isWinWin ? "Puoi chiudere quando raggiungi l'accordo: la valutazione considera anche il tempo" : `Hai fino a ${maxTurns} risposte: chiudi quando vuoi`].map((t) => (
                 <View key={t} style={styles.tipRow}><Ionicons name="checkmark-circle" size={16} color={CGYM_ORANGE} /><Text style={styles.tipTxt}>{t}</Text></View>
@@ -259,9 +286,9 @@ export default function CgymRoleplayScreen() {
           <View style={styles.liveBar}>
             <View>
               <Text style={styles.liveTurn}>{isWinWin ? "Intervento" : "Risposta"} {Math.min(turn + 1, maxTurns)}/{maxTurns}</Text>
-              {isWinWin && startedAt && (
+              {(isWinWin || phases.length > 0) && startedAt && (
                 <Text style={[styles.liveTimer, elapsedSec >= meta.duration_min * 60 && { color: theme.color.error }]} testID="cgym-rp-timer">
-                  {(() => { const rem = Math.max(0, meta.duration_min * 60 - elapsedSec); return `${String(Math.floor(rem / 60)).padStart(2, "0")}:${String(rem % 60).padStart(2, "0")}`; })()} · {wwPhase || "1 · Apertura e clima"}
+                  {(() => { const rem = Math.max(0, meta.duration_min * 60 - elapsedSec); return `${String(Math.floor(rem / 60)).padStart(2, "0")}:${String(rem % 60).padStart(2, "0")}`; })()} · {curPhase?.name || wwPhase || "1 · Apertura e clima"}
                 </Text>
               )}
             </View>

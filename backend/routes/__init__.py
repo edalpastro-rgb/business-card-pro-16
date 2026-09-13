@@ -47,6 +47,7 @@ MODULES = [
     "36b_axon_pdf_link_parser.py",  # V50.z164 — modulo isolato (wrap di _build_axon_teach_section)
     "corporate_gym.py",  # Corporate Gym (Blocco 1) — modulo isolato, collection cgym_* (PRIMA di 37: include_router)
     "corporate_gym_manuals.py",  # Corporate Gym · Manuali Google Drive (AxonOS) — modulo isolato, dipende da 28_google_drive
+    "corporate_gym_config.py",  # V50.z203 — Pannello Master Coach: override role-play (testo, immagine, durata, interventi, checklist, cliente simulato, manuale) + fasi di sessione con riferimento Drive; ridefinisce _cgym_scenario_for
     "axon_notifications.py",  # V50.z181 — Notifiche push AxonOS (isolato; usa send_push di 05, cgym_weekly_report, _bill_deadline_entry)
     "axon_chat_push.py",  # V50.z184 — Axon invia push in autonomia dalla chat: consegna server-side promemoria/timer + comandi push (isolato; dopo axon_notifications e 34)
     "master_docs_files.py",

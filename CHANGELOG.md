@@ -193,6 +193,25 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z203 — Corporate Gym: Drive manuale per sezione/fase, Pannello Master Coach, tasto «Inizio» in chat, Stop manuale voce** —
+  `routes/corporate_gym_manuals.py` (riscritto), nuovo `routes/corporate_gym_config.py`, patch minima `routes/corporate_gym.py` (hook
+  `_cgym_scenario_for` + `_cgym_ww_phase(…, phases)`), frontend `manuals-config.tsx` (riscritto), nuovo `coach-panel.tsx`,
+  `src/corporate-gym/CgymDrivePicker.tsx`, `CgymManualButton.tsx`, `CgymSubsection.tsx`, `roleplay.tsx`, `manualsApi.ts`, `AssistantChat.tsx`.
+  1) **Drive root**: browser `GET /cgym/manuals/browse` (cartelle E file, shortcut risolti, ricerca globale); cartella collegata → TUTTI i file
+  (PDF, immagini, DOCX, Google Docs/Sheets/Slides esportati in PDF), radice inclusa; `readable` per tipo. 2) **Niente nomi fissi**: rimossa la
+  ricerca «Obiezioni»/«WIN-WIN»; `PUT /cgym/manuals/config {type, kind folder|file, id}` collega ciò che il Master sceglie; `links` in
+  `cgym_manuals_config` (migrazione soft da `subfolders`); `GET /cgym/manuals/ref?kind&id` per i riferimenti di fase; perimetro apertura =
+  cartelle/file collegati (sezioni + fasi), `link` con `mtype=any`. 3) **Errori soft**: `GET /cgym/manuals/{type}` risponde SEMPRE 200 con
+  `items=[] + soft_message «Nessun manuale collegato»` (anche su errori Drive); UI con avviso informativo non bloccante. 4) **Pannello Master
+  Coach** (`/corporate-gym/coach-panel`, da Manuali → «Pannello Master Coach»): per ogni role-play titolo, testo, immagine URL, durata, max
+  interventi, checklist obiettivi, cliente simulato (nome/ruolo/azienda → persona LLM adottata), manuale Drive; `cgym_scenario_configs`
+  salva SOLO i campi diversi dai default (`customized_fields`), `DELETE` ripristina; consulente: `roleplay.tsx` e `CgymSubsection` leggono
+  `GET /cgym/config/scenarios[/key]` (default se nulla è cambiato). 5) **Fasi**: lista per scenario (aggiungi/rimuovi/rinomina/riordina,
+  «fino al minuto», manuale Drive per fase) → motore usa `sc["phases"]` per la fase suggerita al cliente LLM; timer live mostra la fase
+  corrente; bottoni «Manuale · fase» nell'intro. 6) **Chat**: tasto fisso «↑ Inizio» (`assistant-back-to-top`, sospende l'auto-scroll 1,5 s).
+  7) **Voce**: nel pannello conversazione, durante «In ascolto…», tasto **«Stop · invia»** (`assistant-conv-stop-listening`) che ferma il
+  recorder e trascrive subito anche se il VAD non rileva il silenzio (rumore di fondo). Verifiche: API (link soft, browse, config PUT/GET/DELETE,
+  start role-play con 20 interventi/30 min/3 fasi personalizzate), UI coach-panel (modifica cliente, interventi, fasi add/del/save) e manuali.
 - **V50.z202 — Upload MULTIPART a chunk: Master Files → Object Storage (solo riferimento in Mongo) + trascrizione da file** — modulo
   isolato `backend/routes/axon_uploads.py` (dopo `axon_drive_root.py`) + patch minima in 16 + `src/utils/upload.ts`. **STATO PRIMA**:
   `POST /master-files` e `POST /ai/transcribe` ricevevano JSON con base64 (+33% banda, payload intero in RAM per il parse) e i Master Files
@@ -771,6 +790,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z203 | Set 2026 | Corporate Gym: Drive senza nomi fissi (collegamento manuale cartella/file, root inclusa, avvisi soft), Pannello Master Coach (override role-play + fasi con manuali Drive), tasto «Inizio» in chat, Stop manuale registrazione (`corporate_gym_manuals.py`, `corporate_gym_config.py`, `coach-panel.tsx`) |
 | V50.z202 | Set 2026 | Upload multipart a chunk: `POST /master-files/upload` (50 MB) → Object Storage, solo riferimento in Mongo, `GET /master-files/{id}/content`; `POST /ai/transcribe/upload` (25 MB) Whisper da file; JSON legacy non più inline; `src/utils/upload.ts` (`routes/axon_uploads.py`) |
 | V50.z201 | Set 2026 | Google Drive: file ROOT sempre visibili ad Axon (sezione «📁 [ROOT FILES]» completa nel prompt), shortcut Drive risolti, OCR Gemini per PDF scansionati, retry download, `GET /google-drive/root-files` (`routes/axon_drive_root.py`) |
 | V50.z200 | Set 2026 | Axon vede il backend in tempo reale: eventi API/log/deploy/job, versioni app installate via heartbeat + alert proattivo «App aggiornata» con novità CHANGELOG, sezione prompt «Stato sistema», chat «hai aggiornamenti?», schermata `/axon-system` (`routes/axon_system_awareness.py`, `src/systemHeartbeat.tsx`) |

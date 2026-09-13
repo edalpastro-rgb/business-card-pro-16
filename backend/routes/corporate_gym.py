@@ -366,11 +366,19 @@ CGYM_SCENARIOS = {
 CGYM_WW_PHASES = [(5, "1 · Apertura e clima"), (15, "2 · Esplorazione bisogni"), (30, "3 · Proposta e opzioni"), (40, "4 · Scambio concessioni"), (46, "5 · Accordo e prossimi passi")]
 
 
-def _cgym_ww_phase(elapsed_min: float) -> str:
-    for lim, name in CGYM_WW_PHASES:
+def _cgym_ww_phase(elapsed_min: float, phases=None) -> str:
+    ph = phases or CGYM_WW_PHASES
+    for lim, name in ph:
         if elapsed_min < lim:
             return name
-    return CGYM_WW_PHASES[-1][1]
+    return ph[-1][1] if ph else ""
+
+
+async def _cgym_scenario_for(tid: str, key: str) -> dict:
+    """Scenario effettivo per il tenant. V50.z203: ridefinito da corporate_gym_config.py (personalizzazioni Master Coach)."""
+    if key not in CGYM_SCENARIOS:
+        raise HTTPException(status_code=404, detail="Scenario non valido")
+    return CGYM_SCENARIOS[key]
 
 
 CGYM_RP_TURN_SYSTEM = """{persona}
@@ -470,12 +478,12 @@ async def _cgym_tts_b64(text: str, voice: Optional[str], user: dict) -> Optional
 
 
 async def _cgym_customer_turn(rp: dict, turn_no: int) -> dict:
-    sc = CGYM_SCENARIOS[rp["scenario"]]
+    sc = await _cgym_scenario_for(rp["tenant_id"], rp["scenario"])
     max_turns = sc.get("max_turns", CGYM_RP_MAX_TURNS)
     if sc["area"] == "winwin":
         started = _cgym_dt(rp.get("started_at")) or utcnow()
         elapsed = max(0.0, (utcnow() - started).total_seconds() / 60.0)
-        rules = CGYM_WW_RULES.format(max_turns=max_turns, phase=_cgym_ww_phase(elapsed), elapsed=f"{elapsed:.0f}")
+        rules = CGYM_WW_RULES.format(max_turns=max_turns, phase=_cgym_ww_phase(elapsed, sc.get("phases")), elapsed=f"{elapsed:.0f}")
         channel, max_sentences = "videocall di trattativa", 4
     else:
         rules = CGYM_OBJ_RULES.format(max_turns=max_turns)
@@ -517,6 +525,7 @@ async def cgym_roleplay_scenarios(user=Depends(get_current_user)):
 async def cgym_roleplay_start(body: CgymRoleplayStartIn, user=Depends(get_current_user)):
     """Avvia un role-play: crea il record e genera la battuta di apertura del cliente (testo + audio TTS)."""
     tid = tenant_id(user)
+    sc = await _cgym_scenario_for(tid, body.scenario)
     session_id = body.session_id
     if session_id:
         s = await db.cgym_sessions.find_one({"session_id": session_id, "tenant_id": tid})
@@ -532,7 +541,7 @@ async def cgym_roleplay_start(body: CgymRoleplayStartIn, user=Depends(get_curren
         "scenario": body.scenario,
         "status": "active",
         "turns": [],
-        "voice": body.voice or CGYM_SCENARIOS[body.scenario].get("voice", "onyx"),
+        "voice": body.voice or sc.get("voice", "onyx"),
         "started_at": now,
         "finished_at": None,
         "score": None,
@@ -545,16 +554,17 @@ async def cgym_roleplay_start(body: CgymRoleplayStartIn, user=Depends(get_curren
     return {
         "roleplay_id": rp["roleplay_id"],
         "scenario": body.scenario,
-        "scenario_label": CGYM_SCENARIOS[body.scenario]["label"],
-        "area": CGYM_SCENARIOS[body.scenario]["area"],
-        "duration_min": CGYM_SCENARIOS[body.scenario].get("duration_min", 5),
+        "scenario_label": sc["label"],
+        "area": sc["area"],
+        "duration_min": sc.get("duration_min", 5),
+        "phases": [{"minutes_to": lim, "name": name} for lim, name in (sc.get("phases") or (CGYM_WW_PHASES if sc["area"] == "winwin" else []))],
         "started_at": now.isoformat(),
         "reply": first["reply"],
         "mood": first["mood"],
         "audio_base64": audio,
         "audio_mime": "audio/mpeg",
         "turn": 0,
-        "max_turns": CGYM_SCENARIOS[body.scenario].get("max_turns", CGYM_RP_MAX_TURNS),
+        "max_turns": sc.get("max_turns", CGYM_RP_MAX_TURNS),
         "ended": False,
     }
 
@@ -565,6 +575,7 @@ async def cgym_roleplay_turn(roleplay_id: str, body: CgymRoleplayTurnIn, user=De
     rp = await _cgym_rp_get(roleplay_id, user)
     if rp.get("status") != "active":
         raise HTTPException(status_code=400, detail="Role-play già concluso")
+    sc = await _cgym_scenario_for(rp["tenant_id"], rp["scenario"])
     text = (body.text or "").strip()
     if not text and body.audio_base64:
         r = await ai_transcribe(AIVoiceIn(audio_base64=body.audio_base64, mime=body.mime or "audio/m4a"), user)
@@ -585,8 +596,8 @@ async def cgym_roleplay_turn(roleplay_id: str, body: CgymRoleplayTurnIn, user=De
         "audio_base64": audio,
         "audio_mime": "audio/mpeg",
         "turn": turn_no,
-        "max_turns": CGYM_SCENARIOS[rp["scenario"]].get("max_turns", CGYM_RP_MAX_TURNS),
-        "phase": _cgym_ww_phase(((utcnow() - (_cgym_dt(rp.get("started_at")) or utcnow())).total_seconds()) / 60.0) if CGYM_SCENARIOS[rp["scenario"]]["area"] == "winwin" else None,
+        "max_turns": sc.get("max_turns", CGYM_RP_MAX_TURNS),
+        "phase": _cgym_ww_phase(((utcnow() - (_cgym_dt(rp.get("started_at")) or utcnow())).total_seconds()) / 60.0, sc.get("phases")) if sc.get("phases") or sc["area"] == "winwin" else None,
         "ended": cust["end"],
     }
 
@@ -597,7 +608,7 @@ async def cgym_roleplay_finish(roleplay_id: str, user=Depends(get_current_user))
     rp = await _cgym_rp_get(roleplay_id, user)
     if rp.get("status") == "finished" and rp.get("feedback"):
         return _cgym_rp_out(rp)
-    sc = CGYM_SCENARIOS[rp["scenario"]]
+    sc = await _cgym_scenario_for(rp["tenant_id"], rp["scenario"])
     n_cons = sum(1 for t in rp["turns"] if t["role"] == "consulente")
     if n_cons == 0:
         feedback = {"score": 0, "summary": "Nessuna risposta del consulente: il role-play è stato interrotto prima di iniziare.",

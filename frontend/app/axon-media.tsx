@@ -92,7 +92,8 @@ export default function AxonMediaScreen() {
 
   const stopAudio = () => { try { audioRef.current?.pause?.(); audioRef.current?.remove?.(); } catch {} audioRef.current = null; setPlaying(false); };
 
-  const send = async (p: Picked | null) => {
+  const send = async (pp: Picked | null | Promise<Picked | null>) => {
+    const p = await pp;
     if (!p) return;
     setBusy("upload");
     try {

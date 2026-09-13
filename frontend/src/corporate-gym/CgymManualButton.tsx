@@ -7,11 +7,12 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { CgymType, CGYM_TYPE_META, CGYM_ORANGE } from "@/src/corporate-gym/api";
-import { cgymManualsApi, CgymManualFile, CgymManualsList, CgymManualsConfig, fmtManualDate, fmtManualSize, openManual, downloadManual } from "@/src/corporate-gym/manualsApi";
+import { fileIcon } from "@/src/corporate-gym/CgymDrivePicker";
+import { cgymManualsApi, CgymManualRef, CgymManualFile, CgymManualsList, CgymManualsConfig, fmtManualDate, fmtManualSize, openManual, downloadManual } from "@/src/corporate-gym/manualsApi";
 
 const AXON_PURPLE = "#6D28D9";
 
-export function CgymManualButton({ type }: { type: CgymType }) {
+export function CgymManualButton({ type, manualRef, label }: { type: CgymType; manualRef?: CgymManualRef | null; label?: string }) {
   const router = useRouter();
   const sheetPad = useBottomSheetPadding();
   const meta = CGYM_TYPE_META[type];
@@ -30,15 +31,15 @@ export function CgymManualButton({ type }: { type: CgymType }) {
     try {
       const cfg = await cgymManualsApi.config();
       setConfig(cfg);
-      if (!cfg.configured) { setData(null); return; }
-      const r = await cgymManualsApi.list(type, query?.trim() || undefined);
+      // V50.z203 — legge SOLO ciò che il Master ha collegato (sezione o fase). Mai errori bloccanti: soft_message.
+      const r = manualRef ? await cgymManualsApi.listRef(manualRef, query?.trim() || undefined) : await cgymManualsApi.list(type, query?.trim() || undefined);
       setData(r);
     } catch (e: any) {
-      setError(e?.message || "Impossibile leggere i manuali da Google Drive");
+      setError(e?.message || "Manuali momentaneamente non leggibili da Google Drive");
     } finally {
       setLoading(false);
     }
-  }, [type]);
+  }, [type, manualRef]);
 
   useEffect(() => {
     if (open) { setQ(""); load(); }
@@ -53,7 +54,7 @@ export function CgymManualButton({ type }: { type: CgymType }) {
   const act = async (f: CgymManualFile, mode: "open" | "download") => {
     setBusyId(f.id + mode);
     try {
-      const link = await cgymManualsApi.link(type, f.id);
+      const link = await cgymManualsApi.link(manualRef ? "any" : type, f.id);
       if (mode === "open") { openManual(router, link); setOpen(false); }
       else await downloadManual(link);
     } catch (e: any) {
@@ -72,8 +73,8 @@ export function CgymManualButton({ type }: { type: CgymType }) {
       <Pressable onPress={() => setOpen(true)} style={styles.btn} testID={`cgym-manual-btn-${type}`}>
         <View style={styles.btnIcon}><Ionicons name="book" size={20} color="#FFF" /></View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.btnTitle}>Leggi Manuale</Text>
-          <Text style={styles.btnSub} numberOfLines={1}>AxonOS · manuale {meta.label} da Google Drive</Text>
+          <Text style={styles.btnTitle}>{label || "Leggi Manuale"}</Text>
+          <Text style={styles.btnSub} numberOfLines={1}>AxonOS · {manualRef ? (manualRef.name || "riferimento Drive") : `manuale ${meta.label}`} da Google Drive</Text>
         </View>
         <Ionicons name="sparkles" size={18} color={AXON_PURPLE} />
       </Pressable>
@@ -84,7 +85,7 @@ export function CgymManualButton({ type }: { type: CgymType }) {
           <View style={[styles.sheet, { paddingBottom: sheetPad }]} testID={`cgym-manual-sheet-${type}`}>
             <View style={styles.sheetHead}>
               <View style={styles.axonBadge}><Ionicons name="sparkles" size={14} color="#FFF" /><Text style={styles.axonBadgeTxt}>AxonOS</Text></View>
-              <Text style={styles.sheetTitle} numberOfLines={1}>Manuali · {meta.label}</Text>
+              <Text style={styles.sheetTitle} numberOfLines={1}>Manuali · {manualRef ? (manualRef.name || meta.label) : meta.label}</Text>
               <Pressable onPress={() => setOpen(false)} hitSlop={10} testID="cgym-manual-close"><Ionicons name="close" size={22} color={theme.color.onSurface} /></Pressable>
             </View>
 
@@ -107,40 +108,27 @@ export function CgymManualButton({ type }: { type: CgymType }) {
                 </View>
               )}
 
-              {!loading && !error && config && !config.configured && (
+              {/* V50.z203 — avviso SOFT, non bloccante: la sezione resta utilizzabile */}
+              {!loading && !error && data && !data.linked && (
                 <View style={styles.msgBox} testID="cgym-manual-unconfigured">
-                  <Ionicons name="folder-open" size={24} color={CGYM_ORANGE} />
-                  <Text style={styles.msgTxt}>
-                    {config.can_edit
-                      ? "Non hai ancora impostato la cartella Google Drive «Corporate Gym» (con le sottocartelle Obiezioni e WIN-WIN)."
-                      : "Il Master non ha ancora impostato la cartella Google Drive dei manuali. I manuali saranno disponibili appena configurata."}
-                  </Text>
-                  {config.can_edit && (
-                    <Pressable onPress={goConfig} style={styles.msgBtn} testID="cgym-manual-go-config"><Text style={styles.msgBtnTxt}>Configura cartella Drive</Text></Pressable>
+                  <Ionicons name="information-circle-outline" size={24} color={theme.color.muted} />
+                  <Text style={styles.msgTxt}>{data.soft_message || "Nessun manuale collegato"}{config?.can_edit ? " — collega una cartella o un file Drive dal pannello Master Coach." : "."}</Text>
+                  {config?.can_edit && (
+                    <Pressable onPress={goConfig} style={styles.msgBtn} testID="cgym-manual-go-config"><Text style={styles.msgBtnTxt}>Collega manuale</Text></Pressable>
                   )}
                 </View>
               )}
 
-              {!loading && !error && data?.missing_subfolder && (
-                <View style={styles.msgBox} testID="cgym-manual-missing-sub">
-                  <Ionicons name="alert-circle" size={24} color={theme.color.warning} />
-                  <Text style={styles.msgTxt}>
-                    Nella cartella Drive «{data.root_folder_name || "Corporate Gym"}» non c&apos;è la sottocartella «{type === "obiezioni" ? "Obiezioni" : "WIN-WIN"}».
-                    {config?.can_edit ? " Creala su Drive e riapri questa finestra." : " Segnalalo al Master."}
-                  </Text>
-                </View>
-              )}
-
-              {!loading && !error && data && !data.missing_subfolder && items.length === 0 && (
+              {!loading && !error && data && data.linked && items.length === 0 && (
                 <View style={styles.msgBox} testID="cgym-manual-empty">
                   <Ionicons name="document-outline" size={24} color={theme.color.muted} />
-                  <Text style={styles.msgTxt}>{q.trim() ? `Nessun manuale con «${q.trim()}» nel nome.` : `Nessun PDF nella sottocartella «${data.subfolder?.name || ""}».`}</Text>
+                  <Text style={styles.msgTxt}>{q.trim() ? `Nessun manuale con «${q.trim()}» nel nome.` : (data.soft_message || "Nessun file nella cartella collegata.")}</Text>
                 </View>
               )}
 
               {items.map((f) => (
                 <View key={f.id} style={styles.row} testID={`cgym-manual-row-${f.id}`}>
-                  <View style={styles.rowIcon}><Ionicons name={f.exportable ? "document-text" : "document"} size={20} color="#DC2626" /></View>
+                  <View style={styles.rowIcon}><Ionicons name={fileIcon(f)} size={20} color={(f.mime || "").startsWith("image/") ? "#0F9D58" : "#DC2626"} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowTitle} numberOfLines={2}>{f.name}</Text>
                     <Text style={styles.rowSub} numberOfLines={1}>
@@ -160,7 +148,7 @@ export function CgymManualButton({ type }: { type: CgymType }) {
             <View style={styles.footer}>
               <Ionicons name="logo-google" size={13} color={theme.color.muted} />
               <Text style={styles.footerTxt} numberOfLines={2}>
-                {data?.subfolder?.name ? `Drive › ${data.root_folder_name || "Corporate Gym"} › ${data.subfolder.name} · ` : ""}
+                {data?.link?.name ? `Drive › ${data.link.name} · ` : ""}
                 letti in tempo reale: vedi sempre l&apos;ultima versione.
               </Text>
               {config?.can_edit && config.configured && (

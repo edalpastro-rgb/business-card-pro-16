@@ -227,6 +227,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const convLastVoiceMsRef = useRef<number>(0);
   const convCycleStartRef = useRef<number>(0);
   const scrollRef = useRef<ScrollView | null>(null);
+  const autoScrollOffRef = useRef(false); // V50.z203 — sospende l'auto-scroll al fondo dopo «Torna all'inizio»
   const mrRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -1101,6 +1102,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     convMutedRef.current = false;
   };
 
+  // V50.z203 — Stop MANUALE della registrazione: con rumore di fondo il rilevamento del silenzio può non scattare.
+  // Ferma subito il recorder → onstop → trascrizione (stesso percorso del VAD).
+  const stopListeningNow = () => {
+    if (convRafRef.current != null) { cancelAnimationFrame(convRafRef.current); convRafRef.current = null; }
+    const rec = convRecorderRef.current;
+    if (rec && rec.state !== "inactive") {
+      setConvPhase("transcribing");
+      try { rec.stop(); } catch {}
+    }
+  };
+
   const toggleMute = () => {
     const next = !convMutedRef.current;
     convMutedRef.current = next;
@@ -1576,11 +1588,24 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             </View>
 
             {/* Messages */}
+            <View style={{ flex: 1 }}>
+            {/* V50.z203 — Tasto fisso «Torna all'inizio»: primo messaggio senza scroll lungo */}
+            {messages.length > 2 && (
+              <Pressable
+                onPress={() => { autoScrollOffRef.current = true; scrollRef.current?.scrollTo({ y: 0, animated: true }); setTimeout(() => { autoScrollOffRef.current = false; }, 1500); }}
+                style={styles.backToTopBtn}
+                testID="assistant-back-to-top"
+                accessibilityLabel="Torna all'inizio della conversazione"
+              >
+                <Ionicons name="arrow-up" size={18} color="#FFF" />
+                <Text style={styles.backToTopTxt}>Inizio</Text>
+              </Pressable>
+            )}
             <ScrollView
               ref={scrollRef}
               style={styles.chatArea}
               contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 24 }}
-              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+              onContentSizeChange={() => { if (!autoScrollOffRef.current) scrollRef.current?.scrollToEnd({ animated: true }); }}
             >
               {loadingHist && (
                 <View style={{ alignItems: "center", paddingVertical: 20 }}>
@@ -1649,6 +1674,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 </>
               )}
             </ScrollView>
+            </View>
 
             {/* Continuous conversation panel */}
             {convMode && (
@@ -1656,6 +1682,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 phase={convPhase}
                 muted={convMuted}
                 onToggleMute={toggleMute}
+                onStopListening={stopListeningNow}
                 onEnd={endConversation}
                 assistantName={assistantName}
               />
@@ -1945,12 +1972,14 @@ function ConversationPanel({
   phase,
   muted,
   onToggleMute,
+  onStopListening,
   onEnd,
   assistantName,
 }: {
   phase: ConvPhase;
   muted: boolean;
   onToggleMute: () => void;
+  onStopListening?: () => void;
   onEnd: () => void;
   assistantName: string;
 }) {
@@ -2004,6 +2033,17 @@ function ConversationPanel({
       <Text style={styles.convLabel}>{label}</Text>
       <Text style={styles.convSubLabel}>{subLabel}</Text>
       <View style={styles.convBtnRow}>
+        {phase === "listening" && onStopListening && (
+          <Pressable
+            onPress={onStopListening}
+            style={[styles.convBtn, { backgroundColor: "#111827" }]}
+            testID="assistant-conv-stop-listening"
+            accessibilityLabel="Ferma la registrazione e invia"
+          >
+            <Ionicons name="stop-circle" size={22} color="#FFF" />
+            <Text style={[styles.convBtnTxt, { color: "#FFF" }]}>Stop · invia</Text>
+          </Pressable>
+        )}
         <Pressable
           onPress={onToggleMute}
           style={[styles.convBtn, { backgroundColor: muted ? "#DC2626" : "#F1F0FF" }]}
@@ -3126,6 +3166,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   // Conversation panel
+  backToTopBtn: { position: "absolute", top: 8, right: 12, zIndex: 20, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#4C1D95CC", borderRadius: 16, paddingHorizontal: 10, minHeight: 32, ...(Platform.OS === "web" ? { cursor: "pointer" } as any : {}) },
+  backToTopTxt: { color: "#FFF", fontSize: 12, fontWeight: "800" },
   convPanel: {
     backgroundColor: "#FFF",
     borderTopWidth: 1,
