@@ -15,6 +15,7 @@ import { Step1Anagrafica, type StepBinder } from "@/src/wizard/Step1Anagrafica";
 import { Step2Sfera, type Sphere } from "@/src/wizard/Step2Sfera"; // V50.z214 — Blocco 3 · Step 2
 import { Step3Aree } from "@/src/wizard/Step3Aree"; // V50.z214 — Blocco 3 · Step 3
 import { Step4ParlaNeo } from "@/src/wizard/Step4ParlaNeo"; // V50.z215 — Blocco 4 · Step 4
+import { Confetti } from "@/src/wizard/Confetti"; // V50.z216 — Blocco 5 · schermata finale
 
 const PURPLE = "#7C3AED";
 type Mode = "setup" | "full";
@@ -106,6 +107,41 @@ function StepBody({ step, bind, state, onNext, onSkipAll }: { step: number; bind
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────── Schermata finale (BLOCCO 5): coriandoli, messaggio di AxonOS, redirect Home
+type Completion = { first_name: string; mode: Mode; mode_label: string; message: string; stats: { areas_on: number; accepted: number; facts: number; files: number }; running_jobs: number; redirect_seconds: number };
+function CompletionScreen({ state, onRedo }: { state: SetupState; onRedo: () => void }) {
+  const router = useRouter();
+  const [c, setC] = useState<Completion | null>(null);
+  const [left, setLeft] = useState<number | null>(null);
+  const goHome = useCallback(() => router.replace("/" as any), [router]);
+  useEffect(() => { api<Completion>("/axon/setup/completion").then((r) => { setC(r); setLeft(r.redirect_seconds || 6); }).catch(() => setLeft(6)); }, []);
+  useEffect(() => {
+    if (left === null) return;
+    if (left <= 0) { goHome(); return; }
+    const t = setTimeout(() => setLeft((v) => (v === null ? v : v - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [left, goHome]);
+  const skippedN = Object.values(state.steps).filter((s) => s.skipped).length;
+  return (
+    <LinearGradient colors={state.mode === "setup" ? ["#065F46", "#059669"] : ["#4C1D95", "#059669"]} style={styles.welcome} testID="setup-done">
+      <Confetti />
+      <Animated.View entering={ZoomIn.duration(600).springify()} style={styles.orb}><Ionicons name="checkmark-done" size={54} color="#FFF" /></Animated.View>
+      <Animated.Text entering={FadeInUp.delay(250)} style={styles.welcomeTitle} testID="setup-done-title">{c?.first_name ? `Fatto, ${c.first_name}!` : "Fatto!"}</Animated.Text>
+      <Animated.View entering={FadeInUp.delay(400)} style={styles.axonMsg} testID="setup-done-message">
+        <Text style={styles.axonMsgWho}>✨ AxonOS · {c?.mode_label || (state.mode === "setup" ? "Set Up and Go" : "Full and Go")}</Text>
+        <Text style={styles.axonMsgTxt}>{c ? c.message : "Sto preparando il tuo riepilogo…"}</Text>
+        {skippedN > 0 && <Text style={styles.axonMsgNote}>Hai saltato {skippedN} {skippedN === 1 ? "area" : "aree"}: le trovi in Profilo → «La mia configurazione Set Up».</Text>}
+        {!!c?.running_jobs && <View style={styles.readingRow}><ActivityIndicator size="small" color="#FFF" /><Text style={styles.axonMsgNote}>AxonOS sta leggendo i tuoi file… puoi già usare l'app.</Text></View>}
+      </Animated.View>
+      <Animated.View entering={FadeInDown.delay(600)} style={styles.welcomeBtns}>
+        <Pressable onPress={goHome} style={styles.btnPrimary} testID="setup-go-home"><Ionicons name="home" size={18} color="#059669" /><Text style={[styles.btnPrimaryTxt, { color: "#059669" }]}>Vai alla Home{left !== null && left > 0 ? ` · ${left}` : ""}</Text></Pressable>
+        <Pressable onPress={() => router.replace("/setup-config" as any)} style={styles.btnSecondary} testID="setup-go-config"><Ionicons name="options" size={18} color="#FFF" /><Text style={styles.btnSecondaryTxt}>La mia configurazione Set Up</Text></Pressable>
+        <Pressable onPress={() => { setLeft(null); onRedo(); }} style={styles.btnLater} testID="setup-redo"><Text style={styles.btnLaterTxt}>Ripeti la configurazione</Text></Pressable>
+      </Animated.View>
+    </LinearGradient>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────── Schermata
 export default function SetupScreen() {
   const router = useRouter();
@@ -165,22 +201,7 @@ export default function SetupScreen() {
   if (showWelcome) return <WelcomePopup onPick={pick} />;
   if (!state) return <View style={[styles.root, { justifyContent: "center" }]}><ActivityIndicator color={PURPLE} /></View>;
 
-  if (finished || state.status === "completed") {
-    const skippedN = Object.values(state.steps).filter((s) => s.skipped).length;
-    return (
-      <LinearGradient colors={["#065F46", "#059669"]} style={styles.welcome} testID="setup-done">
-        <Animated.View entering={ZoomIn.duration(600).springify()} style={styles.orb}><Ionicons name="checkmark-done" size={54} color="#FFF" /></Animated.View>
-        <Animated.Text entering={FadeInUp.delay(250)} style={styles.welcomeTitle}>Fatto!</Animated.Text>
-        <Animated.Text entering={FadeInUp.delay(400)} style={styles.welcomeSub}>
-          {state.mode === "setup" ? "Configurazione essenziale completata." : "Configurazione completa."}{skippedN ? ` Hai saltato ${skippedN} ${skippedN === 1 ? "area" : "aree"}: le trovi in Impostazioni quando vuoi.` : ""}
-        </Animated.Text>
-        <Animated.View entering={FadeInDown.delay(600)} style={styles.welcomeBtns}>
-          <Pressable onPress={() => router.replace("/" as any)} style={styles.btnPrimary} testID="setup-go-home"><Ionicons name="home" size={18} color="#059669" /><Text style={[styles.btnPrimaryTxt, { color: "#059669" }]}>Vai all'app</Text></Pressable>
-          <Pressable onPress={async () => { await api("/axon/setup/reset", { method: "POST" }).catch(() => {}); setFinished(false); setShowWelcome(true); }} style={styles.btnLater} testID="setup-redo"><Text style={styles.btnLaterTxt}>Ripeti la configurazione</Text></Pressable>
-        </Animated.View>
-      </LinearGradient>
-    );
-  }
+  if (finished || state.status === "completed") return <CompletionScreen state={state} onRedo={async () => { await api("/axon/setup/reset", { method: "POST" }).catch(() => {}); setFinished(false); setShowWelcome(true); }} />;
 
   const isLast = steps.indexOf(current) === steps.length - 1;
   return (
@@ -230,6 +251,11 @@ const styles = StyleSheet.create({
   btnLater: { alignItems: "center", justifyContent: "center", minHeight: 48 },
   btnLaterTxt: { color: "#FFF", fontWeight: "800", fontSize: 15, opacity: 0.9 },
   laterHint: { color: "#E9D5FF", fontSize: 11.5, textAlign: "center", opacity: 0.85 },
+  axonMsg: { width: "100%", backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 18, padding: 16, gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
+  axonMsgWho: { color: "#FDE68A", fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
+  axonMsgTxt: { color: "#FFF", fontSize: 15.5, lineHeight: 22, fontWeight: "600" },
+  axonMsgNote: { color: "#E9D5FF", fontSize: 12.5, lineHeight: 17, flex: 1 },
+  readingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
   headBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   headTitle: { fontSize: 17, fontWeight: "900", color: "#1B2B4B" },

@@ -20,6 +20,7 @@ const APPT_TODAY_WIDGET = ["appointments_today"];
 import { HomeTipsBanner } from "@/src/HomeTipsBanner";
 import { CgymAlertStrip } from "@/src/corporate-gym/CgymAlertStrip"; // Corporate Gym (Blocco 1)
 import { ProactiveBubbles } from "@/src/ProactiveBubbles"; // V50.z196 — Blocco 9: bubble proattive AxonOS
+import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5: «AxonOS sta leggendo i tuoi file…»
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 // V29.aq — Header dashboard image (loaded as local bundled asset so it works
@@ -550,6 +551,8 @@ export default function HomeScreen() {
         {/* V50.z120 — Sezione widget dashboard (meteo, appuntamenti oggi, PUN, scadenze…)
              spostata SOTTO il bottone Interfaccia Master su richiesta utente */}
         {/* V50.z132 — "Appuntamenti di oggi" è renderizzato più in basso, sotto Ritelefonate */}
+        {/* V50.z216 — indicatore discreto: file/audio del wizard letti in background (sparisce da solo) */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 8 }}><SetupProcessingBadge /></View>
         <DashboardWidgetsSection exclude={APPT_TODAY_WIDGET} />
 
         {/* ── 4) Ritelefonate di oggi ── */}

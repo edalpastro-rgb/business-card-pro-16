@@ -16,6 +16,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { invalidateTableBrandHeader } from "@/src/ChatTableExport";
 import { AxonMemoryEntryCard } from "@/src/AxonMemoryEntryCard"; // V50.z192 — Profilo → Memoria AxonOS
 import { AppInfoCard } from "@/src/AppInfoCard"; // V50.z208 — Piano attivo + versione APK
+import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5
 import { SetupEntryCard } from "@/src/SetupEntryCard"; // V50.z211 — Configurazione guidata
 
 type Settings = {
@@ -407,6 +408,7 @@ function ImpostazioniScreen() {
         <AppInfoCard />
         {/* V50.z211 — Configurazione guidata «Set Up and Go» (accesso in qualsiasi momento, anche dopo «Dopo») */}
         <SetupEntryCard />
+        <SetupProcessingBadge compact />
         {/* V50.z192 — Profilo → Memoria AxonOS: cosa sa Axon di me */}
         <AxonMemoryEntryCard />
         <View style={styles.card}>

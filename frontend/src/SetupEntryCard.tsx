@@ -1,4 +1,4 @@
-// SetupEntryCard.tsx — V50.z211 — Impostazioni → «Configurazione guidata»: stato del wizard «Set Up and Go» + accesso in qualsiasi momento.
+// SetupEntryCard.tsx — V50.z211/z216 — Profilo → «La mia configurazione Set Up»: completata → /setup-config (riepilogo modificabile); altrimenti → wizard.
 import React, { useCallback, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,13 +14,13 @@ export function SetupEntryCard() {
   useFocusEffect(useCallback(() => { api<S>("/axon/setup/state").then(setS).catch(() => {}); }, []));
 
   const done = s ? Object.values(s.steps).filter((x) => x.done).length : 0;
-  const label = !s ? "Configurazione guidata" : s.status === "completed" ? "Configurazione completata" : s.status === "in_progress" ? `Configurazione in corso · passo ${s.current_step}` : "Completa la configurazione";
-  const sub = !s ? "Set Up and Go" : s.status === "completed" ? `${s.mode === "setup" ? "Set Up and Go" : "Full and Go"} · ${done} aree compilate · tocca per rivedere o completare le aree saltate`
+  const label = !s ? "La mia configurazione Set Up" : s.status === "completed" ? "La mia configurazione Set Up" : s.status === "in_progress" ? `Configurazione in corso · passo ${s.current_step}` : "Completa la configurazione";
+  const sub = !s ? "Set Up and Go" : s.status === "completed" ? `${s.mode === "setup" ? "Set Up and Go" : "Full and Go"} · ${done} step completati · tutti i campi modificabili, sincronizzati con AxonOS`
     : s.status === "in_progress" ? "Riprendi da dove eri rimasto" : "Pochi minuti: così AxonOS ti conosce e ti aiuta davvero";
   const ok = s?.status === "completed";
 
   return (
-    <Pressable onPress={() => router.push("/setup" as any)} style={[styles.card, !ok && s && styles.cardTodo]} testID="setup-entry-card">
+    <Pressable onPress={() => router.push((ok ? "/setup-config" : "/setup") as any)} style={[styles.card, !ok && s && styles.cardTodo]} testID="setup-entry-card">
       <View style={[styles.icon, ok && { backgroundColor: "#ECFDF5" }]}><Ionicons name={ok ? "checkmark-done" : "rocket"} size={20} color={ok ? "#059669" : PURPLE} /></View>
       <View style={{ flex: 1 }}>
         <Text style={styles.label}>{label}</Text>

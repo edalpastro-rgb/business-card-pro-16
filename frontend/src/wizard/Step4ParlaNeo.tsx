@@ -15,7 +15,9 @@ const PLACEHOLDER = "Raccontami qualcosa di te, della tua vita, del tuo lavoro. 
 
 type Proposal = { id: string; field: string; label: string; value: string; why?: string; current?: string | null; status: "pending" | "accepted" | "rejected" };
 type Fact = { id: string; section: string; text: string; status: "pending" | "accepted" | "rejected" };
-type Analysis = { summary: string; proposals: Proposal[]; facts: Fact[]; transcript?: string; file?: { name: string; size: number }; empty?: boolean; message?: string };
+type Analysis = { summary?: string; proposals?: Proposal[]; facts?: Fact[]; transcript?: string; file?: { name: string; size: number }; empty?: boolean; message?: string; queued?: boolean; job?: { id: string; name: string } };
+type Job = { id: string; kind: string; name: string; status: "running" | "done" | "error"; error?: string | null };
+type TalkState = { proposals: Proposal[]; facts: Fact[]; inputs: { summary: string; kind?: string; transcript?: string }[]; jobs: Job[] };
 type Picked = { uri: string; name: string; mime: string; size: number; blob?: Blob };
 
 const fmtSize = (n: number) => (n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -32,20 +34,40 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
   const [rec, setRec] = useState(false);
   const [sec, setSec] = useState(0);
   const [askIncomplete, setAskIncomplete] = useState(false);
+  const [reading, setReading] = useState<Job[]>([]); // V50.z216 — job file/audio in background
+  const pollRef = useRef<any>(null);
   const resolver = useRef<((v: boolean) => void) | null>(null);
   const timer = useRef<any>(null); const secRef = useRef(0);
   const webRec = useRef<any>(null); const chunks = useRef<Blob[]>([]); const stream = useRef<MediaStream | null>(null); const native = useRef<any>(null);
-  const stateRef = useRef({ text, picked, rec, proposals, facts, busy }); stateRef.current = { text, picked, rec, proposals, facts, busy };
+  const stateRef = useRef({ text, picked, rec, proposals, facts, busy, reading }); stateRef.current = { text, picked, rec, proposals, facts, busy, reading };
 
-  useEffect(() => {
-    api<{ proposals: Proposal[]; facts: Fact[]; inputs: { summary: string }[] }>("/axon/setup/talk").then((r) => {
-      setProposals(r.proposals || []); setFacts(r.facts || []); setSummaries((r.inputs || []).map((i) => i.summary).filter(Boolean));
-    }).catch(() => {});
-    return () => { if (timer.current) clearInterval(timer.current); try { stream.current?.getTracks().forEach((t) => t.stop()); } catch {} };
+  // Stato dal server (anche al rientro): proposte, fatti, riassunti, job in corso → se ci sono job attivi continua il polling
+  const syncTalk = useCallback(async (): Promise<boolean> => {
+    try {
+      const r = await api<TalkState>("/axon/setup/talk");
+      setProposals(r.proposals || []); setFacts(r.facts || []);
+      setSummaries((r.inputs || []).map((i) => i.summary).filter(Boolean));
+      const lastAudio = [...(r.inputs || [])].reverse().find((i) => i.kind === "audio" && i.transcript);
+      if (lastAudio?.transcript) setTranscript(lastAudio.transcript);
+      const running = (r.jobs || []).filter((j) => j.status === "running");
+      setReading(running);
+      const errs = (r.jobs || []).filter((j) => j.status === "error").slice(-1);
+      if (!running.length && errs.length && errs[0].error) setError(`${errs[0].name}: ${errs[0].error}`);
+      return running.length > 0;
+    } catch { return false; }
   }, []);
+  const startPolling = useCallback(() => {
+    if (pollRef.current) return;
+    pollRef.current = setInterval(async () => { const still = await syncTalk(); if (!still && pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } }, 3500);
+  }, [syncTalk]);
+  useEffect(() => {
+    void syncTalk().then((still) => { if (still) startPolling(); });
+    return () => { if (timer.current) clearInterval(timer.current); if (pollRef.current) clearInterval(pollRef.current); try { stream.current?.getTracks().forEach((t) => t.stop()); } catch {} };
+  }, [syncTalk, startPolling]);
 
   const absorb = (a: Analysis) => {
-    if (a.summary) setSummaries((s) => [...s, a.summary]);
+    if (a.queued) { if (a.job) setReading((r) => [...r, { ...a.job!, kind: "file", status: "running" }]); startPolling(); return; }
+    if (a.summary) setSummaries((s) => [...s, a.summary as string]);
     setProposals((p) => [...p, ...(a.proposals || [])]);
     setFacts((f) => [...f, ...(a.facts || [])]);
     if (a.transcript) setTranscript(a.transcript);
@@ -153,7 +175,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
   // ── «Completa»: materiale non inviato o proposte in sospeso → popup
   const submit = useCallback(async (): Promise<boolean> => {
     const s = stateRef.current;
-    const incomplete = s.text.trim().length > 0 || !!s.picked || s.rec || !!s.busy || s.proposals.some((p) => p.status === "pending") || s.facts.some((f) => f.status === "pending");
+    const incomplete = s.text.trim().length > 0 || !!s.picked || s.rec || !!s.busy || s.reading.length > 0 || s.proposals.some((p) => p.status === "pending") || s.facts.some((f) => f.status === "pending");
     if (!incomplete) return true;
     return new Promise<boolean>((res) => { resolver.current = res; setAskIncomplete(true); });
   }, []);
@@ -205,9 +227,16 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
           <Text style={styles.btnTxt}>{busy === "audio" ? "Neo sta ascoltando…" : rec ? `Ferma · ${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}` : "Registra"}</Text>
         </Pressable>
         {!!transcript && <Text style={styles.transcript} testID="neo-transcript">🗣️ “{transcript}”</Text>}
+        <Text style={styles.cardHint}>File e audio vengono letti in background: puoi continuare subito.</Text>
       </View>
 
       {!!error && <Text style={styles.err} testID="neo-error">{error}</Text>}
+      {reading.length > 0 && (
+        <View style={styles.readingPill} testID="neo-reading">
+          <ActivityIndicator size="small" color={PURPLE} />
+          <Text style={styles.readingTxt}>AxonOS sta leggendo i tuoi file… puoi continuare, ti propongo io cosa ho trovato.</Text>
+        </View>
+      )}
 
       {/* Cosa ha capito Neo */}
       {summaries.length > 0 && (
@@ -253,7 +282,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
         <View style={styles.backdrop}><View style={styles.sheet} testID="neo-incomplete-popup">
           <Text style={styles.sheetTitle}>Vuoi inviare così com'è o completare?</Text>
           <Text style={styles.sheetSub}>
-            {stateRef.current.rec || stateRef.current.busy ? "C'è un invio ancora in corso. " : ""}
+            {stateRef.current.rec || stateRef.current.busy || stateRef.current.reading.length ? "AxonOS sta ancora leggendo o ricevendo qualcosa. " : ""}
             {stateRef.current.text.trim() ? "Hai un testo non ancora inviato a Neo. " : ""}
             {stateRef.current.picked ? "Hai un file scelto ma non caricato. " : ""}
             {pending.length + pendingFacts.length > 0 ? `Ci sono ${pending.length + pendingFacts.length} proposte senza risposta.` : ""}
@@ -282,6 +311,8 @@ const styles = StyleSheet.create({
   fileMeta: { fontSize: 11.5, color: "#64748B" },
   transcript: { fontSize: 12.5, color: "#475569", fontStyle: "italic", lineHeight: 17 },
   err: { fontSize: 12.5, color: "#DC2626", fontWeight: "700" },
+  readingPill: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#F5F3FF", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: "#DDD6FE" },
+  readingTxt: { flex: 1, fontSize: 12.5, fontWeight: "700", color: "#4C1D95" },
   neoBox: { backgroundColor: "#F5F3FF", borderRadius: 14, padding: 12, gap: 4, borderWidth: 1, borderColor: "#DDD6FE" },
   neoTitle: { fontSize: 12.5, fontWeight: "900", color: "#4C1D95" },
   neoTxt: { fontSize: 13.5, color: "#1B2B4B", lineHeight: 19 },

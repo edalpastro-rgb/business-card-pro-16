@@ -169,46 +169,100 @@ async def wt_analyze_text(body: WtTextIn, user=Depends(get_current_user)):
 
 @api_router.post("/axon/setup/talk/upload")
 async def wt_upload(file: UploadFile = File(...), user=Depends(get_current_user)):
-    """File multipart a chunk (max 50 MB) → Master File su Object Storage + estrazione testo/vision → analisi Neo."""
+    """File multipart a chunk (max 50 MB) → risposta IMMEDIATA (job in coda). In background: estrazione testo/vision → Master File su
+    Object Storage → analisi Neo → proposte/fatti in `talk`. Il client mostra «AxonOS sta leggendo i tuoi file…» finché `talk/status` ha job attivi."""
     nm = (file.filename or f"file-{int(utcnow().timestamp())}").strip()[:200]
     mime = (file.content_type or "application/octet-stream").split(";")[0].strip()
     ext = _upl_ext(nm, mime)
+    if ext not in _WT_EXTS and not mime.startswith(("image/", "text/")) and "pdf" not in mime:
+        raise HTTPException(status_code=400, detail="Formato non supportato: usa PDF, immagini, DOCX, PPTX, XLSX o testo")
     tmp_path, size, sha = await _upl_stream_to_temp(file, _UPL_MASTER_MAX, "." + ext)
-    try:
-        text, img = await _wt_extract(tmp_path, ext, mime)
-        doc = await _upl_master_store(user, "files", nm, mime, tmp_path, size, sha, "Parla a Neo")  # cancella il temp
-        tmp_path = None
-    finally:
-        if tmp_path:
-            try: os.unlink(tmp_path)
-            except Exception: pass  # noqa: BLE001
-    if not text.strip() and not img:
-        return {"input": None, "summary": "", "proposals": [], "facts": [], "file": {"file_id": doc["file_id"], "name": nm, "size": size}, "empty": True,
-                "message": "Il file è stato salvato ma non contiene testo leggibile."}
-    res = await _wt_analyze(user, text, img, f"file «{nm}»", {"kind": "file", "file_id": doc["file_id"], "name": nm, "size": size})
-    res["file"] = {"file_id": doc["file_id"], "name": nm, "size": size, "content_url": doc.get("content_url")}
-    return res
+    job = await _wt_job_new(user, "file", nm, size)
+    asyncio.create_task(_wt_job_file(user, job["id"], tmp_path, nm, mime, ext, size, sha))
+    return {"queued": True, "job": job, "file": {"name": nm, "size": size}}
 
 
 @api_router.post("/axon/setup/talk/audio")
 async def wt_audio(file: UploadFile = File(...), mime: Optional[str] = Form(None), user=Depends(get_current_user)):
-    """Registrazione vocale multipart (max 25 MB) → Whisper → analisi Neo."""
+    """Registrazione vocale multipart (max 25 MB) → risposta immediata; Whisper + Neo in background."""
     eff = (mime or file.content_type or "audio/webm").split(";")[0].strip()
     path, size, _sha = await _upl_stream_to_temp(file, _UPL_AUDIO_MAX, _upl_audio_suffix(eff, file.filename or ""))
     if size < 1024:
         try: os.unlink(path)
         except Exception: pass  # noqa: BLE001
         raise HTTPException(status_code=400, detail="Audio troppo corto o vuoto")
+    job = await _wt_job_new(user, "audio", "registrazione vocale", size)
+    asyncio.create_task(_wt_job_audio(user, job["id"], path, size))
+    return {"queued": True, "job": job}
+
+
+# ---------------------------------------------------------------------------- Job in background (l'utente può navigare subito)
+_WT_EXTS = {"pdf", "jpg", "jpeg", "png", "webp", "docx", "pptx", "xlsx", "txt", "md", "csv", "json", "rtf"}
+
+
+async def _wt_job_new(user: dict, kind: str, name: str, size: int) -> dict:
+    job = {"id": uuid.uuid4().hex[:10], "kind": kind, "name": name, "size": size, "status": "running", "at": utcnow(), "done_at": None, "error": None}
+    await db.axon_setup_state.update_one({"user_id": user["user_id"]}, {"$push": {"talk.jobs": job}, "$set": {"updated_at": utcnow()}}, upsert=True)
+    return {**job, "at": job["at"].isoformat()}
+
+
+async def _wt_job_end(uid: str, job_id: str, error: Optional[str] = None) -> None:
+    await db.axon_setup_state.update_one({"user_id": uid, "talk.jobs.id": job_id},
+                                         {"$set": {"talk.jobs.$.status": "error" if error else "done", "talk.jobs.$.done_at": utcnow(), "talk.jobs.$.error": (error or None) and str(error)[:200]}})
+
+
+async def _wt_job_file(user: dict, job_id: str, tmp_path: str, nm: str, mime: str, ext: str, size: int, sha: str) -> None:
+    uid = user["user_id"]
+    try:
+        text, img = await _wt_extract(tmp_path, ext, mime)
+        doc = await _upl_master_store(user, "files", nm, mime, tmp_path, size, sha, "Parla a Neo")  # cancella il temp
+        tmp_path = None
+        if not text.strip() and not img:
+            await _wt_job_end(uid, job_id, "Il file è stato salvato ma non contiene testo leggibile")
+            return
+        await _wt_analyze(user, text, img, f"file «{nm}»", {"kind": "file", "file_id": doc["file_id"], "name": nm, "size": size, "job_id": job_id})
+        await _wt_job_end(uid, job_id)
+    except HTTPException as exc:
+        await _wt_job_end(uid, job_id, exc.detail)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[wizard-talk] job file failed: %s", exc)
+        await _wt_job_end(uid, job_id, "Analisi non riuscita")
+    finally:
+        if tmp_path:
+            try: os.unlink(tmp_path)
+            except Exception: pass  # noqa: BLE001
+
+
+async def _wt_job_audio(user: dict, job_id: str, path: str, size: int) -> None:
+    uid = user["user_id"]
     try:
         transcript = await _upl_whisper_path(path)
+        if len(transcript) < 5:
+            await _wt_job_end(uid, job_id, "Non ho riconosciuto il parlato: riprova parlando più vicino al microfono")
+            return
+        await _wt_analyze(user, transcript, None, "registrazione vocale", {"kind": "audio", "bytes": size, "job_id": job_id, "transcript": transcript[:1200]})
+        await _wt_job_end(uid, job_id)
+    except HTTPException as exc:
+        await _wt_job_end(uid, job_id, exc.detail)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[wizard-talk] job audio failed: %s", exc)
+        await _wt_job_end(uid, job_id, "Trascrizione non riuscita")
     finally:
         try: os.unlink(path)
         except Exception: pass  # noqa: BLE001
-    if len(transcript) < 5:
-        raise HTTPException(status_code=400, detail="Non ho riconosciuto il parlato: riprova parlando più vicino al microfono")
-    res = await _wt_analyze(user, transcript, None, "registrazione vocale", {"kind": "audio", "seconds": None, "bytes": size})
-    res["transcript"] = transcript
-    return res
+
+
+@api_router.get("/axon/setup/talk/status")
+async def wt_status(user=Depends(get_current_user)):
+    """Indicatore discreto: job in corso / appena finiti (per «AxonOS sta leggendo i tuoi file…»)."""
+    st = await db.axon_setup_state.find_one({"user_id": user["user_id"]}, {"_id": 0, "talk": 1}) or {}
+    talk = st.get("talk") or {}
+    jobs = talk.get("jobs") or []
+    running = [j for j in jobs if j.get("status") == "running" and _am_dt(j.get("at")) and (_am_dt(utcnow()) - _am_dt(j["at"])) < timedelta(minutes=10)]
+    errors = [j for j in jobs if j.get("status") == "error" and _am_dt(j.get("done_at")) and (_am_dt(utcnow()) - _am_dt(j["done_at"])) < timedelta(minutes=2)]
+    pend = sum(1 for p in (talk.get("proposals") or []) if p.get("status") == "pending") + sum(1 for f in (talk.get("facts") or []) if f.get("status") == "pending")
+    return {"running": len(running), "running_names": [j.get("name") for j in running][:3], "errors": [{"name": j.get("name"), "error": j.get("error")} for j in errors][:3],
+            "pending_review": pend, "done_total": sum(1 for j in jobs if j.get("status") == "done")}
 
 
 async def _wt_apply(user: dict, p: dict) -> dict:
@@ -262,4 +316,5 @@ async def wt_get(user=Depends(get_current_user)):
     st = await db.axon_setup_state.find_one({"user_id": user["user_id"]}, {"_id": 0, "talk": 1}) or {}
     talk = st.get("talk") or {}
     inputs = [{**i, "at": i["at"].isoformat() if isinstance(i.get("at"), datetime) else i.get("at")} for i in (talk.get("inputs") or [])]
-    return {"inputs": inputs, "proposals": talk.get("proposals") or [], "facts": talk.get("facts") or []}
+    jobs = [{**j, "at": j["at"].isoformat() if isinstance(j.get("at"), datetime) else j.get("at"), "done_at": j["done_at"].isoformat() if isinstance(j.get("done_at"), datetime) else j.get("done_at")} for j in (talk.get("jobs") or [])]
+    return {"inputs": inputs, "proposals": talk.get("proposals") or [], "facts": talk.get("facts") or [], "jobs": jobs}
