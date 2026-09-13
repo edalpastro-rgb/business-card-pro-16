@@ -12,6 +12,8 @@ import Animated, { FadeInDown, FadeInUp, ZoomIn, useAnimatedStyle, useSharedValu
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { Step1Anagrafica, type StepBinder } from "@/src/wizard/Step1Anagrafica"; // V50.z212 — Blocco 2 · Step 1
+import { Step2Sfera, type Sphere } from "@/src/wizard/Step2Sfera"; // V50.z214 — Blocco 3 · Step 2
+import { Step3Aree } from "@/src/wizard/Step3Aree"; // V50.z214 — Blocco 3 · Step 3
 
 const PURPLE = "#7C3AED";
 type Mode = "setup" | "full";
@@ -19,12 +21,13 @@ type StepState = { done: boolean; skipped: boolean };
 export type SetupState = {
   status: "not_started" | "deferred" | "in_progress" | "completed"; mode: Mode | null; current_step: number;
   steps: Record<string, StepState>; core_prefs: Record<string, unknown>; mode_steps: number[]; permissions_done: boolean;
+  sphere?: Sphere | null; areas?: Record<string, boolean>; future_interests?: string[];
 };
 
 export const STEP_META: Array<{ n: number; key: string; title: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { n: 1, key: "chi-sei", title: "Chi sei", subtitle: "Il tuo profilo e la tua attività", icon: "person-circle" },
-  { n: 2, key: "come-lavori", title: "Come lavori", subtitle: "Ritmi, canali e obiettivi", icon: "briefcase" },
-  { n: 3, key: "preferenze", title: "Preferenze AxonOS", subtitle: "Come vuoi che Axon ti parli e ti aiuti", icon: "sparkles" },
+  { n: 2, key: "sfera", title: "Sfera", subtitle: "Business, Home o entrambe: dove userai AdvisorOS", icon: "planet" },
+  { n: 3, key: "aree", title: "Aree", subtitle: "Accendi le aree che ti servono, spegni il resto", icon: "toggle" },
   { n: 4, key: "collega", title: "Collega e importa", subtitle: "Integrazioni, dati e team", icon: "link" },
 ];
 
@@ -45,7 +48,7 @@ function WelcomePopup({ onPick }: { onPick: (m: Mode | "later") => void }) {
       <Animated.View entering={FadeInDown.delay(800).duration(600)} style={styles.welcomeBtns}>
         <Pressable onPress={() => onPick("setup")} style={styles.btnPrimary} testID="setup-pick-setup">
           <Ionicons name="flash" size={18} color={PURPLE} />
-          <View style={{ flex: 1 }}><Text style={styles.btnPrimaryTxt}>Set Up and Go</Text><Text style={styles.btnHint}>L'essenziale · Step 1, Step 2 e 3 preferenze core</Text></View>
+          <View style={{ flex: 1 }}><Text style={styles.btnPrimaryTxt}>Set Up and Go</Text><Text style={styles.btnHint}>L'essenziale · Chi sei, la tua sfera e le aree</Text></View>
         </Pressable>
         <Pressable onPress={() => onPick("full")} style={styles.btnSecondary} testID="setup-pick-full">
           <Ionicons name="layers" size={18} color="#FFF" />
@@ -86,19 +89,21 @@ function ProgressBar({ steps, current, state }: { steps: number[]; current: numb
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────── Corpo dello step (BLOCCO 2 si innesta qui)
-function StepBody({ step, mode, bind }: { step: number; mode: Mode; bind: StepBinder }) {
+// ─────────────────────────────────────────────────────────────────────────── Corpo dello step (Blocco 2: Step 1 · Blocco 3: Step 2-3)
+function StepBody({ step, bind, state, onNext, onSkipAll }: { step: number; bind: StepBinder; state: SetupState; onNext: () => void; onSkipAll: () => void }) {
   const meta = STEP_META[step - 1];
-  const coreOnly = mode === "setup" && step === 3;
   return (
     <View style={styles.stepBody} testID={`setup-step-${step}`}>
       <View style={styles.stepIcon}><Ionicons name={meta.icon} size={26} color={PURPLE} /></View>
-      <Text style={styles.stepTitle}>{coreOnly ? "3 preferenze core" : meta.title}</Text>
-      <Text style={styles.stepSub}>{coreOnly ? "Le tre scelte essenziali per far partire AxonOS con il piede giusto." : meta.subtitle}</Text>
-      {step === 1 ? <Step1Anagrafica bind={bind} /> : (
+      <Text style={styles.stepTitle}>{meta.title}</Text>
+      <Text style={styles.stepSub}>{meta.subtitle}</Text>
+      {step === 1 ? <Step1Anagrafica bind={bind} />
+        : step === 2 ? <Step2Sfera bind={bind} initial={state.sphere} />
+        : step === 3 ? <Step3Aree bind={bind} sphere={state.sphere || "both"} initial={state.areas} onNext={onNext} onSkipAll={onSkipAll} />
+        : (
         <View style={styles.placeholder}>
           <Ionicons name="construct-outline" size={18} color="#94A3B8" />
-          <Text style={styles.placeholderTxt}>Contenuto di questo passo in arrivo (Blocco 2). Puoi già proseguire per provare il flusso.</Text>
+          <Text style={styles.placeholderTxt}>Contenuto di questo passo in arrivo. Puoi già proseguire per provare il flusso.</Text>
         </View>
       )}
     </View>
@@ -195,19 +200,21 @@ export default function SetupScreen() {
         </Pressable>
       </View>
       <ProgressBar steps={steps} current={current} state={state} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 150 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + (current === 3 ? 40 : 150) }}>
         <Animated.View key={current} entering={FadeInUp.duration(350)}>
-          <StepBody step={current} mode={state.mode || "full"} bind={bindStep} />
+          <StepBody step={current} bind={bindStep} state={state} onNext={() => advance(false)} onSkipAll={() => advance(true)} />
         </Animated.View>
       </ScrollView>
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable onPress={() => advance(false)} disabled={saving} style={[styles.primary, saving && { opacity: 0.7 }]} testID="setup-next">
-          {saving ? <ActivityIndicator color="#FFF" /> : <><Text style={styles.primaryTxt}>{isLast ? "Completa" : "Continua"}</Text><Ionicons name={isLast ? "checkmark" : "arrow-forward"} size={18} color="#FFF" /></>}
-        </Pressable>
-        {state.mode === "full" && current !== 1 && (
-          <Pressable onPress={() => advance(true)} style={styles.skip} testID="setup-skip-step"><Text style={styles.skipTxt}>Salta quest'area</Text></Pressable>
-        )}
-      </View>
+      {current !== 3 && (
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+          <Pressable onPress={() => advance(false)} disabled={saving} style={[styles.primary, saving && { opacity: 0.7 }]} testID="setup-next">
+            {saving ? <ActivityIndicator color="#FFF" /> : <><Text style={styles.primaryTxt}>{isLast ? "Completa" : "Continua"}</Text><Ionicons name={isLast ? "checkmark" : "arrow-forward"} size={18} color="#FFF" /></>}
+          </Pressable>
+          {state.mode === "full" && current > 3 && (
+            <Pressable onPress={() => advance(true)} style={styles.skip} testID="setup-skip-step"><Text style={styles.skipTxt}>Salta quest'area</Text></Pressable>
+          )}
+        </View>
+      )}
     </View>
   );
 }

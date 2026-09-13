@@ -13,7 +13,7 @@ _SW_MODES = ("setup", "full")
 _SW_STEPS = (1, 2, 3, 4)
 _SW_NUDGE_PHRASE = "Completa la configurazione così la prossima volta posso esserti davvero utile"
 _SW_NUDGE_EVERY_H = 12
-# Passi per modalità: Set Up and Go = Step 1 + Step 2 + 3 preferenze core (pannello «core» dentro lo step 3); Full and Go = tutti e 4
+# Passi per modalità: Set Up and Go = Step 1 (Chi sei) + Step 2 (Sfera) + Step 3 (Aree); Full and Go = anche Step 4 (Collega e importa)
 _SW_MODE_STEPS = {"setup": [1, 2, 3], "full": [1, 2, 3, 4]}
 
 _OMNI_EXTRA_SECTIONS.append((

@@ -193,6 +193,7 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   ritaglio su foto senza documento o su foglio che riempie la foto. "Foto singola" → `cameraType: back` (fotocamera posteriore).
 - **Multi-pagina** (v2.s, V50.z86) con step di revisione, **ritaglio manuale 4 angoli** `ManualCropEditor.tsx` +
   `POST /api/scanner/autocrop-preview` (OpenCV) (Giu 2026), nome file custom (V50.z88), scanner standalone (V50.z50) e da chat Axon.
+- **V50.z214 — BLOCCO 3 · Step 2 «Sfera» + Step 3 «Aree» del wizard** — `src/wizard/Step2Sfera.tsx` (3 card radio, scelta obbligatoria, «Entrambe» → entrambi i percorsi) e `src/wizard/Step3Aree.tsx` (pagine da max 4 aree con switch su `ImageBackground` allegro + velo bianco; pulsanti propri «OK, avanti» / «Salta tutto per ora», footer del wizard nascosto allo step 3). Backend `routes/axon_wizard_sphere.py`: `GET /axon/setup/areas?sphere=`, `PUT /axon/setup/sphere-areas {sphere, areas}` → `sphere/areas/future_interests/setup_alerts` in `axon_setup_state`; riga «SFERA/AREE ATTIVE» nel prompt Axon. `STEP_META` aggiornato (Sfera, Aree). Asset `assets/images/wizard-bg-{business,home,future}.jpg`.
 - **V50.z212 — BLOCCO 2 · Step 1 «Anagrafica» del wizard** — nuovo `src/wizard/Step1Anagrafica.tsx` innestato in `setup.tsx` (`StepBody` step 1;
   «Continua» avanza solo se `submit()` dello step ritorna true; step 1 non saltabile). Obbligatori: nome, cognome, data di nascita, codice fiscale,
   telefono, mail · facoltativi: indirizzo principale, seconda abitazione, indirizzo di un parente. **Codice fiscale**: al 16° carattere
@@ -910,6 +911,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z214 | Set 2026 | BLOCCO 3 Step 2 «Sfera» (Business/Home/Entrambe, obbligatoria) + Step 3 «Aree» (catalogo per sfera con icona/descrizione/switch, max 4 per pagina su sfondo fotografico con velo chiaro, «Entrambe» = pagine Business poi Home, interessi futuri CarPlay/domotica/assistenti → `future_interests` + `setup_alerts`; «OK, avanti» / «Salta tutto per ora») (`Step2Sfera.tsx`, `Step3Aree.tsx`, `axon_wizard_sphere.py`) |
 | V50.z212 | Set 2026 | BLOCCO 2 Step 1 «Anagrafica»: campi obbligatori/facoltativi, decodifica codice fiscale con Conferma/Modifica, popup mail per risposte/file, popup indirizzo principale, sync bidirezionale Anagrafica ⇄ wizard ⇄ chat Axon (`Step1Anagrafica.tsx`, `axon_wizard_anagrafica.py`) |
 | V50.z211 | Set 2026 | BLOCCO 1 onboarding «Set Up and Go»: schermata /permessi, popup WOW /setup (Set Up and Go / Full and Go / Dopo), wizard 4 step con progress bar (contenuti nel Blocco 2), stato `axon_setup_state`, card Impostazioni, avviso Axon in chat con link al wizard |
 | V50.z210 | Set 2026 | Memoria piatta: cv2/fitz/pdfplumber/PIL eseguiti in sottoprocessi a vita breve (`workers/heavy_ops.py` + `heavy_worker.py`, ponte `01b_heavy_bridge.py`), tutti i call-site migrati, `pandas` rimosso da requirements; RSS API Δ +8 MB dopo scanner+PDF, nessuna lib pesante mappata |
