@@ -12,6 +12,7 @@ import {
   View, Text, StyleSheet, Pressable, Animated, Dimensions,
   PanResponder, ScrollView, Modal, Platform,} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { MenuIcon, MenuIconName, LOCK_KEY_ICON } from "@/src/LockKeyIcon"; // V50.z237
 import { useRouter, usePathname } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
@@ -22,7 +23,7 @@ import { edgeColor, groupEdgeActions, EdgeCategoryHeader } from "@/src/edgePanel
 export type EdgeAction = {
   id: string;
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: MenuIconName;
   color: string;
   href: string;
 };
@@ -39,7 +40,7 @@ export const EDGE_ACTIONS: EdgeAction[] = [
   { id: "new-appt", label: "Nuovo Appuntamento", icon: "add-circle", color: "#16A34A", href: "/appointment/new" },
   { id: "new-crt", label: "Nuovo Contratto", icon: "document-text", color: "#059669", href: "/contract/new" },
   { id: "my-audios", label: "I miei audio", icon: "folder-open", color: "#8B5CF6", href: "/my-audios" },
-  { id: "spazio-personale", label: "Spazio Personale", icon: "home", color: "#059669", href: "/spazio-personale" }, // V50.z205
+  { id: "spazio-personale", label: "Spazio Personale", icon: LOCK_KEY_ICON, color: "#059669", href: "/spazio-personale" }, // V50.z205 · V50.z237 lucchetto+chiave
   { id: "my-files", label: "I miei file", icon: "folder-open", color: "#0891B2", href: "/master-files" },
   { id: "my-web", label: "My Web", icon: "globe", color: "#DB2777", href: "/my-web" },
   { id: "bill-quick", label: "Analizza bolletta", icon: "flash", color: "#EA580C", href: "/bill-quick" },
@@ -300,7 +301,7 @@ export function EdgePanel() {
                 {g.items.map((a) => (
                   <Pressable key={a.id} onPress={() => onPickAction(a)} style={styles.tile} testID={`edge-a-${a.id}`}>
                     <View style={[styles.tileIcon, { backgroundColor: edgeColor(a) }]}>
-                      <Ionicons name={a.icon} size={22} color="#FFF" />
+                      <MenuIcon name={a.icon} size={22} color="#FFF" />
                     </View>
                     <Text style={styles.tileTxt} numberOfLines={2}>{a.label}</Text>
                   </Pressable>
@@ -337,7 +338,7 @@ export function EdgePanel() {
                   {i === 0 ? <EdgeCategoryHeader cat={g.cat} dark /> : null}
                   <Pressable onPress={() => toggleId(a.id)} style={[styles.editRow, on && styles.editRowOn]}>
                     <View style={[styles.editRowIcon, { backgroundColor: edgeColor(a) }]}>
-                      <Ionicons name={a.icon} size={16} color="#FFF" />
+                      <MenuIcon name={a.icon} size={16} color="#FFF" />
                     </View>
                     <Text style={styles.editRowLabel}>{a.label}</Text>
                     <Ionicons

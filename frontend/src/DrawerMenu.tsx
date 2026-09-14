@@ -10,6 +10,7 @@ import {
   Dimensions, Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { MenuIcon, MenuIconName, LOCK_KEY_ICON } from "@/src/LockKeyIcon"; // V50.z237
 import { useRouter } from "expo-router";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { theme } from "@/src/theme";
@@ -21,7 +22,7 @@ import { AxnDrawerBadge } from "@/src/AxnDrawerBadge"; // V50.z181 — notifiche
 // Axon Drive — piccola icona automobile accanto al nome (solo UI)
 const AxonDriveCarBadge = () => <Ionicons name="car-sport" size={16} color="#7C3AED" style={{ marginRight: 6 }} />;
 
-type IconName = keyof typeof Ionicons.glyphMap;
+type IconName = MenuIconName;
 
 type DrawerItem = {
   label: string;
@@ -61,7 +62,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Le mie aree",         icon: "flash-outline",        href: "/le-mie-aree",         categoryKey: "docs" },
   { label: "Note spese & Storico", icon: "receipt-outline",     href: "/axon-expenses",       categoryKey: "docs" }, // V50.z229 — storico spese, chiusura mese, statistiche // V50.z228 — mini-wizard aree + stato configurazione
   { label: "Integrazioni AxonOS", icon: "link-outline",         href: "/axon-integrations",   categoryKey: "docs" }, // V50.z197 — Blocco 8: due sfere
-  { label: "Spazio Personale",    icon: "home-outline",         href: "/spazio-personale",    categoryKey: "docs" }, // V50.z205 — Blocco 8 Fase 4: Sfera Home
+  { label: "Spazio Personale",    icon: LOCK_KEY_ICON,          href: "/spazio-personale",    categoryKey: "docs" }, // V50.z205 — Blocco 8 Fase 4: Sfera Home · V50.z237 lucchetto+chiave (area protetta da PIN)
   { label: "Biglietto da visita", icon: "card-outline",         href: "/business-card",       categoryKey: "docs" },
   // Team & Insights (giallo #EAB308)
   { label: "Team Insights",     icon: "analytics-outline",    href: "/team-insights",      categoryKey: "team" },
@@ -152,7 +153,7 @@ export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: ()
                   testID={`drawer-item-${it.href}`}
                 >
                   <View style={[styles.rowIcon, { backgroundColor: cat.color }]}>
-                    <Ionicons name={it.icon} size={18} color="#FFF" />
+                    <MenuIcon name={it.icon} size={18} color="#FFF" />
                   </View>
                   <Text style={styles.rowLabel} numberOfLines={1}>{it.label}</Text>
                   {it.badge ? <it.badge /> : null}

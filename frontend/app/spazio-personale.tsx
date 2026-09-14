@@ -1,8 +1,13 @@
 // spazio-personale.tsx — V50.z205 — BLOCCO 8 · Fase 4: «Spazio Personale» = hub della Sfera 🟢 Home (schermata ISOLATA)
 // Unifica My Thing, My Web, I miei audio (con trascrizione), archivio media Home, spese personali e memoria Home.
 // Ogni card mostra un conteggio reale (GET /axon/personal-space/summary) e apre la pagina esistente.
-import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, RefreshControl } from "react-native";
+// V50.z237 — Accesso protetto da PIN 6 cifre (+ impronta/Face ID): il cancello `PersonalLockGate` copre i contenuti
+// ad ogni apertura della schermata e quando l'app torna dal background. «Cambia PIN» dall'icona lucchetto nell'header.
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, RefreshControl, AppState, Modal } from "react-native";
+import { PersonalLockGate, ChangePinPanel } from "@/src/PersonalLockGate";
+import { LockKeyIcon } from "@/src/LockKeyIcon";
+import { notify } from "@/src/utils/notify";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
@@ -27,14 +32,40 @@ export default function SpazioPersonaleScreen() {
   const [s, setS] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // V50.z237 — cancello PIN: bloccato ad ogni apertura (mount) e al rientro dal background
+  const [unlocked, setUnlocked] = useState(false);
+  const [changePinOpen, setChangePinOpen] = useState(false);
+  const appState = useRef(AppState.currentState);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (appState.current === "active" && (next === "background" || next === "inactive")) setUnlocked(false);
+      appState.current = next;
+    });
+    return () => sub.remove();
+  }, []);
 
   const load = useCallback(async () => {
     try { setS(await api<Summary>("/axon/personal-space/summary")); setErr(null); }
     catch (e: any) { setErr(e?.message || String(e)); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void load(); }, [load]);
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  useEffect(() => { if (unlocked) void load(); }, [load, unlocked]);
+  useFocusEffect(useCallback(() => { if (unlocked) void load(); }, [load, unlocked]));
+
+  if (!unlocked) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={10} testID="ps-back"><Ionicons name="arrow-back" size={22} color="#FFF" /></Pressable>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Spazio Personale</Text>
+            <Text style={styles.sub}>🔒 Area protetta — solo tu puoi entrare</Text>
+          </View>
+        </View>
+        <PersonalLockGate onUnlocked={() => setUnlocked(true)} />
+      </View>
+    );
+  }
 
   const cards: Card[] = s ? [
     { key: "my-thing", icon: "sparkles", label: "My Thing", desc: "Messaggi, immagini, eventi e anniversari che compaiono sul tuo banner personale.",
@@ -55,10 +86,21 @@ export default function SpazioPersonaleScreen() {
           <Text style={styles.title}>Spazio Personale</Text>
           <Text style={styles.sub}>🟢 Sfera Home — dati personali, mai mescolati col CRM</Text>
         </View>
+        <Pressable onPress={() => setChangePinOpen(true)} hitSlop={8} style={styles.headBtn} testID="ps-change-pin" accessibilityLabel="Sicurezza: cambia PIN">
+          <LockKeyIcon size={18} color="#FFF" />
+        </Pressable>
         <Pressable onPress={() => router.push("/axon-integrations" as any)} hitSlop={8} style={styles.headBtn} testID="ps-integrations">
           <Ionicons name="link" size={18} color="#FFF" />
         </Pressable>
       </View>
+
+      <Modal visible={changePinOpen} transparent animationType="fade" onRequestClose={() => setChangePinOpen(false)}>
+        <Pressable style={styles.modalBg} onPress={() => setChangePinOpen(false)}>
+          <Pressable style={{ width: "100%", maxWidth: 420 }} onPress={() => {}}>
+            <ChangePinPanel onCancel={() => setChangePinOpen(false)} onDone={() => { setChangePinOpen(false); notify("PIN aggiornato ✅", "Il nuovo PIN è attivo su tutti i tuoi dispositivi"); }} />
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 120, gap: 12 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
         <View style={styles.trust}>
@@ -131,4 +173,5 @@ const styles = StyleSheet.create({
   pillOn: { borderColor: "#A7F3D0", backgroundColor: "#ECFDF5" },
   pillTxt: { fontSize: 12, fontWeight: "700", color: "#64748B" },
   foot: { fontSize: 11.5, color: "#64748B", textAlign: "center", lineHeight: 16, paddingHorizontal: 8 },
+  modalBg: { flex: 1, backgroundColor: "rgba(15,23,42,0.55)", alignItems: "center", justifyContent: "center", padding: 20 },
 });

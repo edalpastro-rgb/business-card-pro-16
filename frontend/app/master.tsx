@@ -20,6 +20,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 // V49.g — Header Master allineato all'header Home: usa la stessa immagine.
 import { HeaderWeatherBadge } from "@/src/WeatherWidget";
 import { BrandHeaderImage } from "@/src/BrandHeaderImage"; // V50.z232
+import { MenuIcon, MenuIconName, LOCK_KEY_ICON } from "@/src/LockKeyIcon"; // V50.z237
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
 type MyThingImage = { item_id: string; image_base64?: string | null };
@@ -220,7 +221,7 @@ function MasterScreen() {
     router.push("/contract/new" as any);
   };
 
-  const buttons: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; badge?: number; pulse?: Animated.Value }[] = [
+  const buttons: { label: string; icon: MenuIconName; color: string; onPress: () => void; badge?: number; pulse?: Animated.Value }[] = [
     // V50.z40 — Colori palette semantica (Proposta A): stessa di Axon Hub e drawer.
     // CRM Core (blu #0EA5E9)
     { label: "Agenda", icon: "calendar", color: "#0EA5E9", onPress: () => goto("/(tabs)/calendario") },
@@ -259,7 +260,7 @@ function MasterScreen() {
     { label: "Personalizzazione Aziendale", icon: "business", color: "#10B981", onPress: () => goto("/personalizzazione-aziendale") },
     { label: "I miei audio", icon: "folder-open", color: "#10B981", onPress: () => goto("/my-audios") },
     // V50.z205 — Blocco 8 Fase 4: hub Sfera Home
-    { label: "Spazio Personale", icon: "home", color: "#10B981", onPress: () => goto("/spazio-personale") },
+    { label: "Spazio Personale", icon: LOCK_KEY_ICON, color: "#10B981", onPress: () => goto("/spazio-personale") }, // V50.z237 — lucchetto+chiave (area protetta da PIN)
     // AI & Axon
     { label: "Analizza bolletta", icon: "flash", color: "#7C3AED", onPress: () => goto("/bill-quick") },
     // Documenti & Cloud
@@ -639,11 +640,11 @@ function MasterScreen() {
   );
 }
 
-function MasterButton({ label, icon, color, onPress, onLongPress, badge, pulseAnim, pulse }: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void; onLongPress?: () => void; badge?: number; pulseAnim: Animated.Value; pulse?: Animated.Value }) {
+function MasterButton({ label, icon, color, onPress, onLongPress, badge, pulseAnim, pulse }: { label: string; icon: MenuIconName; color: string; onPress: () => void; onLongPress?: () => void; badge?: number; pulseAnim: Animated.Value; pulse?: Animated.Value }) {
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={500} style={styles.btnCell} testID={`master-btn-${label.replace(/\s+/g, '-').toLowerCase()}`}>
       <Animated.View style={[styles.btnCircle, { backgroundColor: color }, pulse ? { transform: [{ scale: pulse }] } : null]}>
-        <Ionicons name={icon} size={28} color="#FFF" />
+        <MenuIcon name={icon} size={28} color="#FFF" />
         {typeof badge === "number" && badge > 0 && (
           <Animated.View
             style={[
