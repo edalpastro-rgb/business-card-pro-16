@@ -192,14 +192,38 @@ async def _punq_table(n: int) -> dict:
     meta = await db.axon_pun_meta.find_one({"key": "refresh"}, {"_id": 0}) or {}
     last_extract = max((d.get("extracted_at") for d in docs.values() if isinstance(d.get("extracted_at"), datetime)), default=None)
     missing = [r["label"] for r in rows if not r["available"]]
-    return {"months": n, "rows": rows, "available": len(avail), "missing": missing, "extremes": extremes, "unit": "€/kWh",
+    forecast = await _punq_forecast_row(avail)
+    return {"months": n, "rows": rows, "forecast": forecast, "available": len(avail), "missing": missing, "extremes": extremes, "unit": "€/kWh",
             "cache_updated_at": last_extract.isoformat() if last_extract else None, "last_refresh_at": meta.get("last_run").isoformat() if isinstance(meta.get("last_run"), datetime) else None,
-            "generated_at": utcnow().isoformat(), "table_markdown": _punq_markdown(rows, n, missing, last_extract)}
+            "generated_at": utcnow().isoformat(), "table_markdown": _punq_markdown(rows, n, missing, last_extract, forecast)}
 
 
-def _punq_markdown(rows: List[dict], n: int, missing: List[str], last_extract: Optional[datetime]) -> str:
-    lines = [f"⚡ **PUN medio per fasce — ultimi {n} mesi** (€/kWh · fonte: PDF ufficiali GME «Prezzo medio per fasce», monorario = media ponderata per ore)", "",
-             "| Mese | PUN Monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh | Δ mese |", "| :---: | :---: | :---: | :---: | :---: | :---: |"]
+async def _punq_forecast_row(avail: List[dict]) -> Optional[dict]:
+    """V50.z245 — Riga 🟡 del MESE CORRENTE (previsione), sempre presente e deterministica.
+    Fonte: se in `gme_pun_cache` esiste già un documento per il mese corrente (inserimento manuale/provvisorio del Master) → quei valori;
+    altrimenti media semplice degli ultimi 3 mesi chiusi disponibili (marcata «previsione», mai spacciata per dato ufficiale)."""
+    today = datetime.now(_PUNQ_TZ)
+    key = f"{today.year:04d}-{today.month:02d}"
+    label = f"{_GME_MONTH_NAMES_REV.get(today.month, '').capitalize()} {today.year}"
+    d = await db.gme_pun_cache.find_one({"month_key": key}, {"_id": 0})
+    if d and d.get("monorario") is not None:
+        u = d.get("unit") or "€/MWh"
+        return {"month_key": key, "label": label, "kind": "provisional", "basis": d.get("source_name") or "dato provvisorio in cache",
+                "kwh": {k: _punq_kwh(d.get(k), u) for k in ("monorario", "F1", "F2", "F3")}}
+    last3 = avail[:3]  # avail è ordinato dal più recente
+    if not last3:
+        return None
+    kwh = {}
+    for col in ("monorario", "F1", "F2", "F3"):
+        vals = [r["kwh"][col] for r in last3 if r["kwh"].get(col) is not None]
+        kwh[col] = round(sum(vals) / len(vals), 6) if vals else None
+    return {"month_key": key, "label": label, "kind": "forecast", "basis": f"media ultimi {len(last3)} mesi chiusi ({', '.join(r['label'] for r in reversed(last3))})", "kwh": kwh}
+
+
+def _punq_markdown(rows: List[dict], n: int, missing: List[str], last_extract: Optional[datetime], forecast: Optional[dict] = None) -> str:
+    """V50.z245 — SOLO tabella Markdown (nessuna intestazione, nessun piè di pagina): output identico ad ogni chiamata a parità di cache.
+    Ultima riga 🟡 = mese corrente (previsione/provvisorio), esclusa da 🔴/🟢 e Δ."""
+    lines = ["| Mese | PUN Monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh | Δ mese |", "| :---: | :---: | :---: | :---: | :---: | :---: |"]
     for r in reversed(rows):   # cronologico: dal più vecchio al più recente
         if not r["available"]:
             lines.append(f"| {r['label']} | n/d | n/d | n/d | n/d | — |")
@@ -219,12 +243,13 @@ def _punq_markdown(rows: List[dict], n: int, missing: List[str], last_extract: O
             lab = f"🟢 **{lab}**"
         delta = "—" if r["delta_pct"] is None else (f"{'+' if r['delta_pct'] > 0 else ''}{str(r['delta_pct']).replace('.', ',')}%")
         lines.append(f"| {lab} | {cells[0]} | {cells[1]} | {cells[2]} | {cells[3]} | {delta} |")
-    lines.append("")
-    lines.append("🔴 = valore più alto della colonna · 🟢 = valore più basso · Δ = variazione del monorario sul mese precedente.")
+    if forecast:
+        k = forecast["kwh"]
+        tag = "previsione" if forecast["kind"] == "forecast" else "provvisorio"
+        lines.append(f"| 🟡 **{forecast['label']}** · _{tag}_ | 🟡 {_punq_fmt(k['monorario'])} | 🟡 {_punq_fmt(k['F1'])} | 🟡 {_punq_fmt(k['F2'])} | 🟡 {_punq_fmt(k['F3'])} | — |")
     if missing:
-        lines.append(f"⚠️ **n/d = PDF GME non in cache** per: {', '.join(reversed(missing))}. Nessuna stima al posto del dato: il Master può dire «aggiorna cache pun» oppure «inserisci pun <mese> <anno> f1 … f2 … f3 …».")
-    if last_extract:
-        lines.append(f"_Cache backend aggiornata il {last_extract.astimezone(_PUNQ_TZ).strftime('%d/%m/%Y %H:%M')} · risposta dal calcolatore PUN, nessun modello coinvolto._")
+        lines.append("")
+        lines.append(f"⚠️ n/d = PDF GME non in cache per: {', '.join(reversed(missing))}.")
     return "\n".join(lines)
 
 
@@ -287,6 +312,10 @@ async def _qa_deterministic(label: str, prompt: str, user: dict) -> Optional[dic
     n = _punq_wants_table(label, prompt)
     if n is None:
         return None
+    # V50.z245 — Azione Rapida = link fisso «PUN 18 mesi»: il numero di mesi lo decide solo l'etichetta del bottone
+    # (es. «PUN 12 mesi»), MAI il testo libero del prompt (che può contenere numeri incidentali). Default 18.
+    ml = _PUNQ_N_RE.search(label or "")
+    n = max(1, min(int(ml.group(1)), 36)) if ml else _PUNQ_DEFAULT_MONTHS
     t = await _punq_table(n)
     return {"reply": t["table_markdown"], "updated_at": t["cache_updated_at"] or t["generated_at"], "from_cache": True, "cache_age_days": 0.0, "deterministic": True, "missing": t["missing"]}
 
@@ -302,7 +331,7 @@ _punq_prev_maybe_push_command = _maybe_push_command
 async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: F811
     txt = _punq_strip(msg)
     try:
-        if txt and len(txt) <= 700 and _PUNQ_TRIGGER_RE.search(txt):
+        if txt and len(txt) <= 1200 and _PUNQ_TRIGGER_RE.search(txt):
             if is_owner(user):
                 mi = _PUNQ_INSERT_RE.search(txt)
                 if mi:
@@ -318,7 +347,7 @@ async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: 
                     r = await _punq_refresh(_PUNQ_LOOKBACK)
                     return {"reply": f"🔄 Cache PUN aggiornata: {len(r['added'])} mesi nuovi{(' (' + ', '.join(r['added']) + ')') if r['added'] else ''}; mancanti su {r['checked']}: {', '.join(r['missing']) if r['missing'] else 'nessuno'}.", "cmd": "pun_refresh"}
             n = _punq_wants_table("", txt)
-            if n is not None and len(txt) <= 700:
+            if n is not None and len(txt) <= 1200:
                 t = await _punq_table(n)
                 return {"reply": t["table_markdown"], "cmd": "pun_table"}
     except Exception as exc:  # noqa: BLE001

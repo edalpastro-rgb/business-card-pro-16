@@ -112,7 +112,16 @@ function splitRow(line: string): string[] {
   if (s.startsWith("|")) s = s.slice(1);
   if (s.endsWith("|")) s = s.slice(0, -1);
   // V50.z207 — le celle non renderizzano il Markdown: rimuovi i marcatori **grassetto** (restano emoji 🔴/🟢)
-  return s.split(/\|/).map((c) => c.trim().replace(/\*\*(.+?)\*\*/g, "$1").replace(/__(.+?)__/g, "$1"));
+  return s.split(/\|/).map((c) => c.trim().replace(/\*\*(.+?)\*\*/g, "$1").replace(/__(.+?)__/g, "$1").replace(/(^|\s)_([^_]+)_(?=\s|$)/g, "$1$2"));
+}
+
+/** V50.z245 — Tinta riga dal marcatore nella prima cella: 🟡 previsione (giallo) · 🔴 massimo · 🟢 minimo. */
+function rowTint(r: string[]): { backgroundColor: string } | null {
+  const c0 = (r[0] || "").trimStart();
+  if (c0.startsWith("🟡")) return { backgroundColor: "#FEF9C3" };
+  if (c0.startsWith("🔴")) return { backgroundColor: "#FEE2E2" };
+  if (c0.startsWith("🟢")) return { backgroundColor: "#DCFCE7" };
+  return null;
 }
 
 function nowStamp(): string {
@@ -140,7 +149,7 @@ function tableToHtml(table: ParsedTable, title: string, brand?: TableBrandHeader
   const bodyRows = table.rows
     .map(
       (r, ri) =>
-        `<tr class="${ri % 2 === 1 ? "zebra" : ""}">${r.map((c) => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`,
+        `<tr class="${ri % 2 === 1 ? "zebra" : ""}"${rowTint(r) ? ` style="background:${rowTint(r)!.backgroundColor}"` : ""}>${r.map((c) => `<td${rowTint(r) ? ` style="background:${rowTint(r)!.backgroundColor}"` : ""}>${escapeHtml(c)}</td>`).join("")}</tr>`,
     )
     .join("");
   const orientation = table.headers.length > 5 ? "landscape" : "portrait";
@@ -374,7 +383,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
               ))}
             </View>
             {previewRows.map((r, ri) => (
-              <View key={ri} style={[styles.row, ri % 2 === 1 && { backgroundColor: "#F8FAFC" }]}>
+              <View key={ri} style={[styles.row, ri % 2 === 1 && { backgroundColor: "#F8FAFC" }, rowTint(r)]}>
                 {r.map((c, ci) => (
                   <View key={ci} style={[styles.cell, ci === r.length - 1 && styles.cellLast]}>
                     <Text style={styles.cellTxt} numberOfLines={3}>{c}</Text>
@@ -438,7 +447,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
                   ))}
                 </View>
                 {table.rows.map((r, ri) => (
-                  <View key={ri} style={[styles.row, ri % 2 === 1 && { backgroundColor: "#F8FAFC" }]} testID={`table-full-row-${ri}`}>
+                  <View key={ri} style={[styles.row, ri % 2 === 1 && { backgroundColor: "#F8FAFC" }, rowTint(r)]} testID={`table-full-row-${ri}`}>
                     {table.headers.map((_, ci) => (
                       <View key={ci} style={[styles.cellFull, { width: fullColWidths[ci] }, ci === table.headers.length - 1 && styles.cellLast]}>
                         <Text style={styles.cellTxtFull}>{r[ci] ?? ""}</Text>

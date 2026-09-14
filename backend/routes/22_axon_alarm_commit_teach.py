@@ -624,6 +624,26 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         # timeout dell'ingress senza mostrare nulla all'utente).
         _qa_label = (body.quick_label or "").strip()[:120]
         if _qa_label:
+            # V50.z245 — Azioni rapide deterministiche (calcolatore PUN): stessa risposta di POST /axon/quick-action,
+            # anche quando il client passa allo streaming (cache_only miss / errore rete). Zero LLM, output identico.
+            try:
+                _det = await _qa_deterministic(_qa_label, body.message or "", user)
+            except Exception:  # noqa: BLE001
+                _det = None
+            if _det and _det.get("reply"):
+                _sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
+                _mid = uuid.uuid4().hex[:16]
+                try:
+                    await db.assistant_messages.insert_many([
+                        {"user_id": user["user_id"], "session_id": _sid, "role": "user", "content": body.message or "", "created_at": utcnow()},
+                        {"message_id": _mid, "user_id": user["user_id"], "session_id": _sid, "role": "assistant", "content": _det["reply"], "created_at": utcnow()},
+                    ])
+                except Exception:
+                    pass
+                yield sse("meta", {"session_id": _sid, "message_id": _mid, "from_cache": True, "slash": "pun_table"})
+                yield sse("delta", {"text": _det["reply"]})
+                yield sse("done", {"session_id": _sid, "message_id": _mid, "used_web_search": False, "web_sources": [], "from_cache": True, "slash": "pun_table", "qa_updated_at": _det.get("updated_at")})
+                return
             body.message = _qa_enrich_prompt(body.message or "")
 
         # V50.m — Slash commands intercept: /aiuto, /bolletta, /scadenze,

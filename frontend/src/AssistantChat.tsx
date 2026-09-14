@@ -837,6 +837,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       setProgressText(null);
       prog.stop();
       setSending(false);
+      // V50.z245 — BUG «bottoni assenti»: se lo stream si chiude senza evento `done` (proxy, rete, stop, errore)
+      // la bolla restava `streaming: true` per sempre → niente Copia/Condividi/PDF. Ora viene sempre finalizzata.
+      setMessages((prev) => (prev.some((m) => m.streaming) ? prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)) : prev));
     }
   };
   // V50.z196 — ref stabile a send() per il prompt proattivo in attesa (evita chiusure stantie nell'effect di apertura)
@@ -2331,15 +2334,15 @@ function MessageBubble({
         {/* V50.z160 — Azioni messaggio: Copia · Condividi · PDF (il testo non è
             selezionabile su Android nel Modal → serve un'azione esplicita). */}
         {!msg.streaming && !!(msg.content || "").trim() && (
-          <View style={[styles.msgActionsRow, isUser && { justifyContent: "flex-end" }]}>
+          <View style={[styles.msgActionsRow, isUser && { justifyContent: "flex-end" }]} testID="msg-actions">
             <Pressable
-              onPress={() => copyText(msg.content)}
+              onPress={async () => { await copyText(msg.content); }}
               hitSlop={8}
               accessibilityLabel="Copia messaggio"
               testID="msg-copy-btn"
-              style={styles.msgActionBtn}
+              style={[styles.msgActionBtn, isUser && styles.msgActionBtnUser]}
             >
-              <Ionicons name="copy-outline" size={13} color={isUser ? "#EDE9FE" : "#64748B"} />
+              <Ionicons name="copy-outline" size={15} color={isUser ? "#EDE9FE" : "#475569"} />
               <Text style={[styles.msgActionTxt, isUser && { color: "#EDE9FE" }]}>Copia</Text>
             </Pressable>
             <Pressable
@@ -2347,9 +2350,9 @@ function MessageBubble({
               hitSlop={8}
               accessibilityLabel="Condividi messaggio"
               testID="msg-share-btn"
-              style={styles.msgActionBtn}
+              style={[styles.msgActionBtn, isUser && styles.msgActionBtnUser]}
             >
-              <Ionicons name="share-social-outline" size={13} color={isUser ? "#EDE9FE" : "#64748B"} />
+              <Ionicons name="share-social-outline" size={15} color={isUser ? "#EDE9FE" : "#475569"} />
               <Text style={[styles.msgActionTxt, isUser && { color: "#EDE9FE" }]}>Condividi</Text>
             </Pressable>
             {!isUser && (
@@ -2360,7 +2363,7 @@ function MessageBubble({
                 testID="msg-pdf-btn"
                 style={styles.msgActionBtn}
               >
-                <Ionicons name="document-text-outline" size={13} color="#64748B" />
+                <Ionicons name="document-text-outline" size={15} color="#475569" />
                 <Text style={styles.msgActionTxt}>PDF</Text>
               </Pressable>
             )}
@@ -3015,9 +3018,11 @@ const styles = StyleSheet.create({
   },
   // V41 — Feedback thumbs + modal styles
   // V50.z160 — Azioni messaggio
-  msgActionsRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
-  msgActionBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 28, paddingHorizontal: 2 },
-  msgActionTxt: { fontSize: 11, fontWeight: "700", color: "#64748B" },
+  // V50.z245 — pill ben visibili (prima: testo grigio 11px senza bordo, invisibile sotto le tabelle)
+  msgActionsRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" },
+  msgActionBtn: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 34, paddingHorizontal: 11, borderRadius: 999, borderWidth: 1, borderColor: "#CBD5E1", backgroundColor: "#F8FAFC" },
+  msgActionTxt: { fontSize: 12, fontWeight: "800", color: "#475569" },
+  msgActionBtnUser: { backgroundColor: "rgba(255,255,255,0.14)", borderColor: "rgba(255,255,255,0.35)" },
   feedbackRow: {
     flexDirection: "row",
     alignItems: "center",
