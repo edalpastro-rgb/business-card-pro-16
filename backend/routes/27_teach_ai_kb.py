@@ -1425,23 +1425,78 @@ async def _ai_teach_refresh_url(doc: Dict[str, Any]) -> Dict[str, Any]:
             merged = "\n\n---\nContenuti PDF collegati:\n" + "\n\n".join(pdf_text_blocks)
             summary = (summary or "").strip() + merged
 
+        # V50.z236 — Novità rilevate: confronto con la sintesi precedente
         now = utcnow()
-        await db.ai_teach_urls.update_one(
-            {"url_id": doc["url_id"]},
-            {"$set": {
-                "last_fetched_at": now,
-                "last_summary": summary[:12000],  # V28.ab — spazio in più per i PDF estratti
-                "last_pdf_count": len(pdf_text_blocks),
-                "last_error": None,
-            }},
-        )
-        return {"ok": True, "summary_len": len(summary), "pdf_extracted": len(pdf_text_blocks)}
+        changes = await _ai_teach_detect_changes(doc, summary)
+        upd: Dict[str, Any] = {"$set": {
+            "last_fetched_at": now,
+            "last_summary": summary[:12000],  # V28.ab — spazio in più per i PDF estratti
+            "last_pdf_count": len(pdf_text_blocks),
+            "last_error": None,
+            "last_changes": {**changes, "at": now},
+        }}
+        if changes.get("status") == "changed":
+            upd["$push"] = {"changes_log": {"$each": [{**changes, "at": now}], "$slice": -10}}
+        await db.ai_teach_urls.update_one({"url_id": doc["url_id"]}, upd)
+        return {"ok": True, "summary_len": len(summary), "pdf_extracted": len(pdf_text_blocks), "changes": {**changes, "at": now}}
     except Exception as e:
         await db.ai_teach_urls.update_one(
             {"url_id": doc["url_id"]},
             {"$set": {"last_error": str(e)[:400]}},
         )
         return {"ok": False, "error": str(e)}
+
+
+def _norm_summary(s: str) -> str:
+    import re as _re
+    return _re.sub(r"\s+", " ", (s or "")).strip().lower()
+
+
+async def _ai_teach_detect_changes(doc: Dict[str, Any], new_summary: str) -> Dict[str, Any]:
+    """V50.z236 — Confronta la nuova sintesi con `last_summary` precedente.
+    Ritorna {status: first|unchanged|changed, text?: str, prev_at?: datetime}.
+    Se cambiata, chiede a Claude un elenco in italiano delle novità sostanziali
+    (ignora riformulazioni). Best-effort: mai bloccante."""
+    prev = (doc.get("last_summary") or "").strip()
+    prev_at = doc.get("last_fetched_at")
+    if not prev or prev.startswith("[Tavily non configurato"):
+        return {"status": "first"}
+    if _norm_summary(prev) == _norm_summary(new_summary):
+        return {"status": "unchanged", "prev_at": prev_at}
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return {"status": "changed", "text": "Contenuto della fonte modificato rispetto all'ultimo aggiornamento.", "prev_at": prev_at}
+    system = (
+        "Sei Axon, assistente di consulenti energetici italiani. Ricevi la sintesi PRECEDENTE e quella NUOVA "
+        "della stessa fonte web monitorata. Elenca SOLO le novità sostanziali (nuovi dati, prezzi, date, delibere, "
+        "scadenze, sezioni aggiunte o rimosse). Ignora riformulazioni, cambi di ordine o dettagli irrilevanti.\n"
+        "OUTPUT: in italiano, max 5 punti elenco brevi (ognuno inizia con '• '), max 350 caratteri totali, "
+        "senza introduzione né conclusione. Se non ci sono novità sostanziali rispondi esattamente: NESSUNA_NOVITA"
+    )
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(api_key=key, session_id=f"url-diff-{uuid.uuid4().hex[:8]}", system_message=system).with_model("anthropic", "claude-sonnet-5")
+        raw = await chat.send_message(UserMessage(
+            text=f"FONTE: {doc.get('name') or ''} {doc.get('url') or ''}\n\nPRECEDENTE:\n{prev[:6000]}\n\nNUOVA:\n{(new_summary or '')[:6000]}"
+        ))
+        txt = (raw or "").strip()
+        if not txt or "NESSUNA_NOVITA" in txt.upper():
+            return {"status": "unchanged", "prev_at": prev_at}
+        return {"status": "changed", "text": txt[:600], "prev_at": prev_at}
+    except Exception as e:
+        return {"status": "changed", "text": f"Contenuto modificato rispetto all'ultimo aggiornamento (dettaglio non disponibile: {str(e)[:80]}).", "prev_at": prev_at}
+
+
+def _history_entry(doc: Dict[str, Any], res: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """V50.z236 — Voce storico con flag novità."""
+    entry: Dict[str, Any] = {"url_id": doc.get("url_id"), "name": doc.get("name") or "", "url": doc.get("url") or ""}
+    ch = (res or {}).get("changes") or {}
+    if ch.get("status") == "changed":
+        entry["changed"] = True
+        entry["changes"] = (ch.get("text") or "")[:600]
+    elif ch.get("status") == "first":
+        entry["first_fetch"] = True
+    return entry
 
 
 # V28.ab — Helper: estrae testo da bytes PDF via PyMuPDF (fitz già installato per bill analysis).
@@ -1542,7 +1597,7 @@ async def ai_teach_refresh_run_rerun(run_id: str, user=Depends(get_current_user)
     async for doc in db.ai_teach_urls.find(query):
         total += 1
         res = await _ai_teach_refresh_url(doc)
-        entry = {"url_id": doc.get("url_id"), "name": doc.get("name") or "", "url": doc.get("url") or ""}
+        entry = _history_entry(doc, res)
         if res.get("ok"):
             successes.append(entry)
         else:
@@ -1570,7 +1625,7 @@ async def ai_teach_refresh_url(url_id: str, run_id: Optional[str] = None, user=D
     if not doc:
         raise HTTPException(status_code=404, detail="URL non trovato")
     res = await _ai_teach_refresh_url(doc)
-    entry = {"url_id": doc.get("url_id"), "name": doc.get("name") or "", "url": doc.get("url") or ""}
+    entry = _history_entry(doc, res)
     ok = bool(res.get("ok"))
     # V50.z235 — Step di un run "AGGIORNA TUTTO": accoda il risultato al run condiviso
     if run_id:
@@ -1611,7 +1666,7 @@ async def ai_teach_refresh_all_urls(user=Depends(get_current_user)):
     async for doc in cur:
         total += 1
         res = await _ai_teach_refresh_url(doc)
-        entry = {"url_id": doc.get("url_id"), "name": doc.get("name") or "", "url": doc.get("url") or ""}
+        entry = _history_entry(doc, res)
         if res.get("ok"):
             ok += 1
             successes.append(entry)
@@ -1643,6 +1698,16 @@ async def ai_teach_refresh_history(limit: int = 30, user=Depends(get_current_use
         r.pop("_id", None)
         items.append(r)
     return {"items": items}
+
+
+def _changes_hint(u: Dict[str, Any]) -> str:
+    """V50.z236 — Novità rilevate all'ultimo refresh, passate ad Axon come contesto."""
+    ch = u.get("last_changes") or {}
+    if ch.get("status") != "changed" or not ch.get("text"):
+        return ""
+    at = ch.get("at")
+    when = at.strftime("%d/%m/%Y") if hasattr(at, "strftime") else ""
+    return f"\n  NOVITÀ RILEVATE {when}: {ch.get('text')[:400]}"
 
 
 async def build_ai_teach_context(tenant: str, category: str) -> str:
@@ -1681,7 +1746,7 @@ async def build_ai_teach_context(tenant: str, category: str) -> str:
         if freq == "manual":
             summary = (u.get("last_summary") or "").strip()
             if summary:
-                url_parts.append(f"[{u.get('name') or u.get('url')}]: {summary[:600]}")
+                url_parts.append(f"[{u.get('name') or u.get('url')}]: {summary[:600]}" + _changes_hint(u))
             continue
         freq_days = thresholds.get(freq, 7)
         stale = (not last) or ((now - last).days >= freq_days)
@@ -1689,14 +1754,14 @@ async def build_ai_teach_context(tenant: str, category: str) -> str:
             stale_ids.append(u)
         summary = (u.get("last_summary") or "").strip()
         if summary:
-            url_parts.append(f"[{u.get('name') or u.get('url')}]: {summary[:600]}")
+            url_parts.append(f"[{u.get('name') or u.get('url')}]: {summary[:600]}" + _changes_hint(u))
     # Best-effort refresh of a couple of stale URLs (don't block on all)
     auto_successes: List[Dict[str, str]] = []
     auto_failures: List[Dict[str, str]] = []
     for u in stale_ids[:3]:
         try:
             r = await _ai_teach_refresh_url(u)
-            entry = {"url_id": u.get("url_id"), "name": u.get("name") or "", "url": u.get("url") or ""}
+            entry = _history_entry(u, r)
             if r.get("ok"):
                 auto_successes.append(entry)
             else:

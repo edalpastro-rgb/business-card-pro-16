@@ -23,9 +23,10 @@ import { MicroTutorial, TUTORIAL_INSEGNA_AXON } from "@/src/MicroTutorial";
 import { DistillConversationModal } from "@/src/DistillConversationModal";
 type Rule = { rule_id: string; category?: string; categories?: string[]; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string };
 type LastError = { reason?: string; message?: string; at?: string } | string;
-type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: LastError };
+type LastChanges = { status: "first" | "unchanged" | "changed"; text?: string; at?: string; prev_at?: string };
+type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: LastError; last_changes?: LastChanges };
 // V28.j — Storico aggiornamenti (elenco esecuzioni di "Aggiorna ora" automatico o manuale)
-type HistoryRunEntry = { url_id: string; name: string; url: string; error?: string };
+type HistoryRunEntry = { url_id: string; name: string; url: string; error?: string; changed?: boolean; changes?: string; first_fetch?: boolean };
 type HistoryRun = {
   run_id: string;
   started_at: string;
@@ -114,7 +115,7 @@ export default function AiTeachScreen() {
   const [justUpdatedRunId, setJustUpdatedRunId] = useState<string | null>(null);
   // V50.z235 — "AGGIORNA TUTTO" sequenziale con barra di avanzamento
   const [seqRun, setSeqRun] = useState<null | { done: number; total: number; current: string; ok: number; ko: number }>(null);
-  const [seqSummary, setSeqSummary] = useState<null | { total: number; ok: number; ko: number; failures: string[] }>(null);
+  const [seqSummary, setSeqSummary] = useState<null | { total: number; ok: number; ko: number; changed: number; failures: string[] }>(null);
   // V28.j — Info modal per tab (Regole / Fonti URL / Storico)
   const [infoTab, setInfoTab] = useState<null | "rules" | "urls" | "history" | "suggestions">(null);
 
@@ -449,7 +450,7 @@ export default function AiTeachScreen() {
           next.sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
           return next;
         });
-        notify("Aggiornato ✅", `${res.run.success_count}/${res.run.total} fonti aggiornate con successo`);
+        notify("Aggiornato ✅", `${res.run.success_count}/${res.run.total} fonti aggiornate con successo` + (() => { const c = (res.run.successes || []).filter((s) => s.changed).length; return c ? ` · ✨ ${c} con novità` : ""; })());
         setJustUpdatedRunId(runId);
         setTimeout(() => setJustUpdatedRunId((cur) => (cur === runId ? null : cur)), 2500);
       }
@@ -466,7 +467,7 @@ export default function AiTeachScreen() {
     try {
       const start = await api<{ run: HistoryRun; urls: { url_id: string; name: string; url: string }[] }>("/ai-teach/refresh-runs/start", { method: "POST" });
       const list = start.urls || [];
-      let ok = 0, ko = 0;
+      let ok = 0, ko = 0, changed = 0;
       const failures: string[] = [];
       setHistory((prev) => [start.run, ...prev]);
       setSeqRun({ done: 0, total: list.length, current: list[0]?.name || list[0]?.url || "", ok, ko });
@@ -474,8 +475,8 @@ export default function AiTeachScreen() {
         const u = list[i];
         setSeqRun({ done: i, total: list.length, current: u.name || u.url, ok, ko });
         try {
-          const r = await api<{ ok: boolean; error?: string; run?: HistoryRun }>(`/ai-teach/urls/${u.url_id}/refresh?run_id=${encodeURIComponent(start.run.run_id)}`, { method: "POST" });
-          if (r.ok) ok++; else { ko++; failures.push(`${u.name || u.url}: ${r.error || "errore"}`); }
+          const r = await api<{ ok: boolean; error?: string; run?: HistoryRun; changes?: LastChanges }>(`/ai-teach/urls/${u.url_id}/refresh?run_id=${encodeURIComponent(start.run.run_id)}`, { method: "POST" });
+          if (r.ok) { ok++; if (r.changes?.status === "changed") changed++; } else { ko++; failures.push(`${u.name || u.url}: ${r.error || "errore"}`); }
           if (r.run) setHistory((prev) => prev.map((h) => (h.run_id === start.run.run_id ? r.run! : h)));
         } catch (e: any) {
           ko++; failures.push(`${u.name || u.url}: ${e?.message || "errore"}`);
@@ -484,9 +485,9 @@ export default function AiTeachScreen() {
       }
       const fin = await api<{ run: HistoryRun }>(`/ai-teach/refresh-runs/${start.run.run_id}/finish`, { method: "POST" }).catch(() => null);
       if (fin?.run) setHistory((prev) => prev.map((h) => (h.run_id === start.run.run_id ? fin.run : h)));
-      setSeqSummary({ total: list.length, ok, ko, failures });
+      setSeqSummary({ total: list.length, ok, ko, changed, failures });
       const when = new Date().toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-      notify(`Axon: aggiornamento ${when}`, `${ok}/${list.length} fonti aggiornate con successo` + (ko ? ` · ${ko} fallite` : ""));
+      notify(`Axon: aggiornamento ${when}`, `${ok}/${list.length} fonti aggiornate con successo` + (changed ? ` · ✨ ${changed} con novità` : "") + (ko ? ` · ${ko} fallite` : ""));
       api<{ items: UrlItem[] }>("/ai-teach/urls").then((u) => setUrls(u.items || [])).catch(() => {});
     } catch (e: any) {
       notify("Errore aggiornamento", e?.message || "");
@@ -760,6 +761,19 @@ export default function AiTeachScreen() {
                   </View>
                 ) : null}
                 {u.username ? <Text style={styles.metaTxt}>🔐 Login: {u.username} {u.password_masked ? "•••" : ""}</Text> : null}
+                {/* V50.z236 — Novità rilevate rispetto all'aggiornamento precedente */}
+                {u.last_changes?.status === "changed" && u.last_changes.text ? (
+                  <View style={styles.changesBox} testID={`changes-${u.url_id}`}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Ionicons name="sparkles" size={14} color="#1D4ED8" />
+                      <Text style={styles.changesTitle}>Novità rilevate da Axon</Text>
+                      {u.last_changes.prev_at ? <Text style={styles.changesMeta}>vs {new Date(u.last_changes.prev_at).toLocaleDateString("it-IT")}</Text> : null}
+                    </View>
+                    <Text style={styles.changesTxt}>{u.last_changes.text}</Text>
+                  </View>
+                ) : u.last_changes?.status === "unchanged" ? (
+                  <Text style={styles.metaTxt} testID={`changes-${u.url_id}`}>✓ Nessuna novità rispetto all&apos;aggiornamento precedente</Text>
+                ) : null}
                 {u.last_summary ? <Text style={styles.summaryTxt} numberOfLines={3}>{u.last_summary}</Text> : null}
               </View>
               );
@@ -799,7 +813,7 @@ export default function AiTeachScreen() {
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Ionicons name={seqSummary.ko ? "alert-circle" : "checkmark-circle"} size={18} color={seqSummary.ko ? "#DC2626" : "#16A34A"} />
                   <Text style={[styles.progressTxt, { flex: 1, fontWeight: "800", color: seqSummary.ko ? "#991B1B" : "#166534" }]}>
-                    Completato: {seqSummary.ok}/{seqSummary.total} fonti aggiornate con successo{seqSummary.ko ? `, ${seqSummary.ko} fallite` : ""}
+                    Completato: {seqSummary.ok}/{seqSummary.total} fonti aggiornate con successo{seqSummary.changed ? `, ✨ ${seqSummary.changed} con novità` : ""}{seqSummary.ko ? `, ${seqSummary.ko} fallite` : ""}
                   </Text>
                   <Pressable onPress={() => setSeqSummary(null)} hitSlop={8} testID="history-summary-close"><Ionicons name="close" size={16} color={C.muted} /></Pressable>
                 </View>
@@ -818,6 +832,7 @@ export default function AiTeachScreen() {
               const allOk = h.failure_count === 0;
               const isRerunning = rerunningRunId === h.run_id;
               const justUpdated = justUpdatedRunId === h.run_id;
+              const changedCount = (h.successes || []).filter((s) => s.changed).length;
               return (
                 <View key={h.run_id} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: inProgress ? C.primary : allOk ? "#16A34A" : "#DC2626" }, justUpdated && styles.cardJustUpdated]} testID={`history-${h.run_id}`}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -851,9 +866,15 @@ export default function AiTeachScreen() {
                   </View>
                   {h.successes?.length ? (
                     <View style={styles.historyGroup}>
-                      <Text style={styles.historyGroupTitle}>✓ Aggiornati con successo ({h.successes.length})</Text>
+                      <Text style={styles.historyGroupTitle}>✓ Aggiornati con successo ({h.successes.length}){changedCount ? ` · ✨ ${changedCount} con novità` : ""}</Text>
                       {h.successes.slice(0, 5).map((s) => (
-                        <Text key={s.url_id} style={styles.historyItemOk} numberOfLines={1}>• {s.name || s.url}</Text>
+                        <View key={s.url_id}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Text style={styles.historyItemOk} numberOfLines={1}>• {s.name || s.url}</Text>
+                            {s.changed ? <View style={styles.newPill}><Text style={styles.newPillTxt}>NOVITÀ</Text></View> : null}
+                          </View>
+                          {s.changed && s.changes ? <Text style={styles.historyChangesTxt} testID={`history-changes-${h.run_id}-${s.url_id}`}>{s.changes}</Text> : null}
+                        </View>
                       ))}
                       {h.successes.length > 5 ? <Text style={styles.metaTxt}>… e altri {h.successes.length - 5}</Text> : null}
                     </View>
@@ -1275,6 +1296,14 @@ const styles = StyleSheet.create({
   progressTrack: { height: 8, borderRadius: 999, backgroundColor: "#E2E8F0", overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 999, backgroundColor: C.primary },
   progressTxt: { fontSize: 12, fontWeight: "700", color: C.navy, flexShrink: 1 },
+  // V50.z236 — Novità rilevate
+  changesBox: { gap: 4, padding: 8, borderRadius: 8, backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE" },
+  changesTitle: { fontSize: 12, fontWeight: "800", color: "#1D4ED8", flex: 1 },
+  changesMeta: { fontSize: 10, fontWeight: "700", color: "#60A5FA" },
+  changesTxt: { fontSize: 12, color: "#1E3A8A", lineHeight: 17, fontWeight: "600" },
+  newPill: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, backgroundColor: "#1D4ED8" },
+  newPillTxt: { color: "#FFF", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+  historyChangesTxt: { fontSize: 11, color: "#1E3A8A", lineHeight: 16, marginLeft: 10, marginBottom: 2, fontWeight: "600" },
   filterRow: { flexDirection: "row", gap: 6, marginBottom: 4, paddingRight: 20 },
   presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6, marginBottom: 4 },
   chip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5 },
