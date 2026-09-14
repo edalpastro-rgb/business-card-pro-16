@@ -3,7 +3,7 @@ import { Stack, router as expoRouter, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import React, { useEffect } from "react";
-import { LogBox, Platform, View, AppState } from "react-native";
+import { LogBox, Platform, View, AppState, Modal } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -34,6 +34,8 @@ import { AxnBadgeSync } from "@/src/AxnDrawerBadge";
 import { PushBridgeSync } from "@/src/pushBridge"; // V50.z193 — canale Android default (modulo) + registrazione token con retry + stato al server
 import { SystemHeartbeat } from "@/src/systemHeartbeat"; // V50.z200 — versione app installata → Axon
 import { GlobalErrorBoundary } from "@/src/GlobalErrorBoundary";
+import { RoutePersistence } from "@/src/RoutePersistence"; // V50.z242 — BUG-STATE-001: ultima rotta salvata/ripristinata
+import { navRestoreGuard } from "@/src/utils/appStatePersist";
 
 configureNotifHandler();
 configureAlarmNotifications();
@@ -118,14 +120,9 @@ function LockGate() {
     return () => sub.remove();
   }, [user, setLocked, logout]);
 
-  if (user && locked) {
-    return (
-      <View style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
-        <AppLockOverlay />
-      </View>
-    );
-  }
+  // V50.z242 — BUG-STATE-001: l'albero di navigazione è SEMPRE lo stesso; il blocco è un overlay sopra.
+  // Prima, lock/unlock sostituivano l'intero <Stack> → remount del navigator → l'app ripartiva dalla Home
+  // perdendo pagina corrente, form e scroll.
   return (
     <View style={{ flex: 1 }}>
       <FabStackProvider>
@@ -133,6 +130,11 @@ function LockGate() {
           <StackWithCallBar />
         </ActiveCallProvider>
       </FabStackProvider>
+      {user && locked ? (
+        <Modal visible transparent={false} animationType="fade" statusBarTranslucent onRequestClose={() => {}} testID="app-lock-modal">
+          <AppLockOverlay />
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -171,6 +173,7 @@ function StackWithCallBar() {
         handledNotifRef.current = id;
         const url = resolveUrl(resp?.notification?.request?.content?.data);
         if (!url) return;
+        navRestoreGuard.skip = true; // V50.z242 — la notifica guida la navigazione: niente ripristino rotta
         if (user?.user_id) setTimeout(() => go(url), 350);
         else pendingDeeplinkRef.current = url; // consegnata appena l'utente è autenticato
       } catch { /* ignore */ }
@@ -199,6 +202,8 @@ function StackWithCallBar() {
       <AndroidKeyboardPadding>
         <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
       </AndroidKeyboardPadding>
+      {/* V50.z242 — BUG-STATE-001: salva l'ultima rotta e la ripristina al cold start */}
+      <RoutePersistence />
       {/* V50.z181 — badge icona app = notifiche AxonOS non lette */}
       <AxnBadgeSync enabled={!!user?.user_id} />
       {/* V50.z193 — Bridge push: token con retry + stato dispositivo al server + ack test programmati */}

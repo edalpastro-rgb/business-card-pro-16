@@ -41,6 +41,7 @@ import { ContactMailAttachmentsSection } from "@/src/ContactMailAttachmentsSecti
 import { ContactCustomFieldsSection } from "@/src/ContactCustomFieldsSection";
 import { ContactReviewsSection } from "@/src/ContactReviewsSection";
 import { ContactDistanceBadge } from "@/src/ContactDistanceBadge"; // V50.z241 — «📍 X km da te»
+import { useDraft } from "@/src/utils/appStatePersist"; // V50.z242 — BUG-STATE-001: bozza nota
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -93,6 +94,7 @@ function ContactDetail() {
     if (refsParam === "1") setTab("refs");
   }, [refsParam]);
   const [noteText, setNoteText] = useState("");
+  useDraft(`draft_contact_note_${id}`, noteText, setNoteText); // V50.z242 — la nota in scrittura sopravvive a background/riavvio
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [recording, setRecording] = useState(false);

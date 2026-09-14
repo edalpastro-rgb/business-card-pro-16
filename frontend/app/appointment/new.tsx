@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage"; // V50.z242 — BUG-STATE-001: bozza form
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import * as DocumentPicker from "expo-document-picker";
@@ -180,6 +181,32 @@ function NewAppointmentScreen() {
     })();
   }, [canBroadcast, user?.user_id]);
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
+  // V50.z242 — BUG-STATE-001: bozza del form nuovo appuntamento (no modifica, no prefill da altre pagine):
+  // ripristinata al mount se presente (< 12 h), salvata con debounce 700 ms, cancellata al salvataggio riuscito.
+  const DRAFT_KEY = "draft_appointment_new_v1";
+  const draftEnabled = !isEdit && !contactId && !prefContact && !prefTitle && !reschedule_from && !chain;
+  const draftLoaded = useRef(false);
+  useEffect(() => {
+    if (!draftEnabled || draftLoaded.current) return;
+    AsyncStorage.getItem(DRAFT_KEY).then((raw) => {
+      draftLoaded.current = true;
+      if (!raw) return;
+      try {
+        const d = JSON.parse(raw);
+        if (!d?.form || Date.now() - Number(d.at || 0) > 12 * 3600 * 1000) return;
+        setForm((f) => ({ ...f, ...d.form, start_at: d.form.start_at ? new Date(d.form.start_at) : f.start_at }));
+      } catch { /* ignore */ }
+    }).catch(() => { draftLoaded.current = true; });
+  }, [draftEnabled]);
+  useEffect(() => {
+    if (!draftEnabled || !draftLoaded.current) return;
+    const t = setTimeout(() => {
+      const dirty = !!(form.title || form.notes || form.location || form.contact_id || form.address_street || form.address_city || form.phone_mobile || form.email);
+      if (dirty) AsyncStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), form: { ...form, start_at: form.start_at.toISOString() } })).catch(() => {});
+      else AsyncStorage.removeItem(DRAFT_KEY).catch(() => {});
+    }, 700);
+    return () => clearTimeout(t);
+  }, [form, draftEnabled]);
   const [wheelPicker, setWheelPicker] = useState<null | "duration" | "reminder">(null);
   const [busy, setBusy] = useState(false);
   // v2.14 — Post-save "Invia dettagli" modal
@@ -426,6 +453,7 @@ function NewAppointmentScreen() {
         return;
       }
       const created = await api<{ appointment_id: string }>("/appointments", { method: "POST", body: payload });
+      AsyncStorage.removeItem(DRAFT_KEY).catch(() => {}); // V50.z242 — bozza consumata
       if (form.reminder_minutes > 0) {
         await scheduleAppointmentReminder(created.appointment_id, form.title, form.start_at);
       }

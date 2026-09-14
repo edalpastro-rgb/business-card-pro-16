@@ -57,6 +57,7 @@ import { AXON_OPEN_CHAT_EVENT, consumePendingPrompt } from "@/src/axonProactive"
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
 import { conversationToText, copyText, shareText, exportConversationPdf } from "@/src/utils/chatExport";
+import { useDraft, CHAT_OPEN_KEY } from "@/src/utils/appStatePersist"; // V50.z242 — BUG-STATE-001
 
 // V50.z11 — useBottomSheetPadding rimosso: era usato per padding sheet ma
 // il KeyboardAvoidingView ora gestisce autonomamente lo spazio sopra la tastiera.
@@ -187,6 +188,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [assistantName, setAssistantName] = useState("Neo");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  // V50.z242 — BUG-STATE-001: bozza del messaggio salvata (debounce 600 ms) e ripristinata al rientro/riavvio
+  useDraft("draft_axon_chat_v1", input, setInput);
   // V28.l — Allegati caricati dall'utente per la prossima /assistant/chat
   const [pendingAttachments, setPendingAttachments] = useState<{ name: string; mime: string; data_base64: string }[]>([]);
   const [attaching, setAttaching] = useState(false);
@@ -2626,6 +2629,24 @@ export function AssistantFAB() {
     const sub = DeviceEventEmitter.addListener(AXON_OPEN_CHAT_EVENT, () => setOpen(true));
     return () => sub.remove();
   }, []);
+  // V50.z242 — BUG-STATE-001: ricorda se la chat era aperta → al cold start nativo la riapre (entro 12 h).
+  const openRestored = useRef(false);
+  useEffect(() => {
+    if (Platform.OS === "web" || !user?.user_id || openRestored.current) return;
+    openRestored.current = true;
+    (async () => {
+      try {
+        const [[, flag], [, at]] = await AsyncStorage.multiGet([CHAT_OPEN_KEY, CHAT_OPEN_KEY + "_at"]);
+        if (flag !== "1" || !at || Date.now() - Number(at) > 12 * 3600 * 1000) return;
+        setTimeout(() => setOpen(true), 700);
+      } catch { /* ignore */ }
+    })();
+  }, [user?.user_id]);
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (open) AsyncStorage.multiSet([[CHAT_OPEN_KEY, "1"], [CHAT_OPEN_KEY + "_at", String(Date.now())]]).catch(() => {});
+    else AsyncStorage.removeItem(CHAT_OPEN_KEY).catch(() => {});
+  }, [open]);
   // V50.z131 — Tap robusto: la Pressable interna gestisce il tap in modo
   // nativo (indipendente dalla negoziazione del PanResponder, che su alcune
   // schermate con liste lunghe — es. Contatti — non arrivava al release).
