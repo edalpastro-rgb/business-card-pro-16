@@ -147,33 +147,46 @@ function StackWithCallBar() {
     // promemoria → naviga alle impostazioni della sveglia (screen /axon-alarms).
     // V50.z84 — Tap su push info-request: naviga a action_url/deeplink.
     if (Platform.OS === "web") return;
-    const handleData = (data: any) => {
+    // V50.z231 — Tap su push: si apre la pagina della notifica (dettaglio intero), non la Home.
+    // • payload robusto (deeplink può stare in data, data.data o data.body) • notif generica → /axon-notifications?open=<id>
+    // • cold start: la navigazione parte SOLO quando l'utente è autenticato e il router è pronto (altrimenti il redirect Home la sovrascriveva)
+    const resolveUrl = (raw: any): string | null => {
+      const d = raw?.data && typeof raw.data === "object" ? { ...raw.data, ...raw } : raw?.body && typeof raw.body === "object" ? { ...raw.body, ...raw } : raw || {};
+      const tag = (d?.tag || "") as string;
+      if (tag.startsWith("alarm_")) return "/axon-alarms";
+      let url = d?.deeplink || d?.action_url || d?.url || null;
+      if (typeof url !== "string" || !url) url = d?.notif_id ? "/axon-notifications" : null;
+      if (!url) return null;
+      if (url.startsWith("/axon-notifications") && d?.notif_id && !url.includes("open=")) url = `/axon-notifications?open=${encodeURIComponent(String(d.notif_id))}`;
+      return url;
+    };
+    const go = (url: string) => {
+      if (url.startsWith("http")) { try { openInAppLink(router, url); } catch { /* ignore */ } }
+      else router.push(url as any);
+    };
+    const handleResp = (resp: any) => {
       try {
-        const tag = (data?.tag || "") as string;
-        if (tag.startsWith("alarm_")) {
-          router.push("/axon-alarms" as any);
-          return;
-        }
-        const url = data?.deeplink || data?.action_url;
-        if (typeof url === "string" && url.length > 0) {
-          if (url.startsWith("http")) {
-            // V50.z108 — apri link http/https nella WebView interna (mantiene bottom nav).
-            try { openInAppLink(router, url); } catch { /* ignore */ }
-          } else {
-            router.push(url as any);
-          }
-        }
+        const id = resp?.notification?.request?.identifier || resp?.notification?.date || JSON.stringify(resp?.notification?.request?.content?.data || {});
+        if (id && handledNotifRef.current === id) return;
+        handledNotifRef.current = id;
+        const url = resolveUrl(resp?.notification?.request?.content?.data);
+        if (!url) return;
+        if (user?.user_id) setTimeout(() => go(url), 350);
+        else pendingDeeplinkRef.current = url; // consegnata appena l'utente è autenticato
       } catch { /* ignore */ }
     };
-    const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
-      handleData(resp?.notification?.request?.content?.data);
-    });
-    // Cold-start check
-    Notifications.getLastNotificationResponseAsync().then((resp) => {
-      if (resp) handleData(resp?.notification?.request?.content?.data);
-    }).catch(() => {});
+    const sub = Notifications.addNotificationResponseReceivedListener(handleResp);
+    Notifications.getLastNotificationResponseAsync().then((resp) => { if (resp) handleResp(resp); }).catch(() => {});
     return () => sub.remove();
-  }, [router]);
+  }, [router, user?.user_id]);
+  const pendingDeeplinkRef = React.useRef<string | null>(null);
+  const handledNotifRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!user?.user_id || !pendingDeeplinkRef.current) return;
+    const url = pendingDeeplinkRef.current; pendingDeeplinkRef.current = null;
+    const t = setTimeout(() => { try { if (url.startsWith("http")) openInAppLink(router, url); else router.push(url as any); } catch { /* ignore */ } }, 900);
+    return () => clearTimeout(t);
+  }, [user?.user_id, router]);
 
   // V50.z84 — Registra device token per push ad ogni app open / login
   useEffect(() => {

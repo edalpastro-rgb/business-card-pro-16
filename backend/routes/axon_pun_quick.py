@@ -366,8 +366,11 @@ async def _punq_daily_tick() -> dict:
     if r["added"]:
         try:
             owners = await db.users.find({"role": "owner", "$or": [{"parent_user_id": None}, {"parent_user_id": {"$exists": False}}]}, {"_id": 0}).to_list(200)
+            # V50.z231 — Avviso SOLO per il mese GME più recente davvero nuovo (niente valanga di 18 card al primo popolamento della cache)
+            recent_cut = (utcnow().replace(day=1) - timedelta(days=62)).strftime("%Y-%m")
+            notify_keys = sorted(k for k in r["added"] if k >= recent_cut)[-1:]
             for u in owners:
-                for key in r["added"]:
+                for key in notify_keys:
                     d = await db.gme_pun_cache.find_one({"month_key": key}, {"_id": 0})
                     if not d:
                         continue
@@ -390,6 +393,15 @@ async def _punq_start():
 
         async def _boot():
             await _punq_asyncio.sleep(20)
+            # V50.z231 — bonifica una tantum: le card «Nuovo PUN mensile GME» arretrate (backfill) vengono chiuse, resta solo la più recente per utente
+            try:
+                async for row in db.axon_proactive_log.aggregate([{"$match": {"type": "pun_update", "dismissed_at": None}}, {"$sort": {"month_key": -1}},
+                                                                  {"$group": {"_id": "$user_id", "keep": {"$first": "$item_id"}, "ids": {"$push": "$item_id"}}}]):
+                    stale = [i for i in row["ids"] if i != row["keep"]]
+                    if stale:
+                        await db.axon_proactive_log.update_many({"item_id": {"$in": stale}}, {"$set": {"dismissed_at": utcnow(), "dismiss_reason": "pun_backfill_cleanup"}})
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[punq] backfill cleanup failed: %s", exc)
             r = await _punq_daily_tick()
             logger.info("[punq] boot refresh: %s", r)
         _punq_asyncio.create_task(_boot())

@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 // axonProactive.ts — V50.z196 — Client Blocco 9 (proattività) + ponte "apri la chat con un prompt" (modulo ISOLATO)
 //
 // openAxonChat(prompt?) è il TRIGGER UNICO lato app: usato dal tap sulle bubble/notifiche e riutilizzabile da un
@@ -18,7 +19,7 @@ export function consumePendingPrompt(): string | null {
   const p = pendingPrompt; pendingPrompt = null; return p;
 }
 
-export type ProactiveAction = { label: string; prompt: string };
+export type ProactiveAction = { label: string; prompt?: string; route?: string };
 export type ProactiveItem = {
   item_id: string; kind: "briefing" | "suggestion" | "alert" | "weekly"; type: string; type_label: string; title: string; body: string;
   chat_text: string; actions: ProactiveAction[]; deeplink: string; source: string; created_at: string;
@@ -48,7 +49,10 @@ export const proactiveApi = {
 /** Tap/voce su un suggerimento: segna "risposto" e apre la chat con il prompt dell'azione (o il testo del suggerimento). */
 export function respondToItem(item: ProactiveItem, action?: ProactiveAction) {
   proactiveApi.act(item.item_id, "respond").catch(() => {});
-  openAxonChat(action?.prompt || item.actions?.[0]?.prompt || `Riguardo a: ${item.title}`);
+  // V50.z231 — azione con `route` → navigazione diretta (es. «Aggiorna le schede» → /le-mie-aree); altrimenti prompt in chat
+  const a = action || item.actions?.[0];
+  if (a?.route) { router.push(a.route as any); return; }
+  openAxonChat(a?.prompt || `Riguardo a: ${item.title}`);
 }
 
 export const KIND_ICON: Record<string, string> = { briefing: "sunny", suggestion: "bulb", alert: "warning", weekly: "calendar" };

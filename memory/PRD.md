@@ -1,6 +1,14 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z231 (Giu 2026) — Card Home persistenti · tap push → dettaglio · avviso aggiornamento schede
+
+1. **Card «AxonOS ti segnala» che ricomparivano**: causa = `_punq_daily_tick` al boot popolava la cache GME (18 mesi) ed emetteva un alert `pun_update` per OGNI mese (14 card); la Home ne mostra 3 → dopo ogni chiusura ne apparivano altre. Fix (`axon_pun_quick.py`): avviso solo per il mese più recente tra quelli aggiunti (≥ mese corrente −2) + bonifica una tantum all'avvio (`dismiss_reason: pun_backfill_cleanup`: resta 1 card aperta per utente). Il dismiss frontend/backend era già persistente.
+2. **Tap sulla push → pagina della notifica** (`app/_layout.tsx`): `resolveUrl()` legge deeplink da `data`/`data.data`/`data.body`; notifica generica con `notif_id` → `/axon-notifications?open=<id>`; cold start: URL messo in `pendingDeeplinkRef` e navigato solo quando `user.user_id` è pronto (prima il redirect Home lo sovrascriveva); dedupe per identifier. `app/axon-notifications.tsx`: tap su riga → **dettaglio** (Modal `axn-detail`: titolo, data, testo intero, «Apri la pagina collegata» se c'è deeplink, «Elimina»); `?open=<notif_id>` apre il dettaglio subito.
+3. **Aggiornamento schede preferenze → avviso** (`axon_area_wizard.py`): `AXON_PREFS_VERSION` (ora 2) + `AXON_PREFS_NOTE`; all'avvio (35 s) ogni utente con `prefs_notified_version < versione` riceve via `_apx_emit` (card Home + messaggio chat + push, dedupe `prefs_update:<v>`) «✨ Nuove potenzialità per il tuo assistente AxonOS — Aggiornamenti per le tue preferenze: aggiorna le schede e ottieni subito maggiori prestazioni dal tuo assistente e più controllo del tuo Business/Home.» con azioni «Aggiorna le schede» (route `/le-mie-aree`) e «Cosa c'è di nuovo?» (prompt). **Per future modifiche impattanti alle schede: incrementare `AXON_PREFS_VERSION` e aggiornare la nota.** `axonProactive.ts` `respondToItem`: azione con `route` → navigazione diretta (tipo `ProactiveAction.route`).
+**Test**: DB → 1 card PUN aperta per utente; 14 utenti notificati; web: card in Home → «Aggiorna le schede» → Le mie aree ✅; Notifiche → tap → dettaglio intero ✅. Tap push reale da verificare su device (nuova build).
+
+
 ## V50.z230 (Giu 2026) — Copy posizionamento AdvisorOS
 - Libretto/Tour Guidato (`libretto-content.ts` sez. intro), `axon_app_map.json` (Axon conosce il testo) e WowIntro: «AdvisorOS è un CRM pensato per consulenti, venditori, agenzie, network e per tutti quelli che hanno lunghi flussi di lavoro: archiviazione dati, analisi dati e un rapporto costante con clienti e collaboratori.» Nessun'altra modifica. NB: lo screenshot dell'utente mostrava il testo di una build precedente (V50.z182 lo aveva già sostituito) → serve ripubblicare/rigenerare la build.
 

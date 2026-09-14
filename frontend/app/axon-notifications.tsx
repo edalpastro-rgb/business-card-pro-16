@@ -1,6 +1,6 @@
 // Notifiche AxonOS (V50.z181) — elenco notifiche + preferenze. Route: /axon-notifications?tab=prefs
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Switch, TextInput, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Switch, TextInput, RefreshControl, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
@@ -22,7 +22,10 @@ function fmt(iso: string) {
 
 export default function AxonNotificationsScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ tab?: string }>();
+  const params = useLocalSearchParams<{ tab?: string; open?: string }>();
+  // V50.z231 — dettaglio notifica (testo intero); `?open=<notif_id>` dal tap sulla push apre direttamente il dettaglio
+  const [detail, setDetail] = useState<AxnNotification | null>(null);
+  const openedRef = React.useRef<string | null>(null);
   const pagePad = usePageBottomPadding();
   const [tab, setTab] = useState<"list" | "prefs">(params.tab === "prefs" ? "prefs" : "list");
   const [items, setItems] = useState<AxnNotification[]>([]);
@@ -53,9 +56,16 @@ export default function AxonNotificationsScreen() {
       try { const r = await axnApi.read(n.notif_id); setUnread(r.unread); setAppBadge(r.unread); } catch { /* ignore */ }
       setItems((p) => p.map((x) => (x.notif_id === n.notif_id ? { ...x, read: true } : x)));
     }
-    const dl = n.data?.deeplink;
-    if (dl && dl !== "/axon-notifications" && !dl.startsWith("/axon-notifications")) router.push(dl as any);
+    setDetail(n); // prima si legge la notifica intera; l'eventuale pagina collegata si apre dal bottone nel dettaglio
   };
+  const detailLink = detail?.data?.deeplink && !String(detail.data.deeplink).startsWith("/axon-notifications") ? String(detail.data.deeplink) : null;
+  useEffect(() => {
+    const id = params.open;
+    if (!id || openedRef.current === id || loading) return;
+    const n = items.find((x) => x.notif_id === id);
+    if (n) { openedRef.current = id; void open(n); }
+    else if (items.length) { openedRef.current = id; axnApi.list(false).then((l) => { const m = l.items.find((x) => x.notif_id === id); if (m) void open(m); }).catch(() => {}); }
+  }, [params.open, items, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const remove = async (n: AxnNotification) => {
     try { const r = await axnApi.remove(n.notif_id); setUnread(r.unread); setAppBadge(r.unread); setItems((p) => p.filter((x) => x.notif_id !== n.notif_id)); }
@@ -177,6 +187,32 @@ export default function AxonNotificationsScreen() {
           <Text style={styles.note}>Le push native richiedono la build pubblicata (Android e iOS); nell&apos;anteprima web e in Expo Go le notifiche restano visibili in questa lista.</Text>
         </ScrollView>
       )}
+      {/* V50.z231 — Dettaglio notifica: testo completo + azione collegata */}
+      <Modal visible={!!detail} animationType="slide" transparent onRequestClose={() => setDetail(null)}>
+        <View style={styles.detailBack}>
+          <View style={styles.detailCard} testID="axn-detail">
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={styles.detailIcon}><Ionicons name={(detail ? AXN_KIND_ICON[detail.kind] : "notifications") as any} size={20} color="#FFF" /></View>
+              <Text style={styles.detailTitle} numberOfLines={3}>{detail?.title}</Text>
+              <Pressable onPress={() => setDetail(null)} hitSlop={10} testID="axn-detail-close"><Ionicons name="close" size={22} color={theme.color.onSurface} /></Pressable>
+            </View>
+            <Text style={styles.detailMeta}>{detail ? new Date(detail.created_at).toLocaleString("it-IT") : ""}</Text>
+            <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ paddingVertical: 8 }}>
+              <Text style={styles.detailBody} testID="axn-detail-body">{detail?.body}</Text>
+            </ScrollView>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              {detailLink && (
+                <Pressable onPress={() => { const dl = detailLink; setDetail(null); setTimeout(() => router.push(dl as any), 120); }} style={[styles.detailBtn, { backgroundColor: theme.color.brandPrimary, flex: 1 }]} testID="axn-detail-open-link">
+                  <Ionicons name="open-outline" size={16} color="#FFF" /><Text style={styles.detailBtnTxt}>Apri la pagina collegata</Text>
+                </Pressable>
+              )}
+              <Pressable onPress={() => { if (detail) { void remove(detail); } setDetail(null); }} style={[styles.detailBtn, { backgroundColor: "#DC2626" }]} testID="axn-detail-delete">
+                <Ionicons name="trash-outline" size={16} color="#FFF" /><Text style={styles.detailBtnTxt}>Elimina</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -197,6 +233,14 @@ const styles = StyleSheet.create({
   emptyTxt: { fontSize: 13, color: theme.color.muted, textAlign: "center", lineHeight: 19 },
   row: { flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12 },
   rowUnread: { borderColor: "#C4B5FD", backgroundColor: "#FAF5FF" },
+  detailBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }, // V50.z231
+  detailCard: { backgroundColor: theme.color.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 18, paddingBottom: 34, gap: 6 },
+  detailIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" },
+  detailTitle: { flex: 1, fontSize: 16, fontWeight: "900", color: theme.color.onSurface },
+  detailMeta: { fontSize: 12, color: theme.color.muted, fontWeight: "700" },
+  detailBody: { fontSize: 15, lineHeight: 22, color: theme.color.onSurface },
+  detailBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 12, paddingHorizontal: 14 },
+  detailBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13.5 },
   rowIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   rowTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
   rowBody: { fontSize: 13, color: theme.color.onSurface, marginTop: 2, lineHeight: 18 },

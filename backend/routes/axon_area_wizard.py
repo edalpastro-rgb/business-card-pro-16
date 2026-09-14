@@ -411,3 +411,45 @@ async def _aw_rollover_job():
 async def aw_rollover_run(user=Depends(get_current_user)):
     """Rinnovo manuale (utente corrente) — utile dopo un rinnovo bollo/polizza o per test."""
     return {"ok": True, "renewed": await _aw_rollover_user(user)}
+
+
+# ============================================================================ V50.z231 — Aggiornamento schede preferenze → avviso all'utente
+# Ogni volta che le schede preferenze/aree cambiano in modo impattante, si alza AXON_PREFS_VERSION (+ nota): all'avvio ogni utente
+# che non ha ancora visto questa versione riceve una comunicazione proattiva (card in Home «AxonOS ti segnala», messaggio in chat, push)
+# con invito all'azione «Aggiorna le schede» → /le-mie-aree. Idempotente (dedupe_key prefs_update:<versione>).
+AXON_PREFS_VERSION = 2
+AXON_PREFS_NOTE = ("Nuove schede: Auto & Veicoli con avvisi scadenze ricorrenti, Note spese con storico mensile e statistiche, "
+                   "aree personalizzate con fonti web e scadenze. Carica un documento e AxonOS legge tutto da solo.")
+_APX_TYPE_LABELS["prefs_update"] = "Novità per il tuo assistente"
+_APX_DEFAULT_CONFIG["alerts"]["prefs_update"] = True
+
+
+async def _aw_prefs_update_notify_all() -> int:
+    n = 0
+    async for u in db.users.find({"$or": [{"prefs_notified_version": {"$exists": False}}, {"prefs_notified_version": {"$lt": AXON_PREFS_VERSION}}]}, {"_id": 0}):
+        try:
+            title = "✨ Nuove potenzialità per il tuo assistente AxonOS"
+            body = "Aggiornamenti per le tue preferenze: aggiorna le schede e ottieni subito maggiori prestazioni dal tuo assistente e più controllo del tuo Business/Home."
+            chat = (f"✨ **Nuove potenzialità per il tuo assistente AxonOS**\n\n{AXON_PREFS_NOTE}\n\n"
+                    "Aggiorna le schede delle tue preferenze in *Impostazioni → Le mie aree*: ottieni subito maggiori prestazioni dal tuo assistente e più controllo del tuo Business/Home.")
+            await _apx_emit(u, "suggestion", "prefs_update", title, body, chat, f"prefs_update:{AXON_PREFS_VERSION}",
+                            [{"label": "Aggiorna le schede", "route": "/le-mie-aree"}, {"label": "Cosa c'è di nuovo?", "prompt": "Spiegami le nuove schede preferenze di AxonOS e cosa posso configurare nelle mie aree"}],
+                            "system", {"prefs_version": AXON_PREFS_VERSION})
+            await db.users.update_one({"user_id": u["user_id"]}, {"$set": {"prefs_notified_version": AXON_PREFS_VERSION}})
+            n += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[area-wizard] prefs notify %s failed: %s", u.get("user_id"), exc)
+    return n
+
+
+@app.on_event("startup")
+async def _aw_prefs_update_start():
+    async def _boot():
+        await asyncio.sleep(35)
+        try:
+            n = await _aw_prefs_update_notify_all()
+            if n:
+                logger.info("[area-wizard] prefs update v%s notified to %s users", AXON_PREFS_VERSION, n)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[area-wizard] prefs notify failed: %s", exc)
+    asyncio.create_task(_boot())
