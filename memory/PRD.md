@@ -6213,3 +6213,8 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 - Frontend: `src/PersonalLockGate.tsx` (setup 2 passaggi → opzionale attiva impronta/Face ID; verify con auto-prompt biometrico se attivo; forgot con codice+nuovo PIN; `ChangePinPanel` con toggle biometria) — preferenza biometria locale in secure storage `personal_space_bio_enabled_v1`. `app/spazio-personale.tsx`: gate ad ogni apertura (mount) + relock al passaggio in background; header → icona lucchetto apre Cambia PIN.
 - Icona: `src/LockKeyIcon.tsx` (SVG flat lucchetto+chiave) + `MenuIcon` drop-in; usata per «Spazio Personale» in DrawerMenu, EdgePanel, pannello Master (`LOCK_KEY_ICON`).
 - Biometria: testabile SOLO su build nativa (non Expo Go/web).
+
+## V50.z238 (Giu 2026) — Pulizia UI chat AxonOS (`AssistantChat.tsx`)
+- Rimossa la barra tab sessioni sopra i messaggi («+ Nuova» + chip titolo chat: non rispondevano al tap) insieme a `switchTab/newTab/refreshTabs/tabs` (il componente `ChatTabsBar` in ChatQueuePanel.tsx resta inutilizzato).
+- Rimosso il tasto flottante «↑ Inizio» (torna all'inizio) + `autoScrollOffRef`.
+- Rimossa la brand bar bianca con il logo grande; il logo AxonOS è ora una pill compatta (h 20) a sinistra di «Coda» nella riga sotto «Annunci» (`styles.brandPill`, testID `assistant-brand-bar-logo`). Guadagnati ~50px per la conversazione.

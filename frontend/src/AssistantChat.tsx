@@ -52,7 +52,7 @@ import { ImportConfirmChips, hasImportQuestion } from "@/src/ImportConfirmChips"
 import { QuickReplyButtons, QuickReplyToast, QUICK_REPLY_TOAST_MS, isClosedQuestion } from "@/src/axon-quick-reply"; // V50.z207 — Sì/No/Forse su domande chiuse
 import { SetupNudgeCard, hasSetupNudge } from "@/src/SetupNudgeCard"; // V50.z211 — avviso configurazione incompleta → wizard
 import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 — avviso interessi futuri (CarPlay…) dal wizard
-import { ChatQueuePanel, ChatTabsBar, type QueueItem, type ChatTab } from "@/src/ChatQueuePanel"; // V50.z223 — coda messaggi non bloccante + chat parallele
+import { ChatQueuePanel, type QueueItem } from "@/src/ChatQueuePanel"; // V50.z223 — coda messaggi non bloccante + chat parallele
 import { AXON_OPEN_CHAT_EVENT, consumePendingPrompt } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
@@ -215,7 +215,6 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [queueDone, setQueueDone] = useState<QueueItem[]>([]);
   const [queueFailed, setQueueFailed] = useState<QueueItem[]>([]); // V50.z225 — bozze fallite (Riprova)
-  const [tabs, setTabs] = useState<ChatTab[]>([]);
   const queueBusyRef = useRef(false);
   // V38T — Save-to-master modal state (opens with default filename)
   const [saveTarget, setSaveTarget] = useState<{ content: string; defaultName: string } | null>(null);
@@ -239,7 +238,6 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const convLastVoiceMsRef = useRef<number>(0);
   const convCycleStartRef = useRef<number>(0);
   const scrollRef = useRef<ScrollView | null>(null);
-  const autoScrollOffRef = useRef(false); // V50.z203 — sospende l'auto-scroll al fondo dopo «Torna all'inizio»
   const mrRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -846,7 +844,6 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const refreshQueue = useCallback(async () => {
     try { const q = await api<{ items: QueueItem[]; recent_done: QueueItem[]; failed?: QueueItem[] }>("/chat/queue?include_done=true"); setQueue(q.items || []); setQueueDone(q.recent_done || []); setQueueFailed(q.failed || []); } catch {}
   }, []);
-  const refreshTabs = useCallback(async () => { try { const t = await api<{ tabs: ChatTab[] }>("/chat/tabs"); setTabs(t.tabs || []); } catch {} }, []);
   const enqueue = async (content: string, priority: "URGENT" | "HIGH" | "NORMAL" = "NORMAL") => {
     try {
       const r = await api<{ draft_id: string; position_in_queue: number; estimated_time: string }>("/chat/messages", { method: "POST", body: { content, priority, session_id: sessionId || undefined } });
@@ -876,25 +873,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   }, [refreshQueue]);
   // quando Axon finisce una risposta → parte la prossima bozza in coda
   useEffect(() => { if (!sending && queue.some((q) => q.status === "pending")) void processQueue(); }, [sending, queue, processQueue]);
-  useEffect(() => { void refreshQueue(); void refreshTabs(); }, [refreshQueue, refreshTabs]);
+  useEffect(() => { void refreshQueue(); }, [refreshQueue]);
   const sendNow = async (it: QueueItem) => {
     // «Invia ora»: priorità URGENT → è la prossima a partire (se Axon è libero parte subito)
     await api(`/chat/queue/${it.draft_id}`, { method: "PATCH", body: { priority: "URGENT" } }).catch(() => {});
     await refreshQueue();
     if (!sending) void processQueue();
-  };
-  const switchTab = async (sid: string) => {
-    if (sid === sessionId) { setShowQueue(false); return; }
-    try {
-      const h = await api<{ session_id?: string | null; messages?: { role: string; content: string }[] }>(`/assistant/history?session_id=${encodeURIComponent(sid)}`);
-      setSessionId(sid);
-      setMessages((h.messages || []).map((m) => ({ role: m.role as any, content: m.content })));
-      setShowQueue(false);
-    } catch (e: any) { notify("Chat non caricata", String(e?.message || e)); }
-  };
-  const newTab = async () => {
-    try { const r = await api<{ session_id: string; title: string }>("/chat/tabs", { method: "POST", body: { title: `Chat ${tabs.length + 1}` } }); setSessionId(r.session_id); setMessages([]); setShowQueue(false); await refreshTabs(); }
-    catch (e: any) { notify("Nuova chat non creata", String(e?.message || e)); }
   };
 
   // V29.n — Interrompe immediatamente la risposta in corso.
@@ -1585,8 +1569,16 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 </Pressable>
               </View>
               <View style={styles.headerModeRow}>
+                {/* V50.z238 — Logo AxonOS compatto (stessa altezza del tasto Coda) */}
+                <View style={styles.brandPill} testID="assistant-brand-bar-logo">
+                  <Image
+                    source={AXONOS_LOGO_HORIZONTAL}
+                    style={{ width: Math.round(20 * AXONOS_LOGO_HORIZONTAL_ASPECT), height: 20 }}
+                    resizeMode="contain"
+                  />
+                </View>
                 {/* V50.z223 — tab «Coda» nell'header */}
-                <Pressable onPress={() => { setShowQueue((v) => !v); void refreshQueue(); void refreshTabs(); }} style={[styles.modeDropdown, showQueue && { backgroundColor: "#F97316" }]} hitSlop={6} testID="assistant-queue-tab" accessibilityLabel="Coda messaggi">
+                <Pressable onPress={() => { setShowQueue((v) => !v); void refreshQueue(); }} style={[styles.modeDropdown, showQueue && { backgroundColor: "#F97316" }]} hitSlop={6} testID="assistant-queue-tab" accessibilityLabel="Coda messaggi">
                   <Ionicons name="list" size={13} color="#FFF" />
                   <Text style={styles.modeDropdownTxt}>Coda{queue.length ? ` (${queue.length})` : ""}</Text>
                   {queueFailed.length > 0 && (
@@ -1658,41 +1650,18 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               </View>
             )}
 
-            {/* Brand bar V29.u: logo AxonOS sempre visibile in alto (fisso).
-                Non è più solo nell'empty state — resta come elemento persistente
-                dell'interfaccia anche durante l'elaborazione e dopo i messaggi. */}
-            <View style={styles.brandBar}>
-              <Image
-                source={AXONOS_LOGO_HORIZONTAL}
-                style={{ width: 118, height: Math.round(118 / AXONOS_LOGO_HORIZONTAL_ASPECT) }}
-                resizeMode="contain"
-                testID="assistant-brand-bar-logo"
-              />
-            </View>
+            {/* V50.z238 — Brand bar rimossa: il logo AxonOS è ora una pill compatta accanto a «Coda» (libera spazio alla chat). */}
 
             {/* Messages */}
             <View style={{ flex: 1 }}>
-            {/* V50.z203 — Tasto fisso «Torna all'inizio»: primo messaggio senza scroll lungo */}
-            {messages.length > 2 && (
-              <Pressable
-                onPress={() => { autoScrollOffRef.current = true; scrollRef.current?.scrollTo({ y: 0, animated: true }); setTimeout(() => { autoScrollOffRef.current = false; }, 1500); }}
-                style={styles.backToTopBtn}
-                testID="assistant-back-to-top"
-                accessibilityLabel="Torna all'inizio della conversazione"
-              >
-                <Ionicons name="arrow-up" size={18} color="#FFF" />
-                <Text style={styles.backToTopTxt}>Inizio</Text>
-              </Pressable>
-            )}
-            {/* V50.z223 — chat parallele: barra tab (sessioni) sempre visibile sopra i messaggi */}
-            {tabs.length > 0 && !loadingHist && <ChatTabsBar tabs={tabs} current={sessionId} onSelect={(sid) => void switchTab(sid)} onNew={() => void newTab()} />}
+            {/* V50.z238 — barra tab sessioni («+ Nuova» / chip) rimossa su richiesta: i bottoni non rispondevano al tap. */}
             {/* V50.z223 — tab «Coda»: pannello bozze al posto dei messaggi */}
             {showQueue && <ChatQueuePanel items={queue} recentDone={queueDone} failed={queueFailed} onChanged={() => void refreshQueue()} onSendNow={(it) => void sendNow(it)} busy={sending} />}
             <ScrollView
               ref={scrollRef}
               style={[styles.chatArea, showQueue && { display: "none" }]}
               contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 24 }}
-              onContentSizeChange={() => { if (!autoScrollOffRef.current) scrollRef.current?.scrollToEnd({ animated: true }); }}
+              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
             >
               {loadingHist && (
                 <View style={{ alignItems: "center", paddingVertical: 20 }}>
@@ -2900,14 +2869,8 @@ const styles = StyleSheet.create({
   modeItemTxt: { flex: 1, fontSize: 13, color: theme.color.onSurface, fontWeight: "600" },
 
   chatArea: { flex: 1, backgroundColor: "#FAF9FF" },
-  brandBar: {
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EDE9FE",
-  },
+  // V50.z238 — pill logo AxonOS compatta accanto a «Coda» (altezza allineata a modeDropdown)
+  brandPill: { marginTop: 3, paddingHorizontal: 6, paddingVertical: 3, backgroundColor: "#E6EBEE", borderRadius: 999, alignItems: "center", justifyContent: "center", overflow: "hidden" },
 
   emptyWrap: { alignItems: "center", paddingHorizontal: 20, paddingTop: 10, gap: 6 },
   emptyIcon: {
@@ -3287,8 +3250,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   // Conversation panel
-  backToTopBtn: { position: "absolute", top: 8, right: 12, zIndex: 20, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#4C1D95CC", borderRadius: 16, paddingHorizontal: 10, minHeight: 32, ...(Platform.OS === "web" ? { cursor: "pointer" } as any : {}) },
-  backToTopTxt: { color: "#FFF", fontSize: 12, fontWeight: "800" },
   convPanel: {
     backgroundColor: "#FFF",
     borderTopWidth: 1,
