@@ -15,13 +15,13 @@ import Animated, {
   ZoomIn,
 } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
-import { BrainPlus } from "@/src/BrainPlus"; // V50.z190 — claim AxonOS Brain+
+import { TOUR_STORIES, TOUR_CLOSING_LINE } from "@/src/TourStories"; // V50.z244 — storie utente del Tour
 
 /**
  * V50.z136 — Intro animata "effetto wow" del tour di onboarding.
  * 100% offline (nessun video/YouTube): slide con fade + slide-in + zoom,
  * orbite di icone che pulsano, sfondo con bolle animate. Avanza da sola ogni
- * ~4.2s, oppure tap su "Avanti"; l'ultima slide ha "Inizia il tour".
+ * ~7.5s, oppure tap su "Avanti"; l'ultima slide ha "Inizia il tour". V50.z244: slide = 4 storie utente + riga finale brand.
  */
 type Slide = {
   key: string;
@@ -32,14 +32,16 @@ type Slide = {
   orbit: React.ComponentProps<typeof Ionicons>["name"][];
 };
 
-const SLIDES: Slide[] = [
-  { key: "welcome", icon: "sparkles", color: "#FBBF24", title: "Benvenuto in AdvisorOS", body: "Il CRM pensato per consulenti, venditori, agenzie e network. Tutto in un'unica app, sempre con te.", orbit: ["people", "calendar", "flash", "document-text"] },
-  { key: "crm", icon: "people", color: "#0EA5E9", title: "Contatti & Calendario", body: "Anagrafiche complete, appuntamenti condivisi con il cliente via WhatsApp o email, scadenze contratti sotto controllo.", orbit: ["call", "location", "time", "notifications"] },
-  { key: "axon", icon: "chatbubbles", color: "#8B5CF6", title: "AxonOS, il tuo assistente AI", body: "Chiedi a voce o per iscritto: PUN, bollette, clienti, timer e promemoria. Impara dalle tue regole e ti risponde in streaming.", orbit: ["mic", "bar-chart", "bulb", "alarm"] },
-  { key: "docs", icon: "scan", color: "#22C55E", title: "Scanner & Documenti", body: "Scansiona bollette e contratti con ritaglio automatico, analizzali con l'AI e archiviali su Drive.", orbit: ["camera", "cloud-upload", "analytics", "folder"] },
-];
+// V50.z244 — Tour Guidato: 4 storie utente in prima persona (nessun elenco di feature). Testi in TourStories.tsx.
+const STORY_META: Record<string, { icon: Slide["icon"]; orbit: Slide["orbit"] }> = {
+  trasferta: { icon: "car", orbit: ["location", "people", "gift", "time"] },
+  scadenza: { icon: "alarm", orbit: ["calendar", "notifications", "card", "checkmark-circle"] },
+  documento: { icon: "document-text", orbit: ["search", "folder", "logo-whatsapp", "flash"] },
+  followup: { icon: "chatbubbles", orbit: ["people", "create", "send", "sparkles"] },
+};
+const SLIDES: Slide[] = TOUR_STORIES.map((st) => ({ key: st.id, color: st.color, title: st.title, body: st.text, icon: STORY_META[st.id].icon, orbit: STORY_META[st.id].orbit }));
 
-const AUTO_MS = 4200;
+const AUTO_MS = 7500; // storie di 3-4 righe: più tempo per leggerle
 
 function Bubble({ size, x, y, delay, color }: { size: number; x: number; y: number; delay: number; color: string }) {
   const t = useSharedValue(0);
@@ -116,13 +118,12 @@ export function WowIntro({ onDone }: { onDone: () => void }) {
       </View>
 
       <View key={`t-${slide.key}`} style={styles.textWrap}>
+        <Animated.Text entering={FadeInUp.delay(100).duration(450)} style={[styles.kicker, { color: slide.color }]}>Storia {idx + 1} di {SLIDES.length}</Animated.Text>
         <Animated.Text entering={FadeInUp.delay(150).duration(550)} style={styles.title}>{slide.title}</Animated.Text>
-        {slide.key === "axon" ? (
-          <Animated.View entering={FadeInUp.delay(250).duration(550)}>
-            <BrainPlus dark size={24} tagline align="center" style={{ marginBottom: 8 }} testID="wow-brainplus" />
-          </Animated.View>
+        <Animated.Text entering={FadeInUp.delay(320).duration(550)} style={styles.body} testID={`wow-story-${slide.key}`}>“{slide.body}”</Animated.Text>
+        {last ? (
+          <Animated.Text entering={FadeInUp.delay(700).duration(600)} style={styles.closing} testID="wow-closing-line">{TOUR_CLOSING_LINE}</Animated.Text>
         ) : null}
-        <Animated.Text entering={FadeInUp.delay(320).duration(550)} style={styles.body}>{slide.body}</Animated.Text>
       </View>
 
       {/* Dots */}
@@ -157,12 +158,14 @@ const styles = StyleSheet.create({
   bubble: { position: "absolute" },
   logoRow: { position: "absolute", top: 56, alignItems: "center" },
   logo: { width: 150, height: 44 },
-  heroWrap: { width: 220, height: 220, alignItems: "center", justifyContent: "center", marginBottom: 26 },
+  heroWrap: { width: 220, height: 220, alignItems: "center", justifyContent: "center", marginBottom: 10, transform: [{ scale: 0.82 }] },
   heroCircle: { width: 128, height: 128, borderRadius: 64, alignItems: "center", justifyContent: "center", borderWidth: 2 },
   orbitIcon: { position: "absolute", width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" },
-  textWrap: { alignItems: "center", minHeight: 150 },
-  title: { color: "#FFF", fontSize: 26, fontWeight: "900", textAlign: "center", letterSpacing: 0.2, marginBottom: 12 },
-  body: { color: "rgba(255,255,255,0.78)", fontSize: 15, lineHeight: 22, textAlign: "center", maxWidth: 340 },
+  textWrap: { alignItems: "center", minHeight: 210 },
+  kicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 6 },
+  title: { color: "#FFF", fontSize: 24, fontWeight: "900", textAlign: "center", letterSpacing: 0.2, marginBottom: 10 },
+  body: { color: "rgba(255,255,255,0.82)", fontSize: 14.5, lineHeight: 22, textAlign: "center", maxWidth: 340, fontStyle: "italic" },
+  closing: { color: "#FFF", fontSize: 16, lineHeight: 23, fontWeight: "900", textAlign: "center", marginTop: 14, maxWidth: 340 }, // brand copy locked
   dots: { flexDirection: "row", gap: 8, alignItems: "center", marginTop: 8, marginBottom: 26 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.3)" },
   ctaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", maxWidth: 380 },

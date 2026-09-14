@@ -5,6 +5,12 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z244 (Set 2026) — Tour Guidato: storie utente al posto delle slide funzionalità
+- `src/TourStories.tsx`: `TOUR_STORIES` (4 storie: id trasferta/scadenza/documento/followup, emoji, colore, titolo, testo in prima persona — testi forniti dall'utente, NON riformulare) + `TOUR_CLOSING_LINE = "Non aggiungi un'app alla tua vita. Togli il caos."` (**brand copy LOCKED — DO NOT CHANGE**) + componente `TourStories` (card con striscia colorata, kicker «Storia N», titolo, testo tra virgolette in corsivo; riga finale bianca in grassetto `tour-closing-line`).
+- `src/WowIntro.tsx`: `SLIDES` derivate da `TOUR_STORIES` (icone/orbit in `STORY_META`), kicker «Storia N di 4», testo in corsivo, riga finale in grassetto sull'ultima slide (`wow-closing-line`); rimosso il claim BrainPlus dalla slide; `AUTO_MS` 4200 → 7500; hero ridotto (scale 0.82) per far stare 4 righe.
+- `app/libretto.tsx`: in onboarding (`?onboarding=1`) le `SectionCard` sono sostituite da `<TourStories/>`; sottotitolo cover «Quattro momenti di una giornata vera…». Il Libretto Informativo normale è invariato (sezioni + PDF).
+- Test web: slide 1-4 con storie e riga finale ✅, pagina tour con 4 card + riga ✅.
+
 ## V50.z243 (Set 2026) — Scroll memorizzato (Contatti + Calendario)
 `useScrollMemory(key)` (`src/utils/appStatePersist.ts`): ritorna `{ref, onScroll, onContentSizeChange, scrollEventThrottle}`; salva `{y, at}` in `scroll_pos_<key>` con debounce 400 ms e immediatamente su AppState background; al mount legge il valore (< 12 h) e ripristina una sola volta appena `contentHeight ≥ y+100` (gestisce la race load-storage/contenuto chiamando `tryRestore` da entrambi i lati). Applicato a `contatti.tsx` (FlatList principale, key `contatti_list`) e `calendario.tsx` (ScrollView `cal-scroll`, key `calendario`). Test web: scroll 528 → reload → 524 ✅.
 

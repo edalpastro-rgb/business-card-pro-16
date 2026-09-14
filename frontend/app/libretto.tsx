@@ -36,6 +36,7 @@ import { useAuth } from "@/src/auth";
 import { WowIntro } from "@/src/WowIntro";
 import { BrainPlus, brainPlusHtml, BRAIN_PLUS_SECTION_IDS } from "@/src/BrainPlus"; // V50.z190 — claim AxonOS Brain+
 import { BrandLogosBlock, tuttunizzatoreHtml } from "@/src/Tuttunizzatore"; // V50.z191 — loghi impilati + «Il tuo "Tuttunizzatore"»
+import { TourStories } from "@/src/TourStories"; // V50.z244 — Tour Guidato: 4 storie utente al posto delle slide funzionalità
 const ADVISOR_LOGO = require("@/assets/images/advisoros-logo-transparent.png");
 const AXON_LOGO = require("@/assets/images/axonos-logo-light.png"); // V50.z228
 const ADVISOR_ICON = require("@/assets/images/advisoros-icon-1024.png");
@@ -387,7 +388,7 @@ export default function LibrettoScreen() {
           <BrainPlus dark size={24} tagline align="center" style={{ marginBottom: 6 }} testID="libretto-brainplus-cover" />
           <Text style={styles.coverSub}>
             {isOnboarding
-              ? "Ecco un giro guidato di tutto quello che puoi fare. Scorri, esplora, poi tocca «Iniziamo!» in fondo."
+              ? "Quattro momenti di una giornata vera, raccontati da chi lavora come te. Scorri, poi tocca «Iniziamo!» in fondo."
               : meta.subtitle}
           </Text>
           <View style={styles.coverBadge}>
@@ -395,8 +396,8 @@ export default function LibrettoScreen() {
           </View>
         </View>
 
-        {/* Sezioni */}
-        {sections.map((s) => (
+        {/* V50.z244 — Tour Guidato: 4 storie utente in prima persona (le sezioni funzionalità restano nel Libretto) */}
+        {isOnboarding ? <TourStories /> : sections.map((s) => (
           <SectionCard key={s.id} section={s} />
         ))}
 
