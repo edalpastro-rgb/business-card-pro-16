@@ -1,6 +1,10 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z234 (Giu 2026) — Tour Guidato: copy locked — ✅ VERIFICATO DALL'UTENTE (Giu 2026, nessuna correzione richiesta)
+- `libretto-content.ts` (+ `axon_app_map.json`): slide Home/Famiglia → «Un solo assistente che ti alleggerisce la vita ogni giorno, senza chiederti di ripetere nulla.»; sezione AxonOS Brain+ → «memorizza il tuo contesto per conoscerti meglio nel tempo, senza condividere nulla con modelli esterni». Entrambe marcate nel codice `// DO NOT CHANGE - brand copy locked`. FAQ «Axon usa i miei dati per addestrarsi? — No…» lasciata invariata. Nessun override in `libretto_content` (DB) → il fallback statico è quello mostrato. **BRAND COPY LOCK**: non modificare queste due frasi.
+
+
 ## V50.z233 (Giu 2026) — Firma aziendale nei PDF · «Chiudi tutte»
 - `BrandHeaderImage.tsx`: `orgSignature(b)` + `fetchOrgSignature()` (cache condivisa). Libretto (`app/libretto.tsx` `buildPdfHtml(..., orgSig)`): firma in copertina sotto il footer (`.org-sig`) e blocco finale `.org-sig-end`. `ChatTableExport.tsx` (`tableToHtml(..., orgSig)`): riga firma centrata a fine tabella (PDF report settimanali/tabelle esportate). Backend `axon_expenses.py` `axe_pdf`: firma in calce (come già `_axh_render_pdf`). Verificato con pypdf: firma presente nel PDF.
 - «Chiudi tutte» (`ProactiveBubbles.tsx`, testID `proactive-bubbles-dismiss-all`) → `POST /axon/proactive/items/dismiss-all` (tutte le card aperte dell'utente, `dismiss_reason: dismiss_all`), sezione svuotata subito.

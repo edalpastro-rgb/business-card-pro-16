@@ -439,7 +439,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     subtitle: "AxonOS Brain+ · L'AI è il motore, non un accessorio",
     highlight: "AdvisorOS non è un CRM con un chatbot aggiunto. È il primo sistema gestionale dove l'AI è il motore, non un accessorio.",
     paragraphs: [
-      "Salesforce, HubSpot, Pipedrive hanno tutti un assistente AI innestato sopra il database. AxonOS legge il tuo database in tempo reale, agisce dentro il sistema e impara dalle tue interazioni.",
+      "Salesforce, HubSpot, Pipedrive hanno tutti un assistente AI innestato sopra il database. AxonOS legge il tuo database in tempo reale, agisce dentro il sistema e memorizza il tuo contesto per conoscerti meglio nel tempo, senza condividere nulla con modelli esterni.",
       "Non devi spiegargli chi sei ogni volta: ti conosce già.",
     ],
   },
@@ -475,7 +475,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     highlight: "AxonOS non è solo per il lavoro. Una famiglia oggi gestisce scadenze, documenti e impegni come una piccola impresa.",
     paragraphs: [
       "AxonOS legge la circolare della scuola e aggiorna il calendario. Ricorda bollo, revisione, tasse, compleanni. Fotografa lo scontrino e costruisce la nota spese. Legge l'estratto conto e produce un report. Gestisce password, documenti assicurativi, pratiche sanitarie.",
-      "Un solo assistente che conosce tutta la tua vita, senza che tu debba spiegargli nulla ogni volta.",
+      "Un solo assistente che ti alleggerisce la vita ogni giorno, senza chiederti di ripetere nulla.",
     ],
   },
   {
