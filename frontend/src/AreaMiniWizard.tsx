@@ -72,7 +72,7 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
     setBusy("AxonOS sta leggendo il documento…");
     try {
       const r = await uploadAreaExtract(area!.key, src, step.extract || "generic", folder);
-      setData((d) => ({ ...d, ...r.fields }));
+      setData((d) => ({ ...d, ...r.fields, ...((r as any).expense_id ? { expense_id: (r as any).expense_id } : {}) }));
       setMissing(r.missing || []);
       setFileName(`${r.file.name} → ${r.file.folder_label}`);
       setPhase("fields");
@@ -99,7 +99,8 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
   const confirmFields = async () => {
     setBusy("Salvo…");
     try {
-      const patch = Object.fromEntries(fields.map((f) => [f.key, data[f.key] || ""]));
+      const patch: Record<string, string> = Object.fromEntries(fields.map((f) => [f.key, data[f.key] || ""]));
+      if (data.expense_id) patch.expense_id = data.expense_id; // V50.z229 — aggiorna la riga nello storico spese
       const r = await saveProfile(patch, isLast ? true : undefined);
       await advance(r);
     } catch (e: any) { notify("Salvataggio non riuscito", e?.message || String(e)); }

@@ -30,10 +30,10 @@ _AW_WIZARDS: Dict[str, dict] = {
     "documenti": {"steps": [{"id": "link", "kind": "link", "title": "Scegli la cartella principale di Google Drive", "route": "/google-drive", "cta": "Seleziona cartella"}]},
     "bollette": {"steps": [{"id": "bolletta", "kind": "upload", "title": "Fotografa o carica la bolletta", "hint": "AxonOS estrae POD/PDR, consumi, scadenze e importi.", "extract": "bolletta",
         "fields": [{"key": "fornitore", "label": "Fornitore"}, {"key": "pod_pdr", "label": "POD / PDR"}, {"key": "consumo", "label": "Consumo"}, {"key": "importo", "label": "Importo (€)"}, {"key": "scadenza", "label": "Scadenza", "type": "date"}]}]},
-    "spese_biz": {"steps": [{"id": "ricevuta", "kind": "upload", "title": "Carica o fotografa la ricevuta", "hint": "AxonOS estrae importo, data e fornitore.", "extract": "ricevuta",
-        "fields": [{"key": "fornitore", "label": "Fornitore"}, {"key": "importo", "label": "Importo (€)"}, {"key": "data", "label": "Data", "type": "date"}]}]},
-    "spese_home": {"steps": [{"id": "ricevuta", "kind": "upload", "title": "Carica o fotografa la ricevuta", "hint": "AxonOS estrae importo, data e fornitore.", "extract": "ricevuta",
-        "fields": [{"key": "fornitore", "label": "Fornitore"}, {"key": "importo", "label": "Importo (€)"}, {"key": "data", "label": "Data", "type": "date"}]}]},
+    "spese_biz": {"steps": [{"id": "ricevuta", "kind": "upload", "title": "Carica o fotografa la ricevuta", "hint": "AxonOS estrae importo, data e fornitore e la aggiunge allo storico spese del mese.", "extract": "ricevuta",
+        "fields": [{"key": "fornitore", "label": "Fornitore"}, {"key": "importo", "label": "Importo (€)"}, {"key": "data", "label": "Data", "type": "date"}]}], "done_note": "La trovi in Note spese & Storico: seleziona le ricevute e chiudi il mese in PDF."},
+    "spese_home": {"steps": [{"id": "ricevuta", "kind": "upload", "title": "Carica o fotografa la ricevuta", "hint": "AxonOS estrae importo, data e fornitore e la aggiunge allo storico spese del mese.", "extract": "ricevuta",
+        "fields": [{"key": "fornitore", "label": "Fornitore"}, {"key": "importo", "label": "Importo (€)"}, {"key": "data", "label": "Data", "type": "date"}]}], "done_note": "La trovi in Note spese & Storico: seleziona le ricevute e chiudi il mese in PDF."},
     "pun": {"steps": [{"id": "contratto", "kind": "choice", "title": "Che contratto hai oggi?", "field": "contratto_tipo", "options": [{"value": "tutelato", "label": "Tutelato"}, {"value": "libero", "label": "Libero"}, {"value": "variabile", "label": "Variabile"}]}]},
 }
 _AW_CUSTOM_WIZARD = {"steps": [{"id": "custom", "kind": "custom", "title": "Racconta ad AxonOS questa area"}]}
@@ -42,7 +42,7 @@ _AW_EXTRACT_PROMPTS = {
     "libretto": ("targa, marca, modello, anno_immatricolazione, telaio", "un libretto di circolazione (carta di circolazione) italiano"),
     "polizza": ("assicurazione_compagnia, assicurazione_scadenza (data ISO AAAA-MM-GG), assicurazione_importo (numero €), targa", "una polizza assicurativa auto"),
     "bolletta": ("fornitore, pod_pdr, consumo (con unità), importo (numero €), scadenza (data ISO), periodo", "una bolletta luce/gas/telco"),
-    "ricevuta": ("fornitore, importo (numero €), data (data ISO), categoria", "una ricevuta/scontrino"),
+    "ricevuta": ("fornitore, importo (numero €), data (data ISO), categoria (UNA tra: spesa, casa, svago, salute, trasporti, abbigliamento, carburante, vitto, alloggio, ufficio, telefonia, formazione, rappresentanza, altro), pagamento (carta|contanti|altro)", "una ricevuta/scontrino"),
     "generic": ("titolo, data (ISO), importo, scadenza (ISO), note", "un documento"),
 }
 
@@ -158,6 +158,15 @@ async def aw_profile_save(key: str, body: AwProfileIn, user=Depends(get_current_
     required = [f["key"] for f in _aw_all_fields(spec or {}) if f.get("type") != "date" or f.get("deadline")]
     missing = [k for k in required if not data.get(k)]
     status = "complete" if body.complete or (spec and not missing) else "incomplete"
+    # V50.z229 — conferma/correzione della ricevuta → aggiorna la riga nello storico spese
+    eid = (body.data or {}).get("expense_id")
+    if key in ("spese_biz", "spese_home") and eid:
+        fx = body.data or {}; upd_e: Dict[str, Any] = {"updated_at": utcnow(), "needs_review": False}
+        if fx.get("fornitore"): upd_e["merchant"] = str(fx["fornitore"])[:120]
+        if _aw_amount(fx.get("importo")) is not None: upd_e["amount"] = _aw_amount(fx.get("importo"))
+        if _aw_parse_date(fx.get("data")): upd_e["date"] = _aw_parse_date(fx["data"]).strftime("%Y-%m-%d"); upd_e["month"] = upd_e["date"][:7]
+        await db.axon_expenses.update_one({"expense_id": str(eid), "user_id": uid}, {"$set": upd_e})
+        data.pop("expense_id", None)
     upd = {"data": data, "status": status, "updated_at": utcnow()}
     # V50.z228 — ricorrenza annuale per campo scadenza (default: ON per le scadenze del catalogo, configurabile)
     recurring = {**(cur.get("recurring") or {})}
@@ -209,8 +218,34 @@ async def aw_extract(key: str, file: UploadFile = File(...), kind: str = Form("g
     await db.axon_area_profiles.update_one({"user_id": user["user_id"], "area_key": key},
                                            {"$push": {"files": {"file_id": saved["file_id"], "name": nm, "folder": folder, "kind": kind, "at": utcnow()}},
                                             "$setOnInsert": {"created_at": utcnow(), "status": "incomplete", "data": {}}, "$set": {"updated_at": utcnow()}}, upsert=True)
+    # V50.z229 — Note spese: la ricevuta entra SUBITO nello storico spese (axon_expenses, stato open) della sfera dell'area
+    expense_id = None
+    if key in ("spese_biz", "spese_home") and kind == "ricevuta":
+        expense_id = await _aw_expense_from_fields(user, key, fields, saved["file_id"], folder)
     return {"fields": fields, "missing": missing, "confidence": confidence, "file": {"file_id": saved["file_id"], "name": nm, "folder": folder, "folder_label": _AW_FOLDER_LABEL[folder]},
-            "ocr_ok": bool(fields)}
+            "ocr_ok": bool(fields), "expense_id": expense_id}
+
+
+def _aw_amount(v: Any) -> Optional[float]:
+    try:
+        return round(float(str(v).replace("€", "").replace(",", ".").strip()), 2)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def _aw_expense_from_fields(user: dict, key: str, fields: Dict[str, Any], file_id: Optional[str], folder: str) -> Optional[str]:
+    sphere = "business" if key == "spese_biz" else "home"
+    amount = _aw_amount(fields.get("importo"))
+    cats = _AXE_CATS[sphere]
+    cat = str(fields.get("categoria") or "altro").lower(); cat = cat if cat in cats else "altro"
+    d = _aw_parse_date(fields.get("data")); date = (d or datetime.now()).strftime("%Y-%m-%d")
+    eid = f"axe_{uuid.uuid4().hex[:10]}"
+    doc = {"expense_id": eid, "tenant_id": tenant_id(user), "user_id": user["user_id"], "user_name": user.get("name") or user.get("email"), "sphere": sphere,
+           "merchant": str(fields.get("fornitore") or "Esercente")[:120], "amount": amount if amount is not None else 0.0, "currency": "EUR", "date": date, "month": date[:7],
+           "category": cat, "payment": fields.get("pagamento"), "status": "open", "needs_review": amount is None, "master_file_id": file_id, "folder": folder,
+           "source": "area-wizard", "created_at": utcnow(), "updated_at": utcnow()}
+    await db.axon_expenses.insert_one(doc)
+    return eid
 
 
 class AwCustomIn(BaseModel):

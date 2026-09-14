@@ -10,10 +10,11 @@ import * as DocumentPicker from "expo-document-picker";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api, getToken } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { ExpenseStatsTab, ExpenseArchiveTab } from "@/src/ExpenseHistory"; // V50.z229 — storico spese
 import Constants from "expo-constants";
 
 type Sphere = "business" | "home";
-type Expense = { expense_id: string; merchant: string; amount: number; date: string; category: string; payment?: string | null; user_name?: string; file_path?: string | null };
+type Expense = { expense_id: string; merchant: string; amount: number; date: string; category: string; payment?: string | null; user_name?: string; file_path?: string | null; status?: "open" | "discarded" | "closed"; needs_review?: boolean };
 type ListResp = { sphere: Sphere; month: string; items: Expense[]; total: number; by_category: Record<string, number>; categories: string[]; months: string[]; team: { user_id: string; name?: string; total: number; count: number }[]; can_export_team: boolean };
 type Statement = { report_id: string; bank?: string | null; period?: string | null; income: number; outcome: number; net: number; sphere: Sphere; created_at: string; insights?: string[]; anomalies?: string[]; by_category?: { categoria: string; totale: number; n: number }[]; movements?: { data: string; descrizione: string; importo: number; categoria: string }[] };
 
@@ -48,7 +49,10 @@ export default function AxonExpensesScreen() {
   const insets = useInsetsSafe();
   const params = useLocalSearchParams<{ sphere?: string }>();
   const [sphere, setSphere] = useState<Sphere>(params.sphere === "home" ? "home" : "business");
-  const [tab, setTab] = useState<"note" | "statements">("note");
+  const [tab, setTab] = useState<"note" | "stats" | "archive" | "statements">("note");
+  // V50.z229 — selezione ricevute per la chiusura mese (default: tutte le aperte) + mostra scartate
+  const [deselected, setDeselected] = useState<Set<string>>(new Set());
+  const [showDiscarded, setShowDiscarded] = useState(false);
   const [month, setMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   const [data, setData] = useState<ListResp | null>(null);
   const [stmts, setStmts] = useState<Statement[] | null>(null);
@@ -94,6 +98,31 @@ export default function AxonExpensesScreen() {
     notify("Riclassificato", `Spostato nella sfera ${sphere === "business" ? "Home (privato)" : "Business"}`);
   };
 
+  // V50.z229 — stato ricevuta (scarta/ripristina) e chiusura mese → PDF in I miei file (cartella spese/anno/mese)
+  const setStatus = async (e: Expense, status: "open" | "discarded") => {
+    try { await api(`/axon/expenses/${e.expense_id}/status`, { method: "PATCH", body: { status } }); await load(); } catch (err: any) { notify("Spese", err?.message || String(err)); }
+  };
+  const openItems = (data?.items || []).filter((e) => (e.status || "open") === "open");
+  const discardedItems = (data?.items || []).filter((e) => e.status === "discarded");
+  const closedItems = (data?.items || []).filter((e) => e.status === "closed");
+  const selected = openItems.filter((e) => !deselected.has(e.expense_id));
+  const selectedTotal = selected.reduce((a, e) => a + Number(e.amount || 0), 0);
+  const toggleSel = (e: Expense) => setDeselected((s) => { const n = new Set(s); if (n.has(e.expense_id)) n.delete(e.expense_id); else n.add(e.expense_id); return n; });
+  const closeMonth = () => {
+    const go = async () => {
+      setBusy("close");
+      try {
+        const r = await api<{ report: { name: string; total: number; count: number }; file: { file_id: string } }>("/axon/expenses/close-month", { method: "POST", body: { sphere, month, expense_ids: selected.map((e) => e.expense_id) } });
+        notify("Mese chiuso ✅", `${r.report.name} · ${r.report.count} spese · ${r.report.total.toFixed(2)} € — salvato in I miei file e in Archivio`);
+        setDeselected(new Set()); await load(); setTab("archive");
+      } catch (err: any) { notify("Chiusura mese", err?.message || String(err)); } finally { setBusy(""); }
+    };
+    const msg = `${selected.length} spese · ${selectedTotal.toFixed(2)} € → PDF «Note spese ${monthLabel}». Le spese non selezionate restano aperte, le scartate escluse.`;
+    if (Platform.OS === "web") { if ((globalThis as any).window.confirm(msg)) void go(); return; }
+    Alert.alert("Chiudi mese", msg, [{ text: "Annulla", style: "cancel" }, { text: "Chiudi e crea PDF", onPress: () => void go() }]);
+  };
+  const monthLabel = new Date(month + "-01T00:00:00").toLocaleDateString("it-IT", { month: "long", year: "numeric" });
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={[styles.header, { backgroundColor: color }]}>
@@ -110,11 +139,24 @@ export default function AxonExpensesScreen() {
       </View>
       <View style={styles.tabs}>
         <Pressable onPress={() => setTab("note")} style={[styles.tab, tab === "note" && { borderBottomColor: color }]} testID="axe-tab-note"><Text style={[styles.tabTxt, tab === "note" && { color }]}>Nota spese</Text></Pressable>
-        <Pressable onPress={() => setTab("statements")} style={[styles.tab, tab === "statements" && { borderBottomColor: color }]} testID="axe-tab-statements"><Text style={[styles.tabTxt, tab === "statements" && { color }]}>Estratti conto</Text></Pressable>
+        <Pressable onPress={() => setTab("stats")} style={[styles.tab, tab === "stats" && { borderBottomColor: color }]} testID="axe-tab-stats"><Text style={[styles.tabTxt, tab === "stats" && { color }]}>Statistiche</Text></Pressable>
+        <Pressable onPress={() => setTab("archive")} style={[styles.tab, tab === "archive" && { borderBottomColor: color }]} testID="axe-tab-archive"><Text style={[styles.tabTxt, tab === "archive" && { color }]}>Archivio</Text></Pressable>
+        <Pressable onPress={() => setTab("statements")} style={[styles.tab, tab === "statements" && { borderBottomColor: color }]} testID="axe-tab-statements"><Text style={[styles.tabTxt, tab === "statements" && { color }]}>Estratti</Text></Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: insets.bottom + 120 }}>
-        {tab === "note" ? (
+        {tab === "stats" ? (
+          <>
+            <View style={styles.monthRow}>
+              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() - 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-prev"><Ionicons name="chevron-back" size={20} color="#1B2B4B" /></Pressable>
+              <Text style={styles.monthTxt}>{monthLabel}</Text>
+              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() + 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-next"><Ionicons name="chevron-forward" size={20} color="#1B2B4B" /></Pressable>
+            </View>
+            <ExpenseStatsTab sphere={sphere} month={month} color={color} />
+          </>
+        ) : tab === "archive" ? (
+          <ExpenseArchiveTab sphere={sphere} color={color} onChanged={() => void load()} />
+        ) : tab === "note" ? (
           <>
             <View style={styles.actions}>
               <Pressable onPress={() => upload("receipt", true)} disabled={!!busy} style={[styles.big, { backgroundColor: color }]} testID="axe-receipt-camera">
@@ -132,8 +174,8 @@ export default function AxonExpensesScreen() {
             {!data ? <ActivityIndicator color={color} /> : (
               <>
                 <View style={[styles.card, { borderColor: color + "66" }]} testID="axe-summary">
-                  <Text style={styles.total}>{data.total.toFixed(2).replace(".", ",")} €</Text>
-                  <Text style={styles.totalSub}>{data.items.length} spese · {ICON[sphere]} {sphere === "business" ? "Business" : "Home"}{teamUser ? ` · ${data.team.find((t) => t.user_id === teamUser)?.name || "collaboratore"}` : ""}</Text>
+                  <Text style={styles.total}>{data.items.filter((e) => e.status !== "discarded").reduce((a, e) => a + Number(e.amount || 0), 0).toFixed(2).replace(".", ",")} €</Text>
+                  <Text style={styles.totalSub}>{data.items.filter((e) => e.status !== "discarded").length} spese{discardedItems.length ? ` (+${discardedItems.length} scartate)` : ""} · {ICON[sphere]} {sphere === "business" ? "Business" : "Home"}{teamUser ? ` · ${data.team.find((t) => t.user_id === teamUser)?.name || "collaboratore"}` : ""}</Text>
                   <View style={styles.cats}>{Object.entries(data.by_category).sort((a, b) => b[1] - a[1]).map(([k, v]) => <View key={k} style={[styles.chip, { borderColor: color + "55" }]}><Text style={styles.chipTxt}>{k} · {v.toFixed(2)} €</Text></View>)}</View>
                   <Pressable onPress={openPdf} disabled={!data.items.length} style={[styles.pdfBtn, { backgroundColor: data.items.length ? color : "#CBD5E1" }]} testID="axe-pdf"><Ionicons name="document-text" size={16} color="#FFF" /><Text style={styles.pdfTxt}>Esporta PDF nota spese</Text></Pressable>
                 </View>
@@ -144,18 +186,58 @@ export default function AxonExpensesScreen() {
                     {data.team.map((t) => <Pressable key={t.user_id} onPress={() => setTeamUser(t.user_id)} style={[styles.teamRow, teamUser === t.user_id && { backgroundColor: "#EFF6FF" }]} testID={`axe-team-${t.user_id}`}><Text style={styles.teamName}>{t.name || t.user_id}</Text><Text style={styles.teamTot}>{t.count} · {t.total.toFixed(2)} €</Text></Pressable>)}
                   </View>
                 )}
-                {data.items.length === 0 ? <Text style={styles.empty}>Nessuna spesa in questo mese. Fotografa uno scontrino: Axon fa il resto.</Text> : data.items.map((e) => (
-                  <View key={e.expense_id} style={styles.row} testID={`axe-item-${e.expense_id}`}>
-                    <View style={[styles.catDot, { backgroundColor: color }]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rowTitle}>{e.merchant}</Text>
-                      <Text style={styles.rowMeta}>{e.date} · {e.category}{e.payment ? ` · ${e.payment}` : ""}{e.user_name && data.can_export_team ? ` · ${e.user_name}` : ""}</Text>
-                    </View>
-                    <Text style={[styles.rowAmt, { color }]}>{e.amount.toFixed(2).replace(".", ",")} €</Text>
-                    <Pressable onPress={() => toggleSphere(e)} hitSlop={6} style={styles.iconBtn} testID={`axe-swap-${e.expense_id}`}><Ionicons name="swap-horizontal" size={18} color="#64748B" /></Pressable>
-                    <Pressable onPress={() => removeExpense(e)} hitSlop={6} style={styles.iconBtn} testID={`axe-del-${e.expense_id}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
-                  </View>
-                ))}
+                {data.items.length === 0 ? <Text style={styles.empty}>Nessuna spesa in questo mese. Fotografa uno scontrino: Axon fa il resto.</Text> : (
+                  <>
+                    {/* V50.z229 — Chiusura mese: seleziona/scarta, poi PDF «Note spese <mese anno>» in I miei file + Archivio */}
+                    {openItems.length > 0 && (
+                      <View style={[styles.card, { borderColor: color + "66" }]} testID="axe-close-bar">
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <Pressable onPress={() => setDeselected(selected.length === openItems.length ? new Set(openItems.map((e) => e.expense_id)) : new Set())} hitSlop={8} testID="axe-select-all">
+                            <Ionicons name={selected.length === openItems.length ? "checkbox" : "square-outline"} size={22} color={color} />
+                          </Pressable>
+                          <Text style={{ flex: 1, fontWeight: "800", color: "#1B2B4B", fontSize: 13 }}>{selected.length}/{openItems.length} ricevute selezionate · {selectedTotal.toFixed(2).replace(".", ",")} €</Text>
+                        </View>
+                        <Pressable onPress={closeMonth} disabled={!selected.length || busy === "close"} style={[styles.pdfBtn, { backgroundColor: selected.length ? color : "#CBD5E1" }]} testID="axe-close-month">
+                          {busy === "close" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="lock-closed" size={16} color="#FFF" /><Text style={styles.pdfTxt}>Chiudi mese → PDF «Note spese {monthLabel}»</Text></>}
+                        </Pressable>
+                        <Text style={styles.hintTxt}>Tocca la casella per escludere una ricevuta dal mese; «Scarta» la toglie dai conteggi. Il PDF finisce in I miei file, catalogato per anno e mese.</Text>
+                      </View>
+                    )}
+                    {openItems.map((e) => (
+                      <View key={e.expense_id} style={[styles.row, deselected.has(e.expense_id) && { opacity: 0.55 }]} testID={`axe-item-${e.expense_id}`}>
+                        <Pressable onPress={() => toggleSel(e)} hitSlop={8} testID={`axe-sel-${e.expense_id}`}><Ionicons name={deselected.has(e.expense_id) ? "square-outline" : "checkbox"} size={22} color={color} /></Pressable>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.rowTitle}>{e.merchant}{e.needs_review ? " ⚠️" : ""}</Text>
+                          <Text style={styles.rowMeta}>{e.date} · {e.category}{e.payment ? ` · ${e.payment}` : ""}{e.user_name && data.can_export_team ? ` · ${e.user_name}` : ""}</Text>
+                        </View>
+                        <Text style={[styles.rowAmt, { color }]}>{e.amount.toFixed(2).replace(".", ",")} €</Text>
+                        <Pressable onPress={() => setStatus(e, "discarded")} hitSlop={6} style={styles.iconBtn} testID={`axe-discard-${e.expense_id}`} accessibilityLabel="Scarta"><Ionicons name="close-circle-outline" size={20} color="#B45309" /></Pressable>
+                        <Pressable onPress={() => toggleSphere(e)} hitSlop={6} style={styles.iconBtn} testID={`axe-swap-${e.expense_id}`}><Ionicons name="swap-horizontal" size={18} color="#64748B" /></Pressable>
+                        <Pressable onPress={() => removeExpense(e)} hitSlop={6} style={styles.iconBtn} testID={`axe-del-${e.expense_id}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
+                      </View>
+                    ))}
+                    {closedItems.length > 0 && <Text style={styles.groupLbl}>🔒 Incluse nel mese chiuso ({closedItems.length}) — riapri dall&apos;Archivio per modificarle</Text>}
+                    {closedItems.map((e) => (
+                      <View key={e.expense_id} style={[styles.row, { backgroundColor: "#F8FAFC" }]} testID={`axe-item-${e.expense_id}`}>
+                        <Ionicons name="lock-closed" size={18} color="#94A3B8" />
+                        <View style={{ flex: 1 }}><Text style={[styles.rowTitle, { color: "#64748B" }]}>{e.merchant}</Text><Text style={styles.rowMeta}>{e.date} · {e.category}</Text></View>
+                        <Text style={[styles.rowAmt, { color: "#64748B" }]}>{e.amount.toFixed(2).replace(".", ",")} €</Text>
+                      </View>
+                    ))}
+                    {discardedItems.length > 0 && (
+                      <Pressable onPress={() => setShowDiscarded((v) => !v)} style={styles.groupBtn} testID="axe-toggle-discarded"><Text style={styles.groupLbl}>{showDiscarded ? "▾" : "▸"} Scartate ({discardedItems.length})</Text></Pressable>
+                    )}
+                    {showDiscarded && discardedItems.map((e) => (
+                      <View key={e.expense_id} style={[styles.row, { opacity: 0.7 }]} testID={`axe-item-${e.expense_id}`}>
+                        <Ionicons name="close-circle" size={18} color="#B45309" />
+                        <View style={{ flex: 1 }}><Text style={[styles.rowTitle, { textDecorationLine: "line-through" }]}>{e.merchant}</Text><Text style={styles.rowMeta}>{e.date} · {e.category}</Text></View>
+                        <Text style={[styles.rowAmt, { color: "#94A3B8" }]}>{e.amount.toFixed(2).replace(".", ",")} €</Text>
+                        <Pressable onPress={() => setStatus(e, "open")} hitSlop={6} style={styles.iconBtn} testID={`axe-restore-${e.expense_id}`}><Ionicons name="refresh" size={18} color="#16A34A" /></Pressable>
+                        <Pressable onPress={() => removeExpense(e)} hitSlop={6} style={styles.iconBtn} testID={`axe-del-${e.expense_id}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
+                      </View>
+                    ))}
+                  </>
+                )}
               </>
             )}
           </>
@@ -222,6 +304,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: "#EEF0F6", padding: 10, minHeight: 56 },
   catDot: { width: 8, height: 8, borderRadius: 4 }, rowTitle: { fontSize: 14, fontWeight: "700", color: "#1B2B4B" }, rowMeta: { fontSize: 11.5, color: "#64748B", marginTop: 1 }, rowAmt: { fontSize: 15, fontWeight: "900" },
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  hintTxt: { fontSize: 11.5, color: "#64748B", marginTop: 8, lineHeight: 15 }, // V50.z229
+  groupLbl: { fontSize: 12.5, fontWeight: "800", color: "#64748B", marginTop: 6 },
+  groupBtn: { minHeight: 40, justifyContent: "center" },
   empty: { fontSize: 13, color: "#94A3B8", fontStyle: "italic", textAlign: "center", paddingVertical: 12 },
   hint: { fontSize: 12, color: "#64748B", lineHeight: 17 },
   kpis: { flexDirection: "row", gap: 8 }, kpi: { flex: 1, backgroundColor: "#F8FAFC", borderRadius: 10, padding: 8, alignItems: "center" }, kpiL: { fontSize: 11, color: "#64748B" }, kpiV: { fontSize: 15, fontWeight: "900", color: "#1B2B4B" },
