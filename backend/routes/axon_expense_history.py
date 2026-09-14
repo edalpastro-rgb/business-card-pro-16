@@ -39,7 +39,7 @@ async def axh_status(expense_id: str, body: AxhStatusIn, user=Depends(get_curren
     return {"ok": True}
 
 
-def _axh_render_pdf(items: List[dict], sphere: str, month: str, owner: str) -> bytes:
+def _axh_render_pdf(items: List[dict], sphere: str, month: str, owner: str, signature: str = "") -> bytes:
     from reportlab.lib.pagesizes import A4  # type: ignore
     from reportlab.pdfgen import canvas as _canvas  # type: ignore
     from reportlab.lib.units import mm  # type: ignore
@@ -63,6 +63,8 @@ def _axh_render_pdf(items: List[dict], sphere: str, month: str, owner: str) -> b
     y -= 10 * mm; c.setFont("Helvetica-Bold", 10); c.drawString(20 * mm, y, "Per categoria / area:"); c.setFont("Helvetica", 9.5)
     for k, v in sorted(by_cat.items(), key=lambda kv: -kv[1]):
         y -= 5 * mm; c.drawString(25 * mm, y, f"• {_AXH_CAT_LABEL.get(k, k)}: {v:.2f} €  ({(v / tot * 100) if tot else 0:.0f}%)")
+    if signature:  # V50.z232 — firma aziendale (Personalizzazione Aziendale)
+        c.setFont("Helvetica-Oblique", 8.5); c.drawCentredString(W / 2, 12 * mm, signature[:180])
     c.showPage(); c.save()
     return buf.getvalue()
 
@@ -84,7 +86,7 @@ async def axh_close_month(body: AxhCloseIn, user=Depends(get_current_user)):
     if not items:
         raise HTTPException(status_code=400, detail="Nessuna spesa selezionabile (già chiuse o scartate)")
     owner = user.get("name") or user.get("email") or ""
-    pdf = await run_in_threadpool(_axh_render_pdf, items, sphere, month, owner)
+    pdf = await run_in_threadpool(_axh_render_pdf, items, sphere, month, owner, await _ob_signature(tenant_id(user)))
     name = f"Note spese {_axh_month_label(month)} - {'Business' if sphere == 'business' else 'Home'}.pdf"
     import tempfile as _tf, hashlib as _hl
     with _tf.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:

@@ -19,7 +19,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 
 // V49.g — Header Master allineato all'header Home: usa la stessa immagine.
 import { HeaderWeatherBadge } from "@/src/WeatherWidget";
-const HOME_HEADER_IMG = require("@/assets/images/advisoros-home-header.jpg");
+import { BrandHeaderImage } from "@/src/BrandHeaderImage"; // V50.z232
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
 type MyThingImage = { item_id: string; image_base64?: string | null };
@@ -255,6 +255,8 @@ function MasterScreen() {
     },
     // Documenti & Cloud (verde #10B981)
     { label: "Anagrafica", icon: "id-card", color: "#10B981", onPress: () => goto("/anagrafica-master") },
+    // V50.z232 — Personalizzazione Aziendale: logo header per tutta l'organizzazione + ragione sociale/P.IVA/indirizzo come firma
+    { label: "Personalizzazione Aziendale", icon: "business", color: "#10B981", onPress: () => goto("/personalizzazione-aziendale") },
     { label: "I miei audio", icon: "folder-open", color: "#10B981", onPress: () => goto("/my-audios") },
     // V50.z205 — Blocco 8 Fase 4: hub Sfera Home
     { label: "Spazio Personale", icon: "home", color: "#10B981", onPress: () => goto("/spazio-personale") },
@@ -354,18 +356,8 @@ function MasterScreen() {
           V49.l dello scroll). */}
       <View style={styles.brandHeader}>
         <View style={styles.brandHeaderBox} testID="master-brand-header">
-          <Image
-            source={HOME_HEADER_IMG}
-            resizeMode="cover"
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              borderRadius: 12,
-            }}
-          />
+          {/* V50.z232 — header pulito + nuovo logo AxonOS piccolo; logo aziendale (Personalizzazione Aziendale) al posto di AdvisorOS se caricato */}
+          <BrandHeaderImage radius={12} />
           <View pointerEvents="none" style={styles.brandHeaderScrim} />
           {/* V50.z157 — Badge meteo anche nell'header Master (sempre visibile) */}
           <HeaderWeatherBadge />

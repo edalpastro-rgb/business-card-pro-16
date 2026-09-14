@@ -26,7 +26,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 // V29.aq — Header dashboard image (loaded as local bundled asset so it works
 // offline on APK/IPA builds). Full-bleed dark image with AdvisorOS + AxonOS
 // branding. Aspect 2:1 (2000x1000).
-const HOME_HEADER_IMG = require("@/assets/images/advisoros-home-header.jpg");
+import { BrandHeaderImage } from "@/src/BrandHeaderImage"; // V50.z232
 
 /* ────────────────────────────────────────────────────────────────
    V27 — Modern Dashboard Redesign
@@ -392,18 +392,8 @@ export default function HomeScreen() {
           style={[styles.brandHeaderBox, { height: HEADER_HEIGHT }]}
           testID="home-brand-header"
         >
-          <Image
-            source={HOME_HEADER_IMG}
-            resizeMode="cover"
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              borderRadius: 12,
-            }}
-          />
+          {/* V50.z232 — header pulito + nuovo logo AxonOS piccolo; logo aziendale (Personalizzazione Aziendale) al posto di AdvisorOS se caricato */}
+          <BrandHeaderImage radius={12} />
           {/* Gradient scrim per garantire leggibilità della data/ora sopra l'immagine */}
           <View pointerEvents="none" style={styles.brandHeaderScrim} />
           {/* V50.z132 — Mini icona meteo (sole/pioggia/neve) in basso a sinistra */}

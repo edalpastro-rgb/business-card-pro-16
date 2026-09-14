@@ -5,7 +5,7 @@ import { apiUpload } from "@/src/api";
 
 export type UploadSource = { uri: string; name: string; mime: string } | { blob: Blob; name: string; mime: string };
 
-async function toFormPart(src: UploadSource): Promise<any> {
+export async function toFormPart(src: UploadSource): Promise<any> {
   if ("blob" in src) return new File([src.blob], src.name, { type: src.mime });
   if (Platform.OS === "web" || src.uri.startsWith("data:") || src.uri.startsWith("blob:")) {
     const blob = await (await fetch(src.uri)).blob();

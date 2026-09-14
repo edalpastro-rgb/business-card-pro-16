@@ -80,5 +80,6 @@ MODULES = [
     "axon_ops_status.py",  # V50.z222 — autonomia Axon: GET /integrations/outbox/status|recent (message_id per ogni push), GET /jobs/gme-fetcher/status (+run), POST /notify, wrapper _punq_refresh (durata/errori/timeout 20s), sezione prompt live (dopo axon_push_urgency)
     "axon_chat_queue.py",  # V50.z223 — chat non bloccante: coda messaggi con priorità (POST /chat/messages, GET/PATCH/DELETE /chat/queue, /chat/queue/next) + tab = sessioni (GET/POST/PATCH /chat/tabs)
     "axon_area_wizard.py",  # V50.z227 — mini-wizard per area (upload OCR/AI → campi precompilati, cartella personale/lavoro/famiglia), profili area, aree custom, promemoria scadenze 30/15/7/0, prompt PROFILI AREA + marker [[CONFIGURA:key]] (dopo alarms/chat_push/wizard_talk)
+    "axon_org_branding.py",  # V50.z232 — Personalizzazione Aziendale: logo header per tenant + ragione sociale/P.IVA/indirizzo → firma PDF/documenti/comunicazioni (wrap _prepare_assistant_prompt)
     "37_app_startup_scheduler.py",
 ]

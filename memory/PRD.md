@@ -1,6 +1,13 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z232 (Giu 2026) — Header con nuovo logo AxonOS · Personalizzazione Aziendale (Master)
+
+- **Logo AxonOS**: il «logo con sfondo scuro» segnalato era quello IMPRESSO nell'immagine `advisoros-home-header.jpg` (Home e Interfaccia Master). Creato `advisoros-home-header-clean.jpg` (regione AxonOS coperta con la texture) e `src/BrandHeaderImage.tsx`: header pulito + nuovo logo AxonOS (`axonos-logo-light.png`, 78 px, card chiara) in basso a destra, sempre più piccolo di AdvisorOS. Nota: il file fornito è un JPG con sfondo grigio chiaro (non realmente trasparente) e lettere «Axon» BIANCHE: reso trasparente sparirebbe su bianco → si usa l'asset così com'è, come card chiara arrotondata.
+- **Personalizzazione Aziendale** (`routes/axon_org_branding.py`, `org_branding {tenant_id, logo_data_uri, logo_name, company_name, vat, address, extra}`): `GET /org/branding` (tutti gli utenti del tenant, `can_edit` solo owner), `PUT /org/branding` (owner), `POST /org/branding/logo` multipart PNG/JPG/WEBP ≤ 1,5 MB → data URI (owner), `DELETE /org/branding/logo`. `_ob_signature(tid)` → «Ragione sociale · P.IVA … · Indirizzo · extra»: aggiunta al prompt Axon (sezione «🏢 FIRMA AZIENDALE» per email/messaggi/documenti/report generati) e in calce al PDF note spese (`_axh_render_pdf(signature)`). Frontend: `app/personalizzazione-aziendale.tsx` (tile «Personalizzazione Aziendale» nel pannello Master, gruppo Documenti): anteprima logo su navy, Carica/Cambia/Rimuovi, campi ragione sociale/P.IVA/indirizzo/riga extra, anteprima firma, Salva; `useOrgBranding()` (cache condivisa) → `BrandHeaderImage` mostra il logo aziendale centrato su sfondo navy al posto di AdvisorOS per tutti gli utenti del tenant.
+- Test: API owner PUT/POST logo/DELETE, collaboratore vede il logo ma PUT → 403, mime errato 400 ✅; web: header con logo aziendale → rimozione → header AdvisorOS ✅. Dati di test rimossi.
+
+
 ## V50.z231 (Giu 2026) — Card Home persistenti · tap push → dettaglio · avviso aggiornamento schede
 
 1. **Card «AxonOS ti segnala» che ricomparivano**: causa = `_punq_daily_tick` al boot popolava la cache GME (18 mesi) ed emetteva un alert `pun_update` per OGNI mese (14 card); la Home ne mostra 3 → dopo ogni chiusura ne apparivano altre. Fix (`axon_pun_quick.py`): avviso solo per il mese più recente tra quelli aggiunti (≥ mese corrente −2) + bonifica una tantum all'avvio (`dismiss_reason: pun_backfill_cleanup`: resta 1 card aperta per utente). Il dismiss frontend/backend era già persistente.
