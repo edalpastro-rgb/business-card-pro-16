@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, ScrollView, Image, ActivityIndicator, TextInput, Platform } from "react-native";
+import { View, Text, StyleSheet, Modal, Pressable, ScrollView, Image, ActivityIndicator, TextInput, Platform, Keyboard, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -36,12 +36,39 @@ type Props = {
   onClose: () => void;
   defaultName?: string;
   hintTitle?: string;
+  /** V50.z226 — Contatto di origine: il PDF viene salvato ANCHE nei file del cliente (oltre a I miei file › Scanner). */
+  contactId?: string;
+  /** V50.z226 — Canale di provenienza (widget, contact, bills, chat) salvato sul Master File. */
+  source?: string;
   onSaved: (result: { pdf_base64: string; name: string; page_count: number; mime: string }) => void | Promise<void>;
 };
 
-export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle, onSaved }: Props) {
+/**
+ * V50.z226 — Sposta la card sopra la tastiera dentro il Modal nativo. Su Android il Modal può già
+ * ridimensionare la finestra (adjustResize): si applica solo la parte di tastiera NON già assorbita.
+ */
+function useKeyboardLift() {
+  const [kb, setKb] = useState(0);
+  const { height: winH } = useWindowDimensions();
+  const maxH = useRef(winH);
+  if (winH > maxH.current) maxH.current = winH;
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const showEv = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEv = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const s = Keyboard.addListener(showEv, (e) => setKb(e.endCoordinates?.height || 0));
+    const h = Keyboard.addListener(hideEv, () => setKb(0));
+    return () => { s.remove(); h.remove(); };
+  }, []);
+  const absorbed = Math.max(0, maxH.current - winH);
+  return { lift: Math.max(0, kb - absorbed), keyboardOpen: kb > 0 };
+}
+
+export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle, contactId, source, onSaved }: Props) {
   const [pages, setPages] = useState<ScannedPage[]>([]);
   const bottomPad = useBottomSheetPadding();
+  const { lift, keyboardOpen } = useKeyboardLift();
+  const nameInputRef = useRef<TextInput>(null);
   const [autocrop, setAutocrop] = useState(true);
   const [enhance, setEnhance] = useState(true);
   const [grayscale, setGrayscale] = useState(false);
@@ -193,6 +220,21 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
         name: finalName,
       };
       const r = await api<{ pdf_base64: string; name: string; page_count: number }>("/scanner/merge-pdf", { method: "POST", body: payload });
+      // V50.z226 — Il PDF viene salvato SUBITO, prima di qualsiasi flusso successivo (analisi, allegato…):
+      // I miei file › Scanner sempre; se c'è un contatto di origine anche nei file del cliente. Mai perso se l'utente chiude.
+      setSavingLbl("Salvataggio in I miei file…");
+      const fname = r.name.toLowerCase().endsWith(".pdf") ? r.name : `${r.name}.pdf`;
+      const bytes = Math.floor((r.pdf_base64.length * 3) / 4);
+      const saves: Promise<unknown>[] = [
+        api("/master-files", { method: "POST", body: { category: "scanner", name: fname, mime: "application/pdf", data_base64: r.pdf_base64, size: bytes, source: source || (contactId ? "contact" : "widget"), source_contact_id: contactId || null } }),
+      ];
+      if (contactId) {
+        saves.push(api(`/contacts/${contactId}/files`, { method: "POST", body: { name: fname, mime: "application/pdf", data_base64: r.pdf_base64, size: bytes } }));
+      }
+      const results = await Promise.allSettled(saves);
+      const failed = results.filter((x) => x.status === "rejected") as PromiseRejectedResult[];
+      if (failed.length) notify("Salvataggio parziale", failed.map((f) => String((f.reason as any)?.message || f.reason)).join(" · "));
+      else notify("PDF salvato ✅", contactId ? "In I miei file › Scanner e nei file del cliente" : "In I miei file › Scanner");
       await onSaved({ pdf_base64: r.pdf_base64, name: r.name, page_count: r.page_count, mime: "application/pdf" });
       onClose();
     } catch (e: any) {
@@ -206,7 +248,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent>
       <View style={styles.back}>
-        <View style={[styles.card, { paddingBottom: bottomPad }]}>
+        <View style={[styles.card, { paddingBottom: keyboardOpen ? 8 : bottomPad, marginBottom: lift }]}>
           {/* Header */}
           <View style={styles.hdr}>
             <View style={{ flex: 1 }}>
@@ -249,7 +291,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
           </View>
 
           {/* Pages preview */}
-          <ScrollView style={{ maxHeight: 300 }} contentContainerStyle={{ padding: 12, gap: 8 }}>
+          <ScrollView style={{ maxHeight: keyboardOpen ? 120 : 300 }} contentContainerStyle={{ padding: 12, gap: 8 }} keyboardShouldPersistTaps="handled">
             {pages.length === 0 ? (
               <View style={styles.empty}>
                 <Ionicons name="scan" size={36} color={theme.color.muted} />
@@ -285,14 +327,17 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
           <View style={styles.nameWrap}>
             <Text style={styles.lbl}>Nome file</Text>
             <TextInput
+              ref={nameInputRef}
               value={name}
               onChangeText={setName}
               placeholder="Es. Enel-Luce-Ottobre-2026"
               placeholderTextColor="#94A3B8"
               style={styles.input}
+              returnKeyType="done"
+              onSubmitEditing={() => Keyboard.dismiss()}
               testID="scanner-name"
             />
-            <Text style={styles.hint}>Verrà salvato come PDF (.pdf viene aggiunto in automatico)</Text>
+            <Text style={styles.hint}>Verrà salvato come PDF in «I miei file › Scanner»{contactId ? " e nei file del cliente" : ""} (.pdf aggiunto in automatico)</Text>
           </View>
 
           {/* Footer */}

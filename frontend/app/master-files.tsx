@@ -6,7 +6,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import * as FileSystem from "expo-file-system/legacy";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { uploadMasterFile } from "@/src/utils/upload"; // V50.z202 — multipart a chunk, niente base64
@@ -16,7 +16,7 @@ import { ShareSheet, type ShareTarget } from "@/src/ShareSheet";
 import { ModuleErrorBoundary } from "@/src/shared";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
-type MasterCat = "notes" | "bills" | "audio" | "files" | "analisi";
+type MasterCat = "notes" | "bills" | "audio" | "files" | "analisi" | "scanner";
 type MasterFile = {
   file_id: string;
   category: MasterCat;
@@ -27,6 +27,8 @@ type MasterFile = {
   size: number;
   created_at: string;
   updated_at?: string;
+  source?: string | null;
+  source_contact_id?: string | null;
 };
 
 const CATS: { id: MasterCat; label: string; icon: any; color: string }[] = [
@@ -35,7 +37,9 @@ const CATS: { id: MasterCat; label: string; icon: any; color: string }[] = [
   { id: "analisi", label: "Analisi", icon: "sparkles", color: "#16A34A" },
   { id: "audio", label: "Audio", icon: "mic", color: "#DB2777" },
   { id: "files", label: "File", icon: "folder", color: "#0891B2" },
+  { id: "scanner", label: "Scanner", icon: "scan", color: "#DC2626" }, // V50.z226 — PDF creati dallo scanner
 ];
+const CAT_IDS = CATS.map((c) => c.id);
 
 export default function MasterFilesRoute() {
   return (
@@ -47,11 +51,14 @@ export default function MasterFilesRoute() {
 
 function MasterFilesScreen() {
   const router = useRouter();
-  const [tab, setTab] = useState<MasterCat>("notes");
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<MasterCat>(CAT_IDS.includes(tabParam as MasterCat) ? (tabParam as MasterCat) : "notes");
   const bottomPad = useBottomSheetPadding();
   const [items, setItems] = useState<MasterFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // V50.z226 — Controllo duplicati (nome + dimensione identici) → popup Sostituisci / Tieni entrambi
+  const [dupPrompt, setDupPrompt] = useState<null | { existing: { file_id: string; name: string }; resolve: (choice: "replace" | "keep" | "cancel") => void }>(null);
   const [noteEditor, setNoteEditor] = useState<null | { file_id?: string; title: string; body: string }>(null);
   const [viewerOpen, setViewerOpen] = useState<null | { name: string; mime: string; data_base64: string }>(null);
   const [renameTarget, setRenameTarget] = useState<null | { file_id: string; name: string }>(null);
@@ -177,10 +184,36 @@ function MasterFilesScreen() {
   };
 
   // --- File upload (bills, files, audio) ---
+  /**
+   * V50.z226 — Upload con controllo duplicati: se esiste già un file con stesso nome e stessa dimensione
+   * chiede «Sostituisci» (elimina il vecchio) o «Tieni entrambi» (nuovo nome con suffisso « (2)»).
+   */
+  const uploadWithDupCheck = async (src: { uri: string; name: string; mime: string }, size: number | undefined, category: MasterCat) => {
+    let name = src.name;
+    if (size && size > 0) {
+      try {
+        const chk = await api<{ duplicate: boolean; file: { file_id: string; name: string } | null }>(`/master-files/duplicate?name=${encodeURIComponent(name)}&size=${size}&category=${category}`);
+        if (chk.duplicate && chk.file) {
+          const existing = chk.file;
+          const choice = await new Promise<"replace" | "keep" | "cancel">((resolve) => setDupPrompt({ existing, resolve }));
+          setDupPrompt(null);
+          if (choice === "cancel") return false;
+          if (choice === "replace") await api(`/master-files/${existing.file_id}`, { method: "DELETE" });
+          if (choice === "keep") {
+            const m = name.match(/^(.*?)(\.[A-Za-z0-9]{1,6})?$/);
+            name = `${m?.[1] || name} (2)${m?.[2] || ""}`;
+          }
+        }
+      } catch { /* controllo non disponibile → carica normalmente */ }
+    }
+    await uploadMasterFile({ uri: src.uri, name, mime: src.mime }, category as any);
+    return true;
+  };
+
   const uploadFile = async (category: MasterCat) => {
     setBusy(true);
     try {
-      let asset: { uri: string; name?: string; mimeType?: string } | null = null;
+      let asset: { uri: string; name?: string; mimeType?: string; size?: number } | null = null;
       if (category === "audio") {
         const res = await DocumentPicker.getDocumentAsync({ type: "audio/*", multiple: false, copyToCacheDirectory: true });
         if (res.canceled || !res.assets?.[0]) { setBusy(false); return; }
@@ -220,7 +253,7 @@ function MasterFilesScreen() {
         asset = res.assets[0];
       }
       if ((asset.size || 0) > 50 * 1024 * 1024) { notify("File troppo grande", "Max 50 MB."); setBusy(false); return; }
-      await uploadMasterFile({ uri: asset.uri, name: asset.name || `file-${Date.now()}`, mime: asset.mimeType || "application/octet-stream" }, category as any);
+      await uploadWithDupCheck({ uri: asset.uri, name: asset.name || `file-${Date.now()}`, mime: asset.mimeType || "application/octet-stream" }, asset.size, category);
       await load();
     } catch (e: any) {
       notify("Errore caricamento", e?.message || "");
@@ -254,7 +287,7 @@ function MasterFilesScreen() {
       const a = res.assets[0];
       if ((a.fileSize || 0) > 50 * 1024 * 1024) { notify("File troppo grande", "Max 50 MB."); setBusy(false); return; }
       const isVideo = kind.endsWith("video");
-      await uploadMasterFile({ uri: a.uri, name: a.fileName || (isVideo ? `video-${Date.now()}.mp4` : `foto-${Date.now()}.jpg`), mime: a.mimeType || (isVideo ? "video/mp4" : "image/jpeg") }, "files");
+      await uploadWithDupCheck({ uri: a.uri, name: a.fileName || (isVideo ? `video-${Date.now()}.mp4` : `foto-${Date.now()}.jpg`), mime: a.mimeType || (isVideo ? "video/mp4" : "image/jpeg") }, a.fileSize, "files");
       await load();
     } catch (e: any) {
       notify("Errore", e?.message || "");
@@ -359,8 +392,8 @@ function MasterFilesScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      {/* Tab bar */}
-      <View style={styles.tabBar}>
+      {/* Tab bar (V50.z226: scorrevole, 6 cartelle) */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={styles.tabBar}>
         {CATS.map((c) => {
           const active = c.id === tab;
           return (
@@ -375,7 +408,7 @@ function MasterFilesScreen() {
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* Add controls */}
       <View style={styles.addBar}>
@@ -447,6 +480,12 @@ function MasterFilesScreen() {
             <Text style={[styles.addTxt, { color: catMeta.color }]}>Generate automaticamente dalle bollette</Text>
           </View>
         )}
+        {tab === "scanner" && (
+          <Pressable testID="master-files-open-scanner" onPress={() => router.push("/scanner" as any)} style={[styles.addBtn, { backgroundColor: catMeta.color }]}>
+            <Ionicons name="scan-circle" size={18} color="#FFF" />
+            <Text style={styles.addTxt}>Nuova scansione</Text>
+          </Pressable>
+        )}
         {tab === "files" && (
           <View style={{ flexDirection: "row", gap: 8, flex: 1 }}>
             <Pressable testID="master-files-add-file" onPress={() => uploadFile("files")} disabled={busy} style={[styles.addBtn, { backgroundColor: catMeta.color, flex: 1, opacity: busy ? 0.5 : 1 }]}>
@@ -471,6 +510,7 @@ function MasterFilesScreen() {
               {tab === "notes" ? "Nessuna nota. Tocca 'Nuova nota' per iniziare." :
                 tab === "bills" ? "Nessuna fattura salvata." :
                 tab === "audio" ? "Nessun audio registrato o caricato." :
+                tab === "scanner" ? "Nessuna scansione. I PDF creati con lo scanner arrivano qui automaticamente." :
                 "Nessun file. Carica documenti o foto."}
             </Text>
           </View>
@@ -530,6 +570,33 @@ function MasterFilesScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* V50.z226 — Popup duplicato: stesso nome + stessa dimensione */}
+      <Modal visible={!!dupPrompt} animationType="fade" transparent onRequestClose={() => dupPrompt?.resolve("cancel")}>
+        <View style={[styles.modalBack, { justifyContent: "center", padding: 20 }]}>
+          <View style={[styles.modalCard, { borderRadius: 20 }]} testID="master-files-dup-modal">
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <View style={[styles.icoBox, { backgroundColor: "#FEF3C7" }]}><Ionicons name="copy" size={20} color="#D97706" /></View>
+              <Text style={[styles.modalTitle, { marginBottom: 0, flex: 1 }]}>File già presente</Text>
+            </View>
+            <Text style={{ color: theme.color.muted, fontSize: 13.5, lineHeight: 19 }}>
+              «{dupPrompt?.existing.name}» esiste già con la stessa dimensione. Vuoi sostituirlo o tenerli entrambi?
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
+              <Pressable testID="master-files-dup-replace" onPress={() => dupPrompt?.resolve("replace")} style={[styles.modalBtn, { backgroundColor: "#DC2626" }]}>
+                <Text style={{ color: "#FFF", fontWeight: "800" }}>Sostituisci</Text>
+              </Pressable>
+              <Pressable testID="master-files-dup-keep" onPress={() => dupPrompt?.resolve("keep")} style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary }]}>
+                <Text style={{ color: "#FFF", fontWeight: "800" }}>Tieni entrambi</Text>
+              </Pressable>
+            </View>
+            <Pressable testID="master-files-dup-cancel" onPress={() => dupPrompt?.resolve("cancel")} style={{ alignSelf: "center", marginTop: 12, minHeight: 36, justifyContent: "center" }}>
+              <Text style={{ color: theme.color.muted, fontWeight: "700" }}>Annulla caricamento</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
 
       {/* Note editor modal */}
       <Modal visible={!!noteEditor} animationType="slide" transparent onRequestClose={() => setNoteEditor(null)}>
@@ -681,7 +748,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
   title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
   tabBar: { flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 6 },
-  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: 10, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border },
+  tabBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, paddingHorizontal: 12, minHeight: 44, borderRadius: 10, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border },
   tabTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
   addBar: { paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row" },
   addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 10, flex: 1 },

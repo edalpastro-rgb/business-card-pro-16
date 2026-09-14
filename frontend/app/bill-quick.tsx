@@ -1194,6 +1194,7 @@ function BillQuickScreen() {
         onClose={() => setScannerBillType(null)}
         defaultName={scannerBillType ? suggestBillScanName(scannerBillType) : "Scansione"}
         hintTitle="Fotografa ogni pagina della bolletta, poi &quot;Salva&quot; per unirle in un PDF unico"
+        source="bill-quick"
         onSaved={onScannerSaved}
       />
 

@@ -14,6 +14,9 @@ class MasterFileIn(BaseModel):
     body: Optional[str] = None       # for text notes — rich text markdown-ish
     title: Optional[str] = None      # for notes
     size: Optional[int] = None
+    # V50.z226 — provenienza (scanner): contatto di origine e canale (widget / scheda cliente / bollette / chat)
+    source: Optional[str] = None
+    source_contact_id: Optional[str] = None
 
 
 class MasterFileRenameIn(BaseModel):
@@ -22,7 +25,21 @@ class MasterFileRenameIn(BaseModel):
     body: Optional[str] = None
 
 
-ALLOWED_MASTER_CATS = {"notes", "bills", "audio", "files", "analisi"}
+# V50.z226 — "scanner": cartella dedicata ai PDF creati dallo scanner (sempre salvati, anche se l'analisi non viene completata)
+ALLOWED_MASTER_CATS = {"notes", "bills", "audio", "files", "analisi", "scanner"}
+
+
+@api_router.get("/master-files/duplicate")
+async def master_file_duplicate(name: str, size: int, category: Optional[str] = None, user=Depends(get_current_user)):
+    """V50.z226 — Controllo duplicati: stesso nome (case-insensitive) e stessa dimensione → {duplicate, file}."""
+    nm = (name or "").strip()
+    if not nm:
+        return {"duplicate": False, "file": None}
+    q: Dict[str, Any] = {"user_id": tenant_id(user), "size": int(size), "name": {"$regex": f"^{re.escape(nm)}$", "$options": "i"}}
+    if category:
+        q["category"] = category
+    d = await db.master_files.find_one(q, {"_id": 0, "file_id": 1, "name": 1, "category": 1, "size": 1, "created_at": 1})
+    return {"duplicate": bool(d), "file": d}
 
 
 @api_router.post("/master-files")
@@ -47,7 +64,11 @@ async def add_master_file(body: MasterFileIn, user=Depends(get_current_user)):
         except Exception:
             tmp.close(); os.unlink(tmp.name)
             raise HTTPException(status_code=400, detail="Base64 non valido")
-        return await _upl_master_store(user, body.category, name, body.mime or "application/octet-stream", tmp.name, len(raw), __import__('hashlib').sha256(raw).hexdigest(), body.title)
+        stored_doc = await _upl_master_store(user, body.category, name, body.mime or "application/octet-stream", tmp.name, len(raw), __import__('hashlib').sha256(raw).hexdigest(), body.title)
+        if body.source or body.source_contact_id:
+            await db.master_files.update_one({"file_id": stored_doc["file_id"]}, {"$set": {"source": body.source, "source_contact_id": body.source_contact_id}})
+            stored_doc.update({"source": body.source, "source_contact_id": body.source_contact_id})
+        return stored_doc
     doc = {
         "file_id": file_id,
         "user_id": tenant_id(user),

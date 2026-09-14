@@ -874,13 +874,14 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                     const pg = pages[reviewIdx];
                     if (pg?.id) applyAutocropAsync(pg.id, pg.original_base64 || pg.data_base64);
                   }}
-                  style={styles.cropBadgeWarn}
-                  testID="live-review-autocrop-retry"
+                  style={pages[reviewIdx].autocrop_failed ? styles.cropBadgeWarn : styles.cropBadgeInfo}
+                  testID={pages[reviewIdx].autocrop_failed ? "live-review-autocrop-retry" : "live-review-fullframe"}
                   hitSlop={6}
                 >
-                  <Ionicons name={pages[reviewIdx].autocrop_failed ? "refresh-circle" : "information-circle"} size={14} color="#F59E0B" />
-                  <Text style={styles.cropBadgeTxtWarn}>
-                    {pages[reviewIdx].autocrop_failed ? "Ritaglio non riuscito (rete) · tocca per riprovare" : "Bordi non rilevati · riprova o usa Ritaglia"}
+                  <Ionicons name={pages[reviewIdx].autocrop_failed ? "refresh-circle" : "checkmark-circle"} size={14} color={pages[reviewIdx].autocrop_failed ? "#F59E0B" : "#2563EB"} />
+                  <Text style={pages[reviewIdx].autocrop_failed ? styles.cropBadgeTxtWarn : styles.cropBadgeTxtInfo}>
+                    {/* V50.z226 — Bordi non trovati → fallback automatico all'intera immagine: si procede, «Ritaglia» resta disponibile */}
+                    {pages[reviewIdx].autocrop_failed ? "Ritaglio non riuscito (rete) · tocca per riprovare" : "Intera immagine selezionata · Ritaglia se serve"}
                   </Text>
                 </Pressable>
               ) : (
@@ -980,6 +981,9 @@ const styles = StyleSheet.create({
   cropBadgeTxt: { color: "#0F9D58", fontSize: 11, fontWeight: "800" },
   cropBadgeWarn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(245,158,11,0.2)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, flexShrink: 1, marginLeft: 8 },
   cropBadgeTxtWarn: { color: "#F59E0B", fontSize: 11, fontWeight: "800", flexShrink: 1 },
+  cropBadgeInfo: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(37,99,235,0.22)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, flexShrink: 1, marginLeft: 8 }, // V50.z226
+  cropBadgeTxtInfo: { color: "#93C5FD", fontSize: 11, fontWeight: "800", flexShrink: 1 },
+
   reviewImgWrap: { flex: 1, backgroundColor: "#111", borderRadius: 8, overflow: "hidden", marginBottom: 12 },
   reviewImg: { width: "100%", height: "100%" },
   reviewActions: { flexDirection: "row", gap: 10, paddingBottom: 20 },

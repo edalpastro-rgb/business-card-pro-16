@@ -1714,6 +1714,8 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         onClose={() => setScannerBillType(null)}
         defaultName={scannerBillType ? suggestBillScanName(scannerBillType, contactName) : "Scansione"}
         hintTitle={scannerBillType ? `Bolletta ${scannerBillType.toUpperCase()} — ${contactName || ""}` : undefined}
+        contactId={contactId}
+        source="bills"
         onSaved={async ({ pdf_base64, name }) => {
           if (scannerBillType) receiveScannedBill(scannerBillType, pdf_base64, name);
         }}

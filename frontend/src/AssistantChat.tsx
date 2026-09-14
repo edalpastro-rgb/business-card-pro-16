@@ -1971,6 +1971,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         onClose={() => setScannerOpen(false)}
         defaultName={`Scansione-${new Date().toISOString().slice(0, 10)}`}
         hintTitle="Scansiona un documento da allegare ad Axon"
+        source="chat"
         onSaved={(r) => onScannerResult({
           name: r.name.toLowerCase().endsWith(".pdf") ? r.name : `${r.name}.pdf`,
           dataUrl: `data:${r.mime};base64,${r.pdf_base64}`,

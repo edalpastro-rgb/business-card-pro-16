@@ -3,9 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { api } from "@/src/api";
 import { theme } from "@/src/theme";
-import { notify } from "@/src/utils/notify";
 import { DocumentScannerModal } from "@/src/DocumentScannerModal";
 import { ModuleErrorBoundary } from "@/src/shared";
 
@@ -26,7 +24,7 @@ export default function ScannerRoute() {
 function ScannerScreen() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const busy = false;
   const [lastSaved, setLastSaved] = useState<{ name: string; pages: number } | null>(null);
 
   // Autoapertura scanner al mount → l'utente arriva subito nel flusso di scan
@@ -41,30 +39,11 @@ function ScannerScreen() {
     return `Scansione-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
   }, []);
 
-  const handleSaved = async ({ pdf_base64, name, page_count }: { pdf_base64: string; name: string; page_count: number; mime: string }) => {
-    setBusy(true);
-    try {
-      // Stima dimensione (base64 → bytes)
-      const bytes = Math.round((pdf_base64.length * 3) / 4);
-      const fname = name.endsWith(".pdf") ? name : `${name}.pdf`;
-      await api("/master-files", {
-        method: "POST",
-        body: {
-          category: "files",
-          name: fname,
-          mime: "application/pdf",
-          data_base64: pdf_base64,
-          size: bytes,
-        },
-      });
-      setLastSaved({ name: fname, pages: page_count });
-      notify("Scansione salvata ✅", `${page_count} pagina/e in "I miei file"`);
-    } catch (e: any) {
-      notify("Errore salvataggio", e?.message || "Impossibile salvare il PDF");
-    } finally {
-      setBusy(false);
-      setOpen(false);
-    }
+  const handleSaved = async ({ name, page_count }: { pdf_base64: string; name: string; page_count: number; mime: string }) => {
+    // V50.z226 — il salvataggio in «I miei file › Scanner» avviene dentro DocumentScannerModal (mai perso)
+    const fname = name.endsWith(".pdf") ? name : `${name}.pdf`;
+    setLastSaved({ name: fname, pages: page_count });
+    setOpen(false);
   };
 
   return (
@@ -85,7 +64,7 @@ function ScannerScreen() {
           <Text style={styles.heroTitle}>Scansiona qualsiasi documento</Text>
           <Text style={styles.heroSub}>
             Multi-pagina con auto-crop e miglioramento contrasto. Il PDF finale viene salvato in
-            <Text style={{ fontWeight: "800" }}> "I miei file"</Text> nella sezione File.
+            <Text style={{ fontWeight: "800" }}> "I miei file"</Text> nella cartella Scanner.
           </Text>
         </View>
 
@@ -100,7 +79,7 @@ function ScannerScreen() {
               <Text style={styles.savedMeta}>{lastSaved.pages} pagina/e · PDF</Text>
             </View>
             <Pressable
-              onPress={() => router.push("/master-files" as any)}
+              onPress={() => router.push("/master-files?tab=scanner" as any)}
               hitSlop={8}
               testID="scanner-open-files"
               style={styles.savedGoBtn}
@@ -128,7 +107,7 @@ function ScannerScreen() {
         </Pressable>
 
         <Pressable
-          onPress={() => router.push("/master-files" as any)}
+          onPress={() => router.push("/master-files?tab=scanner" as any)}
           style={styles.secondaryBtn}
           testID="scanner-open-master-files"
         >

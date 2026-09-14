@@ -1,6 +1,16 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z226 (Giu 2026) — Scanner: fallback bordi, tastiera, salvataggio garantito · Master Files: cartella Scanner + duplicati
+
+1. **Fallback bordi** (`LiveCameraScanner.tsx`): il backend ripiegava già sull'intera immagine (`_cv2_scan_document`: `quad is None → warped = src`); la UI però mostrava il badge warning «Bordi non rilevati · riprova o usa Ritaglia». Ora badge informativo blu «Intera immagine selezionata · Ritaglia se serve» (testID `live-review-fullframe`), «Usa questa» resta attivo → si procede; il warning con retry resta solo per errore rete (`autocrop_failed`).
+2. **Nome file sopra la tastiera** (`DocumentScannerModal.tsx`): hook `useKeyboardLift()` (RN `Keyboard` will/didShow + `useWindowDimensions`: applica solo la quota di tastiera NON già assorbita dal resize della finestra Android) → `marginBottom: lift` sulla card, `paddingBottom 8` e lista pagine `maxHeight 120` con tastiera aperta; `returnKeyType="done"`.
+3. **File sempre salvati**: in `doSave`, subito dopo `/scanner/merge-pdf` e PRIMA di `onSaved`, POST `/master-files {category:"scanner", source, source_contact_id}` e, se `contactId`, POST `/contacts/{id}/files` (Promise.allSettled → toast «PDF salvato ✅» o «Salvataggio parziale»). Nuove props `contactId?`, `source?`. Callers: `contact/[id].tsx` (contactId, rimosso il POST duplicato), `BillsSection` (contactId, source bills), `scanner.tsx` (rimosso il POST → solo card «Ultima scansione», link a `/master-files?tab=scanner`), `bill-quick` (source bill-quick), `AssistantChat` (source chat).
+4. **Cartella Scanner** (`master-files.tsx` + backend): `ALLOWED_MASTER_CATS` + `scanner`; `MasterFileIn.source/source_contact_id` persistiti; tab «Scanner» (rosso, icona scan) in tab bar ora orizzontale scrollabile; bottone «Nuova scansione» → `/scanner`; query `?tab=` per aprire la cartella.
+5. **Duplicati**: `GET /master-files/duplicate?name&size&category` (nome case-insensitive + size identici). `uploadWithDupCheck()` in Carica file/Foto: popup `master-files-dup-modal` «File già presente… sostituirlo o tenerli entrambi?» → **Sostituisci** (DELETE vecchio + upload) / **Tieni entrambi** (nome con suffisso « (2)») / Annulla.
+**Test**: API create scanner cat + source, dup case-insensitive true, size/categoria diversa false, categoria invalida 400 ✅; web: `/master-files?tab=scanner` → cartella vuota → scanner → PDF/File → Salva → file in cartella Scanner ✅; upload doppio → popup → Tieni entrambi → «TEST_dup (2).txt»; Sostituisci → 1 solo file ✅. Dati di test rimossi. Tastiera/fallback bordi verificabili solo su device.
+
+
 ## V50.z225 (Giu 2026) — Coda chat: Riprova bozze fallite
 
 **Backend** (`routes/axon_chat_queue.py`): `GET /chat/queue?include_done=true` → nuovo array `failed` (tutte le fallite, max 50, ordine recente) e `recent_done` solo `done`; `POST /chat/queue/{id}/retry` (404 se non fallita) e `POST /chat/queue/retry-all` → status `pending`, `$unset error/done_at/started_at`, `$inc retry_count`; `created_at` e priorità restano (FIFO originale).

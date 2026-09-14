@@ -1347,20 +1347,12 @@ function ContactDetail() {
         onClose={() => setScannerOpen(false)}
         defaultName={`Scan-${c?.first_name || ""}-${new Date().toISOString().slice(0,10)}`.replace(/\s+/g, "-")}
         hintTitle={`Scansione documento per ${c?.first_name || ""} ${c?.last_name || ""}`.trim()}
-        onSaved={async ({ pdf_base64, name, page_count }) => {
-          try {
-            await api(`/contacts/${id}/files`, {
-              method: "POST",
-              body: {
-                name,
-                mime: "application/pdf",
-                data_base64: pdf_base64,
-                size: Math.floor((pdf_base64.length * 3) / 4),
-              },
-            });
-            await load();
-            notify("Scansione salvata", `${page_count} pagina/e unite in PDF.`);
-          } catch (e: any) { notify("Errore upload", e?.message || ""); }
+        contactId={String(id)}
+        source="contact"
+        onSaved={async ({ page_count }) => {
+          // V50.z226 — il salvataggio (file cliente + I miei file › Scanner) avviene dentro DocumentScannerModal
+          await load();
+          notify("Scansione salvata", `${page_count} pagina/e unite in PDF.`);
         }}
       />
       <CallScriptOverlay
