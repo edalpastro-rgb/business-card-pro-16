@@ -81,7 +81,7 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     subtitle: "AxonOS Brain+ · Il sistema operativo che amplifica le tue capacità",
     highlight: "AxonOS Brain+ — Non dimentica nulla, non si stanca mai, conosce la tua vita. Il primo CRM dove l'intelligenza artificiale vive dentro i tuoi dati.",
     paragraphs: [
-      "AdvisorOS è il sistema operativo per chiunque gestisca relazioni, scadenze e decisioni: consulenti, agenti, studi professionali, agenzie, aziende e privati. Non è un CRM con un chatbot aggiunto. È una piattaforma completa con isolamento multi-tenant, controllo dei ruoli e integrazioni cloud native.",
+      "AdvisorOS è un CRM pensato per consulenti, venditori, agenzie, network e per tutti quelli che hanno lunghi flussi di lavoro: archiviazione dati, analisi dati e un rapporto costante con clienti e collaboratori. Non è un CRM con un chatbot aggiunto. È una piattaforma completa con isolamento multi-tenant, controllo dei ruoli e integrazioni cloud native.",
       "AxonOS è il motore AI nativo: conosce il tuo database in tempo reale, risponde, agisce, ricorda, impara. Non devi spiegargli chi sei ogni volta: ti conosce già.",
       "Questo libretto ti porta dal primo login all'utilizzo avanzato di ogni funzione, con esempi pratici e suggerimenti concreti.",
     ],

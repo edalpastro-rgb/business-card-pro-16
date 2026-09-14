@@ -1,6 +1,10 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z230 (Giu 2026) — Copy posizionamento AdvisorOS
+- Libretto/Tour Guidato (`libretto-content.ts` sez. intro), `axon_app_map.json` (Axon conosce il testo) e WowIntro: «AdvisorOS è un CRM pensato per consulenti, venditori, agenzie, network e per tutti quelli che hanno lunghi flussi di lavoro: archiviazione dati, analisi dati e un rapporto costante con clienti e collaboratori.» Nessun'altra modifica. NB: lo screenshot dell'utente mostrava il testo di una build precedente (V50.z182 lo aveva già sostituito) → serve ripubblicare/rigenerare la build.
+
+
 ## V50.z229 (Giu 2026) — Storico spese: chiusura mese in PDF, archivio anno/mese, statistiche e dieta di spesa
 
 **Backend** `routes/axon_expense_history.py` (isolato, dopo `axon_expenses.py`): stato ricevuta `axon_expenses.status` open|discarded|closed. `PATCH /axon/expenses/{id}/status {open|discarded}` (non su closed). `POST /axon/expenses/close-month {sphere, month, expense_ids}` → solo spese selezionate non chiuse/scartate → PDF reportlab (`_axh_render_pdf`, con % per area) → `_upl_master_store` category files, nome «Note spese <Mese Anno> - Home/Business.pdf», `folder: spese`, `expense_month/expense_year`, title «Note spese · anno · mese» → `axon_expense_reports {report_id, sphere, month, year, label, total, count, by_category, file_id, expense_ids}`; spese → closed+report_id; le non selezionate restano open. `GET /axon/expenses/reports?sphere` → anni → report. `DELETE /axon/expenses/reports/{id}` riapre il mese (spese open, PDF rimosso). `GET /axon/expenses/stats?sphere&month` → serie 12 mesi, `vs_prev`/`vs_last_year` {abs, pct, saving}, `avg_6m`, `by_category` (share, delta_pct vs mese prima), `habits` (quota media 6 mesi vs ora = «dieta di spesa»), `insights[]` testuali (risparmio/spesa in più, vs anno prima, area principale, scostamenti ≥8 punti dall'abitudine, scontrino medio, vs media 6 mesi). Scartate escluse da tutte le statistiche.

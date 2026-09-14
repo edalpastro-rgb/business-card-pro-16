@@ -33,7 +33,7 @@ type Slide = {
 };
 
 const SLIDES: Slide[] = [
-  { key: "welcome", icon: "sparkles", color: "#FBBF24", title: "Benvenuto in AdvisorOS", body: "Il CRM pensato per consulenti energetici e networker. Tutto in un'unica app, sempre con te.", orbit: ["people", "calendar", "flash", "document-text"] },
+  { key: "welcome", icon: "sparkles", color: "#FBBF24", title: "Benvenuto in AdvisorOS", body: "Il CRM pensato per consulenti, venditori, agenzie e network. Tutto in un'unica app, sempre con te.", orbit: ["people", "calendar", "flash", "document-text"] },
   { key: "crm", icon: "people", color: "#0EA5E9", title: "Contatti & Calendario", body: "Anagrafiche complete, appuntamenti condivisi con il cliente via WhatsApp o email, scadenze contratti sotto controllo.", orbit: ["call", "location", "time", "notifications"] },
   { key: "axon", icon: "chatbubbles", color: "#8B5CF6", title: "AxonOS, il tuo assistente AI", body: "Chiedi a voce o per iscritto: PUN, bollette, clienti, timer e promemoria. Impara dalle tue regole e ti risponde in streaming.", orbit: ["mic", "bar-chart", "bulb", "alarm"] },
   { key: "docs", icon: "scan", color: "#22C55E", title: "Scanner & Documenti", body: "Scansiona bollette e contratti con ritaglio automatico, analizzali con l'AI e archiviali su Drive.", orbit: ["camera", "cloud-upload", "analytics", "folder"] },
