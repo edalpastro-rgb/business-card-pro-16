@@ -5,6 +5,9 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z243 (Set 2026) — Scroll memorizzato (Contatti + Calendario)
+`useScrollMemory(key)` (`src/utils/appStatePersist.ts`): ritorna `{ref, onScroll, onContentSizeChange, scrollEventThrottle}`; salva `{y, at}` in `scroll_pos_<key>` con debounce 400 ms e immediatamente su AppState background; al mount legge il valore (< 12 h) e ripristina una sola volta appena `contentHeight ≥ y+100` (gestisce la race load-storage/contenuto chiamando `tryRestore` da entrambi i lati). Applicato a `contatti.tsx` (FlatList principale, key `contatti_list`) e `calendario.tsx` (ScrollView `cal-scroll`, key `calendario`). Test web: scroll 528 → reload → 524 ✅.
+
 ## V50.z242 (Set 2026) — BUG-STATE-001: persistenza stato app (background/foreground + cold start)
 **Causa trovata (warm)**: `LockGate` in `app/_layout.tsx` renderizzava DUE alberi diversi (`<Stack/>+<AppLockOverlay/>` quando `locked`, altrimenti `FabStackProvider>…>StackWithCallBar`) → ogni lock/unlock rimontava il navigator expo-router → stato navigazione azzerato → Home. Ora l'albero è unico e il blocco è `<Modal visible statusBarTranslucent><AppLockOverlay/></Modal>` (sopra anche ai Modal aperti). **Causa (cold)**: dopo kill del processo da parte dell'OS expo-router riparte da `/` → `index` → Home; nessuna persistenza rotta.
 **Fix**:

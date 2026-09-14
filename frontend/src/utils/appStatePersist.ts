@@ -2,7 +2,8 @@
 // • Ultima rotta (href + timestamp) salvata ad ogni navigazione → ripristinata al riavvio (solo nativo, entro 12 h).
 // • Bozze campi testo (`useDraft`): salva in AsyncStorage con debounce, ricarica al mount, rimuove quando vuoto.
 // • Flag «chat Axon aperta» per riaprire il pannello al rientro.
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { AppState, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const ROUTE_KEY = "nav_last_route_v2";
@@ -67,4 +68,54 @@ export function useDraft(key: string, value: string, setValue: (v: string) => vo
 
 export async function clearDraft(key: string): Promise<void> {
   try { await AsyncStorage.removeItem(key); } catch { /* ignore */ }
+}
+
+// ── V50.z243 — Scroll memorizzato: posizione di scorrimento salvata (debounce + subito in background) e ripristinata al
+// rimontaggio/riavvio appena il contenuto è abbastanza alto (entro 12 h). Funziona con FlatList (scrollToOffset) e ScrollView (scrollTo).
+export function useScrollMemory(key: string) {
+  const ref = useRef<any>(null);
+  const y = useRef(0);
+  const contentH = useRef(0);
+  const saved = useRef<number | null>(null);
+  const restored = useRef(false);
+  const timer = useRef<any>(null);
+  const storageKey = `scroll_pos_${key}`;
+
+  const persist = useCallback(() => {
+    AsyncStorage.setItem(storageKey, JSON.stringify({ y: y.current, at: Date.now() })).catch(() => {});
+  }, [storageKey]);
+
+  const tryRestore = useCallback(() => {
+    if (restored.current || saved.current == null || !ref.current) return;
+    if (saved.current <= 0) { restored.current = true; return; }
+    if (contentH.current < saved.current + 100) return; // contenuto non ancora caricato del tutto
+    restored.current = true;
+    const r = ref.current;
+    try {
+      if (typeof r.scrollToOffset === "function") r.scrollToOffset({ offset: saved.current, animated: false });
+      else if (typeof r.scrollTo === "function") r.scrollTo({ y: saved.current, animated: false });
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(storageKey).then((raw) => {
+      if (!raw) return;
+      const j = JSON.parse(raw) as { y: number; at: number };
+      if (Date.now() - Number(j.at || 0) > ROUTE_MAX_AGE_MS) return;
+      saved.current = Number(j.y) || 0;
+      tryRestore();
+    }).catch(() => {});
+    const sub = AppState.addEventListener("change", (st) => { if (st === "background" || st === "inactive") persist(); });
+    return () => { sub.remove(); if (timer.current) clearTimeout(timer.current); };
+  }, [storageKey, persist, tryRestore]);
+
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    y.current = e.nativeEvent.contentOffset.y;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(persist, 400);
+  }, [persist]);
+
+  const onContentSizeChange = useCallback((_w: number, h: number) => { contentH.current = h; tryRestore(); }, [tryRestore]);
+
+  return { ref, onScroll, onContentSizeChange, scrollEventThrottle: 250 };
 }

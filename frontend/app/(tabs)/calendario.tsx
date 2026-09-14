@@ -14,6 +14,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { silentGpsOrigin, requestGpsOrigin, fmtKm, GeoDistancesResp, GeoDistance } from "@/src/utils/geoOrigin"; // V50.z241
+import { useScrollMemory } from "@/src/utils/appStatePersist"; // V50.z243
 
 const BDAY_SEEN_KEY = "calendar_birthdays_seen_v1"; // V50.z152
 
@@ -73,6 +74,7 @@ function CalendarioScreen() {
   const { user } = useAuth();
   const pagePad = usePageBottomPadding();
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
+  const scrollMem = useScrollMemory("calendario"); // V50.z243 — scroll memorizzato
   const [appts, setAppts] = useState<Appointment[]>([]);
   // V50.z79 — Meteo per appuntamenti (cache in memoria: apptId → {icon, temp, label})
   const [weatherByAppt, setWeatherByAppt] = useState<Record<string, { icon: string; temp: number; label: string; place?: string; tmin?: number; rain?: number } | null>>({});
@@ -459,6 +461,10 @@ function CalendarioScreen() {
 
       {viewMode !== "year" && (
         <ScrollView
+          ref={scrollMem.ref}
+          onScroll={scrollMem.onScroll}
+          onContentSizeChange={scrollMem.onContentSizeChange}
+          scrollEventThrottle={scrollMem.scrollEventThrottle}
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingBottom: pagePad }}
           showsVerticalScrollIndicator={true}

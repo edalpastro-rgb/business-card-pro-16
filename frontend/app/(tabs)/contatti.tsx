@@ -9,6 +9,7 @@ import { theme } from "@/src/theme";
 import { isAreaVisible, areaCategories } from "@/src/utils/areaAccess";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { useScrollMemory } from "@/src/utils/appStatePersist";
 
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string;
@@ -39,6 +40,7 @@ function ContattiScreen() {
   const { user } = useAuth();
   const pagePad = usePageBottomPadding();
   const allowed = user?.areas || ["energy", "network"];
+  const scrollMem = useScrollMemory("contatti_list"); // V50.z243 — scroll memorizzato
   const [items, setItems] = useState<Contact[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   // V50.z115 — Filtro Categoria › Sottocategoria (attivo quando è selezionata un'area con categorie)
@@ -287,6 +289,10 @@ function ContattiScreen() {
         </View>
       ) : (
         <FlatList
+          ref={scrollMem.ref}
+          onScroll={scrollMem.onScroll}
+          onContentSizeChange={scrollMem.onContentSizeChange}
+          scrollEventThrottle={scrollMem.scrollEventThrottle}
           data={orderedItems}
           keyExtractor={(i) => i.contact_id}
           contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: pagePad }}
