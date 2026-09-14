@@ -61,8 +61,9 @@ import { conversationToText, copyText, shareText, exportConversationPdf } from "
 // V50.z11 — useBottomSheetPadding rimosso: era usato per padding sheet ma
 // il KeyboardAvoidingView ora gestisce autonomamente lo spazio sopra la tastiera.
 // V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
-const AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-transparent.png");
-const AXONOS_LOGO_HORIZONTAL_ASPECT = 1375 / 294;
+const AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-light.png"); // V50.z228 — nuovo logo (sfondo chiaro)
+const AXONOS_LOGO_HORIZONTAL_ASPECT = 825 / 302;
+const AXONOS_LOGO_WHITE_ASPECT = 1375 / 294;
 // V29.m — Variante bianca (silhouette) per il FAB viola: massima leggibilità senza padding scuro.
 const AXONOS_LOGO_WHITE = require("@/assets/images/axonos-logo-white.png");
 
@@ -1663,7 +1664,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             <View style={styles.brandBar}>
               <Image
                 source={AXONOS_LOGO_HORIZONTAL}
-                style={{ width: 148, height: Math.round(148 / AXONOS_LOGO_HORIZONTAL_ASPECT) }}
+                style={{ width: 118, height: Math.round(118 / AXONOS_LOGO_HORIZONTAL_ASPECT) }}
                 resizeMode="contain"
                 testID="assistant-brand-bar-logo"
               />
@@ -2709,7 +2710,7 @@ export function AssistantFAB() {
         >
           <Image
             source={AXONOS_LOGO_WHITE}
-            style={{ width: 46, height: Math.round(46 / AXONOS_LOGO_HORIZONTAL_ASPECT) }}
+            style={{ width: 46, height: Math.round(46 / AXONOS_LOGO_WHITE_ASPECT) }}
             resizeMode="contain"
             testID="assistant-fab-logo"
           />

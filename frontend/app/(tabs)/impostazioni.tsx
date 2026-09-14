@@ -734,6 +734,17 @@ function ImpostazioniScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
           </Pressable>
+          {/* V50.z228 — Le mie aree: mini-wizard per area, stato «Configurazione incompleta», aree personalizzate */}
+          <Pressable testID="open-le-mie-aree" onPress={() => router.push("/le-mie-aree" as any)} style={[dashLinkStyles.row, { marginTop: 10 }]}>
+            <View style={dashLinkStyles.iconBox}>
+              <Ionicons name="flash" size={16} color="#7C3AED" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={dashLinkStyles.title}>Le mie aree</Text>
+              <Text style={dashLinkStyles.sub}>Attiva e configura le aree di AxonOS: carica un documento e lui legge i dati. Aree personalizzate e scadenze</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+          </Pressable>
           {/* V50.z197 — Blocco 8: Integrazioni AxonOS a due sfere (Business / Home) */}
           <Pressable testID="open-axon-integrations" onPress={() => router.push("/axon-integrations" as any)} style={[dashLinkStyles.row, { marginTop: 10 }]}>
             <View style={dashLinkStyles.iconBox}>

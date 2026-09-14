@@ -13,6 +13,10 @@ export const ADVISOROS_LOGO_URI =
 export const AXONOS_LOGO_URI =
   "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/592863265f614b9bb4273fef7b1b8f1b_AxonOS logo.png";
 
+/** V50.z228 — Nuovo logo AxonOS (orizzontale, per sfondi CHIARI). Aspect 825/302. AxonOS è un componente di AdvisorOS: sempre più piccolo del logo AdvisorOS. */
+export const AXONOS_LOGO_LIGHT = require("@/assets/images/axonos-logo-light.png");
+export const AXONOS_LOGO_LIGHT_ASPECT = 825 / 302;
+
 type LogoProps = {
   size?: number;
   style?: ViewStyle | ViewStyle[];
@@ -49,28 +53,15 @@ export function AdvisorOSLogo({ size = 44, style, onDark, testID }: LogoProps) {
 }
 
 export function AxonOSLogo({ size = 44, style, onDark, testID }: LogoProps) {
-  // V29.m — Quando posato su una barra scura/viola (`onDark`), rimuoviamo il
-  // riquadro nero: sfondo trasparente e logo ingrandito così l'icona bianca
-  // brand si legge chiaramente sul fondo colorato.
+  // V50.z228 — nuovo logo orizzontale su pill BIANCA (il logo è pensato per sfondi chiari); su barre scure la pill resta bianca.
+  const w = Math.round(size * 1.9);
+  const h = Math.round(w / AXONOS_LOGO_LIGHT_ASPECT);
   return (
     <View
       testID={testID || "axon-os-logo"}
-      style={[
-        styles.wrap,
-        {
-          width: size,
-          height: size,
-          borderRadius: Math.round(size * 0.22),
-          backgroundColor: onDark ? "transparent" : "#0B1220",
-        },
-        style as any,
-      ]}
+      style={[styles.wrap, { width: w, height: h, borderRadius: Math.round(size * 0.2), backgroundColor: "#E6EBEE", overflow: "hidden" }, style as any]}
     >
-      <Image
-        source={{ uri: AXONOS_LOGO_URI }}
-        style={{ width: size * (onDark ? 1 : 0.86), height: size * (onDark ? 1 : 0.86) }}
-        resizeMode="contain"
-      />
+      <Image source={AXONOS_LOGO_LIGHT} style={{ width: w, height: h }} resizeMode="contain" />
     </View>
   );
 }

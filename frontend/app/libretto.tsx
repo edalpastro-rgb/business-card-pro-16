@@ -36,7 +36,7 @@ import { WowIntro } from "@/src/WowIntro";
 import { BrainPlus, brainPlusHtml, BRAIN_PLUS_SECTION_IDS } from "@/src/BrainPlus"; // V50.z190 — claim AxonOS Brain+
 import { BrandLogosBlock, tuttunizzatoreHtml } from "@/src/Tuttunizzatore"; // V50.z191 — loghi impilati + «Il tuo "Tuttunizzatore"»
 const ADVISOR_LOGO = require("@/assets/images/advisoros-logo-transparent.png");
-const AXON_LOGO = require("@/assets/images/axonos-logo-transparent.png");
+const AXON_LOGO = require("@/assets/images/axonos-logo-light.png"); // V50.z228
 const ADVISOR_ICON = require("@/assets/images/advisoros-icon-1024.png");
 
 /** Legge un asset locale come base64 per embedderlo nell'HTML del PDF. */

@@ -58,6 +58,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Anagrafica Master",   icon: "id-card-outline",      href: "/anagrafica-master",   categoryKey: "docs" },
   { label: "Master Files",        icon: "folder-outline",       href: "/master-files",        categoryKey: "docs" },
   { label: "Google Drive",        icon: "cloud-outline",        href: "/google-drive",        categoryKey: "docs" },
+  { label: "Le mie aree",         icon: "flash-outline",        href: "/le-mie-aree",         categoryKey: "docs" }, // V50.z228 — mini-wizard aree + stato configurazione
   { label: "Integrazioni AxonOS", icon: "link-outline",         href: "/axon-integrations",   categoryKey: "docs" }, // V50.z197 — Blocco 8: due sfere
   { label: "Spazio Personale",    icon: "home-outline",         href: "/spazio-personale",    categoryKey: "docs" }, // V50.z205 — Blocco 8 Fase 4: Sfera Home
   { label: "Biglietto da visita", icon: "card-outline",         href: "/business-card",       categoryKey: "docs" },

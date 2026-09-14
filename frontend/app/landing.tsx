@@ -6,6 +6,7 @@
  * che porta alla schermata di login. Il layout è single-column, responsive,
  * pensato sia per desktop (max-width 900) che per mobile.
  */
+import { AXONOS_LOGO_LIGHT } from "@/src/BrandLogos"; // V50.z228
 import React from "react";
 import {
   View,
@@ -25,8 +26,6 @@ import { useRouter } from "expo-router";
 // Loghi ufficiali (asset già presenti nel bucket customer-assets)
 const ADVISOROS_LOGO_URI =
   "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/b7768fd1220b4979bff6466c01714e12_AdvisorOS_App_Logo__5_-fotor-20260826112335-removebg-preview%20-1-.png";
-const AXONOS_LOGO_URI =
-  "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/eaad7f8d5fbe44b196a4fb03d5a181c9_AxonOS_logo-cropped-removebg-preview.png";
 
 // Card blocchi feature (icona, titolo, corpo)
 const FEATURE_BLOCKS: Array<{
@@ -102,7 +101,7 @@ export default function LandingScreen() {
             {/* V50.z195 — logo AxonOS completamente visibile: sfondo blu navy solido dietro il logo (era illeggibile su chiaro) */}
             <View style={styles.axonLogoBox} testID="landing-axon-logo-box">
               <Image
-                source={{ uri: AXONOS_LOGO_URI }}
+                source={AXONOS_LOGO_LIGHT}
                 style={[styles.brandLogoAxon, isCompact && styles.brandLogoAxonSmall]}
                 resizeMode="contain"
                 accessibilityLabel="AxonOS"
@@ -160,7 +159,7 @@ export default function LandingScreen() {
         <View style={styles.container}>
           <View style={styles.axonHeader}>
             <Image
-              source={{ uri: AXONOS_LOGO_URI }}
+              source={AXONOS_LOGO_LIGHT}
               style={[styles.axonLogo, isCompact && styles.axonLogoSmall]}
               resizeMode="contain"
               accessibilityLabel="AxonOS"
@@ -280,9 +279,9 @@ const styles = StyleSheet.create({
   },
   brandLogo: { width: 240, height: 68 },
   brandLogoSmall: { width: 220, height: 62 },
-  brandLogoAxon: { width: 200, height: 56 },
-  brandLogoAxonSmall: { width: 200, height: 56 },
-  axonLogoBox: { backgroundColor: "#0B1E38", borderRadius: 16, paddingHorizontal: 18, paddingVertical: 10 }, // V50.z195 — navy dietro il logo AxonOS
+  brandLogoAxon: { width: 150, height: 55 }, // V50.z228 — più piccolo di AdvisorOS (240)
+  brandLogoAxonSmall: { width: 130, height: 48 },
+  axonLogoBox: { backgroundColor: "#E6EBEE", borderRadius: 14, overflow: "hidden" }, // V50.z228 — il logo (sfondo chiaro) è la card // V50.z195 — navy dietro il logo AxonOS
   logoDivider: {
     width: 1,
     height: 46,
@@ -382,8 +381,8 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 14,
   },
-  axonLogo: { width: 220, height: 60 },
-  axonLogoSmall: { width: 160, height: 42 },
+  axonLogo: { width: 170, height: 62 }, // V50.z228
+  axonLogoSmall: { width: 140, height: 51 },
   axonTitle: {
     fontSize: 17,
     fontWeight: "900",

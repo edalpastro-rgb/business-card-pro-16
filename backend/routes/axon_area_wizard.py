@@ -138,6 +138,7 @@ async def _aw_schedule_deadline(user: dict, area_key: str, label: str, date_val:
 class AwProfileIn(BaseModel):
     data: Dict[str, Any] = {}
     complete: Optional[bool] = None
+    recurring: Optional[Dict[str, bool]] = None  # V50.z228 — {campo_scadenza: True} → rinnovo automatico ogni anno
 
 
 @api_router.put("/axon/areas/{key}/profile")
@@ -158,11 +159,19 @@ async def aw_profile_save(key: str, body: AwProfileIn, user=Depends(get_current_
     missing = [k for k in required if not data.get(k)]
     status = "complete" if body.complete or (spec and not missing) else "incomplete"
     upd = {"data": data, "status": status, "updated_at": utcnow()}
+    # V50.z228 — ricorrenza annuale per campo scadenza (default: ON per le scadenze del catalogo, configurabile)
+    recurring = {**(cur.get("recurring") or {})}
+    for f in _aw_all_fields(spec or {}):
+        if f.get("deadline"):
+            recurring.setdefault(f["key"], True)
+    if body.recurring:
+        recurring.update({k: bool(v) for k, v in body.recurring.items()})
+    upd["recurring"] = recurring
     await db.axon_area_profiles.update_one({"user_id": uid, "area_key": key}, {"$set": upd, "$setOnInsert": {"created_at": utcnow(), "files": []}}, upsert=True)
     # attiva l'area se non lo è già (mini-wizard = area in uso)
     if not is_custom:
         await db.axon_setup_state.update_one({"user_id": uid}, {"$set": {f"areas.{key}": True, "updated_at": utcnow()}}, upsert=True)
-    return {"ok": True, "status": status, "missing": missing, "data": data, "reminders_created": reminders}
+    return {"ok": True, "status": status, "missing": missing, "data": data, "recurring": recurring, "reminders_created": reminders}
 
 
 @api_router.post("/axon/areas/{key}/extract")
@@ -209,7 +218,7 @@ class AwCustomIn(BaseModel):
     desc: Optional[str] = ""
     sites: Optional[List[str]] = None
     track_deadlines: bool = False
-    deadlines: Optional[List[Dict[str, str]]] = None  # [{label, date}]
+    deadlines: Optional[List[Dict[str, Any]]] = None  # [{label, date, recurring?}]
 
 
 @api_router.post("/axon/areas/custom")
@@ -235,7 +244,8 @@ async def _aw_custom_upsert(user: dict, key: Optional[str], body: AwCustomIn) ->
         if not s.startswith(("http://", "https://")):
             s = "https://" + s
         sites.append(s[:300])
-    deadlines = [{"label": (d.get("label") or "Scadenza").strip()[:80], "date": (d.get("date") or "").strip()[:10]} for d in (body.deadlines or []) if _aw_parse_date(d.get("date"))][:10]
+    deadlines = [{"label": str(d.get("label") or "Scadenza").strip()[:80], "date": str(d.get("date") or "").strip()[:10], "recurring": str(d.get("recurring", "")).lower() in ("1", "true", "yes", "si", "sì")}
+                 for d in (body.deadlines or []) if _aw_parse_date(d.get("date"))][:10]
     key = key or f"custom_{uuid.uuid4().hex[:8]}"
     if not key.startswith("custom_"):
         raise HTTPException(status_code=400, detail="chiave non valida")
@@ -296,3 +306,73 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     except Exception as exc:  # noqa: BLE001
         logger.warning("[area-wizard] prompt failed: %s", exc)
     return prep
+
+
+# ============================================================================ V50.z228 — Rinnovo automatico promemoria (ricorrenza annuale)
+def _aw_plus_year(d: datetime) -> datetime:
+    try:
+        return d.replace(year=d.year + 1)
+    except ValueError:  # 29 febbraio
+        return d.replace(year=d.year + 1, day=28)
+
+
+async def _aw_rollover_user(user: dict) -> int:
+    """Per ogni scadenza passata con ricorrenza annuale → data +1 anno e nuovi promemoria 30/15/7/0. Ritorna il n. di scadenze rinnovate."""
+    uid = user["user_id"]
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+    renewed = 0
+    async for p in db.axon_area_profiles.find({"user_id": uid, "recurring": {"$exists": True}}, {"_id": 0}):
+        key = p["area_key"]; spec = _AW_WIZARDS.get(key) or {}
+        data = dict(p.get("data") or {}); changed = False
+        for f in _aw_all_fields(spec):
+            if not f.get("deadline") or not (p.get("recurring") or {}).get(f["key"]):
+                continue
+            d = _aw_parse_date(data.get(f["key"]))
+            if not d or d >= today:
+                continue
+            while d < today:
+                d = _aw_plus_year(d)
+            data[f["key"]] = d.strftime("%Y-%m-%d"); changed = True; renewed += 1
+            await _aw_schedule_deadline(user, key, f["deadline"], data[f["key"]])
+        if changed:
+            await db.axon_area_profiles.update_one({"user_id": uid, "area_key": key}, {"$set": {"data": data, "updated_at": utcnow(), "last_rollover_at": utcnow()}})
+    async for c in db.axon_custom_areas.find({"user_id": uid, "track_deadlines": True}, {"_id": 0}):
+        dls = list(c.get("deadlines") or []); changed = False
+        for dl in dls:
+            if not dl.get("recurring"):
+                continue
+            d = _aw_parse_date(dl.get("date"))
+            if not d or d >= today:
+                continue
+            while d < today:
+                d = _aw_plus_year(d)
+            dl["date"] = d.strftime("%Y-%m-%d"); changed = True; renewed += 1
+            await _aw_schedule_deadline(user, c["area_key"], dl["label"], dl["date"])
+        if changed:
+            await db.axon_custom_areas.update_one({"user_id": uid, "area_key": c["area_key"]}, {"$set": {"deadlines": dls, "updated_at": utcnow()}})
+            await db.axon_area_profiles.update_one({"user_id": uid, "area_key": c["area_key"]}, {"$set": {"data.deadlines": dls, "updated_at": utcnow()}})
+    return renewed
+
+
+async def _aw_rollover_job():
+    """Job giornaliero (scheduler): rinnova le scadenze ricorrenti di tutti gli utenti."""
+    total = 0
+    uids = set([d["user_id"] async for d in db.axon_area_profiles.find({"recurring": {"$exists": True}}, {"_id": 0, "user_id": 1})] +
+               [d["user_id"] async for d in db.axon_custom_areas.find({"track_deadlines": True}, {"_id": 0, "user_id": 1})])
+    for uid in uids:
+        user = await db.users.find_one({"user_id": uid}, {"_id": 0})
+        if not user:
+            continue
+        try:
+            total += await _aw_rollover_user(user)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[area-wizard] rollover %s failed: %s", uid, exc)
+    if total:
+        logger.info("[area-wizard] rollover: %s scadenze rinnovate", total)
+    return total
+
+
+@api_router.post("/axon/areas/rollover/run")
+async def aw_rollover_run(user=Depends(get_current_user)):
+    """Rinnovo manuale (utente corrente) — utile dopo un rinnovo bollo/polizza o per test."""
+    return {"ok": True, "renewed": await _aw_rollover_user(user)}

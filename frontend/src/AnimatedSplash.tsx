@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, View, Image } from "react-native";
-import { ADVISOROS_LOGO_URI } from "@/src/BrandLogos";
+import { ADVISOROS_LOGO_URI, AXONOS_LOGO_LIGHT } from "@/src/BrandLogos";
 import { TuttunizzatoreTagline } from "@/src/Tuttunizzatore"; // V50.z191 — tagline «Il tuo "Tuttunizzatore"»
 
 /**
@@ -24,7 +24,6 @@ const NAVY = "#0F2438";
 const ORANGE = "#FF6B35";
 const CREAM = "#FFF7F1";
 
-const AXONOS_LOGO_URI = "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/eaad7f8d5fbe44b196a4fb03d5a181c9_AxonOS_logo-cropped-removebg-preview.png";
 
 export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
   const [alreadyPlayed] = useState(_splashPlayedRef.current);
@@ -199,7 +198,7 @@ export function AnimatedSplash({ onDone }: { onDone?: () => void }) {
         {/* V50.z195 — logo AxonOS completamente visibile (opacità 100%, card navy) */}
         <View style={styles.axonosLogoBox}>
           <Image
-            source={{ uri: AXONOS_LOGO_URI }}
+            source={AXONOS_LOGO_LIGHT}
             style={styles.axonosLogo}
             resizeMode="contain"
             testID="splash-axonos-logo"
@@ -277,7 +276,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 12,
   },
-  logo: { width: 92, height: 92 },
+  logo: { width: 116, height: 116 }, // V50.z228 — AdvisorOS più grande del logo AxonOS
   captionWrap: {
     marginTop: 34,
     alignItems: "center",
@@ -299,11 +298,12 @@ const styles = StyleSheet.create({
   },
   axonosLogo: {
     // V50.z195 — logo AxonOS al 100%: più grande e su card navy solida
-    width: 150,
-    height: 40,
+    // V50.z228 — nuovo logo AxonOS (sfondo chiaro), più piccolo di AdvisorOS
+    width: 112,
+    height: 41,
     backgroundColor: "transparent",
   },
-  axonosLogoBox: { backgroundColor: "#0B1E38", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 8 },
+  axonosLogoBox: { backgroundColor: "#E6EBEE", borderRadius: 12, overflow: "hidden" }, // V50.z228 — il nuovo logo (sfondo chiaro) È la card: angoli arrotondati, nessun padding
 });
 
 export default AnimatedSplash;

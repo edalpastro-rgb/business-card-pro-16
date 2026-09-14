@@ -15,7 +15,7 @@ import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 
 export type AreaField = { key: string; label: string; type?: "date" | "text"; deadline?: string };
 export type AreaStep = { id: string; kind: "upload" | "choice" | "link" | "custom"; title: string; hint?: string; extract?: string; fields?: AreaField[]; extra_fields?: AreaField[]; field?: string; options?: { value: string; label: string }[]; route?: string; cta?: string };
-export type AreaCustom = { area_key: string; name: string; desc?: string; sites?: string[]; track_deadlines?: boolean; deadlines?: { label: string; date: string }[] };
+export type AreaCustom = { area_key: string; name: string; desc?: string; sites?: string[]; track_deadlines?: boolean; deadlines?: { label: string; date: string; recurring?: boolean }[] };
 export type AreaCfg = { key: string; title: string; icon: string; desc: string; on: boolean; custom: boolean; future: boolean; status: "complete" | "incomplete" | "na"; wizard?: { steps: AreaStep[]; done_note?: string } | null; profile?: { data?: Record<string, any> } | null; custom_area?: AreaCustom | null };
 export type Folder = "personale" | "lavoro" | "famiglia";
 
@@ -33,9 +33,10 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
   const [folder, setFolder] = useState<Folder>("personale");
   const [busy, setBusy] = useState<string>("");
   const [fileName, setFileName] = useState("");
+  const [recurring, setRecurring] = useState<Record<string, boolean>>({}); // V50.z228 — ripeti ogni anno per campo scadenza
   // custom area
   const [cName, setCName] = useState(""); const [cDesc, setCDesc] = useState(""); const [cSites, setCSites] = useState(["", "", ""]);
-  const [cTrack, setCTrack] = useState(false); const [cDeadlines, setCDeadlines] = useState<{ label: string; date: string }[]>([{ label: "", date: "" }]);
+  const [cTrack, setCTrack] = useState(false); const [cDeadlines, setCDeadlines] = useState<{ label: string; date: string; recurring?: boolean }[]>([{ label: "", date: "" }]);
 
   useEffect(() => {
     if (!visible) return;
@@ -45,6 +46,8 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
     const firstOpen = stepsArr.findIndex((s) => s.kind === "upload" ? [...(s.fields || []), ...(s.extra_fields || [])].some((f) => !prof[f.key]) : s.kind === "choice" ? !prof[s.field!] : true);
     setIdx(firstOpen < 0 ? 0 : firstOpen); setPhase("pick"); setMissing([]); setBusy(""); setFileName("");
     setData(Object.fromEntries(Object.entries(prof).map(([k, v]) => [k, String(v ?? "")])));
+    const rec = (area?.profile as any)?.recurring || {};
+    setRecurring(Object.fromEntries(stepsArr.flatMap((s) => [...(s.fields || []), ...(s.extra_fields || [])]).filter((f) => f.deadline).map((f) => [f.key, rec[f.key] ?? true])));
     const ca = area?.custom_area;
     setCName(ca?.name || ""); setCDesc(ca?.desc || ""); setCSites([ca?.sites?.[0] || "", ca?.sites?.[1] || "", ca?.sites?.[2] || ""]);
     setCTrack(!!ca?.track_deadlines); setCDeadlines(ca?.deadlines?.length ? ca.deadlines : [{ label: "", date: "" }]);
@@ -55,7 +58,7 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
   const fields: AreaField[] = [...(step?.fields || []), ...(step?.extra_fields || [])];
 
   const saveProfile = async (patch: Record<string, string>, complete?: boolean) => {
-    const r = await api<{ status: string; missing: string[]; reminders_created: number }>(`/axon/areas/${area!.key}/profile`, { method: "PUT", body: { data: patch, complete } });
+    const r = await api<{ status: string; missing: string[]; reminders_created: number }>(`/axon/areas/${area!.key}/profile`, { method: "PUT", body: { data: patch, complete, recurring } });
     return r;
   };
   const advance = async (r?: { reminders_created?: number }) => {
@@ -172,6 +175,12 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
                       <Text style={[styles.lbl, miss && { color: "#B45309" }]}>{f.label}{f.type === "date" ? " (AAAA-MM-GG)" : ""}{miss ? " · da completare" : ""}</Text>
                       <TextInput value={data[f.key] || ""} onChangeText={(t) => setData((d) => ({ ...d, [f.key]: t }))} placeholder={f.type === "date" ? "2026-12-31" : f.label} placeholderTextColor="#94A3B8"
                         keyboardType={f.type === "date" ? "numbers-and-punctuation" : "default"} style={[styles.input, miss && { borderColor: "#F59E0B" }]} testID={`area-field-${f.key}`} />
+                      {!!f.deadline && (
+                        <View style={styles.switchRow}>
+                          <Text style={styles.recTxt}>↻ Ripeti ogni anno · al rinnovo AxonOS ricrea da solo gli avvisi (30, 15, 7 gg e il giorno stesso)</Text>
+                          <Switch value={recurring[f.key] ?? true} onValueChange={(v) => setRecurring((r) => ({ ...r, [f.key]: v }))} trackColor={{ true: PURPLE, false: "#CBD5E1" }} thumbColor={Platform.OS === "android" ? "#FFF" : undefined} testID={`area-recurring-${f.key}`} />
+                        </View>
+                      )}
                     </View>
                   );
                 })}
@@ -218,9 +227,13 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
                     {cDeadlines.map((d, i) => (
                       <View key={i} style={{ flexDirection: "row", gap: 6 }}>
                         <TextInput value={d.label} onChangeText={(t) => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, label: t } : x)))} placeholder="Cosa scade" placeholderTextColor="#94A3B8" style={[styles.input, { flex: 1 }]} testID={`area-custom-dl-label-${i}`} />
-                        <TextInput value={d.date} onChangeText={(t) => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, date: t } : x)))} placeholder="AAAA-MM-GG" placeholderTextColor="#94A3B8" style={[styles.input, { width: 130 }]} testID={`area-custom-dl-date-${i}`} />
+                        <TextInput value={d.date} onChangeText={(t) => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, date: t } : x)))} placeholder="AAAA-MM-GG" placeholderTextColor="#94A3B8" style={[styles.input, { width: 118 }]} testID={`area-custom-dl-date-${i}`} />
+                        <Pressable onPress={() => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, recurring: !x.recurring } : x)))} style={[styles.recPill, d.recurring && styles.chipOn]} testID={`area-custom-dl-rec-${i}`} accessibilityLabel="Ripeti ogni anno">
+                          <Ionicons name="repeat" size={16} color={d.recurring ? "#FFF" : PURPLE} />
+                        </Pressable>
                       </View>
                     ))}
+                    <Text style={styles.recTxt}>↻ = ripeti ogni anno: alla scadenza AxonOS sposta la data di un anno e ricrea gli avvisi</Text>
                     <Pressable onPress={() => setCDeadlines((arr) => [...arr, { label: "", date: "" }])} style={styles.linkBtn} testID="area-custom-dl-add"><Text style={styles.linkTxt}>+ Aggiungi scadenza</Text></Pressable>
                   </>
                 )}
@@ -265,4 +278,6 @@ const styles = StyleSheet.create({
   fileTxt: { color: "#166534", fontWeight: "700", fontSize: 12.5, flex: 1 },
   warn: { color: "#B45309", fontWeight: "700", fontSize: 12.5, backgroundColor: "#FFFBEB", borderRadius: 10, padding: 8 },
   switchRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 },
+  recTxt: { flex: 1, fontSize: 11.5, color: "#64748B", fontWeight: "700", lineHeight: 15 },
+  recPill: { width: 44, height: 44, borderRadius: 12, borderWidth: 1.5, borderColor: "#DDD6FE", backgroundColor: "#FAF5FF", alignItems: "center", justifyContent: "center" },
 });

@@ -40,7 +40,10 @@ export function BrandLogosBlock({ advisorLogo, axonLogo, width = 150, dark = tru
   return (
     <View style={[styles.block, style]} testID={testID}>
       <Image source={advisorLogo} style={{ width, height: h }} resizeMode="contain" accessibilityLabel="AdvisorOS" />
-      <Image source={axonLogo} style={{ width: aw, height: Math.round(aw * 0.3), marginTop: 6 }} resizeMode="contain" accessibilityLabel="AxonOS" />
+      {/* V50.z228 — nuovo logo AxonOS su pill bianca (sfondo chiaro), sempre più piccolo di AdvisorOS */}
+      <View style={{ backgroundColor: "#E6EBEE", borderRadius: 10, overflow: "hidden", marginTop: 6 }}>
+        <Image source={axonLogo} style={{ width: aw, height: Math.round(aw / 2.73) }} resizeMode="contain" accessibilityLabel="AxonOS" />
+      </View>
       {tagline ? <TuttunizzatoreTagline dark={dark} size={15} style={{ marginTop: 10 }} /> : null}
     </View>
   );

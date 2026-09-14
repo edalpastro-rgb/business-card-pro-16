@@ -312,6 +312,11 @@ async def _start_scheduler():
             _run_advisor_tips_job, "interval", hours=12,
             id="advisor-tips", replace_existing=True,
         )
+        # V50.z228 — Rinnovo automatico scadenze ricorrenti aree (bollo, polizza, aree custom): ogni giorno 08:30
+        _birthday_scheduler.add_job(
+            _aw_rollover_job, "cron", hour=8, minute=30,
+            id="area-deadline-rollover", replace_existing=True,
+        )
         _birthday_scheduler.start()
         logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
         logger.info("Rule-proposals scheduler started (daily 03:00 Europe/Rome)")
