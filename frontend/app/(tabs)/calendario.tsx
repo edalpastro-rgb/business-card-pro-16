@@ -13,6 +13,7 @@ import { useAuth } from "@/src/auth";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { silentGpsOrigin, requestGpsOrigin, fmtKm, GeoDistancesResp, GeoDistance } from "@/src/utils/geoOrigin"; // V50.z241
 
 const BDAY_SEEN_KEY = "calendar_birthdays_seen_v1"; // V50.z152
 
@@ -252,7 +253,48 @@ function CalendarioScreen() {
     }
     return true;
   });
-  const dayItems = filteredItems.filter((a) => sameDay(a.start_at, selectedDate));
+  const dayItemsRaw = filteredItems.filter((a) => sameDay(a.start_at, selectedDate));
+
+  // V50.z241 — Distanze (GPS se già concesso, altrimenti ufficio) per gli appuntamenti del giorno + ordine per vicinanza
+  const [distByAppt, setDistByAppt] = useState<Record<string, GeoDistance>>({});
+  const [distOrigin, setDistOrigin] = useState<GeoDistancesResp["origin"]>(null);
+  const [sortByDistance, setSortByDistance] = useState(false);
+  const [distTick, setDistTick] = useState(0);
+  useEffect(() => {
+    const targets = dayItemsRaw
+      .filter((it) => it.kind === "appt" && !it.is_phone && (it.contact_id || (it.location || "").trim()) && distByAppt[it.id] === undefined)
+      .map((it) => ({ id: it.id, contact_id: it.contact_id || undefined, address: (it.location || "").trim() || undefined }));
+    if (targets.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const gps = await silentGpsOrigin();
+        const body: any = { targets };
+        if (gps) { body.origin_lat = gps.lat; body.origin_lon = gps.lon; }
+        const r = await api<GeoDistancesResp>("/geo/distances-from", { method: "POST", body });
+        if (cancelled) return;
+        setDistOrigin(r.origin);
+        const map: Record<string, GeoDistance> = {};
+        targets.forEach((t) => { map[t.id] = r.origin ? (r.results?.[t.id] ?? null) : null; });
+        setDistByAppt((prev) => ({ ...prev, ...map }));
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [dayItemsRaw, distByAppt, distTick]);
+  const refreshDistancesWithGps = async () => {
+    const gps = await requestGpsOrigin();
+    if (!gps) return;
+    setDistByAppt({}); setDistTick((t) => t + 1);
+  };
+  const dayItems = useMemo(() => {
+    if (!sortByDistance) return dayItemsRaw;
+    return [...dayItemsRaw].sort((a, b) => {
+      const da = distByAppt[a.id]?.km, db = distByAppt[b.id]?.km;
+      if (da == null && db == null) return a.start_at.getTime() - b.start_at.getTime();
+      if (da == null) return 1; if (db == null) return -1;
+      return da - db;
+    });
+  }, [dayItemsRaw, sortByDistance, distByAppt]);
 
   // V50.z79 — Fetch meteo per gli appuntamenti del giorno selezionato.
   // Priorità location: preferred_address del contatto (via lookup contact_id) → item.location → skip.
@@ -519,8 +561,24 @@ function CalendarioScreen() {
           </Pressable>
 
           <View style={styles.dateHeader}>
-            <Text style={styles.dateTxt}>{selectedDate.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</Text>
-            <Text style={styles.dateSub}>{dayItems.length} {dayItems.length === 1 ? "evento" : "eventi"}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <View style={{ flex: 1, minWidth: 170 }}>
+                <Text style={styles.dateTxt}>{selectedDate.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</Text>
+                <Text style={styles.dateSub}>{dayItems.length} {dayItems.length === 1 ? "evento" : "eventi"}{distOrigin ? ` · distanze ${distOrigin.label}` : ""}</Text>
+              </View>
+              {/* V50.z241 — ordina per vicinanza */}
+              {dayItems.some((it) => distByAppt[it.id]) ? (
+                <Pressable testID="cal-sort-distance" onPress={() => setSortByDistance((v) => !v)} style={[styles.sortChip, sortByDistance && styles.sortChipOn]} hitSlop={6}>
+                  <Ionicons name="navigate" size={13} color={sortByDistance ? "#FFF" : theme.color.brandPrimary} />
+                  <Text style={[styles.sortChipTxt, sortByDistance && { color: "#FFF" }]}>{sortByDistance ? "Per vicinanza" : "Per orario"}</Text>
+                </Pressable>
+              ) : null}
+              {distOrigin?.kind === "office" && dayItems.some((it) => distByAppt[it.id]) ? (
+                <Pressable testID="cal-dist-gps" onPress={refreshDistancesWithGps} style={styles.sortChip} hitSlop={6} accessibilityLabel="Usa la mia posizione">
+                  <Ionicons name="locate" size={14} color={theme.color.brandPrimary} />
+                </Pressable>
+              ) : null}
+            </View>
           </View>
 
           {loading ? (
@@ -612,6 +670,13 @@ function CalendarioScreen() {
                     </View>
                     <Text style={[styles.apptTitle, item.done && { textDecorationLine: "line-through", color: theme.color.muted }]}>{item.title}</Text>
                     {item.location ? <Text style={styles.loc} numberOfLines={1}><Ionicons name="location-outline" size={11} color={theme.color.muted} /> {item.location}</Text> : null}
+                    {/* V50.z241 — distanza da te / dall'ufficio */}
+                    {distByAppt[item.id] ? (
+                      <View style={styles.distBadge} testID={`appt-dist-${item.id}`}>
+                        <Ionicons name="navigate-outline" size={11} color="#0F766E" />
+                        <Text style={styles.distBadgeTxt}>{fmtKm(distByAppt[item.id]!.km)} · ~{distByAppt[item.id]!.min} min</Text>
+                      </View>
+                    ) : null}
                   </View>
                   {/* Only show call / done for OWN appointments */}
                   {item.kind === "appt" && item.is_mine !== false && (() => {
@@ -780,6 +845,12 @@ const styles = StyleSheet.create({
   bdaySeenTxt: { fontSize: 11, fontWeight: "800", color: "#B45309" },
   apptTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface, marginTop: 2 },
   loc: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
+  // V50.z241 — distanze
+  distBadge: { flexDirection: "row", alignItems: "center", gap: 3, alignSelf: "flex-start", backgroundColor: "#CCFBF1", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, marginTop: 4 },
+  distBadgeTxt: { fontSize: 10, fontWeight: "800", color: "#0F766E" },
+  sortChip: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: theme.color.brandPrimary, backgroundColor: "#FFF" },
+  sortChipOn: { backgroundColor: theme.color.brandPrimary },
+  sortChipTxt: { fontSize: 11, fontWeight: "800", color: theme.color.brandPrimary },
   checkBtn: { padding: 10 },
   callBtn: {
     width: 28,

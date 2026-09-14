@@ -40,6 +40,7 @@ import { ContactInfoRequestsSection } from "@/src/ContactInfoRequestsSection";
 import { ContactMailAttachmentsSection } from "@/src/ContactMailAttachmentsSection";
 import { ContactCustomFieldsSection } from "@/src/ContactCustomFieldsSection";
 import { ContactReviewsSection } from "@/src/ContactReviewsSection";
+import { ContactDistanceBadge } from "@/src/ContactDistanceBadge"; // V50.z241 — «📍 X km da te»
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -690,6 +691,7 @@ function ContactDetail() {
         )}
 
         {/* V28.c — Status shown as a read-only label (editable only from the edit form) */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         {c.status ? (
           (() => {
             const meta = STATUS_META[c.status] || STATUS_META.prospect;
@@ -701,6 +703,9 @@ function ContactDetail() {
             );
           })()
         ) : null}
+        {/* V50.z241 — distanza dal cliente (GPS o ufficio) */}
+        <ContactDistanceBadge contactId={id} hasAddress={!!(c.address_street || c.address_city || c.address || c.work_address || c.residence_address)} />
+        </View>
       </View>
 
       <View style={styles.tabs}>

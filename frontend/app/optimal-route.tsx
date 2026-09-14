@@ -1,0 +1,208 @@
+// optimal-route.tsx — V50.z240 — FEAT-GEO-001 Modulo B (Fase 1): Giro Ottimale in 3 step.
+// Step 1 selezione clienti (≤10, preselezionati dalla Mappa via AsyncStorage geo_giro_ids_v1) · Step 2 partenza (GPS / ufficio / indirizzo)
+// · Step 3 risultato (POST /geo/optimal-route: tappe ordinate, km/min per tappa, totale, Naviga Google Maps / Chiama / Scheda).
+// V50.z241 (Fase 2): mappa del percorso (polilinea + tappe numerate), orario di partenza con ETA per tappa, esporta PDF.
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Linking } from "react-native";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
+import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { api } from "@/src/api";
+import { notify } from "@/src/utils/notify";
+import { LeafletMap } from "@/src/LeafletMap";
+import { exportRoutePdf, estimateTimes } from "@/src/utils/routePdf";
+import { useAuth } from "@/src/auth";
+
+const GIRO_KEY = "geo_giro_ids_v1";
+const ORANGE = "#FF6B35"; const NAVY = "#1B2B4B";
+type GeoContact = { contact_id: string; name: string; company: string; status: string; phone: string; address: string; city: string; lat: number | null; lon: number | null };
+type Leg = GeoContact & { seq: number; leg_km: number; leg_min: number; cum_km: number; cum_min: number };
+type RouteRes = { route_id: string; origin: { lat: number; lon: number; label: string }; legs: Leg[]; return: { leg_km: number; leg_min: number } | null; skipped: GeoContact[]; total_km: number; drive_min: number; stop_min: number; total_min: number };
+const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}min` : `${m} min`);
+
+export default function OptimalRouteScreen() {
+  const router = useRouter();
+  const insets = useInsetsSafe();
+  const navPad = usePageBottomPadding(8); // V50.z240 — sopra la bottom nav persistente
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [contacts, setContacts] = useState<GeoContact[]>([]);
+  const [office, setOffice] = useState<{ lat: number; lon: number; address: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sel, setSel] = useState<string[]>([]);
+  const [q, setQ] = useState("");
+  const [dep, setDep] = useState<"gps" | "office" | "custom">("office");
+  const [custom, setCustom] = useState("");
+  const [gps, setGps] = useState<{ lat: number; lon: number } | null>(null);
+  const [back, setBack] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<RouteRes | null>(null);
+  // V50.z241 — orario di partenza (default: prossimo quarto d'ora) → ETA per tappa; PDF
+  const { user } = useAuth();
+  const [startAt, setStartAt] = useState<Date>(() => { const d = new Date(); d.setSeconds(0, 0); d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15); return d; });
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const shiftStart = (min: number) => setStartAt((d) => new Date(d.getTime() + min * 60000));
+  const hhmm = (d: Date) => d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  const etas = useMemo(() => (res ? estimateTimes(res, startAt) : []), [res, startAt]);
+  const routeForMap = useMemo(() => (res ? { origin: { lat: res.origin.lat, lon: res.origin.lon, label: res.origin.label }, stops: res.legs.map((l) => ({ lat: l.lat as number, lon: l.lon as number, label: l.name })), returnToOrigin: !!res.return } : null), [res]);
+  const doPdf = async () => { if (!res) return; setPdfBusy(true); try { await exportRoutePdf(res, startAt, user?.name); } finally { setPdfBusy(false); } };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [d, saved] = await Promise.all([api<{ items: GeoContact[]; office: any }>("/geo/contacts-map?scope=mine"), AsyncStorage.getItem(GIRO_KEY)]);
+        setContacts(d.items.filter((c) => c.address)); setOffice(d.office);
+        if (!d.office) setDep("gps");
+        if (saved) try { setSel(JSON.parse(saved)); } catch {}
+      } catch (e: any) { notify("Giro", e?.message || "Errore"); } finally { setLoading(false); }
+    })();
+  }, []);
+  const persist = (next: string[]) => { setSel(next); void AsyncStorage.setItem(GIRO_KEY, JSON.stringify(next)); };
+  const toggle = (id: string) => { if (sel.includes(id)) persist(sel.filter((x) => x !== id)); else if (sel.length >= 10) notify("Massimo 10 clienti", "Rimuovi un cliente per aggiungerne un altro"); else persist([...sel, id]); };
+  const list = useMemo(() => { const k = q.trim().toLowerCase(); return contacts.filter((c) => !k || `${c.name} ${c.company} ${c.city}`.toLowerCase().includes(k)); }, [contacts, q]);
+
+  const readGps = useCallback(async () => {
+    try {
+      const perm = await Location.getForegroundPermissionsAsync();
+      const granted = perm.granted || (perm.canAskAgain ? (await Location.requestForegroundPermissionsAsync()).granted : false);
+      if (!granted) { notify("Posizione non disponibile", "Consenti la posizione oppure scegli Ufficio / indirizzo.", [{ text: "Apri impostazioni", onPress: () => Linking.openSettings() }, { text: "Ok" }]); setDep(office ? "office" : "custom"); return; }
+      const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setGps({ lat: p.coords.latitude, lon: p.coords.longitude });
+    } catch (e: any) { notify("GPS", e?.message || "Posizione non disponibile"); }
+  }, [office]);
+  useEffect(() => { if (step === 2 && dep === "gps" && !gps) void readGps(); }, [step, dep, gps, readGps]);
+
+  const compute = async () => {
+    if (dep === "gps" && !gps) { notify("GPS", "Posizione non ancora disponibile: attendi o scegli un'altra partenza"); return; }
+    if (dep === "custom" && custom.trim().length < 5) { notify("Indirizzo", "Scrivi l'indirizzo di partenza"); return; }
+    setBusy(true);
+    try {
+      const body: any = { contact_ids: sel, return_to_origin: back };
+      if (dep === "gps") { body.origin_lat = gps!.lat; body.origin_lon = gps!.lon; } else if (dep === "custom") body.origin_address = custom.trim();
+      setRes(await api<RouteRes>("/geo/optimal-route", { method: "POST", body })); setStep(3);
+    } catch (e: any) { notify("Calcolo non riuscito", e?.message || "Errore"); } finally { setBusy(false); }
+  };
+  const navTo = (lat: number, lon: number) => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`);
+  const byId = (id: string) => contacts.find((c) => c.contact_id === id);
+
+  return (
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Pressable onPress={() => (step > 1 ? setStep((s) => (s - 1) as any) : router.back())} hitSlop={10} testID="route-back"><Ionicons name="arrow-back" size={22} color="#FFF" /></Pressable>
+        <View style={{ flex: 1 }}><Text style={styles.title}>🚗 Giro Ottimale</Text><Text style={styles.sub}>Step {step}/3 · {step === 1 ? "Seleziona i clienti" : step === 2 ? "Scegli la partenza" : "Percorso calcolato"}</Text></View>
+        <Pressable onPress={() => router.push("/map-clients" as any)} hitSlop={8} style={styles.headBtn} testID="route-open-map"><Ionicons name="map" size={18} color="#FFF" /></Pressable>
+      </View>
+      <ScrollView contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: navPad + 70 }} keyboardShouldPersistTaps="handled">
+        {loading ? <ActivityIndicator color={ORANGE} style={{ marginTop: 40 }} /> : null}
+
+        {!loading && step === 1 ? (<>
+          <View style={styles.search}><Ionicons name="search" size={16} color="#94A3B8" /><TextInput value={q} onChangeText={setQ} placeholder="Cerca per nome, azienda, città" placeholderTextColor="#94A3B8" style={styles.searchIn} testID="route-search" /></View>
+          <View style={{ flexDirection: "row", alignItems: "center" }}><Text style={styles.count}>Selezionati: {sel.length}/10</Text>{sel.length ? <Pressable onPress={() => persist([])} hitSlop={8} testID="route-clear"><Text style={styles.clear}>Cancella selezione</Text></Pressable> : null}</View>
+          {list.length === 0 ? <Text style={styles.empty}>Nessun contatto con indirizzo. Aggiungi l&apos;indirizzo nelle schede cliente.</Text> : list.map((c) => {
+            const on = sel.includes(c.contact_id);
+            return (
+              <Pressable key={c.contact_id} onPress={() => toggle(c.contact_id)} style={[styles.row, on && styles.rowOn]} testID={`route-pick-${c.contact_id}`}>
+                <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? ORANGE : "#94A3B8"} />
+                <View style={{ flex: 1 }}><Text style={styles.name} numberOfLines={1}>{c.name}{c.company ? ` · ${c.company}` : ""}</Text><Text style={styles.meta} numberOfLines={1}>📍 {c.address}{c.lat == null ? " · ⚠️ indirizzo non localizzato" : ""}</Text></View>
+              </Pressable>
+            );
+          })}
+        </>) : null}
+
+        {!loading && step === 2 ? (<>
+          <Text style={styles.label}>Punto di partenza</Text>
+          {[{ k: "gps", t: "Posizione attuale (GPS)", s: gps ? `${gps.lat.toFixed(4)}, ${gps.lon.toFixed(4)}` : "Rilevamento…" }, { k: "office", t: "Ufficio", s: office?.address || "Imposta l'indirizzo ufficio in Impostazioni" }, { k: "custom", t: "Indirizzo personalizzato", s: "Scrivi via, città" }].map((o) => (
+            <Pressable key={o.k} onPress={() => (o.k === "office" && !office ? notify("Ufficio", "Indirizzo ufficio non impostato") : setDep(o.k as any))} style={[styles.row, dep === o.k && styles.rowOn]} testID={`route-dep-${o.k}`}>
+              <Ionicons name={dep === o.k ? "radio-button-on" : "radio-button-off"} size={22} color={dep === o.k ? ORANGE : "#94A3B8"} />
+              <View style={{ flex: 1 }}><Text style={styles.name}>{o.t}</Text><Text style={styles.meta}>{o.s}</Text></View>
+            </Pressable>
+          ))}
+          {dep === "custom" ? <TextInput value={custom} onChangeText={setCustom} placeholder="Es. Via Giorgione 66, Asolo" placeholderTextColor="#94A3B8" style={styles.input} testID="route-custom-addr" /> : null}
+          <Pressable onPress={() => setBack((v) => !v)} style={styles.row} testID="route-return-toggle"><Ionicons name={back ? "checkbox" : "square-outline"} size={22} color={back ? ORANGE : "#94A3B8"} /><Text style={styles.name}>Ritorno al punto di partenza</Text></Pressable>
+          <Text style={styles.hint}>Tappe: {sel.map((id) => byId(id)?.name).filter(Boolean).join(" · ")}</Text>
+        </>) : null}
+
+        {step === 3 && res ? (<>
+          <View style={styles.summary} testID="route-summary">
+            <Text style={styles.sumTitle}>📍 Partenza: {res.origin.label}</Text>
+            <Text style={styles.sumBig}>{res.legs.length} clienti · {res.total_km} km · {fmtMin(res.total_min)}</Text>
+            <Text style={styles.sumMeta}>Guida {fmtMin(res.drive_min)} + soste {fmtMin(res.stop_min)} (15 min a cliente) · stima su strada, senza traffico</Text>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              <Pressable onPress={() => navTo(res.legs[0].lat!, res.legs[0].lon!)} style={styles.cta} testID="route-nav-first"><Ionicons name="navigate" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Naviga tappa 1</Text></Pressable>
+              <Pressable onPress={doPdf} disabled={pdfBusy} style={[styles.cta, { backgroundColor: "#7C3AED" }, pdfBusy && { opacity: 0.6 }]} testID="route-export-pdf">{pdfBusy ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="document-text" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Esporta PDF</Text></>}</Pressable>
+              <Pressable onPress={() => { setRes(null); setStep(1); }} style={[styles.cta, { backgroundColor: "rgba(255,255,255,0.18)" }]} testID="route-recalc"><Ionicons name="refresh" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Ricalcola</Text></Pressable>
+            </View>
+          </View>
+          {/* V50.z241 — mappa del percorso */}
+          <View style={styles.mapBox} testID="route-map">
+            <LeafletMap markers={[]} center={[res.origin.lat, res.origin.lon]} zoom={11} route={routeForMap} testID="route-map-leaflet" />
+          </View>
+          {/* V50.z241 — orario di partenza → ETA */}
+          <View style={styles.timeRow} testID="route-start-time">
+            <Ionicons name="time-outline" size={18} color={NAVY} />
+            <Text style={styles.name}>Partenza alle</Text>
+            <Pressable onPress={() => shiftStart(-15)} style={styles.tBtn} hitSlop={6} testID="route-time-minus"><Ionicons name="remove" size={18} color={NAVY} /></Pressable>
+            <Text style={styles.timeVal}>{hhmm(startAt)}</Text>
+            <Pressable onPress={() => shiftStart(15)} style={styles.tBtn} hitSlop={6} testID="route-time-plus"><Ionicons name="add" size={18} color={NAVY} /></Pressable>
+            <Text style={[styles.meta, { flex: 1, textAlign: "right" }]}>Fine ~{hhmm(new Date(startAt.getTime() + res.total_min * 60000))}</Text>
+          </View>
+          {res.legs.map((l) => (
+            <View key={l.contact_id} style={styles.leg} testID={`route-leg-${l.seq}`}>
+              <View style={styles.seq}><Text style={styles.seqTxt}>{l.seq}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.name}>{l.name}{l.company ? ` · ${l.company}` : ""}</Text>
+                <Text style={styles.meta}>📍 {l.address}</Text>
+                <Text style={styles.legKm}>➜ +{l.leg_km} km · +{l.leg_min} min   (totale {l.cum_km} km)</Text>
+                {etas[l.seq - 1] ? <Text style={styles.eta}>🕐 Arrivo ~{hhmm(etas[l.seq - 1].arrive)} · riparti ~{hhmm(etas[l.seq - 1].leave)}</Text> : null}
+                <View style={{ flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                  <Pressable onPress={() => navTo(l.lat!, l.lon!)} style={styles.mini} testID={`route-nav-${l.seq}`}><Ionicons name="navigate" size={13} color={ORANGE} /><Text style={styles.miniTxt}>Naviga</Text></Pressable>
+                  {l.phone ? <Pressable onPress={() => Linking.openURL(`tel:${l.phone.replace(/\s+/g, "")}`)} style={styles.mini}><Ionicons name="call" size={13} color={ORANGE} /><Text style={styles.miniTxt}>Chiama</Text></Pressable> : null}
+                  <Pressable onPress={() => router.push(`/contact/${l.contact_id}` as any)} style={styles.mini}><Ionicons name="person" size={13} color={ORANGE} /><Text style={styles.miniTxt}>Scheda</Text></Pressable>
+                </View>
+              </View>
+            </View>
+          ))}
+          {res.return ? <View style={styles.leg}><View style={[styles.seq, { backgroundColor: "#16A34A" }]}><Text style={styles.seqTxt}>🏁</Text></View><View style={{ flex: 1 }}><Text style={styles.name}>Ritorno a {res.origin.label}</Text><Text style={styles.legKm}>➜ +{res.return.leg_km} km · +{res.return.leg_min} min</Text></View></View> : null}
+          {res.skipped.length ? <Text style={styles.warn}>⚠️ Esclusi (indirizzo non localizzabile): {res.skipped.map((s) => s.name).join(", ")}</Text> : null}
+        </>) : null}
+      </ScrollView>
+      {step < 3 && !loading ? (
+        <View style={[styles.footer, { paddingBottom: navPad - 40 }]}>
+          {step === 1 ? (
+            <Pressable onPress={() => (sel.length ? setStep(2) : notify("Seleziona almeno un cliente"))} style={[styles.cta, { flex: 1 }, !sel.length && { opacity: 0.6 }]} testID="route-next"><Text style={styles.ctaTxt}>Avanti: partenza ({sel.length})</Text><Ionicons name="arrow-forward" size={16} color="#FFF" /></Pressable>
+          ) : (
+            <Pressable onPress={compute} disabled={busy} style={[styles.cta, { flex: 1 }, busy && { opacity: 0.6 }]} testID="route-compute">{busy ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="calculator" size={16} color="#FFF" /><Text style={styles.ctaTxt}>CALCOLA PERCORSO</Text></>}</Pressable>
+          )}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#F8FAFC" },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: NAVY },
+  title: { color: "#FFF", fontWeight: "800", fontSize: 17 }, sub: { color: "#CBD5E1", fontSize: 11 },
+  headBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.15)" },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 12, paddingHorizontal: 12, minHeight: 44, borderWidth: 1, borderColor: "#E2E8F0" }, searchIn: { flex: 1, fontSize: 14, color: NAVY },
+  count: { flex: 1, fontSize: 12, fontWeight: "800", color: "#475569" }, clear: { fontSize: 12, fontWeight: "800", color: "#DC2626" },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#E2E8F0", minHeight: 56 }, rowOn: { borderColor: ORANGE, backgroundColor: "#FFF7ED" },
+  name: { fontSize: 14, fontWeight: "800", color: NAVY }, meta: { fontSize: 12, color: "#64748B", marginTop: 2 },
+  empty: { textAlign: "center", color: "#64748B", padding: 20 }, label: { fontSize: 12, fontWeight: "800", color: "#475569" },
+  input: { backgroundColor: "#FFF", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 12, minHeight: 46, paddingHorizontal: 12, fontSize: 14, color: NAVY },
+  hint: { fontSize: 12, color: "#64748B", lineHeight: 17 },
+  summary: { backgroundColor: NAVY, borderRadius: 16, padding: 14, gap: 4 }, sumTitle: { color: "#CBD5E1", fontSize: 12, fontWeight: "700" }, sumBig: { color: "#FFF", fontSize: 18, fontWeight: "900" }, sumMeta: { color: "#CBD5E1", fontSize: 11 },
+  leg: { flexDirection: "row", gap: 10, backgroundColor: "#FFF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#E2E8F0" },
+  seq: { width: 30, height: 30, borderRadius: 15, backgroundColor: ORANGE, alignItems: "center", justifyContent: "center" }, seqTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
+  legKm: { fontSize: 12, fontWeight: "800", color: "#0F766E", marginTop: 3 },
+  mini: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 999, backgroundColor: "#FFF1E9" }, miniTxt: { fontSize: 12, fontWeight: "800", color: ORANGE },
+  warn: { fontSize: 12, color: "#B45309", fontWeight: "700" },
+  mapBox: { height: 240, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#E2E8F0" },
+  timeRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 12, padding: 10, borderWidth: 1, borderColor: "#E2E8F0" },
+  tBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" }, timeVal: { fontSize: 16, fontWeight: "900", color: NAVY, minWidth: 48, textAlign: "center" },
+  eta: { fontSize: 12, color: "#475569", marginTop: 2 },
+  footer: { flexDirection: "row", paddingHorizontal: 12, paddingTop: 10, backgroundColor: "#FFF", borderTopWidth: 1, borderTopColor: "#E2E8F0" },
+  cta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: ORANGE, borderRadius: 999, paddingHorizontal: 14, minHeight: 46 }, ctaTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
+});
