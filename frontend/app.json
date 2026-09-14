@@ -16,7 +16,9 @@
         "NSPhotoLibraryUsageDescription": "Aggiungi immagini motivazionali al tuo spazio personale",
         "NSCameraUsageDescription": "Scatta foto e scansiona bollette e QR",
         "NSMicrophoneUsageDescription": "Parla con AxonOS e registra note vocali",
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "NSContactsUsageDescription": "Importa i contatti dalla tua rubrica",
         "NSLocationWhenInUseUsageDescription": "Meteo, mappa clienti e percorsi dalla tua posizione"
       }
@@ -77,7 +79,9 @@
         {
           "cameraPermission": "Scatta foto e scansiona bollette e QR",
           "android": {
-            "permissions": ["CAMERA"]
+            "permissions": [
+              "CAMERA"
+            ]
           }
         }
       ],
@@ -109,7 +113,13 @@
           "android": {}
         }
       ],
-      "./plugins/withCameraPermission.js"
+      "./plugins/withCameraPermission.js",
+      [
+        "react-native-document-scanner-plugin",
+        {
+          "cameraPermission": "Scansiona documenti con ritaglio automatico"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { LiveCameraScanner, type LiveScannedPage } from "@/src/LiveCameraScanner";
+import { isNativeScannerAvailable, scanWithNativeScanner } from "@/src/NativeDocScanner"; // V50.z246 — scanner di sistema (VisionKit / ML Kit)
 import { ManualCropEditor } from "@/src/ManualCropEditor";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
@@ -93,13 +94,36 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
     }
   }, [visible, defaultName]);
 
+  // V50.z246 — Scanner NATIVO di sistema (iOS VisionKit / Android ML Kit): bordi in tempo reale, HDR/autofocus/stabilizzazione
+  // hardware, ritaglio + raddrizzamento istantanei. Disponibile solo nella build nativa; in Expo Go/web resta LiveCameraScanner.
+  const nativeScanner = isNativeScannerAvailable();
+  const [nativeBusy, setNativeBusy] = useState(false);
+  const openNativeScanner = useCallback(async (mode: "multi" | "single") => {
+    setNativeBusy(true);
+    try {
+      const got = await scanWithNativeScanner(mode === "single" ? 1 : undefined);
+      if (!got.length) return;
+      const additions: ScannedPage[] = got.map((p) => ({
+        data_base64: p.data_base64, mime: p.mime, preview_uri: `data:${p.mime};base64,${p.data_base64}`, auto_cropped: true,
+      }));
+      setPages((prev) => [...prev, ...additions]);
+    } catch (e: any) {
+      // Fallback: fotocamera in-app con autocrop server
+      notify("Scanner di sistema non disponibile", e?.message || "Uso la fotocamera in-app.");
+      setLiveScanOpen(mode);
+    } finally {
+      setNativeBusy(false);
+    }
+  }, []);
+
   const addFromCamera = useCallback(() => {
     // V50.z139 — "Foto singola" usa la fotocamera in-app (expo-camera CameraView): autofocus
     // continuo, rilevamento bordi live e ritaglio automatico PRIMA di restituire l'immagine,
     // con gestione permessi robusta (niente loop "Serve l'accesso alla fotocamera").
     // Sostituisce ImagePicker.launchCameraAsync (nessun autofocus/crop, permessi in loop su Android 16).
+    if (nativeScanner) { void openNativeScanner("single"); return; }
     setLiveScanOpen("single");
-  }, []);
+  }, [nativeScanner, openNativeScanner]);
 
   const addFromGallery = useCallback(async () => {
     try {
@@ -219,14 +243,31 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
         grayscale,
         name: finalName,
       };
-      const r = await api<{ pdf_base64: string; name: string; page_count: number }>("/scanner/merge-pdf", { method: "POST", body: payload });
+      const r = await api<{ pdf_base64: string; name: string; page_count: number; ocr_text?: string; ocr_conf?: number | null; text_hash?: string | null }>("/scanner/merge-pdf", { method: "POST", body: { ...payload, ocr: true } });
       // V50.z226 — Il PDF viene salvato SUBITO, prima di qualsiasi flusso successivo (analisi, allegato…):
       // I miei file › Scanner sempre; se c'è un contatto di origine anche nei file del cliente. Mai perso se l'utente chiude.
-      setSavingLbl("Salvataggio in I miei file…");
       const fname = r.name.toLowerCase().endsWith(".pdf") ? r.name : `${r.name}.pdf`;
       const bytes = Math.floor((r.pdf_base64.length * 3) / 4);
+      // V50.z246 — Duplicati per CONTENUTO (impronta del testo OCR): stesso documento già scansionato → chiedi conferma
+      if (r.text_hash) {
+        setSavingLbl("Controllo duplicati…");
+        const dup = await api<{ duplicate: boolean; by?: string | null; file?: { name?: string; created_at?: string } | null }>(
+          `/master-files/duplicate?text_hash=${encodeURIComponent(r.text_hash)}&name=${encodeURIComponent(fname)}&size=${bytes}`,
+        ).catch(() => null);
+        if (dup?.duplicate) {
+          const when = dup.file?.created_at ? new Date(dup.file.created_at).toLocaleDateString("it-IT") : "";
+          const proceed = await new Promise<boolean>((resolve) => {
+            notify("Documento già presente", `Questo documento risulta già salvato come «${dup.file?.name || "file"}»${when ? ` (${when})` : ""}. Salvarlo comunque?`, [
+              { text: "Annulla", style: "cancel", onPress: () => resolve(false) },
+              { text: "Salva comunque", onPress: () => resolve(true) },
+            ]);
+          });
+          if (!proceed) { setBusy(false); setSavingLbl(""); return; }
+        }
+      }
+      setSavingLbl("Salvataggio in I miei file…");
       const saves: Promise<unknown>[] = [
-        api("/master-files", { method: "POST", body: { category: "scanner", name: fname, mime: "application/pdf", data_base64: r.pdf_base64, size: bytes, source: source || (contactId ? "contact" : "widget"), source_contact_id: contactId || null } }),
+        api("/master-files", { method: "POST", body: { category: "scanner", name: fname, mime: "application/pdf", data_base64: r.pdf_base64, size: bytes, source: source || (contactId ? "contact" : "widget"), source_contact_id: contactId || null, ocr_text: r.ocr_text || null, text_hash: r.text_hash || null } }),
       ];
       if (contactId) {
         saves.push(api(`/contacts/${contactId}/files`, { method: "POST", body: { name: fname, mime: "application/pdf", data_base64: r.pdf_base64, size: bytes } }));
@@ -263,11 +304,11 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
 
           {/* Sources */}
           <View style={styles.sourceRow}>
-            <Pressable onPress={() => setLiveScanOpen("multi")} style={styles.sourceBtn} testID="scanner-live">
+            <Pressable onPress={() => (nativeScanner ? void openNativeScanner("multi") : setLiveScanOpen("multi"))} style={styles.sourceBtn} testID="scanner-live" disabled={nativeBusy}>
               <View style={[styles.sourceIcon, { backgroundColor: "#DC2626" }]}>
-                <Ionicons name="scan" size={20} color="#FFF" />
+                {nativeBusy ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="scan" size={20} color="#FFF" />}
               </View>
-              <Text style={styles.sourceTxt}>Scan continuo</Text>
+              <Text style={styles.sourceTxt}>{nativeScanner ? "Scanner" : "Scan continuo"}</Text>
             </Pressable>
             <Pressable onPress={addFromCamera} style={styles.sourceBtn} testID="scanner-camera">
               <View style={[styles.sourceIcon, { backgroundColor: "#FF6B35" }]}><Ionicons name="camera" size={20} color="#FFF" /></View>
@@ -283,6 +324,12 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
             </Pressable>
           </View>
 
+          {nativeScanner ? (
+            <View style={styles.nativeBadge} testID="scanner-native-badge">
+              <Ionicons name="flash" size={12} color="#15803D" />
+              <Text style={styles.nativeBadgeTxt}>Scanner di sistema: bordi in tempo reale, ritaglio e raddrizzamento automatici · OCR locale</Text>
+            </View>
+          ) : null}
           {/* Enhancement toggles */}
           <View style={styles.togglesRow}>
             <ToggleChip label="Autocrop" active={autocrop} onToggle={() => setAutocrop((v) => !v)} testID="tg-autocrop" />
@@ -424,6 +471,9 @@ export function suggestBillScanName(billType?: "luce" | "gas" | "telco" | string
 }
 
 const styles = StyleSheet.create({
+  nativeBadge: { flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 12, marginTop: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: "#DCFCE7" },
+  nativeBadgeTxt: { flex: 1, fontSize: 11, fontWeight: "700", color: "#15803D" },
+
   back: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
   card: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "94%", overflow: "hidden" },
   hdr: { flexDirection: "row", alignItems: "flex-start", padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border },

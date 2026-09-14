@@ -21,6 +21,8 @@ type MasterFile = {
   file_id: string;
   category: MasterCat;
   name: string;
+  text_hash?: string | null; // V50.z246 — presente se il documento ha testo OCR
+  ocr_excerpt?: string; // V50.z246 — estratto attorno alla parola cercata
   title?: string | null;
   body?: string | null;
   neo_status?: string; neo_note?: string; neo_seq?: number; // V50.z239
@@ -82,19 +84,21 @@ function MasterFilesScreen() {
   // V38R — Universal share sheet for master files (across all tabs).
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
 
+  // V50.z246 — Ricerca nel TESTO OCR (Tesseract locale) delle scansioni: `q` cerca su nome, titolo e contenuto
+  const [query, setQuery] = useState("");
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api<{ items: MasterFile[] }>(`/master-files?category=${tab}`);
+      const r = await api<{ items: MasterFile[] }>(`/master-files?category=${tab}${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ""}`);
       setItems(r.items || []);
     } catch (e: any) {
       notify("Errore caricamento", e?.message || "");
     } finally {
       setLoading(false);
     }
-  }, [tab]);
+  }, [tab, query]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { const t = setTimeout(() => { void load(); }, query ? 350 : 0); return () => clearTimeout(t); }, [load, query]);
 
   // V38P — audio recording lifecycle: blink dot + tick timer while recording
   useEffect(() => {
@@ -506,6 +510,13 @@ function MasterFilesScreen() {
         )}
       </View>
 
+      {tab === "scanner" || tab === "files" ? (
+        <View style={styles.searchRow}>
+          <Ionicons name="search" size={16} color={theme.color.muted} />
+          <TextInput value={query} onChangeText={setQuery} placeholder="Cerca nel testo dei documenti (OCR)…" placeholderTextColor={theme.color.muted} style={styles.searchInput} returnKeyType="search" testID="master-files-search" />
+          {query ? <Pressable onPress={() => setQuery("")} hitSlop={8} testID="master-files-search-clear"><Ionicons name="close-circle" size={18} color={theme.color.muted} /></Pressable> : null}
+        </View>
+      ) : null}
       <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 140 }}>
         {loading ? (
           <ActivityIndicator style={{ marginTop: 30 }} color={catMeta.color} />
@@ -539,8 +550,9 @@ function MasterFilesScreen() {
                   <Text style={styles.itemMeta} numberOfLines={1}>
                     {isTextTab
                       ? `${(f.body || "").slice(0, 60)} · ${fmtDateTime(f.created_at)}`
-                      : `${formatSize(f.size)} · ${fmtDateTime(f.created_at)}`}
+                      : `${formatSize(f.size)} · ${fmtDateTime(f.created_at)}${f.text_hash ? " · OCR" : ""}`}
                   </Text>
+                  {f.ocr_excerpt ? <Text style={styles.ocrExcerpt} numberOfLines={2} testID={`ocr-excerpt-${f.file_id}`}>🔍 {f.ocr_excerpt}</Text> : null}
                   {tab === "neo_prompts" ? (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
                       <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: (NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || "#64748B") + "22" }} testID={`neo-status-${f.file_id}`}>
@@ -759,6 +771,10 @@ function formatSize(bytes: number): string {
 }
 
 const styles = StyleSheet.create({
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 12, marginBottom: 4, paddingHorizontal: 12, minHeight: 42, borderRadius: 12, backgroundColor: "#FFF", borderWidth: 1, borderColor: "#E2E8F0" },
+  searchInput: { flex: 1, fontSize: 14, color: "#0F172A", paddingVertical: 8 },
+  ocrExcerpt: { fontSize: 11, color: "#0F766E", marginTop: 3, fontStyle: "italic" },
+
   root: { flex: 1, backgroundColor: theme.color.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
   title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },

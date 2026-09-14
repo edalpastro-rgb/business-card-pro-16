@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animated } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animated, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { transcribeUpload } from "@/src/utils/upload";
 import { notify } from "@/src/utils/notify";
 import { theme } from "@/src/theme";
+import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio"; // V50.z247 — dettatura anche su iOS/Android nativi
 
 type Props = {
   onTranscript: (text: string) => void;
@@ -13,9 +14,8 @@ type Props = {
 };
 
 /**
- * Voice dictation button that records audio via MediaRecorder (web) and
- * sends it to the backend Whisper endpoint for Italian transcription.
- * Works on desktop and mobile browsers (Chrome, Safari, Firefox, Edge).
+ * Voice dictation button that records audio via MediaRecorder (web) or expo-audio (iOS/Android, V50.z247 — prima mostrava
+ * «Non supportato» sull'app nativa) and sends it to the backend Whisper endpoint for Italian transcription.
  */
 export function VoiceDictationButton({ onTranscript, label = "Dettatura", compact = false, testID }: Props) {
   const [recording, setRecording] = useState(false);
@@ -57,11 +57,68 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
     };
   }, []);
 
-  const supported = Platform.OS === "web" && typeof navigator !== "undefined" &&
-    !!navigator.mediaDevices && typeof (globalThis as any).MediaRecorder !== "undefined";
+  const isNative = Platform.OS !== "web";
+  const supported = isNative || (typeof navigator !== "undefined" &&
+    !!navigator.mediaDevices && typeof (globalThis as any).MediaRecorder !== "undefined");
+
+  // V50.z247 — Nativo: expo-audio recorder (m4a) → Whisper via multipart (stesso endpoint del web)
+  const nativeRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const nativeRecordingRef = useRef(false);
+
+  const startNativeRecording = async () => {
+    try {
+      const perm = await AudioModule.getRecordingPermissionsAsync();
+      let granted = perm.granted;
+      if (!granted) {
+        if (!perm.canAskAgain) {
+          notify("Microfono disattivato", "Abilita il microfono nelle impostazioni per usare la dettatura.", [{ text: "Apri impostazioni", onPress: () => Linking.openSettings() }, { text: "Ok" }]);
+          return;
+        }
+        granted = (await AudioModule.requestRecordingPermissionsAsync()).granted;
+        if (!granted) return;
+      }
+      await nativeRecorder.prepareToRecordAsync();
+      nativeRecorder.record();
+      nativeRecordingRef.current = true;
+      setRecording(true);
+      durationRef.current = 0;
+      setDuration(0);
+      timerRef.current = setInterval(() => {
+        durationRef.current += 1;
+        setDuration(durationRef.current);
+        if (durationRef.current >= 120) stopRecording();
+      }, 1000);
+    } catch (e: any) {
+      const msg = e?.message || "Errore microfono";
+      setError(msg);
+      notify("Microfono", msg);
+    }
+  };
+
+  const stopNativeRecording = async () => {
+    if (!nativeRecordingRef.current) return;
+    nativeRecordingRef.current = false;
+    setProcessing(true);
+    try {
+      await nativeRecorder.stop();
+      const uri = nativeRecorder.uri;
+      if (!uri) { setProcessing(false); return; }
+      if (durationRef.current < 1) { notify("Registrazione troppo corta", "Parla per almeno 1 secondo."); setProcessing(false); return; }
+      const txt = await transcribeUpload({ uri, name: "dettato.m4a", mime: "audio/m4a" });
+      if (!txt) notify("Trascrizione vuota", "Non è stato possibile riconoscere il parlato. Riprova.");
+      else onTranscript(txt);
+    } catch (e: any) {
+      const msg = e?.message || "Errore trascrizione";
+      setError(msg);
+      notify("Errore trascrizione", msg);
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const startRecording = async () => {
     setError(null);
+    if (isNative) { await startNativeRecording(); return; }
     if (!supported) {
       notify("Non supportato", "La dettatura vocale funziona solo dai browser. Su iOS usa Safari 14.5+ o Chrome.");
       return;
@@ -114,6 +171,7 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
   const stopRecording = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     setRecording(false);
+    if (isNative) { void stopNativeRecording(); return; }
     try {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();

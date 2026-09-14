@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextI
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect, router as expoRouter } from "expo-router";
-import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer } from "expo-audio";
+import { useAudioRecorder, AudioModule, RecordingPresets, createAudioPlayer, type AudioPlayer } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { notify } from "@/src/utils/notify";
@@ -206,8 +206,18 @@ function ContactDetail() {
   };
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const [playingUri, setPlayingUri] = useState<string | null>(null);
-  const player = useAudioPlayer(playingUri);
+  // V50.z247 — Riproduzione note vocali: player imperativo su FILE in cache (niente `useAudioPlayer(data:…)`: su Android il
+  // cambio sorgente base64 di diversi MB + `play()` sul player rilasciato faceva CRASHARE l'app). Un solo player alla volta.
+  const [playingNoteId, setPlayingNoteId] = useState<string | null>(null);
+  const playerRef = useRef<AudioPlayer | null>(null);
+  const playerSubRef = useRef<{ remove: () => void } | null>(null);
+  const stopPlayback = useCallback(() => {
+    try { playerSubRef.current?.remove(); } catch {}
+    try { playerRef.current?.pause(); playerRef.current?.remove(); } catch {}
+    playerSubRef.current = null; playerRef.current = null;
+    setPlayingNoteId(null);
+  }, []);
+  useEffect(() => () => { stopPlayback(); }, [stopPlayback]);
 
   const load = useCallback(async () => {
     setC(await api<Contact>(`/contacts/${id}`));
@@ -441,11 +451,30 @@ function ContactDetail() {
     finally { setBusy(false); }
   };
 
-  const playNote = (n: Note) => {
+  const playNote = async (n: Note) => {
     if (!n.audio_base64) return;
-    const uri = `data:${n.audio_mime || "audio/m4a"};base64,${n.audio_base64}`;
-    setPlayingUri(uri);
-    setTimeout(() => player.play(), 100);
+    if (playingNoteId === n.id) { stopPlayback(); return; }
+    stopPlayback();
+    const mime = n.audio_mime || "audio/m4a";
+    try {
+      let uri: string;
+      if (Platform.OS === "web") {
+        uri = `data:${mime};base64,${n.audio_base64}`;
+      } else {
+        const ext = mime.includes("mp3") || mime.includes("mpeg") ? "mp3" : mime.includes("wav") ? "wav" : mime.includes("webm") ? "webm" : "m4a";
+        uri = `${FileSystem.cacheDirectory}voice_note_${n.id}.${ext}`;
+        const info = await FileSystem.getInfoAsync(uri);
+        if (!info.exists) await FileSystem.writeAsStringAsync(uri, n.audio_base64, { encoding: FileSystem.EncodingType.Base64 });
+      }
+      const player = createAudioPlayer({ uri }, { updateInterval: 300 });
+      playerRef.current = player;
+      playerSubRef.current = player.addListener("playbackStatusUpdate", (st: any) => { if (st?.didJustFinish) stopPlayback(); });
+      setPlayingNoteId(n.id);
+      player.play();
+    } catch (e: any) {
+      stopPlayback();
+      notify("Riproduzione non riuscita", e?.message || "Impossibile riprodurre la nota vocale.");
+    }
   };
 
   const deleteNote = async (nid: string) => {
@@ -1148,9 +1177,9 @@ function ContactDetail() {
                   </Text>
                   {n.kind === "text" && <Text style={styles.noteTxt}>{n.text}</Text>}
                   {n.kind === "audio" && (
-                    <Pressable testID={`play-${n.id}`} onPress={() => playNote(n)} style={styles.playBtn}>
-                      <Ionicons name="play" size={16} color={theme.color.brandPrimary} />
-                      <Text style={styles.playBtnTxt}>Ascolta</Text>
+                    <Pressable testID={`play-${n.id}`} onPress={() => void playNote(n)} style={styles.playBtn}>
+                      <Ionicons name={playingNoteId === n.id ? "stop" : "play"} size={16} color={theme.color.brandPrimary} />
+                      <Text style={styles.playBtnTxt}>{playingNoteId === n.id ? "Stop" : "Ascolta"}</Text>
                     </Pressable>
                   )}
                   {n.kind === "photo" && n.photo_base64 && (

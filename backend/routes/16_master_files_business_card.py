@@ -17,6 +17,9 @@ class MasterFileIn(BaseModel):
     # V50.z226 — provenienza (scanner): contatto di origine e canale (widget / scheda cliente / bollette / chat)
     source: Optional[str] = None
     source_contact_id: Optional[str] = None
+    # V50.z246 — Scanner: testo OCR (Tesseract locale) ricercabile + impronta del contenuto per il rilevamento duplicati
+    ocr_text: Optional[str] = None
+    text_hash: Optional[str] = None
 
 
 class MasterFileRenameIn(BaseModel):
@@ -30,16 +33,26 @@ ALLOWED_MASTER_CATS = {"notes", "bills", "audio", "files", "analisi", "scanner"}
 
 
 @api_router.get("/master-files/duplicate")
-async def master_file_duplicate(name: str, size: int, category: Optional[str] = None, user=Depends(get_current_user)):
-    """V50.z226 — Controllo duplicati: stesso nome (case-insensitive) e stessa dimensione → {duplicate, file}."""
+async def master_file_duplicate(name: str = "", size: int = 0, category: Optional[str] = None, text_hash: Optional[str] = None, user=Depends(get_current_user)):
+    """V50.z226 — Controllo duplicati: stesso nome (case-insensitive) e stessa dimensione → {duplicate, file}.
+    V50.z246 — oppure stesso `text_hash` (impronta del testo OCR: stesso documento riscansionato, anche con nome/dimensione diversi) → match `by: "content"`."""
+    tid = tenant_id(user)
+    proj = {"_id": 0, "file_id": 1, "name": 1, "category": 1, "size": 1, "created_at": 1}
+    if text_hash:
+        q_h: Dict[str, Any] = {"user_id": tid, "text_hash": text_hash}
+        if category:
+            q_h["category"] = category
+        d = await db.master_files.find_one(q_h, proj, sort=[("created_at", -1)])
+        if d:
+            return {"duplicate": True, "file": d, "by": "content"}
     nm = (name or "").strip()
-    if not nm:
-        return {"duplicate": False, "file": None}
-    q: Dict[str, Any] = {"user_id": tenant_id(user), "size": int(size), "name": {"$regex": f"^{re.escape(nm)}$", "$options": "i"}}
+    if not nm or not size:
+        return {"duplicate": False, "file": None, "by": None}
+    q: Dict[str, Any] = {"user_id": tid, "size": int(size), "name": {"$regex": f"^{re.escape(nm)}$", "$options": "i"}}
     if category:
         q["category"] = category
-    d = await db.master_files.find_one(q, {"_id": 0, "file_id": 1, "name": 1, "category": 1, "size": 1, "created_at": 1})
-    return {"duplicate": bool(d), "file": d}
+    d = await db.master_files.find_one(q, proj)
+    return {"duplicate": bool(d), "file": d, "by": "name_size" if d else None}
 
 
 @api_router.post("/master-files")
@@ -65,9 +78,16 @@ async def add_master_file(body: MasterFileIn, user=Depends(get_current_user)):
             tmp.close(); os.unlink(tmp.name)
             raise HTTPException(status_code=400, detail="Base64 non valido")
         stored_doc = await _upl_master_store(user, body.category, name, body.mime or "application/octet-stream", tmp.name, len(raw), __import__('hashlib').sha256(raw).hexdigest(), body.title)
+        extra: Dict[str, Any] = {}
         if body.source or body.source_contact_id:
-            await db.master_files.update_one({"file_id": stored_doc["file_id"]}, {"$set": {"source": body.source, "source_contact_id": body.source_contact_id}})
-            stored_doc.update({"source": body.source, "source_contact_id": body.source_contact_id})
+            extra.update({"source": body.source, "source_contact_id": body.source_contact_id})
+        if body.ocr_text:
+            extra["ocr_text"] = body.ocr_text[:200000]
+        if body.text_hash:
+            extra["text_hash"] = body.text_hash
+        if extra:
+            await db.master_files.update_one({"file_id": stored_doc["file_id"]}, {"$set": extra})
+            stored_doc.update(extra)
         return stored_doc
     doc = {
         "file_id": file_id,
@@ -828,13 +848,26 @@ async def get_business_card_stats(user=Depends(get_current_user)):
 
 
 @api_router.get("/master-files")
-async def list_master_files(category: Optional[str] = None, user=Depends(get_current_user)):
-    q = {"user_id": tenant_id(user)}
+async def list_master_files(category: Optional[str] = None, q: Optional[str] = None, user=Depends(get_current_user)):
+    """V50.z246 — `q`: ricerca (case-insensitive) su nome, titolo e TESTO OCR dei documenti scansionati (Tesseract locale)."""
+    flt: Dict[str, Any] = {"user_id": tenant_id(user)}
     if category:
         if category not in ALLOWED_MASTER_CATS:
             raise HTTPException(status_code=400, detail=f"category invalida")
-        q["category"] = category
-    items = await db.master_files.find(q, {"_id": 0, "data_base64": 0}).sort("created_at", -1).to_list(500)
+        flt["category"] = category
+    if (q or "").strip():
+        rx = {"$regex": re.escape(q.strip()), "$options": "i"}
+        flt["$or"] = [{"name": rx}, {"title": rx}, {"ocr_text": rx}]
+    items = await db.master_files.find(flt, {"_id": 0, "data_base64": 0, "ocr_text": 0}).sort("created_at", -1).to_list(500)
+    if (q or "").strip():
+        # estratto del testo OCR attorno alla prima occorrenza (per mostrare «trovato in: …»)
+        ids = [it["file_id"] for it in items]
+        async for d in db.master_files.find({"user_id": tenant_id(user), "file_id": {"$in": ids}, "ocr_text": {"$exists": True}}, {"_id": 0, "file_id": 1, "ocr_text": 1}):
+            txt = d.get("ocr_text") or ""; pos = txt.lower().find(q.strip().lower())
+            if pos >= 0:
+                for it in items:
+                    if it["file_id"] == d["file_id"]:
+                        it["ocr_excerpt"] = ("…" if pos > 60 else "") + txt[max(0, pos - 60): pos + 90].replace("\n", " ").replace("\f", " ") + "…"
     return {"items": items}
 
 

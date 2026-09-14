@@ -3,6 +3,7 @@
 import base64
 import io
 import logging
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
@@ -493,8 +494,51 @@ def autocrop_preview(img: bytes, enhance: bool = True, grayscale: bool = False) 
     return {"detected": detected, "jpeg": out, "sharpness": round(sharpness, 2)}
 
 
-def merge_pdf(pages: List[Dict[str, Any]], enhance: bool = True, autocrop: bool = True, grayscale: bool = False) -> Dict[str, Any]:
-    """pages: [{data: bytes, mime, already_cropped}] → {pdf, page_count}. Errori per pagina → ValueError('Pagina N: …')."""
+# ============================================================================ OCR LOCALE (Tesseract via tesserocr, dizionari in backend/tessdata)
+_TESSDATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tessdata")
+_OCR_MAX_SIDE = 1800  # px: buon compromesso precisione/velocità (~0,5-1,5 s per pagina)
+
+
+def _ocr_prepare(img: Image.Image) -> Image.Image:
+    g = ImageOps.exif_transpose(img).convert("L")
+    w, h = g.size
+    if max(w, h) > _OCR_MAX_SIDE:
+        r = _OCR_MAX_SIDE / float(max(w, h))
+        g = g.resize((max(1, int(w * r)), max(1, int(h * r))), Image.LANCZOS)
+    return g
+
+
+def ocr_images(images: List[Image.Image], lang: str = "ita+eng", detect_orientation: bool = True) -> Dict[str, Any]:
+    """V50.z246 — OCR locale con Tesseract (nessun servizio esterno). Ritorna testo per pagina, confidenza media e le rotazioni
+    applicate (gradi) per raddrizzare pagine acquisite al contrario: se la confidenza a 0° è bassa si prova a 180° e si tiene
+    il risultato migliore (niente OSD: il modello osd «fast» abortisce il processo nativo). Se tesserocr manca → available=False."""
+    try:
+        import tesserocr as _t
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("tesserocr non disponibile: %s", exc)
+        return {"available": False, "texts": [""] * len(images), "confs": [], "rotations": [0] * len(images)}
+    texts: List[str] = []; confs: List[float] = []; rotations: List[int] = []
+    with _t.PyTessBaseAPI(path=_TESSDATA, lang=lang, psm=_t.PSM.AUTO) as api:
+        def _run(im: Image.Image) -> Tuple[str, float]:
+            api.SetImage(im)
+            try:
+                return (api.GetUTF8Text() or "").strip(), float(api.MeanTextConf() or 0.0)
+            except Exception:  # noqa: BLE001
+                return "", 0.0
+        for img in images:
+            g = _ocr_prepare(img)
+            txt, conf = _run(g); rot = 0
+            if detect_orientation and (conf < 60.0 or len(txt) < 20):
+                txt2, conf2 = _run(g.rotate(180, expand=True))
+                if conf2 > conf + 8.0 and len(txt2) >= len(txt) * 0.8:
+                    txt, conf, rot = txt2, conf2, 180
+            texts.append(txt); confs.append(conf); rotations.append(rot)
+    return {"available": True, "texts": texts, "confs": confs, "rotations": rotations}
+
+
+def merge_pdf(pages: List[Dict[str, Any]], enhance: bool = True, autocrop: bool = True, grayscale: bool = False, ocr: bool = True) -> Dict[str, Any]:
+    """pages: [{data: bytes, mime, already_cropped}] → {pdf, page_count, ocr_text, ocr_conf}. Errori per pagina → ValueError('Pagina N: …').
+    V50.z246: OCR Tesseract locale su ogni pagina (testo ricercabile + hash per i duplicati) e auto-raddrizzamento (OSD)."""
     import pymupdf as fitz  # PyMuPDF (il vecchio alias `fitz` stampa un warning su stdout e corromperebbe il protocollo JSON)
     images: List[Image.Image] = []
     for i, pg in enumerate(pages):
@@ -520,9 +564,22 @@ def merge_pdf(pages: List[Dict[str, Any]], enhance: bool = True, autocrop: bool 
                     raise ValueError(f"Pagina {i + 1}: immagine non valida")
     if not images:
         raise ValueError("Nessuna pagina elaborabile")
+    ocr_text = ""; ocr_conf = None
+    if ocr:
+        try:
+            o = ocr_images(images)
+            if o.get("available"):
+                for i, rot in enumerate(o["rotations"]):
+                    if rot:
+                        images[i] = images[i].rotate(rot, expand=True)
+                ocr_text = "\f".join(o["texts"]).strip()
+                good = [c for c in o["confs"] if c > 0]
+                ocr_conf = round(sum(good) / len(good), 1) if good else None
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("ocr failed: %s", exc)
     buf = io.BytesIO()
     images[0].save(buf, format="PDF", save_all=True, append_images=images[1:], resolution=150.0)
-    return {"pdf": buf.getvalue(), "page_count": len(images)}
+    return {"pdf": buf.getvalue(), "page_count": len(images), "ocr_text": ocr_text, "ocr_conf": ocr_conf}
 
 
 # ============================================================================ PDF (PyMuPDF / pdfplumber / pypdfium2)
@@ -638,5 +695,6 @@ def pdf_cover(data: bytes) -> Dict[str, Any]:
 
 OPS = {
     "scan_document": scan_document, "manual_crop": manual_crop, "detect_corners": detect_corners, "autocrop_preview": autocrop_preview, "merge_pdf": merge_pdf,
+    "ocr_images": lambda images, **kw: ocr_images([Image.open(io.BytesIO(b)).convert("RGB") for b in images], **kw),
     "pdf_text": pdf_text, "pdf_page_count": pdf_page_count, "pdf_render_pages": pdf_render_pages, "pdf_tables_text": pdf_tables_text, "pdf_cover": pdf_cover,
 }

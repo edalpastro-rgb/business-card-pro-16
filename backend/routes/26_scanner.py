@@ -16,6 +16,7 @@ class ScannerMergeIn(BaseModel):
     autocrop: bool = True  # detect document borders + perspective correction
     grayscale: bool = False
     name: Optional[str] = None
+    ocr: bool = True  # V50.z246 — OCR Tesseract locale (testo ricercabile + hash duplicati)
 
 
 # V50.z210 — Le funzioni OpenCV (_order_quad/_detect_document_quad/_warp_quad/_cv2_scan_document) sono in workers/heavy_ops.py
@@ -108,7 +109,7 @@ async def scanner_merge_pdf(body: ScannerMergeIn, user=Depends(get_current_user)
             raise HTTPException(status_code=400, detail=f"Pagina {i + 1}: base64 non valido")
         pages.append({"data": raw, "mime": (pg.mime or "").lower(), "already_cropped": bool(pg.already_cropped)})
     try:
-        r = await heavy_call("merge_pdf", pages=pages, enhance=body.enhance, autocrop=body.autocrop, grayscale=body.grayscale, timeout=300)
+        r = await heavy_call("merge_pdf", pages=pages, enhance=body.enhance, autocrop=body.autocrop, grayscale=body.grayscale, ocr=body.ocr, timeout=300)
     except HeavyWorkerError as e:
         msg = str(e)
         if "Pagina" in msg or "Nessuna pagina" in msg:
@@ -119,7 +120,19 @@ async def scanner_merge_pdf(body: ScannerMergeIn, user=Depends(get_current_user)
     safe_name = (body.name or "Scansione").strip().replace("/", "-") or "Scansione"
     if not safe_name.lower().endswith(".pdf"):
         safe_name += ".pdf"
-    return {"pdf_base64": base64.b64encode(pdf_bytes).decode(), "name": safe_name, "page_count": r["page_count"]}
+    ocr_text = (r.get("ocr_text") or "").strip()
+    return {"pdf_base64": base64.b64encode(pdf_bytes).decode(), "name": safe_name, "page_count": r["page_count"],
+            "ocr_text": ocr_text, "ocr_conf": r.get("ocr_conf"), "text_hash": _scan_text_hash(ocr_text)}
+
+
+def _scan_text_hash(text: str) -> Optional[str]:
+    """V50.z246 — Impronta del CONTENUTO (testo OCR normalizzato: minuscolo, solo lettere/cifre) → stesso documento riscansionato
+    = stesso hash anche se nome file/dimensione cambiano. None se il testo è troppo corto per essere significativo."""
+    import hashlib as _sc_hashlib
+    norm = re.sub(r"[^a-z0-9]+", "", (text or "").lower())
+    if len(norm) < 40:
+        return None
+    return _sc_hashlib.sha256(norm.encode("utf-8")).hexdigest()
 
 
 # =========================================================================
