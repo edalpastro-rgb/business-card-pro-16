@@ -35,6 +35,8 @@ type HistoryRun = {
   failure_count: number;
   successes: HistoryRunEntry[];
   failures: HistoryRunEntry[];
+  in_progress?: boolean;
+  rerun_count?: number;
 };
 
 // Categorie preset suggerite — l'utente può digitarne anche di nuove.
@@ -106,6 +108,13 @@ export default function AiTeachScreen() {
   const [editUrl, setEditUrl] = useState<Partial<UrlItem> | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshingAll, setRefreshingAll] = useState(false);
+  // V50.z235 — Feedback per refresh singolo (Fonti URL) e rerun voce Storico
+  const [refreshingUrlId, setRefreshingUrlId] = useState<string | null>(null);
+  const [rerunningRunId, setRerunningRunId] = useState<string | null>(null);
+  const [justUpdatedRunId, setJustUpdatedRunId] = useState<string | null>(null);
+  // V50.z235 — "AGGIORNA TUTTO" sequenziale con barra di avanzamento
+  const [seqRun, setSeqRun] = useState<null | { done: number; total: number; current: string; ok: number; ko: number }>(null);
+  const [seqSummary, setSeqSummary] = useState<null | { total: number; ok: number; ko: number; failures: string[] }>(null);
   // V28.j — Info modal per tab (Regole / Fonti URL / Storico)
   const [infoTab, setInfoTab] = useState<null | "rules" | "urls" | "history" | "suggestions">(null);
 
@@ -422,7 +431,66 @@ export default function AiTeachScreen() {
   };
 
   const refreshUrl = async (id: string) => {
-    try { await api(`/ai-teach/urls/${id}/refresh`, { method: "POST" }); notify("Aggiornato ✅", "Contenuto scaricato via Tavily"); load(); } catch (e: any) { notify("Errore refresh", e?.message || ""); }
+    if (refreshingUrlId) return;
+    setRefreshingUrlId(id);
+    try { await api(`/ai-teach/urls/${id}/refresh`, { method: "POST" }); notify("Aggiornato ✅", "Contenuto scaricato via Tavily"); await load(); } catch (e: any) { notify("Errore refresh", e?.message || ""); } finally { setRefreshingUrlId(null); }
+  };
+
+  // V50.z235 — "Aggiorna ora" su una voce dello Storico: ri-esegue le stesse fonti e aggiorna la voce in place
+  const rerunHistory = async (runId: string) => {
+    if (rerunningRunId || seqRun) return;
+    setRerunningRunId(runId);
+    setJustUpdatedRunId(null);
+    try {
+      const res = await api<{ run: HistoryRun }>(`/ai-teach/refresh-history/${runId}/rerun`, { method: "POST" });
+      if (res.run) {
+        setHistory((prev) => {
+          const next = prev.map((h) => (h.run_id === runId ? res.run : h));
+          next.sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
+          return next;
+        });
+        notify("Aggiornato ✅", `${res.run.success_count}/${res.run.total} fonti aggiornate con successo`);
+        setJustUpdatedRunId(runId);
+        setTimeout(() => setJustUpdatedRunId((cur) => (cur === runId ? null : cur)), 2500);
+      }
+      // Aggiorna anche i timestamp nel tab Fonti URL (silenzioso)
+      api<{ items: UrlItem[] }>("/ai-teach/urls").then((u) => setUrls(u.items || [])).catch(() => {});
+    } catch (e: any) { notify("Errore aggiornamento", e?.message || ""); } finally { setRerunningRunId(null); }
+  };
+
+  // V50.z235 — "AGGIORNA TUTTO" dal tab Storico: refresh sequenziale con barra di avanzamento
+  const refreshAllSequential = async () => {
+    if (seqRun || rerunningRunId) return;
+    if (urls.length === 0) { notify("Nessuna fonte", "Aggiungi prima almeno un URL in Fonti URL"); return; }
+    setSeqSummary(null);
+    try {
+      const start = await api<{ run: HistoryRun; urls: { url_id: string; name: string; url: string }[] }>("/ai-teach/refresh-runs/start", { method: "POST" });
+      const list = start.urls || [];
+      let ok = 0, ko = 0;
+      const failures: string[] = [];
+      setHistory((prev) => [start.run, ...prev]);
+      setSeqRun({ done: 0, total: list.length, current: list[0]?.name || list[0]?.url || "", ok, ko });
+      for (let i = 0; i < list.length; i++) {
+        const u = list[i];
+        setSeqRun({ done: i, total: list.length, current: u.name || u.url, ok, ko });
+        try {
+          const r = await api<{ ok: boolean; error?: string; run?: HistoryRun }>(`/ai-teach/urls/${u.url_id}/refresh?run_id=${encodeURIComponent(start.run.run_id)}`, { method: "POST" });
+          if (r.ok) ok++; else { ko++; failures.push(`${u.name || u.url}: ${r.error || "errore"}`); }
+          if (r.run) setHistory((prev) => prev.map((h) => (h.run_id === start.run.run_id ? r.run! : h)));
+        } catch (e: any) {
+          ko++; failures.push(`${u.name || u.url}: ${e?.message || "errore"}`);
+        }
+        setSeqRun({ done: i + 1, total: list.length, current: u.name || u.url, ok, ko });
+      }
+      const fin = await api<{ run: HistoryRun }>(`/ai-teach/refresh-runs/${start.run.run_id}/finish`, { method: "POST" }).catch(() => null);
+      if (fin?.run) setHistory((prev) => prev.map((h) => (h.run_id === start.run.run_id ? fin.run : h)));
+      setSeqSummary({ total: list.length, ok, ko, failures });
+      const when = new Date().toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+      notify(`Axon: aggiornamento ${when}`, `${ok}/${list.length} fonti aggiornate con successo` + (ko ? ` · ${ko} fallite` : ""));
+      api<{ items: UrlItem[] }>("/ai-teach/urls").then((u) => setUrls(u.items || [])).catch(() => {});
+    } catch (e: any) {
+      notify("Errore aggiornamento", e?.message || "");
+    } finally { setSeqRun(null); }
   };
 
   // V28.g/j — Force refresh of ALL URLs at once + emit notification with details
@@ -671,7 +739,9 @@ export default function AiTeachScreen() {
                     </View>
                   ) : null}
                   <View style={styles.freqPill}><Text style={styles.freqPillTxt}>{FREQ_LABEL[u.frequency] || u.frequency}</Text></View>
-                  <Pressable testID={`refresh-url-${u.url_id}`} onPress={() => refreshUrl(u.url_id)} hitSlop={8}><Ionicons name="refresh" size={16} color={C.primary} /></Pressable>
+                  <Pressable testID={`refresh-url-${u.url_id}`} onPress={() => refreshUrl(u.url_id)} hitSlop={8} disabled={!!refreshingUrlId}>
+                    {refreshingUrlId === u.url_id ? <ActivityIndicator size="small" color={C.primary} /> : <Ionicons name="refresh" size={16} color={C.primary} />}
+                  </Pressable>
                   <Pressable testID={`edit-url-${u.url_id}`} onPress={() => setEditUrl({ ...u })} hitSlop={8}><Ionicons name="pencil" size={16} color={C.primary} /></Pressable>
                   <Pressable testID={`del-url-${u.url_id}`} onPress={() => removeUrl(u.url_id)} hitSlop={8}><Ionicons name="trash-outline" size={16} color="#DC2626" /></Pressable>
                 </View>
@@ -699,25 +769,86 @@ export default function AiTeachScreen() {
 
         {tab === "history" && (
           <>
+            {/* V50.z235 — AGGIORNA TUTTO: refresh sequenziale di tutte le fonti con barra di avanzamento */}
+            <Pressable
+              testID="history-refresh-all-btn"
+              onPress={refreshAllSequential}
+              disabled={!!seqRun || !!rerunningRunId || urls.length === 0}
+              style={[styles.refreshAllBtn, (!!seqRun || !!rerunningRunId || urls.length === 0) && { opacity: 0.6 }]}
+            >
+              {seqRun ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="refresh-circle" size={20} color="#FFF" />}
+              <Text style={styles.addBtnTxt}>
+                {seqRun ? `AGGIORNO ${Math.min(seqRun.done + 1, seqRun.total)}/${seqRun.total}…` : `AGGIORNA TUTTO${urls.length ? ` (${urls.length})` : ""}`}
+              </Text>
+            </Pressable>
+            {seqRun ? (
+              <View style={styles.progressCard} testID="history-progress">
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${seqRun.total ? Math.round((seqRun.done / seqRun.total) * 100) : 0}%` }]} />
+                </View>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                  <Text style={styles.progressTxt} numberOfLines={1}>
+                    {seqRun.done < seqRun.total ? `↻ ${seqRun.current}` : "Completamento…"}
+                  </Text>
+                  <Text style={styles.progressTxt}>{seqRun.done}/{seqRun.total} · ✓ {seqRun.ok} · ✗ {seqRun.ko}</Text>
+                </View>
+              </View>
+            ) : null}
+            {seqSummary && !seqRun ? (
+              <View style={[styles.progressCard, { borderColor: seqSummary.ko ? "#FCA5A5" : "#86EFAC", backgroundColor: seqSummary.ko ? "#FEF2F2" : "#F0FDF4" }]} testID="history-summary">
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons name={seqSummary.ko ? "alert-circle" : "checkmark-circle"} size={18} color={seqSummary.ko ? "#DC2626" : "#16A34A"} />
+                  <Text style={[styles.progressTxt, { flex: 1, fontWeight: "800", color: seqSummary.ko ? "#991B1B" : "#166534" }]}>
+                    Completato: {seqSummary.ok}/{seqSummary.total} fonti aggiornate con successo{seqSummary.ko ? `, ${seqSummary.ko} fallite` : ""}
+                  </Text>
+                  <Pressable onPress={() => setSeqSummary(null)} hitSlop={8} testID="history-summary-close"><Ionicons name="close" size={16} color={C.muted} /></Pressable>
+                </View>
+                {seqSummary.failures.slice(0, 3).map((f, i) => (
+                  <Text key={i} style={styles.historyErrMsg} numberOfLines={2}>• {f}</Text>
+                ))}
+              </View>
+            ) : null}
             {history.length === 0 ? (
-              <View style={styles.empty}><Text style={styles.emptyTxt}>Nessun aggiornamento ancora eseguito. Vai su Fonti URL e tocca &quot;Aggiorna ora&quot; per la prima esecuzione.</Text></View>
+              <View style={styles.empty}><Text style={styles.emptyTxt}>Nessun aggiornamento ancora eseguito. Tocca &quot;AGGIORNA TUTTO&quot; qui sopra per la prima esecuzione.</Text></View>
             ) : history.map((h) => {
               const when = new Date(h.started_at).toLocaleString("it-IT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-              const modeLabel = h.mode === "manual_all" ? "Aggiorna ora" : h.mode === "manual_single" ? "Refresh singolo" : "Automatico";
-              const modeIcon: keyof typeof Ionicons.glyphMap = h.mode === "automatic" ? "sync" : "refresh";
+              const modeLabel = h.mode === "manual_all" ? "Tutte le fonti" : h.mode === "manual_single" ? (h.successes?.[0]?.name || h.failures?.[0]?.name || "Fonte singola") : "Automatico";
+              const modeIcon: keyof typeof Ionicons.glyphMap = h.mode === "automatic" ? "sync" : h.mode === "manual_single" ? "globe" : "layers";
+              const inProgress = !!h.in_progress && seqRun !== null;
               const allOk = h.failure_count === 0;
+              const isRerunning = rerunningRunId === h.run_id;
+              const justUpdated = justUpdatedRunId === h.run_id;
               return (
-                <View key={h.run_id} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: allOk ? "#16A34A" : "#DC2626" }]} testID={`history-${h.run_id}`}>
+                <View key={h.run_id} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: inProgress ? C.primary : allOk ? "#16A34A" : "#DC2626" }, justUpdated && styles.cardJustUpdated]} testID={`history-${h.run_id}`}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <Ionicons name={modeIcon} size={16} color={C.navy} />
-                    <Text style={styles.cardTitle} numberOfLines={1}>{modeLabel}</Text>
-                    <View style={[styles.freqPill, allOk ? { backgroundColor: "#DCFCE7" } : { backgroundColor: "#FEE2E2" }]}>
-                      <Text style={[styles.freqPillTxt, { color: allOk ? "#166534" : "#DC2626" }]}>
-                        {h.success_count}/{h.total} OK
+                    <Text style={[styles.cardTitle, { flex: 1 }]} numberOfLines={1}>{modeLabel}</Text>
+                    <View style={[styles.freqPill, inProgress ? { backgroundColor: C.primarySoft } : allOk ? { backgroundColor: "#DCFCE7" } : { backgroundColor: "#FEE2E2" }]} testID={`history-badge-${h.run_id}`}>
+                      <Text style={[styles.freqPillTxt, { color: inProgress ? C.primary : allOk ? "#166534" : "#DC2626" }]}>
+                        {inProgress ? `${h.success_count + h.failure_count}/${h.total}…` : `${h.success_count}/${h.total} OK`}
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.metaTxt}>🕒 {when}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={[styles.metaTxt, { flex: 1 }]}>🕒 {when}{h.rerun_count ? ` · ${h.rerun_count}× rieseguito` : ""}</Text>
+                    {h.mode !== "automatic" && !inProgress ? (
+                      <Pressable
+                        testID={`history-rerun-${h.run_id}`}
+                        onPress={() => rerunHistory(h.run_id)}
+                        disabled={!!rerunningRunId || !!seqRun}
+                        style={[styles.rerunBtn, justUpdated && styles.rerunBtnDone, (!!rerunningRunId && !isRerunning || !!seqRun) && { opacity: 0.5 }]}
+                      >
+                        {isRerunning ? (
+                          <ActivityIndicator size="small" color={C.primary} />
+                        ) : (
+                          <Ionicons name={justUpdated ? "checkmark" : "refresh"} size={14} color={justUpdated ? "#16A34A" : C.primary} />
+                        )}
+                        <Text style={[styles.rerunBtnTxt, justUpdated && { color: "#16A34A" }]}>
+                          {isRerunning ? "Aggiorno…" : justUpdated ? "Aggiornato" : "Aggiorna ora"}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                   {h.successes?.length ? (
                     <View style={styles.historyGroup}>
                       <Text style={styles.historyGroupTitle}>✓ Aggiornati con successo ({h.successes.length})</Text>
@@ -1135,6 +1266,15 @@ const styles = StyleSheet.create({
   historyItemOk: { fontSize: 12, color: "#166534", fontWeight: "600" },
   historyItemErr: { fontSize: 12, color: "#DC2626", fontWeight: "700" },
   historyErrMsg: { fontSize: 11, color: "#DC2626", fontStyle: "italic", marginLeft: 10 },
+  // V50.z235 — Storico: rerun voce + progress "AGGIORNA TUTTO"
+  rerunBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, minHeight: 32, borderRadius: 999, backgroundColor: C.primarySoft, borderWidth: 1, borderColor: "#FFD2BF" },
+  rerunBtnDone: { backgroundColor: "#DCFCE7", borderColor: "#86EFAC" },
+  rerunBtnTxt: { fontSize: 12, fontWeight: "800", color: C.primary },
+  cardJustUpdated: { borderColor: "#86EFAC", backgroundColor: "#F0FDF4" },
+  progressCard: { backgroundColor: "#FFF", borderRadius: 12, padding: 10, gap: 8, borderWidth: 1, borderColor: theme.color.border },
+  progressTrack: { height: 8, borderRadius: 999, backgroundColor: "#E2E8F0", overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 999, backgroundColor: C.primary },
+  progressTxt: { fontSize: 12, fontWeight: "700", color: C.navy, flexShrink: 1 },
   filterRow: { flexDirection: "row", gap: 6, marginBottom: 4, paddingRight: 20 },
   presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6, marginBottom: 4 },
   chip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5 },

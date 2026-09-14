@@ -1477,17 +1477,113 @@ def _find_pdf_links(html_text: str, base_url: str) -> List[str]:
     return out
 
 
+def _history_public(r: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not r:
+        return None
+    r.pop("_id", None)
+    return r
+
+
+# V50.z235 — "AGGIORNA TUTTO" sequenziale dal tab Storico: il client crea un run vuoto,
+# poi chiama /urls/{id}/refresh?run_id=... per ogni fonte (progress bar lato client).
+@api_router.post("/ai-teach/refresh-runs/start")
+async def ai_teach_refresh_run_start(user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    urls = []
+    async for d in db.ai_teach_urls.find({"user_id": tid}).sort("name", 1):
+        urls.append({"url_id": d.get("url_id"), "name": d.get("name") or "", "url": d.get("url") or ""})
+    run = {
+        "run_id": f"aitr_{uuid.uuid4().hex[:12]}",
+        "user_id": tid,
+        "started_at": utcnow(),
+        "mode": "manual_all",
+        "total": len(urls),
+        "success_count": 0,
+        "failure_count": 0,
+        "successes": [],
+        "failures": [],
+        "in_progress": True,
+    }
+    if not urls:
+        raise HTTPException(status_code=400, detail="Nessuna fonte URL da aggiornare")
+    await db.ai_teach_refresh_history.insert_one(dict(run))
+    run.pop("_id", None)
+    return {"run": run, "urls": urls}
+
+
+@api_router.post("/ai-teach/refresh-runs/{run_id}/finish")
+async def ai_teach_refresh_run_finish(run_id: str, user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    await db.ai_teach_refresh_history.update_one(
+        {"run_id": run_id, "user_id": tid}, {"$set": {"in_progress": False, "finished_at": utcnow()}}
+    )
+    return {"run": _history_public(await db.ai_teach_refresh_history.find_one({"run_id": run_id, "user_id": tid}))}
+
+
+# V50.z235 — "Aggiorna ora" su una voce dello Storico: ri-esegue le stesse fonti di quel run
+# e aggiorna la voce in place (badge X/Y OK + timestamp).
+@api_router.post("/ai-teach/refresh-history/{run_id}/rerun")
+async def ai_teach_refresh_run_rerun(run_id: str, user=Depends(get_current_user)):
+    _require_master(user)
+    tid = tenant_id(user)
+    run = await db.ai_teach_refresh_history.find_one({"run_id": run_id, "user_id": tid})
+    if not run:
+        raise HTTPException(status_code=404, detail="Voce storico non trovata")
+    url_ids = [e.get("url_id") for e in (run.get("successes") or []) + (run.get("failures") or []) if e.get("url_id")]
+    if run.get("mode") == "manual_all" or not url_ids:
+        query: Dict[str, Any] = {"user_id": tid}
+    else:
+        query = {"user_id": tid, "url_id": {"$in": url_ids}}
+    total = 0
+    successes: List[Dict[str, str]] = []
+    failures: List[Dict[str, str]] = []
+    async for doc in db.ai_teach_urls.find(query):
+        total += 1
+        res = await _ai_teach_refresh_url(doc)
+        entry = {"url_id": doc.get("url_id"), "name": doc.get("name") or "", "url": doc.get("url") or ""}
+        if res.get("ok"):
+            successes.append(entry)
+        else:
+            failures.append({**entry, "error": (res.get("error") or "errore")[:200]})
+    await db.ai_teach_refresh_history.update_one(
+        {"run_id": run_id, "user_id": tid},
+        {"$set": {
+            "started_at": utcnow(),
+            "total": total,
+            "success_count": len(successes),
+            "failure_count": len(failures),
+            "successes": successes,
+            "failures": failures,
+            "in_progress": False,
+        }, "$inc": {"rerun_count": 1}},
+    )
+    return {"run": _history_public(await db.ai_teach_refresh_history.find_one({"run_id": run_id, "user_id": tid}))}
+
+
 @api_router.post("/ai-teach/urls/{url_id}/refresh")
-async def ai_teach_refresh_url(url_id: str, user=Depends(get_current_user)):
+async def ai_teach_refresh_url(url_id: str, run_id: Optional[str] = None, user=Depends(get_current_user)):
     _require_master(user)
     tid = tenant_id(user)
     doc = await db.ai_teach_urls.find_one({"url_id": url_id, "user_id": tid})
     if not doc:
         raise HTTPException(status_code=404, detail="URL non trovato")
     res = await _ai_teach_refresh_url(doc)
-    # V28.j — Record a single-URL run in the refresh history
     entry = {"url_id": doc.get("url_id"), "name": doc.get("name") or "", "url": doc.get("url") or ""}
     ok = bool(res.get("ok"))
+    # V50.z235 — Step di un run "AGGIORNA TUTTO": accoda il risultato al run condiviso
+    if run_id:
+        upd: Dict[str, Any] = {"$inc": {"success_count" if ok else "failure_count": 1}}
+        if ok:
+            upd["$push"] = {"successes": entry}
+        else:
+            upd["$push"] = {"failures": {**entry, "error": (res.get("error") or "errore")[:200]}}
+        r = await db.ai_teach_refresh_history.update_one({"run_id": run_id, "user_id": tid}, upd)
+        if r.matched_count:
+            run = await db.ai_teach_refresh_history.find_one({"run_id": run_id, "user_id": tid})
+            return {**res, "run": _history_public(run), "last_fetched_at": doc.get("last_fetched_at")}
+    # V28.j — Record a single-URL run in the refresh history
     await db.ai_teach_refresh_history.insert_one({
         "run_id": f"aitr_{uuid.uuid4().hex[:12]}",
         "user_id": tid,
