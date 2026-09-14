@@ -82,5 +82,6 @@ MODULES = [
     "axon_area_wizard.py",  # V50.z227 — mini-wizard per area (upload OCR/AI → campi precompilati, cartella personale/lavoro/famiglia), profili area, aree custom, promemoria scadenze 30/15/7/0, prompt PROFILI AREA + marker [[CONFIGURA:key]] (dopo alarms/chat_push/wizard_talk)
     "axon_org_branding.py",  # V50.z232 — Personalizzazione Aziendale: logo header per tenant + ragione sociale/P.IVA/indirizzo → firma PDF/documenti/comunicazioni (wrap _prepare_assistant_prompt)
     "axon_personal_lock.py",  # V50.z237 — PIN 6 cifre server-side per Spazio Personale (set/verify/change), rate limit, «Ho dimenticato il PIN» via Emergent Resend → fallback SMTP tenant (isolato)
+    "axon_neo_bridge.py",  # V50.z239 — «Prompt per Neo»: comando chat «invia … a Neo» → Master Files category neo_prompts (pending/read/done), «stato prompt Neo», regola prompt anti-allucinazione «nessun canale diretto con Neo», API /neo-bridge/prompts (avvolge _maybe_push_command e _prepare_assistant_prompt; dopo tutti i wrapper)
     "37_app_startup_scheduler.py",
 ]

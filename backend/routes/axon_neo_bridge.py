@@ -1,0 +1,148 @@
+# axon_neo_bridge.py — V50.z239 — «Prompt per Neo»: ponte reale tra Axon (assistente in-app) e Neo (agente di sviluppo Emergent).
+# Axon NON ha alcun canale diretto verso Neo. Quando l'utente autorizza («invia questo prompt a Neo»), Axon salva il testo
+# in Master Files → cartella «Prompt per Neo» (category neo_prompts, stato pending). Neo, dalla chat di sviluppo, legge la
+# coda direttamente dal database («leggi i prompt in coda») e marca read/done. Il system prompt vieta ad Axon di dichiarare
+# collegamenti inesistenti. Comandi chat: «invia/manda … a Neo», «stato prompt Neo», «cosa ha fatto Neo».
+
+_NEO_CAT = "neo_prompts"
+ALLOWED_MASTER_CATS.add(_NEO_CAT)  # abilita la cartella nel POST /master-files e nell'upload
+
+_NEO_SEND_RE = re.compile(
+    r"(?:(?:invia|manda|passa|gira|inoltra|trasmetti|spedisci|consegna)\w*\s+(?:(?:questo|questa|il|la|lo|questi|queste|tutto)\s+)?(?:prompt|file|task|richiesta|messaggio|testo|documento|specifica|mega\s*task)?\s*(?:qui\s+sotto\s+|sopra\s+|precedente\s+)?a\s+neo\b"
+    r"|autorizz\w*\s+(?:l['’]?\s*)?(?:invio|inoltro|trasmissione)?\s*(?:del\s+prompt\s+|del\s+file\s+)?(?:a|per|verso)\s+neo\b"
+    r"|\ba\s+neo\s+(?:per\s+)?(?:lo\s+)?sviluppo\b|\bper\s+neo\b|\bda\s+(?:inviare|mandare|passare)\s+a\s+neo\b)",
+    re.IGNORECASE)
+_NEO_STATUS_RE = re.compile(r"(?:stato|status|situazione|elenco|lista|quanti|coda|mostra\w*|vedi|vedere)\s+(?:i\s+|le\s+|la\s+|dei\s+|delle\s+|di\s+)?(?:prompt|richieste|task)\s*(?:per|a|di|inviat\w*\s+a)?\s*neo\b|\bcoda\s+(?:di\s+|per\s+)?neo\b|\bneo\s+ha\s+(?:letto|fatto|completato|eseguito)\b|\bcosa\s+ha\s+fatto\s+neo\b|\bprompt\s+(?:per\s+)?neo\s+in\s+coda\b", re.IGNORECASE)
+_NEO_STATUS_LABEL = {"pending": "in attesa", "read": "letto da Neo", "done": "completato", "rejected": "non eseguibile"}
+
+
+def _neo_out(d: dict) -> dict:
+    return {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in d.items() if k not in ("_id", "data_base64")}
+
+
+async def _neo_counts(tid: str) -> Dict[str, int]:
+    out = {"pending": 0, "read": 0, "done": 0, "rejected": 0}
+    async for r in db.master_files.aggregate([{"$match": {"user_id": tid, "category": _NEO_CAT}}, {"$group": {"_id": "$neo_status", "n": {"$sum": 1}}}]):
+        out[r["_id"] or "pending"] = r["n"]
+    return out
+
+
+async def _neo_save_prompt(user: dict, text: str, source: str, origin_note: Optional[str] = None) -> dict:
+    tid = tenant_id(user)
+    n = await db.master_files.count_documents({"user_id": tid, "category": _NEO_CAT})
+    now = utcnow()
+    title = f"Prompt per Neo #{n + 1} — {now.strftime('%d/%m %H:%M')}"
+    first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")[:70]
+    doc = {
+        "file_id": f"mf_{uuid.uuid4().hex[:12]}", "user_id": tid, "created_by": user["user_id"], "category": _NEO_CAT,
+        "name": title, "title": (first or title)[:90], "body": text.strip()[:60000], "mime": "text/markdown", "size": len(text),
+        "created_at": now, "updated_at": now,
+        "neo_status": "pending", "neo_source": source, "neo_origin": origin_note, "neo_seq": n + 1,
+        "neo_author": user.get("name") or user.get("email"),
+    }
+    await db.master_files.insert_one(dict(doc))
+    return doc
+
+
+_NEO_HOWTO = ("Non ho un canale diretto con Neo (l'agente di sviluppo Emergent): il prompt è **salvato in Master Files → Prompt per Neo** con stato *in attesa*. "
+              "Per farlo eseguire apri la chat di sviluppo Emergent e scrivi: **«Neo, leggi i prompt in coda»**. Neo lo legge dal database e lo marca come letto/completato — "
+              "chiedimi «stato prompt Neo» quando vuoi.")
+
+
+_neo_prev_push_cmd = _maybe_push_command
+
+
+async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: F811
+    txt = (msg or "").strip()
+    if txt and re.search(r"\bneo\b", txt, re.IGNORECASE):
+        try:
+            if _NEO_STATUS_RE.search(txt) and not _NEO_SEND_RE.search(txt):
+                tid = tenant_id(user)
+                c = await _neo_counts(tid)
+                items = [_neo_out(d) async for d in db.master_files.find({"user_id": tid, "category": _NEO_CAT}, {"_id": 0, "data_base64": 0}).sort("created_at", -1).limit(6)]
+                if not items:
+                    return {"reply": "📭 Nessun prompt per Neo in coda. Scrivimi «invia questo prompt a Neo» seguito dal testo (o dopo che te l'ho preparato) e lo salvo in Master Files → Prompt per Neo.", "cmd": "neo_status"}
+                lines = [f"• #{d.get('neo_seq')} {d.get('title')} — *{_NEO_STATUS_LABEL.get(d.get('neo_status') or 'pending')}*" + (f" · nota Neo: {d['neo_note']}" if d.get("neo_note") else "") for d in items]
+                return {"reply": f"📋 **Prompt per Neo** — {c['pending']} in attesa · {c['read']} letti · {c['done']} completati\n\n" + "\n".join(lines) + "\n\n" + ("Per farli eseguire: nella chat di sviluppo Emergent scrivi «Neo, leggi i prompt in coda»." if c["pending"] else "Tutto letto da Neo ✅"), "cmd": "neo_status"}
+            m = _NEO_SEND_RE.search(txt)
+            if m:
+                rest = (txt[:m.start()] + txt[m.end():]).strip(" \n:,.;-–—")
+                origin = None
+                if len(rest) >= 40:
+                    content = rest
+                    source = "chat_user"
+                else:
+                    last = await db.assistant_messages.find_one({"user_id": user["user_id"], "role": "assistant"}, sort=[("created_at", -1)])
+                    content = (last or {}).get("content") or ""
+                    if len(content.strip()) < 20:
+                        return {"reply": "✍️ Dimmi cosa inviare: scrivi «invia questo prompt a Neo» seguito dal testo del prompt, oppure fammelo preparare e poi dimmi «invialo a Neo». " + _NEO_HOWTO, "cmd": "neo_ask"}
+                    source = "chat_assistant"
+                    origin = "ultimo messaggio preparato da Axon"
+                    if len(rest) >= 12:
+                        content = f"{rest}\n\n---\n{content}"
+                doc = await _neo_save_prompt(user, content, source, origin)
+                c = await _neo_counts(tenant_id(user))
+                return {"reply": f"📤 **Salvato: {doc['name']}** ({len(content)} caratteri{', ' + origin if origin else ''}).\n\n{_NEO_HOWTO}\n\nIn coda ora: **{c['pending']}** in attesa.", "cmd": "neo_saved", "neo_file_id": doc["file_id"]}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[neo-bridge] command failed: %s", exc)
+    return await _neo_prev_push_cmd(msg, user)
+
+
+_neo_prev_prepare_prompt = _prepare_assistant_prompt
+
+
+async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
+    prep = await _neo_prev_prepare_prompt(user, body)
+    try:
+        if prep.get("system_message"):
+            c = await _neo_counts(tenant_id(user))
+            prep["system_message"] += (
+                "\n\n🔗 NEO (AGENTE DI SVILUPPO EMERGENT) — REGOLA VINCOLANTE: tu NON hai NESSUN canale diretto con Neo, né via Teams, email, file o API. "
+                "Non dire MAI «lo invio io a Neo», «glielo passo», «l'ho mandato a Neo» o simili: sarebbe falso. Il flusso reale è: l'utente ti dice «invia questo prompt a Neo» → il prompt viene salvato in "
+                "Master Files → cartella «Prompt per Neo» (stato: in attesa) → l'utente, nella chat di sviluppo Emergent, scrive «Neo, leggi i prompt in coda» → Neo legge dal database e marca letto/completato. "
+                "Se ti chiedono di inviare qualcosa a Neo, spiega questo flusso e invita a scrivere «invia questo prompt a Neo» (con il testo) per salvarlo. "
+                "Nota: «Neo» può essere anche il tuo nome predefinito; se l'utente parla di Neo come sviluppatore, non confonderlo con te. "
+                f"Stato coda prompt per Neo: {c['pending']} in attesa, {c['read']} letti, {c['done']} completati."
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[neo-bridge] prompt failed: %s", exc)
+    return prep
+
+
+# ---- API (Master Files tab + strumenti di Neo) ----
+class NeoPromptIn(BaseModel):
+    text: str = Field(min_length=10, max_length=60000)
+
+
+class NeoPromptPatch(BaseModel):
+    status: Optional[Literal["pending", "read", "done", "rejected"]] = None
+    note: Optional[str] = Field(default=None, max_length=600)
+
+
+@api_router.get("/neo-bridge/prompts")
+async def neo_prompts_list(status: Optional[str] = None, user=Depends(get_current_user)):
+    q: Dict[str, Any] = {"user_id": tenant_id(user), "category": _NEO_CAT}
+    if status:
+        q["neo_status"] = status
+    items = [_neo_out(d) async for d in db.master_files.find(q, {"_id": 0, "data_base64": 0}).sort("created_at", -1).limit(100)]
+    return {"items": items, "counts": await _neo_counts(tenant_id(user))}
+
+
+@api_router.post("/neo-bridge/prompts")
+async def neo_prompts_create(body: NeoPromptIn, user=Depends(get_current_user)):
+    doc = await _neo_save_prompt(user, body.text, "manual")
+    return _neo_out(doc)
+
+
+@api_router.patch("/neo-bridge/prompts/{file_id}")
+async def neo_prompts_patch(file_id: str, body: NeoPromptPatch, user=Depends(get_current_user)):
+    upd: Dict[str, Any] = {"updated_at": utcnow()}
+    if body.status:
+        upd["neo_status"] = body.status
+        upd[f"neo_{body.status}_at"] = utcnow()
+    if body.note is not None:
+        upd["neo_note"] = body.note.strip()
+    r = await db.master_files.update_one({"file_id": file_id, "user_id": tenant_id(user), "category": _NEO_CAT}, {"$set": upd})
+    if not r.matched_count:
+        raise HTTPException(status_code=404, detail="Prompt non trovato")
+    return _neo_out(await db.master_files.find_one({"file_id": file_id}, {"_id": 0, "data_base64": 0}))

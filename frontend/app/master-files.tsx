@@ -16,13 +16,14 @@ import { ShareSheet, type ShareTarget } from "@/src/ShareSheet";
 import { ModuleErrorBoundary } from "@/src/shared";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
-type MasterCat = "notes" | "bills" | "audio" | "files" | "analisi" | "scanner";
+type MasterCat = "notes" | "bills" | "audio" | "files" | "analisi" | "scanner" | "neo_prompts";
 type MasterFile = {
   file_id: string;
   category: MasterCat;
   name: string;
   title?: string | null;
   body?: string | null;
+  neo_status?: string; neo_note?: string; neo_seq?: number; // V50.z239
   mime: string;
   size: number;
   created_at: string;
@@ -38,7 +39,11 @@ const CATS: { id: MasterCat; label: string; icon: any; color: string }[] = [
   { id: "audio", label: "Audio", icon: "mic", color: "#DB2777" },
   { id: "files", label: "File", icon: "folder", color: "#0891B2" },
   { id: "scanner", label: "Scanner", icon: "scan", color: "#DC2626" }, // V50.z226 — PDF creati dallo scanner
+  { id: "neo_prompts", label: "Prompt per Neo", icon: "code-slash", color: "#0F766E" }, // V50.z239 — coda prompt autorizzati per l'agente di sviluppo
 ];
+const NEO_STATUS_LABEL: Record<string, { label: string; color: string }> = {
+  pending: { label: "In attesa", color: "#B45309" }, read: { label: "Letto da Neo", color: "#1D4ED8" }, done: { label: "Completato", color: "#15803D" }, rejected: { label: "Non eseguibile", color: "#B91C1C" },
+};
 const CAT_IDS = CATS.map((c) => c.id);
 
 export default function MasterFilesRoute() {
@@ -381,6 +386,7 @@ function MasterFilesScreen() {
   };
 
   const catMeta = CATS.find((c) => c.id === tab)!;
+  const isTextTab = tab === "notes" || tab === "neo_prompts"; // V50.z239 — entrambe le cartelle sono testo (body)
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -511,6 +517,7 @@ function MasterFilesScreen() {
                 tab === "bills" ? "Nessuna fattura salvata." :
                 tab === "audio" ? "Nessun audio registrato o caricato." :
                 tab === "scanner" ? "Nessuna scansione. I PDF creati con lo scanner arrivano qui automaticamente." :
+                tab === "neo_prompts" ? "Nessun prompt in coda. In chat scrivi ad Axon «invia questo prompt a Neo» seguito dal testo: viene salvato qui con stato «In attesa». Poi, nella chat di sviluppo Emergent, scrivi «Neo, leggi i prompt in coda»." :
                 "Nessun file. Carica documenti o foto."}
             </Text>
           </View>
@@ -519,7 +526,7 @@ function MasterFilesScreen() {
             <View key={f.file_id} style={styles.card}>
               <Pressable
                 testID={`master-files-item-${f.file_id}`}
-                onPress={() => tab === "notes" ? openEditNote(f) : openViewer(f)}
+                onPress={() => isTextTab ? openEditNote(f) : openViewer(f)}
                 style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10, padding: 12 }}
               >
                 <View style={[styles.icoBox, { backgroundColor: catMeta.color + "22" }]}>
@@ -527,17 +534,25 @@ function MasterFilesScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.itemName} numberOfLines={1}>
-                    {tab === "notes" ? (f.title || f.name || "Nota") : f.name}
+                    {tab === "neo_prompts" ? `#${f.neo_seq ?? ""} ${f.title || f.name}` : tab === "notes" ? (f.title || f.name || "Nota") : f.name}
                   </Text>
                   <Text style={styles.itemMeta} numberOfLines={1}>
-                    {tab === "notes"
+                    {isTextTab
                       ? `${(f.body || "").slice(0, 60)} · ${fmtDateTime(f.created_at)}`
                       : `${formatSize(f.size)} · ${fmtDateTime(f.created_at)}`}
                   </Text>
+                  {tab === "neo_prompts" ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: (NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || "#64748B") + "22" }} testID={`neo-status-${f.file_id}`}>
+                        <Text style={{ fontSize: 10, fontWeight: "800", color: NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || "#64748B" }}>{NEO_STATUS_LABEL[f.neo_status || "pending"]?.label || f.neo_status}</Text>
+                      </View>
+                      {f.neo_note ? <Text style={[styles.itemMeta, { flexShrink: 1 }]} numberOfLines={1}>Neo: {f.neo_note}</Text> : null}
+                    </View>
+                  ) : null}
                 </View>
               </Pressable>
               <View style={{ flexDirection: "row", gap: 4, paddingRight: 8 }}>
-                {tab !== "notes" && (
+                {!isTextTab && (
                   <Pressable
                     testID={`master-files-share-${f.file_id}`}
                     onPress={() => openShare(f)}
@@ -547,7 +562,7 @@ function MasterFilesScreen() {
                     <Ionicons name="share-social" size={14} color={catMeta.color} />
                   </Pressable>
                 )}
-                {tab !== "notes" && (
+                {!isTextTab && (
                   <Pressable
                     testID={`master-files-rename-${f.file_id}`}
                     onPress={() => openRename(f)}

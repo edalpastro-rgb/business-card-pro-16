@@ -1,5 +1,16 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
+## ⚠️ ISTRUZIONE PERMANENTE PER NEO (agente di sviluppo) — V50.z239 «Prompt per Neo»
+Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO:
+`python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
+I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
+
+## V50.z239 (Giu 2026) — Ponte Axon → Neo («Prompt per Neo»)
+- Problema: Axon allucinava «lo invio io a Neo» (nessun canale esiste). Modulo `routes/axon_neo_bridge.py`: (1) comando chat «invia/manda/autorizzo … a Neo» (`_NEO_SEND_RE`) → salva in Master Files category `neo_prompts` (testo del messaggio se ≥40 char, altrimenti l'ultimo messaggio di Axon); (2) «stato prompt Neo / coda Neo / cosa ha fatto Neo» → elenco con stati; (3) regola vincolante nel system prompt: mai dichiarare canali diretti con Neo, spiegare il flusso reale, conteggio coda; (4) API `GET/POST /neo-bridge/prompts`, `PATCH /neo-bridge/prompts/{file_id} {status, note}`.
+- Frontend `master-files.tsx`: tab «Prompt per Neo» (icona code-slash, verde petrolio) con pill stato (In attesa / Letto da Neo / Completato / Non eseguibile) e nota di Neo; apribile/modificabile come nota.
+- Strumento per Neo: `/app/scripts/neo_queue.py` (list/show/read/done/reject).
+
+
 
 ## V50.z234 (Giu 2026) — Tour Guidato: copy locked — ✅ VERIFICATO DALL'UTENTE (Giu 2026, nessuna correzione richiesta)
 - `libretto-content.ts` (+ `axon_app_map.json`): slide Home/Famiglia → «Un solo assistente che ti alleggerisce la vita ogni giorno, senza chiederti di ripetere nulla.»; sezione AxonOS Brain+ → «memorizza il tuo contesto per conoscerti meglio nel tempo, senza condividere nulla con modelli esterni». Entrambe marcate nel codice `// DO NOT CHANGE - brand copy locked`. FAQ «Axon usa i miei dati per addestrarsi? — No…» lasciata invariata. Nessun override in `libretto_content` (DB) → il fallback statico è quello mostrato. **BRAND COPY LOCK**: non modificare queste due frasi.
