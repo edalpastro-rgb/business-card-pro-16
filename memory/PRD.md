@@ -1,6 +1,11 @@
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 
+## V50.z233 (Giu 2026) — Firma aziendale nei PDF · «Chiudi tutte»
+- `BrandHeaderImage.tsx`: `orgSignature(b)` + `fetchOrgSignature()` (cache condivisa). Libretto (`app/libretto.tsx` `buildPdfHtml(..., orgSig)`): firma in copertina sotto il footer (`.org-sig`) e blocco finale `.org-sig-end`. `ChatTableExport.tsx` (`tableToHtml(..., orgSig)`): riga firma centrata a fine tabella (PDF report settimanali/tabelle esportate). Backend `axon_expenses.py` `axe_pdf`: firma in calce (come già `_axh_render_pdf`). Verificato con pypdf: firma presente nel PDF.
+- «Chiudi tutte» (`ProactiveBubbles.tsx`, testID `proactive-bubbles-dismiss-all`) → `POST /axon/proactive/items/dismiss-all` (tutte le card aperte dell'utente, `dismiss_reason: dismiss_all`), sezione svuotata subito.
+
+
 ## V50.z232 (Giu 2026) — Header con nuovo logo AxonOS · Personalizzazione Aziendale (Master)
 
 - **Logo AxonOS**: il «logo con sfondo scuro» segnalato era quello IMPRESSO nell'immagine `advisoros-home-header.jpg` (Home e Interfaccia Master). Creato `advisoros-home-header-clean.jpg` (regione AxonOS coperta con la texture) e `src/BrandHeaderImage.tsx`: header pulito + nuovo logo AxonOS (`axonos-logo-light.png`, 78 px, card chiara) in basso a destra, sempre più piccolo di AdvisorOS. Nota: il file fornito è un JPG con sfondo grigio chiaro (non realmente trasparente) e lettere «Axon» BIANCHE: reso trasparente sparirebbe su bianco → si usa l'asset così com'è, come card chiara arrotondata.

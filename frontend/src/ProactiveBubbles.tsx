@@ -23,6 +23,8 @@ export function ProactiveBubbles() {
       <View style={styles.head}>
         <Ionicons name="sparkles" size={14} color="#7C3AED" />
         <Text style={styles.headTxt}>AxonOS ti segnala</Text>
+        {/* V50.z233 — «Chiudi tutte»: svuota le card con un tap (persistente sul server) */}
+        <Pressable onPress={() => { setItems([]); proactiveApi.dismissAll().catch(() => {}); }} hitSlop={8} testID="proactive-bubbles-dismiss-all" style={{ marginRight: 12 }}><Text style={[styles.link, { color: "#64748B" }]}>Chiudi tutte</Text></Pressable>
         <Pressable onPress={() => router.push("/axon-proactive" as any)} hitSlop={8} testID="proactive-bubbles-all"><Text style={styles.link}>Vedi tutte</Text></Pressable>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 2 }}>

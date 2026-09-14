@@ -686,6 +686,13 @@ async def apx_item(item_id: str, user=Depends(get_current_user)):
     return _apx_out(it)
 
 
+@api_router.post("/axon/proactive/items/dismiss-all")
+async def apx_dismiss_all(user=Depends(get_current_user)):
+    """V50.z233 — «Chiudi tutte»: chiude in un tap tutte le card aperte dell'utente (Home «AxonOS ti segnala»)."""
+    r = await db.axon_proactive_log.update_many({"user_id": user["user_id"], "dismissed_at": None}, {"$set": {"dismissed_at": utcnow(), "dismiss_reason": "dismiss_all"}})
+    return {"ok": True, "dismissed": r.modified_count}
+
+
 @api_router.post("/axon/proactive/items/{item_id}/{action}")
 async def apx_item_action(item_id: str, action: str, user=Depends(get_current_user)):
     """action ∈ dismiss | respond (tap/voce sul suggerimento) | read."""

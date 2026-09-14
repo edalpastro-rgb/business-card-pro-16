@@ -12,6 +12,16 @@ const HEADER_CLEAN = require("@/assets/images/advisoros-home-header-clean.jpg");
 export type OrgBranding = { company_name: string; vat: string; address: string; extra: string; logo_data_uri: string | null; logo_name: string | null; can_edit?: boolean };
 let _cache: OrgBranding | null = null;
 const _subs = new Set<(b: OrgBranding | null) => void>();
+/** Firma «Ragione sociale · P.IVA … · Indirizzo · extra» (stringa vuota se non configurata). */
+export function orgSignature(b: OrgBranding | null | undefined): string {
+  if (!b) return "";
+  return [b.company_name, b.vat ? `P.IVA ${b.vat}` : "", b.address, b.extra].filter(Boolean).join(" · ");
+}
+/** Firma aziendale caricandola dal server se non in cache (per export PDF). */
+export async function fetchOrgSignature(): Promise<string> {
+  if (!_cache) { try { setOrgBrandingCache(await api<OrgBranding>("/org/branding")); } catch { /* ignore */ } }
+  return orgSignature(_cache);
+}
 export function setOrgBrandingCache(b: OrgBranding | null) { _cache = b; _subs.forEach((f) => f(b)); }
 export function useOrgBranding(): OrgBranding | null {
   const [b, setB] = useState<OrgBranding | null>(_cache);

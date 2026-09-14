@@ -40,6 +40,7 @@ export const proactiveApi = {
     api<{ ok: boolean; item: ProactiveItem | null; reply: string | null; deeplink: string }>("/axon/proactive/trigger", { method: "POST", body: { action, source, item_id } }),
   items: (opts?: { limit?: number; home?: boolean }) => api<{ items: ProactiveItem[] }>("/axon/proactive/items", { query: { limit: opts?.limit ?? 30, home: opts?.home ? "true" : undefined } }),
   item: (id: string) => api<ProactiveItem>(`/axon/proactive/items/${id}`),
+  dismissAll: () => api<{ ok: boolean; dismissed: number }>("/axon/proactive/items/dismiss-all", { method: "POST" }), // V50.z233
   act: (id: string, action: "dismiss" | "respond" | "read") => api<{ ok: boolean }>(`/axon/proactive/items/${id}/${action}`, { method: "POST" }),
   reminders: () => api<{ items: ProactiveReminder[] }>("/axon/proactive/reminders"),
   addReminder: (text: string, due_at: string) => api<{ ok: boolean }>("/axon/proactive/reminders", { method: "POST", body: { text, due_at } }),

@@ -262,6 +262,9 @@ async def axe_pdf(sphere: str = "business", month: Optional[str] = None, user_id
         c.drawString(20 * mm, y, it.get("date") or ""); c.drawString(45 * mm, y, (it.get("merchant") or "")[:38]); c.drawString(115 * mm, y, it.get("category") or "")
         c.drawString(150 * mm, y, (it.get("payment") or "-")[:10]); c.drawRightString(190 * mm, y, f"{float(it.get('amount') or 0):.2f}"); tot += float(it.get("amount") or 0); y -= 5.5 * mm
     y -= 3 * mm; c.line(20 * mm, y, 190 * mm, y); y -= 7 * mm; c.setFont("Helvetica-Bold", 12); c.drawRightString(190 * mm, y, f"TOTALE: {tot:.2f} €")
+    _sig = await _ob_signature(tenant_id(user))  # V50.z233 — firma aziendale (Personalizzazione Aziendale)
+    if _sig:
+        c.setFont("Helvetica-Oblique", 8.5); c.drawCentredString(W / 2, 12 * mm, _sig[:180])
     by_cat: Dict[str, float] = {}
     for it in items:
         by_cat[it["category"]] = by_cat.get(it["category"], 0) + float(it.get("amount") or 0)

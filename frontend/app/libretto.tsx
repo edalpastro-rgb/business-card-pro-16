@@ -4,6 +4,7 @@
  * Schermata full-page con guida operativa completa dell'app.
  * Include pulsante di export PDF (expo-print + expo-sharing) con logo brand.
  */
+import { fetchOrgSignature } from "@/src/BrandHeaderImage";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
@@ -69,7 +70,7 @@ async function assetToBase64(mod: number): Promise<string> {
   }
 }
 
-function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages: Record<string, string>, sections: LibrettoSection[], meta: LibrettoMeta): string {
+function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages: Record<string, string>, sections: LibrettoSection[], meta: LibrettoMeta, orgSig = ""): string {
   const dataUri = (b64: string) => (b64 ? `data:image/png;base64,${b64}` : "");
   const jpgUri = (b64: string) => (b64 ? `data:image/jpeg;base64,${b64}` : "");
   const cover = `
@@ -83,7 +84,7 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
       ${brainPlusHtml({ dark: true, size: 26, tagline: true, align: "center" })}
       <div class="cover-sub">${meta.subtitle}</div>
       <div class="cover-version">${meta.version}</div>
-      <div class="cover-footer">${meta.footer}</div>
+      <div class="cover-footer">${meta.footer}${orgSig ? `<br/><span class="org-sig">${orgSig}</span>` : ""}</div>
     </div>
   `;
 
@@ -165,6 +166,8 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
   .cover-sub { font-size: 18px; opacity: 0.85; text-align: center; margin-bottom: 40px; }
   .cover-version { font-size: 13px; color: #FBBF24; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
   .cover-footer { position: absolute; bottom: 40px; font-size: 11px; opacity: 0.6; }
+  .org-sig { display: inline-block; margin-top: 6px; font-size: 10.5px; opacity: 0.95; font-style: italic; } /* V50.z233 — firma aziendale (Personalizzazione Aziendale) */
+  .org-sig-end { margin-top: 28px; padding-top: 10px; border-top: 1px solid #E2E8F0; color: #64748B; font-size: 10.5px; font-style: italic; text-align: center; }
   .toc { padding: 40px; }
   .toc h2 { font-size: 30px; color: #1C4869; margin-bottom: 20px; }
   .toc ol { padding-left: 22px; line-height: 2; font-size: 14px; }
@@ -193,6 +196,7 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
 ${cover}
 ${toc}
 ${sectionsHtml}
+${orgSig ? `<div class="org-sig-end">${orgSig}</div>` : ""}
 </body></html>`;
 }
 
@@ -305,7 +309,8 @@ export default function LibrettoScreen() {
           }),
       );
       // 3) Costruisci HTML
-      const html = buildPdfHtml(logoAdvisor, logoAxon, sectionImages, sections, { ...meta, version: versionBadge });
+      const orgSig = await fetchOrgSignature(); // V50.z233 — firma aziendale nel PDF del Libretto
+      const html = buildPdfHtml(logoAdvisor, logoAxon, sectionImages, sections, { ...meta, version: versionBadge }, orgSig);
       // 4) Genera PDF
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       // 5) Condividi

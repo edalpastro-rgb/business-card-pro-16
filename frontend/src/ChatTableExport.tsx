@@ -13,6 +13,7 @@
  * Se l'utente è Master, il file esportato viene anche salvato in "Insegna ad
  * Axon" (categoria "Dati esportati") per l'auto-apprendimento.
  */
+import { fetchOrgSignature } from "@/src/BrandHeaderImage";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator, Platform, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -134,7 +135,7 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function tableToHtml(table: ParsedTable, title: string, brand?: TableBrandHeader | null): string {
+function tableToHtml(table: ParsedTable, title: string, brand?: TableBrandHeader | null, orgSig = ""): string {
   const headerCells = table.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
   const bodyRows = table.rows
     .map(
@@ -177,6 +178,7 @@ function tableToHtml(table: ParsedTable, title: string, brand?: TableBrandHeader
       <tbody>${bodyRows}</tbody>
     </table>
     <p class="footer">${table.rows.length} righe totali · ${table.headers.length} colonne</p>
+    ${orgSig ? `<p class="footer" style="text-align:center;border-top:1px solid #E5E7EB;padding-top:8px;">${escapeHtml(orgSig)}</p>` : ""}
   </body></html>`;
 }
 
@@ -247,7 +249,7 @@ function BrandHeaderRow({ brand, large }: { brand: TableBrandHeader | null; larg
  *   `null`).
  */
 async function tableToPdfBase64(table: ParsedTable, title: string, brand?: TableBrandHeader | null): Promise<string | null> {
-  const html = tableToHtml(table, title, brand);
+  const html = tableToHtml(table, title, brand, await fetchOrgSignature()); // V50.z233 — firma aziendale nei report/tabelle esportati
   if (Platform.OS === "web") {
     // Web: open a print window and let the browser handle PDF export.
     try {
