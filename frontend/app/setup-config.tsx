@@ -84,6 +84,8 @@ export default function SetupConfigScreen() {
         {/* Aree */}
         <View style={styles.card}>
           <Row icon="toggle" title={`Aree · ${cfg.areas.filter((a) => a.on && !a.future).length} attive`} right={<Pressable onPress={() => reopen(3)} hitSlop={8} testID="setup-config-reopen-3"><Text style={styles.link}>Step 3</Text></Pressable>} />
+          {/* V50.z227 — Le mie aree: mini-wizard per area, stato configurazione, aree personalizzate */}
+          <Pressable onPress={() => router.push("/le-mie-aree" as any)} style={styles.btnAlt} testID="setup-config-my-areas"><Ionicons name="flash" size={16} color={PURPLE} /><Text style={styles.btnAltTxt}>Le mie aree · configura e personalizza</Text></Pressable>
           {!sphere && <Text style={styles.muted}>Scegli prima una sfera.</Text>}
           {cfg.areas.map((a) => (
             <View key={a.key} style={styles.areaRow} testID={`setup-config-area-${a.key}`}>

@@ -32,3 +32,12 @@ export async function transcribeUpload(src: UploadSource): Promise<string> {
   const r = await apiUpload<{ transcript: string }>("/ai/transcribe/upload", form);
   return (r?.transcript || "").trim();
 }
+
+/** V50.z227 — Mini-wizard aree: `POST /axon/areas/{key}/extract` (OCR/AI → campi precompilati; file salvato nella cartella scelta). */
+export async function uploadAreaExtract(areaKey: string, src: UploadSource, kind: string, folder: "personale" | "lavoro" | "famiglia") {
+  const form = new FormData();
+  form.append("file", await toFormPart(src));
+  form.append("kind", kind);
+  form.append("folder", folder);
+  return apiUpload<{ fields: Record<string, string>; missing: string[]; ocr_ok: boolean; file: { file_id: string; name: string; folder: string; folder_label: string } }>(`/axon/areas/${areaKey}/extract`, form);
+}

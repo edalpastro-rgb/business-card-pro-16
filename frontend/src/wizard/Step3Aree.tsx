@@ -10,6 +10,7 @@ import Animated, { FadeInRight } from "react-native-reanimated";
 import { api } from "@/src/api";
 import type { StepBinder } from "@/src/wizard/Step1Anagrafica";
 import type { Sphere } from "@/src/wizard/Step2Sfera";
+import { AreaMiniWizard, type AreaCfg } from "@/src/AreaMiniWizard"; // V50.z227 — mini-wizard contestuale all'attivazione
 
 const PURPLE = "#7C3AED";
 const PER_PAGE = 4;
@@ -34,6 +35,15 @@ export function Step3Aree({ bind, sphere, initial, onNext, onSkipAll }: { bind: 
   const [on, setOn] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(0);
   const [error, setError] = useState("");
+  // V50.z227 — area attivata con mini-wizard → si apre subito (max 3 passi)
+  const [cfgAreas, setCfgAreas] = useState<Record<string, AreaCfg>>({});
+  const [wiz, setWiz] = useState<AreaCfg | null>(null);
+  useEffect(() => { api<{ areas: AreaCfg[] }>("/axon/areas/config").then((r) => setCfgAreas(Object.fromEntries(r.areas.map((a) => [a.key, a])))).catch(() => {}); }, []);
+  const onToggle = (key: string, nv: boolean) => {
+    setOn((s) => ({ ...s, [key]: nv }));
+    const a = cfgAreas[key];
+    if (nv && a?.wizard && a.status !== "complete") setWiz(a);
+  };
 
   useEffect(() => {
     api<{ areas: Area[] }>(`/axon/setup/areas?sphere=${sphere}`).then((r) => {
@@ -90,8 +100,14 @@ export function Step3Aree({ bind, sphere, initial, onNext, onSkipAll }: { bind: 
                     <Text style={styles.rowTitle} numberOfLines={2}>{a.title}</Text>
                     <Text style={styles.rowDesc} numberOfLines={2}>{a.desc}</Text>
                     {a.future && <Text style={styles.futureTag}>Interesse futuro</Text>}
+                    {v && !a.future && cfgAreas[a.key]?.wizard && (
+                      <Pressable onPress={() => setWiz(cfgAreas[a.key])} style={styles.cfgBtn} testID={`area-configure-${a.key}`}>
+                        <Ionicons name={cfgAreas[a.key].status === "complete" ? "checkmark-circle" : "alert-circle"} size={12} color={cfgAreas[a.key].status === "complete" ? "#16A34A" : "#B45309"} />
+                        <Text style={[styles.cfgTxt, cfgAreas[a.key].status === "complete" && { color: "#16A34A" }]}>{cfgAreas[a.key].status === "complete" ? "Configurata" : "Configurazione incompleta · Configura"}</Text>
+                      </Pressable>
+                    )}
                   </View>
-                  <Switch value={v} onValueChange={(nv) => setOn((s) => ({ ...s, [a.key]: nv }))} trackColor={{ true: cur.accent, false: "#CBD5E1" }} thumbColor={Platform.OS === "android" ? "#FFF" : undefined} testID={`area-switch-${a.key}`} />
+                  <Switch value={v} onValueChange={(nv) => onToggle(a.key, nv)} trackColor={{ true: cur.accent, false: "#CBD5E1" }} thumbColor={Platform.OS === "android" ? "#FFF" : undefined} testID={`area-switch-${a.key}`} />
                 </View>
               );
             })}
@@ -111,6 +127,7 @@ export function Step3Aree({ bind, sphere, initial, onNext, onSkipAll }: { bind: 
         <Text style={styles.count}>{activeCount} {activeCount === 1 ? "area attiva" : "aree attive"}</Text>
         <Pressable onPress={onSkipAll} style={styles.linkBtn} testID="aree-skip-all"><Text style={styles.linkTxt}>Salta tutto per ora</Text></Pressable>
       </View>
+      <AreaMiniWizard area={wiz} visible={!!wiz} onClose={() => setWiz(null)} onDone={() => { api<{ areas: AreaCfg[] }>("/axon/areas/config").then((r) => setCfgAreas(Object.fromEntries(r.areas.map((a) => [a.key, a])))).catch(() => {}); }} />
     </View>
   );
 }
@@ -127,6 +144,8 @@ const styles = StyleSheet.create({
   rowIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   rowTitle: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
   rowDesc: { fontSize: 12, color: "#64748B", lineHeight: 16 },
+  cfgBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 28, alignSelf: "flex-start" },
+  cfgTxt: { fontSize: 11, fontWeight: "800", color: "#B45309" },
   futureTag: { alignSelf: "flex-start", fontSize: 10, fontWeight: "800", color: "#C2410C", backgroundColor: "#FFF7ED", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 2 },
   dots: { flexDirection: "row", justifyContent: "center", gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#DDD6FE" },

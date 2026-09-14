@@ -1728,6 +1728,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   onSaveToMaster={m.role === "assistant" && m.used_web_search ? () => openSaveToMaster(m.content) : undefined}
                   isMaster={isMaster}
                   onFeedback={m.role === "assistant" ? (rating) => handleFeedback(i, rating) : undefined}
+                  onConfigureArea={(k) => { onClose(); setTimeout(() => router.push(`/le-mie-aree?configure=${k}` as any), 150); }}
                 />
               ))}
               {/* V50.z219 — avviso di setup dedicato: interessi futuri attivati nel wizard (finché non si tocca «Ok, ricevuto») */}
@@ -2180,6 +2181,7 @@ function MessageBubble({
   onSaveToMaster,
   isMaster,
   onFeedback,
+  onConfigureArea,
 }: {
   msg: ChatMsg;
   assistantName: string;
@@ -2190,6 +2192,7 @@ function MessageBubble({
   onSaveToMaster?: () => void;
   isMaster?: boolean;
   onFeedback?: (rating: "up" | "down") => void;
+  onConfigureArea?: (areaKey: string) => void; // V50.z227
 }) {
   const isUser = msg.role === "user";
   return (
@@ -2273,9 +2276,12 @@ function MessageBubble({
           }
           // V50.z121 — Il parser tabelle/grafici non deve mai far crashare la chat
           let segments: ReturnType<typeof parseMessageSegments>;
-          try { segments = parseMessageSegments(msg.content || ""); }
-          catch { segments = [{ type: "text", content: msg.content || "" }] as any; }
-          if (segments.length === 0) return null;
+          // V50.z227 — marker [[CONFIGURA:<area>]] → bottone «Configura ora» (area attiva ma non configurata)
+          const cfgMatch = /\[\[CONFIGURA:([a-z0-9_]+)\]\]/i.exec(msg.content || "");
+          const cleanContent = cfgMatch ? (msg.content || "").replace(cfgMatch[0], "").trimEnd() : (msg.content || "");
+          try { segments = parseMessageSegments(cleanContent); }
+          catch { segments = [{ type: "text", content: cleanContent }] as any; }
+          if (segments.length === 0 && !cfgMatch) return null;
           return (
             <View style={{ gap: 6 }}>
               {segments.map((seg, si) => {
@@ -2298,6 +2304,12 @@ function MessageBubble({
                   </ModuleErrorBoundary>
                 );
               })}
+              {cfgMatch && !msg.streaming && (
+                <Pressable onPress={() => onConfigureArea?.(cfgMatch[1])} style={styles.configureNowBtn} testID={`configure-now-${cfgMatch[1]}`}>
+                  <Ionicons name="flash" size={14} color="#FFF" />
+                  <Text style={styles.configureNowTxt}>Configura ora</Text>
+                </Pressable>
+              )}
             </View>
           );
         })()}
@@ -2834,6 +2846,8 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
   },
   modeDropdownTxt: { color: "#FFF", fontSize: 11, fontWeight: "700", letterSpacing: 0.1 },
+  configureNowBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 6, backgroundColor: "#7C3AED", borderRadius: 999, paddingHorizontal: 14, minHeight: 36, marginTop: 4 }, // V50.z227
+  configureNowTxt: { color: "#FFF", fontWeight: "900", fontSize: 12.5 },
   queueFailedBadge: { backgroundColor: "#DC2626", borderRadius: 999, minWidth: 15, height: 15, alignItems: "center", justifyContent: "center", paddingHorizontal: 3, marginLeft: 2 }, // V50.z225
   queueFailedBadgeTxt: { color: "#FFF", fontSize: 9, fontWeight: "900" },
 
