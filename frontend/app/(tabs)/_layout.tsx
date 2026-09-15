@@ -1,4 +1,4 @@
-import { Tabs, Redirect, useRouter } from "expo-router";
+import { Tabs, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
@@ -13,7 +13,6 @@ const TAB_BORDER = "#EEF0F4";
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
-  const router = useRouter();
   // V50.z167 — Stesso valore della PersistentBottomNav (hook condiviso, con fallback
   // initialWindowMetrics): prima `Math.max(insets.bottom, 20)` locale → in Home la barra
   // risultava attaccata alla navigation bar Android (insets.bottom=0 dentro lo Stack).
@@ -112,13 +111,6 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "help-circle" : "help-circle-outline"} size={24} color={color} />
           ),
-        }}
-        listeners={{
-          // V50.z141 — Il tab Help apre direttamente la guida / tour guidato (libretto)
-          tabPress: (e) => {
-            e.preventDefault();
-            router.push("/libretto" as any);
-          },
         }}
       />
       <Tabs.Screen

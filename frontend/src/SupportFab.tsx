@@ -92,6 +92,23 @@ export function SupportFab() {
 
 function SupportSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const bottomPad = useBottomSheetPadding();
+  return (
+    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <View style={styles.backdrop}>
+        <View style={[styles.sheet, { paddingBottom: bottomPad + 8 }]}>
+          <View style={styles.handle} />
+          <SupportForm visible={visible} onClose={onClose} />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/**
+ * V50.z254 — Form «Richiesta aiuto» riutilizzabile: nel bottom sheet (SupportSheet) oppure INLINE
+ * nella schermata principale Help (`(tabs)/help.tsx`). Ticket → /support/tickets (+ risposte AI di Axon, feedback, escalation al Master).
+ */
+export function SupportForm({ visible = true, onClose, inline = false }: { visible?: boolean; onClose?: () => void; inline?: boolean }) {
   const router = useRouter();
   const [presets, setPresets] = useState<Preset[]>([]);
   const [checks, setChecks] = useState<Record<string, boolean>>({});
@@ -193,11 +210,12 @@ function SupportSheet({ visible, onClose }: { visible: boolean; onClose: () => v
   const escalated = ticket?.status === "escalated";
   const resolved = ticket?.status === "resolved";
 
+  const Body: any = inline ? View : ScrollView;
+  const bodyProps = inline
+    ? { style: { padding: 14, gap: 10 } }
+    : { ref: scrollRef, style: { maxHeight: 500 }, contentContainerStyle: { padding: 14, gap: 10 }, keyboardShouldPersistTaps: "handled" as const };
   return (
-    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.backdrop}>
-        <View style={[styles.sheet, { paddingBottom: bottomPad + 8 }]}>
-          <View style={styles.handle} />
+    <View style={inline ? styles.inlineCard : undefined} testID={inline ? "support-form-inline" : undefined}>
           <View style={styles.hdrRow}>
             <View style={styles.hdrIcon}><Ionicons name="help-circle" size={20} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
@@ -209,14 +227,16 @@ function SupportSheet({ visible, onClose }: { visible: boolean; onClose: () => v
                   : "Descrivi il problema"}
               </Text>
             </View>
-            <Pressable onPress={onClose} hitSlop={10} testID="support-close">
-              <Ionicons name="close" size={22} color={C.navy} />
-            </Pressable>
+            {onClose ? (
+              <Pressable onPress={onClose} hitSlop={10} testID="support-close">
+                <Ionicons name="close" size={22} color={C.navy} />
+              </Pressable>
+            ) : null}
           </View>
 
           {/* V50.z17 — Link ai termini d'uso HELP CENTER + richiesta cancellazione dati */}
           <Pressable
-            onPress={() => { onClose(); setTimeout(() => router.push("/help-center" as any), 100); }}
+            onPress={() => { onClose?.(); setTimeout(() => router.push("/help-center" as any), 100); }}
             style={styles.termsRow}
             testID="open-help-center-terms"
           >
@@ -228,12 +248,7 @@ function SupportSheet({ visible, onClose }: { visible: boolean; onClose: () => v
             <Ionicons name="chevron-forward" size={18} color={C.muted} />
           </Pressable>
 
-          <ScrollView
-            ref={scrollRef}
-            style={{ maxHeight: 500 }}
-            contentContainerStyle={{ padding: 14, gap: 10 }}
-            keyboardShouldPersistTaps="handled"
-          >
+          <Body {...bodyProps}>
             {/* Conversazione */}
             {ticket?.messages.map((m, i) => (
               <View key={i} style={[styles.msg, m.from === "user" ? styles.msgUser : styles.msgAi]}>
@@ -355,14 +370,13 @@ function SupportSheet({ visible, onClose }: { visible: boolean; onClose: () => v
                 </Pressable>
               </>
             ) : null}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+          </Body>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  inlineCard: { backgroundColor: "#FFF", borderRadius: 16, borderWidth: 1, borderColor: "#E2E8F0", overflow: "hidden", marginBottom: 14 },
   fab: {
     position: "absolute",
     // V50.d — Distanziato con MARGINE DI SICUREZZA dall'avatar personale:

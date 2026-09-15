@@ -23,10 +23,11 @@ export const HELP_CENTER_SEEN_KEY = "helpcenter_seen_v1";
 export default function HelpCenterScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ onboarding?: string; from?: string }>();
+  const params = useLocalSearchParams<{ onboarding?: string; from?: string; deletion?: string }>();
   const isOnboarding = params?.onboarding === "1";
   const pagePad = usePageBottomPadding();
-  const [askOpen, setAskOpen] = useState(false);
+  // V50.z254 — ?deletion=1 (dal tab Help) apre subito il form di richiesta cancellazione dati
+  const [askOpen, setAskOpen] = useState(params?.deletion === "1");
   const [reason, setReason] = useState("");
   const [sending, setSending] = useState(false);
   const isMaster = !user?.parent_user_id;
