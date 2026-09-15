@@ -21,6 +21,9 @@ type Card = {
 const CARDS: Card[] = [
   // V50.z34 — Palette semantica AdvisorOS Pro (categorie: AI/Axon viola, Comunicazioni arancione, Documenti verde)
   // AI & Axon
+  // V50.z249 — spostato qui da Profilo & Impostazioni (nome/voce/tono assistente, header tabelle, memoria «cosa sa di me», Le mie aree)
+  { id: "axon-settings", href: "/impostazioni?section=axon", icon: "settings", color: "#7C3AED",
+    title: "⚙️ Assistente & Header tabella", sub: "Nome, voce, tono di AxonOS · intestazione tabelle · memoria personale · Le mie aree" },
   { id: "ai-teach", href: "/ai-teach", icon: "sparkles", color: "#7C3AED",
     title: "✨ Insegna ad Axon", sub: "Regole per categoria + fonti URL con aggiornamento Tavily" },
   { id: "documenti-axon", href: "/documenti-axon", icon: "library", color: "#7C3AED",

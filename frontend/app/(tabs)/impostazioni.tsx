@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Image, Share, Platform, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { SettingsGroupButton, SettingsLinkRows, ChangePasswordCard, SECTION_META, type SettingsSection } from "@/src/SettingsHub"; // V50.z249
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -61,6 +62,11 @@ export default function ImpostazioniRoute() {
 function ImpostazioniScreen() {
   const { user, logout, refresh } = useAuth();
   const router = useRouter();
+  // V50.z249 — Ristrutturazione: hub (nessuna sezione) → bottoni raggruppati; `?section=` mostra solo i blocchi della sezione.
+  const params = useLocalSearchParams<{ section?: string }>();
+  const sec: SettingsSection | null = (["security", "billing", "branding", "integrations", "general", "axon"] as const).includes(params.section as any) ? (params.section as SettingsSection) : null;
+  const openSection = (k: SettingsSection) => router.push(`/impostazioni?section=${k}` as any);
+  const isOwner = !user?.parent_user_id;
   const pagePad = usePageBottomPadding();
   const [s, setS] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -404,40 +410,101 @@ function ImpostazioniScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      <View style={styles.header}><Text style={styles.title}>Profilo & Impostazioni</Text></View>
+      <View style={[styles.header, { flexDirection: "row", alignItems: "center", gap: 10 }]}>
+        {sec ? (
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/impostazioni" as any))} hitSlop={10} testID="settings-back" accessibilityLabel="Indietro">
+            <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          </Pressable>
+        ) : null}
+        <Text style={[styles.title, { flex: 1 }]} numberOfLines={1}>{sec ? SECTION_META[sec].title : "Profilo & Impostazioni"}</Text>
+      </View>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: pagePad }}>
+        {/* V50.z249 — HUB: card Profilo Master (foto, nome, ruolo, azienda) + bottoni raggruppati */}
+        {sec === null && (<>
+          <View style={styles.card} testID="profile-master-card">
+            <View style={styles.profileHead}>
+              <Pressable testID="profile-avatar-btn" onPress={changeAvatar} style={styles.avatarWrap} disabled={avatarBusy}>
+                {user?.avatar_base64 ? <Image source={{ uri: user.avatar_base64 }} style={styles.avatarImg} /> : <View style={styles.avatar}><Text style={styles.avatarTxt}>{user?.name?.[0]?.toUpperCase()}</Text></View>}
+                <View style={styles.avatarBadge}>{avatarBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="camera" size={14} color="#FFF" />}</View>
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.name}>{user?.name}</Text>
+                <Text style={styles.email}>{user?.email}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <Text style={styles.roleBadge}>{isOwner ? "Master · Owner" : "Collaboratore"}</Text>
+                  {companyName ? <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 6 }} numberOfLines={1}>🏢 {companyName}</Text> : null}
+                </View>
+              </View>
+            </View>
+          </View>
+          <SettingsGroupButton section="billing" onPress={() => openSection("billing")} />
+          <View style={{ gap: 10 }}>
+            <Pressable onPress={() => router.push("/axon-notifications?tab=prefs" as any)} style={hubStyles.group} testID="settings-group-notifications">
+              <View style={[hubStyles.groupIcon, { backgroundColor: "#F59E0B1A" }]}><Ionicons name="notifications" size={22} color="#F59E0B" /></View>
+              <View style={{ flex: 1 }}><Text style={hubStyles.groupTitle}>Notifiche e Avvisi</Text><Text style={hubStyles.groupSub}>Push, promemoria, copie team, livelli di urgenza</Text></View>
+              <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+            </Pressable>
+            <SettingsGroupButton section="security" onPress={() => openSection("security")} />
+            {isOwner ? <SettingsGroupButton section="branding" onPress={() => openSection("branding")} /> : null}
+            <SettingsGroupButton section="integrations" onPress={() => openSection("integrations")} />
+            <SettingsGroupButton section="general" onPress={() => openSection("general")} />
+          </View>
+          <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center" }}>Le impostazioni dell'assistente AxonOS (nome, voce, tono, header tabelle, memoria, Insegna ad Axon) sono in AxonOS Center.</Text>
+        </>)}
+        {/* V50.z249 — Sicurezza: PIN/biometria Spazio Personale, blocco app & 2FA, cambio password */}
+        {sec === "security" && (<>
+          <SettingsLinkRows rows={[
+            { label: "PIN e biometria · Spazio Personale", sub: "Cambia PIN, FaceID/impronta, recupero via email", icon: "finger-print", href: "/spazio-personale", testID: "sec-personal-lock" },
+            { label: "Blocco app & Autenticazione a due fattori", sub: "Blocco con PIN all'apertura, 2FA, dispositivi", icon: "shield-checkmark", href: "/security", testID: "sec-app-lock" },
+            { label: "Come proteggiamo i tuoi dati", icon: "shield-half", href: "/security-info", testID: "sec-info" },
+          ]} />
+          <ChangePasswordCard />
+        </>)}
+        {/* V50.z249 — Integrazioni */}
+        {sec === "integrations" && (
+          <SettingsLinkRows rows={[
+            { label: "SMTP · invio email", sub: "Server, porta, credenziali per le comunicazioni", icon: "mail", href: "/smtp", testID: "int-smtp" },
+            { label: "Account email (IMAP / Outlook)", sub: "Caselle collegate al CRM", icon: "mail-unread", href: "/email-accounts", testID: "int-email" },
+            { label: "Google Drive", sub: "Backup e documenti", icon: "logo-google", href: "/google-drive", testID: "int-drive" },
+            { label: "Dropbox", icon: "cloud", href: "/dropbox", testID: "int-dropbox" },
+            { label: "Outlook", icon: "logo-microsoft", href: "/outlook", testID: "int-outlook" },
+            { label: "API & integrazioni AxonOS (Business / Home)", sub: "Home Assistant, servizi esterni", icon: "code-slash", href: "/axon-integrations", testID: "int-api" },
+          ]} />
+        )}
+        {/* V50.z249 — Personalizzazione aziendale: pannello logo/P.IVA/firma + blocchi esistenti (branding PDF, sede, email) */}
+        {sec === "branding" && (
+          <SettingsLinkRows rows={[{ label: "Logo aziendale, P.IVA e firma documenti", sub: "Logo nell'header per tutta l'organizzazione, ragione sociale, firma PDF", icon: "business", href: "/personalizzazione-aziendale", testID: "brand-org" }]} />
+        )}
+        {/* V50.z249 — Preferenze generali: lingua e tema */}
+        {sec === "general" && (
+          <View style={styles.card} testID="general-prefs-card">
+            <Text style={styles.sectionTitle}>Lingua e tema</Text>
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+              <View style={hubStyles.pill}><Ionicons name="language" size={14} color={theme.color.brandPrimary} /><Text style={hubStyles.pillTxt}>Italiano</Text></View>
+              <View style={hubStyles.pill}><Ionicons name="sunny" size={14} color={theme.color.brandPrimary} /><Text style={hubStyles.pillTxt}>Tema chiaro</Text></View>
+            </View>
+            <Text style={styles.hint}>Altre lingue e il tema scuro arriveranno nei prossimi aggiornamenti.</Text>
+          </View>
+        )}
+        {sec === "billing" && (<>
         {/* V50.z208 — In cima, sempre visibile: piano attivo + versione APK installata (tap → dettagli aggiornamento) */}
         <AppInfoCard />
         {/* V50.z211 — Configurazione guidata «Set Up and Go» (accesso in qualsiasi momento, anche dopo «Dopo») */}
         <SetupEntryCard />
         <SetupProcessingBadge compact />
         <FutureInterestsAlert />
+        </>)}
+        {sec === "axon" && (<>
         {/* V50.z192 — Profilo → Memoria AxonOS: cosa sa Axon di me */}
         <AxonMemoryEntryCard />
-        <View style={styles.card}>
-          <View style={styles.profileHead}>
-            <Pressable testID="profile-avatar-btn" onPress={changeAvatar} style={styles.avatarWrap} disabled={avatarBusy}>
-              {user?.avatar_base64 ? (
-                <Image source={{ uri: user.avatar_base64 }} style={styles.avatarImg} />
-              ) : (
-                <View style={styles.avatar}><Text style={styles.avatarTxt}>{user?.name?.[0]?.toUpperCase()}</Text></View>
-              )}
-              <View style={styles.avatarBadge}>
-                {avatarBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="camera" size={14} color="#FFF" />}
-              </View>
-            </Pressable>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{user?.name}</Text>
-              <Text style={styles.email}>{user?.email}</Text>
-              <Text style={styles.roleBadge}>{user?.parent_user_id ? "Collaboratore" : "Owner"}</Text>
-            </View>
-          </View>
-        </View>
+        </>)}
+        {/* V50.z249 — vecchia card profilo rimossa: ora nella HUB in cima */}
 
         {/* V50.z52 — Master card RIMOSSA: già disponibile nell'hub
             "Impostazioni & Configurazioni" del Master (→ Biglietto da visita
             + Anagrafica & DB Master). Evita duplicazione UI. */}
 
+        {sec === "branding" && (<>
         {/* V38H — Additional emails management (used as sender for birthday/comms) */}
         <View style={styles.linkCard}>
           <Ionicons name="mail-open" size={26} color={theme.color.brandPrimary} />
@@ -512,11 +579,13 @@ function ImpostazioniScreen() {
           </View>
         </View>
 
+        </>)}
         {/* V50.z52 — Link cards di navigazione RIMOSSI (Team, Script,
             Axon Center, Libretto, Tour, Invita, Gruppi, Sicurezza, Drive,
             Dropbox): tutti presenti nell'hub "Impostazioni & Configurazioni"
             del Master. Qui restano SOLO i form di configurazione. */}
 
+        {sec === "branding" && (<>
         {/* V38I — Branding aziendale for PDF reports (owner only) */}
         {!user?.parent_user_id && (
           <View style={styles.card} testID="branding-card">
@@ -627,7 +696,9 @@ function ImpostazioniScreen() {
             </Text>
           </View>
         )}
+        </>)}
 
+        {sec === "axon" && (<>
         {/* V50.z140 — Header tabelle AxonOS (owner only) */}
         {!user?.parent_user_id && (
           <View style={styles.card} testID="table-header-card">
@@ -709,7 +780,9 @@ function ImpostazioniScreen() {
             </Text>
           </View>
         )}
+        </>)}
 
+        {sec === "axon" && (<>
         {/* AI Assistant customization — available to all users */}
         <View style={styles.card} testID="assistant-name-card">
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -839,10 +912,12 @@ function ImpostazioniScreen() {
           )}
         </View>
 
+        </>)}
         {/* V50.z52 — SMTP link RIMOSSO: presente nell'hub Master → Comunicazioni. */}
 
         {/* V50.z16 — Neo Memory rimosso: ora dentro Axon Center (💾 Memoria Assistente) */}
 
+        {sec === "branding" && (<>
         {!user?.parent_user_id && (
         <View style={styles.card}>
           {/* Sezioni "Script telefonata (widget floating)" e "Messaggio WhatsApp Chiedi Referenze"
@@ -863,7 +938,9 @@ function ImpostazioniScreen() {
           </Text>
         </View>
         )}
+        </>)}
 
+        {sec === "general" && (<>
         {!user?.parent_user_id && (
         <View style={styles.card}>
           <CatHeader color="#0EA5E9" label="CRM · Personalizza aree" icon="briefcase" />
@@ -899,9 +976,11 @@ function ImpostazioniScreen() {
           </Pressable>
         </View>
         )}
+        </>)}
 
         {/* V50.z113 — CRM · Aree: albero Area > Sottocategoria (card collassabili, colore a scomparsa,
             descrizione uso, permessi, Archivia/Elimina, Nuova area). Le modifiche salvano subito. */}
+        {sec === "general" && (<>
         {!user?.parent_user_id && (
         <View style={styles.card}>
           <CatHeader color="#0EA5E9" label="CRM · Aree" icon="git-branch" />
@@ -918,7 +997,9 @@ function ImpostazioniScreen() {
           />
         </View>
         )}
+        </>)}
 
+        {sec === "general" && (<>
         {!user?.parent_user_id && (
         <View style={styles.card}>
           <CatHeader color="#0EA5E9" label="CRM · Aree merceologiche & Appuntamenti" icon="calendar" />
@@ -949,7 +1030,9 @@ function ImpostazioniScreen() {
           )}
         </View>
         )}
+        </>)}
 
+        {sec === "general" && (<>
         {!user?.parent_user_id && (
         <View style={styles.card}>
           <CatHeader color="#10B981" label="Anagrafica & DB · Categorie prodotti" icon="id-card" />
@@ -997,6 +1080,7 @@ function ImpostazioniScreen() {
           ))}
         </View>
         )}
+        </>)}
 
         {/* V50.z52 — Logout RIMOSSO: presente nell'hub Master (in fondo). */}
       </ScrollView>
@@ -1122,4 +1206,14 @@ const dashLinkStyles = StyleSheet.create({
   iconBox: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.brandPrimary + "22" },
   title: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
   sub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+});
+
+// V50.z249 — stili hub locali (bottone gruppo Notifiche + pill preferenze)
+const hubStyles = StyleSheet.create({
+  group: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.color.surface, borderRadius: 16, padding: 14, minHeight: 64, borderWidth: 1, borderColor: theme.color.border },
+  groupIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  groupTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
+  groupSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 36, borderRadius: 999, backgroundColor: theme.color.brandTertiary },
+  pillTxt: { fontSize: 13, fontWeight: "700", color: theme.color.brandPrimary },
 });

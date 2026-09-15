@@ -447,3 +447,36 @@ async def delete_my_account(body: DeleteAccountIn, authorization: Optional[str] 
 
 
 # =========================
+
+
+# ── V50.z249 — Cambio password (utente autenticato, verifica password attuale, bcrypt; nessuna sessione invalidata) ──
+class ChangePasswordIn(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=8, max_length=64)
+    new_password_confirm: str = Field(min_length=8, max_length=64)
+
+
+_CHPWD_ATTEMPTS: Dict[str, List[float]] = {}
+
+
+@api_router.post("/auth/change-password", status_code=204)
+async def auth_change_password(body: ChangePasswordIn, user=Depends(get_current_user)):
+    import time as _t
+    uid = user["user_id"]
+    now = _t.time()
+    hits = [t for t in _CHPWD_ATTEMPTS.get(uid, []) if now - t < 900]
+    if len(hits) >= 5:
+        raise HTTPException(status_code=429, detail="Troppi tentativi. Riprova tra 15 minuti.")
+    if body.new_password != body.new_password_confirm:
+        raise HTTPException(status_code=422, detail="Le nuove password non coincidono")
+    if body.new_password == body.current_password:
+        raise HTTPException(status_code=422, detail="La nuova password deve essere diversa da quella attuale")
+    if len(body.new_password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=422, detail="Password troppo lunga")
+    doc = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 1})
+    if not doc or not doc.get("password_hash") or not verify_password(body.current_password, doc["password_hash"]):
+        _CHPWD_ATTEMPTS[uid] = hits + [now]
+        raise HTTPException(status_code=401, detail="Password attuale non corretta")
+    await db.users.update_one({"user_id": uid}, {"$set": {"password_hash": hash_password(body.new_password), "password_changed_at": utcnow()}})
+    _CHPWD_ATTEMPTS.pop(uid, None)
+    return Response(status_code=204)
