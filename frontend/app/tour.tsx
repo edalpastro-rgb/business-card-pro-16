@@ -122,9 +122,10 @@ function TalkToAxon({ say, onNext }: { say: (t: string) => Promise<void>; onNext
   useEffect(() => {
     if (!features.length) return;
     setLit(0);
-    const ivs = features.map((_, i) => setTimeout(() => setLit(i + 1), 500 + i * 650));
+    const ivs = features.map((_, i) => setTimeout(() => { setLit(i + 1); scrollRef.current?.scrollToEnd({ animated: true }); }, 500 + i * 650));
     return () => ivs.forEach(clearTimeout);
   }, [features]);
+  useEffect(() => { if (reply !== null) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80); }, [reply]);
 
   const elaborate = async (all: string[]) => {
     setBusy(true);
