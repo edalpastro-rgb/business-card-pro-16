@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform, Linking, TextInput, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform, TextInput, Modal } from "react-native";
 import Svg, { Rect, Text as SvgText, Line } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -914,18 +914,26 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         }
         return;
       }
-      // Native: write to cache and share/preview
-      const FileSystem = await import("expo-file-system/legacy");
-      const path = `${FileSystem.cacheDirectory}${bill.pdf_name || "fattura.pdf"}`;
-      await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(path, { mimeType: "application/pdf", UTI: "com.adobe.pdf" });
-      } else {
-        Linking.openURL(path);
+      // V50.z251 — Nativo: FileViewer interno (pagine renderizzate dal backend, zero CDN). Rimosso il fallback
+      // `Linking.openURL(file://…)` che su Android falliva in silenzio; base64 vuoto → messaggio visibile.
+      if (!b64 || b64.length < 100) {
+        notify("PDF non disponibile", "Il file di questa fattura è vuoto o non è stato salvato. Ricarica la bolletta o riscansionala.");
+        return;
       }
+      setViewerOpen({ name: r.pdf_name || bill.pdf_name || "fattura.pdf", mime: r.pdf_mime || "application/pdf", data_base64: b64 });
     } catch (e: any) {
-      notify("Errore apertura PDF", e?.message || "");
+      notify("Errore apertura PDF", e?.message || "Impossibile scaricare il file della fattura");
     }
+  };
+  // V50.z251 — Condividi dal viewer (nativo): scrive in cache e apre lo share sheet
+  const shareViewerFile = async () => {
+    if (!viewerOpen?.data_base64) return;
+    try {
+      const path = `${FileSystem.cacheDirectory}${(viewerOpen.name || "documento").replace(/[^\w.\-]+/g, "_")}`;
+      await FileSystem.writeAsStringAsync(path, viewerOpen.data_base64, { encoding: FileSystem.EncodingType.Base64 });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(path, { mimeType: viewerOpen.mime, UTI: viewerOpen.mime.includes("pdf") ? "com.adobe.pdf" : undefined });
+      else notify("Condivisione non disponibile", "Questo dispositivo non supporta la condivisione file.");
+    } catch (e: any) { notify("Condivisione non riuscita", e?.message || ""); }
   };
 
   const generateReport = async () => {
@@ -1705,6 +1713,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         mime={viewerOpen?.mime || "text/html"}
         dataBase64={viewerOpen?.data_base64 || ""}
         onClose={() => setViewerOpen(null)}
+        onShare={Platform.OS !== "web" ? shareViewerFile : undefined}
       />
       {/* v2.17 — Report header (branding) config modal */}
       <ReportHeaderConfigModal visible={headerCfgOpen} onClose={() => setHeaderCfgOpen(false)} />

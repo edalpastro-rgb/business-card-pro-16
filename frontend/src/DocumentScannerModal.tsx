@@ -267,15 +267,20 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
       }
       setSavingLbl("Salvataggio in I miei file…");
       const saves: Promise<unknown>[] = [
-        api("/master-files", { method: "POST", body: { category: "scanner", name: fname, mime: "application/pdf", data_base64: r.pdf_base64, size: bytes, source: source || (contactId ? "contact" : "widget"), source_contact_id: contactId || null, ocr_text: r.ocr_text || null, text_hash: r.text_hash || null } }),
+        // V50.z251 — dallo scanner Fatture il PDF va in Master Files › **Fatture** (category bills), altrove in › Scanner
+        api("/master-files", { method: "POST", body: { category: source === "bills" ? "bills" : "scanner", name: fname, mime: "application/pdf", data_base64: r.pdf_base64, size: bytes, source: source || (contactId ? "contact" : "widget"), source_contact_id: contactId || null, ocr_text: r.ocr_text || null, text_hash: r.text_hash || null } }),
       ];
       if (contactId) {
         saves.push(api(`/contacts/${contactId}/files`, { method: "POST", body: { name: fname, mime: "application/pdf", data_base64: r.pdf_base64, size: bytes } }));
       }
       const results = await Promise.allSettled(saves);
       const failed = results.filter((x) => x.status === "rejected") as PromiseRejectedResult[];
-      if (failed.length) notify("Salvataggio parziale", failed.map((f) => String((f.reason as any)?.message || f.reason)).join(" · "));
-      else notify("PDF salvato ✅", contactId ? "In I miei file › Scanner e nei file del cliente" : "In I miei file › Scanner");
+      const tabLabel = source === "bills" ? "Fatture" : "Scanner";
+      if (failed.length) {
+        // V50.z251 — errore VISIBILE (es. archivio file 503 «Archivio file non disponibile, riprova»): niente fallimenti silenziosi
+        const msgs = failed.map((f) => String((f.reason as any)?.message || f.reason));
+        notify("Salvataggio non completato ⚠️", `${msgs.join(" · ")}\n\nIl PDF NON è stato archiviato in I miei file › ${tabLabel}. Riprova tra qualche istante.`);
+      } else notify("PDF salvato ✅", contactId ? `In I miei file › ${tabLabel} e nei file del cliente` : `In I miei file › ${tabLabel}`);
       await onSaved({ pdf_base64: r.pdf_base64, name: r.name, page_count: r.page_count, mime: "application/pdf" });
       onClose();
     } catch (e: any) {

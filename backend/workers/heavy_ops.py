@@ -517,23 +517,76 @@ def ocr_images(images: List[Image.Image], lang: str = "ita+eng", detect_orientat
     except Exception as exc:  # noqa: BLE001
         logger.warning("tesserocr non disponibile: %s", exc)
         return {"available": False, "texts": [""] * len(images), "confs": [], "rotations": [0] * len(images)}
-    texts: List[str] = []; confs: List[float] = []; rotations: List[int] = []
+    texts: List[str] = []; confs: List[float] = []; rotations: List[int] = []; lines_all: List[List[dict]] = []
     with _t.PyTessBaseAPI(path=_TESSDATA, lang=lang, psm=_t.PSM.AUTO) as api:
-        def _run(im: Image.Image) -> Tuple[str, float]:
+        def _lines(scale: float) -> List[dict]:
+            """Righe di testo con box (coordinate dell'immagine ORIGINALE) → livello testo invisibile nel PDF."""
+            out: List[dict] = []
+            try:
+                ri = api.GetIterator()
+                lvl = _t.RIL.TEXTLINE
+                for r in _t.iterate_level(ri, lvl):
+                    try:
+                        t = (r.GetUTF8Text(lvl) or "").strip()
+                        if not t:
+                            continue
+                        x0, y0, x1, y1 = r.BoundingBox(lvl)
+                        out.append({"text": t, "box": [x0 / scale, y0 / scale, x1 / scale, y1 / scale]})
+                    except Exception:  # noqa: BLE001
+                        continue
+            except Exception:  # noqa: BLE001
+                pass
+            return out
+
+        def _run(im: Image.Image, scale: float) -> Tuple[str, float, List[dict]]:
             api.SetImage(im)
             try:
-                return (api.GetUTF8Text() or "").strip(), float(api.MeanTextConf() or 0.0)
+                txt = (api.GetUTF8Text() or "").strip()
+                return txt, float(api.MeanTextConf() or 0.0), _lines(scale)
             except Exception:  # noqa: BLE001
-                return "", 0.0
+                return "", 0.0, []
         for img in images:
             g = _ocr_prepare(img)
-            txt, conf = _run(g); rot = 0
+            scale = g.size[0] / float(max(1, ImageOps.exif_transpose(img).size[0]))
+            txt, conf, lines = _run(g, scale); rot = 0
             if detect_orientation and (conf < 60.0 or len(txt) < 20):
-                txt2, conf2 = _run(g.rotate(180, expand=True))
+                txt2, conf2, lines2 = _run(g.rotate(180, expand=True), scale)
                 if conf2 > conf + 8.0 and len(txt2) >= len(txt) * 0.8:
-                    txt, conf, rot = txt2, conf2, 180
-            texts.append(txt); confs.append(conf); rotations.append(rot)
-    return {"available": True, "texts": texts, "confs": confs, "rotations": rotations}
+                    txt, conf, rot, lines = txt2, conf2, 180, lines2
+            texts.append(txt); confs.append(conf); rotations.append(rot); lines_all.append(lines)
+    return {"available": True, "texts": texts, "confs": confs, "rotations": rotations, "lines": lines_all}
+
+
+def _pdf_with_text_layer(images: List[Image.Image], lines_per_page: List[List[dict]], dpi: float = 150.0) -> bytes:
+    """V50.z250 — PDF «ricercabile»: ogni pagina = immagine + livello di testo OCR INVISIBILE (PyMuPDF, render_mode=3)
+    posizionato sulle righe rilevate da Tesseract → pypdf/PyMuPDF estraggono il testo (analisi bolletta, ricerca)."""
+    import pymupdf as fitz  # PyMuPDF
+    doc = fitz.open()
+    for i, img in enumerate(images):
+        w_px, h_px = img.size
+        w_pt, h_pt = w_px * 72.0 / dpi, h_px * 72.0 / dpi
+        page = doc.new_page(width=w_pt, height=h_pt)
+        jb = io.BytesIO(); img.save(jb, format="JPEG", quality=88)
+        page.insert_image(page.rect, stream=jb.getvalue())
+        k = 72.0 / dpi
+        for ln in (lines_per_page[i] if i < len(lines_per_page) else []):
+            x0, y0, x1, y1 = ln["box"]
+            h = max(4.0, (y1 - y0) * k)
+            fs = max(4.0, min(h * 0.85, 40.0))
+            # larghezza: adatta il font perché il testo copra circa la riga (migliora la selezione/estrazione)
+            try:
+                tw = fitz.get_text_length(ln["text"], fontname="helv", fontsize=fs)
+                if tw > 0:
+                    fs = max(3.0, min(fs, fs * ((x1 - x0) * k) / tw))
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                page.insert_text(fitz.Point(x0 * k, y0 * k + h * 0.8), ln["text"], fontname="helv", fontsize=fs, render_mode=3)
+            except Exception:  # noqa: BLE001
+                continue
+    out = doc.tobytes(garbage=3, deflate=True)
+    doc.close()
+    return out
 
 
 def merge_pdf(pages: List[Dict[str, Any]], enhance: bool = True, autocrop: bool = True, grayscale: bool = False, ocr: bool = True) -> Dict[str, Any]:
@@ -564,7 +617,7 @@ def merge_pdf(pages: List[Dict[str, Any]], enhance: bool = True, autocrop: bool 
                     raise ValueError(f"Pagina {i + 1}: immagine non valida")
     if not images:
         raise ValueError("Nessuna pagina elaborabile")
-    ocr_text = ""; ocr_conf = None
+    ocr_text = ""; ocr_conf = None; lines: List[List[dict]] = []
     if ocr:
         try:
             o = ocr_images(images)
@@ -572,17 +625,53 @@ def merge_pdf(pages: List[Dict[str, Any]], enhance: bool = True, autocrop: bool 
                 for i, rot in enumerate(o["rotations"]):
                     if rot:
                         images[i] = images[i].rotate(rot, expand=True)
+                        # box calcolati sull'immagine ruotata: ruota anche le coordinate (180° → specchia)
+                        W, H = images[i].size
+                        o["lines"][i] = [{"text": l["text"], "box": [W - l["box"][2], H - l["box"][3], W - l["box"][0], H - l["box"][1]]} for l in o["lines"][i]] if rot == 180 else o["lines"][i]
                 ocr_text = "\f".join(o["texts"]).strip()
                 good = [c for c in o["confs"] if c > 0]
                 ocr_conf = round(sum(good) / len(good), 1) if good else None
+                lines = o.get("lines") or []
         except Exception as exc:  # noqa: BLE001
             logger.warning("ocr failed: %s", exc)
+    # V50.z250 — PDF con livello testo invisibile (prima: PIL sola immagine → analisi bolletta «PDF vuoto»)
+    if ocr_text:
+        try:
+            return {"pdf": _pdf_with_text_layer(images, lines), "page_count": len(images), "ocr_text": ocr_text, "ocr_conf": ocr_conf, "text_layer": True}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("text layer failed, fallback PIL: %s", exc)
     buf = io.BytesIO()
     images[0].save(buf, format="PDF", save_all=True, append_images=images[1:], resolution=150.0)
-    return {"pdf": buf.getvalue(), "page_count": len(images), "ocr_text": ocr_text, "ocr_conf": ocr_conf}
+    return {"pdf": buf.getvalue(), "page_count": len(images), "ocr_text": ocr_text, "ocr_conf": ocr_conf, "text_layer": False}
 
 
 # ============================================================================ PDF (PyMuPDF / pdfplumber / pypdfium2)
+def pdf_ocr(data: bytes, max_pages: int = 6, dpi: int = 150) -> Dict[str, Any]:
+    """V50.z250 — OCR di un PDF SENZA layer testuale: rasterizza le pagine (PyMuPDF) → Tesseract locale. {text, pages, available}."""
+    import pymupdf as fitz
+    images: List[Image.Image] = []
+    with fitz.open(stream=data, filetype="pdf") as pdf:
+        for page in list(pdf)[:max_pages]:
+            pix = page.get_pixmap(dpi=dpi, colorspace=fitz.csRGB)
+            images.append(Image.frombytes("RGB", (pix.width, pix.height), pix.samples))
+    if not images:
+        return {"available": True, "text": "", "pages": 0}
+    o = ocr_images(images)
+    return {"available": bool(o.get("available")), "text": "\n".join(t for t in o.get("texts", []) if t).strip(), "pages": len(images)}
+
+
+def pdf_render(data: bytes, max_pages: int = 15, dpi: int = 110, start: int = 0) -> Dict[str, Any]:
+    """V50.z251 — Pagine PDF → JPEG (PyMuPDF) per il visualizzatore in-app nativo (niente pdf.js/CDN). {pages: [bytes], total}."""
+    import pymupdf as fitz
+    out: List[bytes] = []
+    with fitz.open(stream=data, filetype="pdf") as pdf:
+        total = pdf.page_count
+        for page in list(pdf)[start:start + max_pages]:
+            pix = page.get_pixmap(dpi=dpi, colorspace=fitz.csRGB)
+            out.append(pix.tobytes("jpeg", jpg_quality=82))
+    return {"pages": out, "total": total, "start": start}
+
+
 def pdf_text(data: bytes, max_pages: int = 30, max_chars: int = 8000) -> Dict[str, Any]:
     """Testo delle pagine (PyMuPDF). max_pages=0 → tutte; il taglio a max_chars avviene sulla pagina che supera il limite."""
     import pymupdf as fitz
@@ -695,6 +784,7 @@ def pdf_cover(data: bytes) -> Dict[str, Any]:
 
 OPS = {
     "scan_document": scan_document, "manual_crop": manual_crop, "detect_corners": detect_corners, "autocrop_preview": autocrop_preview, "merge_pdf": merge_pdf,
+    "pdf_ocr": pdf_ocr, "pdf_render": pdf_render,
     "ocr_images": lambda images, **kw: ocr_images([Image.open(io.BytesIO(b)).convert("RGB") for b in images], **kw),
     "pdf_text": pdf_text, "pdf_page_count": pdf_page_count, "pdf_render_pages": pdf_render_pages, "pdf_tables_text": pdf_tables_text, "pdf_cover": pdf_cover,
 }

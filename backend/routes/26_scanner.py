@@ -136,3 +136,27 @@ def _scan_text_hash(text: str) -> Optional[str]:
 
 
 # =========================================================================
+
+
+# ── V50.z251 — Visualizzatore PDF in-app (nativo): pagine rasterizzate dal worker, zero CDN ──────────────────────────────
+class PdfPagesIn(BaseModel):
+    pdf_base64: str
+    start: int = 0
+    max_pages: int = Field(default=12, ge=1, le=40)
+    dpi: int = Field(default=110, ge=50, le=200)
+
+
+@api_router.post("/files/pdf-pages")
+async def files_pdf_pages(body: PdfPagesIn, user=Depends(get_current_user)):
+    b64 = body.pdf_base64.split(",", 1)[1] if body.pdf_base64.startswith("data:") else body.pdf_base64
+    try:
+        raw = base64.b64decode(b64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="PDF base64 non valido")
+    if not raw:
+        raise HTTPException(status_code=400, detail="PDF vuoto")
+    try:
+        r = await heavy_call("pdf_render", data=raw, max_pages=body.max_pages, dpi=body.dpi, start=body.start, timeout=120)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=422, detail=f"Impossibile rendere il PDF: {exc}")
+    return {"pages": [base64.b64encode(p).decode() for p in r["pages"]], "total": r["total"], "start": r["start"]}

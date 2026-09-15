@@ -99,6 +99,13 @@ Schema JSON atteso:
 }"""
 
 
+async def _ocr_pdf_fallback(pdf_base64: str, max_pages: int = 6) -> str:
+    """V50.z250 — Testo da PDF SENZA layer testuale (scansione/foto): heavy worker `pdf_ocr` (PyMuPDF → Tesseract locale)."""
+    b64 = pdf_base64.split(",", 1)[1] if pdf_base64.startswith("data:") else pdf_base64
+    r = await heavy_call("pdf_ocr", data=base64.b64decode(b64), max_pages=max_pages, timeout=240)
+    return (r.get("text") or "").strip() if r.get("available") else ""
+
+
 def _extract_pdf_text(pdf_base64: str) -> str:
     """Extract text from a base64-encoded PDF using pypdf."""
     b64 = pdf_base64
@@ -229,6 +236,12 @@ async def _analyze_bill_task(bill_id: str):
             return
         await db.energy_bills.update_one({"bill_id": bill_id}, {"$set": {"status": "analyzing"}})
         text = _extract_pdf_text(bill["pdf_base64"])
+        if not text or len(text.strip()) < 20:
+            # V50.z250 — PDF senza livello testo (scansione/foto): OCR Tesseract locale sulle pagine rasterizzate (heavy worker)
+            try:
+                text = await _ocr_pdf_fallback(bill["pdf_base64"])
+            except Exception as _e:  # noqa: BLE001
+                logger.warning("bill OCR fallback failed: %s", _e)
         if not text or len(text.strip()) < 20:
             # respect cancellation
             curr = await db.energy_bills.find_one({"bill_id": bill_id}, {"status": 1})

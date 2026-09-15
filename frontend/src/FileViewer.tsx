@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, Platform, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Modal, Pressable, Platform, ActivityIndicator, ScrollView, Image, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme } from "@/src/theme";
 import { WebView } from "react-native-webview";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
+import { api } from "@/src/api";
 
 type Props = {
   visible: boolean;
@@ -30,6 +32,8 @@ type Props = {
  * PDF / analysis without leaving the viewer.
  */
 export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onShare }: Props) {
+  const insets = useSafeAreaInsets(); // V50.z251 — header sotto la status bar/notch (prima paddingTop fisso → titolo sopra i bottoni)
+  const { width: winW } = useWindowDimensions();
   const isPdf = mime.toLowerCase().includes("pdf");
   const isImg = mime.toLowerCase().startsWith("image/");
   const isHtml = mime.toLowerCase().includes("html");
@@ -113,119 +117,35 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
   }, [isHtml, dataBase64]);
 
   /**
-   * Build a full HTML document that embeds PDF.js and renders the given
-   * base64-encoded PDF into a canvas. Works on Android WebView + mobile
-   * Chrome iframe without triggering the download dialog.
+   * V50.z251 — Nativo: PDF renderizzato come immagini dal backend (PyMuPDF, `POST /files/pdf-pages`).
+   * Prima: WebView + pdf.js da cdnjs → SCHERMO NERO quando il CDN è irraggiungibile/bloccato. Zero dipendenze esterne.
    */
-  const pdfJsHtml = useMemo(() => {
-    if (!isPdf || !dataBase64) return "";
-    return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes"/>
-<title>${escape(fileName)}</title>
-<style>
-  html, body { margin:0; padding:0; background:#1a1a1a; color:#fff; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; height:100%; overflow-y:auto; }
-  #toolbar { position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:8px; padding:8px 12px; background:rgba(0,0,0,0.85); backdrop-filter:blur(6px); border-bottom:1px solid #333; }
-  #toolbar button { background:#374151; color:#fff; border:none; padding:6px 12px; border-radius:8px; font-size:13px; cursor:pointer; }
-  #toolbar button:hover { background:#4B5563; }
-  #status { flex:1; font-size:12px; color:#9CA3AF; }
-  #pageBox { padding:12px; display:flex; flex-direction:column; gap:12px; align-items:center; }
-  canvas { max-width:100%; height:auto; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,0.5); border-radius:4px; }
-  #err { padding:20px; color:#F87171; text-align:center; }
-  #loader { padding:30px; text-align:center; color:#9CA3AF; font-size:13px; }
-  .spinner { display:inline-block; width:32px; height:32px; border:3px solid #4B5563; border-top-color:#60A5FA; border-radius:50%; animation:spin 0.8s linear infinite; margin-bottom:12px; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-</style>
-</head>
-<body>
-  <div id="toolbar">
-    <button id="prev">◀</button>
-    <span id="status">Caricamento…</span>
-    <button id="next">▶</button>
-    <button id="zoomOut">−</button>
-    <button id="zoomIn">+</button>
-  </div>
-  <div id="pageBox">
-    <div id="loader"><div class="spinner"></div><br/>Caricamento visualizzatore PDF…</div>
-  </div>
-  <div id="err" style="display:none"></div>
-  <script>
-    // V50.z56 — Timeout esplicito su pdf.js: se il CDN non risponde entro
-    // 8 secondi mostra un messaggio invece di lasciare lo schermo nero.
-    var cdnLoaded = false;
-    var cdnTimeout = setTimeout(function(){
-      if (!cdnLoaded && !window['pdfjsLib']) {
-        var l = document.getElementById('loader'); if (l) l.style.display='none';
-        var e = document.getElementById('err');
-        e.style.display='block';
-        e.innerHTML = 'Impossibile caricare il visualizzatore PDF (CDN irraggiungibile).<br/>' +
-                      'Controlla la connessione oppure usa <b>Condividi</b> per aprire il PDF esternamente.';
-      }
-    }, 8000);
-  </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" onload="cdnLoaded=true"></script>
-  <script>
-    (function(){
-      if (!window['pdfjsLib']) {
-        clearTimeout(cdnTimeout);
-        var l = document.getElementById('loader'); if (l) l.style.display='none';
-        var e = document.getElementById('err');
-        e.style.display='block';
-        e.innerText = 'Impossibile caricare il visualizzatore PDF (rete assente).';
-        return;
-      }
-      clearTimeout(cdnTimeout);
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      var b64 = ${JSON.stringify(dataBase64)};
-      // Convert base64 -> Uint8Array
-      var bin = atob(b64);
-      var bytes = new Uint8Array(bin.length);
-      for (var i=0; i<bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      var pdf = null;
-      var current = 1;
-      var scale = 1.2;
-      var box = document.getElementById('pageBox');
-      var status = document.getElementById('status');
-      function renderPage(n){
-        if (!pdf) return;
-        pdf.getPage(n).then(function(page){
-          var viewport = page.getViewport({ scale: scale });
-          var canvas = document.createElement('canvas');
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          var ctx = canvas.getContext('2d');
-          box.innerHTML = '';
-          box.appendChild(canvas);
-          page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function(){
-            status.innerText = 'Pagina ' + n + ' / ' + pdf.numPages;
-          });
-        });
-      }
-      pdfjsLib.getDocument({ data: bytes }).promise.then(function(_pdf){
-        pdf = _pdf;
-        current = 1;
-        renderPage(1);
-      }).catch(function(err){
-        var l = document.getElementById('loader'); if (l) l.style.display='none';
-        document.getElementById('err').style.display='block';
-        document.getElementById('err').innerText = 'Errore lettura PDF: ' + err.message;
-      });
-      document.getElementById('prev').onclick = function(){ if (pdf && current>1){ current--; renderPage(current); } };
-      document.getElementById('next').onclick = function(){ if (pdf && current<pdf.numPages){ current++; renderPage(current); } };
-      document.getElementById('zoomIn').onclick = function(){ scale = Math.min(3, scale + 0.2); renderPage(current); };
-      document.getElementById('zoomOut').onclick = function(){ scale = Math.max(0.5, scale - 0.2); renderPage(current); };
-    })();
-  </script>
-</body>
-</html>`;
-  }, [isPdf, dataBase64, fileName]);
+  const [pdfPages, setPdfPages] = useState<string[]>([]);
+  const [pdfTotal, setPdfTotal] = useState(0);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfErr, setPdfErr] = useState<string | null>(null);
+  const loadPages = async (start: number) => {
+    setPdfBusy(true); setPdfErr(null);
+    try {
+      const r = await api<{ pages: string[]; total: number; start: number }>("/files/pdf-pages", { method: "POST", body: { pdf_base64: dataBase64, start, max_pages: 8, dpi: 110 } });
+      setPdfTotal(r.total);
+      setPdfPages((prev) => (start === 0 ? r.pages : [...prev, ...r.pages]));
+    } catch (e: any) {
+      setPdfErr(e?.message || "Impossibile aprire il PDF");
+    } finally { setPdfBusy(false); }
+  };
+  useEffect(() => {
+    if (Platform.OS === "web" || !visible || !isPdf) return;
+    setPdfPages([]); setPdfTotal(0);
+    if (!dataBase64) { setPdfErr("Documento vuoto: il PDF non contiene dati."); return; }
+    void loadPages(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, isPdf, dataBase64]);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 8) + 8 }]}>
           <Pressable onPress={onClose} hitSlop={8} testID="fileviewer-close">
             <Ionicons name="chevron-back" size={24} color="#FFF" />
           </Pressable>
@@ -307,15 +227,23 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
               scalesPageToFit
             />
           ) : isPdf ? (
-            <WebView
-              source={{ html: pdfJsHtml }}
-              style={{ flex: 1, backgroundColor: "#111" }}
-              originWhitelist={["*"]}
-              javaScriptEnabled
-              domStorageEnabled
-              mixedContentMode="always"
-              onError={() => {}}
-            />
+            pdfErr ? (
+              <View style={styles.loading} testID="fileviewer-pdf-error">
+                <Ionicons name="alert-circle" size={40} color="#FCA5A5" />
+                <Text style={styles.loadingTxt}>{pdfErr}</Text>
+                <Pressable onPress={() => loadPages(0)} style={styles.retryBtn} testID="fileviewer-pdf-retry"><Text style={styles.retryTxt}>Riprova</Text></Pressable>
+              </View>
+            ) : (
+              <ScrollView style={{ flex: 1, backgroundColor: "#111" }} contentContainerStyle={{ paddingBottom: 40 }} maximumZoomScale={3} minimumZoomScale={1} testID="fileviewer-pdf-pages">
+                {pdfPages.map((p, i) => (
+                  <Image key={i} source={{ uri: `data:image/jpeg;base64,${p}` }} style={{ width: winW, height: winW * 1.414, backgroundColor: "#FFF", marginBottom: 6 }} resizeMode="contain" />
+                ))}
+                {pdfBusy ? <View style={{ padding: 24 }}><ActivityIndicator size="large" color="#FFF" /><Text style={styles.loadingTxt}>Preparazione pagine…</Text></View> : null}
+                {!pdfBusy && pdfPages.length < pdfTotal ? (
+                  <Pressable onPress={() => loadPages(pdfPages.length)} style={styles.retryBtn} testID="fileviewer-pdf-more"><Text style={styles.retryTxt}>Carica altre pagine ({pdfPages.length}/{pdfTotal})</Text></Pressable>
+                ) : null}
+              </ScrollView>
+            )
           ) : isHtml ? (
             <WebView
               source={{ html: htmlDecoded }}
@@ -349,12 +277,14 @@ function escape(s: string): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
+  retryBtn: { alignSelf: "center", marginTop: 12, backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 999, paddingHorizontal: 18, minHeight: 40, justifyContent: "center" },
+  retryTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 14,
-    paddingTop: Platform.OS === "ios" ? 44 : 12,
+    paddingTop: 12, // V50.z251 — sovrascritto inline con useSafeAreaInsets().top
     paddingBottom: 10,
     backgroundColor: theme.color.brandPrimary,
   },
