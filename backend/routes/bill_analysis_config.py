@@ -165,13 +165,91 @@ async def _bac_get(tenant: str) -> dict:
     return _bac_sanitize((doc or {}).get("config"))
 
 
+# ---- Preset salvati (es. «Domestico», «Business») — richiamabili con un tap prima di ogni analisi ----
+_BAC_MAX_PRESETS = 20
+
+
+def _bac_preset_out(p: dict) -> dict:
+    return {"preset_id": p["preset_id"], "name": p["name"], "config": _bac_sanitize(p.get("config")),
+            "created_at": p.get("created_at"), "updated_at": p.get("updated_at")}
+
+
+async def _bac_presets(tenant: str) -> List[dict]:
+    items = await db.bill_analysis_presets.find({"tenant_id": tenant}, {"_id": 0}).sort("name", 1).to_list(_BAC_MAX_PRESETS)
+    return [_bac_preset_out(p) for p in items]
+
+
+async def _bac_bundle(tenant: str) -> dict:
+    doc = await db.bill_analysis_configs.find_one({"tenant_id": tenant}, {"_id": 0, "config": 1, "active_preset_id": 1}) or {}
+    return {"config": _bac_sanitize(doc.get("config")), "catalog": _bac_catalog(),
+            "presets": await _bac_presets(tenant), "active_preset_id": doc.get("active_preset_id")}
+
+
+class BacPresetIn(BaseModel):
+    name: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None  # None → usa la configurazione attiva
+
+
+@api_router.get("/bills/analysis-presets")
+async def bac_presets_list(user=Depends(get_current_user)):
+    return {"items": await _bac_presets(tenant_id(user))}
+
+
+@api_router.post("/bills/analysis-presets")
+async def bac_preset_create(body: BacPresetIn, user=Depends(get_current_user)):
+    t = tenant_id(user)
+    name = (body.name or "").strip()[:40]
+    if not name:
+        raise HTTPException(status_code=400, detail="Nome preset obbligatorio")
+    cfg = _bac_sanitize(body.config) if body.config is not None else await _bac_get(t)
+    existing = await db.bill_analysis_presets.find_one({"tenant_id": t, "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}, {"_id": 0})
+    now = utcnow()
+    if existing:
+        await db.bill_analysis_presets.update_one({"preset_id": existing["preset_id"]}, {"$set": {"name": name, "config": cfg, "updated_at": now}})
+        pid = existing["preset_id"]
+    else:
+        if await db.bill_analysis_presets.count_documents({"tenant_id": t}) >= _BAC_MAX_PRESETS:
+            raise HTTPException(status_code=400, detail=f"Massimo {_BAC_MAX_PRESETS} preset")
+        pid = f"bap_{uuid.uuid4().hex[:10]}"
+        await db.bill_analysis_presets.insert_one({"preset_id": pid, "tenant_id": t, "name": name, "config": cfg, "created_at": now, "updated_at": now, "created_by": user["user_id"]})
+    p = await db.bill_analysis_presets.find_one({"preset_id": pid}, {"_id": 0})
+    return {"preset": _bac_preset_out(p), "items": await _bac_presets(t)}
+
+
+@api_router.delete("/bills/analysis-presets/{preset_id}")
+async def bac_preset_delete(preset_id: str, user=Depends(get_current_user)):
+    t = tenant_id(user)
+    r = await db.bill_analysis_presets.delete_one({"tenant_id": t, "preset_id": preset_id})
+    if not r.deleted_count:
+        raise HTTPException(status_code=404, detail="Preset non trovato")
+    await db.bill_analysis_configs.update_one({"tenant_id": t, "active_preset_id": preset_id}, {"$set": {"active_preset_id": None}})
+    return {"ok": True, "items": await _bac_presets(t)}
+
+
+@api_router.post("/bills/analysis-presets/{preset_id}/apply")
+async def bac_preset_apply(preset_id: str, user=Depends(get_current_user)):
+    """Rende il preset la configurazione attiva (valida per tutte le analisi finché non se ne applica un altro)."""
+    t = tenant_id(user)
+    p = await db.bill_analysis_presets.find_one({"tenant_id": t, "preset_id": preset_id}, {"_id": 0})
+    if not p:
+        raise HTTPException(status_code=404, detail="Preset non trovato")
+    await db.bill_analysis_configs.update_one(
+        {"tenant_id": t},
+        {"$set": {"config": _bac_sanitize(p.get("config")), "active_preset_id": preset_id, "updated_at": utcnow(), "updated_by": user["user_id"]},
+         "$setOnInsert": {"tenant_id": t, "created_at": utcnow()}},
+        upsert=True,
+    )
+    return await _bac_bundle(t)
+
+
 class BacIn(BaseModel):
     config: Dict[str, Any]
+    preset_id: Optional[str] = None  # se il salvataggio corrisponde a un preset caricato nel pannello
 
 
 @api_router.get("/bills/analysis-config")
 async def bac_get(user=Depends(get_current_user)):
-    return {"config": await _bac_get(tenant_id(user)), "catalog": _bac_catalog()}
+    return await _bac_bundle(tenant_id(user))
 
 
 @api_router.put("/bills/analysis-config")
@@ -180,16 +258,17 @@ async def bac_put(body: BacIn, user=Depends(get_current_user)):
     t = tenant_id(user)
     await db.bill_analysis_configs.update_one(
         {"tenant_id": t},
-        {"$set": {"config": cfg, "updated_at": utcnow(), "updated_by": user["user_id"]}, "$setOnInsert": {"tenant_id": t, "created_at": utcnow()}},
+        {"$set": {"config": cfg, "active_preset_id": body.preset_id or None, "updated_at": utcnow(), "updated_by": user["user_id"]},
+         "$setOnInsert": {"tenant_id": t, "created_at": utcnow()}},
         upsert=True,
     )
-    return {"config": cfg, "catalog": _bac_catalog()}
+    return await _bac_bundle(t)
 
 
 @api_router.post("/bills/analysis-config/reset")
 async def bac_reset(user=Depends(get_current_user)):
     await db.bill_analysis_configs.delete_one({"tenant_id": tenant_id(user)})
-    return {"config": _bac_default(), "catalog": _bac_catalog()}
+    return await _bac_bundle(tenant_id(user))
 
 
 def _bac_labels(cfg: dict, bt: str) -> Tuple[List[str], List[str]]:

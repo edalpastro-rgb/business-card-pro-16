@@ -9,9 +9,10 @@ import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
+import { ComparisonPreview, SAMPLE_COMPARISON_REPORT } from "@/src/ComparisonPreview";
 import {
-  BAType, BillAnalysisBundle, BillAnalysisConfig, BACatalogItem,
-  loadBillAnalysisConfig, saveBillAnalysisConfig, resetBillAnalysisConfig,
+  BAType, BillAnalysisBundle, BillAnalysisConfig, BACatalogItem, BAPreset,
+  loadBillAnalysisConfig, saveBillAnalysisConfig, resetBillAnalysisConfig, savePreset, deletePreset, labelsFor,
 } from "@/src/billAnalysisConfig";
 
 const ACCENT = "#7C3AED";
@@ -27,9 +28,11 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "manual", label: "Richieste", icon: "create" },
 ];
 
-type Props = { visible: boolean; onClose: () => void; onSaved?: (bundle: BillAnalysisBundle) => void };
+export type PreviewBuilder = (rep: any, cfg: { layout?: string; style?: string; sections?: Record<string, boolean> }) => string;
 
-export function BillAnalysisConfigModal({ visible, onClose, onSaved }: Props) {
+type Props = { visible: boolean; onClose: () => void; onSaved?: (bundle: BillAnalysisBundle) => void; previewBuilder?: PreviewBuilder };
+
+export function BillAnalysisConfigModal({ visible, onClose, onSaved, previewBuilder }: Props) {
   const insets = useSafeAreaInsets();
   const safeBottom = useSafeBottom();
   const [bundle, setBundle] = useState<BillAnalysisBundle | null>(null);
@@ -41,21 +44,71 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved }: Props) {
   const [cmpBt, setCmpBt] = useState<BAType>("luce");
   const [newField, setNewField] = useState("");
   const [newCmpField, setNewCmpField] = useState("");
+  // V50.z252 — Preset salvati
+  const [loadedPresetId, setLoadedPresetId] = useState<string | null>(null);
+  const [presetNameOpen, setPresetNameOpen] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [presetBusy, setPresetBusy] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setLoading(true);
+    setPresetNameOpen(false);
+    setPresetName("");
     loadBillAnalysisConfig()
-      .then((b) => { setBundle(b); setCfg(b.config); })
+      .then((b) => { setBundle(b); setCfg(b.config); setLoadedPresetId(b.active_preset_id || null); })
       .catch((e: any) => notify("Errore", e?.message || "Impossibile caricare la configurazione"))
       .finally(() => setLoading(false));
   }, [visible]);
 
   const catalog = bundle?.catalog;
+  const presets: BAPreset[] = bundle?.presets || [];
   const typeMeta = useMemo(() => TYPES.find((t) => t.id === bt)!, [bt]);
   const cmpTypeMeta = useMemo(() => TYPES.find((t) => t.id === cmpBt)!, [cmpBt]);
+  const previewHtml = useMemo(
+    () => (previewBuilder && cfg ? previewBuilder(SAMPLE_COMPARISON_REPORT, cfg.comparison) : ""),
+    [previewBuilder, cfg],
+  );
 
-  const update = (fn: (c: BillAnalysisConfig) => BillAnalysisConfig) => setCfg((c) => (c ? fn(c) : c));
+  // Ogni modifica manuale "scollega" il preset caricato (il salvataggio non sarà più attribuito a quel preset)
+  const update = (fn: (c: BillAnalysisConfig) => BillAnalysisConfig) => { setLoadedPresetId(null); setCfg((c) => (c ? fn(c) : c)); };
+
+  const loadPreset = (p: BAPreset) => {
+    setCfg(p.config);
+    setLoadedPresetId(p.preset_id);
+  };
+
+  const doSavePreset = async () => {
+    const name = presetName.trim();
+    if (!name || !cfg) return;
+    try {
+      setPresetBusy(true);
+      const r = await savePreset(name, cfg);
+      setBundle((b) => (b ? { ...b, presets: r.items } : b));
+      setLoadedPresetId(r.preset.preset_id);
+      setPresetNameOpen(false);
+      setPresetName("");
+      notify("Preset salvato", `«${r.preset.name}» è pronto: potrai richiamarlo con un tap prima di ogni analisi.`);
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally {
+      setPresetBusy(false);
+    }
+  };
+
+  const doDeletePreset = async (p: BAPreset) => {
+    if (!(await confirmAsync(`Eliminare il preset «${p.name}»?`, "La configurazione attiva non cambia."))) return;
+    try {
+      setPresetBusy(true);
+      const r = await deletePreset(p.preset_id);
+      setBundle((b) => (b ? { ...b, presets: r.items, active_preset_id: b.active_preset_id === p.preset_id ? null : b.active_preset_id } : b));
+      if (loadedPresetId === p.preset_id) setLoadedPresetId(null);
+    } catch (e: any) {
+      notify("Errore", e?.message || "");
+    } finally {
+      setPresetBusy(false);
+    }
+  };
 
   const toggleField = (id: string, def: boolean) => update((c) => ({
     ...c,
@@ -97,7 +150,7 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved }: Props) {
     if (!cfg) return;
     try {
       setSaving(true);
-      const b = await saveBillAnalysisConfig(cfg);
+      const b = await saveBillAnalysisConfig(cfg, loadedPresetId);
       setBundle(b);
       setCfg(b.config);
       onSaved?.(b);
@@ -111,12 +164,13 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved }: Props) {
   };
 
   const reset = async () => {
-    if (!(await confirmAsync("Ripristinare i predefiniti?", "Tutte le spunte, i campi personalizzati e le richieste manuali torneranno ai valori iniziali."))) return;
+    if (!(await confirmAsync("Ripristinare i predefiniti?", "Tutte le spunte, i campi personalizzati e le richieste manuali torneranno ai valori iniziali. I preset salvati restano."))) return;
     try {
       setSaving(true);
       const b = await resetBillAnalysisConfig();
       setBundle(b);
       setCfg(b.config);
+      setLoadedPresetId(null);
       onSaved?.(b);
     } catch (e: any) {
       notify("Errore", e?.message || "");
@@ -165,6 +219,58 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved }: Props) {
           </View>
         ) : (
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+            {/* V50.z252 — Preset salvati */}
+            <View style={styles.presetBox}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.sectionLabel}>PRESET SALVATI</Text>
+                <Pressable onPress={() => setPresetNameOpen((v) => !v)} style={styles.presetAddBtn} testID="bac-preset-new">
+                  <Ionicons name={presetNameOpen ? "chevron-up" : "bookmark"} size={14} color={ACCENT} />
+                  <Text style={styles.linkTxt}>{presetNameOpen ? "Chiudi" : "Salva come preset"}</Text>
+                </Pressable>
+              </View>
+              {presetNameOpen && (
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "center", marginBottom: 10 }}>
+                  <TextInput
+                    testID="bac-preset-name-input"
+                    value={presetName}
+                    onChangeText={setPresetName}
+                    onSubmitEditing={doSavePreset}
+                    placeholder="Nome preset (es. Domestico, Business)…"
+                    placeholderTextColor={theme.color.muted}
+                    maxLength={40}
+                    style={styles.input}
+                  />
+                  <Pressable onPress={doSavePreset} disabled={!presetName.trim() || presetBusy} testID="bac-preset-save" style={[styles.addBtn, { backgroundColor: presetName.trim() ? ACCENT : theme.color.borderStrong }]}>
+                    {presetBusy ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="checkmark" size={16} color="#FFF" />}
+                    <Text style={styles.addTxt}>Salva</Text>
+                  </Pressable>
+                </View>
+              )}
+              {presets.length === 0 ? (
+                <Text style={styles.hint}>Nessun preset: configura le spunte e premi «Salva come preset» per richiamarle con un tap prima di ogni analisi.</Text>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+                  {presets.map((p) => {
+                    const loaded = loadedPresetId === p.preset_id;
+                    const active = bundle?.active_preset_id === p.preset_id;
+                    return (
+                      <Pressable key={p.preset_id} onPress={() => loadPreset(p)} testID={`bac-preset-${p.preset_id}`} style={[styles.presetChip, loaded && styles.presetChipOn]}>
+                        <Ionicons name={active ? "bookmark" : "bookmark-outline"} size={14} color={loaded ? "#FFF" : ACCENT} />
+                        <Text style={[styles.presetTxt, loaded && { color: "#FFF" }]} numberOfLines={1}>{p.name}</Text>
+                        {active && <Text style={[styles.presetActive, loaded && { color: "#EDE9FE" }]}>attivo</Text>}
+                        <Pressable onPress={() => doDeletePreset(p)} hitSlop={8} testID={`bac-preset-del-${p.preset_id}`}>
+                          <Ionicons name="close-circle" size={16} color={loaded ? "#EDE9FE" : theme.color.muted} />
+                        </Pressable>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              )}
+              {loadedPresetId && bundle?.active_preset_id !== loadedPresetId && (
+                <Text style={[styles.hint, { color: ACCENT, fontWeight: "700" }]}>Preset caricato nel pannello: premi «Salva configurazione» per renderlo attivo.</Text>
+              )}
+            </View>
+
             {tab === "fields" && (
               <>
                 <InfoBox text="Le spunte qui sotto sono i valori predefiniti per ogni nuova analisi: potrai comunque modificarle al momento del caricamento di ciascuna fattura." />
@@ -218,6 +324,14 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved }: Props) {
                     );
                   })}
                 </View>
+
+                {!!previewHtml && (
+                  <>
+                    <Text style={[styles.sectionLabel, { marginTop: 18 }]}>ANTEPRIMA DEL PDF COMPARATIVO</Text>
+                    <ComparisonPreview html={previewHtml} layout={cfg.comparison.layout} height={320} testID="bac-preview" />
+                    <Text style={styles.hint}>Scorri l&apos;anteprima per vedere tutte le pagine. Si aggiorna automaticamente cambiando stile, modello grafico e sezioni.</Text>
+                  </>
+                )}
 
                 <Text style={[styles.sectionLabel, { marginTop: 18 }]}>SEZIONI DA MOSTRARE</Text>
                 <View style={styles.card}>
@@ -312,6 +426,34 @@ export function BillAnalysisConfigButton({ onPress, summary, testID = "bills-ana
       </View>
       <Ionicons name="chevron-forward" size={20} color="#FFF" />
     </Pressable>
+  );
+}
+
+/** Riga «Preset rapidi» nel popup parametri di ogni analisi: un tap applica le spunte del preset (o della configurazione attiva). */
+export function PresetQuickRow({ bundle, bt, color, onApply }: { bundle: BillAnalysisBundle | null; bt: BAType; color: string; onApply: (sel: { labels: string[]; custom: string[] }) => void }) {
+  const [picked, setPicked] = useState<string>("__active__");
+  if (!bundle || !bundle.presets?.length) return null;
+  const items = [{ preset_id: "__active__", name: "Configurazione attiva", config: bundle.config } as BAPreset, ...bundle.presets];
+  return (
+    <View style={{ marginBottom: 12 }}>
+      <Text style={styles.sectionLabel}>PRESET RAPIDI</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+        {items.map((p) => {
+          const on = picked === p.preset_id;
+          return (
+            <Pressable
+              key={p.preset_id}
+              testID={`preset-quick-${p.preset_id}`}
+              onPress={() => { setPicked(p.preset_id); onApply(labelsFor(p.config, bundle.catalog, bt)); }}
+              style={[styles.presetChip, { borderColor: color, backgroundColor: on ? color : color + "14" }]}
+            >
+              <Ionicons name={p.preset_id === "__active__" ? "flash" : "bookmark"} size={14} color={on ? "#FFF" : color} />
+              <Text style={[styles.presetTxt, { color: on ? "#FFF" : color }]} numberOfLines={1}>{p.name}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -467,6 +609,12 @@ const styles = StyleSheet.create({
   styleDesc: { fontSize: 11, color: theme.color.muted },
   textArea: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#DDD6FE", minHeight: 110, textAlignVertical: "top", color: theme.color.onSurface, fontSize: 13, lineHeight: 19 },
   hint: { fontSize: 11, color: theme.color.muted, marginTop: 6, lineHeight: 15 },
+  presetBox: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, padding: 12, marginBottom: 14 },
+  presetAddBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: 6, marginBottom: 8 },
+  presetChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: ACCENT, backgroundColor: "#F5F3FF", minHeight: 38, maxWidth: 220 },
+  presetChipOn: { backgroundColor: ACCENT },
+  presetTxt: { fontSize: 13, fontWeight: "700", color: "#5B21B6", flexShrink: 1 },
+  presetActive: { fontSize: 10, fontWeight: "700", color: ACCENT, textTransform: "uppercase" },
   footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary },
   cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: theme.color.surfaceTertiary, alignItems: "center", justifyContent: "center", minHeight: 48 },
   cancelTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 14 },

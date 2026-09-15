@@ -14,7 +14,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
-import { BillAnalysisConfigModal, BillAnalysisConfigButton } from "@/src/BillAnalysisConfigModal";
+import { BillAnalysisConfigModal, BillAnalysisConfigButton, PresetQuickRow } from "@/src/BillAnalysisConfigModal";
 import { BillAnalysisBundle, loadBillAnalysisConfig, configuredDefaults, configSummary } from "@/src/billAnalysisConfig";
 import { DocumentScannerModal, suggestBillScanName } from "@/src/DocumentScannerModal";
 import { InAppWebViewer } from "@/src/InAppWebViewer";
@@ -968,7 +968,15 @@ function BillQuickScreen() {
                       style={styles.labelInput}
                     />
 
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 12, marginBottom: 6 }}>PARAMETRI STANDARD</Text>
+                    <View style={{ marginTop: 12 }}>
+                      <PresetQuickRow
+                        bundle={billCfg}
+                        bt={bt}
+                        color={meta.color}
+                        onApply={(sel) => { setSelectedParams(new Set(sel.labels)); setCustomParams(sel.custom); }}
+                      />
+                    </View>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginBottom: 6 }}>PARAMETRI STANDARD</Text>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                       {defs.map((p) => {
                         const on = selectedParams.has(p.label);
@@ -1262,7 +1270,12 @@ function BillQuickScreen() {
       <CalculatorFAB />
       {/* v2.17 — Report header (branding) config modal */}
       <ReportHeaderConfigModal visible={headerCfgOpen} onClose={() => setHeaderCfgOpen(false)} />
-      <BillAnalysisConfigModal visible={billCfgOpen} onClose={() => setBillCfgOpen(false)} onSaved={setBillCfg} />
+      <BillAnalysisConfigModal
+        visible={billCfgOpen}
+        onClose={() => setBillCfgOpen(false)}
+        onSaved={setBillCfg}
+        previewBuilder={(rep, c) => buildComparisonHtml(rep, "Mario Rossi", branding, c)}
+      />
     </SafeAreaView>
   );
 }

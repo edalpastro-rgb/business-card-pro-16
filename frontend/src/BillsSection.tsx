@@ -18,7 +18,7 @@ import { DocumentScannerModal, suggestBillScanName } from "@/src/DocumentScanner
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { FileViewer } from "@/src/FileViewer";
 import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
-import { BillAnalysisConfigModal, BillAnalysisConfigButton } from "@/src/BillAnalysisConfigModal";
+import { BillAnalysisConfigModal, BillAnalysisConfigButton, PresetQuickRow } from "@/src/BillAnalysisConfigModal";
 import { BillAnalysisBundle, loadBillAnalysisConfig, configuredDefaults, configSummary } from "@/src/billAnalysisConfig";
 import { MicroTutorial, TUTORIAL_ANALIZZA_BOLLETTA } from "@/src/MicroTutorial";
 
@@ -1480,6 +1480,12 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                   </View>
 
                   <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 12 }}>
+                    <PresetQuickRow
+                      bundle={billCfg}
+                      bt={bt}
+                      color={meta.color}
+                      onApply={(sel) => { setSelectedParams(new Set([...sel.labels, ...sel.custom])); setCustomParams(sel.custom); }}
+                    />
                     <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginBottom: 6 }}>PARAMETRI STANDARD</Text>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                       {defs.map((p) => {
@@ -1732,7 +1738,12 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       />
       {/* v2.17 — Report header (branding) config modal */}
       <ReportHeaderConfigModal visible={headerCfgOpen} onClose={() => setHeaderCfgOpen(false)} />
-      <BillAnalysisConfigModal visible={billCfgOpen} onClose={() => setBillCfgOpen(false)} onSaved={setBillCfg} />
+      <BillAnalysisConfigModal
+        visible={billCfgOpen}
+        onClose={() => setBillCfgOpen(false)}
+        onSaved={setBillCfg}
+        previewBuilder={(rep, c) => buildComparisonHtml(rep, "Mario Rossi", branding, c)}
+      />
       {/* V27 — Scanner documenti multi-pagina */}
       <DocumentScannerModal
         visible={scannerBillType !== null}
