@@ -35,6 +35,16 @@ export default function OptimalRouteScreen() {
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState<string[]>([]);
   const [q, setQ] = useState("");
+  // V50.z256 — filtro «non visitati da» (mesi) + pallino arancione; ultime visite da /visits/summary
+  const [notSince, setNotSince] = useState<number>(0); // 0 = tutti, 1,2,3 mesi, 4 = 4+ mesi
+  const [lastVisit, setLastVisit] = useState<Record<string, string>>({});
+  useEffect(() => {
+    api<{ by_contact: Record<string, { last_at: string }> }>("/visits/summary")
+      .then((r) => setLastVisit(Object.fromEntries(Object.entries(r.by_contact || {}).map(([k, v]) => [k, v.last_at]))))
+      .catch(() => {});
+  }, []);
+  const monthsSince = (cid: string): number | null => { const at = lastVisit[cid]; if (!at) return null; return (Date.now() - new Date(at).getTime()) / (30 * 86400000); };
+  const matchesNotSince = (cid: string, m: number) => { if (!m) return true; const ms = monthsSince(cid); return ms == null || ms >= m; };
   const [dep, setDep] = useState<"gps" | "office" | "custom">("office");
   const [custom, setCustom] = useState("");
   const [gps, setGps] = useState<{ lat: number; lon: number } | null>(null);
@@ -63,7 +73,7 @@ export default function OptimalRouteScreen() {
   }, []);
   const persist = (next: string[]) => { setSel(next); void AsyncStorage.setItem(GIRO_KEY, JSON.stringify(next)); };
   const toggle = (id: string) => { if (sel.includes(id)) persist(sel.filter((x) => x !== id)); else if (sel.length >= 10) notify("Massimo 10 clienti", "Rimuovi un cliente per aggiungerne un altro"); else persist([...sel, id]); };
-  const list = useMemo(() => { const k = q.trim().toLowerCase(); return contacts.filter((c) => !k || `${c.name} ${c.company} ${c.city}`.toLowerCase().includes(k)); }, [contacts, q]);
+  const list = useMemo(() => { const k = q.trim().toLowerCase(); return contacts.filter((c) => (!k || `${c.name} ${c.company} ${c.city}`.toLowerCase().includes(k)) && matchesNotSince(c.contact_id, notSince)); }, [contacts, q, notSince, lastVisit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const readGps = useCallback(async () => {
     try {
@@ -131,6 +141,12 @@ export default function OptimalRouteScreen() {
 
         {!loading && step === 1 ? (<>
           <View style={styles.search}><Ionicons name="search" size={16} color="#94A3B8" /><TextInput value={q} onChangeText={setQ} placeholder="Cerca per nome, azienda, città" placeholderTextColor="#94A3B8" style={styles.searchIn} testID="route-search" /></View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" }} testID="route-notsince-filter">
+            <Text style={styles.meta}>Non visitati da:</Text>
+            {[{ m: 0, l: "Tutti" }, { m: 1, l: "1 mese" }, { m: 2, l: "2 mesi" }, { m: 3, l: "3 mesi" }, { m: 4, l: "4 mesi+" }].map((f) => (
+              <Pressable key={f.m} onPress={() => setNotSince(f.m)} style={[styles.chip, notSince === f.m && styles.chipOn]} testID={`route-notsince-${f.m}`}><Text style={[styles.chipTxt, notSince === f.m && { color: "#FFF" }]}>{f.l}</Text></Pressable>
+            ))}
+          </View>
           <View style={{ flexDirection: "row", alignItems: "center" }}><Text style={styles.count}>Selezionati: {sel.length}/10</Text>{sel.length ? <Pressable onPress={() => persist([])} hitSlop={8} testID="route-clear"><Text style={styles.clear}>Cancella selezione</Text></Pressable> : null}</View>
           {list.length === 0 ? <Text style={styles.empty}>Nessun contatto con indirizzo. Aggiungi l&apos;indirizzo nelle schede cliente.</Text> : list.map((c) => {
             const on = sel.includes(c.contact_id);
@@ -138,6 +154,7 @@ export default function OptimalRouteScreen() {
               <Pressable key={c.contact_id} onPress={() => toggle(c.contact_id)} style={[styles.row, on && styles.rowOn]} testID={`route-pick-${c.contact_id}`}>
                 <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? ORANGE : "#94A3B8"} />
                 <View style={{ flex: 1 }}><Text style={styles.name} numberOfLines={1}>{c.name}{c.company ? ` · ${c.company}` : ""}</Text><Text style={styles.meta} numberOfLines={1}>📍 {c.address}{c.lat == null ? " · ⚠️ indirizzo non localizzato" : ""}</Text></View>
+                {(() => { const ms = monthsSince(c.contact_id); const due = notSince ? true : ms == null || ms >= 1; return due ? <View style={styles.dueDot} testID={`route-due-${c.contact_id}`}><Text style={styles.dueTxt}>{ms == null ? "mai" : `${Math.floor(ms)}m`}</Text></View> : null; })()}
               </Pressable>
             );
           })}
@@ -255,6 +272,9 @@ const styles = StyleSheet.create({
   seq: { width: 30, height: 30, borderRadius: 15, backgroundColor: ORANGE, alignItems: "center", justifyContent: "center" }, seqTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
   legKm: { fontSize: 12, fontWeight: "800", color: "#0F766E", marginTop: 3 },
   mini: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 999, backgroundColor: "#FFF1E9" }, miniTxt: { fontSize: 12, fontWeight: "800", color: ORANGE },
+  // V50.z256 — filtro «non visitati da»
+  chip: { paddingHorizontal: 10, minHeight: 30, justifyContent: "center", borderRadius: 15, borderWidth: 1, borderColor: "#FED7AA", backgroundColor: "#FFF7ED" }, chipOn: { backgroundColor: ORANGE, borderColor: ORANGE }, chipTxt: { fontSize: 11, fontWeight: "800", color: ORANGE },
+  dueDot: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#FFEDD5", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: ORANGE }, dueTxt: { fontSize: 10, fontWeight: "900", color: ORANGE },
   // V50.z253 — Resoconto Km
   legDone: { borderColor: "#86EFAC", backgroundColor: "#F0FDF4" },
   visitBtn: { backgroundColor: "#DCFCE7", borderWidth: 1, borderColor: "#86EFAC" }, visitBtnOn: { backgroundColor: "#16A34A", borderColor: "#16A34A" },

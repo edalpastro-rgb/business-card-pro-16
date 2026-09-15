@@ -20,6 +20,7 @@ import { AppInfoCard } from "@/src/AppInfoCard"; // V50.z208 — Piano attivo + 
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5
 import { AxonToneLevelPicker } from "@/src/AxonToneLevelPicker"; // V50.z218 — Blocco 6: tono a 5 livelli (5 = Fantasiosa)
 import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 — interessi futuri dal wizard
+import { VisitDetectionSettings } from "@/src/VisitDetectionSettings"; // V50.z256 — Rilevamento Visite
 import { SetupEntryCard } from "@/src/SetupEntryCard"; // V50.z211 — Configurazione guidata
 
 type Settings = {
@@ -484,6 +485,12 @@ function ImpostazioniScreen() {
               <View style={hubStyles.pill}><Ionicons name="sunny" size={14} color={theme.color.brandPrimary} /><Text style={hubStyles.pillTxt}>Tema chiaro</Text></View>
             </View>
             <Text style={styles.hint}>Altre lingue e il tema scuro arriveranno nei prossimi aggiornamenti.</Text>
+          </View>
+        )}
+        {/* V50.z256 — Rilevamento Visite (GPS) */}
+        {sec === "general" && (
+          <View style={styles.card} testID="visit-detection-card">
+            <VisitDetectionSettings />
           </View>
         )}
         {sec === "billing" && (<>

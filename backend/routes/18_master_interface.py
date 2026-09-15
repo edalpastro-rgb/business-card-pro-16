@@ -70,6 +70,8 @@ class UserSettingsIn(BaseModel):
     home_address: Optional[str] = None
     # Tour guidato di benvenuto completato/saltato (per-utente, sopravvive a reinstall/cambio device)
     onboarding_done: Optional[bool] = None
+    # V50.z256 — Rilevamento Visite GPS {enabled, stay_minutes, radius_m, mode: realtime|evening|both, recap_time "HH:MM"}
+    visit_detection: Optional[Dict[str, Any]] = None
 
 
 class AssistantAttachmentIn(BaseModel):

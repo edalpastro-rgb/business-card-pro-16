@@ -17,6 +17,7 @@ import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { shareText, shareDataUri } from "@/src/share";
 import { openTelegram } from "@/src/utils/telegram";
 import { BillsSection } from "@/src/BillsSection";
+import { ContactVisitsSection } from "@/src/ContactVisitsSection"; // V50.z256 — Frequenza ripasso + Storico visite
 import { ShareSheet, ShareTarget } from "@/src/ShareSheet";
 import { FileViewer } from "@/src/FileViewer";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
@@ -81,7 +82,7 @@ function ContactDetail() {
   const { id, refs: refsParam } = useLocalSearchParams<{ id: string; refs?: string }>();
   const router = useRouter();
   const [c, setC] = useState<Contact | null>(null);
-  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio" | "calls" | "appts" | "refs" | "reviews">("info");
+  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio" | "calls" | "appts" | "visits" | "refs" | "reviews">("info");
   // V50.z101 — Popup "Vuoi programmare la richiesta recensione?" quando lo status
   // del contatto transita a "client". Compariamo lo stato precedente conservato
   // in una ref, e apriamo la modale review-request se la transizione avviene.
@@ -740,7 +741,7 @@ function ContactDetail() {
       </View>
 
       <View style={styles.tabs}>
-        {(["info", "notes", "files", "bills", "audio", "calls", "appts", "refs", "reviews"] as const).map((t) => {
+        {(["info", "notes", "files", "bills", "audio", "calls", "appts", "visits", "refs", "reviews"] as const).map((t) => {
           const iconName: any = t === "info" ? "person"
             : t === "notes" ? "create"
             : t === "files" ? "folder"
@@ -749,12 +750,13 @@ function ContactDetail() {
             : t === "calls" ? "chatbubbles"
             : t === "refs" ? "share-social"
             : t === "reviews" ? "star"
+            : t === "visits" ? "location"
             : "calendar";
-          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Comunicazioni" : t === "refs" ? "Referenze" : t === "reviews" ? "Recensioni" : "Appuntamenti";
+          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Comunicazioni" : t === "refs" ? "Referenze" : t === "reviews" ? "Recensioni" : t === "visits" ? "Visite" : "Appuntamenti";
           const active = tab === t;
           // V38E: All non-selected tabs are neutral grey; only the active tab is colored.
           // Fatture tab keeps a distinctive orange when active (still the most important section).
-          const activeColor = t === "bills" ? "#EA580C" : t === "reviews" ? "#F59E0B" : theme.color.brandPrimary;
+          const activeColor = t === "bills" ? "#EA580C" : t === "reviews" ? "#F59E0B" : t === "visits" ? "#0EA5E9" : theme.color.brandPrimary;
           const iconColor = active ? activeColor : theme.color.muted;
           return (
             <Pressable
@@ -807,6 +809,8 @@ function ContactDetail() {
         />
       ) : tab === "appts" ? (
         <ContactAppointmentsSection contactId={id} />
+      ) : tab === "visits" ? (
+        <ContactVisitsSection contactId={id} initialEvery={(c as any)?.revisit_every_days} />
       ) : tab === "refs" ? (
         <ContactReferralsTab
           contactId={id}

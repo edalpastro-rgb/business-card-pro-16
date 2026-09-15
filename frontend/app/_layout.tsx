@@ -34,7 +34,8 @@ import { AxnBadgeSync } from "@/src/AxnDrawerBadge";
 import { PushBridgeSync } from "@/src/pushBridge"; // V50.z193 — canale Android default (modulo) + registrazione token con retry + stato al server
 import { SystemHeartbeat } from "@/src/systemHeartbeat"; // V50.z200 — versione app installata → Axon
 import { GlobalErrorBoundary } from "@/src/GlobalErrorBoundary";
-import { RoutePersistence } from "@/src/RoutePersistence"; // V50.z242 — BUG-STATE-001: ultima rotta salvata/ripristinata
+import { RoutePersistence } from "@/src/RoutePersistence";
+import { VisitDetectionBridge } from "@/src/VisitDetectionBridge"; // V50.z256 // V50.z242 — BUG-STATE-001: ultima rotta salvata/ripristinata
 import { navRestoreGuard } from "@/src/utils/appStatePersist";
 
 configureNotifHandler();
@@ -204,6 +205,8 @@ function StackWithCallBar() {
       </AndroidKeyboardPadding>
       {/* V50.z242 — BUG-STATE-001: salva l'ultima rotta e la ripristina al cold start */}
       <RoutePersistence />
+      {/* V50.z256 — Rilevamento Visite: tracking GPS + popup Tempo Reale + recap Fine Giornata */}
+      <VisitDetectionBridge userId={user?.user_id} />
       {/* V50.z181 — badge icona app = notifiche AxonOS non lette */}
       <AxnBadgeSync enabled={!!user?.user_id} />
       {/* V50.z193 — Bridge push: token con retry + stato dispositivo al server + ack test programmati */}

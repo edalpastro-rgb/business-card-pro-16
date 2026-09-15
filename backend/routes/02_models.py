@@ -427,6 +427,8 @@ class ContactUpdate(BaseModel):
     custom_fields: Optional[Dict[str, Any]] = None
     # V50.z71 — Indirizzo preferito (main | legacy | work | residence)
     preferred_address: Optional[str] = None
+    # V50.z256 — Frequenza ripasso (giorni: 30/60/90/120 o personalizzato; 0 = nessuna)
+    revisit_every_days: Optional[int] = None
 
 
 class ProfileUpdate(BaseModel):

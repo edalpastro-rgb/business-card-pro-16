@@ -1,0 +1,30 @@
+{
+  "summary": "V50.z256 Rilevamento Visite Clienti tested end-to-end. Backend: 27/27 pytest tests pass covering /visits/settings defaults + clamps (999→120) + invalid-mode→both fallback, /user-settings PUT round-trip for visit_detection, /visits/confirm (manual/GPS-haversine/km-log side-effect), /visits/delete cascading km-log removal, /visits/contact aggregation, /visits/summary, /visits/due with revisit_every_days, /visits/candidates dedup+list+dismiss+confirm-with-cand_id, /visits/nearby (radius filter), /geo/optimal-route+/geo/km-log leg → auto-visit with source='route' → DELETE cascades, tenant isolation (sub1 sees owner visits, demo does not, unauth=401). Frontend (mobile viewport 390x844): settings section renders (testID visit-detection-settings) and all pill/mode/recap-time interactions persist via /api/visits/settings (verified stay_minutes=15, radius_m=200, mode='both', recap_time='19:00'). Contact card tab-visits renders on c_343d523c463f with Frequenza ripasso pills (visit-freq-60 → status 'Ultima visita … · prossimo ripasso tra 60 gg'), manual visit form (toggle→km→notes→save) opens correctly. Optimal route /optimal-route filter row (route-notsince-filter) and due badges (route-due-<id>) render — filter buttons clickable.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Contact visits tab", "issues": ["When a visit is deleted, contacts.last_visit_at is NOT reset — the visit-freq-status banner may keep showing 'Ultima visita 0 gg fa' with '0 visite · 0,0 km' header (mild data-hygiene inconsistency, not blocker)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_v50_visits.py", "/app/test_reports/pytest/v50_visits.xml"],
+  "action_items": [
+    "OPTIONAL: on DELETE /api/visits/{id}, recompute contact.last_visit_at from the remaining most-recent visit (currently it keeps the stale value → status banner shows 'Ultima visita 0 gg fa' after deleting the only visit).",
+    "OPTIONAL: PUT /api/contacts/{id} does not accept nulling last_visit_at (field not in ContactUpdate) — not required by the feature, only surfaced during test cleanup."
+  ],
+  "critical_code_review_comments": [
+    "contact_visits.py: /visits/summary iterates ALL visits for tenant sorted by 'at' desc but never breaks on first per-contact — it walks the whole cursor. For high-volume tenants this could be slow; consider aggregation pipeline with $group first, $sort with limit.",
+    "geo_km_log.py cascades delete via db.contact_visits.delete_many({km_entry_id}) — correct. Inverse cascade (DELETE /visits/{id} → delete km-log entry) also correct; both directions verified.",
+    "contact_visits.py _cv_insert_visit sets contacts.last_visit_at unconditionally on insert; on visit DELETE the field is not recomputed → stale UI banner after deleting the only visit (design_issues above).",
+    "VisitDetectionSettings.tsx uses Pressable + testID Pill component — all pills tappable in web via pointer/mouse event chain."
+  ],
+  "updated_files": ["/app/backend/tests/test_v50_visits.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None persisted; every test cleans up its visits/candidates/km-log entries and TestZCleanup resets visit_detection to defaults + unsets revisit_every_days.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login via UI works ONLY with a React-Native-Web-compatible input filler + Pressable event chain: use nativeInputValueSetter on data-testid elements (reset _valueTracker first) and dispatch pointerdown+mousedown+pointerup+mouseup+click on Pressables. Token stored via AsyncStorage web (not directly readable from localStorage in all cases). API /api/geo/optimal-route requires origin_lat/origin_lon or origin_address (not 'origin' object) and contact_ids (not 'contacts').",
+  "rca_of_issue": "N/A — feature is implemented correctly and all requested test scenarios pass on both layers."
+}

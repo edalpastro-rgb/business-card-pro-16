@@ -58,6 +58,17 @@ async def kml_add(body: KmLogIn, user=Depends(get_current_user)):
         "origin_label": (route.get("origin") or {}).get("label") or "", "km": round(km, 1), "created_at": utcnow(),
     }
     await db.geo_km_log.insert_one(dict(entry))
+    # V50.z256 — la tappa completata è una visita confermata (Storico visite + ultima visita del contatto)
+    if contact_id:
+        c = await db.contacts.find_one({"contact_id": contact_id}, {"_id": 0})
+        if c:
+            try:
+                v = await _cv_insert_visit(user, c, date=date, at=utcnow().isoformat(), km=km, notes="", source="route", stay_minutes=None,
+                                           lat=(c.get("geo") or {}).get("lat"), lon=(c.get("geo") or {}).get("lon"), km_entry_id=entry["entry_id"])
+                await db.geo_km_log.update_one({"entry_id": entry["entry_id"]}, {"$set": {"visit_id": v["visit_id"]}})
+                entry["visit_id"] = v["visit_id"]
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("km-log → visit failed: %s", exc)
     return {"entry": _kml_out(entry), "created": True}
 
 
@@ -66,6 +77,10 @@ async def kml_delete(entry_id: str, user=Depends(get_current_user)):
     r = await db.geo_km_log.delete_one({"created_by": user["user_id"], "entry_id": entry_id})
     if not r.deleted_count:
         raise HTTPException(status_code=404, detail="Voce non trovata")
+    # V50.z256 — rimuove anche la visita collegata e ricalcola l'ultima visita del contatto
+    async for v in db.contact_visits.find({"km_entry_id": entry_id}, {"_id": 0, "contact_id": 1}):
+        await db.contact_visits.delete_many({"km_entry_id": entry_id})
+        await _cv_recompute_last_visit(v["contact_id"])
     return {"ok": True}
 
 

@@ -86,5 +86,6 @@ MODULES = [
     "bill_analysis_config.py",  # V50.z251 — Pannello «Configura Analisi Fatture» per tenant: campi estrazione spuntabili, comparativa (layout/stile/sezioni/campi/base), richieste manuali (GET/PUT /bills/analysis-config); usato da 13_bills e 17_company_offers_docs
     "axon_geo_routing.py",  # V50.z240 — FEAT-GEO-001 Fase 1: GET /geo/contacts-map (geocoding cache contacts.geo), POST /geo/optimal-route (NN + 2-opt, geo_routes) (isolato; dopo 07_contacts per _geocode_one)
     "geo_km_log.py",  # V50.z253 — Resoconto Km: visite completate nel Giro Ottimale → km da percorso (POST/GET/DELETE /geo/km-log) (isolato; dopo axon_geo_routing)
+    "contact_visits.py",  # V50.z256 — Rilevamento Visite: visite confermate, candidati GPS, frequenza ripasso, /visits/* (isolato; dopo axon_geo_routing e geo_km_log; avvolge _prepare_assistant_prompt)
     "37_app_startup_scheduler.py",
 ]
