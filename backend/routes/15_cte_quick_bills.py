@@ -970,7 +970,7 @@ async def bill_drafts_comparison(
 
     async def _safe_compare(bill_ex: dict, offer_ex: dict, bt: str) -> dict:
         try:
-            return await _llm_compare_offers(bill_ex or {}, offer_ex or {}, bt)
+            return await _llm_compare_offers(bill_ex or {}, offer_ex or {}, bt, tenant=tenant_id(user))
         except Exception as e:
             logger.exception(f"comparison failed for bill_type={bt}: {e}")
             return {

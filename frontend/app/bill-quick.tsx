@@ -14,6 +14,8 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
+import { BillAnalysisConfigModal, BillAnalysisConfigButton } from "@/src/BillAnalysisConfigModal";
+import { BillAnalysisBundle, loadBillAnalysisConfig, configuredDefaults, configSummary } from "@/src/billAnalysisConfig";
 import { DocumentScannerModal, suggestBillScanName } from "@/src/DocumentScannerModal";
 import { InAppWebViewer } from "@/src/InAppWebViewer";
 
@@ -128,6 +130,12 @@ function BillQuickScreen() {
   const [loadingMasterFiles, setLoadingMasterFiles] = useState(false);
   // v2.17 — Report header (branding) configuration modal
   const [headerCfgOpen, setHeaderCfgOpen] = useState(false);
+  // V50.z251 — Configurazione Analisi Fatture (pannello condiviso Master/cliente)
+  const [billCfg, setBillCfg] = useState<BillAnalysisBundle | null>(null);
+  const [billCfgOpen, setBillCfgOpen] = useState(false);
+  useEffect(() => {
+    loadBillAnalysisConfig().then(setBillCfg).catch(() => {});
+  }, []);
   // V50.z76 — Reportistica master (allineamento con BillsSection lato cliente)
   const [reportBusy, setReportBusy] = useState(false);
   const [comparisonBusy, setComparisonBusy] = useState(false);
@@ -188,7 +196,7 @@ function BillQuickScreen() {
     try {
       setComparisonBusy(true);
       const rep = await api<any>("/bill-drafts-comparison");
-      const html = buildComparisonHtml(rep, "Analisi Master", branding);
+      const html = buildComparisonHtml(rep, "Analisi Master", branding, billCfg?.config?.comparison);
       setPreviewHtml({ title: "Confronto Offerte Master", html });
     } catch (e: any) {
       notify("Errore confronto", e?.message || "");
@@ -314,11 +322,11 @@ function BillQuickScreen() {
   };
 
   const openParamsModal = (bill_type: BillType, asset: any) => {
-    const defs = DEFAULT_PARAMS[bill_type];
-    const on = new Set<string>();
-    defs.forEach((p) => { if (p.defaultOn) on.add(p.label); });
+    // V50.z251 — spunte predefinite dal pannello «Configura Analisi Fatture» (fallback: DEFAULT_PARAMS)
+    const fromCfg = configuredDefaults(billCfg, bill_type);
+    const on = new Set<string>(fromCfg ? fromCfg.labels : DEFAULT_PARAMS[bill_type].filter((p) => p.defaultOn).map((p) => p.label));
     setSelectedParams(on);
-    setCustomParams([]);
+    setCustomParams(fromCfg?.custom || []);
     setCustomParam("");
     setLabelInput("");
     setFiscalCheck({ verify_iva: null, verify_accise_gas: bill_type === "gas", verify_pcv_annullato: false });
@@ -553,6 +561,9 @@ function BillQuickScreen() {
             </Text>
           </View>
         </View>
+
+        {/* V50.z251 — Pannello Configura Analisi Fatture */}
+        <BillAnalysisConfigButton onPress={() => setBillCfgOpen(true)} summary={configSummary(billCfg)} testID="bq-analysis-cfg-btn" />
 
         {/* v2.17 — Configura intestazione report (branding) */}
         <Pressable
@@ -1251,6 +1262,7 @@ function BillQuickScreen() {
       <CalculatorFAB />
       {/* v2.17 — Report header (branding) config modal */}
       <ReportHeaderConfigModal visible={headerCfgOpen} onClose={() => setHeaderCfgOpen(false)} />
+      <BillAnalysisConfigModal visible={billCfgOpen} onClose={() => setBillCfgOpen(false)} onSaved={setBillCfg} />
     </SafeAreaView>
   );
 }

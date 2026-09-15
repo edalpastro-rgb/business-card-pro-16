@@ -1,0 +1,28 @@
+{
+  "summary": "V51-BAC — Backend + Frontend validation for 'Configura Analisi Fatture' (per-tenant bill analysis config). Backend: 6/6 pytest passed (defaults+catalog shape, PUT persist+sanitize, invalid layout fallback, unknown key ignored, tenant isolation owner↔sub vs other tenant, reset). Frontend: main /bill-quick modal opens with 3 tabs, POD toggle, custom field 'Bonus sociale', dossier/energia/mensile/section-fasce, extra_instructions save all work; subtitle shows 'Dossier compatto · 1 campi extra · richieste manuali'; persistence verified after reload; contact card /contact/{id} → tab-bills shows 'bills-analysis-cfg-btn' with shared config (chip visible); reset button restores defaults (chip removed). Config was reset to defaults at end of testing.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "UI login (Pressable auth-submit-button)", "issue": "In Playwright headless with force=True click, doAuth() never fires and URL stays at /login (no auth/login POST captured). Workaround: use direct API fetch + set localStorage['auth_token_v1'] and 'trust_expires_at_v1'. NOT a product bug — manual browser login works; this is a Playwright/react-native-web onPress event compatibility issue. Reported for awareness.", "affected_testIDs": ["auth-submit-button"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bill_analysis_config.py",
+    "/app/test_reports/pytest/bill_analysis_config.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "bill_analysis_config.py is well-structured: proper sanitization, whitelist-based key filtering, tenant isolation via tenant_id(user), Mongo _id excluded via projection {_id:0}. No issues found.",
+    "BillAnalysisConfigModal.tsx: modal layout is clean; loading state uses spinner while GET is in-flight; save+reset paths handle errors with notify()."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None. Config left at defaults for tenant owner via POST /api/bills/analysis-config/reset at test end (also for other tenant demo@advisoros.it).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend endpoints: GET/PUT/POST /api/bills/analysis-config[/reset]. testIDs: bq-analysis-cfg-btn (bill-quick), bills-analysis-cfg-btn (contact Fatture tab), bac-tab-{fields|comparison|manual}, bac-field-{bt}-{fid}, bac-custom-field-{input|add}, bac-layout-{id}, bac-style-{id}, bac-section-{id}, bac-basis-{id}, bac-extra-instructions, bac-save, bac-reset, bac-chip-remove-{label}. For UI login in Playwright, direct POST /api/auth/login + localStorage 'auth_token_v1'/'trust_expires_at_v1' is required (Pressable onPress not firing in headless).",
+  "rca_of_issue": ""
+}

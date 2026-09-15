@@ -166,12 +166,21 @@ async def _llm_analyze_bill_text(bill_type: str, text: str, analysis_params: Opt
                 fiscal_directives.append(s)
             else:
                 display_params.append(s)
+    # V50.z251 — Configurazione Analisi Fatture (pannello): parametri spuntati nel pannello se l'utente
+    # non li ha scelti per questa analisi + campi deselezionati + richieste manuali aggiuntive.
+    cfg_extra = ""
+    if tenant:
+        try:
+            display_params, cfg_extra = await _bac_apply_extract_config(tenant, bill_type, display_params)
+        except Exception as _e:  # noqa: BLE001
+            logger.warning("bill analysis config apply failed: %s", _e)
     if display_params:
         focus = ", ".join(display_params[:40])
         system = system + (
             f"\n\nPARAMETRI PRIORITARI RICHIESTI DALL'UTENTE (assicurati di estrarli se presenti): {focus}."
             f"\nSe uno dei parametri richiesti non ha corrispondenza diretta nello schema, includilo in un oggetto 'parametri_richiesti' con chiave = nome parametro e valore = valore trovato (o 'N.D.' se non rilevabile)."
         )
+    system = system + cfg_extra
     # V38U — Fiscal-check directives → the LLM must extract the *actual* values
     # and flag them in a `fiscal_check` object we render red in the UI.
     if fiscal_directives:

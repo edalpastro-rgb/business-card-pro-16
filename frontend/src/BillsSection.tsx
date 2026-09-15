@@ -18,6 +18,8 @@ import { DocumentScannerModal, suggestBillScanName } from "@/src/DocumentScanner
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { FileViewer } from "@/src/FileViewer";
 import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
+import { BillAnalysisConfigModal, BillAnalysisConfigButton } from "@/src/BillAnalysisConfigModal";
+import { BillAnalysisBundle, loadBillAnalysisConfig, configuredDefaults, configSummary } from "@/src/billAnalysisConfig";
 import { MicroTutorial, TUTORIAL_ANALIZZA_BOLLETTA } from "@/src/MicroTutorial";
 
 type BillType = "luce" | "gas" | "telco";
@@ -134,6 +136,12 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   const [bulkBusy, setBulkBusy] = useState(false);
   // v2.17 — Report header (branding) configuration modal
   const [headerCfgOpen, setHeaderCfgOpen] = useState(false);
+  // V50.z251 — Configurazione Analisi Fatture (pannello condiviso Master/cliente)
+  const [billCfg, setBillCfg] = useState<BillAnalysisBundle | null>(null);
+  const [billCfgOpen, setBillCfgOpen] = useState(false);
+  useEffect(() => {
+    loadBillAnalysisConfig().then(setBillCfg).catch(() => {});
+  }, []);
   // V38 — pending upload waiting for user parameter selection
   const [pendingUpload, setPendingUpload] = useState<null | { bill_type: BillType; asset: { name?: string; mimeType?: string; uri: string } }>(null);
   const [selectedParams, setSelectedParams] = useState<Set<string>>(new Set());
@@ -665,7 +673,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
     try {
       setComparisonBusy(true);
       const rep = await api<any>(`/contacts/${contactId}/bills/comparison`);
-      const html = buildComparisonHtml(rep, contactName, branding);
+      const html = buildComparisonHtml(rep, contactName, branding, billCfg?.config?.comparison);
       // V38R — Ask user to confirm the filename before saving.
       setSaveConfirm({
         kind: "comparison",
@@ -715,9 +723,13 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   };
 
   const openParamsModalFor = (bill_type: BillType, asset: { name?: string; mimeType?: string; uri: string }) => {
-    const defaults = new Set<string>(DEFAULT_PARAMS[bill_type].filter((p) => p.defaultOn).map((p) => p.label));
+    // V50.z251 — Le spunte predefinite arrivano dal pannello «Configura Analisi Fatture» (fallback: DEFAULT_PARAMS)
+    const fromCfg = configuredDefaults(billCfg, bill_type);
+    const defaults = new Set<string>(fromCfg ? fromCfg.labels : DEFAULT_PARAMS[bill_type].filter((p) => p.defaultOn).map((p) => p.label));
+    const custom = fromCfg?.custom || [];
+    custom.forEach((c) => defaults.add(c));
     setSelectedParams(defaults);
-    setCustomParams([]);
+    setCustomParams(custom);
     setCustomParam("");
     setPendingUpload({ bill_type, asset });
   };
@@ -1051,6 +1063,9 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
             <Text style={styles.introTxt}>Carica le fatture in PDF: Luce, Gas o Telco. L&apos;AI estrae automaticamente POD/PDR, consumi, offerte, scadenze, IVA e altro.</Text>
           </View>
         </View>
+
+      {/* V50.z251 — Pannello Configura Analisi Fatture */}
+      <BillAnalysisConfigButton onPress={() => setBillCfgOpen(true)} summary={configSummary(billCfg)} />
 
       {/* Company Offers accordion */}
       <View style={styles.offersCard}>
@@ -1717,6 +1732,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       />
       {/* v2.17 — Report header (branding) config modal */}
       <ReportHeaderConfigModal visible={headerCfgOpen} onClose={() => setHeaderCfgOpen(false)} />
+      <BillAnalysisConfigModal visible={billCfgOpen} onClose={() => setBillCfgOpen(false)} onSaved={setBillCfg} />
       {/* V27 — Scanner documenti multi-pagina */}
       <DocumentScannerModal
         visible={scannerBillType !== null}
@@ -2078,6 +2094,17 @@ const SL = {
   muted: "#5B6B7F",
   border: "#E3D9C4",
 };
+const SL_DEFAULT = { ...SL };
+
+// V50.z251 — Stili grafici selezionabili dal pannello «Configura Analisi Fatture» (id = catalogo backend)
+const SL_STYLES: Record<string, Partial<typeof SL>> = {
+  classico: {},
+  moderno: { navy: "#1B6CB0", navyDark: "#134E86", bg: "#FFFFFF", orange: "#F59E0B", orangeSoft: "#FEF3C7", green: "#16A34A", greenSoft: "#DCFCE7", blueF3: "#60A5FA", border: "#E2E8F0", muted: "#64748B" },
+  energia: { navy: "#166534", navyDark: "#14532D", bg: "#F3F7F0", orange: "#EA580C", orangeSoft: "#FFEDD5", green: "#15803D", greenSoft: "#DCFCE7", blueF3: "#5EAE7A", border: "#D9E5D3", muted: "#4B5F52" },
+  minimal: { navy: "#1F2937", navyDark: "#111827", bg: "#FFFFFF", orange: "#6B7280", orangeSoft: "#F3F4F6", green: "#374151", greenSoft: "#E5E7EB", blueF3: "#9CA3AF", border: "#E5E7EB", muted: "#6B7280" },
+};
+
+export type ComparisonRenderCfg = { layout?: string; style?: string; sections?: Record<string, boolean> };
 
 const FASCIA_ORARI: Record<string, string> = {
   F1: "Lun–Ven 08:00–19:00",
@@ -2429,7 +2456,12 @@ function slideExecutive(es: any, cmp: any, name: string): string {
 function kvGridHtml(_rows: { k: string; v: any; hi?: boolean }[]): string { void _rows; return ""; }
 function comparisonMatrixHtml(_rows: { parametro?: string; attuale?: string; proposta?: string; delta?: string; vantaggio?: string }[]): string { void _rows; return ""; }
 
-export function buildComparisonHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string; slogan?: string; contacts?: string }): string {
+export function buildComparisonHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string; slogan?: string; contacts?: string }, cfg?: ComparisonRenderCfg | null): string {
+  // V50.z251 — stile/layout/sezioni dal pannello «Configura Analisi Fatture»
+  Object.assign(SL, SL_DEFAULT, SL_STYLES[cfg?.style || "classico"] || {});
+  const layout = cfg?.layout || "presentazione";
+  const SINTESI_SECTIONS = ["risparmio", "matrice", "executive"];
+  const show = (id: string) => (layout === "sintesi" ? SINTESI_SECTIONS.includes(id) : (cfg?.sections?.[id] ?? true));
   const c = rep?.contact || {};
   const name = contactName || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Cliente";
   const items = Array.isArray(rep?.items) ? rep.items : [];
@@ -2462,21 +2494,21 @@ export function buildComparisonHtml(rep: any, contactName?: string, branding?: {
         <div class="divider-line"></div>
       </div>
     </section>`;
-    const parts: string[] = [sectionDivider];
+    const parts: string[] = layout === "presentazione" ? [sectionDivider] : [`<section class="slide slide-divider"><div class="divider-inner"><div class="divider-title">${esc(btLabel)}</div></div></section>`];
     // Impronta + dettaglio only for luce/gas (fasce F1/F2/F3)
-    if (foot?.consumo_annuo_kwh_o_smc || fasce?.F1_kwh || fasce?.F2_kwh || fasce?.F3_kwh) {
+    if (show("impronta") && (foot?.consumo_annuo_kwh_o_smc || fasce?.F1_kwh || fasce?.F2_kwh || fasce?.F3_kwh)) {
       parts.push(slideImpronta(cmp, foot, fasce, bt));
-      if (fasce?.F1_kwh || fasce?.F2_kwh || fasce?.F3_kwh) {
-        parts.push(slideDettaglio(fasce, foot));
-      }
     }
-    parts.push(slideContrattoAttuale(con, it.bill?.extracted || {}, bt));
-    parts.push(slideProposta(it.offer?.extracted || {}, cmp, con, bt));
-    if (sav?.costo_annuo_attuale_eur || sav?.costo_annuo_nuovo_eur || sav?.risparmio_annuo_eur) {
+    if (show("fasce") && (fasce?.F1_kwh || fasce?.F2_kwh || fasce?.F3_kwh)) {
+      parts.push(slideDettaglio(fasce, foot));
+    }
+    if (show("contratto")) parts.push(slideContrattoAttuale(con, it.bill?.extracted || {}, bt));
+    if (show("proposta")) parts.push(slideProposta(it.offer?.extracted || {}, cmp, con, bt));
+    if (show("risparmio") && (sav?.costo_annuo_attuale_eur || sav?.costo_annuo_nuovo_eur || sav?.risparmio_annuo_eur)) {
       parts.push(slideRisparmio(sav));
     }
-    if (matrice.length) parts.push(slideMatrice(matrice));
-    if (es?.verdetto || es?.risparmio_annuo_eur || (Array.isArray(cmp.azione_consigliata) && cmp.azione_consigliata.length)) {
+    if (show("matrice") && matrice.length) parts.push(slideMatrice(matrice));
+    if (show("executive") && (es?.verdetto || es?.risparmio_annuo_eur || (Array.isArray(cmp.azione_consigliata) && cmp.azione_consigliata.length))) {
       parts.push(slideExecutive(es, cmp, name));
     }
     if (cmp.error_message) {
@@ -2624,9 +2656,27 @@ export function buildComparisonHtml(rep: any, contactName?: string, branding?: {
     .stack-title { color: ${SL.navy}; font-weight: 900; font-size: 15px; margin-bottom: 8px; }
     .stack-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.7; color: ${SL.ink}; }
     .stack-list.ordered { padding-left: 22px; }
-  `;
+  ` + (layout !== "presentazione" ? `
+    /* V50.z251 — Layout «${layout}»: documento verticale continuo, niente una-slide-per-pagina */
+    @page { size: A4 portrait; margin: 10mm; }
+    .slide { width: auto; height: auto; min-height: 0; page-break-after: auto; break-after: auto; padding: 8mm 10mm; border-bottom: 1px solid ${SL.border}; page-break-inside: avoid; }
+    .slide-cover { padding: 10mm; min-height: 0; justify-content: flex-start; }
+    .cover-card { max-width: none; padding: 24px 28px; }
+    .cover-title { font-size: 28px; }
+    .cover-subtitle { font-size: 16px; margin-bottom: 14px; }
+    .slide-divider { padding: 5mm 10mm; }
+    .divider-title { font-size: 22px; letter-spacing: 0; }
+    .divider-line { display: none; }
+    .slide-title { font-size: 20px; margin-bottom: 10px; }
+    .big-number { font-size: 36px; }
+    .cover-saving-value { font-size: 24px; }
+    .verd-title { font-size: 22px; }
+    .saving-big { font-size: 24px; }
+    .cost-value { font-size: 26px; }
+    .two-cols, .cards-2, .cards-3 { flex-wrap: wrap; }
+  ` : "");
 
-  return `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="it"><head><meta charset="UTF-8"/>
 <title>Analisi Strategica — ${esc(name)}</title>
 <style>${css}</style>
@@ -2635,6 +2685,8 @@ export function buildComparisonHtml(rep: any, contactName?: string, branding?: {
 ${cover}
 ${perItemSlides || `<section class="slide"><div class="slide-inner"><h2 class="slide-title">Nessun confronto disponibile</h2><p>Carica almeno una fattura cliente e un'offerta aziendale dello stesso tipo, poi rigenera il report.</p></div></section>`}
 </body></html>`;
+  Object.assign(SL, SL_DEFAULT);
+  return html;
 }
 
 

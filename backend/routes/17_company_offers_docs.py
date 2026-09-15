@@ -437,19 +437,25 @@ Basa i calcoli sui dati reali. Se manca un dato ometti la chiave. Le fasce F1/F2
 COMPARISON_PROMPT = COMPARISON_PROMPT_BASIC
 
 
-async def _llm_compare_offers_basic(bill_extracted: dict, offer_extracted: dict, bill_type: str) -> dict:
-    return await _llm_compare_call(COMPARISON_PROMPT_BASIC, bill_extracted, offer_extracted, bill_type, "compare-basic")
+async def _llm_compare_offers_basic(bill_extracted: dict, offer_extracted: dict, bill_type: str, tenant: Optional[str] = None) -> dict:
+    return await _llm_compare_call(COMPARISON_PROMPT_BASIC, bill_extracted, offer_extracted, bill_type, "compare-basic", tenant=tenant)
 
 
-async def _llm_compare_offers_rich(bill_extracted: dict, offer_extracted: dict, bill_type: str) -> dict:
-    return await _llm_compare_call(COMPARISON_PROMPT_RICH, bill_extracted, offer_extracted, bill_type, "compare-rich")
+async def _llm_compare_offers_rich(bill_extracted: dict, offer_extracted: dict, bill_type: str, tenant: Optional[str] = None) -> dict:
+    return await _llm_compare_call(COMPARISON_PROMPT_RICH, bill_extracted, offer_extracted, bill_type, "compare-rich", tenant=tenant)
 
 
-async def _llm_compare_call(system_prompt: str, bill_extracted: dict, offer_extracted: dict, bill_type: str, session_prefix: str) -> dict:
+async def _llm_compare_call(system_prompt: str, bill_extracted: dict, offer_extracted: dict, bill_type: str, session_prefix: str, tenant: Optional[str] = None) -> dict:
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
         raise Exception("EMERGENT_LLM_KEY non configurato")
+    # V50.z251 — Configurazione Analisi Fatture → campi da confrontare, base del confronto, sezioni, istruzioni
+    if tenant:
+        try:
+            system_prompt = system_prompt + await _bac_compare_prompt_suffix(tenant, bill_type)
+        except Exception as _e:  # noqa: BLE001
+            logger.warning("compare config suffix failed: %s", _e)
     chat = LlmChat(
         api_key=key,
         session_id=f"{session_prefix}-{uuid.uuid4().hex[:8]}",
@@ -471,13 +477,13 @@ async def _llm_compare_call(system_prompt: str, bill_extracted: dict, offer_extr
     return _parse_llm_json(raw, fallback_key="note_ai")
 
 
-async def _llm_compare_offers(bill_extracted: dict, offer_extracted: dict, bill_type: str) -> dict:
+async def _llm_compare_offers(bill_extracted: dict, offer_extracted: dict, bill_type: str, tenant: Optional[str] = None) -> dict:
     """Run BASIC + RICH prompts in PARALLEL and merge into one dict.
     This keeps each individual call small/fast (< 30s) so we don't hit the ~60s ingress timeout.
     If one call fails, we still return the other's data + a note."""
     import asyncio as _asyncio
-    basic_task = _llm_compare_offers_basic(bill_extracted, offer_extracted, bill_type)
-    rich_task = _llm_compare_offers_rich(bill_extracted, offer_extracted, bill_type)
+    basic_task = _llm_compare_offers_basic(bill_extracted, offer_extracted, bill_type, tenant=tenant)
+    rich_task = _llm_compare_offers_rich(bill_extracted, offer_extracted, bill_type, tenant=tenant)
     basic_res, rich_res = await _asyncio.gather(basic_task, rich_task, return_exceptions=True)
     merged: dict = {"tipo_fornitura": bill_type}
     partial_errors: List[str] = []
@@ -529,7 +535,7 @@ async def bills_comparison(
 
     async def _safe_compare(bill_ex: dict, offer_ex: dict, bt: str) -> dict:
         try:
-            return await _llm_compare_offers(bill_ex or {}, offer_ex or {}, bt)
+            return await _llm_compare_offers(bill_ex or {}, offer_ex or {}, bt, tenant=tenant_id(user))
         except Exception as e:
             logger.exception(f"comparison failed for bill_type={bt}: {e}")
             return {
