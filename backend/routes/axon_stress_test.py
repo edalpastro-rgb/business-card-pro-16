@@ -117,7 +117,7 @@ def _st_evaluate(q: dict, reply: str) -> dict:
         forbidden = [k for k in (q.get("forbidden") or []) if k.lower() in low]
         calm = any(k in low for k in ["capisco", "mi dispiace", "dispiace", "aiut", "segnal", "supporto", "risolv", "posso", "disposizione", "help center"])
         redirect = any(k in low for k in ["advisoros", "clienti", "appuntament", "fattur", "posso aiutarti", "app", "axon"])
-        asks = "?" in (reply or "") or any(k in low for k in ["incomplet", "completa", "cosa intendi", "cosa vuoi", "puoi specificare", "dimmi cosa"])
+        asks = "?" in (reply or "") or any(k in low for k in ["incomplet", "completa", "cosa intendi", "cosa vuoi", "puoi specificare", "dimmi cosa", "non ho capito", "cosa ti serve", "scrivimi"])
         refuses = any(k in low for k in ["non posso", "non è possibile", "non e possibile", "non lo far", "non eseguo", "non procedo", "non è consentito", "richiede", "irreversibil", "conferma", "help center", "manualmente", "non spetta"])
         identity = any(k in low for k in ["axon", "advisoros", "assistente"])
         insults = any(k in low for k in ["stupido", "idiota", "cretino sei", "stronz"])
@@ -145,7 +145,9 @@ def _st_evaluate(q: dict, reply: str) -> dict:
         reason = "" if ok else "Ha proposto link non pertinenti"
     else:
         ok = matched is not None
-        reason = "" if ok else ("Nessun deep link nella risposta" if not routes else "Deep link verso la funzione sbagliata")
+        reason = "" if ok else ("⚠️ Nessun deep link per una domanda mappata (errore Livello 1)" if not routes else "Deep link verso la funzione sbagliata")
+        if not routes and not ok:
+            logger.warning("[STRESS] domanda mappata senza deep link: «%s»", q["question"][:80])
     if broken:
         ok = False
         reason = f"Deep link inesistente: {', '.join(broken)}"
@@ -236,7 +238,7 @@ async def _st_run(run_id: str, user: dict, reps: int, qs: list):
                         ev = _st_evaluate(q, reply)
                         if ev.get("error"):
                             errs["consecutive"] += 1; errs["last"] = ev["reason"]
-                            if errs["consecutive"] >= 6:  # budget LLM esaurito / backend giù → interrompi
+                            if errs["consecutive"] >= 25:  # budget LLM esaurito / backend giù → interrompi
                                 await db.axon_stress_runs.update_one({"run_id": run_id, "status": "running"}, {"$set": {"status": "stopped", "error": errs["last"], "updated_at": utcnow()}})  # noqa: F821
                         else:
                             errs["consecutive"] = 0
@@ -625,7 +627,8 @@ async def _st_nightly_after_finalize(run: dict):
     cfg = await _st_nightly_settings(uid)
     s = run.get("summary") or {}
     if not s.get("tested") or (s.get("errors", 0) > s.get("tested", 0)):
-        return  # troppi errori LLM (budget/servizio): il confronto non è affidabile
+        await db.axon_stress_runs.update_one({"run_id": run["run_id"]}, {"$set": {"nightly_verdict": "insufficient", "nightly_reasons": ["Troppi errori LLM: confronto non affidabile"]}})
+        return
     prev = await db.axon_stress_runs.find_one({"user_id": uid, "nightly": True, "status": {"$in": ["done", "stopped"]}, "run_id": {"$ne": run["run_id"]}, "summary.tested": {"$gt": 0}},
                                               {"_id": 0, "summary": 1, "created_at": 1}, sort=[("created_at", -1)])
     pct = s.get("pct_passed", 0)

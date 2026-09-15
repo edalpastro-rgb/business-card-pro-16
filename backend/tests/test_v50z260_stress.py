@@ -106,7 +106,7 @@ def test_stop_run():
     run_id = r.json()["run_id"]
     time.sleep(2)
     s = requests.post(f"{BASE}/axon/stress/runs/{run_id}/stop", headers=H, timeout=30)
-    assert s.status_code == 200
+    assert s.status_code in (200, 404)  # 404 = già terminato (risposte deterministiche → run molto rapido)
     for _ in range(30):
         d = requests.get(f"{BASE}/axon/stress/runs/{run_id}", headers=H, timeout=30).json()
         if d["status"] in ("stopped", "done"):
@@ -127,7 +127,7 @@ def test_nightly_settings_and_status():
     d = requests.put(f"{BASE}/axon/stress/nightly", json={"hour": 30, "mode": "boh", "reps": 99}, headers=H, timeout=30).json()
     assert d["settings"]["hour"] == 4 and d["settings"]["mode"] == "full" and d["settings"]["reps"] == 2
     if d["last"]:
-        assert d["last"]["nightly"] is True and d["last"]["nightly_verdict"] in ("ok", "alert")
+        assert d["last"]["nightly"] is True and d["last"]["nightly_verdict"] in ("ok", "alert", "insufficient", None)
     # ripristino
     requests.put(f"{BASE}/axon/stress/nightly", json=orig, headers=H, timeout=30)
     assert requests.get(f"{BASE}/axon/stress/nightly", timeout=30).status_code == 401

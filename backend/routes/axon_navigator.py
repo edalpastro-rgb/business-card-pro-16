@@ -35,20 +35,20 @@ APP_MAP: list = [
     dict(id="home", name="Home", route="/home", group="Home", desc="Panoramica del giorno: promemoria, PUN, ritelefonate, appuntamenti, azioni rapide, scadenze, statistiche.", kw=["home", "inizio", "schermata principale", "panoramica"]),
     dict(id="home_promemoria", name="Promemoria e widget", route="/home?section=widgets", group="Home", desc="Widget in alto nella Home: promemoria, meteo, compleanni, PUN.", kw=["promemoria", "widget", "meteo home", "compleanni"]),
     dict(id="home_pun", name="PUN (prezzo energia)", route="/home?section=widgets", group="Home", desc="Widget PUN medio mensile e per fasce F1/F2/F3.", kw=["pun", "prezzo unico nazionale", "prezzo energia", "fasce"]),
-    dict(id="home_ritelefonate", name="Ritelefonate di oggi", route="/home?section=ritelefonate", group="Home", desc="Elenco delle chiamate da fare oggi (ritelefonate) con esito.", kw=["ritelefonate", "richiamare", "richiamo", "chiamate da fare", "callback", "telefonate"]),
-    dict(id="callback_nuova", name="Nuova ritelefonata", route="/callback/new", group="Home", desc="Programma una ritelefonata (chi, quando, motivo).", kw=["nuova ritelefonata", "programma chiamata", "impostare ritelefonata", "ricordami di chiamare"]),
+    dict(id="home_ritelefonate", name="Ritelefonate di oggi", route="/home?section=ritelefonate", group="Home", desc="Elenco delle chiamate da fare oggi (ritelefonate) con esito.", kw=["segnarmi che ho chiamato", "ho chiamato", "ritelefonate", "richiamare", "richiamo", "chiamate da fare", "callback", "telefonate"]),
+    dict(id="callback_nuova", name="Nuova ritelefonata", route="/callback/new", group="Home", desc="Programma una ritelefonata (chi, quando, motivo).", kw=["imposto ritelefonata", "programmo chiamata", "chiamata per domani", "segnarmi di richiamare", "ricordarmi di chiamare", "richiamare la settimana", "non dimenticare", "nuova ritelefonata", "programma chiamata", "impostare ritelefonata", "ricordami di chiamare"]),
     dict(id="home_appuntamenti", name="Appuntamenti di oggi", route="/home?section=appuntamenti", group="Home", desc="Appuntamenti del giorno con esito e navigazione.", kw=["appuntamenti di oggi", "agenda di oggi", "oggi"]),
     dict(id="home_azioni", name="Azioni rapide", route="/home?section=azioni", group="Home", desc="Pulsanti rapidi personalizzabili (nuovo contatto, appuntamento, scanner…).", kw=["azioni rapide", "scorciatoie", "pulsanti rapidi"]),
-    dict(id="quick_actions_config", name="Configura azioni rapide", route="/quick-actions", group="Home", desc="Scegli quali azioni rapide mostrare in Home.", kw=["configura azioni rapide", "personalizza azioni"]),
+    dict(id="quick_actions_config", name="Configura azioni rapide", route="/quick-actions", group="Home", desc="Scegli quali azioni rapide mostrare in Home.", kw=["personalizzo azioni rapide", "personalizzare azioni", "configuro azioni rapide", "configura azioni rapide", "personalizza azioni"]),
     dict(id="home_scadenze", name="Scadenze", route="/home?section=scadenze", group="Home", desc="Scadenze contratti/documenti in arrivo.", kw=["scadenze", "scadenza contratto", "in scadenza", "rinnovi"]),
     dict(id="deadlines", name="Tutte le scadenze", route="/deadlines", group="Home", desc="Lista completa delle scadenze con filtri.", kw=["tutte le scadenze", "elenco scadenze"]),
-    dict(id="home_statistiche", name="Dashboard statistiche", route="/home?section=statistiche", group="Home", desc="KPI personali: appuntamenti, esiti, contratti, andamento.", kw=["statistiche", "dashboard", "kpi", "come sto andando", "risultati", "andamento", "numeri"]),
-    dict(id="dashboard_config", name="Configura dashboard", route="/dashboard-config", group="Home", desc="Scegli quali widget/statistiche vedere in Home.", kw=["configura dashboard", "personalizza home", "widget home"]),
-    dict(id="home_comunica", name="Comunica con l'Azienda", route="/home?section=comunica", group="Home", desc="Invia una comunicazione/richiesta alla tua azienda (Master).", kw=["comunica con l'azienda", "scrivere all'azienda", "contattare azienda", "richiesta azienda"]),
+    dict(id="home_statistiche", name="Dashboard statistiche", route="/home?section=statistiche", group="Home", desc="KPI personali: appuntamenti, esiti, contratti, andamento.", kw=["vedere statistiche", "statistiche", "dashboard", "kpi", "come sto andando", "risultati", "andamento", "numeri"]),
+    dict(id="dashboard_config", name="Configura dashboard", route="/dashboard-config", group="Home", desc="Scegli quali widget/statistiche vedere in Home.", kw=["personalizzare dashboard", "personalizzo dashboard", "configuro widget", "widget dashboard", "configurare dashboard", "configura dashboard", "personalizza home", "widget home"]),
+    dict(id="home_comunica", name="Comunica con l'Azienda", route="/home?section=comunica", group="Home", desc="Invia una comunicazione/richiesta alla tua azienda (Master).", kw=["scrivo all azienda", "scrivere azienda", "comunicazione azienda", "mando comunicazione", "comunica con l'azienda", "scrivere all'azienda", "contattare azienda", "richiesta azienda"]),
     dict(id="master", name="Interfaccia Master", route="/master", group="Home", desc="Area Master: agenda team, contatti aziendali, contratti, comunicazioni.", kw=["interfaccia master", "master", "area master"], master_only=True),
     # ── CONTATTI ──
-    dict(id="contatti", name="Contatti", route="/contatti", group="Contatti", desc="Lista clienti e prospect con ricerca e filtri.", kw=["contatti", "clienti", "anagrafica", "rubrica", "lista clienti", "cercare cliente"]),
-    dict(id="contatto_nuovo", name="Nuovo contatto", route="/contact/new", group="Contatti", desc="Aggiungi un cliente a mano.", kw=["nuovo contatto", "aggiungi cliente", "nuovo cliente", "inserire cliente", "creare contatto"]),
+    dict(id="contatti", name="Contatti", route="/contatti", group="Contatti", desc="Lista clienti e prospect con ricerca e filtri.", kw=["cerco cliente", "cerco un cliente", "cliente per nome", "recupero contatto", "perso un contatto", "contatti", "clienti", "anagrafica", "rubrica", "lista clienti", "cercare cliente"]),
+    dict(id="contatto_nuovo", name="Nuovo contatto", route="/contact/new", group="Contatti", desc="Aggiungi un cliente a mano.", kw=["aggiungo contatto", "aggiungo cliente", "registra cliente", "cliente nuovo", "nuovo cliente dove", "scrivo cliente", "beccato cliente", "nuovo contatto", "aggiungi cliente", "nuovo cliente", "inserire cliente", "creare contatto"]),
     dict(id="contatto_scheda", name="Scheda contatto", route="/contact/{id}", group="Contatti", desc="Dettaglio cliente: info, note, file, fatture, audio, chiamate, appuntamenti, visite, referenze.", kw=["scheda cliente", "scheda contatto", "dettaglio cliente"]),
     dict(id="contatto_visite", name="Storico visite del contatto", route="/contact/{id}?tab=visits", group="Contatti", desc="Visite registrate (manuali e GPS) per il cliente.", kw=["storico visite", "visite cliente", "ultima visita", "quando sono stato"]),
     dict(id="contatto_note", name="Note del contatto", route="/contact/{id}?tab=notes", group="Contatti", desc="Note testuali sul cliente.", kw=["note cliente", "appunti cliente", "scrivere nota"]),
@@ -56,77 +56,77 @@ APP_MAP: list = [
     dict(id="contatto_contratti", name="Contratti del contatto", route="/contact/{id}?tab=contracts", group="Contatti", desc="Sezione Contratti della scheda cliente: contratti associati, stato, scadenze, nuovo contratto.", kw=["contratti cliente", "contratti di un cliente", "contratti del cliente", "vedere i contratti", "contratto cliente"]),
     dict(id="contatto_ripasso", name="Frequenza ripasso", route="/contact/edit/{id}", group="Contatti", desc="Imposta ogni quanti giorni rivisitare il cliente (ripasso).", kw=["frequenza ripasso", "ripasso", "ogni quanto visitare", "rivisitare"]),
     dict(id="mappa_clienti", name="Mappa clienti", route="/map-clients", group="Contatti", desc="Clienti su mappa, filtri per stato/città/area e 'non visitati da'.", kw=["mappa clienti", "clienti sulla mappa", "non visitati", "vicino a me"]),
-    dict(id="import_contatti", name="Importa contatti", route="/contacts-import", group="Contatti", desc="Importa contatti da CSV/rubrica.", kw=["importa contatti", "import csv", "rubrica telefono"]),
-    dict(id="gruppi", name="Gruppi contatti", route="/groups", group="Contatti", desc="Organizza i clienti in gruppi.", kw=["gruppi", "gruppo clienti", "categorie clienti"]),
+    dict(id="import_contatti", name="Importa contatti", route="/contacts-import", group="Contatti", desc="Importa contatti da CSV/rubrica.", kw=["importare contatti", "rubrica telefono", "file csv", "csv clienti", "importo clienti", "importa contatti", "import csv", "rubrica telefono"]),
+    dict(id="gruppi", name="Gruppi contatti", route="/groups", group="Contatti", desc="Organizza i clienti in gruppi.", kw=["clienti in gruppi", "organizzo clienti", "gruppi clienti", "gruppi", "gruppo clienti", "categorie clienti"]),
     dict(id="leads", name="Lead", route="/leads", group="Contatti", desc="Potenziali clienti da lavorare.", kw=["lead", "potenziali clienti", "prospect"]),
     dict(id="business_card", name="Biglietto da visita digitale", route="/business-card", group="Contatti", desc="Il tuo biglietto da visita digitale da condividere.", kw=["mio biglietto da visita", "biglietto digitale", "condividi contatto"]),
     # ── CALENDARIO ──
-    dict(id="calendario", name="Calendario", route="/calendario", group="Calendario", desc="Vista mensile con appuntamenti, ritelefonate, esiti.", kw=["calendario", "agenda", "appuntamenti", "vista mensile", "mese"]),
-    dict(id="calendario_settimana", name="Calendario settimanale", route="/calendario?view=week", group="Calendario", desc="Vista settimanale/giornaliera.", kw=["settimana", "vista settimanale", "vista giornaliera", "giornata"]),
+    dict(id="calendario", name="Calendario", route="/calendario", group="Calendario", desc="Vista mensile con appuntamenti, ritelefonate, esiti.", kw=["modifico appuntamento", "sbagliato appuntamento", "inserire appuntamento sbagliato", "calendario", "agenda", "appuntamenti", "vista mensile", "mese"]),
+    dict(id="calendario_settimana", name="Calendario settimanale", route="/calendario?view=week", group="Calendario", desc="Vista settimanale/giornaliera.", kw=["messo male agenda", "agenda aiutami", "organizzare settimana", "settimana", "vista settimanale", "vista giornaliera", "giornata"]),
     dict(id="calendario_anno", name="Calendario annuale", route="/calendario?view=year", group="Calendario", desc="Vista annuale.", kw=["anno", "vista annuale"]),
-    dict(id="appuntamento_nuovo", name="Nuovo appuntamento", route="/appointment/new", group="Calendario", desc="Crea un appuntamento (cliente, data, ora, area).", kw=["nuovo appuntamento", "fissare appuntamento", "prendere appuntamento", "pianifica appuntamento"]),
+    dict(id="appuntamento_nuovo", name="Nuovo appuntamento", route="/appointment/new", group="Calendario", desc="Crea un appuntamento (cliente, data, ora, area).", kw=["pianifico appuntamento", "appuntamento con un cliente", "metti appuntamento calendario", "fisso appuntamento", "fissare incontro", "incontro cliente", "metti appuntamento", "appuntamento in calendario", "agenda il", "in agenda", "nuovo appuntamento", "fissare appuntamento", "prendere appuntamento", "pianifica appuntamento"]),
     dict(id="appuntamenti_mancati", name="Appuntamenti mancati", route="/calendario?view=week", group="Calendario", desc="Appuntamenti passati senza esito: chiedi ad Axon 'sposta i mancati di oggi a domani'.", kw=["appuntamenti mancati", "mancati", "saltati", "non fatti", "riprogrammare"]),
     dict(id="appuntamenti_stats", name="Statistiche appuntamenti", route="/appointment-stats", group="Calendario", desc="Esiti e conversioni degli appuntamenti.", kw=["statistiche appuntamenti", "esiti", "conversioni"]),
     dict(id="ripassi", name="Ripassi in scadenza", route="/map-clients", group="Calendario", desc="Clienti da rivisitare (frequenza ripasso superata): chiedi ad Axon 'chi devo rivisitare'.", kw=["ripassi", "da rivisitare", "ripasso scaduto", "clienti da rivedere"]),
     # ── AXON ──
-    dict(id="axon_hub", name="Axon Hub", route="/axon-hub", group="AxonOS", desc="Centro di controllo di Axon: memoria, allarmi, integrazioni, insegnamenti.", kw=["axon hub", "centro axon", "impostazioni axon"]),
-    dict(id="axon_memory", name="Memoria di Axon", route="/axon-memory", group="AxonOS", desc="Cosa Axon ha memorizzato su di te e sui tuoi clienti.", kw=["memoria", "cosa ricordi", "memorizzato"]),
-    dict(id="ai_teach", name="Insegna ad Axon", route="/ai-teach", group="AxonOS", desc="Insegna regole e conoscenze personalizzate.", kw=["insegna", "addestra", "regole axon", "impara"]),
+    dict(id="axon_hub", name="Axon Hub", route="/axon-hub", group="AxonOS", desc="Centro di controllo di Axon: memoria, allarmi, integrazioni, insegnamenti.", kw=["centro controllo axon", "dov e il centro", "centro di controllo", "controllo axon", "axon hub", "centro axon", "impostazioni axon"]),
+    dict(id="axon_memory", name="Memoria di Axon", route="/axon-memory", group="AxonOS", desc="Cosa Axon ha memorizzato su di te e sui tuoi clienti.", kw=["ti ricordi", "cosa ricordi di me", "memoria axon", "memoria", "cosa ricordi", "memorizzato"]),
+    dict(id="ai_teach", name="Insegna ad Axon", route="/ai-teach", group="AxonOS", desc="Insegna regole e conoscenze personalizzate.", kw=["insegno regola", "ti insegno", "insegnare regola", "cosa da ricordare", "dirti una cosa da ricordare", "insegna", "addestra", "regole axon", "impara"]),
     dict(id="axon_alarms", name="Allarmi e promemoria Axon", route="/axon-alarms", group="AxonOS", desc="Allarmi vocali/promemoria impostati con Axon.", kw=["allarmi", "sveglia", "promemoria axon", "ricordami"]),
     dict(id="axon_alerts", name="Avvisi Axon", route="/axon-alerts", group="AxonOS", desc="Avvisi proattivi (scadenze, clienti trascurati, meteo).", kw=["avvisi", "alert", "notifiche axon"]),
     dict(id="voice_copilot", name="Copilota vocale", route="/voice-copilot", group="AxonOS", desc="Modalità vocale continua a mani libere.", kw=["copilota", "vocale", "mani libere", "guida"]),
     dict(id="my_audios", name="I miei audio", route="/my-audios", group="AxonOS", desc="Registrazioni audio e trascrizioni.", kw=["audio", "registrazioni", "trascrizioni", "vocali"]),
-    dict(id="chat_team", name="Chat Team", route="/chat", group="AxonOS", desc="Chat interna con collaboratori/azienda.", kw=["chat team", "messaggi team", "chat interna", "scrivere ai collaboratori"]),
+    dict(id="chat_team", name="Chat Team", route="/chat", group="AxonOS", desc="Chat interna con collaboratori/azienda.", kw=["chatto colleghi", "chat colleghi", "scrivere colleghi", "chat team", "messaggi team", "chat interna", "scrivere ai collaboratori"]),
     # ── AXON DRIVE ──
-    dict(id="giro_ottimale", name="Giro ottimale (Axon Drive)", route="/optimal-route", group="Axon Drive", desc="Seleziona fino a 10 clienti, calcola il percorso migliore, orari stimati, apri navigatore (Google Maps/Waze/Apple).", kw=["giro ottimale", "giro", "percorso", "ottimizza", "axon drive", "itinerario", "tappe", "navigatore"]),
+    dict(id="giro_ottimale", name="Giro ottimale (Axon Drive)", route="/optimal-route", group="Axon Drive", desc="Seleziona fino a 10 clienti, calcola il percorso migliore, orari stimati, apri navigatore (Google Maps/Waze/Apple).", kw=["itinerario più corto", "itinerario piu corto", "giro dei clienti", "risparmiare tempo spostamenti", "spostamenti", "itinerario corto", "itinerario clienti", "giro clienti", "fammi il giro", "percorso più corto", "giro ottimale", "giro", "percorso", "ottimizza", "axon drive", "itinerario", "tappe", "navigatore"]),
     dict(id="navigazione_cliente", name="Naviga verso un cliente", route="/optimal-route?contacts={id}", group="Axon Drive", desc="Apri Axon Drive con il cliente già selezionato.", kw=["naviga", "portami da", "indicazioni", "come arrivo"]),
-    dict(id="resoconto_km", name="Resoconto km", route="/km-report", group="Axon Drive", desc="Km percorsi per visita/periodo, esportabile in PDF.", kw=["km", "chilometri", "resoconto km", "rimborso km", "quanti km"]),
-    dict(id="meteo", name="Meteo", route="/meteo", group="Axon Drive", desc="Previsioni meteo per la zona dei clienti.", kw=["meteo", "che tempo fa", "previsioni", "pioggia"]),
+    dict(id="resoconto_km", name="Resoconto km", route="/km-report", group="Axon Drive", desc="Km percorsi per visita/periodo, esportabile in PDF.", kw=["resoconto chilometri", "chilometri mese", "quanto ho girato", "girato in macchina", "km percorsi", "traccia di dove sono stato", "km", "chilometri", "resoconto km", "rimborso km", "quanti km"]),
+    dict(id="meteo", name="Meteo", route="/meteo", group="Axon Drive", desc="Previsioni meteo per la zona dei clienti.", kw=["tempo dalle parti", "che tempo", "previsioni clienti", "meteo", "che tempo fa", "previsioni", "pioggia"]),
     # ── FATTURE E SCANNER ──
-    dict(id="fatture", name="Analisi fatture", route="/bill-quick", group="Fatture e Scanner", desc="Lista fatture analizzate e nuova analisi: fotografa la bolletta, confronto offerte, PDF per il cliente.", kw=["fatture", "bollette", "analisi fattura", "analizza bolletta", "confronto offerte", "risparmio", "nuova fattura"]),
-    dict(id="fatture_config", name="Configurazione analisi fatture", route="/bill-quick?config=1", group="Fatture e Scanner", desc="Campi da estrarre, regole di confronto, preset (Domestico/Business), stile anteprima.", kw=["configurazione fatture", "preset", "regole confronto", "campi fattura", "stile confronto"]),
-    dict(id="scanner", name="Scanner documenti / OCR", route="/scanner", group="Fatture e Scanner", desc="Scansiona biglietti da visita, documenti e bollette con la fotocamera (OCR).", kw=["scanner", "scansiona", "fotografa", "ocr", "biglietto da visita", "documento", "fotocamera"]),
+    dict(id="fatture", name="Analisi fatture", route="/bill-quick", group="Fatture e Scanner", desc="Lista fatture analizzate e nuova analisi: fotografa la bolletta, confronto offerte, PDF per il cliente.", kw=["analizzo bolletta", "analisi bolletta", "cliente quanto risparmia", "far vedere risparmio", "pdf fattura", "pdf della fattura", "fatture", "bollette", "analisi fattura", "analizza bolletta", "confronto offerte", "risparmio", "nuova fattura"]),
+    dict(id="fatture_config", name="Configurazione analisi fatture", route="/bill-quick?config=1", group="Fatture e Scanner", desc="Campi da estrarre, regole di confronto, preset (Domestico/Business), stile anteprima.", kw=["campi da estrarre", "configuro campi fattura", "preset fatture", "configurazione fatture", "preset", "regole confronto", "campi fattura", "stile confronto"]),
+    dict(id="scanner", name="Scanner documenti / OCR", route="/scanner", group="Fatture e Scanner", desc="Scansiona biglietti da visita, documenti e bollette con la fotocamera (OCR).", kw=["cliente dal biglietto", "aggiungo cliente biglietto", "biglietti scrivania", "biglietti da visita", "bigliettino", "foto biglietto", "scattare foto", "scanner documenti", "scanner", "scansiona", "fotografa", "ocr", "biglietto da visita", "documento", "fotocamera"]),
     dict(id="documenti_axon", name="Documenti Axon", route="/documenti-axon", group="Fatture e Scanner", desc="Documenti generati e salvati da Axon.", kw=["documenti axon", "documenti generati", "pdf salvati"]),
     dict(id="master_files", name="Archivio file", route="/master-files", group="Fatture e Scanner", desc="Archivio documenti (listini, moduli, PDF) condivisi dal Master.", kw=["archivio", "file", "documenti", "listini", "moduli", "materiale"]),
     dict(id="google_drive", name="Google Drive", route="/google-drive", group="Fatture e Scanner", desc="Collega e sfoglia il tuo Google Drive.", kw=["google drive", "drive"]),
     dict(id="dropbox", name="Dropbox", route="/dropbox", group="Fatture e Scanner", desc="Collega e sfoglia Dropbox.", kw=["dropbox"]),
-    dict(id="spazio_personale", name="Spazio personale", route="/spazio-personale", group="Fatture e Scanner", desc="I tuoi file personali.", kw=["spazio personale", "miei file", "cartella personale"]),
+    dict(id="spazio_personale", name="Spazio personale", route="/spazio-personale", group="Fatture e Scanner", desc="I tuoi file personali.", kw=["file personali", "tengo file", "miei documenti personali", "spazio personale", "miei file", "cartella personale"]),
     # ── CASELLE MAIL ──
-    dict(id="mail_accounts", name="Caselle mail", route="/email-accounts", group="Caselle Mail", desc="Aggiungi caselle email (IMAP/SMTP), posta in arrivo e in uscita, proposte CRM dalle mail.", kw=["caselle mail", "email", "posta", "in arrivo", "in uscita", "account email", "imap"]),
+    dict(id="mail_accounts", name="Caselle mail", route="/email-accounts", group="Caselle Mail", desc="Aggiungi caselle email (IMAP/SMTP), posta in arrivo e in uscita, proposte CRM dalle mail.", kw=["mail dove le metto", "le mail", "collegare la mail", "mia mail", "caselle mail", "email", "posta", "in arrivo", "in uscita", "account email", "imap"]),
     dict(id="smtp", name="Configurazione SMTP", route="/smtp", group="Caselle Mail", desc="Server di invio email (SMTP) per inviare PDF e comunicazioni.", kw=["smtp", "server invio", "configurare email", "inviare email"]),
-    dict(id="mail_proposals", name="Proposte CRM dalle mail", route="/mail-crm-proposals", group="Caselle Mail", desc="Contatti/appuntamenti suggeriti da Axon leggendo le email.", kw=["proposte mail", "email in crm", "suggerimenti mail"]),
+    dict(id="mail_proposals", name="Proposte CRM dalle mail", route="/mail-crm-proposals", group="Caselle Mail", desc="Contatti/appuntamenti suggeriti da Axon leggendo le email.", kw=["leggere email", "email proporre appuntamenti", "legge le mail", "proposte mail", "email in crm", "suggerimenti mail"]),
     dict(id="outlook", name="Outlook", route="/outlook", group="Caselle Mail", desc="Collega Microsoft Outlook.", kw=["outlook", "microsoft"]),
     # ── HELP ──
     dict(id="help", name="Help", route="/help", group="Help", desc="Aiuto: libretto, manuale PDF, segnala bug/idea, privacy, tour.", kw=["help", "aiuto", "supporto", "assistenza"]),
     dict(id="libretto", name="Libretto informativo", route="/libretto", group="Help", desc="Guida a tutte le funzioni dell'app, scaricabile in PDF (manuale).", kw=["libretto", "manuale", "guida", "istruzioni", "scarica manuale", "pdf manuale"]),
-    dict(id="segnala", name="Segnala bug / idea", route="/help-center", group="Help", desc="Invia un ticket: problema, idea, richiesta privacy.", kw=["segnala", "bug", "problema", "idea", "suggerimento", "ticket", "non funziona"]),
-    dict(id="tour", name="Tour guidato", route="/tour", group="Help", desc="Tour conversazionale iniziale con Axon.", kw=["tour", "tutorial", "onboarding", "rifare il tour"]),
-    dict(id="funzioni", name="Tutte le funzioni", route="/tour-features", group="Help", desc="Elenco completo delle funzioni per gruppo.", kw=["tutte le funzioni", "cosa sa fare", "elenco funzioni", "cosa posso fare"]),
+    dict(id="segnala", name="Segnala bug / idea", route="/help-center", group="Help", desc="Invia un ticket: problema, idea, richiesta privacy.", kw=["cancellazione dati", "cancellare i miei dati", "axon non risponde", "app lenta", "non si genera", "non funziona", "segnala", "bug", "problema", "idea", "suggerimento", "ticket", "non funziona"]),
+    dict(id="tour", name="Tour guidato", route="/tour", group="Help", desc="Tour conversazionale iniziale con Axon.", kw=["sono nuovo", "aiutami a iniziare", "nuovo utente", "tour", "tutorial", "onboarding", "rifare il tour"]),
+    dict(id="funzioni", name="Tutte le funzioni", route="/tour-features", group="Help", desc="Elenco completo delle funzioni per gruppo.", kw=["tutte le funzioni", "quali funzioni", "funzioni app", "cosa sa fare l app", "tutte le funzioni", "cosa sa fare", "elenco funzioni", "cosa posso fare"]),
     # ── PROFILO / IMPOSTAZIONI ──
     dict(id="impostazioni", name="Profilo e impostazioni", route="/impostazioni", group="Profilo", desc="Hub impostazioni: profilo, preferenze, notifiche, sicurezza, abbonamento, Axon, integrazioni.", kw=["impostazioni", "profilo", "settings", "configurazione", "preferenze"]),
     dict(id="profilo_dati", name="Dati personali", route="/impostazioni?section=general", group="Profilo", desc="Nome, foto, telefono, firma, lingua.", kw=["dati personali", "il mio nome", "foto profilo", "telefono", "firma"]),
     dict(id="preferenze", name="Preferenze generali", route="/impostazioni?section=general", group="Profilo", desc="Lingua, tema, comportamento generale.", kw=["preferenze generali", "lingua", "tema"]),
-    dict(id="notifiche", name="Notifiche", route="/axon-notifications?tab=prefs", group="Profilo", desc="Push, promemoria, copie team, livelli di urgenza, orari silenziosi.", kw=["notifiche", "push", "avvisi telefono", "suoni", "non disturbare"]),
-    dict(id="sicurezza", name="Sicurezza", route="/impostazioni?section=security", group="Profilo", desc="Password, 2FA, sessioni, PIN.", kw=["sicurezza", "password", "2fa", "autenticazione", "pin", "cambiare password"]),
+    dict(id="notifiche", name="Notifiche", route="/axon-notifications?tab=prefs", group="Profilo", desc="Push, promemoria, copie team, livelli di urgenza, orari silenziosi.", kw=["imposto notifiche", "notifiche", "push", "avvisi telefono", "suoni", "non disturbare"]),
+    dict(id="sicurezza", name="Sicurezza", route="/impostazioni?section=security", group="Profilo", desc="Password, 2FA, sessioni, PIN.", kw=["cambio password", "sicurezza", "password", "2fa", "autenticazione", "pin", "cambiare password"]),
     dict(id="abbonamento", name="Abbonamento", route="/impostazioni?section=billing", group="Profilo", desc="Piano attivo, fatturazione, upgrade.", kw=["abbonamento", "piano", "pagamento", "fattura app", "upgrade", "premium"]),
-    dict(id="gps_visite", name="Rilevamento GPS visite", route="/impostazioni?section=general", group="Profilo", desc="Attiva il rilevamento automatico delle visite (soglie minuti/metri).", kw=["rilevamento gps", "gps", "visite automatiche", "rilevamento visite", "geolocalizzazione"]),
+    dict(id="gps_visite", name="Rilevamento GPS visite", route="/impostazioni?section=general", group="Profilo", desc="Attiva il rilevamento automatico delle visite (soglie minuti/metri).", kw=["visite in automatico", "registra visite", "visite automatico", "rilevamento gps", "gps", "visite automatiche", "rilevamento visite", "geolocalizzazione"]),
     dict(id="conferma_visite", name="Modalità conferma visite", route="/impostazioni?section=general", group="Profilo", desc="Popup in tempo reale oppure riepilogo a fine giornata.", kw=["conferma visite", "popup visite", "riepilogo fine giornata", "modalità visite"]),
-    dict(id="axon_settings", name="Impostazioni Axon", route="/impostazioni?section=axon", group="Profilo", desc="Nome assistente, voce, modalità risposta (breve/dettagliata).", kw=["voce axon", "nome assistente", "modalità risposta", "cambia nome", "voce"]),
+    dict(id="axon_settings", name="Impostazioni Axon", route="/impostazioni?section=axon", group="Profilo", desc="Nome assistente, voce, modalità risposta (breve/dettagliata).", kw=["nome assistente", "cambio nome assistente", "voce assistente", "configurare voce", "voce axon", "nome assistente", "modalità risposta", "cambia nome", "voce"]),
     dict(id="integrazioni", name="Integrazioni", route="/axon-integrations", group="Profilo", desc="Collega servizi esterni (Drive, Dropbox, Outlook, Home Assistant, Telegram…).", kw=["integrazioni", "collega", "servizi esterni", "telegram", "home assistant"]),
-    dict(id="aree", name="Le mie aree", route="/le-mie-aree", group="Profilo", desc="Aree merceologiche degli appuntamenti (Energia, Piano Marketing…).", kw=["aree", "aree merceologiche", "tipo appuntamento", "categorie appuntamento"]),
+    dict(id="aree", name="Le mie aree", route="/le-mie-aree", group="Profilo", desc="Aree merceologiche degli appuntamenti (Energia, Piano Marketing…).", kw=["aree appuntamenti", "cambio aree", "energia marketing", "aree", "aree merceologiche", "tipo appuntamento", "categorie appuntamento"]),
     dict(id="campi_custom", name="Campi personalizzati", route="/custom-fields", group="Profilo", desc="Campi extra nella scheda contatto.", kw=["campi personalizzati", "campi extra", "campo custom"]),
     dict(id="wizard", name="Wizard configurazione", route="/setup", group="Profilo", desc="Configurazione guidata iniziale (Parla a Neo).", kw=["wizard", "configurazione guidata", "parla a neo", "setup"]),
     dict(id="spese", name="Spese", route="/axon-expenses", group="Profilo", desc="Registro spese e rimborsi.", kw=["spese", "rimborsi", "nota spese", "scontrini"]),
     dict(id="report", name="Report", route="/report", group="Profilo", desc="Report attività e performance.", kw=["report", "resoconto attività", "riepilogo mensile"]),
     # ── MASTER ──
-    dict(id="master_agenda", name="Agenda team (Master)", route="/master", group="Master", desc="Agenda di tutti i collaboratori.", kw=["agenda team", "appuntamenti collaboratori", "agenda squadra"], master_only=True),
-    dict(id="anagrafica_master", name="Contatti aziendali (Master)", route="/anagrafica-master", group="Master", desc="Anagrafica clienti dell'intera azienda.", kw=["contatti aziendali", "anagrafica master", "clienti azienda"], master_only=True),
+    dict(id="master_agenda", name="Agenda team (Master)", route="/master", group="Master", desc="Agenda di tutti i collaboratori.", kw=["agenda team", "agenda del team", "agenda collaboratori", "agenda team", "appuntamenti collaboratori", "agenda squadra"], master_only=True),
+    dict(id="anagrafica_master", name="Contatti aziendali (Master)", route="/anagrafica-master", group="Master", desc="Anagrafica clienti dell'intera azienda.", kw=["contatti azienda", "contatti di tutta l azienda", "clienti di tutta l azienda", "anagrafica azienda", "contatti aziendali", "anagrafica master", "clienti azienda"], master_only=True),
     dict(id="contratti", name="Contratti (Master)", route="/master", group="Master", desc="Contratti caricati dai collaboratori, stati e commissioni.", kw=["contratti", "caricare contratto", "stato contratto", "commissioni"], master_only=True),
-    dict(id="contratto_nuovo", name="Nuovo contratto", route="/contract/new", group="Master", desc="Carica un nuovo contratto.", kw=["nuovo contratto", "inserire contratto"]),
-    dict(id="comunicazioni_azienda", name="Comunicazioni azienda (Master)", route="/master", group="Master", desc="Invia comunicazioni/banner ai collaboratori.", kw=["comunicazioni", "avviso ai collaboratori", "circolare", "banner"], master_only=True),
+    dict(id="contratto_nuovo", name="Nuovo contratto", route="/contract/new", group="Master", desc="Carica un nuovo contratto.", kw=["carico contratto", "contratto firmato", "caricare contratto", "nuovo contratto", "inserire contratto"]),
+    dict(id="comunicazioni_azienda", name="Comunicazioni azienda (Master)", route="/master", group="Master", desc="Invia comunicazioni/banner ai collaboratori.", kw=["comunicazione collaboratori", "mando comunicazione", "avviso collaboratori", "comunicare ai collaboratori", "comunicazioni", "avviso ai collaboratori", "circolare", "banner"], master_only=True),
     dict(id="team", name="Team", route="/team", group="Master", desc="Gestione collaboratori, ruoli, aree.", kw=["team", "collaboratori", "squadra", "ruoli"], master_only=True),
-    dict(id="invita", name="Invita collaboratore", route="/invite-collaborator", group="Master", desc="Invita un nuovo collaboratore.", kw=["invita", "aggiungi collaboratore", "nuovo collaboratore"], master_only=True),
-    dict(id="team_insights", name="Team insights", route="/team-insights", group="Master", desc="KPI e confronto collaboratori.", kw=["team insights", "kpi team", "confronto collaboratori", "classifica"], master_only=True),
+    dict(id="invita", name="Invita collaboratore", route="/invite-collaborator", group="Master", desc="Invita un nuovo collaboratore.", kw=["invito collaboratore", "invitare collaboratore", "invita", "aggiungi collaboratore", "nuovo collaboratore"], master_only=True),
+    dict(id="team_insights", name="Team insights", route="/team-insights", group="Master", desc="KPI e confronto collaboratori.", kw=["kpi collaboratori", "kpi dei collaboratori", "risultati collaboratori", "confronto team", "team insights", "kpi team", "confronto collaboratori", "classifica"], master_only=True),
     dict(id="cruscotto", name="Cruscotto", route="/cruscotto", group="Master", desc="Cruscotto direzionale aziendale.", kw=["cruscotto", "direzionale", "andamento azienda"], master_only=True),
     dict(id="corporate_gym", name="Corporate Gym", route="/corporate-gym", group="Master", desc="Formazione e allenamento del team.", kw=["formazione", "corporate gym", "allenamento", "training"], master_only=True),
     dict(id="personalizzazione", name="Personalizzazione aziendale", route="/personalizzazione-aziendale", group="Master", desc="Logo, colori, nome azienda.", kw=["personalizzazione", "logo azienda", "colori", "branding"], master_only=True),
@@ -154,22 +154,76 @@ def _nav_norm(s: str) -> str:
     return _nav_re.sub(r"[^a-z0-9 ]+", " ", s)
 
 
+_NAV_STOP = {"un", "una", "uno", "il", "lo", "la", "i", "gli", "le", "di", "del", "dello", "della", "dei", "degli", "delle", "a", "al", "allo", "alla", "ai", "agli", "alle",
+             "da", "dal", "dallo", "dalla", "dai", "dagli", "dalle", "in", "nel", "nello", "nella", "nei", "negli", "nelle", "su", "sul", "sullo", "sulla", "sui", "sugli", "sulle",
+             "per", "con", "tra", "fra", "e", "o", "che", "mio", "mia", "miei", "mie", "tuo", "tua", "suo", "sua", "l", "d", "ma", "anche", "come", "dove", "cosa", "posso", "faccio", "voglio", "vorrei", "devo", "si", "fa", "faccio"}
+_NAV_SUFFIX_LONG = _nav_re.compile(r"(azione|azioni|amento|amenti|imento|imenti|mente|are|ere|ire|iamo|ano|ono|ete)$")
+_NAV_SUFFIX_PART = _nav_re.compile(r"(ato|ata|ati|ate|uto|uta|uti|ute|ito|ita|iti|ite)$")
+_NAV_SUFFIX_VOW = _nav_re.compile(r"[aeio]$")
+
+
+def _nav_stem(w: str) -> str:
+    if len(w) <= 3:
+        return w
+    st = _NAV_SUFFIX_LONG.sub("", w)
+    if st != w and len(st) >= 4:
+        return st
+    st = _NAV_SUFFIX_PART.sub("", w)
+    if st != w and len(st) >= 5:
+        return st
+    st = _NAV_SUFFIX_VOW.sub("", w)
+    return st if len(st) >= 3 else w
+
+
+def _nav_tokens(text: str) -> list:
+    return [_nav_stem(w) for w in _nav_norm(text).split() if w not in _NAV_STOP]
+
+
+_NAV_VOCAB_CACHE: dict = {"set": None}
+
+
+def _nav_vocab() -> set:
+    if _NAV_VOCAB_CACHE["set"] is None:
+        v = set()
+        for e in APP_MAP:
+            for kw in e["kw"]:
+                v.update(_nav_tokens(kw))
+        _NAV_VOCAB_CACHE["set"] = v
+    return _NAV_VOCAB_CACHE["set"]
+
+
+def _nav_tok_eq(a: str, b: str) -> bool:
+    """a = token keyword, b = token messaggio. Fuzzy solo se b è un refuso (non nel vocabolario)."""
+    if a == b:
+        return True
+    if min(len(a), len(b)) < 4 or abs(len(a) - len(b)) > 1 or b in _nav_vocab():
+        return False
+    import difflib as _dl
+    return _dl.SequenceMatcher(None, a, b).ratio() >= 0.8
+
+
+def _nav_kw_hit(kw_tokens: list, msg_tokens: list) -> bool:
+    return bool(kw_tokens) and all(any(_nav_tok_eq(k, m) for m in msg_tokens) for k in kw_tokens)
+
+
+def _nav_score(e: dict, msg_tokens: list) -> int:
+    score = 0
+    for kw in e["kw"]:
+        kt = _nav_tokens(kw)
+        if _nav_kw_hit(kt, msg_tokens):
+            score += 3 + 2 * len(kt)
+    return score
+
+
 def _nav_match(msg: str, user: dict, limit: int = 3) -> list:
     """Keyword scoring: ritorna le voci APP_MAP più pertinenti al messaggio."""
-    m = " " + _nav_norm(msg) + " "
+    mt = _nav_tokens(msg)
     master = _nav_is_master(user)
     scored = []
     for e in APP_MAP:
         if e.get("master_only") and not master:
             continue
-        score = 0
-        for kw in e["kw"]:
-            k = _nav_norm(kw).strip()
-            if k and f" {k} " in m:
-                score += 3 + len(k.split())
-        for w in _nav_norm(e["name"]).split():
-            if len(w) > 3 and f" {w} " in m:
-                score += 1
+        score = _nav_score(e, mt)
         if score:
             scored.append((score, e))
     scored.sort(key=lambda x: -x[0])
@@ -255,7 +309,8 @@ _RX_TRUNC = _nav_re.compile(r"^\s*(come faccio a|come faccio|come si fa a|come s
 # V50.z262 — casi limite deterministici (identità, offese, richieste impossibili, testo senza senso)
 _RX_ROLE = _nav_re.compile(r"\b(sei un'?\s?(ai|ia|intelligenza artificiale|robot|bot|umano)|chi ti ha (creato|programmato|fatto|costruito)|che modello (sei|usi)|prompt di sistema|system prompt|ignora (le tue |tutte le )?istruzioni|dimmi (qualcosa di |un )?segreto|fingi di essere|fai finta di essere|cose che non riguardano l'app)\b", _nav_re.I)
 _RX_OFFENSIVE = _nav_re.compile(r"\b(cretin\w*|idiot\w*|stupid\w*|imbecill\w*|vaffa\w*|fanculo|stronz\w*|merd\w*|cazz\w*|coglion\w*|parolacc\w*|bestemmi\w*)\b", _nav_re.I)
-_RX_IMPOSSIBLE = _nav_re.compile(r"\b(cancella|elimina|rimuovi)\b.*\b(tutt[oi]|tutti i (miei )?dati|tutti gli appuntamenti)\b|\bsenza che (lo sappia|nessuno)\b|\btrasferisci\b.*\b(euro|€|iban)\b|\bbonifico\b|\b(numero|telefono|indirizzo) personale\b.*\b(collega|collaborator\w*)\b", _nav_re.I)
+_RX_FRUSTRATED = _nav_re.compile(r"\b(fa schifo|fate schifo|non funziona (niente|nulla|mai)|sei inutile|app inutile|rubato i soldi|rubate|truffa|colpa tua|perso (tutta )?la giornata|non serve a niente|che schifo|fa pena)\b", _nav_re.I)
+_RX_IMPOSSIBLE = _nav_re.compile(r"\b(cancell\w*|elimin\w*|rimuov\w*|azzer\w*)\b.*\b(tutt[oi]|tutti i (miei )?dati|tutti gli appuntamenti)\b|\bsenza che (lo sappia|nessuno)\b|\btrasferisci\b.*\b(euro|€|iban)\b|\bbonifico\b|\b(numero|telefono|indirizzo) personale\b.*\b(collega|collaborator\w*)\b", _nav_re.I)
 _RX_GIBBERISH = _nav_re.compile(r"^[\W_]{1,6}$|^(?:[^aeiouàèéìòù\s]{4,}\s*)+$|\b(asdf|qwer|zxcv|hjkl|yuiop|dfgh|sdfg)\w*", _nav_re.I)
 
 _GENERIC_CLIENT = {"un cliente", "cliente", "il cliente", "un mio cliente", "qualcuno", "un cliente oggi", "una cliente"}
@@ -536,7 +591,7 @@ def _nav_flow_docs(msg: str) -> dict:
 
 
 def _nav_flow_howto(user: dict, x: str) -> "dict | None":
-    hits = _nav_match(x, user, limit=3)
+    hits = _nav_match(x, user, limit=3)  # x = messaggio completo (verbo incluso)
     if not hits:
         return None
     top = hits[0]
@@ -546,8 +601,45 @@ def _nav_flow_howto(user: dict, x: str) -> "dict | None":
     return _nav_reply(txt)
 
 
+# ---------------------------------------------------------------------------
+# LIVELLO 1 — Risposte template deterministiche per le domande mappate (V50.z263)
+# Stessa domanda → stessa risposta, stesso deep link. Nessuna generazione AI.
+# ---------------------------------------------------------------------------
+_RX_NAV_INTENT = _nav_re.compile(r"\b(come|dove|voglio|vorrei|apri|aprire|mostra|mostrami|fammi vedere|vedere|vedo|trovo|trovare|imposta\w*|configur\w*|attiv\w*|disattiv\w*|cambi\w*|modific\w*|aggiung\w*|cre\w*|nuov\w*|colleg\w*|scansion\w*|analizz\w*|import\w*|fiss\w*|pianific\w*|programm\w*|segnal\w*|scaric\w*|gestisc\w*|personalizz\w*|invit\w*|registr\w*|ottimizz\w*|esport\w*|carica\w*|metto|mettere|inserire|inserisco|serve|servirebbe|posso|si fa|funziona|vai|portami|andare|c'[èe]|esiste)\b", _nav_re.I)
+_RX_DATA_Q = _nav_re.compile(r"\b(quanti|quante|quanto (ho|abbiamo|manca)|a che ora|chi [èe]|qual [èe] (il|la) (numero|telefono|indirizzo|mail|email|prossimo|prossima)|riassumi|riepilogo di|elenca|leggimi|dimmi (chi|quando|quanto|quanti|quante))\b", _nav_re.I)
+
+
+def _nav_template_reply(msg: str, user: dict) -> Optional[dict]:
+    """Se il messaggio corrisponde con confidenza a una voce di APP_MAP → risposta template fissa."""
+    t = (msg or "").strip()
+    words = _nav_norm(t).split()
+    if not words or len(words) > 30:
+        return None
+    if _RX_DATA_Q.search(t):
+        return None  # domanda sui dati (numeri/orari) → AI con contesto CRM
+    has_intent = bool(_RX_NAV_INTENT.search(t)) or len(words) <= 4
+    mt = _nav_tokens(t)
+    master = _nav_is_master(user)
+    best, best_score, second = None, 0, 0
+    for e in APP_MAP:
+        if e.get("master_only") and not master:
+            continue
+        if "{id}" in e["route"]:
+            continue  # route dinamiche: servono i flussi dedicati
+        score = _nav_score(e, mt)
+        if score > best_score:
+            best, best_score, second = e, score, best_score
+        elif score > second:
+            second = score
+    if not best or best_score < 5 or (not has_intent and best_score < 7):
+        return None
+    label = best.get("label") or f"Apri {best['name']}"
+    reply = f"**{best['name']}** — {best['desc']}\n" + _nav(best["route"], label)
+    return _nav_reply(reply)
+
+
 async def _nav_intercept(msg: str, user: dict):
-    """Intercettore NAVIGATORE (flussi multi-step + linguaggio vago). None se non matcha."""
+    """Intercettore NAVIGATORE (flussi multi-step + linguaggio vago + template L1). None se non matcha."""
     try:
         t = (msg or "").strip()
         if not (1 <= len(t) <= 220):
@@ -555,6 +647,8 @@ async def _nav_intercept(msg: str, user: dict):
         # V50.z262 — correzioni stress test
         if _RX_GIBBERISH.match(t):
             return _nav_reply("Non ho capito il messaggio 🙂 Scrivimi cosa ti serve (es. «aggiungi cliente», «calendario», «analizza bolletta») e ti porto nella schermata giusta.")
+        if _RX_FRUSTRATED.search(t):
+            return _nav_reply("Mi dispiace, capisco la frustrazione. Dimmi cosa non ha funzionato e lo risolviamo insieme: posso aprire la schermata giusta o inviare una segnalazione al supporto con i dettagli.\n" + _nav("/help-center", "🛟 Segnala il problema") + "\n" + _nav("/tour-features", "🧭 Cosa può fare l'app"))
         if _RX_OFFENSIVE.search(t):
             return _nav_reply("Capisco la frustrazione. Resto a disposizione per aiutarti con qualcosa di concreto: clienti, appuntamenti, fatture o un problema da segnalare.\n" + _nav("/help-center", "🛟 Segnala un problema"))
         if _RX_ROLE.search(t):
@@ -576,6 +670,8 @@ async def _nav_intercept(msg: str, user: dict):
         if _RX_TELEGRAM.search(t):
             return _nav_reply("I servizi esterni si collegano dalla sezione Integrazioni del Profilo.\n" + _nav("/axon-integrations", "🔌 Integrazioni"))
         if _RX_RIPASSI.search(t):
+            if _nav_re.search(r"\b(impost\w*|configur\w*|frequenza|ogni quant\w*|cambi\w*)\b", t, _nav_re.I):
+                return _nav_reply("La **frequenza di ripasso** (ogni quanti giorni rivisitare il cliente) si imposta nella scheda del cliente → Modifica. Scegli il cliente dalla lista:\n" + _nav("/contatti", "👥 Apri i contatti") + "\n" + _nav("/map-clients", "📍 Mappa clienti (filtro non visitati)"))
             return await _nav_flow_ripassi(user)
         m = _RX_GOTO.match(t)
         if m:
@@ -600,7 +696,12 @@ async def _nav_intercept(msg: str, user: dict):
             return _nav_flow_docs(t)
         hm = _RX_HOWTO.search(t)
         if hm:
-            return _nav_flow_howto(user, hm.group("x"))
+            r = _nav_flow_howto(user, t)
+            if r:
+                return r
+        r = _nav_template_reply(t, user)
+        if r:
+            return r
     except Exception as e:
         logger.warning("[NAV] intercept failed: %s", e)
     return None
@@ -609,10 +710,17 @@ async def _nav_intercept(msg: str, user: dict):
 _nav_prev_push = _maybe_push_command  # noqa: F821
 
 
+_NAV_NOLINK_OK = ("Questa funzione non è disponibile", "La frase sembra incompleta", "Non ho capito il messaggio", "Sono Axon, l'assistente")
+
+
 async def _maybe_push_command(msg: str, user: dict):  # noqa: F811
     """Stream: prova prima il Navigatore, poi la catena precedente (push/neo)."""
     r = await _nav_intercept(msg, user)
     if r:
+        rep = r.get("reply") or ""
+        if "[[NAV:" not in rep and "[[ACTION:" not in rep and not rep.startswith(_NAV_NOLINK_OK):
+            logger.warning("[NAV] risposta L1 senza deep link per «%s»", (msg or "")[:80])
+            r["missing_deeplink"] = True
         return r
     return await _nav_prev_push(msg, user)
 

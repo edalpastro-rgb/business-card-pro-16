@@ -6365,3 +6365,6 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 
 ## V50.z262 — Correzioni stress test + categoria 'Domande sbagliate e assurde' — DONE
 - Tab Contratti in scheda cliente; intercetti deterministici (fattura conversazionale, trap risposta fissa, campi custom, ripassi, integrazioni, mail troncata, frasi troncate, gibberish, identità, offese, richieste impossibili); regole casi limite nel prompt; 35 domande 'sbagliate' con valutazione guard; gestione errori LLM nello stress test (budget esaurito).
+
+## V50.z263 — Risposte deterministiche a due livelli — DONE
+- L1 template fisso per domande mappate (stemming+fuzzy, keyword arricchite), L2 AI solo per non mappate. Stress test ×3: 230/230 pass, 0 incoerenti.
