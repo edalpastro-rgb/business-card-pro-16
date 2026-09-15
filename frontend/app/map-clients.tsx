@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Linking, Platform, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
+import { useNavChooser, joinAddr } from "@/src/NavChooser";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
@@ -81,22 +82,24 @@ export default function MapClientsScreen() {
     actions: [{ id: "scheda", label: "Scheda" }, ...(c.phone ? [{ id: "call", label: "Chiama" }, { id: "wa", label: "WhatsApp" }] : []), { id: "nav", label: "Naviga" }, { id: "giro", label: giro.includes(c.contact_id) ? "✓ Nel giro" : "Aggiungi a Giro" }],
   })), [visible, scope, ownerColors, giro]);
 
+  const navChooser = useNavChooser(); // V50.z253 — popup Google Maps / Waze / Apple Maps
   const onAction = useCallback(async ({ action, id }: { action: string; id: string }) => {
     const c = (data?.items || []).find((x) => x.contact_id === id); if (!c) return;
     if (action === "scheda") router.push(`/contact/${id}` as any);
     else if (action === "call") Linking.openURL(`tel:${c.phone.replace(/\s+/g, "")}`);
     else if (action === "wa") Linking.openURL(`https://wa.me/${c.phone.replace(/[^\d]/g, "")}`);
-    else if (action === "nav") Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lon}`);
+    else if (action === "nav") navChooser.open({ lat: c.lat, lon: c.lon, label: c.name, address: joinAddr(c.address, c.city) });
     else if (action === "giro") {
       setGiro((prev) => { const next = prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= 10 ? (notify("Giro pieno", "Massimo 10 clienti per giro"), prev) : [...prev, id]; void AsyncStorage.setItem(GIRO_KEY, JSON.stringify(next)); return next; });
     }
-  }, [data, router]);
+  }, [data, router, navChooser]);
 
   const counts = useMemo(() => { const c: Record<string, number> = {}; (data?.items || []).forEach((i) => { c[i.status] = (c[i.status] || 0) + 1; }); return c; }, [data]);
   const center: [number, number] = data?.office ? [data.office.lat, data.office.lon] : DEFAULT_CENTER;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
+      {navChooser.element}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} testID="map-back"><Ionicons name="arrow-back" size={22} color="#FFF" /></Pressable>
         <View style={{ flex: 1 }}><Text style={styles.title}>Mappa Clienti</Text><Text style={styles.sub}>{data ? `${visible.length} sulla mappa · ${data.without_address} senza indirizzo${data.pending_geocode ? ` · ${data.pending_geocode} in geocodifica…` : ""}` : "Caricamento…"}</Text></View>

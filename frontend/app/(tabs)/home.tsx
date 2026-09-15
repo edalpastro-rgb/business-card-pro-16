@@ -634,6 +634,13 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.quickTxt} numberOfLines={2}>Axon Drive</Text>
               </Pressable>
+              {/* V50.z253 — Resoconto Km (note spese) */}
+              <Pressable testID="qa-km-report" style={styles.quick} onPress={() => router.push("/km-report" as any)}>
+                <View style={[styles.quickIcon, { backgroundColor: "#0EA5E9" /* CRM Core */ }]}>
+                  <Ionicons name="speedometer-outline" size={22} color="#FFF" />
+                </View>
+                <Text style={styles.quickTxt} numberOfLines={2}>Resoconto Km</Text>
+              </Pressable>
               {/* V50.z25 — Caselle mail (IMAP) — categoria Comunicazioni */}
               <Pressable testID="qa-email-accounts" style={styles.quick} onPress={() => router.push("/email-accounts")}>
                 <View style={[styles.quickIcon, { backgroundColor: "#F97316" /* V50.z34 Comunicazioni */ }]}>

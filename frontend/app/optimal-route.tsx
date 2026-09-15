@@ -15,6 +15,8 @@ import { notify } from "@/src/utils/notify";
 import { LeafletMap } from "@/src/LeafletMap";
 import { exportRoutePdf, estimateTimes } from "@/src/utils/routePdf";
 import { useAuth } from "@/src/auth";
+import { useNavChooser, joinAddr } from "@/src/NavChooser";
+import { KmEntry } from "@/src/utils/kmReportPdf";
 
 const GIRO_KEY = "geo_giro_ids_v1";
 const ORANGE = "#FF6B35"; const NAVY = "#1B2B4B";
@@ -84,7 +86,35 @@ export default function OptimalRouteScreen() {
       setRes(await api<RouteRes>("/geo/optimal-route", { method: "POST", body })); setStep(3);
     } catch (e: any) { notify("Calcolo non riuscito", e?.message || "Errore"); } finally { setBusy(false); }
   };
-  const navTo = (lat: number, lon: number) => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`);
+  const navChooser = useNavChooser();
+  const navTo = (l: { lat: number | null; lon: number | null; name?: string; address?: string; city?: string }) =>
+    navChooser.open({ lat: l.lat, lon: l.lon, label: l.name, address: joinAddr(l.address, l.city) });
+
+  // V50.z253 — Resoconto Km: spunta «Visita completata» per tappa/rientro → POST /geo/km-log (km dal percorso calcolato)
+  const [kmDone, setKmDone] = useState<Record<number, KmEntry>>({});
+  const [kmBusy, setKmBusy] = useState<number | null>(null);
+  useEffect(() => {
+    if (!res?.route_id) { setKmDone({}); return; }
+    api<{ items: KmEntry[] }>(`/geo/km-log?route_id=${encodeURIComponent(res.route_id)}`)
+      .then((r) => { const m: Record<number, KmEntry> = {}; (r.items || []).forEach((e) => { m[e.seq] = e; }); setKmDone(m); })
+      .catch(() => {});
+  }, [res?.route_id]);
+  const toggleVisit = async (seq: number) => {
+    if (!res || kmBusy !== null) return;
+    setKmBusy(seq);
+    try {
+      const cur = kmDone[seq];
+      if (cur) {
+        await api(`/geo/km-log/${cur.entry_id}`, { method: "DELETE" });
+        setKmDone((m) => { const n = { ...m }; delete n[seq]; return n; });
+      } else {
+        const today = new Date(); const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        const r = await api<{ entry: KmEntry }>("/geo/km-log", { method: "POST", body: { route_id: res.route_id, seq, date } });
+        setKmDone((m) => ({ ...m, [seq]: r.entry }));
+      }
+    } catch (e: any) { notify("Resoconto Km", e?.message || "Operazione non riuscita"); } finally { setKmBusy(null); }
+  };
+  const kmDoneTotal = Object.values(kmDone).reduce((a, e) => a + (Number(e.km) || 0), 0);
   const byId = (id: string) => contacts.find((c) => c.contact_id === id);
 
   return (
@@ -92,8 +122,10 @@ export default function OptimalRouteScreen() {
       <View style={styles.header}>
         <Pressable onPress={() => (step > 1 ? setStep((s) => (s - 1) as any) : router.back())} hitSlop={10} testID="route-back"><Ionicons name="arrow-back" size={22} color="#FFF" /></Pressable>
         <View style={{ flex: 1 }}><Text style={styles.title}>🚗 Giro Ottimale</Text><Text style={styles.sub}>Step {step}/3 · {step === 1 ? "Seleziona i clienti" : step === 2 ? "Scegli la partenza" : "Percorso calcolato"}</Text></View>
+        <Pressable onPress={() => router.push("/km-report" as any)} hitSlop={8} style={styles.headBtn} testID="route-km-report"><Ionicons name="speedometer" size={18} color="#FFF" /></Pressable>
         <Pressable onPress={() => router.push("/map-clients" as any)} hitSlop={8} style={styles.headBtn} testID="route-open-map"><Ionicons name="map" size={18} color="#FFF" /></Pressable>
       </View>
+      {navChooser.element}
       <ScrollView contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: navPad + 70 }} keyboardShouldPersistTaps="handled">
         {loading ? <ActivityIndicator color={ORANGE} style={{ marginTop: 40 }} /> : null}
 
@@ -130,7 +162,7 @@ export default function OptimalRouteScreen() {
             <Text style={styles.sumBig}>{res.legs.length} clienti · {res.total_km} km · {fmtMin(res.total_min)}</Text>
             <Text style={styles.sumMeta}>Guida {fmtMin(res.drive_min)} + soste {fmtMin(res.stop_min)} (15 min a cliente) · stima su strada, senza traffico</Text>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-              <Pressable onPress={() => navTo(res.legs[0].lat!, res.legs[0].lon!)} style={styles.cta} testID="route-nav-first"><Ionicons name="navigate" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Naviga tappa 1</Text></Pressable>
+              <Pressable onPress={() => navTo(res.legs[0])} style={styles.cta} testID="route-nav-first"><Ionicons name="navigate" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Naviga tappa 1</Text></Pressable>
               <Pressable onPress={doPdf} disabled={pdfBusy} style={[styles.cta, { backgroundColor: "#7C3AED" }, pdfBusy && { opacity: 0.6 }]} testID="route-export-pdf">{pdfBusy ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="document-text" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Esporta PDF</Text></>}</Pressable>
               <Pressable onPress={() => { setRes(null); setStep(1); }} style={[styles.cta, { backgroundColor: "rgba(255,255,255,0.18)" }]} testID="route-recalc"><Ionicons name="refresh" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Ricalcola</Text></Pressable>
             </View>
@@ -148,23 +180,48 @@ export default function OptimalRouteScreen() {
             <Pressable onPress={() => shiftStart(15)} style={styles.tBtn} hitSlop={6} testID="route-time-plus"><Ionicons name="add" size={18} color={NAVY} /></Pressable>
             <Text style={[styles.meta, { flex: 1, textAlign: "right" }]}>Fine ~{hhmm(new Date(startAt.getTime() + res.total_min * 60000))}</Text>
           </View>
+          {/* V50.z253 — Resoconto Km: km registrati per questo giro */}
+          <Pressable onPress={() => router.push("/km-report" as any)} style={styles.kmBar} testID="route-km-bar">
+            <Ionicons name="speedometer" size={18} color="#0EA5E9" />
+            <Text style={styles.kmBarTxt}>Visite completate: <Text style={{ fontWeight: "900" }}>{Object.keys(kmDone).length}</Text> · km registrati: <Text style={{ fontWeight: "900" }}>{kmDoneTotal.toLocaleString("it-IT", { maximumFractionDigits: 1 })}</Text></Text>
+            <Text style={styles.kmBarLink}>Resoconto Km ›</Text>
+          </Pressable>
           {res.legs.map((l) => (
-            <View key={l.contact_id} style={styles.leg} testID={`route-leg-${l.seq}`}>
-              <View style={styles.seq}><Text style={styles.seqTxt}>{l.seq}</Text></View>
+            <View key={l.contact_id} style={[styles.leg, kmDone[l.seq] && styles.legDone]} testID={`route-leg-${l.seq}`}>
+              <View style={[styles.seq, kmDone[l.seq] && { backgroundColor: "#16A34A" }]}><Text style={styles.seqTxt}>{kmDone[l.seq] ? "✓" : l.seq}</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{l.name}{l.company ? ` · ${l.company}` : ""}</Text>
                 <Text style={styles.meta}>📍 {l.address}</Text>
                 <Text style={styles.legKm}>➜ +{l.leg_km} km · +{l.leg_min} min   (totale {l.cum_km} km)</Text>
                 {etas[l.seq - 1] ? <Text style={styles.eta}>🕐 Arrivo ~{hhmm(etas[l.seq - 1].arrive)} · riparti ~{hhmm(etas[l.seq - 1].leave)}</Text> : null}
                 <View style={{ flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                  <Pressable onPress={() => navTo(l.lat!, l.lon!)} style={styles.mini} testID={`route-nav-${l.seq}`}><Ionicons name="navigate" size={13} color={ORANGE} /><Text style={styles.miniTxt}>Naviga</Text></Pressable>
+                  <Pressable onPress={() => navTo(l)} style={styles.mini} testID={`route-nav-${l.seq}`}><Ionicons name="navigate" size={13} color={ORANGE} /><Text style={styles.miniTxt}>Naviga</Text></Pressable>
                   {l.phone ? <Pressable onPress={() => Linking.openURL(`tel:${l.phone.replace(/\s+/g, "")}`)} style={styles.mini}><Ionicons name="call" size={13} color={ORANGE} /><Text style={styles.miniTxt}>Chiama</Text></Pressable> : null}
                   <Pressable onPress={() => router.push(`/contact/${l.contact_id}` as any)} style={styles.mini}><Ionicons name="person" size={13} color={ORANGE} /><Text style={styles.miniTxt}>Scheda</Text></Pressable>
+                  <Pressable onPress={() => toggleVisit(l.seq)} disabled={kmBusy !== null} style={[styles.mini, styles.visitBtn, kmDone[l.seq] && styles.visitBtnOn]} testID={`route-visit-${l.seq}`}>
+                    {kmBusy === l.seq ? <ActivityIndicator size="small" color={kmDone[l.seq] ? "#FFF" : "#16A34A"} /> : <Ionicons name={kmDone[l.seq] ? "checkmark-circle" : "ellipse-outline"} size={14} color={kmDone[l.seq] ? "#FFF" : "#16A34A"} />}
+                    <Text style={[styles.miniTxt, { color: kmDone[l.seq] ? "#FFF" : "#16A34A" }]}>{kmDone[l.seq] ? `Completata · ${l.leg_km} km` : "Visita completata"}</Text>
+                  </Pressable>
                 </View>
               </View>
             </View>
           ))}
-          {res.return ? <View style={styles.leg}><View style={[styles.seq, { backgroundColor: "#16A34A" }]}><Text style={styles.seqTxt}>🏁</Text></View><View style={{ flex: 1 }}><Text style={styles.name}>Ritorno a {res.origin.label}</Text><Text style={styles.legKm}>➜ +{res.return.leg_km} km · +{res.return.leg_min} min</Text></View></View> : null}
+          {res.return ? (
+            <View style={[styles.leg, kmDone[0] && styles.legDone]}>
+              <View style={[styles.seq, { backgroundColor: "#16A34A" }]}><Text style={styles.seqTxt}>🏁</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.name}>Ritorno a {res.origin.label}</Text>
+                <Text style={styles.legKm}>➜ +{res.return.leg_km} km · +{res.return.leg_min} min</Text>
+                <View style={{ flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                  <Pressable onPress={() => navTo({ lat: res.origin.lat, lon: res.origin.lon, name: res.origin.label })} style={styles.mini} testID="route-nav-return"><Ionicons name="navigate" size={13} color={ORANGE} /><Text style={styles.miniTxt}>Naviga</Text></Pressable>
+                  <Pressable onPress={() => toggleVisit(0)} disabled={kmBusy !== null} style={[styles.mini, styles.visitBtn, kmDone[0] && styles.visitBtnOn]} testID="route-visit-return">
+                    <Ionicons name={kmDone[0] ? "checkmark-circle" : "ellipse-outline"} size={14} color={kmDone[0] ? "#FFF" : "#16A34A"} />
+                    <Text style={[styles.miniTxt, { color: kmDone[0] ? "#FFF" : "#16A34A" }]}>{kmDone[0] ? `Rientro registrato · ${res.return.leg_km} km` : "Rientro completato"}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          ) : null}
           {res.skipped.length ? <Text style={styles.warn}>⚠️ Esclusi (indirizzo non localizzabile): {res.skipped.map((s) => s.name).join(", ")}</Text> : null}
         </>) : null}
       </ScrollView>
@@ -198,6 +255,11 @@ const styles = StyleSheet.create({
   seq: { width: 30, height: 30, borderRadius: 15, backgroundColor: ORANGE, alignItems: "center", justifyContent: "center" }, seqTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
   legKm: { fontSize: 12, fontWeight: "800", color: "#0F766E", marginTop: 3 },
   mini: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 999, backgroundColor: "#FFF1E9" }, miniTxt: { fontSize: 12, fontWeight: "800", color: ORANGE },
+  // V50.z253 — Resoconto Km
+  legDone: { borderColor: "#86EFAC", backgroundColor: "#F0FDF4" },
+  visitBtn: { backgroundColor: "#DCFCE7", borderWidth: 1, borderColor: "#86EFAC" }, visitBtnOn: { backgroundColor: "#16A34A", borderColor: "#16A34A" },
+  kmBar: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E0F2FE", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#BAE6FD", minHeight: 48 },
+  kmBarTxt: { flex: 1, fontSize: 12, color: NAVY }, kmBarLink: { fontSize: 12, fontWeight: "800", color: "#0EA5E9" },
   warn: { fontSize: 12, color: "#B45309", fontWeight: "700" },
   mapBox: { height: 240, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#E2E8F0" },
   timeRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 12, padding: 10, borderWidth: 1, borderColor: "#E2E8F0" },

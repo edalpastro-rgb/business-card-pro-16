@@ -1,0 +1,33 @@
+{
+  "summary": "V50.z253 Resoconto Km + NavChooser popup — full backend+frontend testing PASSED. Backend: 12/12 pytest passed (add/idempotent/seq0-return/seq99-404/unknown-route-404/no-return-400/list-by-route/month-totals/other-month-today-still-reflects/unauth-401/delete-and-404/per-user-isolation). Frontend: login flow required PointerEvent dispatch (Pressable does not respond to page.click on React Native Web — documented for future testing). All UI flows validated on mobile viewport 390x844: qa-km-report on Home navigates to /km-report; route-km-report header icon opens km-report; picking 2 contacts + custom origin 'Piazza Duomo, Milano' produces route-summary in ~10s; route-nav-first and route-nav-1 both open nav-chooser modal with google/waze/apple options + subtitle 'Marco Bianchi · Via Roma 10, Milano MI'; nav-chooser-cancel closes; route-visit-1 toggles to green 'Completata · 20 km' and km-bar shows 'Visite completate: 1 · km registrati: 20'; route-visit-return also works ('Rientro registrato · 309.3 km'); km-bar navigates to /km-report showing 2 entries in 1 day with totals '329,3 km · 2 visite'; km-month-prev switches to August 2026 with km-empty state; km-month-next disabled on current month (opacity 0.35); km-del-<id> deletes each entry (via window.confirm accepted); km-goto-route returns to /optimal-route; Home qa-km-report navigation OK. Sub-user tenant isolation on km-log verified (created_by scoping). CLEANUP: all km-log entries created during tests were deleted (verified 0 items remaining).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_km_report.py",
+    "/app/test_reports/pytest/v50z253_km_report.xml"
+  ],
+  "action_items": [
+    "None — feature fully working end-to-end. Optional: consider a lightweight web-only tap helper because Playwright page.click() does not fire onPress on React Native Pressable/TouchableOpacity in web preview (had to dispatch PointerEvent manually). Not blocking real users.",
+    "Console warnings from RN Web (shadow*, textShadow*, pointerEvents deprecated, transform-origin DOM prop, useNativeDriver missing) are pre-existing / cosmetic — no functional impact."
+  ],
+  "critical_code_review_comments": [
+    "geo_km_log.kml_add: idempotency uses (created_by, route_id, seq) which correctly returns same entry on retry — good.",
+    "kml_list totals.today_km / week_km / month_km are always computed from 'today' independent of the selected month filter — matches expected behaviour and verified by tests.",
+    "NavChooser platform filter: android hides 'apple' option; on web both are shown (verified). iOS/Android native builds not tested here."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "No persistent seed data. Created & deleted 2 km-log entries during flow tests. Also created a temporary route without return_to_origin (stored in geo_routes; harmless).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "For future Expo/RN Web UI testing on this app: page.click() does NOT trigger onPress for Pressable/TouchableOpacity buttons rendered as <div>. Use PointerEvent dispatch: dispatch pointerdown/pointerup/click sequence with clientX/clientY at bounding box center. Similarly for TextInput, use the native HTMLInputElement value setter + dispatch 'input' event (page.fill/type may work when input has type='text' but React Native controlled components ignore the resulting change). Route computation via /api/geo/optimal-route with custom origin address takes 8–20s due to Nominatim geocoding — wait up to 70s.",
+  "rca_of_issue": "N/A — no bugs found."
+}

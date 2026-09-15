@@ -258,6 +258,7 @@ function MasterScreen() {
     { label: "Anagrafica", icon: "id-card", color: "#10B981", onPress: () => goto("/anagrafica-master") },
     { label: "Mappa Clienti", icon: "map", color: "#0EA5E9", onPress: () => goto("/map-clients") }, // V50.z240
     { label: "Giro Ottimale", icon: "car-sport", color: "#0EA5E9", onPress: () => goto("/optimal-route") }, // V50.z240
+    { label: "Resoconto Km", icon: "speedometer", color: "#0EA5E9", onPress: () => goto("/km-report") }, // V50.z253
     // V50.z232 — Personalizzazione Aziendale: logo header per tutta l'organizzazione + ragione sociale/P.IVA/indirizzo come firma
     { label: "Personalizzazione Aziendale", icon: "business", color: "#10B981", onPress: () => goto("/personalizzazione-aziendale") },
     { label: "I miei audio", icon: "folder-open", color: "#10B981", onPress: () => goto("/my-audios") },

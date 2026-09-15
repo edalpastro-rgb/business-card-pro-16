@@ -62,6 +62,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Le mie aree",         icon: "flash-outline",        href: "/le-mie-aree",         categoryKey: "docs" },
   { label: "Mappa Clienti",       icon: "map-outline",          href: "/map-clients",         categoryKey: "crm" }, // V50.z240 — FEAT-GEO-001
   { label: "Giro Ottimale",       icon: "car-sport-outline",    href: "/optimal-route",       categoryKey: "crm" }, // V50.z240
+  { label: "Resoconto Km",        icon: "speedometer-outline",  href: "/km-report",           categoryKey: "crm" }, // V50.z253
   { label: "Note spese & Storico", icon: "receipt-outline",     href: "/axon-expenses",       categoryKey: "docs" }, // V50.z229 — storico spese, chiusura mese, statistiche // V50.z228 — mini-wizard aree + stato configurazione
   { label: "Integrazioni AxonOS", icon: "link-outline",         href: "/axon-integrations",   categoryKey: "docs" }, // V50.z197 — Blocco 8: due sfere
   { label: "Spazio Personale",    icon: LOCK_KEY_ICON,          href: "/spazio-personale",    categoryKey: "docs" }, // V50.z205 — Blocco 8 Fase 4: Sfera Home · V50.z237 lucchetto+chiave (area protetta da PIN)

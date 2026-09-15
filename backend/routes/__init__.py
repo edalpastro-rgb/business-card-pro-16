@@ -85,5 +85,6 @@ MODULES = [
     "axon_neo_bridge.py",  # V50.z239 — «Prompt per Neo»: comando chat «invia … a Neo» → Master Files category neo_prompts (pending/read/done), «stato prompt Neo», regola prompt anti-allucinazione «nessun canale diretto con Neo», API /neo-bridge/prompts (avvolge _maybe_push_command e _prepare_assistant_prompt; dopo tutti i wrapper)
     "bill_analysis_config.py",  # V50.z251 — Pannello «Configura Analisi Fatture» per tenant: campi estrazione spuntabili, comparativa (layout/stile/sezioni/campi/base), richieste manuali (GET/PUT /bills/analysis-config); usato da 13_bills e 17_company_offers_docs
     "axon_geo_routing.py",  # V50.z240 — FEAT-GEO-001 Fase 1: GET /geo/contacts-map (geocoding cache contacts.geo), POST /geo/optimal-route (NN + 2-opt, geo_routes) (isolato; dopo 07_contacts per _geocode_one)
+    "geo_km_log.py",  # V50.z253 — Resoconto Km: visite completate nel Giro Ottimale → km da percorso (POST/GET/DELETE /geo/km-log) (isolato; dopo axon_geo_routing)
     "37_app_startup_scheduler.py",
 ]
