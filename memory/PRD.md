@@ -6368,3 +6368,11 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 
 ## V50.z263 — Risposte deterministiche a due livelli — DONE
 - L1 template fisso per domande mappate (stemming+fuzzy, keyword arricchite), L2 AI solo per non mappate. Stress test ×3: 230/230 pass, 0 incoerenti.
+
+## V50.z264 — Tour: contatore funzioni automatico + intro Axon — DONE
+- Numero funzioni calcolato dal codebase (APP_MAP ∪ capacità ∪ schermate reali) in cima a «Scopri tutte le funzioni»; intro + frase di raccordo prima della prima domanda.
+
+## V50.z265 — Tour: link voce/lingua + «Ricomincia dal principio» — DONE
+- Schermata 2: subito dopo la bolla intro di Axon, link discreto «Vuoi cambiare la mia voce o la lingua? Tocca qui» → `router.push("/impostazioni?section=axon")` (ferma l'audio). Se ignorato il flusso intro → raccordo → prima domanda prosegue da solo (nessuna attesa aggiuntiva). testID `tour-voice-settings-link`.
+- Tutte le schermate: tasto discreto in basso «Ricomincia dal principio» (testID `tour-restart`) → `go(1)` + incremento `tourRun` usato come `key` di TalkToAxon/FirstContact per azzerare risposte/stato.
+- File: `/app/frontend/app/tour.tsx`. Verificato via screenshot (login owner test@dalpastro.it).

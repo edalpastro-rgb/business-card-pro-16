@@ -35,12 +35,53 @@ class TourTextIn(BaseModel):
     text: str
 
 
+_TOUR_GROUP_MAP = {"CRM": "Contatti", "Energia": "Fatture e Scanner", "Documenti": "Fatture e Scanner", "AxonOS": "AxonOS", "Comunicazioni": "Caselle Mail", "Master": "Master", "Impostazioni": "Profilo"}
+_TOUR_TECH_SUBSTR = ("callback", "picker", "landing", "webviewer", "/chat/new", "invita-pick", "setup-config", "info-request-chat", "settings-app", "my-thing", "my-web")
+_TOUR_PRETTY = {"/axon-brain": "Axon Brain (conoscenza)", "/axon-cheatsheet": "Cheatsheet comandi Axon", "/axon-homeassistant": "Home Assistant", "/axon-insights": "Axon Insights", "/axon-media": "Media Axon", "/axon-proactive": "Axon proattivo", "/axon-scripts": "Script di chiamata", "/axon-scripts-import": "Import script", "/axon-stress-report": "Stress Test Axon", "/axon-system": "Stato sistema Axon", "/bug-report": "Segnala bug", "/business-card-stats": "Statistiche biglietto digitale", "/call-script-config": "Configurazione script chiamate", "/corporate-gym/assign": "Corporate Gym · Assegna", "/corporate-gym/coach-panel": "Corporate Gym · Pannello coach", "/corporate-gym/manuals-config": "Corporate Gym · Manuali", "/corporate-gym/obiezioni": "Corporate Gym · Obiezioni", "/corporate-gym/roleplay": "Corporate Gym · Roleplay", "/corporate-gym/stats": "Corporate Gym · Statistiche", "/corporate-gym/win-win": "Corporate Gym · Win-Win", "/event-banners": "Banner eventi", "/help-center-admin": "Help Center (gestione)", "/info-requests": "Richieste informazioni", "/invita": "Invita", "/invitati": "Invitati", "/libretto-editor": "Editor libretto", "/neo-memory": "Memoria Neo", "/permessi": "Permessi dispositivo", "/reviews-analytics": "Analisi recensioni", "/security": "Sicurezza avanzata", "/security-info": "Info sicurezza", "/wake-word": "Wake word «Hey Axon»"}
+_TOUR_TECH_SCREENS = {"/", "/index", "/login", "/register", "/auth", "/tour", "/tour-features", "/setup", "/adv-landing", "/onboarding", "/reset-password", "/verify", "/invite", "/accept-invite", "/privacy", "/terms", "/oauth", "/callback-oauth", "/splash", "/dev", "/debug", "/test", "/test-page", "/not-found", "/+not-found", "/modal", "/sitemap"}
+
+
+def _tour_all_features() -> Dict[str, List[dict]]:
+    """Unione automatica delle funzioni reali: mappa Navigatore (APP_MAP) + capacità AxonOS (_TOUR_FEATURES)
+    + schermate presenti nel codebase (file di expo-router) non ancora mappate. Mai un numero a mano."""
+    groups: Dict[str, List[dict]] = {}
+    seen_routes, seen_names = set(), set()
+    try:
+        amap = APP_MAP  # noqa: F821 — definita da axon_navigator (stesso namespace)
+    except NameError:
+        amap = []
+    for e in amap:
+        key = e["route"]
+        if key in seen_routes:
+            continue
+        seen_routes.add(key); seen_names.add(e["name"].lower())
+        groups.setdefault(e["group"], []).append({"id": e["id"], "name": e["name"], "route": None if "{id}" in e["route"] else e["route"]})
+    for fid, name, grp in _TOUR_FEATURES:
+        if name.lower() in seen_names:
+            continue
+        seen_names.add(name.lower())
+        groups.setdefault(_TOUR_GROUP_MAP.get(grp, grp), []).append({"id": fid, "name": name, "route": None})
+    # schermate reali nel codebase non ancora coperte
+    try:
+        mapped_paths = {r.split("?")[0] for r in seen_routes}
+        for path in sorted(_st_frontend_routes()):  # noqa: F821 — axon_stress_test
+            if path in _TOUR_TECH_SCREENS or "[" in path or path in mapped_paths or path.startswith("/admin") or path.startswith("/auth") or any(t in path for t in _TOUR_TECH_SUBSTR):
+                continue
+            pretty = _TOUR_PRETTY.get(path) or " · ".join(p.replace("-", " ").capitalize() for p in path.strip("/").split("/"))
+            if pretty.lower() in seen_names:
+                continue
+            seen_names.add(pretty.lower())
+            groups.setdefault("Altre schermate", []).append({"id": "scr_" + path.strip("/").replace("/", "_"), "name": pretty, "route": path})
+    except Exception:
+        pass
+    return groups
+
+
 @api_router.get("/tour/features")
 async def tour_features(user=Depends(get_current_user)):
-    groups: Dict[str, List[dict]] = {}
-    for fid, name, grp in _TOUR_FEATURES:
-        groups.setdefault(grp, []).append({"id": fid, "name": name})
-    return {"groups": [{"group": g, "items": items} for g, items in groups.items()]}
+    groups = _tour_all_features()
+    total = sum(len(v) for v in groups.values())
+    return {"total": total, "groups": [{"group": g, "items": items} for g, items in groups.items()]}
 
 
 def _tour_heuristic(text: str) -> List[str]:

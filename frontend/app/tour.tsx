@@ -1,4 +1,4 @@
-// tour.tsx — V50.z257 — Tour Guidato conversazionale (4 schermate, nessuna lista funzioni)
+// tour.tsx — V50.z265 — Tour Guidato conversazionale (4 schermate, nessuna lista funzioni)
 // 1 Benvenuto · 2 Prima conversazione con Axon (voce → /tour/profile → funzioni che «si accendono») ·
 // 3 Prima azione reale (biglietto da visita OCR o voce → POST /contacts) · 4 Chiusura → Home.
 // Mostrato solo al primo accesso (user-settings.onboarding_done + cache locale); replay da Help / Master.
@@ -19,12 +19,12 @@ import { playAudioBase64 } from "@/src/AssistantChat";
 const NAVY = "#0B1B33"; const SKY = "#38BDF8"; const MUTED = "#94A3B8"; const WHITE = "#FFFFFF";
 const FEATURE_ICON: Record<string, any> = { bills: "document-text", compare: "git-compare", route: "car-sport", calendar: "calendar", deadlines: "alarm", notes: "mic", scanner: "scan", email: "mail", whatsapp: "logo-whatsapp", referrals: "share-social", contacts: "people", voice: "mic-circle", team: "people-circle", kpi: "stats-chart", chat: "chatbubbles", proactive: "notifications", km: "speedometer", visits: "location", map: "map", files: "folder", pdf: "document", offers: "pricetags", pun: "flash" };
 
-async function speak(text: string): Promise<() => void> {
+async function speak(text: string, onEnded?: () => void): Promise<() => void> {
   try {
     const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", { method: "POST", body: { text } });
-    if (!r?.audio_base64) return () => {};
-    return await playAudioBase64(r.audio_base64, r.mime || "audio/mpeg");
-  } catch { return () => {}; }
+    if (!r?.audio_base64) { onEnded?.(); return () => {}; }
+    return await playAudioBase64(r.audio_base64, r.mime || "audio/mpeg", onEnded);
+  } catch { onEnded?.(); return () => {}; }
 }
 
 export default function TourScreen() {
@@ -55,7 +55,11 @@ export default function TourScreen() {
     router.replace("/(tabs)/home" as any);
   }, [router, user?.user_id]);
 
-  const say = useCallback(async (text: string) => { try { stopSpeech.current(); } catch {} stopSpeech.current = await speak(text); }, []);
+  const say = useCallback(async (text: string, onEnded?: () => void) => { try { stopSpeech.current(); } catch {} stopSpeech.current = await speak(text, onEnded); }, []);
+
+  // V50.z265 — Ricomincia dal principio: torna alla schermata 1 e azzera lo stato interno delle schermate 2/3 (key)
+  const [tourRun, setTourRun] = useState(0);
+  const restart = useCallback(() => { setTourRun((n) => n + 1); go(1); }, [go]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]} testID="tour-root">
@@ -64,10 +68,14 @@ export default function TourScreen() {
       <Pressable onPress={finish} hitSlop={10} style={styles.skip} testID="tour-skip"><Text style={styles.skipTxt}>Salta</Text></Pressable>
       <Animated.View style={{ flex: 1, opacity: fade }}>
         {step === 1 && <Welcome onNext={() => go(2)} onFeatures={() => router.push("/tour-features" as any)} />}
-        {step === 2 && <TalkToAxon say={say} onNext={() => go(3)} />}
-        {step === 3 && <FirstContact say={say} onNext={() => go(4)} />}
+        {step === 2 && <TalkToAxon key={tourRun} say={say} onNext={() => go(3)} onVoiceSettings={() => { try { stopSpeech.current(); } catch {} router.push("/impostazioni?section=axon" as any); }} />}
+        {step === 3 && <FirstContact key={tourRun} say={say} onNext={() => go(4)} />}
         {step === 4 && <Closing onFinish={finish} onFeatures={() => router.push("/tour-features" as any)} />}
       </Animated.View>
+      {/* V50.z265 — «Ricomincia dal principio»: su ogni schermata, riporta alla 1 (e riavvia lo stato delle schermate 2/3) */}
+      <Pressable onPress={restart} hitSlop={8} style={styles.restart} testID="tour-restart">
+        <Ionicons name="refresh" size={13} color={MUTED} /><Text style={styles.restartTxt}>Ricomincia dal principio</Text>
+      </Pressable>
     </View>
   );
 }
@@ -102,13 +110,17 @@ function Welcome({ onNext, onFeatures }: { onNext: () => void; onFeatures: () =>
 }
 
 // ---------- 2 · Prima conversazione (3 domande, una alla volta) ----------
+// V50.z264 — intro di Axon (vocale + testuale) prima della prima domanda
+const INTRO = "Ciao e benvenuto. Da oggi sarò il tuo assistente di fiducia. Potrai dirmi e chiedermi moltissime cose. Ti dico subito una cosa importante: non sono perfetto, e per darti il meglio avremo bisogno di conoscerci. Porta un po' di pazienza con me — imparo in fretta, soprattutto dai miei errori. Grazie per la comprensione.";
+const LEAD_IN = "Più sei preciso nel dirmi cosa è importante per te, più riuscirò ad adattarmi alle tue esigenze.";
 const QUESTIONS = [
-  "Ciao, sono Axon. Prima di tutto dimmi: cosa fai e cosa ti fa perdere più tempo nel lavoro?",
+  "Prima di tutto dimmi: cosa fai e cosa ti fa perdere più tempo nel lavoro?",
   "Quale funzione per te è assolutamente indispensabile?",
   "Cosa ti aspetti da AdvisorOS? Più sei preciso, più lo adatto a te.",
 ];
-function TalkToAxon({ say, onNext }: { say: (t: string) => Promise<void>; onNext: () => void }) {
+function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded?: () => void) => Promise<void>; onNext: () => void; onVoiceSettings: () => void }) {
   const [answers, setAnswers] = useState<string[]>([]);
+  const [phase, setPhase] = useState<"intro" | "lead" | "questions">("intro");
   const [typed, setTyped] = useState(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -118,7 +130,15 @@ function TalkToAxon({ say, onNext }: { say: (t: string) => Promise<void>; onNext
   const qIdx = answers.length; // domanda corrente (0..2); 3 = elaborazione
   const scrollRef = useRef<ScrollView>(null);
 
-  useEffect(() => { if (qIdx < QUESTIONS.length) void say(QUESTIONS[qIdx]); }, [qIdx, say]);
+  // Sequenza: intro → frase di raccordo → prima domanda (parte da sola a fine audio; fallback a tempo stimato)
+  useEffect(() => {
+    let done = false; let t: any;
+    const next = (p: "lead" | "questions") => { if (done) return; done = true; clearTimeout(t); setPhase(p); };
+    if (phase === "intro") { void say(INTRO, () => next("lead")); t = setTimeout(() => next("lead"), 26000); }
+    else if (phase === "lead") { void say(LEAD_IN, () => next("questions")); t = setTimeout(() => next("questions"), 7000); }
+    return () => { done = true; clearTimeout(t); };
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (phase === "questions" && qIdx < QUESTIONS.length) void say(QUESTIONS[qIdx]); }, [qIdx, say, phase]);
   useEffect(() => {
     if (!features.length) return;
     setLit(0);
@@ -147,12 +167,21 @@ function TalkToAxon({ say, onNext }: { say: (t: string) => Promise<void>; onNext
     <View style={styles.screen}>
       <ScrollView ref={scrollRef} contentContainerStyle={{ flexGrow: 1, justifyContent: "center", gap: 12 }} keyboardShouldPersistTaps="handled">
         <AxonOrb busy={busy} />
-        {QUESTIONS.slice(0, Math.min(qIdx + 1, QUESTIONS.length)).map((q, i) => (
+        <View style={styles.bubble} testID="tour-intro"><Text style={styles.bubbleTxt}>{INTRO}</Text></View>
+        {/* V50.z265 — link discreto voce/lingua subito dopo l'intro: se ignorato il flusso prosegue da solo alla prima domanda */}
+        <Pressable onPress={onVoiceSettings} hitSlop={6} style={styles.voiceLink} testID="tour-voice-settings-link">
+          <Ionicons name="options-outline" size={14} color={SKY} />
+          <Text style={styles.voiceLinkTxt}>Vuoi cambiare la mia voce o la lingua? <Text style={{ textDecorationLine: "underline" }}>Tocca qui</Text></Text>
+        </Pressable>
+        {phase !== "intro" ? <View style={styles.bubble} testID="tour-lead-in"><Text style={styles.bubbleTxt}>{LEAD_IN}</Text></View> : null}
+        {phase === "questions" ? QUESTIONS.slice(0, Math.min(qIdx + 1, QUESTIONS.length)).map((q, i) => (
           <React.Fragment key={i}>
             <View style={styles.bubble} testID={`tour-q-${i + 1}`}><Text style={styles.bubbleTxt}>{q}</Text></View>
             {answers[i] ? <View style={[styles.bubble, styles.bubbleUser]} testID={`tour-a-${i + 1}`}><Text style={[styles.bubbleTxt, { color: NAVY }]}>{answers[i]}</Text></View> : null}
           </React.Fragment>
-        ))}
+        )) : (
+          <Pressable onPress={() => setPhase("questions")} style={{ alignSelf: "center" }} testID="tour-intro-skip"><Text style={styles.linkTxt}>Vai alle domande</Text></Pressable>
+        )}
         {reply !== null ? (
           <>
             <View style={styles.bubble} testID="tour-reply"><Text style={styles.bubbleTxt}>Ho capito. Ecco cosa attivo per te.</Text>{reply ? <Text style={[styles.bubbleTxt, { color: MUTED, marginTop: 6, fontSize: 14 }]}>{reply}</Text> : null}</View>
@@ -169,7 +198,7 @@ function TalkToAxon({ say, onNext }: { say: (t: string) => Promise<void>; onNext
               })}
             </View>
           </>
-        ) : qIdx < QUESTIONS.length && !busy ? (
+        ) : phase === "questions" && qIdx < QUESTIONS.length && !busy ? (
           <View style={{ alignItems: "center", gap: 12 }}>
             <Text style={[styles.p, { fontSize: 12 }]}>Domanda {qIdx + 1} di {QUESTIONS.length}</Text>
             <View style={styles.micWrap}><VoiceDictationButton label="Rispondi a voce" testID="tour-voice" onTranscript={(t) => void submit(t)} /></View>
@@ -294,6 +323,8 @@ const styles = StyleSheet.create({
   dots: { flexDirection: "row", gap: 6, alignSelf: "center", marginBottom: 8 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.18)" }, dotOn: { backgroundColor: SKY, width: 22 }, dotDone: { backgroundColor: "rgba(56,189,248,0.6)" },
   skip: { position: "absolute", right: 20, top: 0, paddingVertical: 10, paddingHorizontal: 8 }, skipTxt: { color: MUTED, fontWeight: "700", fontSize: 13 },
+  restart: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, alignSelf: "center", minHeight: 44, paddingHorizontal: 12 }, restartTxt: { color: MUTED, fontSize: 12, fontWeight: "700" },
+  voiceLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, alignSelf: "center", minHeight: 44, paddingHorizontal: 12, flexWrap: "wrap" }, voiceLinkTxt: { color: SKY, fontSize: 13, fontWeight: "700", textAlign: "center" },
   screen: { flex: 1 },
   orb: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#1C4869", alignItems: "center", justifyContent: "center", alignSelf: "center", borderWidth: 2, borderColor: SKY, shadowColor: SKY, shadowOpacity: 0.6, shadowRadius: 18, elevation: 8 },
   h1: { color: WHITE, fontSize: 30, fontWeight: "900", textAlign: "center", letterSpacing: -0.5 },
