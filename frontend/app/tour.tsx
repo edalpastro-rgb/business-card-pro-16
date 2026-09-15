@@ -1,6 +1,6 @@
-// tour.tsx — V50.z265 — Tour Guidato conversazionale (4 schermate, nessuna lista funzioni)
+// tour.tsx — V50.z266 — Tour Guidato conversazionale (4 schermate, nessuna lista funzioni)
 // 1 Benvenuto · 2 Prima conversazione con Axon (voce → /tour/profile → funzioni che «si accendono») ·
-// 3 Prima azione reale (biglietto da visita OCR o voce → POST /contacts) · 4 Chiusura → Home.
+// 3 Anagrafica master obbligatoria (PUT /master/profile) → prima azione reale (biglietto da visita OCR o voce → POST /contacts) · 4 Chiusura → Home.
 // Mostrato solo al primo accesso (user-settings.onboarding_done + cache locale); replay da Help / Master.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Animated, ActivityIndicator, Platform, ScrollView, TextInput } from "react-native";
@@ -16,16 +16,20 @@ import { launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { uriToBase64DataUrl } from "@/src/utils/media";
 import { playAudioBase64 } from "@/src/AssistantChat";
 
-const NAVY = "#0B1B33"; const SKY = "#38BDF8"; const MUTED = "#94A3B8"; const WHITE = "#FFFFFF";
+const NAVY = "#0B1B33"; const SKY = "#38BDF8"; const MUTED = "#94A3B8"; const WHITE = "#FFFFFF"; const AMBER = "#FBBF24";
 const FEATURE_ICON: Record<string, any> = { bills: "document-text", compare: "git-compare", route: "car-sport", calendar: "calendar", deadlines: "alarm", notes: "mic", scanner: "scan", email: "mail", whatsapp: "logo-whatsapp", referrals: "share-social", contacts: "people", voice: "mic-circle", team: "people-circle", kpi: "stats-chart", chat: "chatbubbles", proactive: "notifications", km: "speedometer", visits: "location", map: "map", files: "folder", pdf: "document", offers: "pricetags", pun: "flash" };
 
 async function speak(text: string, onEnded?: () => void): Promise<() => void> {
+  // V50.z266 — voce silenziata: niente TTS, il flusso prosegue con una breve pausa di lettura
+  if (tourMuted.value) { const t = setTimeout(() => onEnded?.(), 1500); return () => clearTimeout(t); }
   try {
     const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", { method: "POST", body: { text } });
     if (!r?.audio_base64) { onEnded?.(); return () => {}; }
     return await playAudioBase64(r.audio_base64, r.mime || "audio/mpeg", onEnded);
   } catch { onEnded?.(); return () => {}; }
 }
+const tourMuted = { value: false }; // stato condiviso letto da speak() (aggiornato dal toggle in TourScreen)
+const MUTE_KEY = "tour_voice_muted";
 
 export default function TourScreen() {
   const router = useRouter();
@@ -34,6 +38,20 @@ export default function TourScreen() {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const fade = useRef(new Animated.Value(1)).current;
   const stopSpeech = useRef<() => void>(() => {});
+  // V50.z266 — silenzia/riattiva la voce di Axon (persistito in cache locale + user-settings)
+  const [muted, setMuted] = useState(false);
+  // V50.z266 — schermata 3: finché l'anagrafica master non è completa il tour non si può saltare
+  const [masterLocked, setMasterLocked] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(MUTE_KEY).then((v) => { if (v === "1") { tourMuted.value = true; setMuted(true); } }).catch(() => {});
+    api<{ tour_voice_muted?: boolean }>("/user-settings").then((s) => { const m = !!s?.tour_voice_muted; tourMuted.value = m; setMuted(m); AsyncStorage.setItem(MUTE_KEY, m ? "1" : "0").catch(() => {}); }).catch(() => {});
+  }, []);
+  const toggleMute = useCallback(() => {
+    const m = !tourMuted.value; tourMuted.value = m; setMuted(m);
+    if (m) { try { stopSpeech.current(); } catch {} }
+    AsyncStorage.setItem(MUTE_KEY, m ? "1" : "0").catch(() => {});
+    api("/user-settings", { method: "PUT", body: { tour_voice_muted: m } }).catch(() => {});
+  }, []);
 
   // Mostrato → marchia subito il device (se l'utente esce con back non ricompare a ogni apertura)
   useEffect(() => { if (user?.user_id) AsyncStorage.setItem(`onboarding_done_${user.user_id}`, "1").catch(() => {}); }, [user?.user_id]);
@@ -65,11 +83,16 @@ export default function TourScreen() {
     <View style={[styles.root, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]} testID="tour-root">
       {/* progress */}
       <View style={styles.dots} testID={`tour-step-${step}`}>{[1, 2, 3, 4].map((i) => <View key={i} style={[styles.dot, i === step && styles.dotOn, i < step && styles.dotDone]} />)}</View>
-      <Pressable onPress={finish} hitSlop={10} style={styles.skip} testID="tour-skip"><Text style={styles.skipTxt}>Salta</Text></Pressable>
+      <View style={styles.topRight}>
+        <Pressable onPress={toggleMute} hitSlop={8} style={styles.muteBtn} testID="tour-mute" accessibilityLabel={muted ? "Riattiva la voce di Axon" : "Silenzia la voce di Axon"}>
+          <Ionicons name={muted ? "volume-mute" : "volume-high"} size={18} color={muted ? SKY : MUTED} />
+        </Pressable>
+        {!(step === 3 && masterLocked) ? <Pressable onPress={finish} hitSlop={10} style={styles.skip} testID="tour-skip"><Text style={styles.skipTxt}>Salta</Text></Pressable> : null}
+      </View>
       <Animated.View style={{ flex: 1, opacity: fade }}>
         {step === 1 && <Welcome onNext={() => go(2)} onFeatures={() => router.push("/tour-features" as any)} />}
         {step === 2 && <TalkToAxon key={tourRun} say={say} onNext={() => go(3)} onVoiceSettings={() => { try { stopSpeech.current(); } catch {} router.push("/impostazioni?section=axon" as any); }} />}
-        {step === 3 && <FirstContact key={tourRun} say={say} onNext={() => go(4)} />}
+        {step === 3 && <MasterThenFirstContact key={tourRun} say={say} onNext={() => go(4)} onLockChange={setMasterLocked} />}
         {step === 4 && <Closing onFinish={finish} onFeatures={() => router.push("/tour-features" as any)} />}
       </Animated.View>
       {/* V50.z265 — «Ricomincia dal principio»: su ogni schermata, riporta alla 1 (e riavvia lo stato delle schermate 2/3) */}
@@ -218,16 +241,106 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
   );
 }
 
-// ---------- 3 · Prima azione reale ----------
+// ---------- 3 · Anagrafica master (obbligatoria) → prima azione reale ----------
+// V50.z266 — la schermata parte dall'anagrafica del titolare/collaboratore: senza di essa non si prosegue.
+const Q3_MASTER = "Prima di tutto, configuriamo la tua anagrafica. È il punto di partenza di tutto — senza di essa non si può procedere. Poi passeremo al tuo primo cliente.";
+const Q3_MASTER_DONE = "Perfetto, la tua anagrafica è pronta. Ora aggiungiamo il tuo primo cliente.";
+type MasterForm = { first_name: string; last_name: string; phone: string; primary_email: string; tax_id: string };
+const MASTER_REQUIRED: [keyof MasterForm, string][] = [["first_name", "Nome"], ["last_name", "Cognome"], ["phone", "Telefono"], ["primary_email", "Email"]];
+const masterComplete = (p: Partial<MasterForm> | null | undefined) => !!p && MASTER_REQUIRED.every(([k]) => String(p[k] || "").trim().length > 0);
+
+function MasterThenFirstContact({ say, onNext, onLockChange }: { say: (t: string) => Promise<void>; onNext: () => void; onLockChange: (locked: boolean) => void }) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState<MasterForm>({ first_name: "", last_name: "", phone: "", primary_email: "", tax_id: "" });
+  const [existingEmails, setExistingEmails] = useState<string[]>([]);
+  const [saved, setSaved] = useState(false);
+  const [editing, setEditing] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { onLockChange(!saved); return () => onLockChange(false); }, [saved, onLockChange]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const p = await api<any>("/master/profile");
+        if (!alive) return;
+        const nm = String(user?.name || "").trim().split(/\s+/);
+        const f: MasterForm = {
+          first_name: p?.first_name || nm[0] || "", last_name: p?.last_name || nm.slice(1).join(" ") || "",
+          phone: p?.phone || "", primary_email: p?.primary_email || (Array.isArray(p?.emails) && p.emails[0]) || user?.email || "", tax_id: p?.tax_id || "",
+        };
+        setForm(f); setExistingEmails(Array.isArray(p?.emails) ? p.emails : []);
+        const done = masterComplete(p);
+        setSaved(done); setEditing(!done);
+        void say(done ? Q3_MASTER_DONE : Q3_MASTER);
+      } catch { void say(Q3_MASTER); } finally { if (alive) setLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const missing = MASTER_REQUIRED.filter(([k]) => !form[k].trim()).map(([, l]) => l);
+  const saveMaster = async () => {
+    if (missing.length) { setError(`Campi obbligatori mancanti: ${missing.join(", ")}`); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.primary_email.trim())) { setError("Inserisci un'email valida"); return; }
+    setError(null); setSaving(true);
+    try {
+      const email = form.primary_email.trim().toLowerCase();
+      const emails = Array.from(new Set([email, ...existingEmails.map((e) => String(e).toLowerCase())])).slice(0, 5);
+      await api("/master/profile", { method: "PUT", body: { first_name: form.first_name.trim(), last_name: form.last_name.trim(), phone: form.phone.trim(), primary_email: email, emails, tax_id: form.tax_id.trim().toUpperCase() } });
+      setSaved(true); setEditing(false);
+      void say(Q3_MASTER_DONE);
+    } catch (e: any) { notify("Anagrafica", e?.message || "Salvataggio non riuscito"); } finally { setSaving(false); }
+  };
+
+  if (saved && !editing) return <FirstContact say={say} onNext={onNext} intro={Q3_MASTER_DONE} masterName={`${form.first_name} ${form.last_name}`.trim()} onEditMaster={() => setEditing(true)} />;
+
+  return (
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", gap: 14 }} keyboardShouldPersistTaps="handled">
+        <AxonOrb busy={loading || saving} />
+        <View style={styles.bubble} testID="tour-master-intro"><Text style={styles.bubbleTxt}>{Q3_MASTER}</Text></View>
+        <View style={styles.mandatory} testID="tour-master-mandatory">
+          <Ionicons name="lock-closed" size={14} color={AMBER} />
+          <Text style={styles.mandatoryTxt}>Anagrafica {user?.role === "owner" ? "master" : "collaboratore"} obbligatoria: senza di essa non si prosegue.</Text>
+        </View>
+        {loading ? <ActivityIndicator color={SKY} /> : (
+          <View style={styles.card} testID="tour-master-form">
+            {MASTER_REQUIRED.map(([k, l]) => (
+              <View key={k} style={styles.fieldRow}>
+                <Text style={styles.fieldLbl}>{l} <Text style={{ color: AMBER }}>*</Text></Text>
+                <TextInput value={form[k]} onChangeText={(v) => setForm((f) => ({ ...f, [k]: v }))} style={[styles.fieldVal, !form[k].trim() && error ? { borderWidth: 1, borderColor: AMBER } : null]} placeholder={l} placeholderTextColor={MUTED}
+                  keyboardType={k === "phone" ? "phone-pad" : k === "primary_email" ? "email-address" : "default"} autoCapitalize={k === "primary_email" ? "none" : "words"} testID={`tour-master-${k}`} />
+              </View>
+            ))}
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLbl}>Cod. fiscale</Text>
+              <TextInput value={form.tax_id} onChangeText={(v) => setForm((f) => ({ ...f, tax_id: v }))} style={styles.fieldVal} placeholder="Facoltativo" placeholderTextColor={MUTED} autoCapitalize="characters" testID="tour-master-tax_id" />
+            </View>
+            {error ? <Text style={styles.errTxt} testID="tour-master-error">{error}</Text> : null}
+            <Pressable onPress={saveMaster} disabled={saving} style={[styles.cta, saving && { opacity: 0.6 }]} testID="tour-master-save"><Text style={styles.ctaTxt}>{saving ? "Salvo…" : "Salva la mia anagrafica"}</Text><Ionicons name="checkmark" size={18} color={NAVY} /></Pressable>
+            <Pressable onPress={() => router.push("/anagrafica-master" as any)} style={{ alignSelf: "center", minHeight: 40, justifyContent: "center" }} testID="tour-master-full"><Text style={styles.linkTxt}>Anagrafica completa (indirizzo, IBAN, P.IVA…) ›</Text></Pressable>
+          </View>
+        )}
+      </ScrollView>
+      {saved ? <Pressable onPress={() => setEditing(false)} style={styles.link} testID="tour-master-back"><Text style={styles.linkTxt}>Torna al primo cliente</Text></Pressable> : null}
+    </View>
+  );
+}
+
+// ---------- 3b · Prima azione reale (sbloccata dopo l'anagrafica master) ----------
 const Q3 = "Aggiungiamo il tuo primo cliente. Hai un biglietto da visita o preferisci dirmelo a voce?";
-function FirstContact({ say, onNext }: { say: (t: string) => Promise<void>; onNext: () => void }) {
+function FirstContact({ say, onNext, intro, masterName, onEditMaster }: { say: (t: string) => Promise<void>; onNext: () => void; intro?: string; masterName?: string; onEditMaster?: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<Record<string, string> | null>(null);
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
   const [typed, setTyped] = useState(false);
   const [text, setText] = useState("");
   const router = useRouter();
-  useEffect(() => { void say(Q3); }, [say]);
+  useEffect(() => { if (!intro) void say(Q3); }, [say, intro]);
 
   const fromCard = async () => {
     try {
@@ -263,6 +376,12 @@ function FirstContact({ say, onNext }: { say: (t: string) => Promise<void>; onNe
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", gap: 16 }} keyboardShouldPersistTaps="handled">
         <AxonOrb busy={!!busy} />
+        {masterName ? (
+          <View style={[styles.bubble, { borderColor: "rgba(56,189,248,0.5)" }]} testID="tour-master-done">
+            <Text style={styles.bubbleTxt}>✅ Anagrafica di <Text style={{ fontWeight: "900" }}>{masterName}</Text> configurata.</Text>
+            {onEditMaster ? <Pressable onPress={onEditMaster} hitSlop={6} testID="tour-master-edit"><Text style={[styles.linkTxt, { marginTop: 6 }]}>Modifica ›</Text></Pressable> : null}
+          </View>
+        ) : null}
         <View style={styles.bubble}><Text style={styles.bubbleTxt}>{Q3}</Text></View>
         {busy ? <Text style={[styles.p, { fontSize: 14 }]}>{busy}</Text> : null}
         {created ? (
@@ -297,7 +416,7 @@ function FirstContact({ say, onNext }: { say: (t: string) => Promise<void>; onNe
         )}
       </ScrollView>
       {created ? <Pressable onPress={onNext} style={styles.cta} testID="tour-next-3"><Text style={styles.ctaTxt}>Continua</Text><Ionicons name="arrow-forward" size={18} color={NAVY} /></Pressable>
-        : <Pressable onPress={onNext} style={styles.link} testID="tour-skip-3"><Text style={styles.linkTxt}>Lo faccio dopo</Text></Pressable>}
+        : <Pressable onPress={onNext} style={styles.link} testID="tour-skip-3"><Text style={styles.linkTxt}>Il primo cliente lo aggiungo dopo</Text></Pressable>}
     </View>
   );
 }
@@ -322,7 +441,12 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: NAVY, paddingHorizontal: 24 },
   dots: { flexDirection: "row", gap: 6, alignSelf: "center", marginBottom: 8 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.18)" }, dotOn: { backgroundColor: SKY, width: 22 }, dotDone: { backgroundColor: "rgba(56,189,248,0.6)" },
-  skip: { position: "absolute", right: 20, top: 0, paddingVertical: 10, paddingHorizontal: 8 }, skipTxt: { color: MUTED, fontWeight: "700", fontSize: 13 },
+  skip: { paddingVertical: 10, paddingHorizontal: 8, minHeight: 44, justifyContent: "center" }, skipTxt: { color: MUTED, fontWeight: "700", fontSize: 13 },
+  topRight: { position: "absolute", right: 16, top: 0, flexDirection: "row", alignItems: "center", gap: 2, zIndex: 2 },
+  muteBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
+  mandatory: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(251,191,36,0.10)", borderColor: "rgba(251,191,36,0.45)", borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  mandatoryTxt: { flex: 1, color: AMBER, fontSize: 13, fontWeight: "800", lineHeight: 18 },
+  errTxt: { color: AMBER, fontSize: 13, fontWeight: "700", textAlign: "center" },
   restart: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, alignSelf: "center", minHeight: 44, paddingHorizontal: 12 }, restartTxt: { color: MUTED, fontSize: 12, fontWeight: "700" },
   voiceLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, alignSelf: "center", minHeight: 44, paddingHorizontal: 12, flexWrap: "wrap" }, voiceLinkTxt: { color: SKY, fontSize: 13, fontWeight: "700", textAlign: "center" },
   screen: { flex: 1 },

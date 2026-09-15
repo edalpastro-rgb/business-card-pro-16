@@ -72,6 +72,8 @@ class UserSettingsIn(BaseModel):
     onboarding_done: Optional[bool] = None
     # V50.z256 — Rilevamento Visite GPS {enabled, stay_minutes, radius_m, mode: realtime|evening|both, recap_time "HH:MM"}
     visit_detection: Optional[Dict[str, Any]] = None
+    # V50.z266 — Tour guidato: voce di Axon silenziata (tasto altoparlante in alto a destra)
+    tour_voice_muted: Optional[bool] = None
 
 
 class AssistantAttachmentIn(BaseModel):
@@ -563,6 +565,7 @@ async def get_user_settings(user=Depends(get_current_user)):
     else:
         s["assistant_quick_actions"] = _normalize_quick_actions(s.get("assistant_quick_actions"))
     s["onboarding_done"] = bool(s.get("onboarding_done"))
+    s["tour_voice_muted"] = bool(s.get("tour_voice_muted"))
     return s
 
 
