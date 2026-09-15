@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   DeviceEventEmitter, // V50.z196
+  AppState, // V50.z248
   View,
   Text,
   StyleSheet,
@@ -58,6 +59,7 @@ import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
 import { conversationToText, copyText, shareText, exportConversationPdf } from "@/src/utils/chatExport";
 import { useDraft, CHAT_OPEN_KEY } from "@/src/utils/appStatePersist"; // V50.z242 — BUG-STATE-001
+import { axnApi, AXN_UNREAD_CHANGED_EVENT } from "@/src/axonNotifications"; // V50.z248 — lampeggio rosso avvisi CRITICI
 
 // V50.z11 — useBottomSheetPadding rimosso: era usato per padding sheet ma
 // il KeyboardAvoidingView ora gestisce autonomamente lo spazio sopra la tastiera.
@@ -2586,6 +2588,9 @@ export function AssistantFAB() {
   }, [pulse]);
 
   // V50.z83 — Poll info-requests: se ci sono richieste non lette, badge + blink veloce
+  // V50.z248 — + avvisi CRITICI non letti (axon-notifications/unread-count.critical) → lampeggio ROSSO pulsante finché
+  // l'utente non apre la notifica. Refresh: ogni 30 s, al ritorno in foreground, all'arrivo di una push, dopo lettura.
+  const [criticalUnread, setCriticalUnread] = useState(0);
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -2594,11 +2599,39 @@ export function AssistantFAB() {
         const r = await api<{ pending: number; unread: number }>("/info-requests/count");
         if (!cancelled) setUnreadInfoReq(r?.unread || 0);
       } catch { /* ignore */ }
+      try {
+        const n = await axnApi.unread();
+        if (!cancelled) setCriticalUnread(n?.critical || 0);
+      } catch { /* ignore */ }
     };
     fetchCount();
     const iv = setInterval(fetchCount, 30000);
-    return () => { cancelled = true; clearInterval(iv); };
+    const appSub = AppState.addEventListener("change", (st) => { if (st === "active") fetchCount(); });
+    const evSub = DeviceEventEmitter.addListener(AXN_UNREAD_CHANGED_EVENT, (r: any) => { if (typeof r?.critical === "number") setCriticalUnread(r.critical); else fetchCount(); });
+    let pushSub: { remove: () => void } | null = null;
+    if (Platform.OS !== "web") {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const Notif = require("expo-notifications");
+        pushSub = Notif.addNotificationReceivedListener(() => { setTimeout(fetchCount, 800); });
+      } catch { /* Expo Go/web */ }
+    }
+    return () => { cancelled = true; clearInterval(iv); appSub.remove(); evSub.remove(); pushSub?.remove(); };
   }, [user]);
+
+  // V50.z248 — Alone rosso pulsante (scale 1→1.7, opacità 0.75→0) attivo solo con avvisi critici non letti
+  const redPulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (criticalUnread <= 0) { redPulse.setValue(0); return; }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(redPulse, { toValue: 1, duration: 900, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+      Animated.timing(redPulse, { toValue: 0, duration: 0, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => { loop.stop(); redPulse.setValue(0); };
+  }, [criticalUnread, redPulse]);
+  const haloScale = redPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.75] });
+  const haloOpacity = redPulse.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0.85, 0.7, 0] });
 
   // Blink loop attivo solo quando ci sono unread
   useEffect(() => {
@@ -2618,6 +2651,11 @@ export function AssistantFAB() {
 
   // Handler tap FAB (usa ref per evitare closure stale nel PanResponder).
   const handlePress = () => {
+    // V50.z248 — Avvisi critici non letti: apri il centro notifiche (la lettura ferma il lampeggio rosso)
+    if (criticalUnread > 0) {
+      router.push("/axon-notifications?unread=1" as any);
+      return;
+    }
     // Se ci sono richieste info non lette, apri prima quella pagina invece del chat modal
     if (unreadInfoReq > 0) {
       router.push("/info-requests" as any);
@@ -2689,16 +2727,19 @@ export function AssistantFAB() {
       >
         <Animated.View
           style={{
-            opacity: unreadInfoReq > 0 ? blink : 1,
+            opacity: unreadInfoReq > 0 && criticalUnread <= 0 ? blink : 1,
             transform: [{ scale: pulse }],
           }}
         >
+        {criticalUnread > 0 ? (
+          <Animated.View pointerEvents="none" style={[styles.fabHalo, { opacity: haloOpacity, transform: [{ scale: haloScale }] }]} testID="assistant-fab-critical-halo" />
+        ) : null}
         <Pressable
-          style={styles.fab}
+          style={[styles.fab, criticalUnread > 0 && styles.fabCritical]}
           onPress={fireTap}
           hitSlop={6}
           accessibilityRole="button"
-          accessibilityLabel={unreadInfoReq > 0 ? `Apri richieste info (${unreadInfoReq} nuove) — trascina per spostare` : "Apri assistente AI — trascina per spostare"}
+          accessibilityLabel={criticalUnread > 0 ? `Avviso critico: ${criticalUnread} notifiche urgenti non lette — tocca per aprire` : unreadInfoReq > 0 ? `Apri richieste info (${unreadInfoReq} nuove) — trascina per spostare` : "Apri assistente AI — trascina per spostare"}
           testID="assistant-fab"
         >
           <Image
@@ -2708,7 +2749,11 @@ export function AssistantFAB() {
             testID="assistant-fab-logo"
           />
           <View style={styles.fabDot} />
-          {unreadInfoReq > 0 ? (
+          {criticalUnread > 0 ? (
+            <View style={[styles.fabBadge, styles.fabBadgeCritical]} testID="assistant-fab-critical-badge">
+              <Text style={styles.fabBadgeTxt}>!</Text>
+            </View>
+          ) : unreadInfoReq > 0 ? (
             <View style={styles.fabBadge} testID="assistant-fab-badge">
               <Text style={styles.fabBadgeTxt}>{unreadInfoReq > 9 ? "9+" : String(unreadInfoReq)}</Text>
             </View>
@@ -2756,6 +2801,10 @@ const styles = StyleSheet.create({
     borderColor: "#FFF",
   },
   // V50.z83 — Badge conteggio richieste info non lette
+  // V50.z248 — avvisi critici
+  fabHalo: { position: "absolute", left: 0, top: 0, width: 56, height: 56, borderRadius: 28, backgroundColor: "#DC2626" },
+  fabCritical: { borderColor: "#DC2626", borderWidth: 3, shadowColor: "#DC2626", shadowOpacity: 0.7 },
+  fabBadgeCritical: { backgroundColor: "#B91C1C", minWidth: 20, height: 20, borderRadius: 10 },
   fabBadge: {
     position: "absolute",
     top: -4,

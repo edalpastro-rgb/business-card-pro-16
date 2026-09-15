@@ -1,6 +1,6 @@
 // Notifiche push AxonOS (V50.z181) — client API + hook badge (icona app + drawer).
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Platform } from "react-native";
+import { AppState, Platform, DeviceEventEmitter } from "react-native";
 import * as Notifications from "expo-notifications";
 import { api } from "@/src/api";
 
@@ -18,12 +18,16 @@ export type AxnPrefs = {
   kinds_labels: Record<AxnKind, string>; is_owner: boolean; credits_used_month?: number;
 };
 
+/** V50.z248 — Emesso quando il conteggio non lette cambia (lettura/cancellazione) → la bolla AxonOS aggiorna subito il lampeggio rosso. */
+export const AXN_UNREAD_CHANGED_EVENT = "axn:unread-changed";
+const _emit = <T extends { unread: number; critical?: number }>(r: T): T => { DeviceEventEmitter.emit(AXN_UNREAD_CHANGED_EVENT, r); return r; };
+
 export const axnApi = {
   list: (unreadOnly = false) => api<{ items: AxnNotification[]; unread: number }>(`/axon-notifications`, { query: { unread_only: unreadOnly ? "true" : undefined, limit: 100 } }),
-  unread: () => api<{ unread: number }>("/axon-notifications/unread-count"),
-  read: (id: string) => api<{ unread: number }>(`/axon-notifications/${id}/read`, { method: "POST" }),
-  readAll: () => api<{ unread: number }>("/axon-notifications/read-all", { method: "POST" }),
-  remove: (id: string) => api<{ unread: number }>(`/axon-notifications/${id}`, { method: "DELETE" }),
+  unread: () => api<{ unread: number; critical: number }>("/axon-notifications/unread-count"),
+  read: (id: string) => api<{ unread: number; critical: number }>(`/axon-notifications/${id}/read`, { method: "POST" }).then(_emit),
+  readAll: () => api<{ unread: number; critical: number }>("/axon-notifications/read-all", { method: "POST" }).then(_emit),
+  remove: (id: string) => api<{ unread: number }>(`/axon-notifications/${id}`, { method: "DELETE" }).then(_emit),
   prefs: () => api<AxnPrefs>("/axon-notifications/prefs"),
   setPrefs: (body: Partial<Pick<AxnPrefs, "enabled" | "kinds" | "team_copies" | "credits_plan_monthly">>) => api<AxnPrefs>("/axon-notifications/prefs", { method: "PUT", body }),
   test: () => api<{ ok: boolean; push_configured: boolean }>("/axon-notifications/test", { method: "POST" }),

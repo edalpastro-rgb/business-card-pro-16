@@ -71,6 +71,17 @@ async def _axn_unread(uid: str) -> int:
     return await db.axon_notifications.count_documents({"user_id": uid, "read": False})
 
 
+async def _axn_unread_critical(uid: str, tenant: Optional[str]) -> int:
+    """V50.z248 — Non lette CRITICHE: `data.urgency == CRITICAL` oppure kind mappato CRITICAL nella mappa urgenze del tenant
+    (axon_push_urgency: default callback_urgent / alarm / weather_alert). Alimenta il lampeggio rosso della bolla AxonOS."""
+    try:
+        kind_map = await _apu_kind_map(tenant)  # definita in axon_push_urgency.py (namespace condiviso)
+    except Exception:  # noqa: BLE001
+        kind_map = {"callback_urgent": "CRITICAL", "alarm": "CRITICAL", "weather_alert": "CRITICAL"}
+    crit_kinds = [k for k, v in kind_map.items() if v == "CRITICAL"]
+    return await db.axon_notifications.count_documents({"user_id": uid, "read": False, "$or": [{"data.urgency": "CRITICAL"}, {"kind": {"$in": crit_kinds}}]})
+
+
 async def _axn_owner_of(tid: str) -> Optional[dict]:
     return await db.users.find_one({"user_id": tid}, {"_id": 0, "user_id": 1, "name": 1, "role": 1, "email": 1})
 
@@ -138,19 +149,20 @@ async def axn_list(unread_only: bool = False, limit: int = 50, user=Depends(get_
 
 @api_router.get("/axon-notifications/unread-count")
 async def axn_unread_count(user=Depends(get_current_user)):
-    return {"unread": await _axn_unread(user["user_id"])}
+    uid = user["user_id"]
+    return {"unread": await _axn_unread(uid), "critical": await _axn_unread_critical(uid, tenant_id(user))}
 
 
 @api_router.post("/axon-notifications/read-all")
 async def axn_read_all(user=Depends(get_current_user)):
     r = await db.axon_notifications.update_many({"user_id": user["user_id"], "read": False}, {"$set": {"read": True, "read_at": utcnow()}})
-    return {"ok": True, "updated": r.modified_count, "unread": 0}
+    return {"ok": True, "updated": r.modified_count, "unread": 0, "critical": 0}
 
 
 @api_router.post("/axon-notifications/{notif_id}/read")
 async def axn_read(notif_id: str, user=Depends(get_current_user)):
     await db.axon_notifications.update_one({"notif_id": notif_id, "user_id": user["user_id"]}, {"$set": {"read": True, "read_at": utcnow()}})
-    return {"ok": True, "unread": await _axn_unread(user["user_id"])}
+    return {"ok": True, "unread": await _axn_unread(user["user_id"]), "critical": await _axn_unread_critical(user["user_id"], tenant_id(user))}
 
 
 @api_router.delete("/axon-notifications/{notif_id}")
