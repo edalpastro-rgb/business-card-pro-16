@@ -1,5 +1,5 @@
 import "@/src/polyfills"; // MUST be first — TextEncoder/TextDecoder polyfill for Hermes (xlsx e altre libs legacy)
-import { Stack, router as expoRouter, useRouter } from "expo-router";
+import { Stack, router as expoRouter, useRouter, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import React, { useEffect } from "react";
@@ -144,6 +144,9 @@ function LockGate() {
 // background silenziosamente: nessun elemento UI mostrato all'utente.
 function StackWithCallBar() {
   const { user } = useAuth();
+  // V50.z257 — Tour conversazionale a schermo intero: niente FAB/Edge/bottom nav sopra
+  const pathname = usePathname() || "";
+  const inTour = pathname.startsWith("/tour");
   const router = useRouter();
   useEffect(() => {
     // V50.z13 — Response listener globale: tap su notifica sveglia/timer/
@@ -213,17 +216,17 @@ function StackWithCallBar() {
       <PushBridgeSync userId={user?.user_id} />
       {/* V50.z200 — Heartbeat versione app → Axon rileva da solo gli aggiornamenti (APK/IPA) */}
       <SystemHeartbeat userId={user?.user_id} />
-      <AssistantFAB />
+      {inTour ? null : <AssistantFAB />}
       {/* V50.z147 — Rimosso il bottone Help/Support Center dalle top header di tutte le pagine
           (`<SupportFab />`, V49.j/k): ridondante con il tab "Help" della bottom bar (V50.z141).
           Il componente resta in `src/SupportFab.tsx` per eventuale riuso. */}
       {/* V50.z5 — Calculator FAB globale: appare in tutte le pagine, anche
           sopra i modali fatture (posizionato accanto al FAB Axon). */}
-      {user ? <CalculatorFAB /> : null}
-      {user ? <PersistentBottomNav /> : null}
-      {user ? <OnboardingWizard /> : null}
+      {user && !inTour ? <CalculatorFAB /> : null}
+      {user && !inTour ? <PersistentBottomNav /> : null}
+      {user && !inTour ? <OnboardingWizard /> : null}
       {/* V50.z15 — Edge Panel Samsung-style: linguetta a destra, shortcut personalizzabili */}
-      {user ? <EdgePanel /> : null}
+      {user && !inTour ? <EdgePanel /> : null}
     </View>
   );
 }

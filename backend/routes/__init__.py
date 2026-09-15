@@ -87,5 +87,6 @@ MODULES = [
     "axon_geo_routing.py",  # V50.z240 — FEAT-GEO-001 Fase 1: GET /geo/contacts-map (geocoding cache contacts.geo), POST /geo/optimal-route (NN + 2-opt, geo_routes) (isolato; dopo 07_contacts per _geocode_one)
     "geo_km_log.py",  # V50.z253 — Resoconto Km: visite completate nel Giro Ottimale → km da percorso (POST/GET/DELETE /geo/km-log) (isolato; dopo axon_geo_routing)
     "contact_visits.py",  # V50.z256 — Rilevamento Visite: visite confermate, candidati GPS, frequenza ripasso, /visits/* (isolato; dopo axon_geo_routing e geo_km_log; avvolge _prepare_assistant_prompt)
+    "axon_tour.py",  # V50.z257 — Tour Guidato conversazionale: /tour/profile, /tour/contact-from-text, /tour/features (isolato; dopo 12_ai_contact_copilot)
     "37_app_startup_scheduler.py",
 ]

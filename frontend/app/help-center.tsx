@@ -96,7 +96,7 @@ export default function HelpCenterScreen() {
               if (user?.user_id) await AsyncStorage.removeItem(`onboarding_done_${user.user_id}`);
               await api("/user-settings", { method: "PUT", body: { onboarding_done: false } }).catch(() => {});
             } catch { /* silent */ }
-            router.push("/libretto?onboarding=1" as any);
+            router.push("/tour" as any); // V50.z257
           }}
           style={styles.replayBtn}
         >

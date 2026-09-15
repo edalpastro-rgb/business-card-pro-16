@@ -203,7 +203,7 @@ export default function HomeScreen() {
         const doneLocal = await AsyncStorage.getItem(localKey);
         if (doneLocal === "1" || !mounted) return;
         onboardingTriggered.current = true;
-        const href = "/libretto?onboarding=1" as any;
+        const href = "/tour" as any; // V50.z257 — nuovo Tour conversazionale (4 schermate)
         const attempt = (n: number) => {
           if (!mounted || n > 5) return;
           if ((pathnameRef.current || "").includes("libretto")) return;

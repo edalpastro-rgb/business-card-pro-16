@@ -922,7 +922,7 @@ function SettingsHubSection({
               if (user?.user_id) await AsyncStorage.removeItem(`onboarding_done_${user.user_id}`);
               await api("/user-settings", { method: "PUT", body: { onboarding_done: false } }).catch(() => {});
               notify("Tour guidato riavviato", "Ti riportiamo all'introduzione");
-              setTimeout(() => onGoto("/libretto?onboarding=1"), 300);
+              setTimeout(() => onGoto("/tour"), 300); // V50.z257
             } catch (e: any) {
               notify("Errore", e?.message || "Impossibile riavviare il tour");
             }

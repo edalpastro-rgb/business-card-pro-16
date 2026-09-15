@@ -30,7 +30,7 @@ export default function HelpTabScreen() {
       if (user?.user_id) await AsyncStorage.removeItem(`onboarding_done_${user.user_id}`);
       api("/user-settings", { method: "PUT", body: { onboarding_done: false } }).catch(() => {});
     } catch {}
-    router.push("/libretto?onboarding=1" as any);
+    router.push("/tour" as any); // V50.z257
   };
 
   const Card = ({ icon, color, title, sub, onPress, testID }: { icon: keyof typeof Ionicons.glyphMap; color: string; title: string; sub: string; onPress: () => void; testID: string }) => (
@@ -65,7 +65,7 @@ export default function HelpTabScreen() {
       {/* Libretto informativo — accessi secondari */}
       <Text style={styles.sectionLabel}>LIBRETTO INFORMATIVO</Text>
       <Card icon="book-outline" color="#FF6B35" title="Guida rapida" sub="Come usare AdvisorOS, sezione per sezione" onPress={() => router.push("/libretto" as any)} testID="help-tab-guide" />
-      <Card icon="sparkles" color="#7C3AED" title="Rifai il tour guidato" sub="Intro animata + giro guidato dell'app" onPress={replayTour} testID="help-tab-replay" />
+      <Card icon="sparkles" color="#7C3AED" title="Rifai il tour guidato" sub="Conversazione con Axon in 4 schermate" onPress={replayTour} testID="help-tab-replay" />
     </ScrollView>
   );
 }

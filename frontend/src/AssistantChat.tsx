@@ -130,7 +130,7 @@ const MODE_ICON: Record<ResponseMode, keyof typeof Ionicons.glyphMap> = {
  * Cross-platform audio player. Uses <audio> on web, expo-audio on native.
  * Returns a cleanup function. Calls onEnded when playback naturally completes.
  */
-async function playAudioBase64(
+export async function playAudioBase64(
   b64: string,
   mime: string = "audio/mpeg",
   onEnded?: () => void
