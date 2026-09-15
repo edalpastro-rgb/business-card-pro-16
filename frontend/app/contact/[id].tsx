@@ -12,6 +12,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { ContactContractsSection } from "@/src/ContactContractsSection"; // V50.z262 — tab Contratti
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { shareText, shareDataUri } from "@/src/share";
@@ -82,7 +83,7 @@ function ContactDetail() {
   const { id, refs: refsParam, tab: tabParam } = useLocalSearchParams<{ id: string; refs?: string; tab?: string }>();
   const router = useRouter();
   const [c, setC] = useState<Contact | null>(null);
-  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio" | "calls" | "appts" | "visits" | "refs" | "reviews">("info");
+  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "contracts" | "audio" | "calls" | "appts" | "visits" | "refs" | "reviews">("info");
   // V50.z101 — Popup "Vuoi programmare la richiesta recensione?" quando lo status
   // del contatto transita a "client". Compariamo lo stato precedente conservato
   // in una ref, e apriamo la modale review-request se la transizione avviene.
@@ -96,7 +97,7 @@ function ContactDetail() {
   }, [refsParam]);
   // V50.z259 — Deep link Navigatore Axon: /contact/{id}?tab=visits|notes|bills|…
   useEffect(() => {
-    const ok = ["info", "notes", "files", "bills", "audio", "calls", "appts", "visits", "refs", "reviews"];
+    const ok = ["info", "notes", "files", "bills", "contracts", "audio", "calls", "appts", "visits", "refs", "reviews"];
     if (tabParam && ok.includes(tabParam)) setTab(tabParam as any);
   }, [tabParam]);
   const [noteText, setNoteText] = useState("");
@@ -746,18 +747,19 @@ function ContactDetail() {
       </View>
 
       <View style={styles.tabs}>
-        {(["info", "notes", "files", "bills", "audio", "calls", "appts", "visits", "refs", "reviews"] as const).map((t) => {
+        {(["info", "notes", "files", "bills", "contracts", "audio", "calls", "appts", "visits", "refs", "reviews"] as const).map((t) => {
           const iconName: any = t === "info" ? "person"
             : t === "notes" ? "create"
             : t === "files" ? "folder"
             : t === "bills" ? "flash"
+            : t === "contracts" ? "document-text"
             : t === "audio" ? "mic"
             : t === "calls" ? "chatbubbles"
             : t === "refs" ? "share-social"
             : t === "reviews" ? "star"
             : t === "visits" ? "location"
             : "calendar";
-          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "audio" ? "Audio" : t === "calls" ? "Comunicazioni" : t === "refs" ? "Referenze" : t === "reviews" ? "Recensioni" : t === "visits" ? "Visite" : "Appuntamenti";
+          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "contracts" ? "Contratti" : t === "audio" ? "Audio" : t === "calls" ? "Comunicazioni" : t === "refs" ? "Referenze" : t === "reviews" ? "Recensioni" : t === "visits" ? "Visite" : "Appuntamenti";
           const active = tab === t;
           // V38E: All non-selected tabs are neutral grey; only the active tab is colored.
           // Fatture tab keeps a distinctive orange when active (still the most important section).
@@ -795,6 +797,8 @@ function ContactDetail() {
             onContactFilesChanged={load}
           />
         </View>
+      ) : tab === "contracts" ? (
+        <ContactContractsSection contactId={id} />
       ) : tab === "audio" ? (
         <ContactAudioSection contactId={id} />
       ) : tab === "calls" ? (

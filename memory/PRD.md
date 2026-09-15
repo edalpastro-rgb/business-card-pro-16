@@ -6362,3 +6362,6 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 
 ## V50.z261 — Test notturno Stress Test — DONE
 - Scheduler notturno per owner (off di default), confronto con la notte precedente, avviso Axon + push al Master con deep link al report; card impostazioni in /axon-stress-report; 'Prova ora'.
+
+## V50.z262 — Correzioni stress test + categoria 'Domande sbagliate e assurde' — DONE
+- Tab Contratti in scheda cliente; intercetti deterministici (fattura conversazionale, trap risposta fissa, campi custom, ripassi, integrazioni, mail troncata, frasi troncate, gibberish, identità, offese, richieste impossibili); regole casi limite nel prompt; 35 domande 'sbagliate' con valutazione guard; gestione errori LLM nello stress test (budget esaurito).

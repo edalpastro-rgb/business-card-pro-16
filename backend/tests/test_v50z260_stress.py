@@ -46,13 +46,14 @@ def test_run_stop_report_and_correction():
         time.sleep(3)
     assert d["status"] == "done", d.get("error")
     s = d["summary"]
-    assert s["tested"] == 3 and s["passed"] + s["failed"] + s["inconsistent"] == 3
-    assert abs(s["pct_passed"] + s["pct_failed"] + s["pct_inconsistent"] - 100) < 0.5
+    assert s["tested"] + s.get("errors", 0) == 3 and s["passed"] + s["failed"] + s["inconsistent"] == s["tested"]
+    if s["tested"]:
+        assert abs(s["pct_passed"] + s["pct_failed"] + s["pct_inconsistent"] - 100) < 0.5
     for it in d["items"]:
         assert len(it["reps"]) == 2
-        assert it["outcome"] in ("passed", "failed", "inconsistent")
+        assert it["outcome"] in ("passed", "failed", "inconsistent", "error")
         for rep in it["reps"]:
-            assert "reply" in rep and isinstance(rep["ok"], bool)
+            assert "reply" in rep and (isinstance(rep["ok"], bool) or rep["ok"] is None)
     # filtro per esito
     d_f = requests.get(f"{BASE}/axon/stress/runs/{run_id}?outcome=passed", headers=H, timeout=30).json()
     assert all(it["outcome"] == "passed" for it in d_f["items"])

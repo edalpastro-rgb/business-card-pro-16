@@ -15,11 +15,11 @@ import { notify } from "@/src/utils/notify";
 import { theme } from "@/src/theme";
 
 const NAVY = "#1B2B4B"; const VIOLET = "#7C3AED";
-type Rep = { rep: number; reply: string; ok: boolean; routes: string[]; actions: string[]; reason: string };
-type Item = { id: string; category: string; question: string; expected: string[]; flag: string; reps: Rep[]; outcome: "passed" | "failed" | "inconsistent" | "skipped" | null; correction?: { expected_text: string; rule: string } | null; correction_applied?: boolean };
-type Summary = { tested: number; passed: number; failed: number; inconsistent: number; pct_passed: number; pct_failed: number; pct_inconsistent: number };
+type Rep = { rep: number; reply: string; ok: boolean | null; routes: string[]; actions: string[]; reason: string };
+type Item = { id: string; category: string; question: string; expected: string[]; flag: string; reps: Rep[]; outcome: "passed" | "failed" | "inconsistent" | "skipped" | "error" | null; correction?: { expected_text: string; rule: string } | null; correction_applied?: boolean };
+type Summary = { tested: number; passed: number; failed: number; inconsistent: number; errors?: number; pct_passed: number; pct_failed: number; pct_inconsistent: number };
 type RunHead = { run_id: string; status: "running" | "done" | "stopped" | "error"; reps: number; total: number; done: number; created_at: string; summary?: Summary | null; error?: string | null };
-type Filter = "all" | "passed" | "failed" | "inconsistent";
+type Filter = "all" | "passed" | "failed" | "inconsistent" | "error";
 type NightlyCfg = { enabled: boolean; hour: number; mode: "quick" | "full"; reps: number; threshold_pct: number; drop_pct: number };
 type NightlyStatus = { settings: NightlyCfg; last: (RunHead & { nightly_verdict?: string; nightly_reasons?: string[]; nightly_prev_pct?: number | null }) | null; previous: RunHead | null; running: boolean };
 
@@ -28,6 +28,7 @@ const OUT_LABEL: Record<string, { t: string; c: string; bg: string }> = {
   failed: { t: "Fallito", c: "#991B1B", bg: "#FEE2E2" },
   inconsistent: { t: "Incoerente", c: "#92400E", bg: "#FEF3C7" },
   skipped: { t: "Non testato", c: "#374151", bg: "#F3F4F6" },
+  error: { t: "Errore LLM", c: "#6B21A8", bg: "#F3E8FF" },
 };
 
 export default function AxonStressReportScreen() {
@@ -125,11 +126,11 @@ export default function AxonStressReportScreen() {
   const live = useMemo(() => {
     // contatori provvisori mentre il run è in corso
     const its = run?.items || [];
-    const c = { passed: 0, failed: 0, inconsistent: 0 };
+    const c = { passed: 0, failed: 0, inconsistent: 0, error: 0 };
     its.forEach((it) => { if (it.outcome && it.outcome in c) (c as any)[it.outcome] += 1; });
     const tested = c.passed + c.failed + c.inconsistent;
     const pct = (n: number) => (tested ? Math.round((1000 * n) / tested) / 10 : 0);
-    return { tested, ...c, pct_passed: pct(c.passed), pct_failed: pct(c.failed), pct_inconsistent: pct(c.inconsistent) } as Summary;
+    return { tested, passed: c.passed, failed: c.failed, inconsistent: c.inconsistent, errors: c.error, pct_passed: pct(c.passed), pct_failed: pct(c.failed), pct_inconsistent: pct(c.inconsistent) } as Summary;
   }, [run]);
   const S = s || live;
   const progress = run && run.total ? Math.min(1, (run.done || 0) / run.total) : 0;
@@ -236,10 +237,16 @@ export default function AxonStressReportScreen() {
                 <View style={[styles.kpi, { borderColor: "#FCD34D" }]}><Text style={[styles.kpiN, { color: "#92400E" }]}>{S.pct_inconsistent}%</Text><Text style={styles.kpiL}>Incoerenti</Text></View>
               </View>
 
+              {(S.errors || 0) > 0 && (
+                <View style={[styles.card, { borderColor: "#E9D5FF", backgroundColor: "#FAF5FF" }]} testID="stress-llm-error">
+                  <Text style={[styles.cardTitle, { color: "#6B21A8" }]}>⛔ {S.errors} domande non valutate per errore LLM</Text>
+                  <Text style={styles.hint}>{run.error || "Il modello non ha risposto."} Se compare «Daily spend limit reached» il budget giornaliero della chiave LLM è esaurito: ricarica da Profilo → Manage plan → Universal Key → Add Balance (o attiva l'auto top-up) e rilancia il test.</Text>
+                </View>
+              )}
               {/* Filtri */}
               <View style={styles.rowWrap} testID="stress-filters">
-                {(["all", "passed", "failed", "inconsistent"] as Filter[]).map((f) => {
-                  const n = f === "all" ? S.tested : (S as any)[f];
+                {(["all", "passed", "failed", "inconsistent", ...((S.errors || 0) > 0 ? ["error"] : [])] as Filter[]).map((f) => {
+                  const n = f === "all" ? S.tested : f === "error" ? S.errors || 0 : (S as any)[f];
                   return (
                     <Pressable key={f} onPress={() => setFilter(f)} style={[styles.chip, filter === f && styles.chipOn]} testID={`stress-filter-${f}`}>
                       <Text style={[styles.chipTxt, filter === f && styles.chipTxtOn]}>{f === "all" ? "Tutti" : OUT_LABEL[f].t} ({n})</Text>
@@ -252,7 +259,7 @@ export default function AxonStressReportScreen() {
               {items.length === 0 ? <Text style={styles.hint}>Nessuna domanda in questa categoria{run.status === "running" ? " (ancora)" : ""}.</Text> : items.map((it) => {
                 const o = it.outcome ? OUT_LABEL[it.outcome] : null;
                 const open = openId === it.id;
-                const okCount = it.reps.filter((r) => r.ok).length;
+                const okCount = it.reps.filter((r) => r.ok === true).length;
                 return (
                   <View key={it.id} style={styles.item} testID={`stress-item-${it.id}`}>
                     <Pressable onPress={() => setOpenId(open ? null : it.id)} style={styles.itemHead} testID={`stress-item-toggle-${it.id}`}>
@@ -267,13 +274,13 @@ export default function AxonStressReportScreen() {
                       <View style={styles.itemBody}>
                         {it.reps.map((r) => (
                           <View key={r.rep} style={styles.rep}>
-                            <Text style={styles.repHead}>{r.ok ? "✅" : "❌"} Ripetizione {r.rep}{r.reason ? ` — ${r.reason}` : ""}</Text>
+                            <Text style={styles.repHead}>{r.ok === null ? "⛔" : r.ok ? "✅" : "❌"} Ripetizione {r.rep}{r.reason ? ` — ${r.reason}` : ""}</Text>
                             <Text style={styles.repTxt} numberOfLines={8}>{r.reply.replace(/\[\[(NAV|ACTION):[^\]]*\]\]/g, "").trim() || "(vuota)"}</Text>
                             {r.routes.length > 0 && <Text style={styles.repLinks}>Link: {r.routes.join("  ")}</Text>}
                             {r.actions.length > 0 && <Text style={styles.repLinks}>Azioni: {r.actions.join(", ")}</Text>}
                           </View>
                         ))}
-                        {it.outcome !== "passed" && it.correction && (
+                        {it.outcome !== "passed" && it.outcome !== "error" && it.correction && (
                           <View style={styles.corr} testID={`stress-correction-${it.id}`}>
                             <Text style={styles.corrLab}>Risposta corretta attesa</Text>
                             <Text style={styles.corrTxt}>{it.correction.expected_text}</Text>

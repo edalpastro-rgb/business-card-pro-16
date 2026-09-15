@@ -52,7 +52,8 @@ APP_MAP: list = [
     dict(id="contatto_scheda", name="Scheda contatto", route="/contact/{id}", group="Contatti", desc="Dettaglio cliente: info, note, file, fatture, audio, chiamate, appuntamenti, visite, referenze.", kw=["scheda cliente", "scheda contatto", "dettaglio cliente"]),
     dict(id="contatto_visite", name="Storico visite del contatto", route="/contact/{id}?tab=visits", group="Contatti", desc="Visite registrate (manuali e GPS) per il cliente.", kw=["storico visite", "visite cliente", "ultima visita", "quando sono stato"]),
     dict(id="contatto_note", name="Note del contatto", route="/contact/{id}?tab=notes", group="Contatti", desc="Note testuali sul cliente.", kw=["note cliente", "appunti cliente", "scrivere nota"]),
-    dict(id="contatto_contratti", name="Fatture e contratti del contatto", route="/contact/{id}?tab=bills", group="Contatti", desc="Bollette analizzate e contratti associati al cliente.", kw=["contratti cliente", "bollette cliente", "fatture cliente"]),
+    dict(id="contatto_fatture", name="Fatture del contatto", route="/contact/{id}?tab=bills", group="Contatti", desc="Bollette analizzate del cliente (tab Fatture).", kw=["bollette cliente", "fatture cliente", "fatture del cliente"]),
+    dict(id="contatto_contratti", name="Contratti del contatto", route="/contact/{id}?tab=contracts", group="Contatti", desc="Sezione Contratti della scheda cliente: contratti associati, stato, scadenze, nuovo contratto.", kw=["contratti cliente", "contratti di un cliente", "contratti del cliente", "vedere i contratti", "contratto cliente"]),
     dict(id="contatto_ripasso", name="Frequenza ripasso", route="/contact/edit/{id}", group="Contatti", desc="Imposta ogni quanti giorni rivisitare il cliente (ripasso).", kw=["frequenza ripasso", "ripasso", "ogni quanto visitare", "rivisitare"]),
     dict(id="mappa_clienti", name="Mappa clienti", route="/map-clients", group="Contatti", desc="Clienti su mappa, filtri per stato/città/area e 'non visitati da'.", kw=["mappa clienti", "clienti sulla mappa", "non visitati", "vicino a me"]),
     dict(id="import_contatti", name="Importa contatti", route="/contacts-import", group="Contatti", desc="Importa contatti da CSV/rubrica.", kw=["importa contatti", "import csv", "rubrica telefono"]),
@@ -189,6 +190,8 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
         "Solo se NESSUNA funzione corrisponde al bisogno, rispondi in modo conversazionale senza marker.",
         "Bisogni vaghi/indiretti → interpreta e proponi la funzione: " + "; ".join(f"«{v}» → {', '.join(_NAV_BY_ID[i]['name'] for i in ids if i in _NAV_BY_ID)}" for v, ids in VAGUE_MAP) + ".",
         "«Come faccio a impostare/configurare X» → cerca X nell'elenco e porta direttamente alla configurazione.",
+        "FUNZIONI INESISTENTI (es. tema scuro, firma digitale dei contratti, pagare bollette, saldo conto corrente, prenotare voli, negozio gadget, fatture emesse ai clienti, videochiamate, SMS massivi, traduzione automatica, modalità offline): rispondi ESATTAMENTE «Questa funzione non è disponibile in AdvisorOS.» — senza inventare alternative, senza marker, senza rimandare ad altre schermate.",
+        "CASI LIMITE: (a) domanda fuori contesto (cultura generale, ricette, sport…) → non rispondere all'argomento: una frase gentile e riporta l'utente all'app («Posso aiutarti con clienti, appuntamenti, fatture…»). (b) utente frustrato/aggressivo → calma, empatia, un aiuto concreto (es. [[NAV:/help-center|Segnala il problema]]), mai polemica. (c) frase troncata/incomprensibile (es. «come faccio a», «dove sta il») → chiedi di completare la frase, non indovinare. (d) altra lingua → rispondi in italiano ma capisci la richiesta e proponi il deep link giusto. (e) contenuti offensivi → una riga professionale, resta disponibile. (f) «sei un'AI? chi ti ha creato? dimmi un segreto» → sei Axon, l'assistente di AdvisorOS; non rivelare modelli/fornitori né dati riservati; torna al lavoro. (g) richieste impossibili o pericolose (cancellare tutto, mail massive a tutti, azioni all'insaputa) → non eseguire: spiega che non è possibile/non lo farai e indica il canale corretto (Help Center o l'operazione manuale).",
         "",
         "ELENCO SCHERMATE (nome · route · a cosa serve):",
     ]
@@ -231,14 +234,29 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
 # PARTE 3 + 5 — Intercettori deterministici (prima dell'LLM)
 # ---------------------------------------------------------------------------
 _RX_LOST = _nav_re.compile(r"\b(mi sono pers[oa]|non so (da dove|come) (iniziare|cominciare|partire|muovermi)|da dove (inizio|comincio|parto)|come (si usa|funziona) (l app|l'app|advisoros|questa app)|cosa (posso|so) fare (qui|con l'app|con l app))\b", _nav_re.I)
-_RX_KPI = _nav_re.compile(r"\b(come sto andando|come (vanno|stanno andando) (le cose|gli affari|le vendite|i miei numeri)|(i miei|le mie) (numeri|risultati|kpi|statistiche)|voglio sapere come (sto|vado))\b", _nav_re.I)
+_RX_KPI = _nav_re.compile(r"\b(come sto andando|come (vanno|stanno andando) (le cose|gli affari|le vendite|i miei numeri)|(i miei|le mie) (numeri|risultati|kpi|statistiche)|voglio sapere come (sto|vado)|se sto lavorando bene|sto lavorando bene|come sto lavorando)\b", _nav_re.I)
 _RX_CALLBACK = _nav_re.compile(r"\b(devo|dovrei|voglio|chi devo|ho da) richiamare\b|\bda richiamare\b|\bmostra(mi)? le ritelefonate\b|\bdove (sono|trovo|vedo) le ritelefonate\b", _nav_re.I)
 _RX_DOCS = _nav_re.compile(r"\bdove (metto|carico|salvo|archivio|trovo|vedo|tengo) (i |le |la |il |un |una )?(documenti|file|pdf|bollette|fatture|contratti|listini|moduli)\b", _nav_re.I)
 _RX_HOWTO = _nav_re.compile(r"\b(come (faccio|posso|si fa) (a |per )?(impostare|configurare|attivare|disattivare|cambiare|modificare|settare|abilitare|personalizzare)|dove (imposto|configuro|attivo|cambio|modifico|trovo l impostazione|trovo l'impostazione))\s+(?P<x>.{2,80})", _nav_re.I)
-_RX_GOTO = _nav_re.compile(r"^\s*(devo|dovrei|vado|andro|andrò|sto andando|voglio andare|passo|passero|passerò|devo passare|devo andare|dovrei andare|dovrei passare)\s+(andare\s+|passare\s+)?(da|dal|dalla|dallo|dai|a trovare|a casa di|in ufficio da|dal cliente|dalla cliente)\s+(?P<name>[a-zA-ZÀ-ÿ'’\. ]{2,60})\s*[\.\!\?]*\s*$", _nav_re.I)
+_RX_GOTO = _nav_re.compile(r"^\s*(devo|dovrei|vado|andro|andrò|sto andando|voglio andare|passo|passero|passerò|devo passare|devo andare|dovrei andare|dovrei passare)\s+(andare\s+|passare\s+)?(da|dal|dalla|dallo|dai|a trovare|a casa di|in ufficio da|dal cliente|dalla cliente)\s+(?P<name>[a-zA-ZÀ-ÿ'’\. ]{2,60}?)\s*(?:[,;:].{0,60})?[\.\!\?]*\s*$", _nav_re.I)
 _RX_MISSED = _nav_re.compile(r"\b(sposta|spostare|spostami|rimanda|rimandare|riprogramma|riprogrammare|posticipa)\b.*\bappuntament\w*\b.*\b(mancat\w*|pers\w*|saltat\w*|non fatt\w*|non svolt\w*)\b|\bappuntament\w*\s+mancat\w*\b.*\b(sposta|rimanda|domani|riprogramma)\w*", _nav_re.I)
 _RX_LOSTTOUCH = _nav_re.compile(r"\b(perso il filo|perso di vista|persi di vista|non (vedo|visito|sento|seguo) da (tanto|molto|tempo|un pezzo|mesi)|clienti (trascurati|dimenticati|abbandonati|che non visito)|chi non (visito|vedo|sento) da (tempo|mesi|tanto)|clienti non visitati)\b", _nav_re.I)
 _RX_ORGANIZE = _nav_re.compile(r"\b(devo|voglio|vorrei|aiutami a|come faccio a|come posso) organizzar(mi|e)\b|\borganizzarmi meglio\b|\bmettere ordine\b|\bpianificare (la|questa) (settimana|giornata)\b|\bcome organizzo (la|questa) (settimana|giornata)\b", _nav_re.I)
+
+_RX_TRAP = _nav_re.compile(r"\b(tema scuro|dark mode|modalit[àa] scura|firm\w* digital\w*|pagare? (le |la )?bollett\w*|saldo (del )?conto|conto corrente|prenot\w* (un |il )?(volo|voli|hotel|treno)|negozio (per |di |online|gadget)|gadget aziendal\w*|fatture (emesse|che ho emesso|della mia azienda)|videochiamat\w*|sms (massiv\w*|a tutti)|traduzione automatica|modalit[àa] offline|registratore di cassa)\b", _nav_re.I)
+_RX_BILL_FLOW = _nav_re.compile(r"\b(leggi|analizza|analizzare|controlla|guarda|confronta|confronto|conviene|risparmi\w*|fotografa)\b.*\b(fattur\w*|bollett\w*|offert\w*|luce|gas)\b|\b(fattur\w*|bollett\w*)\b.*\b(conviene|analizz\w*|confront\w*|leggi)\b", _nav_re.I)
+_RX_CONTRACTS_CLIENT = _nav_re.compile(r"\bcontratt\w*\b.{0,25}\b(client\w*|contatt\w*)\b|\b(client\w*|contatt\w*)\b.{0,25}\bcontratt\w*\b", _nav_re.I)
+_RX_CUSTOM_FIELDS = _nav_re.compile(r"\bcamp[oi] (personalizzat\w*|custom|extra|aggiuntiv\w*)\b", _nav_re.I)
+_RX_RIPASSI = _nav_re.compile(r"\b(ripass\w*|rivisitare|da rivedere|rivedere i clienti|clienti da rivisitare)\b", _nav_re.I)
+_RX_TELEGRAM = _nav_re.compile(r"\b(telegram|whatsapp business|home assistant)\b", _nav_re.I)
+_RX_MAIL_TRUNC = _nav_re.compile(r"\b(colleg\w+|configur\w+|aggiung\w+|imposta\w*)\b.*\b(la |una |il )?(mial|mai|mal|emai|emial|maill|ma)\s*[\.\?!]*$", _nav_re.I)
+_RX_TRUNC = _nav_re.compile(r"^\s*(come faccio a|come faccio|come si fa a|come si fa|dove sta il|dove sta la|dove sta|dove [èe] il|dove [èe] la|voglio il|voglio la|voglio|vorrei|mi serve|dove trovo il|dove trovo la|come posso|posso)\s*[\.\?!…]*\s*$", _nav_re.I)
+
+# V50.z262 — casi limite deterministici (identità, offese, richieste impossibili, testo senza senso)
+_RX_ROLE = _nav_re.compile(r"\b(sei un'?\s?(ai|ia|intelligenza artificiale|robot|bot|umano)|chi ti ha (creato|programmato|fatto|costruito)|che modello (sei|usi)|prompt di sistema|system prompt|ignora (le tue |tutte le )?istruzioni|dimmi (qualcosa di |un )?segreto|fingi di essere|fai finta di essere|cose che non riguardano l'app)\b", _nav_re.I)
+_RX_OFFENSIVE = _nav_re.compile(r"\b(cretin\w*|idiot\w*|stupid\w*|imbecill\w*|vaffa\w*|fanculo|stronz\w*|merd\w*|cazz\w*|coglion\w*|parolacc\w*|bestemmi\w*)\b", _nav_re.I)
+_RX_IMPOSSIBLE = _nav_re.compile(r"\b(cancella|elimina|rimuovi)\b.*\b(tutt[oi]|tutti i (miei )?dati|tutti gli appuntamenti)\b|\bsenza che (lo sappia|nessuno)\b|\btrasferisci\b.*\b(euro|€|iban)\b|\bbonifico\b|\b(numero|telefono|indirizzo) personale\b.*\b(collega|collaborator\w*)\b", _nav_re.I)
+_RX_GIBBERISH = _nav_re.compile(r"^[\W_]{1,6}$|^(?:[^aeiouàèéìòù\s]{4,}\s*)+$|\b(asdf|qwer|zxcv|hjkl|yuiop|dfgh|sdfg)\w*", _nav_re.I)
 
 _GENERIC_CLIENT = {"un cliente", "cliente", "il cliente", "un mio cliente", "qualcuno", "un cliente oggi", "una cliente"}
 
@@ -442,6 +460,46 @@ async def _nav_flow_organize(user: dict) -> dict:
     return _nav_reply("\n".join(lines))
 
 
+async def _nav_flow_client_contracts(user: dict, msg: str) -> dict:
+    """CORREZIONE 1 — contratti di un cliente → sezione Contratti della scheda cliente."""
+    intro = "I contratti di un cliente sono nella sua scheda, sezione **Contratti** (stato, scadenze, nuovo contratto)."
+    # cliente nominato nel messaggio?
+    m = _nav_re.search(r"\b(di|del|della|per)\s+(?P<name>[A-Z][a-zA-ZÀ-ÿ']+(?:\s+[A-Z][a-zA-ZÀ-ÿ']+)?)", msg)
+    if m:
+        c = await _nav_find_contact(user, m.group("name"))
+        if c:
+            return _nav_reply(intro + "\n" + _nav(f"/contact/{c['contact_id']}?tab=contracts", f"📄 Contratti di {_nav_cname(c)}"))
+    q = {"user_id": tenant_id(user)}  # noqa: F821
+    if not is_owner(user):  # noqa: F821
+        q["created_by"] = user["user_id"]
+    ids = await db.contracts.distinct("contact_id", q)  # noqa: F821
+    ids = [i for i in ids if i][:3]
+    marks = []
+    for cid in ids:
+        c = await db.contacts.find_one({"contact_id": cid}, {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "company": 1})  # noqa: F821
+        if c:
+            marks.append(_nav(f"/contact/{cid}?tab=contracts", f"📄 Contratti di {_nav_cname(c)}"))
+    marks.append(_nav("/contatti", "👥 Scegli il cliente → tab Contratti"))
+    return _nav_reply(intro + "\n" + "\n".join(marks[:3]))
+
+
+async def _nav_flow_ripassi(user: dict) -> dict:
+    try:
+        due = await _cv_due_list(tenant_id(user), 10)  # noqa: F821
+    except Exception:
+        due = []
+    if not due:
+        return _nav_reply("Nessun ripasso in scadenza: tutti i clienti con frequenza di ripasso sono stati visitati in tempo. 👍\n" + _nav("/calendario?view=week", "📅 Calendario settimana") + "\n" + _nav("/optimal-route", "🗺️ Giro ottimale"))
+    lines = [f"Hai {len(due)} client{'e' if len(due) == 1 else 'i'} da rivisitare (ripasso scaduto):"]
+    for d in due:
+        od = d.get("overdue_days")
+        lines.append(f"• {d['name']}" + (f" · {d['city']}" if d.get("city") else "") + (f" — in ritardo di {od} gg" if od is not None else " — mai visitato"))
+    ids = ",".join(d["contact_id"] for d in due[:10])
+    lines.append(_nav(f"/optimal-route?contacts={ids}", "🗺️ Giro ottimale per i ripassi"))
+    lines.append(_nav("/calendario?view=week", "📅 Pianifica nel calendario"))
+    return _nav_reply("\n".join(lines))
+
+
 def _nav_flow_lost() -> dict:
     return _nav_reply(
         "Tranquillo, si parte da qui. Questi sono i 4 pilastri di AdvisorOS:\n"
@@ -492,8 +550,33 @@ async def _nav_intercept(msg: str, user: dict):
     """Intercettore NAVIGATORE (flussi multi-step + linguaggio vago). None se non matcha."""
     try:
         t = (msg or "").strip()
-        if not (3 <= len(t) <= 220):
+        if not (1 <= len(t) <= 220):
             return None
+        # V50.z262 — correzioni stress test
+        if _RX_GIBBERISH.match(t):
+            return _nav_reply("Non ho capito il messaggio 🙂 Scrivimi cosa ti serve (es. «aggiungi cliente», «calendario», «analizza bolletta») e ti porto nella schermata giusta.")
+        if _RX_OFFENSIVE.search(t):
+            return _nav_reply("Capisco la frustrazione. Resto a disposizione per aiutarti con qualcosa di concreto: clienti, appuntamenti, fatture o un problema da segnalare.\n" + _nav("/help-center", "🛟 Segnala un problema"))
+        if _RX_ROLE.search(t):
+            return _nav_reply("Sono Axon, l'assistente di AdvisorOS: ti aiuto con clienti, appuntamenti, giri, fatture e tutto ciò che riguarda l'app. Non condivido dettagli tecnici o riservati. Dimmi pure cosa ti serve fare.")
+        if _RX_IMPOSSIBLE.search(t):
+            return _nav_reply("Non posso eseguire questa operazione: è irreversibile o riguarda dati di altre persone e non è consentita dall'assistente. Se vuoi cancellare i tuoi dati, la richiesta ufficiale si fa dall'Help Center; per il resto l'operazione va fatta manualmente dalla schermata dedicata.\n" + _nav("/help-center?deletion=1", "🛟 Richiesta cancellazione dati") + "\n" + _nav("/help-center", "💬 Help Center"))
+        if _RX_TRUNC.match(t):
+            return _nav_reply("La frase sembra incompleta 🙂 Dimmi cosa vuoi fare (es. «aggiungere un cliente», «vedere il calendario», «analizzare una bolletta») e ti porto subito nella schermata giusta.")
+        if _RX_MAIL_TRUNC.search(t):
+            return _nav_reply("Vuoi collegare la tua casella mail? Se sì, vai qui.\n" + _nav("/smtp", "✉️ Configura SMTP (invio email)") + "\n" + _nav("/email-accounts", "📥 Caselle mail (IMAP)"))
+        if _RX_TRAP.search(t):
+            return _nav_reply("Questa funzione non è disponibile in AdvisorOS.")
+        if _RX_BILL_FLOW.search(t):
+            return _nav_reply("Attivo l'analisi fattura: fotografa o carica la bolletta, Axon estrae i dati e confronta le offerte luce/gas mostrando il risparmio per il cliente.\n" + _nav("/bill-quick", "🧾 Analisi fattura e confronto offerte") + "\n" + _nav("/bill-quick?config=1", "⚙️ Regole di confronto"))
+        if _RX_CONTRACTS_CLIENT.search(t) and not _RX_GOTO.match(t):
+            return await _nav_flow_client_contracts(user, t)
+        if _RX_CUSTOM_FIELDS.search(t):
+            return _nav_reply("I campi personalizzati della scheda cliente si configurano qui: aggiungi campi extra (testo, numero, data) visibili in ogni contatto.\n" + _nav("/custom-fields", "🧩 Campi personalizzati"))
+        if _RX_TELEGRAM.search(t):
+            return _nav_reply("I servizi esterni si collegano dalla sezione Integrazioni del Profilo.\n" + _nav("/axon-integrations", "🔌 Integrazioni"))
+        if _RX_RIPASSI.search(t):
+            return await _nav_flow_ripassi(user)
         m = _RX_GOTO.match(t)
         if m:
             return await _nav_flow_goto(user, m.group("name"))
