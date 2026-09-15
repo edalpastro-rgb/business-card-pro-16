@@ -4,7 +4,7 @@
 // «Esporta PDF» in alto.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platform } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -20,6 +20,8 @@ type Item = { id: string; category: string; question: string; expected: string[]
 type Summary = { tested: number; passed: number; failed: number; inconsistent: number; pct_passed: number; pct_failed: number; pct_inconsistent: number };
 type RunHead = { run_id: string; status: "running" | "done" | "stopped" | "error"; reps: number; total: number; done: number; created_at: string; summary?: Summary | null; error?: string | null };
 type Filter = "all" | "passed" | "failed" | "inconsistent";
+type NightlyCfg = { enabled: boolean; hour: number; mode: "quick" | "full"; reps: number; threshold_pct: number; drop_pct: number };
+type NightlyStatus = { settings: NightlyCfg; last: (RunHead & { nightly_verdict?: string; nightly_reasons?: string[]; nightly_prev_pct?: number | null }) | null; previous: RunHead | null; running: boolean };
 
 const OUT_LABEL: Record<string, { t: string; c: string; bg: string }> = {
   passed: { t: "Passato", c: "#166534", bg: "#DCFCE7" },
@@ -43,6 +45,21 @@ export default function AxonStressReportScreen() {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [totalQuestions, setTotalQuestions] = useState<number>(0);
   const pollRef = useRef<any>(null);
+  // V50.z261 — Test notturno
+  const { run: runParam } = useLocalSearchParams<{ run?: string }>();
+  const [nightly, setNightly] = useState<NightlyStatus | null>(null);
+  const [nightlySaving, setNightlySaving] = useState(false);
+  const loadNightly = useCallback(async () => { try { setNightly(await api("/axon/stress/nightly")); } catch { /* ignore */ } }, []);
+  const saveNightly = async (patch: Partial<NightlyCfg>) => {
+    setNightlySaving(true);
+    try { setNightly(await api("/axon/stress/nightly", { method: "PUT", body: patch })); }
+    catch (e: any) { notify("Test notturno", e?.message || "Errore"); }
+    finally { setNightlySaving(false); }
+  };
+  const nightlyRunNow = async () => {
+    try { const r = await api<{ run_id: string }>("/axon/stress/nightly/run-now", { method: "POST" }); setRunId(r.run_id); setFilter("all"); await loadRuns(); }
+    catch (e: any) { notify("Test notturno", e?.message || "Impossibile avviare"); }
+  };
 
   const loadRuns = useCallback(async () => {
     try {
@@ -57,13 +74,13 @@ export default function AxonStressReportScreen() {
     try { setRun(await api(`/axon/stress/runs/${id}`)); } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => { void loadRuns(); api<{ total: number }>("/axon/stress/questions").then((r) => setTotalQuestions(r.total)).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (runParam) setRunId(String(runParam)); void loadRuns(); void loadNightly(); api<{ total: number }>("/axon/stress/questions").then((r) => setTotalQuestions(r.total)).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (runId) void loadRun(runId); }, [runId, loadRun]);
   // Polling finché il run è in corso
   useEffect(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     if (run?.status === "running" && runId) {
-      pollRef.current = setInterval(() => { void loadRun(runId); void loadRuns(); }, 4000);
+      pollRef.current = setInterval(() => { void loadRun(runId); void loadRuns(); void loadNightly(); }, 4000);
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [run?.status, runId, loadRun, loadRuns]);
@@ -161,6 +178,53 @@ export default function AxonStressReportScreen() {
               </>
             )}
           </View>
+
+          {/* V50.z261 — Test notturno automatico */}
+          {nightly && (
+            <View style={styles.card} testID="stress-nightly">
+              <View style={styles.rowBetween}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>🌙 Test notturno</Text>
+                  <Text style={styles.hint}>Ogni notte Axon si autotesta; se la qualità scende ricevi un avviso (Avvisi Axon + notifica).</Text>
+                </View>
+                <Pressable onPress={() => saveNightly({ enabled: !nightly.settings.enabled })} disabled={nightlySaving} style={[styles.toggle, nightly.settings.enabled && styles.toggleOn]} testID="stress-nightly-toggle" accessibilityRole="switch">
+                  <View style={[styles.knob, nightly.settings.enabled && styles.knobOn]} />
+                </Pressable>
+              </View>
+              {nightly.settings.enabled && (
+                <>
+                  <Text style={styles.optLab}>Ora di avvio</Text>
+                  <View style={styles.rowWrap}>{[1, 2, 3, 4, 5].map((h) => <Pressable key={h} onPress={() => saveNightly({ hour: h })} style={[styles.chip, nightly.settings.hour === h && styles.chipOn]} testID={`stress-nightly-hour-${h}`}><Text style={[styles.chipTxt, nightly.settings.hour === h && styles.chipTxtOn]}>{String(h).padStart(2, "0")}:00</Text></Pressable>)}</View>
+                  <Text style={styles.optLab}>Campione</Text>
+                  <View style={styles.rowWrap}>
+                    <Pressable onPress={() => saveNightly({ mode: "quick" })} style={[styles.chip, nightly.settings.mode === "quick" && styles.chipOn]} testID="stress-nightly-mode-quick"><Text style={[styles.chipTxt, nightly.settings.mode === "quick" && styles.chipTxtOn]}>Rapido (~57 domande, ruota)</Text></Pressable>
+                    <Pressable onPress={() => saveNightly({ mode: "full" })} style={[styles.chip, nightly.settings.mode === "full" && styles.chipOn]} testID="stress-nightly-mode-full"><Text style={[styles.chipTxt, nightly.settings.mode === "full" && styles.chipTxtOn]}>Completo ({totalQuestions})</Text></Pressable>
+                  </View>
+                  <Text style={styles.optLab}>Ripetizioni · Soglia minima corrette · Calo massimo</Text>
+                  <View style={styles.rowWrap}>
+                    {[1, 3, 5].map((r) => <Pressable key={`r${r}`} onPress={() => saveNightly({ reps: r })} style={[styles.chip, nightly.settings.reps === r && styles.chipOn]} testID={`stress-nightly-reps-${r}`}><Text style={[styles.chipTxt, nightly.settings.reps === r && styles.chipTxtOn]}>×{r}</Text></Pressable>)}
+                    <View style={{ width: 8 }} />
+                    {[70, 80, 85, 90].map((t) => <Pressable key={`t${t}`} onPress={() => saveNightly({ threshold_pct: t })} style={[styles.chip, nightly.settings.threshold_pct === t && styles.chipOn]} testID={`stress-nightly-thr-${t}`}><Text style={[styles.chipTxt, nightly.settings.threshold_pct === t && styles.chipTxtOn]}>≥{t}%</Text></Pressable>)}
+                    <View style={{ width: 8 }} />
+                    {[5, 10, 20].map((d) => <Pressable key={`d${d}`} onPress={() => saveNightly({ drop_pct: d })} style={[styles.chip, nightly.settings.drop_pct === d && styles.chipOn]} testID={`stress-nightly-drop-${d}`}><Text style={[styles.chipTxt, nightly.settings.drop_pct === d && styles.chipTxtOn]}>−{d}pt</Text></Pressable>)}
+                  </View>
+                </>
+              )}
+              <View style={styles.rowBetween}>
+                <View style={{ flex: 1 }}>
+                  {nightly.last ? (
+                    <Text style={styles.hint} testID="stress-nightly-last">
+                      Ultimo test notturno: {new Date(nightly.last.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · {nightly.last.summary?.pct_passed ?? 0}% corrette
+                      {nightly.last.nightly_prev_pct != null ? ` (prima ${nightly.last.nightly_prev_pct}%)` : ""} · {nightly.last.nightly_verdict === "alert" ? "⚠️ avviso inviato" : "✅ ok"}
+                    </Text>
+                  ) : <Text style={styles.hint}>Nessun test notturno ancora eseguito.</Text>}
+                </View>
+                <Pressable onPress={nightlyRunNow} disabled={nightly.running || run?.status === "running"} style={[styles.secondaryBtn, (nightly.running || run?.status === "running") && { opacity: 0.5 }]} testID="stress-nightly-run-now">
+                  <Ionicons name="moon" size={14} color={VIOLET} /><Text style={styles.secondaryTxt}>Prova ora</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
 
           {run && (
             <>
@@ -273,4 +337,8 @@ const styles = StyleSheet.create({
   corrLab: { fontSize: 10.5, fontWeight: "900", color: VIOLET, letterSpacing: 0.3 }, corrTxt: { fontSize: 12.5, color: theme.color.onSurface, lineHeight: 18 },
   applyBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: VIOLET, borderRadius: 10, minHeight: 44, marginTop: 10 },
   applyTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
+  toggle: { width: 50, height: 30, borderRadius: 15, backgroundColor: "#CBD5E1", padding: 3, justifyContent: "center" },
+  toggleOn: { backgroundColor: VIOLET },
+  knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#FFF" }, knobOn: { alignSelf: "flex-end" },
+  optLab: { fontSize: 11, fontWeight: "900", color: theme.color.muted, letterSpacing: 0.3, marginTop: 4 },
 });

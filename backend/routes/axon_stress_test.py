@@ -293,7 +293,7 @@ async def stress_stop(run_id: str, user=Depends(get_current_user)):
 
 
 def _st_run_head(run: dict) -> dict:
-    return {k: run.get(k) for k in ("run_id", "status", "reps", "total", "done", "created_at", "finished_at", "summary", "error")}
+    return {k: run.get(k) for k in ("run_id", "status", "reps", "total", "done", "created_at", "finished_at", "summary", "error", "nightly", "nightly_verdict", "nightly_reasons", "nightly_prev_pct")}
 
 
 @api_router.get("/axon/stress/runs")
@@ -469,3 +469,172 @@ td{{padding:6px;border:1px solid #E5E7EB;vertical-align:top;font-size:11px}} tr{
 <table><thead><tr><th>ID</th><th>Area</th><th>Domanda</th><th>Esito</th><th>Risposta Axon (1ª ripetizione)</th><th>Atteso</th><th>Correzione suggerita</th></tr></thead><tbody>{''.join(rows)}</tbody></table>
 </body></html>"""
     return {"html": html}
+
+
+# ============================================================================
+# V50.z261 — TEST NOTTURNO: stress test automatico ogni notte + avviso al Master
+# ----------------------------------------------------------------------------
+# Impostazioni per owner in user_settings.stress_nightly:
+#   {enabled, hour (0-23, Europe/Rome), mode: "quick"|"full", reps, threshold_pct, drop_pct}
+# Scheduler: ogni 10 min controlla gli owner con enabled e ora raggiunta (una volta al giorno).
+# A fine run notturno: confronto con la notte precedente → se % corrette < soglia o calo ≥ drop_pct
+# → avviso Axon (db.axon_alerts, tipo stress_quality) + push al Master con deep link al report.
+# ============================================================================
+_ST_NIGHTLY_DEFAULT = {"enabled": False, "hour": 3, "mode": "quick", "reps": 3, "threshold_pct": 85, "drop_pct": 10}
+
+
+def _st_nightly_norm(v: dict, base: Optional[dict] = None) -> dict:
+    d = dict(base or _ST_NIGHTLY_DEFAULT)
+    if isinstance(v, dict):
+        if "enabled" in v: d["enabled"] = bool(v["enabled"])
+        if isinstance(v.get("hour"), int) and 0 <= v["hour"] <= 23: d["hour"] = v["hour"]
+        if v.get("mode") in ("quick", "full"): d["mode"] = v["mode"]
+        if isinstance(v.get("reps"), int) and 1 <= v["reps"] <= 5: d["reps"] = v["reps"]
+        if isinstance(v.get("threshold_pct"), (int, float)) and 0 <= v["threshold_pct"] <= 100: d["threshold_pct"] = int(v["threshold_pct"])
+        if isinstance(v.get("drop_pct"), (int, float)) and 0 <= v["drop_pct"] <= 100: d["drop_pct"] = int(v["drop_pct"])
+    return d
+
+
+class StressNightlyIn(BaseModel):
+    enabled: Optional[bool] = None
+    hour: Optional[int] = None
+    mode: Optional[str] = None
+    reps: Optional[int] = None
+    threshold_pct: Optional[int] = None
+    drop_pct: Optional[int] = None
+
+
+async def _st_nightly_settings(uid: str) -> dict:
+    us = await db.user_settings.find_one({"user_id": uid}, {"_id": 0, "stress_nightly": 1}) or {}
+    return _st_nightly_norm(us.get("stress_nightly") or {})
+
+
+async def _st_nightly_status(uid: str) -> dict:
+    cfg = await _st_nightly_settings(uid)
+    last = await db.axon_stress_runs.find({"user_id": uid, "nightly": True, "status": {"$in": ["done", "stopped"]}}, {"_id": 0, "items": 0}).sort("created_at", -1).to_list(2)
+    return {"settings": cfg, "last": _st_run_head(last[0]) if last else None, "previous": _st_run_head(last[1]) if len(last) > 1 else None,
+            "running": bool(await db.axon_stress_runs.find_one({"user_id": uid, "nightly": True, "status": "running"}, {"_id": 0, "run_id": 1}))}
+
+
+@api_router.get("/axon/stress/nightly")
+async def stress_nightly_get(user=Depends(get_current_user)):
+    _st_require_owner(user)
+    return await _st_nightly_status(user["user_id"])
+
+
+@api_router.put("/axon/stress/nightly")
+async def stress_nightly_put(body: StressNightlyIn, user=Depends(get_current_user)):
+    _st_require_owner(user)
+    cur = await _st_nightly_settings(user["user_id"])
+    patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    new = _st_nightly_norm(patch, base=cur)  # valori non validi → restano i precedenti
+    await db.user_settings.update_one({"user_id": user["user_id"]}, {"$set": {"stress_nightly": new, "updated_at": utcnow()}}, upsert=True)
+    return await _st_nightly_status(user["user_id"])
+
+
+async def _st_start_nightly(user: dict, cfg: dict) -> Optional[str]:
+    if await db.axon_stress_runs.find_one({"user_id": user["user_id"], "status": "running"}, {"_id": 0, "run_id": 1}):
+        return None
+    qs = _st_questions()
+    if cfg["mode"] == "quick":
+        # campione bilanciato: ~3 domande per categoria (≈ 57) — ruota ogni notte
+        by_cat: dict = {}
+        for q in qs:
+            by_cat.setdefault(q["category"], []).append(q)
+        day = utcnow().timetuple().tm_yday
+        qs = [lst[(day + i) % len(lst)] for lst in by_cat.values() for i in range(min(3, len(lst)))]
+    reps = cfg["reps"]
+    run_id = f"st_{uuid.uuid4().hex[:10]}"
+    doc = {"run_id": run_id, "user_id": user["user_id"], "status": "running", "reps": reps, "total": len(qs) * reps, "done": 0, "nightly": True,
+           "created_at": utcnow(), "updated_at": utcnow(),
+           "items": [{**q, "reps": [], "outcome": None, "correction": None, "correction_applied": False} for q in qs]}
+    await db.axon_stress_runs.insert_one(doc)
+    _ST_RUNS[run_id] = _st_asyncio.create_task(_st_run(run_id, user, reps, qs))
+    return run_id
+
+
+@api_router.post("/axon/stress/nightly/run-now")
+async def stress_nightly_run_now(user=Depends(get_current_user)):
+    """Esegue subito un run 'notturno' (stesso campione/soglie) — utile per provare l'avviso."""
+    _st_require_owner(user)
+    cfg = await _st_nightly_settings(user["user_id"])
+    run_id = await _st_start_nightly(user, cfg)
+    if not run_id:
+        raise HTTPException(status_code=409, detail="C'è già uno stress test in corso")
+    return {"run_id": run_id}
+
+
+async def _st_nightly_after_finalize(run: dict):
+    """Confronta con la notte precedente e avvisa il Master se la qualità scende."""
+    uid = run["user_id"]
+    cfg = await _st_nightly_settings(uid)
+    s = run.get("summary") or {}
+    if not s.get("tested"):
+        return
+    prev = await db.axon_stress_runs.find_one({"user_id": uid, "nightly": True, "status": {"$in": ["done", "stopped"]}, "run_id": {"$ne": run["run_id"]}, "summary.tested": {"$gt": 0}},
+                                              {"_id": 0, "summary": 1, "created_at": 1}, sort=[("created_at", -1)])
+    pct = s.get("pct_passed", 0)
+    prev_pct = (prev or {}).get("summary", {}).get("pct_passed") if prev else None
+    reasons = []
+    if pct < cfg["threshold_pct"]:
+        reasons.append(f"risposte corrette al {pct}% (soglia {cfg['threshold_pct']}%)")
+    if prev_pct is not None and prev_pct - pct >= cfg["drop_pct"]:
+        reasons.append(f"calo di {round(prev_pct - pct, 1)} punti rispetto alla notte precedente ({prev_pct}%)")
+    verdict = "alert" if reasons else "ok"
+    await db.axon_stress_runs.update_one({"run_id": run["run_id"]}, {"$set": {"nightly_verdict": verdict, "nightly_reasons": reasons, "nightly_prev_pct": prev_pct}})
+    if not reasons:
+        return
+    title = "⚠️ Qualità Axon in calo"
+    msg = f"Test notturno: {'; '.join(reasons)}. {s.get('failed', 0)} fallite, {s.get('inconsistent', 0)} incoerenti su {s.get('tested', 0)}. Apri il report per applicare le correzioni."
+    try:
+        await db.axon_alerts.insert_one({"alert_id": f"aal_{uuid.uuid4().hex[:12]}", "tenant_id": uid, "type": "stress_quality", "title": title, "message": msg,
+                                         "route": f"/axon-stress-report?run={run['run_id']}", "run_id": run["run_id"], "seen": False, "created_at": utcnow()})
+    except Exception as e:
+        logger.warning("[STRESS] alert insert failed: %s", e)
+    try:
+        await send_push([uid], {"title": title, "message": msg, "deeplink": f"/axon-stress-report?run={run['run_id']}", "type": "stress_quality"}, idempotency_key=f"stress-{run['run_id']}")  # noqa: F821
+    except Exception as e:
+        logger.warning("[STRESS] push failed: %s", e)
+
+
+_st_prev_finalize = _st_finalize
+
+
+async def _st_finalize(run_id: str):  # noqa: F811
+    await _st_prev_finalize(run_id)
+    try:
+        run = await db.axon_stress_runs.find_one({"run_id": run_id}, {"_id": 0, "items": 0})
+        if run and run.get("nightly") and not run.get("nightly_verdict"):
+            await _st_nightly_after_finalize(run)
+    except Exception as e:
+        logger.warning("[STRESS] nightly post-finalize failed: %s", e)
+
+
+async def _st_nightly_tick():
+    """Ogni 10 minuti: avvia il test notturno per gli owner con enabled e ora raggiunta (max 1/giorno)."""
+    try:
+        from zoneinfo import ZoneInfo
+        now_local = datetime.now(ZoneInfo(_AXN_TZ))  # noqa: F821
+        today = now_local.strftime("%Y-%m-%d")
+        async for us in db.user_settings.find({"stress_nightly.enabled": True}, {"_id": 0, "user_id": 1, "stress_nightly": 1}):
+            cfg = _st_nightly_norm(us.get("stress_nightly") or {})
+            if now_local.hour < cfg["hour"] or (us.get("stress_nightly") or {}).get("last_date") == today:
+                continue
+            user = await db.users.find_one({"user_id": us["user_id"]}, {"_id": 0})
+            if not user or user.get("parent_user_id") or (user.get("role") or "member") != "owner":
+                continue
+            run_id = await _st_start_nightly(user, cfg)
+            await db.user_settings.update_one({"user_id": us["user_id"]}, {"$set": {"stress_nightly.last_date": today, "stress_nightly.last_run_id": run_id}})
+            logger.info("[STRESS] nightly run started for %s → %s", us["user_id"], run_id)
+    except Exception as e:
+        logger.warning("[STRESS] nightly tick failed: %s", e)
+
+
+@app.on_event("startup")
+async def _st_nightly_start():
+    try:
+        _axn_scheduler.add_job(_st_nightly_tick, "interval", minutes=10, id="stress-nightly-tick", replace_existing=True,  # noqa: F821
+                               next_run_time=datetime.now(timezone.utc) + timedelta(seconds=120))
+        logger.info("[STRESS] nightly scheduler armed")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[STRESS] nightly scheduler failed: %s", exc)

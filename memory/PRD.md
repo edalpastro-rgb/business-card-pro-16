@@ -6359,3 +6359,6 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 - `backend/routes/axon_stress_questions.py` (211 domande/19 categorie con esito atteso), `backend/routes/axon_stress_test.py` (run in background via /assistant/chat/stream con no_cache; valutazione deep link/coerenza/trap/route reale; API /axon/stress/*; correzioni in db.axon_prompt_rules iniettate subito nel prompt + shortcut deterministico; HTML per PDF).
 - `frontend/app/axon-stress-report.tsx` (Profilo → Strumenti di sviluppo, owner): KPI, filtri, dettaglio, Applica correzione, Esporta PDF, progress/Ferma.
 - Test: backend/tests/test_v50z260_stress.py; report iteration_88.
+
+## V50.z261 — Test notturno Stress Test — DONE
+- Scheduler notturno per owner (off di default), confronto con la notte precedente, avviso Axon + push al Master con deep link al report; card impostazioni in /axon-stress-report; 'Prova ora'.

@@ -21,6 +21,7 @@ type Alert = {
   source_url?: string;
   pdf_url?: string;
   pdf_name?: string;
+  route?: string; // V50.z261 — deep link (es. report stress test notturno)
   seen: boolean;
   created_at?: string;
 };
@@ -93,6 +94,10 @@ export default function AxonAlertsScreen() {
 
   const openAlert = async (a: Alert) => {
     await markSeen(a);
+    if (a.route) {
+      router.push(a.route as any); // V50.z261
+      return;
+    }
     if (a.url_id) {
       router.push("/ai-teach" as any);
     }
@@ -101,6 +106,7 @@ export default function AxonAlertsScreen() {
   const iconFor = (type: string): keyof typeof Ionicons.glyphMap => {
     switch (type) {
       case "new_pdf": return "document-text";
+      case "stress_quality": return "flask";
       case "error": return "alert-circle";
       default: return "sparkles";
     }
@@ -108,6 +114,7 @@ export default function AxonAlertsScreen() {
   const colorFor = (type: string): string => {
     switch (type) {
       case "new_pdf": return "#0EA5E9";
+      case "stress_quality": return "#7C3AED";
       case "error": return "#DC2626";
       default: return "#7C3AED";
     }

@@ -113,3 +113,20 @@ def test_stop_run():
         time.sleep(2)
     assert d["status"] in ("stopped", "done")
     assert "summary" in d and d["summary"] is not None
+
+
+def test_nightly_settings_and_status():
+    # V50.z261 — test notturno: GET/PUT impostazioni, normalizzazione, stato ultimo run
+    d0 = requests.get(f"{BASE}/axon/stress/nightly", headers=H, timeout=30).json()
+    assert {"settings", "last", "previous", "running"} <= set(d0)
+    orig = d0["settings"]
+    d = requests.put(f"{BASE}/axon/stress/nightly", json={"enabled": True, "hour": 4, "mode": "full", "reps": 2, "threshold_pct": 90, "drop_pct": 5}, headers=H, timeout=30).json()
+    assert d["settings"] == {"enabled": True, "hour": 4, "mode": "full", "reps": 2, "threshold_pct": 90, "drop_pct": 5}
+    # valori fuori range → ignorati (restano i precedenti)
+    d = requests.put(f"{BASE}/axon/stress/nightly", json={"hour": 30, "mode": "boh", "reps": 99}, headers=H, timeout=30).json()
+    assert d["settings"]["hour"] == 4 and d["settings"]["mode"] == "full" and d["settings"]["reps"] == 2
+    if d["last"]:
+        assert d["last"]["nightly"] is True and d["last"]["nightly_verdict"] in ("ok", "alert")
+    # ripristino
+    requests.put(f"{BASE}/axon/stress/nightly", json=orig, headers=H, timeout=30)
+    assert requests.get(f"{BASE}/axon/stress/nightly", timeout=30).status_code == 401

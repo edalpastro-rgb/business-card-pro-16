@@ -350,6 +350,7 @@ def _axon_alert_serialize(a: dict) -> dict:
         "source_url": a.get("source_url"),
         "pdf_url": a.get("pdf_url"),
         "pdf_name": a.get("pdf_name"),
+        "route": a.get("route"),  # V50.z261 — deep link (es. report stress test)
         "seen": bool(a.get("seen")),
         "created_at": a.get("created_at").isoformat() if a.get("created_at") else None,
     }
