@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platf
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { uriToBase64 } from "@/src/utils/media";
@@ -133,6 +133,9 @@ function BillQuickScreen() {
   // V50.z251 — Configurazione Analisi Fatture (pannello condiviso Master/cliente)
   const [billCfg, setBillCfg] = useState<BillAnalysisBundle | null>(null);
   const [billCfgOpen, setBillCfgOpen] = useState(false);
+  // V50.z259 — Deep link Navigatore Axon: /bill-quick?config=1 → apre subito la configurazione analisi
+  const { config: configParam } = useLocalSearchParams<{ config?: string }>();
+  useEffect(() => { if (configParam === "1") setBillCfgOpen(true); }, [configParam]);
   useEffect(() => {
     loadBillAnalysisConfig().then(setBillCfg).catch(() => {});
   }, []);

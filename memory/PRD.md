@@ -6347,3 +6347,9 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 - `app/tour-features.tsx`: elenco pulito solo nomi per gruppo (`GET /tour/features`). Backend `routes/axon_tour.py` (isolato): catalogo 35 funzioni, `/tour/profile` (Claude Haiku JSON + fallback euristico, salva `user_settings.tour_profile`), `/tour/contact-from-text`, `/tour/features`.
 - Primo accesso: `home.tsx` reindirizza a `/tour` (prima `/libretto?onboarding=1`); replay da Help («Rifai il tour»), help-center e Master → `/tour`. Il vecchio libretto resta come «Guida rapida». `playAudioBase64` ora esportato da AssistantChat.
 - Verificato via screenshot end-to-end (3 domande → funzioni accese → contatto creato → home).
+
+
+## V50.z259 — Navigatore AxonOS (mappa completa app + deep link) — DONE
+- `backend/routes/axon_navigator.py`: APP_MAP (~85 schermate/sezioni, route + keyword, master_only), regola prioritaria nel prompt → marker `[[NAV:route|label]]`, hint per messaggio, flussi deterministici ("devo andare da X" con meteo, "sposta mancati" con `[[ACTION:move_missed]]`, "ho perso il filo", "devo organizzarmi", "mi sono perso", "come sto andando", "devo richiamare", "dove metto i documenti", "come faccio a impostare X"), API `/axon/nav/{map,action,track,proactive,proactive/dismiss}`.
+- `frontend/src/NavChips.tsx`: pulsanti deep link/azione nei messaggi Axon + card proattiva "Axon ha notato". Deep link param: `/home?section=`, `/optimal-route?contacts=`, `/calendario?view=`, `/contact/{id}?tab=`, `/bill-quick?config=1`.
+- Test: `backend/tests/test_v50z259_navigator.py`, `test_v50z259_stream_and_action.py`; report iteration_87.

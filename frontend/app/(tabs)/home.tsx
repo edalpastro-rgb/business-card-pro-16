@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert, AppState } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useFocusEffect, useRootNavigationState, usePathname } from "expo-router";
+import { useRouter, useFocusEffect, useRootNavigationState, usePathname, useLocalSearchParams } from "expo-router";
 import Svg, { Circle, G } from "react-native-svg";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -150,6 +150,21 @@ export default function HomeScreen() {
   const [deadlinesLoading, setDeadlinesLoading] = useState<boolean>(true);
   // V49 — "Comunica con l'azienda" panel (nome, email, numeri di servizio)
   const [companySheetOpen, setCompanySheetOpen] = useState<boolean>(false);
+  // V50.z259 — Deep link /home?section=widgets|ritelefonate|appuntamenti|azioni|scadenze|statistiche|comunica (Navigatore Axon)
+  const { section: sectionParam } = useLocalSearchParams<{ section?: string }>();
+  const homeScrollRef = useRef<ScrollView | null>(null);
+  const sectionY = useRef<Record<string, number>>({});
+  const onSectionLayout = (key: string) => (e: any) => { sectionY.current[key] = e.nativeEvent.layout.y; };
+  useEffect(() => {
+    if (!sectionParam) return;
+    if (sectionParam === "comunica") { setCompanySheetOpen(true); return; }
+    if (sectionParam === "azioni") setQaOpen(true);
+    const t = setTimeout(() => {
+      const y = sectionY.current[sectionParam];
+      if (y != null) homeScrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
+    }, 450);
+    return () => clearTimeout(t);
+  }, [sectionParam]);
   // V50.z25 — Sezione "Azioni rapide" collassabile (a scomparsa) con persistenza
   const [qaOpen, setQaOpen] = useState<boolean>(true);
   // V50.z35 — Drawer laterale con 6 categorie
@@ -429,6 +444,7 @@ export default function HomeScreen() {
         </View>
       </View>
       <ScrollView
+        ref={homeScrollRef}
         style={styles.scrollBg}
         contentContainerStyle={[styles.scroll, { paddingBottom: pagePad }]}
         showsVerticalScrollIndicator={false}
@@ -542,11 +558,11 @@ export default function HomeScreen() {
              spostata SOTTO il bottone Interfaccia Master su richiesta utente */}
         {/* V50.z132 — "Appuntamenti di oggi" è renderizzato più in basso, sotto Ritelefonate */}
         {/* V50.z216 — indicatore discreto: file/audio del wizard letti in background (sparisce da solo) */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 8 }}><SetupProcessingBadge /></View>
+        <View style={{ paddingHorizontal: 16, marginBottom: 8 }} onLayout={onSectionLayout("widgets")}><SetupProcessingBadge /></View>
         <DashboardWidgetsSection exclude={APPT_TODAY_WIDGET} />
 
         {/* ── 4) Ritelefonate di oggi ── */}
-        <View style={styles.section}>
+        <View style={styles.section} onLayout={onSectionLayout("ritelefonate")}>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Ritelefonate di oggi</Text>
             <View style={styles.pill}><Text style={styles.pillTxt}>{cbTodayTotal}</Text></View>
@@ -606,10 +622,10 @@ export default function HomeScreen() {
         </View>
 
         {/* V50.z132 — Banner "Appuntamenti di oggi" SOTTO Ritelefonate */}
-        <DashboardWidgetsSection only={APPT_TODAY_WIDGET} />
+        <View onLayout={onSectionLayout("appuntamenti")}><DashboardWidgetsSection only={APPT_TODAY_WIDGET} /></View>
 
         {/* ── 5) Azioni rapide (a scomparsa) ── */}
-        <View style={styles.section}>
+        <View style={styles.section} onLayout={onSectionLayout("azioni")}>
           <Pressable onPress={toggleQa} style={styles.qaHeader} hitSlop={8}>
             <Text style={styles.sectionTitle}>Azioni rapide</Text>
             <Ionicons name={qaOpen ? "chevron-up" : "chevron-down"} size={20} color={C.navy} />
@@ -653,7 +669,7 @@ export default function HomeScreen() {
         </View>
 
         {/* ── V29 · Scadenze imminenti ── */}
-        <View style={styles.section}>
+        <View style={styles.section} onLayout={onSectionLayout("scadenze")}>
           {/* V50.s — Titolo "SCADENZE" compatto + chips centrati sotto */}
           <View style={styles.dlHeader}>
             <Text style={styles.dlSectionTitle}>SCADENZE</Text>
@@ -693,7 +709,7 @@ export default function HomeScreen() {
         </View>
 
         {/* ── 6) Statistiche ── */}
-        <View style={styles.section}>
+        <View style={styles.section} onLayout={onSectionLayout("statistiche")}>
           <Text style={styles.sectionTitle}>Statistiche</Text>
 
           {/* KPI cards 2×2 */}

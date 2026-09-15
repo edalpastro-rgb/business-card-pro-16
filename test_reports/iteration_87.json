@@ -1,0 +1,30 @@
+{
+  "summary": "V50.z259 AxonOS Navigator — backend + frontend coverage. Nuovo file test_v50z259_stream_and_action.py (5/5 pass) copre: SSE lost (<15s, marker contact/new, appointment/new, callback/new), SSE goto Anna Rossi (marker /optimal-route?contacts=<id> + meteo/fallback), SSE LLM km-report (produce marker NAV pertinente), flusso end-to-end move_missed (crea appt, chat, ACTION marker, POST /axon/nav/action, verifica shift +1d, cleanup), GET /axon/nav/proactive schema. Frontend: login OK, tour skip OK, FAB apribile, card proattiva nav-proactive-scanner visibile, chips render senza raw '[[NAV' leak, deep link diretto /bill-quick?config=1 apre config. Deep link /calendario?view=week e /home?section=comunica non hanno mostrato keyword robusti nel DOM lettura (potrebbe essere carico lazy). Il tap del chip-0 non ha navigato a /contact/new nel run finale: il selettore nav-chip-0 ha catturato il chip di un messaggio precedente della history persistente (assistant_messages), non del nuovo reply. Suggerimento: usare selettore ancorato all'ultimo messaggio.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "chip tap sul reply appena arrivato", "issue": "nav-chip-<i> non è univoco per messaggio: la history persistente rende il selettore nav-chip-0 il primo chip dell'intero scroll, non del reply corrente. Aggiungere testID composito (es. nav-chip-<msgId>-<i>) o assicurare che il modal si aprisse pulito senza cronologia.", "affected_testIDs": ["nav-chip-0","nav-chip-1","nav-chip-2","nav-chip-3"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_v50z259_stream_and_action.py", "/app/test_reports/pytest/v50z259_stream_action.xml"],
+  "action_items": [
+    "Considerare testID univoci per chip legati al message_id (es. nav-chip-<msg_id>-<idx>) per test più robusti quando esiste history.",
+    "Verificare manualmente in Expo Go che il chip 'Aggiungi un cliente' del reply 'mi sono perso' navighi a /contact/new — nel test web con history persistente il selettore ha colto un chip precedente.",
+    "Convalida frontend manuale dei deep link /calendario?view=week e /home?section=comunica (nel test headless il body innerText non ha mostrato keyword robuste ma potrebbe essere problema di lettura React Native web)."
+  ],
+  "critical_code_review_comments": [
+    "axon_navigator.py è un modulo esteso (>680 righe) ma logicamente coeso. OK come singolo file.",
+    "Regex _RX_GOTO usa char class con smart-quotes '’' — accettabile per input italiano.",
+    "Marker _act inserisce JSON con array che contiene ']' — quando testato lato client, il regex ACT_RX in NavChips.tsx usa `\\{[^\\]]*\\}` che RISCHIA di NON fare match se il JSON contiene ']' (es. ids=[...]). Verificare NavChips.tsx: `ACT_RX = /\\[\\[ACTION:([a-z_]+)\\|([^|\\]]+)\\|(\\{[^\\]]*\\})\\]\\]/g` — questo pattern fallirà su payload con array. **HIGH PRIORITY BUG**: cambiare in `(\\{[\\s\\S]*?\\})` non-greedy prima di `\\]\\]`."
+  ],
+  "updated_files": ["/app/backend/tests/test_v50z259_stream_and_action.py"],
+  "success_rate": {"backend": "100% (5/5 nuovi + 12/12 preesistenti)", "frontend": "~70% (FAB/chat/proattiva/no-leak OK; tap chip navigazione non verificato pulitamente per history)"},
+  "seed_data_creation": "Test crea/pulisce 1 appuntamento 'NAV TEST mancato' via /api/appointments (DELETE finale). Nessun altro dato persistente.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login endpoint: /login (non /auth). Chat SSE format: event: delta / data: {text}. La regex ACT_RX in NavChips.tsx `\\{[^\\]]*\\}` NON matcha payload con array (ids=[...]) perché ] è dentro il negated set. Fix: `\\{[\\s\\S]*?\\}`. Per test frontend robusti, assicurarsi che la history sia pulita o usare selettori ancorati all'ultimo messaggio via role/last-of-type.",
+  "rca_of_issue": "Backend: nessun bug. Frontend potenziale bug: NavChips.tsx ACT_RX pattern ha `[^\\]]*` che rifiuta chiusura array — le ACTION move_missed avranno payload `{\"ids\":[\"a_xxx\"],...}` che il regex NON riconoscerà, quindi il pulsante 'Sposta 1 a domani' potrebbe apparire come testo grezzo invece che come button. VERIFICARE VISIVAMENTE IN APP. Fix consigliato: `const ACT_RX = /\\[\\[ACTION:([a-z_]+)\\|([^|\\]]+)\\|(\\{[\\s\\S]*?\\})\\]\\]/g;`"
+}

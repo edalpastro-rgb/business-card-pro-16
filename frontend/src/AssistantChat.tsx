@@ -52,6 +52,7 @@ import { useAxonProgress, AxonProgressBubble } from "@/src/axonProgress"; // V50
 import { ImportConfirmChips, hasImportQuestion } from "@/src/ImportConfirmChips"; // V50.z194 — «Vuoi che memorizzi…?»
 import { QuickReplyButtons, QuickReplyToast, QUICK_REPLY_TOAST_MS, isClosedQuestion } from "@/src/axon-quick-reply"; // V50.z207 — Sì/No/Forse su domande chiuse
 import { SetupNudgeCard, hasSetupNudge } from "@/src/SetupNudgeCard"; // V50.z211 — avviso configurazione incompleta → wizard
+import { NavChips, NavProactiveCard, extractNavChips } from "@/src/NavChips"; // V50.z259 — deep link [[NAV]] / azioni [[ACTION]] / suggerimenti proattivi
 import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 — avviso interessi futuri (CarPlay…) dal wizard
 import { ChatQueuePanel, type QueueItem } from "@/src/ChatQueuePanel"; // V50.z223 — coda messaggi non bloccante + chat parallele
 import { AXON_OPEN_CHAT_EVENT, consumePendingPrompt } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
@@ -894,6 +895,24 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     try { abortRef.current?.abort(); } catch { /* ignore */ }
   };
 
+  // V50.z259 — Navigatore: deep link dai messaggi di Axon → chiude la chat e apre la schermata
+  const navigateTo = (route: string) => {
+    stopGeneration();
+    api("/axon/nav/track", { method: "POST", body: { feature: `nav:${route.split("?")[0]}` } }).catch(() => {});
+    onClose();
+    setTimeout(() => router.push(route as any), 150);
+  };
+  // V50.z259 — Azione confermabile [[ACTION]] (es. sposta appuntamenti mancati) → risposta appesa in chat
+  const runNavAction = async (action: string, payload: Record<string, any>) => {
+    try {
+      const r = await api<{ reply: string }>("/axon/nav/action", { method: "POST", body: { action, payload, session_id: sessionId || undefined } });
+      setMessages((prev) => [...prev, { role: "assistant", content: r.reply, created_at: new Date().toISOString() }]);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+    } catch (e: any) {
+      setMessages((prev) => [...prev, { role: "assistant", content: `⚠️ Non sono riuscito a completare l'azione: ${e?.message || "errore"}`, created_at: new Date().toISOString() }]);
+    }
+  };
+
   const speakReply = async (text: string, forceIdx?: number, onEnded?: () => void) => {
     try {
       // Stop any previous playback
@@ -1707,8 +1726,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   isMaster={isMaster}
                   onFeedback={m.role === "assistant" ? (rating) => handleFeedback(i, rating) : undefined}
                   onConfigureArea={(k) => { onClose(); setTimeout(() => router.push(`/le-mie-aree?configure=${k}` as any), 150); }}
+                  onNavigate={navigateTo}
+                  onAction={runNavAction}
                 />
               ))}
+              {/* V50.z259 — Suggerimento proattivo del Navigatore (funzioni mai usate) */}
+              {!loadingHist && !sending && <NavProactiveCard visible={visible} onNavigate={navigateTo} />}
               {/* V50.z219 — avviso di setup dedicato: interessi futuri attivati nel wizard (finché non si tocca «Ok, ricevuto») */}
               {!loadingHist && !sending && <FutureInterestsAlert variant="chat" onOpen={onClose} />}
               {/* V50.z194 — Pulsanti rapidi sotto la domanda «Vuoi che memorizzi questi dati per uso futuro?» */}
@@ -2160,6 +2183,8 @@ function MessageBubble({
   isMaster,
   onFeedback,
   onConfigureArea,
+  onNavigate,
+  onAction,
 }: {
   msg: ChatMsg;
   assistantName: string;
@@ -2171,6 +2196,8 @@ function MessageBubble({
   isMaster?: boolean;
   onFeedback?: (rating: "up" | "down") => void;
   onConfigureArea?: (areaKey: string) => void; // V50.z227
+  onNavigate?: (route: string) => void; // V50.z259
+  onAction?: (action: string, payload: Record<string, any>) => Promise<void> | void; // V50.z259
 }) {
   const isUser = msg.role === "user";
   return (
@@ -2256,10 +2283,13 @@ function MessageBubble({
           let segments: ReturnType<typeof parseMessageSegments>;
           // V50.z227 — marker [[CONFIGURA:<area>]] → bottone «Configura ora» (area attiva ma non configurata)
           const cfgMatch = /\[\[CONFIGURA:([a-z0-9_]+)\]\]/i.exec(msg.content || "");
-          const cleanContent = cfgMatch ? (msg.content || "").replace(cfgMatch[0], "").trimEnd() : (msg.content || "");
+          const cleanContent0 = cfgMatch ? (msg.content || "").replace(cfgMatch[0], "").trimEnd() : (msg.content || "");
+          // V50.z259 — marker [[NAV:route|label]] / [[ACTION:id|label|json]] → pulsanti deep link (nascosti finché lo stream non è completo)
+          const { clean: cleanContent, chips: navChips0 } = extractNavChips(cleanContent0);
+          const navChips = msg.streaming ? [] : navChips0;
           try { segments = parseMessageSegments(cleanContent); }
           catch { segments = [{ type: "text", content: cleanContent }] as any; }
-          if (segments.length === 0 && !cfgMatch) return null;
+          if (segments.length === 0 && !cfgMatch && navChips.length === 0) return null;
           return (
             <View style={{ gap: 6 }}>
               {segments.map((seg, si) => {
@@ -2287,6 +2317,9 @@ function MessageBubble({
                   <Ionicons name="flash" size={14} color="#FFF" />
                   <Text style={styles.configureNowTxt}>Configura ora</Text>
                 </Pressable>
+              )}
+              {navChips.length > 0 && onNavigate && (
+                <NavChips chips={navChips} onNavigate={onNavigate} onAction={(a, p) => onAction?.(a, p)} />
               )}
             </View>
           );

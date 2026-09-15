@@ -79,7 +79,7 @@ export default function ContactDetailRoute() {
 }
 
 function ContactDetail() {
-  const { id, refs: refsParam } = useLocalSearchParams<{ id: string; refs?: string }>();
+  const { id, refs: refsParam, tab: tabParam } = useLocalSearchParams<{ id: string; refs?: string; tab?: string }>();
   const router = useRouter();
   const [c, setC] = useState<Contact | null>(null);
   const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "audio" | "calls" | "appts" | "visits" | "refs" | "reviews">("info");
@@ -94,6 +94,11 @@ function ContactDetail() {
   useEffect(() => {
     if (refsParam === "1") setTab("refs");
   }, [refsParam]);
+  // V50.z259 — Deep link Navigatore Axon: /contact/{id}?tab=visits|notes|bills|…
+  useEffect(() => {
+    const ok = ["info", "notes", "files", "bills", "audio", "calls", "appts", "visits", "refs", "reviews"];
+    if (tabParam && ok.includes(tabParam)) setTab(tabParam as any);
+  }, [tabParam]);
   const [noteText, setNoteText] = useState("");
   useDraft(`draft_contact_note_${id}`, noteText, setNoteText); // V50.z242 — la nota in scrittura sopravvive a background/riavvio
   const [linkUrl, setLinkUrl] = useState("");

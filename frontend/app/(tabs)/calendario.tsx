@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
@@ -103,6 +103,9 @@ function CalendarioScreen() {
   }, []);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
   const [viewMode, setViewMode] = useState<"week" | "month" | "year">("month");
+  // V50.z259 — Deep link Navigatore Axon: /calendario?view=week|month|year
+  const { view: viewParam } = useLocalSearchParams<{ view?: string }>();
+  useEffect(() => { if (viewParam === "week" || viewParam === "month" || viewParam === "year") setViewMode(viewParam); }, [viewParam]);
   // V38T — New: scope tab (Mine / Team / All)
   const [scope, setScope] = useState<CalScope>("mine");
   // V38T — Selected collaborator filter (multi-select). Empty = show all.

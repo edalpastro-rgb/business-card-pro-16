@@ -4,7 +4,7 @@
 // V50.z241 (Fase 2): mappa del percorso (polilinea + tappe numerate), orario di partenza con ETA per tappa, esporta PDF.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Linking } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
@@ -29,6 +29,9 @@ export default function OptimalRouteScreen() {
   const router = useRouter();
   const insets = useInsetsSafe();
   const navPad = usePageBottomPadding(8); // V50.z240 — sopra la bottom nav persistente
+  // V50.z259 — Deep link dal Navigatore Axon: /optimal-route?contacts=id1,id2 → clienti preselezionati
+  const { contacts: contactsParam } = useLocalSearchParams<{ contacts?: string }>();
+  useEffect(() => { api("/axon/nav/track", { method: "POST", body: { feature: "optimal_route" } }).catch(() => {}); }, []);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [contacts, setContacts] = useState<GeoContact[]>([]);
   const [office, setOffice] = useState<{ lat: number; lon: number; address: string } | null>(null);
@@ -67,7 +70,13 @@ export default function OptimalRouteScreen() {
         const [d, saved] = await Promise.all([api<{ items: GeoContact[]; office: any }>("/geo/contacts-map?scope=mine"), AsyncStorage.getItem(GIRO_KEY)]);
         setContacts(d.items.filter((c) => c.address)); setOffice(d.office);
         if (!d.office) setDep("gps");
-        if (saved) try { setSel(JSON.parse(saved)); } catch {}
+        const pre = (contactsParam || "").split(",").map((x) => x.trim()).filter(Boolean);
+        if (pre.length) {
+          const known = new Set(d.items.map((c) => c.contact_id));
+          const picked = pre.filter((id) => known.has(id)).slice(0, 10);
+          if (picked.length) { setSel(picked); void AsyncStorage.setItem(GIRO_KEY, JSON.stringify(picked)); }
+          else if (saved) try { setSel(JSON.parse(saved)); } catch {}
+        } else if (saved) try { setSel(JSON.parse(saved)); } catch {}
       } catch (e: any) { notify("Giro", e?.message || "Errore"); } finally { setLoading(false); }
     })();
   }, []);

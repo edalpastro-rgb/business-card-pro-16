@@ -41,6 +41,7 @@ export function cleanForSpeech(raw: string): string {
       return true;
     })
     .join(" ")
+    .replace(/\[\[(NAV|ACTION|CONFIGURA):[^\]]*\]\]/g, "") // V50.z259 — marker deep link non si leggono
     .replace(/https?:\/\/\S+/g, "")
     .replace(/[*_`#>]+/g, "")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")

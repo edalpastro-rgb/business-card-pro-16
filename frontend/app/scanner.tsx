@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { theme } from "@/src/theme";
+import { api } from "@/src/api";
 import { DocumentScannerModal } from "@/src/DocumentScannerModal";
 import { ModuleErrorBoundary } from "@/src/shared";
 
@@ -26,6 +27,7 @@ function ScannerScreen() {
   const [open, setOpen] = useState(false);
   const busy = false;
   const [lastSaved, setLastSaved] = useState<{ name: string; pages: number } | null>(null);
+  useEffect(() => { api("/axon/nav/track", { method: "POST", body: { feature: "scanner" } }).catch(() => {}); }, []); // V50.z259 — uso funzione (suggerimenti proattivi Axon)
 
   // Autoapertura scanner al mount → l'utente arriva subito nel flusso di scan
   useEffect(() => {
