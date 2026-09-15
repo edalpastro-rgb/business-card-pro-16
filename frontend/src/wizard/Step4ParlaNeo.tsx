@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, Modal, ActivityIndicator, Platform, Alert, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
+import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync } from "expo-audio"; // V50.z255 — fix «undefined is not a function»: expo-audio non esporta createAudioRecorder
 import { api, apiUpload } from "@/src/api";
 import type { StepBinder } from "@/src/wizard/Step1Anagrafica";
 import { PrivacyNote } from "@/src/wizard/PrivacyNote"; // V50.z217
@@ -39,7 +40,11 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
   const pollRef = useRef<any>(null);
   const resolver = useRef<((v: boolean) => void) | null>(null);
   const timer = useRef<any>(null); const secRef = useRef(0);
-  const webRec = useRef<any>(null); const chunks = useRef<Blob[]>([]); const stream = useRef<MediaStream | null>(null); const native = useRef<any>(null);
+  const webRec = useRef<any>(null); const chunks = useRef<Blob[]>([]); const stream = useRef<MediaStream | null>(null);
+  // V50.z255 — Nativo (iOS/Android): recorder expo-audio via hook (come VoiceDictationButton); prima si usava
+  // `AudioMod.createAudioRecorder(...)` che NON esiste nel pacchetto → «undefined is not a function» al tap su Registra.
+  const nativeRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const nativeRecording = useRef(false);
   const stateRef = useRef({ text, picked, rec, proposals, facts, busy, reading }); stateRef.current = { text, picked, rec, proposals, facts, busy, reading };
 
   // Stato dal server (anche al rientro): proposte, fatti, riassunti, job in corso → se ci sono job attivi continua il polling
@@ -119,16 +124,16 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
     setError("");
     if (Platform.OS !== "web") {
       try {
-        const AudioMod: any = await import("expo-audio");
-        let perm = await AudioMod.AudioModule.getRecordingPermissionsAsync();
+        let perm = await AudioModule.getRecordingPermissionsAsync();
         if (!perm?.granted) {
           if (perm?.canAskAgain === false) { Alert.alert("Microfono disattivato", "Per parlare a Neo abilita il microfono nelle impostazioni.", [{ text: "Annulla", style: "cancel" }, { text: "Apri impostazioni", onPress: () => Linking.openSettings() }]); return; }
-          perm = await AudioMod.AudioModule.requestRecordingPermissionsAsync();
+          perm = await AudioModule.requestRecordingPermissionsAsync();
           if (!perm?.granted) { setError("Senza microfono non posso ascoltarti: puoi scrivere o caricare un file."); return; }
         }
-        await AudioMod.setAudioModeAsync?.({ allowsRecording: true, playsInSilentMode: true });
-        const r = AudioMod.createAudioRecorder(AudioMod.RecordingPresets.HIGH_QUALITY);
-        await r.prepareToRecordAsync(); r.record(); native.current = r; tick(); setRec(true);
+        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+        await nativeRecorder.prepareToRecordAsync();
+        nativeRecorder.record();
+        nativeRecording.current = true; tick(); setRec(true);
       } catch (e: any) { setError(e?.message || String(e)); }
       return;
     }
@@ -155,8 +160,12 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
     setRec(false);
     if (Platform.OS !== "web") {
       try {
-        const r = native.current; native.current = null; if (!r) return;
-        await r.stop(); const uri: string | undefined = r.uri; if (!uri) return;
+        if (!nativeRecording.current) return;
+        nativeRecording.current = false;
+        await nativeRecorder.stop();
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+        const uri: string | undefined = nativeRecorder.uri || undefined; if (!uri) return;
+        if (secRef.current < 1) { setError("Registrazione troppo corta: parla per almeno un secondo."); return; }
         const form = new FormData(); form.append("file", { uri, name: "neo.m4a", type: "audio/m4a" } as any); form.append("mime", "audio/m4a");
         await sendAudio(form);
       } catch (e: any) { setError(e?.message || String(e)); }

@@ -3,6 +3,7 @@
 // Permessi microfono gestiti: undetermined → richiesta contestuale; negato definitivo → «Apri impostazioni».
 import React, { useEffect, useRef, useState } from "react";
 import { Pressable, Text, StyleSheet, Platform, Alert, Linking } from "react-native";
+import { useAudioRecorder, RecordingPresets } from "expo-audio"; // V50.z255 — hook ufficiale (createAudioRecorder non esiste in expo-audio)
 import { Ionicons } from "@expo/vector-icons";
 import { notify } from "@/src/utils/notify";
 
@@ -22,6 +23,7 @@ export function MediaVoiceRecorder({ color, disabled, onDone, onRecordingChange 
   useEffect(() => { onRecordingChange?.(rec); }, [rec, onRecordingChange]);
 
   const tick = () => { secRef.current = 0; setSec(0); timer.current = setInterval(() => { secRef.current += 1; setSec(secRef.current); if (secRef.current >= 600) void stop(); }, 1000); };
+  const nativeRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY); // V50.z255
 
   const start = async () => {
     if (Platform.OS !== "web") {
@@ -37,7 +39,7 @@ export function MediaVoiceRecorder({ color, disabled, onDone, onRecordingChange 
           if (!perm?.granted) { notify("Microfono", "Senza microfono non posso registrare la nota vocale."); return; }
         }
         await AudioMod.setAudioModeAsync?.({ allowsRecording: true, playsInSilentMode: true });
-        const r = AudioMod.createAudioRecorder(AudioMod.RecordingPresets.HIGH_QUALITY);
+        const r = nativeRecorder; // V50.z255 — prima: AudioMod.createAudioRecorder(...) → «undefined is not a function»
         await r.prepareToRecordAsync(); r.record(); native.current = r;
         tick(); setRec(true);
       } catch (e: any) { notify("Microfono", e?.message || String(e)); }

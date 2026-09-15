@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animated, Easing, Modal, ScrollView, TextInput } from "react-native";
+import { useAudioRecorder, RecordingPresets } from "expo-audio"; // V50.z255 — hook ufficiale (createAudioRecorder non esiste in expo-audio)
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
@@ -111,6 +112,7 @@ export function MasterVoiceRecorder({
 
   // Native recorder refs (expo-audio)
   const nativeRecorderRef = useRef<any>(null);
+  const nativeRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY); // V50.z255
 
   const startRecording = async () => {
     if (!supported) { notify("Non supportato", "La registrazione non è disponibile su questo dispositivo."); return; }
@@ -123,7 +125,7 @@ export function MasterVoiceRecorder({
           notify("Microfono", "Permesso microfono negato. Vai in Impostazioni per abilitarlo.");
           return;
         }
-        const recorder = await AudioMod.createAudioRecorder(AudioMod.RecordingPresets.HIGH_QUALITY);
+        const recorder = nativeRecorder; // V50.z255 — prima: AudioMod.createAudioRecorder(...) → «undefined is not a function»
         await recorder.prepareToRecordAsync();
         recorder.record();
         nativeRecorderRef.current = recorder;
