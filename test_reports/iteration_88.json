@@ -1,0 +1,31 @@
+{
+  "summary": "V50.z260 Stress Test Axon frontend — testato /axon-stress-report end-to-end su viewport 390x844. Login owner OK. Header, KPIs, filtri con conteggi, chip di selezione run precedenti, dettaglio item con ripetizioni (marker [[NAV/ACTION rimossi dalla reply, riga 'Link:' presente), correzione (expected+rule) visibile, 'Applica correzione' funziona (badge -> 'Correzione applicata' verde + disabilitato dopo tap), 'Esporta PDF' non produce errori in console. Filtri passed/failed/inconsistent commutano correttamente. Non ho eseguito il Test rapido completo end-to-end (30 domande × 5-15s ciascuna) per limiti di tempo, ma il testID stress-start-quick e stress-stop sono presenti nel DOM e la card 'Avvia uno stress test' con progress bar + polling ogni 4s è cablata nel componente. La navigazione settings-group-devtools -> /axon-stress-report è confermata via code review (impostazioni.tsx:454 -> router.push('/axon-stress-report')); testID card presente. Pulizia: eliminata la regola di correzione pr_563442d75c creata dal test tramite DELETE /api/axon/stress/corrections/{id}.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/axon-stress-report", "issues": [
+        "Console warnings ricorrenti (non bloccanti, ma da segnalare per pulizia): 'shadow*/textShadow* style props are deprecated. Use boxShadow/textShadow', 'props.pointerEvents is deprecated. Use style.pointerEvents', 'useNativeDriver is not supported (RCTAnimation)', 'Invalid DOM property transform-origin. Did you mean transformOrigin?'. Provengono da librerie/animazioni condivise, non specifiche a questa schermata."
+      ]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Nessun bug funzionale rilevato. Facoltativo: pulire i warning globali di deprecation (shadow*/pointerEvents/transform-origin) e useNativeDriver — non impattano questa feature ma sporcano la console."
+  ],
+  "critical_code_review_comments": [
+    "axon-stress-report.tsx (277 righe) — dimensione ok, singola responsabilità. Stripping dei marker via regex `/\\[\\[(NAV|ACTION):[^\\]]*\\]\\]/g` verificato: la reply mostrata all'utente non contiene [[NAV/ACTION grezzi. I marker restano intenzionalmente visibili dentro 'Risposta corretta attesa' e 'Correzione suggerita al prompt' — è corretto (serve a mostrare il formato atteso).",
+    "Polling ogni 4s solo mentre status === 'running' con clearInterval nel cleanup — corretto.",
+    "PDF export web: Print.printAsync({html}) invocato correttamente; nessun errore in console durante il test.",
+    "Nota UX minor: quando l'utente arriva direttamente via URL (deep link) il bottone stress-back esegue router.back() che innesca il warning 'GO_BACK was not handled by any navigator' se non c'è history — consigliabile usare `router.canGoBack() ? router.back() : router.replace('/(tabs)/impostazioni')`."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100% dei flussi critici verificati (Test rapido full run non eseguito per costi/tempo)"},
+  "seed_data_creation": "Nessun seed. Il run st_48f0707377 (2 failed + 2 inconsistent) era già presente e usato per esercitare filtri, dettaglio e correzione.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login flow: dopo l'inserimento credenziali l'app manda a /tour (schermata Benvenuto). Il testID tour-skip è presente ma esistono 3 nodi con lo stesso testID (annotazione della pagina) e Playwright fallisce con 'Element is not visible' sul primo — usare `page.locator('text=Salta').last.click(force=True)` oppure navigare direttamente all'URL della feature (funziona con sessione salvata via localStorage token). Per esercitare item falliti/incoerenti usare run_id `st_48f0707377` (già presente per l'owner test@dalpastro.it). Endpoint di cleanup: GET/DELETE /api/axon/stress/corrections/{rule_id}.",
+  "rca_of_issue": "N/A — nessun bug funzionale."
+}

@@ -449,6 +449,14 @@ function ImpostazioniScreen() {
             {isOwner ? <SettingsGroupButton section="branding" onPress={() => openSection("branding")} /> : null}
             <SettingsGroupButton section="integrations" onPress={() => openSection("integrations")} />
             <SettingsGroupButton section="general" onPress={() => openSection("general")} />
+            {isOwner ? (
+              // V50.z260 — Strumenti di sviluppo → Report Stress Test Axon
+              <Pressable onPress={() => router.push("/axon-stress-report" as any)} style={hubStyles.group} testID="settings-group-devtools">
+                <View style={[hubStyles.groupIcon, { backgroundColor: "#7C3AED1A" }]}><Ionicons name="flask" size={22} color="#7C3AED" /></View>
+                <View style={{ flex: 1 }}><Text style={hubStyles.groupTitle}>Strumenti di sviluppo</Text><Text style={hubStyles.groupSub}>Report Stress Test Axon: qualità risposte e deep link</Text></View>
+                <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+              </Pressable>
+            ) : null}
           </View>
           <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center" }}>Le impostazioni dell'assistente AxonOS (nome, voce, tono, header tabelle, memoria, Insegna ad Axon) sono in AxonOS Center.</Text>
         </>)}

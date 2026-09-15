@@ -89,5 +89,6 @@ MODULES = [
     "contact_visits.py",  # V50.z256 — Rilevamento Visite: visite confermate, candidati GPS, frequenza ripasso, /visits/* (isolato; dopo axon_geo_routing e geo_km_log; avvolge _prepare_assistant_prompt)
     "axon_tour.py",  # V50.z257 — Tour Guidato conversazionale: /tour/profile, /tour/contact-from-text, /tour/features (isolato; dopo 12_ai_contact_copilot)
     "axon_navigator.py",  # V50.z259 — Navigatore AxonOS: mappa completa app con deep link [[NAV:route|label]], flussi multi-step, azioni confermabili [[ACTION]], suggerimenti proattivi (/axon/nav/*) (isolato; avvolge _maybe_push_command e _prepare_assistant_prompt; DOPO axon_neo_bridge, contact_visits, 19 core)
+    "axon_stress_test.py",  # V50.z260 — Stress test AxonOS: 200+ domande × N ripetizioni via /assistant/chat/stream, valutazione deep link/coerenza/trap, report + HTML PDF, correzioni prompt (db.axon_prompt_rules) (isolato; DOPO axon_navigator: avvolge _prepare_assistant_prompt e _nav_intercept)
     "37_app_startup_scheduler.py",
 ]

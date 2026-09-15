@@ -6353,3 +6353,9 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 - `backend/routes/axon_navigator.py`: APP_MAP (~85 schermate/sezioni, route + keyword, master_only), regola prioritaria nel prompt → marker `[[NAV:route|label]]`, hint per messaggio, flussi deterministici ("devo andare da X" con meteo, "sposta mancati" con `[[ACTION:move_missed]]`, "ho perso il filo", "devo organizzarmi", "mi sono perso", "come sto andando", "devo richiamare", "dove metto i documenti", "come faccio a impostare X"), API `/axon/nav/{map,action,track,proactive,proactive/dismiss}`.
 - `frontend/src/NavChips.tsx`: pulsanti deep link/azione nei messaggi Axon + card proattiva "Axon ha notato". Deep link param: `/home?section=`, `/optimal-route?contacts=`, `/calendario?view=`, `/contact/{id}?tab=`, `/bill-quick?config=1`.
 - Test: `backend/tests/test_v50z259_navigator.py`, `test_v50z259_stream_and_action.py`; report iteration_87.
+
+
+## V50.z260 — Stress Test AxonOS — DONE
+- `backend/routes/axon_stress_questions.py` (211 domande/19 categorie con esito atteso), `backend/routes/axon_stress_test.py` (run in background via /assistant/chat/stream con no_cache; valutazione deep link/coerenza/trap/route reale; API /axon/stress/*; correzioni in db.axon_prompt_rules iniettate subito nel prompt + shortcut deterministico; HTML per PDF).
+- `frontend/app/axon-stress-report.tsx` (Profilo → Strumenti di sviluppo, owner): KPI, filtri, dettaglio, Applica correzione, Esporta PDF, progress/Ferma.
+- Test: backend/tests/test_v50z260_stress.py; report iteration_88.

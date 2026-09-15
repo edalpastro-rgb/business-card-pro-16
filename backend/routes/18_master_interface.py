@@ -86,6 +86,7 @@ class AssistantChatIn(BaseModel):
     # V28.l — Attachments (PDF, Excel, images, txt/csv, ...) inviati con il messaggio.
     # Axon estrae il testo e lo include nel prompt come "contesto allegato".
     attachments: List[AssistantAttachmentIn] = Field(default_factory=list)
+    no_cache: Optional[bool] = False  # V50.z260 — stress test: salta la cache semantica
 
 
 class AssistantTTSIn(BaseModel):

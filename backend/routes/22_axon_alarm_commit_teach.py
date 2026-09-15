@@ -752,7 +752,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         _tenant_val = tenant_id(user)
 
         # --- Cache lookup (fast path) ---
-        cache_eligible = _is_query_cacheable(msg, has_attachments, has_history)
+        cache_eligible = _is_query_cacheable(msg, has_attachments, has_history) and not getattr(body, "no_cache", False)  # V50.z260
         if cache_eligible:
             yield sse("progress", {"stage": "cache", "text": "Controllo se ho già risposto a qualcosa di simile…"})
             cached = await _semantic_cache_lookup(msg, tenant=_tenant_val)
