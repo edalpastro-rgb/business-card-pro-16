@@ -152,13 +152,28 @@ export async function playAudioBase64(
     const AudioMod: any = await import("expo-audio");
     const { createAudioPlayer } = AudioMod;
     const player = createAudioPlayer({ uri: `data:${mime};base64,${b64}` });
-    try { player.play(); } catch {}
+    let ended = false;
+    let sub: any = null;
+    let safety: any = null;
+    const finish = () => {
+      if (ended) return;
+      ended = true;
+      try { sub?.remove?.(); } catch {}
+      if (safety) clearTimeout(safety);
+      try { onEnded?.(); } catch {}
+    };
     if (onEnded) {
-      // Best-effort duration-based fallback for native
-      const est = 4000;
-      setTimeout(() => { try { onEnded(); } catch {} }, est);
+      // V50.z270 — fine REALE dell'audio (didJustFinish); il timer stimato dalla dimensione è solo una rete di sicurezza
+      try { sub = player.addListener?.("playbackStatusUpdate", (s: any) => { if (s?.didJustFinish) finish(); }); } catch {}
+      const bytes = (b64.length * 3) / 4;
+      const estMs = Math.max(4000, (bytes * 8 / 24000) * 1000 * 1.3 + 3000); // ~24 kbps mp3 TTS, margine 30% + 3 s
+      safety = setTimeout(finish, estMs);
     }
+    try { player.play(); } catch {}
     return () => {
+      ended = true;
+      try { sub?.remove?.(); } catch {}
+      if (safety) clearTimeout(safety);
       try { player.pause?.(); } catch {}
       try { player.release?.(); } catch {}
     };

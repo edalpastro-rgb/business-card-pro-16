@@ -4,7 +4,7 @@
 // Mostrato solo al primo accesso (user-settings.onboarding_done + cache locale); replay da Help / Master.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Animated, ActivityIndicator, Platform, ScrollView, TextInput } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -20,17 +20,53 @@ import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
 const NAVY = "#0B1B33"; const SKY = "#38BDF8"; const MUTED = "#94A3B8"; const WHITE = "#FFFFFF"; const AMBER = "#FBBF24";
 const FEATURE_ICON: Record<string, any> = { bills: "document-text", compare: "git-compare", route: "car-sport", calendar: "calendar", deadlines: "alarm", notes: "mic", scanner: "scan", email: "mail", whatsapp: "logo-whatsapp", referrals: "share-social", contacts: "people", voice: "mic-circle", team: "people-circle", kpi: "stats-chart", chat: "chatbubbles", proactive: "notifications", km: "speedometer", visits: "location", map: "map", files: "folder", pdf: "document", offers: "pricetags", pun: "flash" };
 
-async function speak(text: string, onEnded?: () => void): Promise<() => void> {
-  // V50.z266 — voce silenziata: niente TTS, il flusso prosegue con una breve pausa di lettura
-  if (tourMuted.value) { const t = setTimeout(() => onEnded?.(), 1500); return () => clearTimeout(t); }
-  try {
-    const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", { method: "POST", body: { text } });
-    if (!r?.audio_base64) { onEnded?.(); return () => {}; }
-    return await playAudioBase64(r.audio_base64, r.mime || "audio/mpeg", onEnded);
-  } catch { onEnded?.(); return () => {}; }
-}
-const tourMuted = { value: false }; // stato condiviso letto da speak() (aggiornato dal toggle in TourScreen)
+// V50.z270 — Motore voce del tour: UNA sola voce alla volta.
+// • generazione: ogni nuova frase invalida quelle precedenti (anche se il loro audio TTS arriva dopo → viene scartato/fermato)
+// • prefetch: l'audio viene richiesto subito, ma la riproduzione parte solo dopo il countdown di lettura (se richiesto)
+// • stop globale: cambio schermata / uscita dal tour / mute → silenzio immediato
+const voice = { gen: 0, stop: (() => {}) as () => void, listeners: new Set<(remaining: number | null) => void>() };
+const voiceStop = () => { voice.gen += 1; try { voice.stop(); } catch {} voice.stop = () => {}; voice.listeners.forEach((l) => l(null)); };
+const tourMuted = { value: false }; // stato condiviso (aggiornato dal toggle in TourScreen)
 const MUTE_KEY = "tour_voice_muted";
+
+async function fetchTts(text: string): Promise<{ b64: string; mime: string } | null> {
+  try { const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", { method: "POST", body: { text } }); return r?.audio_base64 ? { b64: r.audio_base64, mime: r.mime || "audio/mpeg" } : null; } catch { return null; }
+}
+
+/** Pronuncia `text`; `readSeconds` = countdown visibile prima della voce (tempo di lettura). onEnded è chiamato UNA volta, quando la voce finisce (o subito se muta/errore). */
+async function speak(text: string, onEnded?: () => void, readSeconds = 0): Promise<void> {
+  voiceStop();
+  const myGen = voice.gen;
+  const alive = () => voice.gen === myGen;
+  let ended = false;
+  const end = () => { if (ended || !alive()) return; ended = true; voice.listeners.forEach((l) => l(null)); onEnded?.(); };
+  if (tourMuted.value) { const t = setTimeout(end, Math.max(1500, readSeconds * 1000)); voice.stop = () => clearTimeout(t); return; }
+  const audioP = fetchTts(text);
+  if (readSeconds > 0) {
+    await new Promise<void>((resolve) => {
+      let left = readSeconds; voice.listeners.forEach((l) => l(left));
+      const iv = setInterval(() => { left -= 1; if (!alive()) { clearInterval(iv); resolve(); return; } voice.listeners.forEach((l) => l(left)); if (left <= 0) { clearInterval(iv); resolve(); } }, 1000);
+      voice.stop = () => { clearInterval(iv); resolve(); };
+    });
+    if (!alive()) return;
+  }
+  const audio = await audioP;
+  if (!alive()) return;
+  voice.listeners.forEach((l) => l(0)); // 0 = "sto per parlare / sto parlando"
+  if (!audio) { end(); return; }
+  try {
+    const stopper = await playAudioBase64(audio.b64, audio.mime, end);
+    if (!alive()) { try { stopper(); } catch {} return; } // nel frattempo è arrivata un'altra frase o un cambio pagina
+    voice.stop = stopper;
+  } catch { end(); }
+}
+
+/** Countdown/stato voce condiviso: null = silenzio, n>0 = secondi alla voce, 0 = Axon parla */
+function useVoiceState() {
+  const [remaining, setRemaining] = useState<number | null>(null);
+  useEffect(() => { voice.listeners.add(setRemaining); return () => { voice.listeners.delete(setRemaining); }; }, []);
+  return remaining;
+}
 
 export default function TourScreen() {
   const router = useRouter();
@@ -38,9 +74,9 @@ export default function TourScreen() {
   const { user } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const fade = useRef(new Animated.Value(1)).current;
-  const stopSpeech = useRef<() => void>(() => {});
   // V50.z266 — silenzia/riattiva la voce di Axon (persistito in cache locale + user-settings)
   const [muted, setMuted] = useState(false);
+  const voiceState = useVoiceState();
   // V50.z266 — schermata 3: finché l'anagrafica master non è completa il tour non si può saltare
   const [masterLocked, setMasterLocked] = useState(false);
   useEffect(() => {
@@ -49,17 +85,19 @@ export default function TourScreen() {
   }, []);
   const toggleMute = useCallback(() => {
     const m = !tourMuted.value; tourMuted.value = m; setMuted(m);
-    if (m) { try { stopSpeech.current(); } catch {} }
+    if (m) voiceStop();
     AsyncStorage.setItem(MUTE_KEY, m ? "1" : "0").catch(() => {});
     api("/user-settings", { method: "PUT", body: { tour_voice_muted: m } }).catch(() => {});
   }, []);
 
   // Mostrato → marchia subito il device (se l'utente esce con back non ricompare a ogni apertura)
   useEffect(() => { if (user?.user_id) AsyncStorage.setItem(`onboarding_done_${user.user_id}`, "1").catch(() => {}); }, [user?.user_id]);
-  useEffect(() => () => { try { stopSpeech.current(); } catch {} }, []);
+  // V50.z270 — la voce è un testo "performativo": se l'utente lascia la schermata (altra pagina, back, uscita) Axon si ferma subito
+  useEffect(() => () => voiceStop(), []);
+  useFocusEffect(useCallback(() => () => voiceStop(), []));
 
   const go = useCallback((n: 1 | 2 | 3 | 4) => {
-    try { stopSpeech.current(); } catch {}
+    voiceStop();
     Animated.timing(fade, { toValue: 0, duration: 180, useNativeDriver: Platform.OS !== "web" }).start(() => {
       setStep(n);
       Animated.timing(fade, { toValue: 1, duration: 320, useNativeDriver: Platform.OS !== "web" }).start();
@@ -67,14 +105,14 @@ export default function TourScreen() {
   }, [fade]);
 
   const finish = useCallback(async () => {
-    try { stopSpeech.current(); } catch {}
+    voiceStop();
     if (user?.user_id) await AsyncStorage.setItem(`onboarding_done_${user.user_id}`, "1").catch(() => {});
     await AsyncStorage.setItem("libretto_seen_v1", "1").catch(() => {});
     api("/user-settings", { method: "PUT", body: { onboarding_done: true } }).catch(() => {});
     router.replace("/(tabs)/home" as any);
   }, [router, user?.user_id]);
 
-  const say = useCallback(async (text: string, onEnded?: () => void) => { try { stopSpeech.current(); } catch {} stopSpeech.current = await speak(text, onEnded); }, []);
+  const say = useCallback((text: string, onEnded?: () => void, readSeconds = 0) => speak(text, onEnded, readSeconds), []);
 
   // V50.z265 — Ricomincia dal principio: torna alla schermata 1 e azzera lo stato interno delle schermate 2/3 (key)
   const [tourRun, setTourRun] = useState(0);
@@ -84,15 +122,21 @@ export default function TourScreen() {
     <View style={[styles.root, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]} testID="tour-root">
       {/* progress */}
       <View style={styles.dots} testID={`tour-step-${step}`}>{[1, 2, 3, 4].map((i) => <View key={i} style={[styles.dot, i === step && styles.dotOn, i < step && styles.dotDone]} />)}</View>
-      <View style={styles.topRight}>
+      {/* V50.z270 — stato voce (countdown di lettura / Axon parla) centrato sotto i punti, per non coprire header e status bar */}
+      <View style={styles.voiceRow}>
+        {voiceState !== null && voiceState > 0 ? <View style={styles.countdown} testID="tour-voice-countdown"><Ionicons name="time-outline" size={13} color={SKY} /><Text style={styles.countdownTxt}>Axon parla tra {voiceState}s</Text></View> : null}
+        {voiceState === 0 && !muted ? <View style={styles.countdown} testID="tour-voice-speaking"><Ionicons name="volume-high" size={13} color={SKY} /><Text style={styles.countdownTxt}>Axon parla…</Text></View> : null}
+      </View>
+      {/* V50.z270 — header sotto la status bar (insets.top), non sovrapposto alle icone di sistema */}
+      <View style={[styles.topRight, { top: insets.top + 2 }]}>
         <Pressable onPress={toggleMute} hitSlop={8} style={styles.muteBtn} testID="tour-mute" accessibilityLabel={muted ? "Riattiva la voce di Axon" : "Silenzia la voce di Axon"}>
-          <Ionicons name={muted ? "volume-mute" : "volume-high"} size={18} color={muted ? SKY : MUTED} />
+          <Ionicons name={muted ? "volume-mute" : "volume-high"} size={20} color={muted ? AMBER : SKY} />
         </Pressable>
         {!(step === 3 && masterLocked) ? <Pressable onPress={finish} hitSlop={10} style={styles.skip} testID="tour-skip"><Text style={styles.skipTxt}>Salta</Text></Pressable> : null}
       </View>
       <Animated.View style={{ flex: 1, opacity: fade }}>
         {step === 1 && <Welcome onNext={() => go(2)} onFeatures={() => router.push("/tour-features" as any)} />}
-        {step === 2 && <TalkToAxon key={tourRun} say={say} onNext={() => go(3)} onVoiceSettings={() => { try { stopSpeech.current(); } catch {} router.push("/impostazioni?section=axon" as any); }} />}
+        {step === 2 && <TalkToAxon key={tourRun} say={say} onNext={() => go(3)} onVoiceSettings={() => { voiceStop(); router.push("/impostazioni?section=axon" as any); }} />}
         {step === 3 && <MasterThenFirstContact key={tourRun} say={say} onNext={() => go(4)} onLockChange={setMasterLocked} />}
         {step === 4 && <Closing onFinish={finish} onFeatures={() => router.push("/tour-features" as any)} />}
       </Animated.View>
@@ -142,7 +186,7 @@ const QUESTIONS = [
   "Quale funzione per te è assolutamente indispensabile?",
   "Cosa ti aspetti da AdvisorOS? Più sei preciso, più lo adatto a te.",
 ];
-function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded?: () => void) => Promise<void>; onNext: () => void; onVoiceSettings: () => void }) {
+function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded?: () => void, readSeconds?: number) => Promise<void>; onNext: () => void; onVoiceSettings: () => void }) {
   const [answers, setAnswers] = useState<string[]>([]);
   const [phase, setPhase] = useState<"intro" | "lead" | "questions">("intro");
   const [typed, setTyped] = useState(false);
@@ -154,13 +198,14 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
   const qIdx = answers.length; // domanda corrente (0..2); 3 = elaborazione
   const scrollRef = useRef<ScrollView>(null);
 
-  // Sequenza: intro → frase di raccordo → prima domanda (parte da sola a fine audio; fallback a tempo stimato)
+  // V50.z270 — Sequenza RIGOROSAMENTE in serie, una voce sola: intro (10 s di lettura con countdown, poi voce) → a fine voce
+  // compare e parte la frase di raccordo → a fine voce compare e parte la prima domanda. Nessun timer parallelo.
   useEffect(() => {
-    let done = false; let t: any;
-    const next = (p: "lead" | "questions") => { if (done) return; done = true; clearTimeout(t); setPhase(p); };
-    if (phase === "intro") { void say(INTRO, () => next("lead")); t = setTimeout(() => next("lead"), 26000); }
-    else if (phase === "lead") { void say(LEAD_IN, () => next("questions")); t = setTimeout(() => next("questions"), 7000); }
-    return () => { done = true; clearTimeout(t); };
+    let done = false;
+    const next = (p: "lead" | "questions") => { if (done) return; done = true; setPhase(p); };
+    if (phase === "intro") void say(INTRO, () => next("lead"), 10);
+    else if (phase === "lead") void say(LEAD_IN, () => next("questions"));
+    return () => { done = true; };
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (phase === "questions" && qIdx < QUESTIONS.length) void say(QUESTIONS[qIdx]); }, [qIdx, say, phase]);
   useEffect(() => {
@@ -454,6 +499,9 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.18)" }, dotOn: { backgroundColor: SKY, width: 22 }, dotDone: { backgroundColor: "rgba(56,189,248,0.6)" },
   skip: { paddingVertical: 10, paddingHorizontal: 8, minHeight: 44, justifyContent: "center" }, skipTxt: { color: MUTED, fontWeight: "700", fontSize: 13 },
   topRight: { position: "absolute", right: 16, top: 0, flexDirection: "row", alignItems: "center", gap: 2, zIndex: 2 },
+  countdown: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(56,189,248,0.12)", borderColor: "rgba(56,189,248,0.4)", borderWidth: 1, borderRadius: 12, paddingHorizontal: 8, height: 26 },
+  voiceRow: { height: 28, alignItems: "center", justifyContent: "center", marginBottom: 2 },
+  countdownTxt: { color: SKY, fontSize: 11, fontWeight: "800" },
   muteBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
   mandatory: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(251,191,36,0.10)", borderColor: "rgba(251,191,36,0.45)", borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
   mandatoryTxt: { flex: 1, color: AMBER, fontSize: 13, fontWeight: "800", lineHeight: 18 },
