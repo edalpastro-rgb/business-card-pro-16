@@ -7,13 +7,13 @@
 
 _TOUR_FEATURES: List[Tuple[str, str, str]] = [  # (id, nome, gruppo)
     ("contacts", "Anagrafica clienti", "CRM"), ("map", "Mappa clienti", "CRM"), ("route", "Giro Ottimale", "CRM"), ("km", "Resoconto Km", "CRM"),
-    ("visits", "Rilevamento visite", "CRM"), ("calendar", "Calendario e appuntamenti", "CRM"), ("deadlines", "Scadenze contratti", "CRM"),
-    ("referrals", "Referenze e passaparola", "CRM"), ("reviews", "Recensioni", "CRM"), ("call_log", "Registro chiamate", "CRM"),
-    ("bills", "Analisi bollette", "Energia"), ("compare", "Confronto offerte", "Energia"), ("pun", "PUN e mercato", "Energia"), ("offers", "Offerte aziendali", "Energia"),
+    ("visits", "Rilevamento visite (Mappa clienti)", "CRM"), ("calendar", "Calendario e appuntamenti", "CRM"), ("deadlines", "Scadenze contratti", "CRM"),
+    ("referrals", "Referenze e passaparola (fonte contatto)", "CRM"), ("reviews", "Recensioni", "CRM"), ("call_log", "Registro chiamate (scheda contatto)", "CRM"),
+    ("bills", "Analisi bollette", "Energia"), ("compare", "Confronto offerte (analisi bolletta)", "Energia"), ("pun", "PUN e mercato (widget Home)", "Energia"), ("offers", "Offerte aziendali (analisi bolletta)", "Energia"),
     ("scanner", "Scanner documenti", "Documenti"), ("files", "Master Files", "Documenti"), ("pdf", "Report PDF", "Documenti"), ("business_card", "Biglietto da visita digitale", "Documenti"),
-    ("chat", "Chat con Axon", "AxonOS"), ("voice", "Comandi vocali", "AxonOS"), ("notes", "Note vocali", "AxonOS"), ("wake", "Wake word «Hey Axon»", "AxonOS"),
+    ("chat", "Chat con Axon (Axon Center)", "AxonOS"), ("voice", "Comandi vocali in auto (Axon Drive)", "AxonOS"), ("notes", "Note vocali", "AxonOS"), ("wake", "Wake word «Hey Axon»", "AxonOS"),
     ("learn", "Insegna ad Axon", "AxonOS"), ("proactive", "Promemoria proattivi", "AxonOS"), ("wizard", "Configurazione guidata", "AxonOS"),
-    ("email", "Email e caselle IMAP", "Comunicazioni"), ("whatsapp", "WhatsApp e messaggi", "Comunicazioni"), ("birthday", "Auguri automatici", "Comunicazioni"),
+    ("email", "Email e caselle IMAP", "Comunicazioni"), ("whatsapp", "WhatsApp e messaggi (scheda contatto)", "Comunicazioni"), ("birthday", "Auguri di compleanno (Calendario)", "Comunicazioni"),
     ("team", "Team e collaboratori", "Master"), ("kpi", "KPI e statistiche", "Master"), ("gym", "Corporate Gym", "Master"), ("import", "Import contatti", "Master"),
     ("security", "Sicurezza e 2FA", "Impostazioni"), ("custom", "Personalizzazione", "Impostazioni"), ("help", "Help Center", "Impostazioni"),
 ]
@@ -21,11 +21,11 @@ _TOUR_IDS = {f[0] for f in _TOUR_FEATURES}
 # V50.z269 — ogni funzione dell'elenco «Tutte le funzioni» deve aprire la pagina corrispondente (mai voci senza link)
 _TOUR_FEATURE_ROUTES: Dict[str, str] = {
     "contacts": "/contatti", "map": "/map-clients", "route": "/optimal-route", "km": "/km-report", "visits": "/map-clients",
-    "calendar": "/calendario", "deadlines": "/deadlines", "referrals": "/contatti", "reviews": "/reviews-analytics", "call_log": "/report",
+    "calendar": "/calendario", "deadlines": "/deadlines", "referrals": "/contatti", "reviews": "/reviews-analytics", "call_log": "/contatti",
     "bills": "/bill-quick", "compare": "/bill-quick", "pun": "/home?section=widgets", "offers": "/bill-quick",
     "scanner": "/scanner", "files": "/master-files", "pdf": "/report", "business_card": "/business-card",
     "chat": "/axon-hub", "voice": "/voice-copilot", "notes": "/my-audios", "wake": "/wake-word", "learn": "/ai-teach", "proactive": "/axon-proactive", "wizard": "/setup",
-    "email": "/email-accounts", "whatsapp": "/contatti", "birthday": "/contatti",
+    "email": "/email-accounts", "whatsapp": "/contatti", "birthday": "/calendario",
     "team": "/team", "kpi": "/team-insights", "gym": "/corporate-gym", "import": "/contacts-import",
     "security": "/security", "custom": "/impostazioni?section=branding", "help": "/help-center",
 }
@@ -48,7 +48,7 @@ class TourTextIn(BaseModel):
 
 _TOUR_GROUP_MAP = {"CRM": "Contatti", "Energia": "Fatture e Scanner", "Documenti": "Fatture e Scanner", "AxonOS": "AxonOS", "Comunicazioni": "Caselle Mail", "Master": "Master", "Impostazioni": "Profilo"}
 _TOUR_TECH_SUBSTR = ("callback", "picker", "landing", "webviewer", "/chat/new", "invita-pick", "setup-config", "info-request-chat", "settings-app", "my-thing", "my-web")
-_TOUR_PRETTY = {"/axon-brain": "Axon Brain (conoscenza)", "/axon-cheatsheet": "Cheatsheet comandi Axon", "/axon-homeassistant": "Home Assistant", "/axon-insights": "Axon Insights", "/axon-media": "Media Axon", "/axon-proactive": "Axon proattivo", "/axon-scripts": "Script di chiamata", "/axon-scripts-import": "Import script", "/axon-stress-report": "Stress Test Axon", "/axon-system": "Stato sistema Axon", "/bug-report": "Segnala bug", "/business-card-stats": "Statistiche biglietto digitale", "/call-script-config": "Configurazione script chiamate", "/corporate-gym/assign": "Corporate Gym · Assegna", "/corporate-gym/coach-panel": "Corporate Gym · Pannello coach", "/corporate-gym/manuals-config": "Corporate Gym · Manuali", "/corporate-gym/obiezioni": "Corporate Gym · Obiezioni", "/corporate-gym/roleplay": "Corporate Gym · Roleplay", "/corporate-gym/stats": "Corporate Gym · Statistiche", "/corporate-gym/win-win": "Corporate Gym · Win-Win", "/event-banners": "Banner eventi", "/help-center-admin": "Help Center (gestione)", "/info-requests": "Richieste informazioni", "/invita": "Invita", "/invitati": "Invitati", "/libretto-editor": "Editor libretto", "/neo-memory": "Memoria Neo", "/permessi": "Permessi dispositivo", "/reviews-analytics": "Analisi recensioni", "/security": "Sicurezza avanzata", "/security-info": "Info sicurezza", "/wake-word": "Wake word «Hey Axon»"}
+_TOUR_PRETTY = {"/axon-brain": "Cervello Axon (conoscenza)", "/axon-cheatsheet": "Cheat sheet fornitori", "/axon-homeassistant": "Home Assistant", "/axon-insights": "Autoapprendimento Axon", "/axon-media": "Archivio foto, audio e video", "/axon-proactive": "Axon proattivo", "/axon-scripts": "Playbook script di chiamata", "/axon-scripts-import": "Import script", "/axon-stress-report": "Stress Test Axon", "/axon-system": "Stato sistema Axon", "/bug-report": "Segnala bug", "/business-card-stats": "Statistiche biglietto digitale", "/call-script-config": "Configurazione script chiamate", "/corporate-gym/assign": "Corporate Gym · Assegna", "/corporate-gym/coach-panel": "Corporate Gym · Pannello coach", "/corporate-gym/manuals-config": "Corporate Gym · Manuali", "/corporate-gym/obiezioni": "Corporate Gym · Obiezioni", "/corporate-gym/roleplay": "Corporate Gym · Roleplay", "/corporate-gym/stats": "Corporate Gym · Statistiche", "/corporate-gym/win-win": "Corporate Gym · Win-Win", "/event-banners": "Banner eventi", "/help-center-admin": "Richieste cancellazione dati (gestione)", "/info-requests": "Richieste informazioni", "/invita": "Invita", "/invitati": "Invitati", "/libretto-editor": "Editor libretto", "/neo-memory": "Memoria Neo", "/permessi": "Permessi dispositivo", "/reviews-analytics": "Analisi recensioni", "/security": "Sicurezza avanzata", "/security-info": "Info sicurezza", "/wake-word": "Wake word «Hey Axon»"}
 _TOUR_TECH_SCREENS = {"/", "/index", "/login", "/register", "/auth", "/tour", "/tour-features", "/setup", "/adv-landing", "/onboarding", "/reset-password", "/verify", "/invite", "/accept-invite", "/privacy", "/terms", "/oauth", "/callback-oauth", "/splash", "/dev", "/debug", "/test", "/test-page", "/not-found", "/+not-found", "/modal", "/sitemap"}
 
 

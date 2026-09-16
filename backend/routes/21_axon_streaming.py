@@ -101,6 +101,8 @@ def _is_query_cacheable(msg: str, has_attachments: bool, has_history: bool) -> b
     return True
 
 
+_AXON_LANG_NAMES = {"it": "italiano", "en": "inglese", "es": "spagnolo", "fr": "francese", "de": "tedesco", "pt": "portoghese", "ro": "rumeno", "uk": "ucraino", "ar": "arabo", "zh": "cinese"}  # V50.z271
+
 async def _semantic_cache_lookup(msg: str, tenant: Optional[str] = None) -> Optional[dict]:
     """Search the semantic cache for a similar previously-answered question.
     V50.k — TENANT-SHARED cache: cerca prima nel cache del tenant (condiviso
@@ -237,6 +239,9 @@ async def _prepare_assistant_prompt(
         raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
 
     assistant_name = await _get_assistant_name(user)
+    # V50.z271 — lingua scelta dall'utente (pagina «Voce e lingua di Axon»)
+    _lang_row = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_language": 1}) or {}
+    assistant_language = _AXON_LANG_NAMES.get((_lang_row.get("assistant_language") or "it").lower(), "italiano")
     session_id = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
 
     # Load recent conversation history from DB (last 12 messages)
@@ -479,7 +484,7 @@ async def _prepare_assistant_prompt(
         f"Sei {assistant_name}, l'assistente personale AI del CRM di {user.get('name', 'utente')}, "
         "consulente energetico e networker in Italia.\n\n"
         "REGOLE:\n"
-        "- Rispondi SEMPRE in italiano, tono professionale ma amichevole.\n"
+        f"- Rispondi SEMPRE in {assistant_language}, tono professionale ma amichevole.\n"
         "- Per domande CRM usa esclusivamente i dati forniti (SNAPSHOT_CRM + DATI COMPLETI CRM + SCHEDE COMPLETE DEI CONTATTI). Non inventare.\n"
         "- Hai accesso a TUTTE le sezioni di AdvisorOS (vedi MAPPA DELL'APP e DATI COMPLETI CRM): contatti con note/file/bollette/contratti, "
         "appuntamenti passati e futuri, scadenze, telefonate, ritelefonate, gruppi, team, Corporate Gym, My Thing, caselle mail, Master Files, "
@@ -695,6 +700,9 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
 
     assistant_name = await _get_assistant_name(user)
+    # V50.z271 — lingua scelta dall'utente (pagina «Voce e lingua di Axon»)
+    _lang_row = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_language": 1}) or {}
+    assistant_language = _AXON_LANG_NAMES.get((_lang_row.get("assistant_language") or "it").lower(), "italiano")
     session_id = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
 
     # Load recent conversation history from DB (last 12 messages)
@@ -912,7 +920,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         f"Sei {assistant_name}, l'assistente personale AI del CRM di {user.get('name', 'utente')}, "
         "consulente energetico e networker in Italia.\n\n"
         "REGOLE:\n"
-        "- Rispondi SEMPRE in italiano, tono professionale ma amichevole.\n"
+        f"- Rispondi SEMPRE in {assistant_language}, tono professionale ma amichevole.\n"
         "- Per domande CRM usa esclusivamente i dati forniti (SNAPSHOT_CRM + DATI COMPLETI CRM + SCHEDE COMPLETE DEI CONTATTI). Non inventare.\n"
         "- Hai accesso a TUTTE le sezioni di AdvisorOS (vedi MAPPA DELL'APP e DATI COMPLETI CRM): contatti con note/file/bollette/contratti, "
         "appuntamenti passati e futuri, scadenze, telefonate, ritelefonate, gruppi, team, Corporate Gym, My Thing, caselle mail, Master Files, "

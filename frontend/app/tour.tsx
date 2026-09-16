@@ -136,7 +136,7 @@ export default function TourScreen() {
       </View>
       <Animated.View style={{ flex: 1, opacity: fade }}>
         {step === 1 && <Welcome onNext={() => go(2)} onFeatures={() => router.push("/tour-features" as any)} />}
-        {step === 2 && <TalkToAxon key={tourRun} say={say} onNext={() => go(3)} onVoiceSettings={() => { voiceStop(); router.push("/impostazioni?section=axon" as any); }} />}
+        {step === 2 && <TalkToAxon key={tourRun} say={say} onNext={() => go(3)} onVoiceSettings={() => { voiceStop(); router.push("/axon-voice" as any); }} />}
         {step === 3 && <MasterThenFirstContact key={tourRun} say={say} onNext={() => go(4)} onLockChange={setMasterLocked} />}
         {step === 4 && <Closing onFinish={finish} onFeatures={() => router.push("/tour-features" as any)} />}
       </Animated.View>
@@ -197,6 +197,8 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
   const [lit, setLit] = useState(0);
   const qIdx = answers.length; // domanda corrente (0..2); 3 = elaborazione
   const scrollRef = useRef<ScrollView>(null);
+  const voiceState = useVoiceState();
+  const reading = (p: "intro" | "lead" | "questions") => phase === p && voiceState === 0; // 0 = Axon sta parlando
 
   // V50.z270 — Sequenza RIGOROSAMENTE in serie, una voce sola: intro (10 s di lettura con countdown, poi voce) → a fine voce
   // compare e parte la frase di raccordo → a fine voce compare e parte la prima domanda. Nessun timer parallelo.
@@ -236,16 +238,17 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
     <View style={styles.screen}>
       <ScrollView ref={scrollRef} contentContainerStyle={{ flexGrow: 1, justifyContent: "center", gap: 12 }} keyboardShouldPersistTaps="handled">
         <AxonOrb busy={busy} />
-        <View style={styles.bubble} testID="tour-intro"><Text style={styles.bubbleTxt}>{INTRO}</Text></View>
+        {/* V50.z271 — «Evidenzia lettura»: la bolla che Axon sta leggendo si illumina (bordo + sfondo azzurro) */}
+        <View style={[styles.bubble, reading("intro") && styles.bubbleReading]} testID="tour-intro"><Text style={styles.bubbleTxt}>{INTRO}</Text></View>
         {/* V50.z265 — link discreto voce/lingua subito dopo l'intro: se ignorato il flusso prosegue da solo alla prima domanda */}
         <Pressable onPress={onVoiceSettings} hitSlop={6} style={styles.voiceLink} testID="tour-voice-settings-link">
           <Ionicons name="options-outline" size={14} color={SKY} />
           <Text style={styles.voiceLinkTxt}>Vuoi cambiare la mia voce o la lingua? <Text style={{ textDecorationLine: "underline" }}>Tocca qui</Text></Text>
         </Pressable>
-        {phase !== "intro" ? <View style={styles.bubble} testID="tour-lead-in"><Text style={styles.bubbleTxt}>{LEAD_IN}</Text></View> : null}
+        {phase !== "intro" ? <View style={[styles.bubble, reading("lead") && styles.bubbleReading]} testID="tour-lead-in"><Text style={styles.bubbleTxt}>{LEAD_IN}</Text></View> : null}
         {phase === "questions" ? QUESTIONS.slice(0, Math.min(qIdx + 1, QUESTIONS.length)).map((q, i) => (
           <React.Fragment key={i}>
-            <View style={styles.bubble} testID={`tour-q-${i + 1}`}><Text style={styles.bubbleTxt}>{q}</Text></View>
+            <View style={[styles.bubble, reading("questions") && i === qIdx && styles.bubbleReading]} testID={`tour-q-${i + 1}`}><Text style={styles.bubbleTxt}>{q}</Text></View>
             {answers[i] ? <View style={[styles.bubble, styles.bubbleUser]} testID={`tour-a-${i + 1}`}><Text style={[styles.bubbleTxt, { color: NAVY }]}>{answers[i]}</Text></View> : null}
           </React.Fragment>
         )) : (
@@ -515,6 +518,7 @@ const styles = StyleSheet.create({
   p: { color: MUTED, fontSize: 16, textAlign: "center", lineHeight: 24 },
   cta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: SKY, borderRadius: 16, minHeight: 54, marginTop: 8 }, ctaTxt: { color: NAVY, fontWeight: "900", fontSize: 16 },
   link: { alignItems: "center", paddingVertical: 14, minHeight: 44, justifyContent: "center" }, linkTxt: { color: MUTED, fontSize: 13, fontWeight: "700" },
+  bubbleReading: { borderColor: SKY, borderWidth: 1.5, backgroundColor: "rgba(56,189,248,0.14)", shadowColor: SKY, shadowOpacity: 0.5, shadowRadius: 10, elevation: 4 },
   bubble: { backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 18, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }, bubbleUser: { backgroundColor: SKY, alignSelf: "flex-end", maxWidth: "90%" },
   bubbleTxt: { color: WHITE, fontSize: 16, lineHeight: 23 },
   micWrap: { alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 16, padding: 8 },

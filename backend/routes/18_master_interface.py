@@ -59,6 +59,7 @@ class UserSettingsIn(BaseModel):
     assistant_name: Optional[str] = None  # AI assistant custom name (default "Neo")
     assistant_response_mode: Optional[str] = None  # "text" | "voice" | "both" (default "text")
     assistant_voice: Optional[str] = None  # OpenAI TTS voice: alloy | echo | fable | onyx | nova | shimmer
+    assistant_language: Optional[str] = None  # V50.z271 — lingua delle risposte di Axon (it | en | es | fr | de | pt | ro | uk | ar | zh)
     # V28.o — Azioni rapide personalizzabili mostrate nell'empty state della chat Axon.
     # Ogni voce: {id: str, label: str (max ~50 char), prompt: str (comando da inviare)}.
     assistant_quick_actions: Optional[List[QuickActionIn]] = None

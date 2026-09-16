@@ -894,6 +894,11 @@ function ImpostazioniScreen() {
           {(assistantMode === "voice" || assistantMode === "both") && (
             <>
               <Text style={[styles.label, { marginTop: 14 }]}>Voce dell&apos;assistente</Text>
+              {/* V50.z271 — pagina dedicata con anteprima voci + lingua delle risposte */}
+              <Pressable onPress={() => router.push("/axon-voice" as any)} style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40, marginBottom: 4 }} testID="settings-axon-voice-link">
+                <Ionicons name="volume-high-outline" size={16} color={theme.color.brandPrimary} />
+                <Text style={{ color: theme.color.brandPrimary, fontWeight: "800", fontSize: 13 }}>Tutte le voci con anteprima e lingua delle risposte ›</Text>
+              </Pressable>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
                 {[
                   { key: "nova", label: "Nova (F, chiara)" },
