@@ -40,6 +40,7 @@ import { AxonAnalysesSection } from "@/src/AxonAnalysesSection";
 import { AxonProfileCard } from "@/src/AxonProfileCard";
 import { ContactInfoRequestsSection } from "@/src/ContactInfoRequestsSection";
 import { ContactMailAttachmentsSection } from "@/src/ContactMailAttachmentsSection";
+import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
 import { ContactCustomFieldsSection } from "@/src/ContactCustomFieldsSection";
 import { ContactReviewsSection } from "@/src/ContactReviewsSection";
 import { ContactDistanceBadge } from "@/src/ContactDistanceBadge"; // V50.z241 — «📍 X km da te»
@@ -1305,6 +1306,18 @@ function ContactDetail() {
             )) : <Text style={styles.emptyTxt}>Nessun file</Text>}
             {/* V50.z25 — Allegati dalle mail (Auto-CRM) */}
             <ContactMailAttachmentsSection contactId={id as string} />
+            {/* V50.z267 — Documenti di riconoscimento del cliente: OCR → aggiorna CF / data di nascita / indirizzo se mancanti */}
+            <View style={{ marginTop: 14 }}>
+              <IdentityDocsSection subjectType="contact" subjectId={id as string} onExtracted={async (d) => {
+                const upd: Record<string, string> = {};
+                if (!c.fiscal_code && d.tax_id) upd.fiscal_code = d.tax_id;
+                if (!c.birth_date && d.birth_date) upd.birth_date = d.birth_date;
+                if (!c.first_name && d.first_name) upd.first_name = d.first_name;
+                if (!c.last_name && d.last_name) upd.last_name = d.last_name;
+                if (!(c as any).residence_address && d.address) upd.residence_address = [d.address, d.city].filter(Boolean).join(", ");
+                if (Object.keys(upd).length) { try { await api(`/contacts/${id}`, { method: "PUT", body: upd }); await load(); } catch {} }
+              }} />
+            </View>
           </>
         )}
 

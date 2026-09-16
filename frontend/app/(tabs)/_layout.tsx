@@ -4,6 +4,7 @@ import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { View, ActivityIndicator, Platform } from "react-native";
 import { useNavBarBottomInset } from "@/src/hooks/useSafeBottom";
+import { IdDocExpiryPopup } from "@/src/IdDocExpiryPopup"; // V50.z267 — popup documenti in scadenza (≤30 gg)
 
 // V27 palette (used only for tab bar styling, no global theme override)
 const TAB_ACTIVE = "#FF6B35";
@@ -29,6 +30,8 @@ export default function TabsLayout() {
   if (!user) return <Redirect href="/login" />;
 
   return (
+    <>
+    <IdDocExpiryPopup />
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -129,5 +132,6 @@ export default function TabsLayout() {
         options={{ href: null }}
       />
     </Tabs>
+    </>
   );
 }

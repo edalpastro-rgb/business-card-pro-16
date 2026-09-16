@@ -15,6 +15,7 @@ import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { uriToBase64DataUrl } from "@/src/utils/media";
 import { playAudioBase64 } from "@/src/AssistantChat";
+import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
 
 const NAVY = "#0B1B33"; const SKY = "#38BDF8"; const MUTED = "#94A3B8"; const WHITE = "#FFFFFF"; const AMBER = "#FBBF24";
 const FEATURE_ICON: Record<string, any> = { bills: "document-text", compare: "git-compare", route: "car-sport", calendar: "calendar", deadlines: "alarm", notes: "mic", scanner: "scan", email: "mail", whatsapp: "logo-whatsapp", referrals: "share-social", contacts: "people", voice: "mic-circle", team: "people-circle", kpi: "stats-chart", chat: "chatbubbles", proactive: "notifications", km: "speedometer", visits: "location", map: "map", files: "folder", pdf: "document", offers: "pricetags", pun: "flash" };
@@ -283,14 +284,17 @@ function MasterThenFirstContact({ say, onNext, onLockChange }: { say: (t: string
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const missing = MASTER_REQUIRED.filter(([k]) => !form[k].trim()).map(([, l]) => l);
+  const [docCount, setDocCount] = useState(0);
+  const [ocrExtra, setOcrExtra] = useState<Record<string, string>>({});
   const saveMaster = async () => {
     if (missing.length) { setError(`Campi obbligatori mancanti: ${missing.join(", ")}`); return; }
+    if (docCount < 1) { setError("Fotografa e salva almeno un documento di riconoscimento"); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.primary_email.trim())) { setError("Inserisci un'email valida"); return; }
     setError(null); setSaving(true);
     try {
       const email = form.primary_email.trim().toLowerCase();
       const emails = Array.from(new Set([email, ...existingEmails.map((e) => String(e).toLowerCase())])).slice(0, 5);
-      await api("/master/profile", { method: "PUT", body: { first_name: form.first_name.trim(), last_name: form.last_name.trim(), phone: form.phone.trim(), primary_email: email, emails, tax_id: form.tax_id.trim().toUpperCase() } });
+      await api("/master/profile", { method: "PUT", body: { ...ocrExtra, first_name: form.first_name.trim(), last_name: form.last_name.trim(), phone: form.phone.trim(), primary_email: email, emails, tax_id: form.tax_id.trim().toUpperCase() } });
       setSaved(true); setEditing(false);
       void say(Q3_MASTER_DONE);
     } catch (e: any) { notify("Anagrafica", e?.message || "Salvataggio non riuscito"); } finally { setSaving(false); }
@@ -309,6 +313,13 @@ function MasterThenFirstContact({ say, onNext, onLockChange }: { say: (t: string
         </View>
         {loading ? <ActivityIndicator color={SKY} /> : (
           <View style={styles.card} testID="tour-master-form">
+            {/* V50.z267 — foto documento (CI/patente/passaporto/CF): Axon legge e precompila; almeno un documento è richiesto */}
+            <IdentityDocsSection dark subjectType="user" title="Fotografa il tuo documento (fronte e retro)" onDocsChange={(d) => setDocCount(d.length)}
+              onExtracted={(d) => { setOcrExtra((o) => ({ ...o, ...(d.birth_date ? { birth_date: d.birth_date } : {}), ...(d.address ? { address: [d.address, d.city].filter(Boolean).join(", ") } : {}) })); setForm((f) => ({
+                first_name: f.first_name || d.first_name || "", last_name: f.last_name || d.last_name || "", phone: f.phone, primary_email: f.primary_email,
+                tax_id: f.tax_id || d.tax_id || "",
+              })); }} />
+            <Text style={[styles.p, { fontSize: 12, textAlign: "left" }]}>{docCount > 0 ? `✅ ${docCount} documento/i salvato/i` : "Serve almeno un documento (carta d'identità, patente, passaporto o tessera sanitaria). Axon legge i dati e compila i campi qui sotto."}</Text>
             {MASTER_REQUIRED.map(([k, l]) => (
               <View key={k} style={styles.fieldRow}>
                 <Text style={styles.fieldLbl}>{l} <Text style={{ color: AMBER }}>*</Text></Text>

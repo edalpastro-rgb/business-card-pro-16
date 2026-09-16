@@ -8,6 +8,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { ContractFormsSection } from "@/src/ContractFormsSection"; // V50.z268
 type Contact = { contact_id: string; first_name: string; last_name: string; contact_code?: string; phone?: string };
 
 const TYPES = [
@@ -130,6 +131,9 @@ export default function NewContractScreen() {
 
         <Text style={styles.label}>Note</Text>
         <TextInput value={notes} onChangeText={setNotes} style={[styles.input, { height: 80, textAlignVertical: "top" }]} multiline placeholder="Note interne" testID="contract-notes" />
+
+        {/* V50.z268 — Modulo precompilato da Axon (modelli PDF del Master + dati cliente/documenti/fatture) */}
+        <ContractFormsSection contactId={contact?.contact_id || null} />
 
         <Pressable onPress={submit} disabled={saving} style={styles.submitBtn} testID="contract-submit">
           {saving ? <ActivityIndicator color="#FFF" /> : (<><Ionicons name="checkmark-circle" size={20} color="#FFF" /><Text style={styles.submitTxt}>Salva contratto</Text></>)}

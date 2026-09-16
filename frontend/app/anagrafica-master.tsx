@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
 
 type Cred = { cred_id: string; service: string; username?: string; url?: string; notes?: string; password_masked?: boolean };
 type Profile = {
@@ -135,6 +136,15 @@ export default function AnagraficaMasterScreen() {
           <Pressable onPress={save} disabled={saving} style={styles.saveBtn}>
             {saving ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="save" size={16} color="#FFF" /><Text style={styles.saveTxt}>SALVA DATI</Text></>}
           </Pressable>
+        </View>
+
+        {/* V50.z267 — Documenti di riconoscimento (CI/patente/passaporto/CF): foto fronte-retro, OCR, scadenza, condivisione */}
+        <View style={[styles.card, { marginTop: 14 }]}>
+          <IdentityDocsSection subjectType="user" onExtracted={(d) => setP((prev) => ({
+            ...prev, first_name: prev.first_name || d.first_name, last_name: prev.last_name || d.last_name, tax_id: prev.tax_id || d.tax_id,
+            birth_date: prev.birth_date || d.birth_date, address: prev.address || [d.address, d.city].filter(Boolean).join(", "),
+          }))} />
+          <Text style={[styles.hint, { marginTop: 8, marginBottom: 0 }]}>Avvisi di scadenza automatici: email 3 mesi prima, popup in app 1 mese prima.</Text>
         </View>
 
         {/* Password vault */}

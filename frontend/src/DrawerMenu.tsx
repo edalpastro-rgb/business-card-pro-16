@@ -57,6 +57,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Chat Team",         icon: "chatbubbles-outline",  href: "/(tabs)/chat",        categoryKey: "comm" },
   // Anagrafica & DB Master (verde #10B981)
   { label: "Anagrafica Master",   icon: "id-card-outline",      href: "/anagrafica-master",   categoryKey: "docs" },
+  { label: "Modelli moduli",      icon: "document-attach-outline", href: "/form-templates",   categoryKey: "docs" }, // V50.z268 — PDF moduli auto-compilati
   { label: "Master Files",        icon: "folder-outline",       href: "/master-files",        categoryKey: "docs" },
   { label: "Google Drive",        icon: "cloud-outline",        href: "/google-drive",        categoryKey: "docs" },
   { label: "Le mie aree",         icon: "flash-outline",        href: "/le-mie-aree",         categoryKey: "docs" },

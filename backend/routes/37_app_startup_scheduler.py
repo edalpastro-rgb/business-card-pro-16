@@ -317,6 +317,11 @@ async def _start_scheduler():
             _aw_rollover_job, "cron", hour=8, minute=30,
             id="area-deadline-rollover", replace_existing=True,
         )
+        # V50.z267 — Scadenze documenti di riconoscimento (email 90gg, popup 30gg): ogni giorno 09:15
+        _birthday_scheduler.add_job(
+            _iddoc_expiry_job, "cron", hour=9, minute=15,
+            id="identity-docs-expiry", replace_existing=True,
+        )
         _birthday_scheduler.start()
         logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
         logger.info("Rule-proposals scheduler started (daily 03:00 Europe/Rome)")

@@ -1,0 +1,38 @@
+{
+  "summary": "V50.z267/z268 — Identity docs + Form templates + Filled forms. Backend: 24/24 pytest passed (OCR Gemini w/synthetic PNG, CRUD user + contact docs, foreign-contact 404, run-expiry-check, expiring-popup, snooze, update, delete, user-settings tour_voice_muted persistence, form-templates create/list/detail/page/update, non-master 403 on POST/PUT/DELETE and 200 on GET, contact form fill w/values+missing, filled-form PUT+extra_texts, filled-form PDF contains injected value verified via pymupdf text extraction, filled-form page render, list-by-contact, cleanup). Frontend UI: FT editor renders 12 form-box overlays and fte-field-editor + fte-key + fte-save; /form-templates ft-upload-card visible for Master; iddocs-section + iddoc-add + iddoc-scanner functional on /anagrafica-master; contract-forms-section renders on /contract/new; tour step 1 (tour-start, tour-mute, tour-features-link, tour-restart), step 2 (tour-voice-settings-link, tour-mute, tour-skip-2 = 'Salta le domande'), step 3 shows tour-master-intro, tour-master-mandatory, tour-master-form, tour-master-first_name, tour-master-last_name, tour-master-phone, tour-master-primary_email, tour-master-tax_id, tour-master-save, tour-restart present and tour-skip/tour-skip-3 correctly ABSENT while master is locked/incomplete (matches spec).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "contact/[id].tsx and filled-form/[id].tsx", "issue": "On automated web hard-reload (page.goto direct URL) both dynamic-route screens throw 'Not authenticated' before AuthProvider hydrates AsyncStorage token; screens don't wait for auth ready before calling api(). Not reproducible via user click-through nav; can affect deep-link entry into a filled-form. Consider gating initial load() on auth ready flag.", "testID": "tab-files, ff-save", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "ContractFormsSection template list", "issue": "GET /form-templates uses .catch(()=>{}) inside ContractFormsSection; when the initial call races with auth hydration on SPA nav the list stays empty silently. UI shows the section but no radios, so 'Compila con Axon' remains disabled and user cannot proceed until reload. Recommend awaiting auth ready or a retry-on-401.", "affected_testIDs": ["contract-form-tpl-*", "contract-form-compile"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z267_identity_and_forms.py",
+    "/app/test_reports/pytest/v50z267_results.xml"
+  ],
+  "action_items": [
+    "Auth-race hardening: In ContractFormsSection.tsx / contract/new / contact/[id] / filled-form/[id], defer the first api() call until AuthContext is hydrated (token != undefined) or add a retry on 401 after 500ms; today deep-linking to /filled-form/{id} may error before the token loads.",
+    "ContractFormsSection.tsx line 23: replace silent .catch(()=>{}) with a notify() + retry, so template list failures are surfaced to Master."
+  ],
+  "critical_code_review_comments": [
+    "form_templates.py line 484: PUT /filled-forms uses $unset:{pdf_b64:''} to invalidate cache — correct.",
+    "identity_documents.py line 215: expiring-popup snooze compare is correct (aware of naive datetimes).",
+    "form_templates.py detects fields via AcroForm first, then Gemini vision fallback — good design.",
+    "identity_documents.py subject_type=contact tenant_scope check on contact is enforced via _iddoc_check_subject — foreign contact returns 404 as expected."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (24/24)", "frontend": "90% (all critical testIDs present; auth-race edge case on deep-link only)"},
+  "seed_data_creation": "Backend tests self-seed a template + filled form + identity docs, all cleaned up in test_zzz_cleanup and DELETE steps. Only the pre-existing template ftpl_1555c518b202 and filled-form ffrm_26b1a171940d referenced by main agent were left untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Auth token on web is stored under AsyncStorage key 'auth_token_v1' as JSON.stringify(<token>). To inject in Playwright: page.evaluate((t)=>localStorage.setItem('auth_token_v1', JSON.stringify(t)), token). Full page.goto to /contact/[id] or /filled-form/[id] races auth hydration → prefer SPA history.pushState + popstate after login, or add explicit page.wait_for_timeout(2000) before the first API-bound assertion. Existing seed: template ftpl_1555c518b202 (12 fields, Cognome/Nome/CF/POD/IBAN/Data/Firma) + filled-form ffrm_26b1a171940d for contact c_df937d99682d.",
+  "rca_of_issue": "Auth 'Not authenticated' on deep-link into contact/[id] and filled-form/[id]: root cause is that these screens call load()->api() in their first useEffect without checking whether AuthContext has finished hydrating the token from AsyncStorage (Web IndexedDB-backed). On SPA client-side nav from an already-authenticated screen this never triggers because the token is already in memory; on hard reload / direct URL entry the API call runs first and fails. Fix: gate the initial load on `auth?.ready === true` (add a `ready` flag in AuthProvider once hydration completes) or wrap api() with a 401-retry after a short delay."
+}
