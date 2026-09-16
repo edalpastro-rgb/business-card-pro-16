@@ -14,6 +14,8 @@ type Tip = {
   feature: string;
   feature_label: string;
   video_url: string;
+  route?: string; // V50.z269 — deep link interno
+  cta?: string;
   message: string;
   kind: "auto" | "broadcast" | string;
   created_at: string;
@@ -75,11 +77,17 @@ export function HomeTipsBanner() {
         <Text style={styles.subject}>{tip.feature_label}</Text>
       ) : null}
       <Text style={styles.msg}>{tip.message}</Text>
-      {tip.video_url ? (
+      {tip.route ? (
+        // V50.z269 — Il consiglio apre la funzione DENTRO AdvisorOS (deep link interno), mai link esterni
+        <Pressable style={styles.videoBtn} onPress={() => { dismiss(tip.tip_id); router.push(tip.route as any); }} testID="tip-open-btn">
+          <Ionicons name="arrow-forward-circle" size={16} color="#FFF" />
+          <Text style={styles.videoBtnTxt}>{tip.cta || `Apri ${tip.feature_label || ""}`.trim()}</Text>
+        </Pressable>
+      ) : tip.video_url && !/youtube\.com|google\./i.test(tip.video_url) ? (
         <Pressable
           style={styles.videoBtn}
           onPress={() => {
-            // V50.z108 — WebView interna per tutorial video.
+            // V50.z108 — WebView interna per tutorial video (solo broadcast del Master con link proprio).
             const u = tip.video_url;
             if (u.startsWith("http")) openInAppLink(router, u, { title: "Tutorial" });
             else Linking.openURL(u).catch(() => {});

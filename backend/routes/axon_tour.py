@@ -18,6 +18,17 @@ _TOUR_FEATURES: List[Tuple[str, str, str]] = [  # (id, nome, gruppo)
     ("security", "Sicurezza e 2FA", "Impostazioni"), ("custom", "Personalizzazione", "Impostazioni"), ("help", "Help Center", "Impostazioni"),
 ]
 _TOUR_IDS = {f[0] for f in _TOUR_FEATURES}
+# V50.z269 — ogni funzione dell'elenco «Tutte le funzioni» deve aprire la pagina corrispondente (mai voci senza link)
+_TOUR_FEATURE_ROUTES: Dict[str, str] = {
+    "contacts": "/contatti", "map": "/map-clients", "route": "/optimal-route", "km": "/km-report", "visits": "/map-clients",
+    "calendar": "/calendario", "deadlines": "/deadlines", "referrals": "/contatti", "reviews": "/reviews-analytics", "call_log": "/report",
+    "bills": "/bill-quick", "compare": "/bill-quick", "pun": "/home?section=widgets", "offers": "/bill-quick",
+    "scanner": "/scanner", "files": "/master-files", "pdf": "/report", "business_card": "/business-card",
+    "chat": "/axon-hub", "voice": "/voice-copilot", "notes": "/my-audios", "wake": "/wake-word", "learn": "/ai-teach", "proactive": "/axon-proactive", "wizard": "/setup",
+    "email": "/email-accounts", "whatsapp": "/contatti", "birthday": "/contatti",
+    "team": "/team", "kpi": "/team-insights", "gym": "/corporate-gym", "import": "/contacts-import",
+    "security": "/security", "custom": "/impostazioni?section=branding", "help": "/help-center",
+}
 _TOUR_KEYWORDS = {
     "bills": ["bollett", "fattur", "energia", "luce", "gas"], "compare": ["confront", "offert", "risparm"], "route": ["giro", "visite", "strada", "km", "auto", "spostament"],
     "calendar": ["appuntament", "agenda", "calendar"], "deadlines": ["scadenz", "rinnov", "contratt"], "notes": ["nota", "appunt", "ricord"],
@@ -55,12 +66,15 @@ def _tour_all_features() -> Dict[str, List[dict]]:
         if key in seen_routes:
             continue
         seen_routes.add(key); seen_names.add(e["name"].lower())
-        groups.setdefault(e["group"], []).append({"id": e["id"], "name": e["name"], "route": None if "{id}" in e["route"] else e["route"]})
+        r = e["route"]
+        if "{id}" in r:  # rotte per singolo contatto → la lista contatti (l'utente sceglie il cliente); altre → pagina senza parametro
+            r = "/contatti" if r.startswith("/contact/") else r.split("?")[0]
+        groups.setdefault(e["group"], []).append({"id": e["id"], "name": e["name"], "route": r})
     for fid, name, grp in _TOUR_FEATURES:
         if name.lower() in seen_names:
             continue
         seen_names.add(name.lower())
-        groups.setdefault(_TOUR_GROUP_MAP.get(grp, grp), []).append({"id": fid, "name": name, "route": None})
+        groups.setdefault(_TOUR_GROUP_MAP.get(grp, grp), []).append({"id": fid, "name": name, "route": _TOUR_FEATURE_ROUTES.get(fid)})
     # schermate reali nel codebase non ancora coperte
     try:
         mapped_paths = {r.split("?")[0] for r in seen_routes}

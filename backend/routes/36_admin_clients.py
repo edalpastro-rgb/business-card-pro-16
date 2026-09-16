@@ -16,16 +16,45 @@ ADVISOR_TIERS = [
 ]
 _ADVISOR_TIER_IDS = {t[0] for t in ADVISOR_TIERS}
 
-# Feature keys tracciate + soglie giorni per il suggerimento "non usato"
+# Feature keys tracciate + soglie giorni per il suggerimento "non usato".
+# V50.z269 — `route` = deep link INTERNO AdvisorOS (mai link esterni/YouTube): il tasto del consiglio apre la funzione nell'app.
 ADVISOR_FEATURES: List[dict] = [
-    {"key": "contacts", "label": "Contatti CRM", "days_threshold": 14, "video_url": "https://www.youtube.com/results?search_query=advisoros+crm+contatti"},
-    {"key": "bills", "label": "Analisi Bollette", "days_threshold": 21, "video_url": "https://www.youtube.com/results?search_query=advisoros+analisi+bollette"},
-    {"key": "appointments", "label": "Appuntamenti", "days_threshold": 14, "video_url": "https://www.youtube.com/results?search_query=advisoros+appuntamenti"},
-    {"key": "reviews", "label": "Recensioni Cliente", "days_threshold": 30, "video_url": "https://www.youtube.com/results?search_query=advisoros+recensioni"},
-    {"key": "leads", "label": "Richieste Info (Lead)", "days_threshold": 30, "video_url": "https://www.youtube.com/results?search_query=advisoros+lead"},
-    {"key": "axon_chat", "label": "AxonOS Chat", "days_threshold": 7, "video_url": "https://www.youtube.com/results?search_query=advisoros+axon+chat"},
-    {"key": "collaborators", "label": "Collaboratori & Team", "days_threshold": 30, "video_url": "https://www.youtube.com/results?search_query=advisoros+team"},
+    {"key": "contacts", "label": "Contatti CRM", "days_threshold": 14, "route": "/contatti", "cta": "Apri Contatti"},
+    {"key": "bills", "label": "Analisi Bollette", "days_threshold": 21, "route": "/bill-quick", "cta": "Apri Analisi fatture"},
+    {"key": "appointments", "label": "Appuntamenti", "days_threshold": 14, "route": "/calendario", "cta": "Apri Calendario"},
+    {"key": "reviews", "label": "Recensioni Cliente", "days_threshold": 30, "route": "/reviews-analytics", "cta": "Apri Recensioni"},
+    {"key": "leads", "label": "Richieste Info (Lead)", "days_threshold": 30, "route": "/leads", "cta": "Apri Lead"},
+    {"key": "axon_chat", "label": "AxonOS Chat", "days_threshold": 7, "route": "/chat", "cta": "Apri AxonOS"},
+    {"key": "collaborators", "label": "Collaboratori & Team", "days_threshold": 30, "route": "/team", "cta": "Apri Team"},
 ]
+_ADVISOR_ROUTE_BY_KEY = {f["key"]: f for f in ADVISOR_FEATURES}
+
+
+def _tip_clean_message(text: str) -> str:
+    """Rimuove markdown (#, **), URL esterni e la coda «Guarda come funziona: …» dai consigli (anche quelli già salvati)."""
+    t = str(text or "")
+    t = re.sub(r"https?://\S+", "", t)
+    t = re.sub(r"(?im)^\s*#+\s*consigli utilizzo\s*$", "", t)
+    t = re.sub(r"(?i)^\s*consigli utilizzo\s*[-–:]\s*", "", t.strip())
+    t = re.sub(r"(?i)[\.\s]*guarda come funziona\s*[:：]?\s*\.?\s*$", ".", t.strip())
+    t = t.replace("**", "").replace("__", "")
+    t = re.sub(r"(?m)^\s*#+\s*", "", t)
+    t = re.sub(r"\n{3,}", "\n\n", t).strip()
+    return t.rstrip(":").strip()
+
+
+def _tip_public(doc: dict) -> dict:
+    feat = _ADVISOR_ROUTE_BY_KEY.get(doc.get("feature") or "")
+    out = dict(doc)
+    out["message"] = _tip_clean_message(doc.get("message"))
+    if feat:
+        out["route"] = feat["route"]
+        out["cta"] = feat["cta"]
+    # mai link esterni verso l'utente finale
+    vu = str(doc.get("video_url") or "")
+    if vu.startswith("http") and ("youtube" in vu or "google" in vu):
+        out["video_url"] = ""
+    return out
 
 
 def _super_admin_emails_env() -> set:
@@ -241,12 +270,12 @@ async def admin_customer_tier_suggest(cust_id: str, user=Depends(require_super_a
 
 
 # --- Auto-tips ---
-async def _generate_axon_tip(user_email: str, feature_label: str, video_url: str) -> str:
-    """Genera testo consiglio via Claude. Fallback statico."""
+async def _generate_axon_tip(user_email: str, feature_label: str, cta: str = "") -> str:
+    """Genera testo consiglio via Claude (testo semplice, senza markdown né link). Fallback statico."""
     fallback = (
-        f"Ciao, vedo che non utilizzi mai l'area {feature_label}. "
+        f"Ciao, vedo che non utilizzi ancora l'area {feature_label}. "
         f"Potrebbe aiutarti a risparmiare tempo e organizzare meglio il lavoro. "
-        f"Guarda come funziona: {video_url}"
+        f"Tocca «{cta or 'Apri'}» per provarla."
     )
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -257,15 +286,15 @@ async def _generate_axon_tip(user_email: str, feature_label: str, video_url: str
             api_key=key,
             session_id=f"tip-{uuid.uuid4().hex[:6]}",
             system_message=(
-                "Sei AxonOS. Scrivi un consiglio breve (max 4 righe) in italiano nel formato: "
-                "'CONSIGLI UTILIZZO - Ciao, vedo che non utilizzi mai l\\'area [X]. Potrebbe aiutarti a "
-                "ottenere [beneficio] perché [1 frase spiegazione]. Guarda come funziona: [link video]'. "
+                "Sei AxonOS. Scrivi un consiglio breve (max 4 righe) in italiano, TESTO SEMPLICE: niente markdown, niente #, niente **, "
+                "niente titoli, niente link o URL. Formato: 'Ciao! Vedo che non hai ancora esplorato l'area [X]. Potrebbe aiutarti a "
+                "ottenere [beneficio] perché [1 frase spiegazione].' Chiudi con: 'Tocca «" + (cta or "Apri") + "» per provarla.' "
                 "Tono amichevole, mai commerciale invasivo."
             ),
         ).with_model("anthropic", "claude-sonnet-4-5-20250929")
-        um = UserMessage(text=f"FEATURE: {feature_label}\nLINK: {video_url}\nGENERA il consiglio.")
+        um = UserMessage(text=f"FEATURE: {feature_label}\nGENERA il consiglio.")
         r = await chat.send_message(um)
-        text = (str(r) or "").strip()
+        text = _tip_clean_message(str(r) or "")
         return text[:600] if text else fallback
     except Exception:
         return fallback
@@ -297,13 +326,15 @@ async def _run_advisor_tips_job() -> None:
                     }, {"_id": 0, "tip_id": 1})
                     if existing:
                         continue
-                    text = await _generate_axon_tip(u.get("email", ""), feat["label"], feat["video_url"])
+                    text = await _generate_axon_tip(u.get("email", ""), feat["label"], feat.get("cta", ""))
                     await db.admin_tips.insert_one({
                         "tip_id": f"tip_{uuid.uuid4().hex[:12]}",
                         "user_id": uid,
                         "feature": k,
                         "feature_label": feat["label"],
-                        "video_url": feat["video_url"],
+                        "route": feat["route"],
+                        "cta": feat.get("cta", ""),
+                        "video_url": "",
                         "message": text,
                         "kind": "auto",
                         "created_at": utcnow(),
@@ -324,7 +355,7 @@ async def get_home_tips(user=Depends(get_current_user)):
         {"user_id": user["user_id"], "dismissed": {"$ne": True}},
         {"_id": 0}
     ).sort("created_at", -1).limit(5).to_list(5)
-    return {"items": docs}
+    return {"items": [_tip_public(d) for d in docs]}
 
 
 @api_router.post("/tips/{tip_id}/dismiss")
