@@ -5,6 +5,9 @@ import * as WebBrowser from "expo-web-browser";
 import { api, getToken, setToken, clearToken } from "@/src/api";
 import { storage } from "@/src/utils/storage";
 
+WebBrowser.maybeCompleteAuthSession();
+const usedSessionIds = new Set<string>(); // V50.z272 — un session_id va scambiato una sola volta
+
 export type User = {
   user_id: string;
   email: string;
@@ -177,6 +180,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       }
+      // V50.z272 — Native cold start: l'app è stata riaperta dal deep link frontend://#session_id=… (Android Custom Tabs)
+      if (Platform.OS !== "web") {
+        try {
+          const initial = await Linking.getInitialURL();
+          const m = initial ? initial.match(/[?#&]session_id=([^&#]+)/) : null;
+          if (m && !usedSessionIds.has(m[1])) {
+            usedSessionIds.add(m[1]);
+            const r = await api<{ token: string; user: User }>("/auth/google-session", { method: "POST", body: { session_id: m[1] } });
+            await setToken(r.token);
+            const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+            await saveTrust(iso);
+            setTrustExpiresAt(iso);
+            await storage.secureSet(LAST_UNLOCK_KEY, Date.now());
+            setUser(r.user);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.warn("google cold-start session err", e);
+        }
+      }
       await refresh();
 
       // Load trust + determine if lock needed
@@ -246,36 +270,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginGoogle = async () => {
-    // V49.b — Redirect + auth-base robusti anche in build deployati dove alcune
-    // env vars possono essere stripped o parziali (es. `https://auth.` senza
-    // dominio → URL rotto `https://auth./?...`). Manteniamo il valore da .env
-    // se sensato, altrimenti facciamo fallback hardcoded ai domini Emergent.
+    // V50.z272 — Emergent Google Auth secondo playbook: base auth FISSA https://auth.emergentagent.com
+    // (l'env di deploy può contenere domini diversi, es. auth.emergent.host → "not found"); redirect per piattaforma;
+    // su Android il callback può arrivare da result.url, dal listener `url` o da getInitialURL (dismiss ≠ annullato).
+    const AUTH_BASE = "https://auth.emergentagent.com";
     const DEPLOY_BASE = "https://business-card-pro-16.emergent.host";
-    const AUTH_FALLBACK = "https://auth.emergentagent.com";
-    const rawAuthBase = String(process.env.EXPO_PUBLIC_EMERGENT_AUTH_URL || "").trim();
-    // Sano solo se ha un host con almeno un punto seguito da estensione.
-    const authHostOk = /^https?:\/\/[^./]+\.[^./]+/i.test(rawAuthBase);
-    const emergentAuthBase = (authHostOk ? rawAuthBase : AUTH_FALLBACK).replace(/\/+$/, "");
-    // Redirect verso l'app: su web usiamo l'origin corrente; se assente (SSR /
-    // ambienti dove window è undefined) ripieghiamo sul dominio di deploy.
     let redirectUrl: string;
     if (Platform.OS === "web") {
-      const origin = typeof window !== "undefined" && window.location?.origin
-        ? window.location.origin
-        : "";
+      const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
       redirectUrl = (origin || DEPLOY_BASE) + "/";
     } else {
       redirectUrl = Linking.createURL("");
     }
-    const authUrl = `${emergentAuthBase}/?redirect=${encodeURIComponent(redirectUrl)}`;
+    const authUrl = `${AUTH_BASE}/?redirect=${encodeURIComponent(redirectUrl)}`;
     if (Platform.OS === "web") {
       window.location.href = authUrl;
       return;
     }
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
-    if (result.type !== "success" || !result.url) return;
-    const m = result.url.match(/session_id=([^&#]+)/);
+    let hotUrl: string | null = null;
+    const sub = Linking.addEventListener("url", (e) => { if (e?.url && /session_id=/.test(e.url)) hotUrl = e.url; });
+    let cbUrl: string | null = null;
+    try {
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+      if (result.type === "success" && result.url) cbUrl = result.url;
+    } catch {}
+    if (!cbUrl) {
+      await new Promise((r) => setTimeout(r, 400));
+      cbUrl = hotUrl || (await Linking.getInitialURL().catch(() => null));
+    }
+    sub.remove();
+    if (!cbUrl) return;
+    const m = cbUrl.match(/[?#&]session_id=([^&#]+)/);
     if (!m) return;
+    if (usedSessionIds.has(m[1])) return;
+    usedSessionIds.add(m[1]);
     const r = await api<{ token: string; user: User }>("/auth/google-session", {
       method: "POST",
       body: { session_id: m[1] },

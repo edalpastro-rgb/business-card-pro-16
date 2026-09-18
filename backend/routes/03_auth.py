@@ -239,7 +239,10 @@ async def google_session(body: GoogleSessionInput):
     """Exchange Emergent session_id -> session_token, upsert user, store session."""
     # V45c — Base URL from env only; fail fast if not configured to avoid
     # silent environment drift.
-    emergent_auth_base = os.environ.get("EMERGENT_AUTH_BASE_URL", "").strip().rstrip("/")
+    # V50.z272 — endpoint Emergent fisso da playbook (l'env di deploy potrebbe contenere un dominio diverso)
+    emergent_auth_base = (os.environ.get("EMERGENT_AUTH_BASE_URL", "").strip().rstrip("/") or "https://demobackend.emergentagent.com")
+    if "emergentagent.com" not in emergent_auth_base:
+        emergent_auth_base = "https://demobackend.emergentagent.com"
     if not emergent_auth_base:
         raise HTTPException(
             status_code=500,
