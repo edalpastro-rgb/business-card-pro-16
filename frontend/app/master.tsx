@@ -78,7 +78,8 @@ function MasterScreen() {
           try {
             const parsed = JSON.parse(ord);
             if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string")) {
-              setButtonOrder(parsed);
+              // V50.z287 — migrazione etichetta rinominata (l'ordine salvato è per etichetta)
+              setButtonOrder(parsed.map((x: string) => (x === "Compilazione CRT" ? "Autocompilazione CRT" : x)));
             }
           } catch { /* ignore malformed */ }
         }
@@ -242,8 +243,9 @@ function MasterScreen() {
     { label: "Scanner", icon: "scan", color: "#475569", onPress: () => goto("/scanner") },
     // V50.z157 — Meteo tra le Utility (richiesta utente)
     { label: "Meteo", icon: "partly-sunny", color: "#475569", onPress: () => goto("/meteo") },
+    { label: "Profilo", icon: "person", color: "#475569", onPress: () => goto("/(tabs)/impostazioni") }, // V50.z287 — mancava nel blocco Utility
     // CRM Core
-    { label: "Compilazione CRT", icon: "document-text", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread },
+    { label: "Autocompilazione CRT", icon: "color-wand", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread }, // V50.z287
     { label: "New App", icon: "add-circle", color: "#0EA5E9", onPress: () => goto("/appointment/new") },
     // Comunicazioni
     {
@@ -287,6 +289,9 @@ function MasterScreen() {
     // V50.z285 — Area Corsi nella griglia (prima solo card dentro Team Insights → introvabile); badge = corsi nuovi
     { label: "Area Corsi", icon: "school", color: "#EAB308", onPress: () => goto("/courses"), badge: newCourses },
     { label: "Team Insights", icon: "analytics", color: "#EAB308", onPress: () => goto("/team-insights") },
+    // V50.z287 — area feedback/recensioni clienti e segnalazioni (bug, errori, idee) di nuovo raggiungibili dalla griglia
+    { label: "Recensioni Clienti", icon: "star", color: "#EAB308", onPress: () => goto("/reviews-analytics") },
+    { label: "Feedback & Bug", icon: "bug", color: "#EAB308", onPress: () => goto("/bug-report") },
   ];
 
   // V48 — Apply saved order (if any), placing unknown/new buttons at the end.

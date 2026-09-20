@@ -38,7 +38,7 @@ export const EDGE_ACTIONS: EdgeAction[] = [
   { id: "profilo", label: "Profilo", icon: "person", color: "#7C3AED", href: "/(tabs)/impostazioni" },
   { id: "new-contact", label: "Nuovo Contatto", icon: "person-add", color: "#7C3AED", href: "/contact/new" },
   { id: "new-appt", label: "Nuovo Appuntamento", icon: "add-circle", color: "#16A34A", href: "/appointment/new" },
-  { id: "new-crt", label: "Compilazione CRT", icon: "document-text", color: "#059669", href: "/crt" },
+  { id: "new-crt", label: "Autocompilazione CRT", icon: "color-wand", color: "#059669", href: "/crt" }, // V50.z287 — rinominato + icona «bacchetta» (autocompilazione)
   { id: "my-audios", label: "I miei audio", icon: "folder-open", color: "#8B5CF6", href: "/my-audios" },
   { id: "spazio-personale", label: "Spazio Personale", icon: LOCK_KEY_ICON, color: "#059669", href: "/spazio-personale" }, // V50.z205 · V50.z237 lucchetto+chiave
   { id: "my-files", label: "I miei file", icon: "folder-open", color: "#0891B2", href: "/master-files" },
@@ -56,6 +56,7 @@ export const EDGE_ACTIONS: EdgeAction[] = [
   { id: "banners", label: "Banner Evento", icon: "megaphone", color: "#F59E0B", href: "/event-banners" },
   { id: "ha", label: "Home Assistant", icon: "home-outline", color: "#3B82F6", href: "/axon-homeassistant" },
   { id: "meteo", label: "Meteo", icon: "partly-sunny", color: "#0EA5E9", href: "/meteo" }, // V50.z162
+  { id: "scanner", label: "Scanner", icon: "scan", color: "#475569", href: "/scanner" }, // V50.z287 — mancava tra le utility
 ];
 
 const KEY_IDS = "edge_panel_ids_v1";
