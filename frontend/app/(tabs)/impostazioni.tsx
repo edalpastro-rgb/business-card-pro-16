@@ -18,6 +18,7 @@ import { invalidateTableBrandHeader } from "@/src/ChatTableExport";
 import { AxonMemoryEntryCard } from "@/src/AxonMemoryEntryCard"; // V50.z192 — Profilo → Memoria AxonOS
 import { AppInfoCard } from "@/src/AppInfoCard"; // V50.z208 — Piano attivo + versione APK
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5
+import { ResetTestDataCard } from "@/src/ResetTestDataCard"; // V50.z288 — Azzera dati di test (Master)
 import { AxonToneLevelPicker } from "@/src/AxonToneLevelPicker"; // V50.z218 — Blocco 6: tono a 5 livelli (5 = Fantasiosa)
 import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 — interessi futuri dal wizard
 import { VisitDetectionSettings } from "@/src/VisitDetectionSettings"; // V50.z256 — Rilevamento Visite
@@ -457,6 +458,7 @@ function ImpostazioniScreen() {
                 <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
               </Pressable>
             ) : null}
+            {isOwner ? <ResetTestDataCard /> : null}
           </View>
           <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center" }}>Le impostazioni dell'assistente AxonOS (nome, voce, tono, header tabelle, memoria, Insegna ad Axon) sono in AxonOS Center.</Text>
         </>)}

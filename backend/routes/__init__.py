@@ -87,7 +87,8 @@ MODULES = [
     "axon_geo_routing.py",  # V50.z240 — FEAT-GEO-001 Fase 1: GET /geo/contacts-map (geocoding cache contacts.geo), POST /geo/optimal-route (NN + 2-opt, geo_routes) (isolato; dopo 07_contacts per _geocode_one)
     "geo_km_log.py",  # V50.z253 — Resoconto Km: visite completate nel Giro Ottimale → km da percorso (POST/GET/DELETE /geo/km-log) (isolato; dopo axon_geo_routing)
     "contact_visits.py",  # V50.z256 — Rilevamento Visite: visite confermate, candidati GPS, frequenza ripasso, /visits/* (isolato; dopo axon_geo_routing e geo_km_log; avvolge _prepare_assistant_prompt)
-    "axon_tour.py",  # V50.z257 — Tour Guidato conversazionale: /tour/profile, /tour/contact-from-text, /tour/features (isolato; dopo 12_ai_contact_copilot)
+    "axon_tour.py",
+    "admin_reset.py",  # V50.z288 — Azzera dati di test (Master)
     "axon_navigator.py",  # V50.z259 — Navigatore AxonOS: mappa completa app con deep link [[NAV:route|label]], flussi multi-step, azioni confermabili [[ACTION]], suggerimenti proattivi (/axon/nav/*) (isolato; avvolge _maybe_push_command e _prepare_assistant_prompt; DOPO axon_neo_bridge, contact_visits, 19 core)
     "axon_stress_test.py",  # V50.z260 — Stress test AxonOS: 200+ domande × N ripetizioni via /assistant/chat/stream, valutazione deep link/coerenza/trap, report + HTML PDF, correzioni prompt (db.axon_prompt_rules) (isolato; DOPO axon_navigator: avvolge _prepare_assistant_prompt e _nav_intercept)
     "identity_documents.py",  # V50.z267 — Documenti di riconoscimento: OCR Gemini CI/patente/passaporto/CF fronte-retro, archivio (Object Storage → fallback Mongo), scadenze (job 09:15: email 90gg, popup/CRITICAL 30gg) (isolato; usa 05, 12, axon_personal_lock, axon_notifications)
