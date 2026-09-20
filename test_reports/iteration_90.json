@@ -1,0 +1,37 @@
+{
+  "summary": "First full E2E of the new Compilazione CRT module. Backend: 11/11 pytest passed against public URL (create/list/get, service+overrides, dossier referent manual + visura AI upload, fill form, merge PDF, share-link with QR, public no-auth download, status update, settings order, delete). Frontend (mobile 390x844 web preview): login → seed practice /crt/crt_816f069a80c0 detail loads dossier + services + PDF section; referent inputs save (dossier chip shows '3 dati'); bills modal opens with crt-bill-<id> + crt-bills-done; supply rows + annual override input present; template chip triggers fill and 2 filled forms render (2 copies expected from 5 bills with rows_per_form logic); crt-merge, crt-download, crt-qr, crt-status-<k> all present; QR modal shows real QR image; create form (crt-contact-search, crt-pick-<id>, crt-svc-luce/gas/telco, crt-create-submit) works; Master-only crt-order-example card visible.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_crt_module.py",
+    "/app/test_reports/pytest/crt_module.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "crt_practices.py exposes _pymupdf.open and PDF merge with images — the compression loop swallows all exceptions silently; consider logging errors so image-shrink regressions are visible.",
+    "crt_dossier_upload accepts data_base64 up to 12MB; base64 payloads inflate to ~9MB raw — memory-only decode with no streaming, acceptable for this route but should be monitored.",
+    "In crt_service_update, `bill_ids` reset also implicitly regenerates supplies; overriding annual after changing bill_ids will lose overrides for supply_ids no longer present (already handled via prev dict, but only when supply_id is reused — POD-merged supplies rely on same supply_id derived from the FIRST bill_id). If the user later removes that first bill, overrides get orphaned.",
+    "Frontend /app/frontend/app/crt/[id].tsx line ~48: saveManual uses stale `manual` object closure; if user edits then toggles doc closed, state resets. Consider clearing/using ref for more resilience.",
+    "Console noise: Invalid DOM property `transform-origin` (react-native-web / SVG issue), 405 on /api/auth/profile, 404 on /api/identity-docs — pre-existing, unrelated to CRT."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_crt_module.py (new — reusable regression suite)"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11)",
+    "frontend": "100% critical flows validated"
+  },
+  "seed_data_creation": "Two throwaway practices were created during backend tests (services=luce+gas and luce only for delete test) and cleaned up via fixture teardown / explicit DELETE. Seed practice crt_816f069a80c0, contact c_9319b9eb3c95, bills bill_crt0..bill_crt4, template ftpl_d4ed4208aa1b left untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login button on /login must be triggered via DOM el.click() (element.evaluate) — Playwright page.click() / mouse.click() do NOT fire the underlying React onPress on this app's TouchableOpacity-based auth-submit-button. Use `await page.evaluate(\"() => document.querySelector('[data-testid=\\\"auth-submit-button\\\"]').click()\")`. Successful login redirects to /tour, then /crt is fully accessible. Also many other TouchableOpacity buttons across the app respond fine to page.click(force=True) — the auth submit is the odd one. Seed data at bottom of /app/memory/test_credentials.md.",
+  "rca_of_issue": "N/A — no bugs to root-cause. All CRT endpoints and UI interactions worked as specified. AI visura extraction on a 1x1 PNG returned 200 (empty extraction is acceptable per prompt spec)."
+}

@@ -38,7 +38,7 @@ export const EDGE_ACTIONS: EdgeAction[] = [
   { id: "profilo", label: "Profilo", icon: "person", color: "#7C3AED", href: "/(tabs)/impostazioni" },
   { id: "new-contact", label: "Nuovo Contatto", icon: "person-add", color: "#7C3AED", href: "/contact/new" },
   { id: "new-appt", label: "Nuovo Appuntamento", icon: "add-circle", color: "#16A34A", href: "/appointment/new" },
-  { id: "new-crt", label: "Nuovo Contratto", icon: "document-text", color: "#059669", href: "/contract/new" },
+  { id: "new-crt", label: "Compilazione CRT", icon: "document-text", color: "#059669", href: "/crt" },
   { id: "my-audios", label: "I miei audio", icon: "folder-open", color: "#8B5CF6", href: "/my-audios" },
   { id: "spazio-personale", label: "Spazio Personale", icon: LOCK_KEY_ICON, color: "#059669", href: "/spazio-personale" }, // V50.z205 · V50.z237 lucchetto+chiave
   { id: "my-files", label: "I miei file", icon: "folder-open", color: "#0891B2", href: "/master-files" },

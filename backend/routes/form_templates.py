@@ -27,7 +27,23 @@ FT_SEMANTIC_KEYS: Dict[str, str] = {
     "pod": "POD (luce)", "pdr": "PDR (gas)", "current_supplier": "Fornitore attuale", "customer_code": "Codice cliente fornitore",
     "annual_consumption_kwh": "Consumo annuo kWh", "annual_consumption_smc": "Consumo annuo Smc", "meter_power_kw": "Potenza impegnata kW",
     "date_today": "Data (oggi)", "place_today": "Luogo (oggi)", "signature": "Firma (lasciare vuoto)", "other": "Altro / testo libero",
+    # V50.z282 — Compilazione CRT
+    "voltage": "Tensione (BT/MT)", "avg_monthly_kwh": "Consumo medio mensile kWh", "avg_monthly_smc": "Consumo medio mensile Smc", "supply_customer_code": "Codice cliente fornitura",
+    "previous_supplier": "Precedente fornitore", "previous_customer_code": "Codice cliente precedente fornitore", "previous_contract_expiry": "Scadenza contratto precedente",
+    "referent_name": "Referente contratto", "referent_phone": "Cellulare referente contratto", "referent_email": "Email referente contratto",
+    "offer_name": "Nome offerta (CTE)", "offer_price": "Prezzo offerta (CTE)", "offer_duration": "Durata offerta (CTE)",
+    "company_tax_id": "Codice fiscale azienda", "legal_form": "Forma giuridica", "rea_cciaa": "CCIAA (REA)", "legal_rep_tax_id": "CF legale rappresentante",
+    "legal_rep_birth": "Nascita legale rappresentante", "legal_rep_role": "Carica legale rappresentante", "share_capital": "Capitale sociale", "line_number": "Numero linea (telco)",
 }
+_FT_ROW_KEY_RX = re.compile(r"^([a-z_]+)_(\d{1,2})$")
+
+
+def _ft_split_key(key: str) -> Tuple[str, int]:
+    """`pod_3` → ("pod", 3); chiave semplice → (key, 0). Le chiavi numerate sono le righe della tabella forniture."""
+    m = _FT_ROW_KEY_RX.match(key or "")
+    if m and m.group(1) in FT_SEMANTIC_KEYS:
+        return m.group(1), int(m.group(2))
+    return key, 0
 
 FT_DETECT_SYSTEM = (
     "Sei un analista di moduli cartacei italiani (contratti energia/gas, deleghe, privacy, adesioni). Ricevi l'immagine di UNA pagina di un modulo. "
@@ -35,6 +51,7 @@ FT_DETECT_SYSTEM = (
     '{"fields":[{"key":"<chiave>","label":"<etichetta stampata>","kind":"text|checkbox|date","bbox":[x0,y0,x1,y1],"example_value":"<valore se il modulo è un esempio già compilato, altrimenti vuoto>"}]}. '
     "bbox = rettangolo DOVE SCRIVERE IL VALORE (non l'etichetta), coordinate intere 0-1000 relative alla pagina (x da sinistra, y dall'alto). "
     "Le chiavi ammesse sono: " + ", ".join(FT_SEMANTIC_KEYS.keys()) + ". Usa 'other' se nessuna chiave corrisponde e metti in label il testo dell'etichetta. "
+    "Se il modulo contiene una TABELLA con più righe di forniture/punti di prelievo (POD/PDR, indirizzo fornitura, potenza, consumo…), numera le chiavi per riga con suffisso _1, _2, _3… (es. pod_1, supply_address_1, pod_2, supply_address_2): una chiave per ogni cella. "
     "Se il modulo è un esempio compilato, i valori scritti a mano/macchina indicano ESATTAMENTE dove va il testo: usa la loro posizione come bbox e riportali in example_value. "
     "Ordina i campi nell'ordine di lettura (alto→basso, sinistra→destra). Nessun testo fuori dal JSON."
 )
@@ -185,10 +202,11 @@ def _ft_norm_field(f: dict, order: int) -> dict:
     if bbox[3] <= bbox[1]:
         bbox[3] = min(1000.0, bbox[1] + 18)
     key = str(f.get("key") or "other")
-    return {"id": f.get("id") or f"f_{uuid.uuid4().hex[:8]}", "key": key if key in FT_SEMANTIC_KEYS else "other", "label": str(f.get("label") or FT_SEMANTIC_KEYS.get(key, ""))[:120],
+    base, _row = _ft_split_key(key)
+    return {"id": f.get("id") or f"f_{uuid.uuid4().hex[:8]}", "key": key if base in FT_SEMANTIC_KEYS else "other", "label": str(f.get("label") or FT_SEMANTIC_KEYS.get(base, ""))[:120], "skip": bool(f.get("skip")),
             "kind": f.get("kind") if f.get("kind") in ("text", "checkbox", "date") else "text", "page": int(f.get("page") or 0), "bbox": bbox,
             "font_size": f.get("font_size"), "order": int(f.get("order") if f.get("order") is not None else order), "acro_name": f.get("acro_name"),
-            "example_value": str(f.get("example_value") or "")[:200]}
+            "example_value": str(f.get("example_value") or "")[:200], "option": f.get("option"), "char_index": f.get("char_index")}
 
 
 async def _ft_detect_fields(raw: bytes, is_filled_example: bool) -> Tuple[List[dict], str]:
@@ -217,6 +235,51 @@ async def _ft_detect_fields(raw: bytes, is_filled_example: bool) -> Tuple[List[d
     return fields, "ai"
 
 
+_FT_ACRO_ROW_RX = re.compile(r"^(?:pod|pdr|linea|fornitura|riga|row)_(\d{1,2})_", re.I)
+_FT_ROWABLE = {"pod", "pdr", "line_number", "supply_address", "supply_city", "supply_cap", "supply_province", "meter_power_kw", "voltage", "annual_consumption_kwh", "annual_consumption_smc",
+               "avg_monthly_kwh", "avg_monthly_smc", "current_supplier", "supply_customer_code", "customer_code"}
+
+
+def _ft_postprocess_fields(fields: List[dict]) -> List[dict]:
+    """V50.z282 — (1) nomi AcroForm `pod_2_…` → chiave numerata `key_2` (righe forniture); (2) run di campi stretti con la
+    stessa chiave → caselle a carattere singolo (char_index); (3) checkbox tensione bassa/media/alta → option BT/MT/AT."""
+    for f in fields:
+        an = (f.get("acro_name") or "")
+        m = _FT_ACRO_ROW_RX.match(an)
+        base, row = _ft_split_key(f["key"])
+        if m and base in _FT_ROWABLE and row == 0:
+            f["key"] = f"{base}_{int(m.group(1))}"
+        low = an.lower()
+        if base == "voltage" or "tensione" in low:
+            opt = "BT" if "bassa" in low else "MT" if "media" in low else "AT" if "alta" in low else None
+            if opt:
+                f["kind"], f["option"] = "checkbox", opt
+                if base != "voltage":
+                    f["key"] = f"voltage_{int(m.group(1))}" if m else "voltage"
+    i = 0
+    while i < len(fields):
+        j = i
+        while j + 1 < len(fields) and fields[j + 1]["key"] == fields[i]["key"] and fields[j + 1]["kind"] == "text" and (fields[j + 1]["bbox"][2] - fields[j + 1]["bbox"][0]) < 25:
+            j += 1
+        if j - i + 1 >= 5 and fields[i]["kind"] == "text" and _ft_split_key(fields[i]["key"])[0] != "other":
+            for k, idx in zip(range(i, j + 1), range(j - i + 1)):
+                fields[k]["char_index"] = idx
+            i = j + 1
+        else:
+            i += 1
+    return fields
+
+
+def _ft_cell_value(f: dict, v: str) -> str:
+    """Valore da scrivere nel campo: casella carattere → singolo carattere; checkbox con option → X se coincide."""
+    if f.get("option"):
+        return "X" if (v or "").strip().upper() == f["option"] else ""
+    if f.get("char_index") is not None:
+        clean = re.sub(r"\s+", "", v or "")
+        return clean[f["char_index"]] if f["char_index"] < len(clean) else ""
+    return v
+
+
 def _ft_public_template(t: dict, with_fields: bool = True) -> dict:
     out = {k: v for k, v in t.items() if k not in ("_id", "pdf_b64")}
     if not with_fields:
@@ -239,6 +302,7 @@ async def form_template_create(body: FormTemplateIn, user=Depends(get_current_us
     except Exception:  # noqa: BLE001
         raise HTTPException(status_code=400, detail="Il file non è un PDF valido")
     fields, source = await _ft_detect_fields(raw, body.is_filled_example)
+    fields = _ft_postprocess_fields(fields)  # V50.z282 — righe numerate / caselle carattere / checkbox tensione
     tid = tenant_id(user)
     template_id = f"ftpl_{uuid.uuid4().hex[:12]}"
     doc = {"template_id": template_id, "tenant_id": tid, "name": body.name.strip()[:120] or "Modulo", "notes": (body.notes or "").strip()[:500],
@@ -422,9 +486,10 @@ async def filled_form_create(contact_id: str, body: FilledFormCreate, user=Depen
     sources: Dict[str, str] = {}
     missing: List[dict] = []
     for f in t.get("fields") or []:
-        if f["key"] in ("signature",):
+        if f["key"] in ("signature",) or f.get("skip"):
             continue
-        v = vals.get(f["key"], "")
+        base, _row = _ft_split_key(f["key"])
+        v = vals.get(f["key"], "") or (vals.get(base, "") if _row <= 1 else "")
         if f["kind"] == "checkbox":
             v = ""
         if v:

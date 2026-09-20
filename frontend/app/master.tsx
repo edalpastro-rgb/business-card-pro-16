@@ -218,7 +218,7 @@ function MasterScreen() {
   const handleNewContract = async () => {
     // Mark as seen (clears the badge)
     try { await api("/contracts/mark-seen", { method: "POST" }); await load(); } catch {}
-    router.push("/contract/new" as any);
+    router.push("/crt" as any);
   };
 
   const buttons: { label: string; icon: MenuIconName; color: string; onPress: () => void; badge?: number; pulse?: Animated.Value }[] = [
@@ -238,7 +238,7 @@ function MasterScreen() {
     // V50.z157 — Meteo tra le Utility (richiesta utente)
     { label: "Meteo", icon: "partly-sunny", color: "#475569", onPress: () => goto("/meteo") },
     // CRM Core
-    { label: "New CRT", icon: "document-text", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread },
+    { label: "Compilazione CRT", icon: "document-text", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread },
     { label: "New App", icon: "add-circle", color: "#0EA5E9", onPress: () => goto("/appointment/new") },
     // Comunicazioni
     {

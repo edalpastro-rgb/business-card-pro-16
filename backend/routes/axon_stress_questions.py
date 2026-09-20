@@ -302,6 +302,10 @@ QUESTIONS = [
     ("offline", "Dove vedo le modifiche in attesa di sincronizzazione?", ["/offline-sync"], ""),
     ("offline", "sono in una zona senza campo, posso lavorare lo stesso?", ["/offline-sync"], "conv"),
     ("offline", "Posso usare Axon con la voce quando sono offline?", ["/offline-sync"], "conv"),
+    ("crt", "Dove compilo un nuovo contratto luce e gas per un cliente?", ["/crt"], ""),
+    ("crt", "Come faccio a far leggere la visura camerale ad Axon per la pratica?", ["/crt"], ""),
+    ("crt", "Come viene calcolato il consumo annuo se la fattura ha solo 8 mesi di storico?", ["/crt"], "conv"),
+    ("crt", "Posso condividere il contratto finale con un QR code?", ["/crt"], "conv"),
 ]
 
 
