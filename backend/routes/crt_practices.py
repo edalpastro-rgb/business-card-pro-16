@@ -6,8 +6,13 @@
 # Esempi compilati: `POST /form-templates/{id}/examples` → Axon impara quali campi compilare (skip) e come.
 CRT_SERVICES = ("luce", "gas", "telco")
 CRT_DOC_TYPES = {"id_card": "Carta d'identità", "tax_code": "Codice fiscale / Tessera sanitaria", "visura": "Visura camerale", "iban": "IBAN (foto/PDF)", "sdi": "Codice univoco SDI / PEC",
-                 "referent": "Referente contratto (cellulare + email)", "cte": "CTE offerta", "previous_contract": "Contratto precedente fornitore"}
+                 "referent": "Referente contratto (cellulare + email)", "cte": "CTE offerta", "previous_contract": "Contratto precedente fornitore",
+                 "visura_catastale": "Visura catastale (opzionale, volture)"}  # V50.z286
+# V50.z286 — documenti «modulo» del fornitore già firmati/scannerizzati: si caricano nel dossier senza estrazione dati (solo file per il PDF unico)
+CRT_FILE_ONLY_TYPES = {"sepa": "Modulo SEPA", "pda": "Proposta di adesione", "procura": "Procura/Delega"}
 CRT_DOC_PROMPTS = {
+    "visura_catastale": ("Estrai dalla VISURA CATASTALE un JSON con: cadastral_municipality (comune), cadastral_section, cadastral_sheet (foglio), cadastral_parcel (particella), cadastral_sub (subalterno), cadastral_category (categoria), "
+                         "cadastral_class, cadastral_rent (rendita), property_address (indirizzo immobile), property_owner (intestatario), owner_tax_id. Ometti i campi assenti."),
     "visura": ("Estrai dalla VISURA CAMERALE (documento legale Registro Imprese) un JSON con: company_name (denominazione), legal_form (forma giuridica), vat_number (partita IVA 11 cifre), company_tax_id (codice fiscale azienda), "
                "company_address (via e civico sede legale), company_cap, company_city, company_province (sigla), pec, rea (numero REA), rea_cciaa (CCIAA), ateco (codice + descrizione breve), legal_rep (nome e cognome del legale rappresentante: "
                "Amministratore Unico / Presidente CdA / Titolare per ditta individuale), legal_rep_tax_id, legal_rep_birth (data e luogo), legal_rep_role (carica), share_capital, activity_status (attiva/cessata), founded_date. Ometti i campi assenti."),
@@ -32,6 +37,17 @@ class CrtPracticeUpdate(BaseModel):
     title: Optional[str] = None
     status: Optional[str] = None
     dossier_manual: Optional[Dict[str, Dict[str, Any]]] = None  # {doc_type: {campo: valore}}
+    # V50.z286 — ordine documenti solo per questa pratica (override; [] = usa il predefinito), data/luogo firma (facoltativi)
+    doc_order: Optional[List[str]] = None
+    doc_excluded: Optional[List[str]] = None
+    sign_date: Optional[str] = None   # YYYY-MM-DD | "" per azzerare (→ data di compilazione)
+    sign_place: Optional[str] = None  # "" per azzerare (→ proposta da visura / città cliente)
+
+
+class CrtOrderIn(BaseModel):
+    doc_order: List[str]
+    excluded: List[str] = Field(default_factory=list)
+    custom_types: Optional[Dict[str, str]] = None  # {id: etichetta}
 
 
 class CrtDossierIn(BaseModel):
@@ -56,7 +72,7 @@ class CrtFillIn(BaseModel):
 
 class CrtMergeIn(BaseModel):
     include_dossier: bool = True
-    include_bills: bool = False
+    include_bills: Optional[bool] = None  # None = come da ordine documenti («Fatture» incluso/escluso)
     order: Optional[List[str]] = None  # ["luce","gas","telco"]
 
 
@@ -173,6 +189,61 @@ def _crt_dossier_values(p: dict) -> Dict[str, str]:
     return {k: v for k, v in vals.items() if v}
 
 
+async def _crt_order_settings(tenant: str) -> dict:
+    """Ordine documenti del tenant: {doc_order, excluded, custom_types, source}. Fallback predefinito."""
+    s = await db.crt_settings.find_one({"tenant_id": tenant}, {"_id": 0}) or {}
+    custom = {k: str(v)[:60] for k, v in (s.get("custom_types") or {}).items() if str(k).startswith("custom_")}
+    order = [x for x in (s.get("doc_order") or CRT_DEFAULT_ORDER) if x in CRT_ORDER_LABELS or x in custom]
+    for x in CRT_DEFAULT_ORDER:  # tipologie nuove/mancanti finiscono in coda (mai perse)
+        if x not in order:
+            order.append(x)
+    for x in custom:
+        if x not in order:
+            order.append(x)
+    excluded = [x for x in (s.get("doc_excluded") or []) if x in order]
+    return {"doc_order": order, "excluded": excluded, "custom_types": custom, "source": s.get("doc_order_source") or ("example" if s.get("example_name") else "default"), "example_name": s.get("example_name")}
+
+
+def _crt_all_labels(custom: Dict[str, str]) -> Dict[str, str]:
+    return {**CRT_ORDER_LABELS, **custom}
+
+
+def _crt_doc_types_for(custom: Dict[str, str]) -> Dict[str, str]:
+    """Tipologie caricabili nel dossier (con etichetta), in ordine di presentazione."""
+    return {**CRT_DOC_TYPES, **CRT_FILE_ONLY_TYPES, **custom}
+
+
+async def _crt_effective_order(p: dict) -> Tuple[List[str], List[str], Dict[str, str]]:
+    """(ordine, esclusi, etichette) effettivi per la pratica: override della pratica → impostazione tenant → predefinito."""
+    st = await _crt_order_settings(p["tenant_id"])
+    labels = _crt_all_labels(st["custom_types"])
+    if p.get("doc_order_override"):
+        order = [x for x in p["doc_order_override"] if x in labels]
+        for x in st["doc_order"]:
+            if x not in order:
+                order.append(x)
+        excluded = [x for x in (p.get("doc_excluded_override") or []) if x in order]
+    else:
+        order, excluded = st["doc_order"], st["excluded"]
+    return order, excluded, labels
+
+
+def _crt_sign_place_suggested(p: dict, contact: Optional[dict]) -> str:
+    """Luogo firma proposto: comune della sede legale (visura camerale) → città del cliente."""
+    vis = (p.get("dossier") or {}).get("visura") or {}
+    merged = {**(vis.get("extracted") or {}), **(vis.get("manual") or {})}
+    city = str(merged.get("company_city") or "").strip()
+    if city:
+        return city
+    return str((contact or {}).get("address_city") or (contact or {}).get("city") or "").strip()
+
+
+def _crt_fmt_sign_date(v: Optional[str]) -> str:
+    v = (v or "").strip()
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", v)
+    return f"{m.group(3)}/{m.group(2)}/{m.group(1)}" if m else ""
+
+
 # ------------------------------- pratiche -------------------------------
 @api_router.post("/crt")
 async def crt_create(body: CrtPracticeIn, user=Depends(get_current_user)):
@@ -197,7 +268,8 @@ async def crt_list(contact_id: Optional[str] = None, user=Depends(get_current_us
     if not is_owner(user):
         q["created_by"] = user["user_id"]
     items = await db.crt_practices.find(q, {"_id": 0, "dossier": 0, "merged_pdf_b64": 0}).sort("updated_at", -1).to_list(300)
-    return {"items": items, "doc_types": CRT_DOC_TYPES}
+    st = await _crt_order_settings(tenant_id(user))
+    return {"items": items, "doc_types": _crt_doc_types_for(st["custom_types"])}
 
 
 @api_router.get("/crt/{practice_id}")
@@ -207,7 +279,12 @@ async def crt_get(practice_id: str, user=Depends(get_current_user)):
     ids = await db.identity_documents.find({"contact_id": p["contact_id"]}, {"_id": 0, "doc_id": 1, "doc_type": 1, "extracted": 1, "expiry_date": 1}).to_list(20)
     bills = await db.energy_bills.find({"contact_id": p["contact_id"], "status": "done"}, {"_id": 0, "bill_id": 1, "bill_type": 1, "file_name": 1, "created_at": 1, "extracted.pod": 1, "extracted.pdr": 1, "extracted.fornitore": 1}).sort("created_at", -1).to_list(600)
     forms = await db.filled_forms.find({"practice_id": practice_id}, {"_id": 0, "form_id": 1, "name": 1, "service": 1, "part": 1, "parts": 1, "missing": 1, "updated_at": 1}).to_list(200)
-    return {**_crt_pub(p), "doc_types": CRT_DOC_TYPES, "available_identity_docs": ids, "available_bills": bills, "filled_forms": forms}
+    c = await db.contacts.find_one({"contact_id": p["contact_id"]}, {"_id": 0, "address_city": 1, "city": 1})
+    order, excluded, labels = await _crt_effective_order(p)
+    st = await _crt_order_settings(p["tenant_id"])
+    return {**_crt_pub(p), "doc_types": _crt_doc_types_for(st["custom_types"]), "available_identity_docs": ids, "available_bills": bills, "filled_forms": forms,
+            "doc_order_effective": order, "doc_excluded_effective": excluded, "doc_order_labels": labels, "doc_order_is_override": bool(p.get("doc_order_override")),
+            "sign_place_suggested": _crt_sign_place_suggested(p, c), "sign_date_effective": _crt_fmt_sign_date(p.get("sign_date")) or utcnow().astimezone().strftime("%d/%m/%Y")}
 
 
 @api_router.put("/crt/{practice_id}")
@@ -230,6 +307,21 @@ async def crt_update(practice_id: str, body: CrtPracticeUpdate, user=Depends(get
             if dt in CRT_DOC_TYPES:
                 upd[f"dossier.{dt}.manual"] = {k: str(v)[:300] for k, v in vals.items()}
                 upd[f"dossier.{dt}.confirmed"] = True
+    # V50.z286 — ordine documenti solo per questa pratica ([] → torna al predefinito), data e luogo firma (mai vincolanti)
+    if body.doc_order is not None:
+        st = await _crt_order_settings(p["tenant_id"])
+        labels = _crt_all_labels(st["custom_types"])
+        upd["doc_order_override"] = [x for x in body.doc_order if x in labels][:60]
+        upd["doc_excluded_override"] = [x for x in (body.doc_excluded or []) if x in labels][:60]
+    elif body.doc_excluded is not None and p.get("doc_order_override"):
+        upd["doc_excluded_override"] = [x for x in body.doc_excluded][:60]
+    if body.sign_date is not None:
+        sd = body.sign_date.strip()
+        if sd and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", sd):
+            raise HTTPException(status_code=400, detail="Data firma non valida (YYYY-MM-DD)")
+        upd["sign_date"] = sd
+    if body.sign_place is not None:
+        upd["sign_place"] = body.sign_place.strip()[:120]
     await db.crt_practices.update_one({"practice_id": practice_id}, {"$set": upd})
     return _crt_pub(await _crt_get(practice_id, user))
 
@@ -246,9 +338,11 @@ async def crt_delete(practice_id: str, user=Depends(get_current_user)):
 @api_router.post("/crt/{practice_id}/dossier/{doc_type}")
 async def crt_dossier_upload(practice_id: str, doc_type: str, body: CrtDossierIn, user=Depends(get_current_user)):
     """Carica (telefono/Drive/Dropbox → base64) un documento del dossier: Axon estrae i dati; oppure riusa un documento d'identità già in scheda; oppure solo dati manuali."""
-    if doc_type not in CRT_DOC_TYPES:
-        raise HTTPException(status_code=400, detail="Tipo documento non valido")
     p = await _crt_get(practice_id, user)
+    st = await _crt_order_settings(p["tenant_id"])
+    if doc_type not in _crt_doc_types_for(st["custom_types"]):
+        raise HTTPException(status_code=400, detail="Tipo documento non valido")
+    file_only = doc_type not in CRT_DOC_TYPES  # SEPA/PdA/procura/personalizzati: solo file, nessuna estrazione
     entry = (p.get("dossier") or {}).get(doc_type) or {"files": [], "extracted": {}, "manual": {}, "confirmed": False}
     if body.reuse_identity_doc_id:
         d = await db.identity_documents.find_one({"doc_id": body.reuse_identity_doc_id, "contact_id": p["contact_id"]}, {"_id": 0})
@@ -272,7 +366,7 @@ async def crt_dossier_upload(practice_id: str, doc_type: str, body: CrtDossierIn
                 images = [pg["png_b64"] for pg in _ft_render_pages(raw, dpi=110)[:4]]
         else:
             images = [base64.b64encode(raw).decode()]
-        if doc_type != "referent":
+        if doc_type != "referent" and not file_only:
             prompt = CRT_DOC_PROMPTS.get(doc_type, "Estrai in JSON tutti i dati anagrafici, fiscali e di contatto presenti.")
             data = await _ft_llm(CRT_DOC_SYSTEM, prompt + ("\n\nTESTO DEL DOCUMENTO:\n" + text[:20000] if text.strip() else ""), images or None, session="crt-dossier")
             entry["extracted"] = {**entry.get("extracted", {}), **{k: (str(v) if not isinstance(v, (list, dict)) else json.dumps(v, ensure_ascii=False)) for k, v in data.items() if v not in (None, "", [])}}
@@ -334,6 +428,14 @@ async def crt_service_fill(practice_id: str, svc: str, body: CrtFillIn, user=Dep
     base_vals, base_src = await _ft_collect_contact_data(user, p["contact_id"], True)
     fixed = {**base_vals, **_crt_dossier_values(p)}
     src = {**base_src, **{k: "dossier CRT" for k in _crt_dossier_values(p)}}
+    # V50.z286 — data firma scelta (retroattiva/posticipata) e luogo firma (manuale → visura → città cliente)
+    sd = _crt_fmt_sign_date(p.get("sign_date"))
+    if sd:
+        fixed["date_today"] = sd; src["date_today"] = "data firma pratica"
+    c_row = await db.contacts.find_one({"contact_id": p["contact_id"]}, {"_id": 0, "address_city": 1, "city": 1})
+    place = (p.get("sign_place") or "").strip() or _crt_sign_place_suggested(p, c_row)
+    if place:
+        fixed["place_today"] = place; src["place_today"] = "luogo firma pratica" if p.get("sign_place") else "visura/scheda"
     rows = [_crt_supply_row(s) for s in (ps.get("supplies") or [])]
     fields = [f for f in (t.get("fields") or []) if not f.get("skip") and f["key"] != "signature"]
     rows_per_form = max([_ft_split_key(f["key"])[1] for f in fields] + [0])
@@ -382,35 +484,36 @@ async def crt_service_fill(practice_id: str, svc: str, body: CrtFillIn, user=Dep
 async def crt_merge(practice_id: str, body: CrtMergeIn, user=Depends(get_current_user)):
     """Unisce moduli compilati (ordine servizi) + documenti dossier (+ fatture) in un PDF compresso con indice."""
     p = await _crt_get(practice_id, user)
-    order = [s for s in (body.order or p["services"]) if s in p["services"]] or p["services"]
+    order_svc = [s for s in (body.order or p["services"]) if s in p["services"]] or p["services"]
+    doc_order, excluded, labels = await _crt_effective_order(p)
     out = _pymupdf.open()
     toc: List[str] = []
-    for svc in order:
+
+    async def _add_form(svc: str) -> None:
         for fid in ((p.get("per_service") or {}).get(svc) or {}).get("filled_form_ids") or []:
             try:
                 raw, f = await _ft_filled_pdf(fid, user)
                 src = _pymupdf.open(stream=raw, filetype="pdf"); toc.append(f"{svc.capitalize()} · {f['name']} (pag. {len(out) + 2})"); out.insert_pdf(src); src.close()
             except Exception as e:  # noqa: BLE001
                 logger.warning("[CRT] merge form %s: %s", fid, e)
-    if body.include_dossier:
-        st = await db.crt_settings.find_one({"tenant_id": p["tenant_id"]}, {"_id": 0, "doc_order": 1})
-        std = (st or {}).get("doc_order") or CRT_DEFAULT_ORDER
-        dossier_items = sorted((p.get("dossier") or {}).items(), key=lambda kv: std.index(kv[0]) if kv[0] in std else 99)
-        for dt, d in dossier_items:
-            for fm in (d.get("files") or [])[-1:]:
-                raw = await _ft_load_pdf(fm)
-                if not raw:
-                    continue
-                try:
-                    if (fm.get("mime") or "").startswith("image/"):
-                        img = _pymupdf.open(stream=raw, filetype="image"); pdfb = img.convert_to_pdf(); img.close(); src = _pymupdf.open("pdf", pdfb)
-                    else:
-                        src = _pymupdf.open(stream=raw, filetype="pdf")
-                    toc.append(f"{CRT_DOC_TYPES.get(dt, dt)} (pag. {len(out) + 2})"); out.insert_pdf(src); src.close()
-                except Exception as e:  # noqa: BLE001
-                    logger.warning("[CRT] merge dossier %s: %s", dt, e)
-    if body.include_bills:
-        bids = [b for svc in order for b in (((p.get("per_service") or {}).get(svc) or {}).get("bill_ids") or [])]
+
+    async def _add_dossier(dt: str) -> None:
+        d = (p.get("dossier") or {}).get(dt) or {}
+        for fm in (d.get("files") or [])[-1:]:
+            raw = await _ft_load_pdf(fm)
+            if not raw:
+                continue
+            try:
+                if (fm.get("mime") or "").startswith("image/"):
+                    img = _pymupdf.open(stream=raw, filetype="image"); pdfb = img.convert_to_pdf(); img.close(); src = _pymupdf.open("pdf", pdfb)
+                else:
+                    src = _pymupdf.open(stream=raw, filetype="pdf")
+                toc.append(f"{labels.get(dt, dt)} (pag. {len(out) + 2})"); out.insert_pdf(src); src.close()
+            except Exception as e:  # noqa: BLE001
+                logger.warning("[CRT] merge dossier %s: %s", dt, e)
+
+    async def _add_bills() -> None:
+        bids = [b for svc in order_svc for b in (((p.get("per_service") or {}).get(svc) or {}).get("bill_ids") or [])]
         for b in await db.energy_bills.find({"bill_id": {"$in": bids}}, {"_id": 0, "file_b64": 1, "data_base64": 1, "file_name": 1, "mime": 1}).to_list(600):
             raw_b64 = b.get("file_b64") or b.get("data_base64")
             if not raw_b64:
@@ -419,6 +522,25 @@ async def crt_merge(practice_id: str, body: CrtMergeIn, user=Depends(get_current
                 src = _pymupdf.open(stream=base64.b64decode(raw_b64), filetype="pdf"); toc.append(f"Fattura {b.get('file_name', '')} (pag. {len(out) + 2})"); out.insert_pdf(src); src.close()
             except Exception:  # noqa: BLE001
                 pass
+
+    # V50.z286 — il PDF unico segue l'ORDINE DOCUMENTI effettivo (predefinito / override pratica), saltando le tipologie escluse
+    bills_wanted = body.include_bills if body.include_bills is not None else ("bills" in doc_order and "bills" not in excluded)
+    for key in doc_order:
+        if key in excluded:
+            continue
+        if key.startswith("form_"):
+            svc = key[5:]
+            if svc in order_svc:
+                await _add_form(svc)
+        elif key == "bills":
+            if bills_wanted:
+                await _add_bills()
+        elif body.include_dossier:
+            await _add_dossier(key)
+    for svc in order_svc:  # moduli di servizi non presenti nell'ordine (sicurezza: nessun modulo compilato viene perso)
+        if f"form_{svc}" not in doc_order:
+            await _add_form(svc)
+    order = order_svc
     if len(out) == 0:
         raise HTTPException(status_code=400, detail="Nessun documento da unire: compila prima i moduli")
     # indice in prima pagina
@@ -502,7 +624,7 @@ async def form_template_example(template_id: str, body: FormExampleIn, user=Depe
 # ------------------------------- esempio pratica completa → ordine documenti -------------------------------
 CRT_ORDER_LABELS = {"form_luce": "Modulo Luce", "form_gas": "Modulo Gas", "form_telco": "Modulo Telco", "sepa": "Modulo SEPA", "procura": "Procura/Delega", "pda": "Proposta di adesione",
                     **CRT_DOC_TYPES, "bills": "Fatture", "other": "Altro"}
-CRT_DEFAULT_ORDER = ["form_luce", "form_gas", "form_telco", "sepa", "pda", "procura", "id_card", "tax_code", "visura", "iban", "sdi", "cte", "previous_contract", "bills"]
+CRT_DEFAULT_ORDER = ["form_luce", "form_gas", "form_telco", "sepa", "pda", "procura", "id_card", "tax_code", "visura", "visura_catastale", "iban", "sdi", "cte", "previous_contract", "bills"]
 
 
 class CrtOrderExampleIn(BaseModel):
@@ -525,16 +647,50 @@ async def crt_dossier_example(body: CrtOrderExampleIn, user=Depends(get_current_
     seen = set(); order = [t for t in order if not (t in seen or seen.add(t))]
     if not order:
         raise HTTPException(status_code=422, detail="Non sono riuscito a riconoscere i documenti: riprova con una scansione più leggibile")
-    doc = {"tenant_id": tenant_id(user), "doc_order": order, "example_name": body.name[:120], "pages": [p for p in (data.get("pages") or []) if isinstance(p, dict)][:60], "updated_at": utcnow()}
+    doc = {"tenant_id": tenant_id(user), "doc_order": order, "doc_order_source": "example", "example_name": body.name[:120], "pages": [p for p in (data.get("pages") or []) if isinstance(p, dict)][:60], "updated_at": utcnow()}
     await db.crt_settings.update_one({"tenant_id": tenant_id(user)}, {"$set": doc}, upsert=True)
     return {"doc_order": order, "labels": {k: CRT_ORDER_LABELS[k] for k in order}, "pages": doc["pages"]}
 
 
 @api_router.get("/crt/settings/order")
 async def crt_order_get(user=Depends(get_current_user)):
-    s = await db.crt_settings.find_one({"tenant_id": tenant_id(user)}, {"_id": 0})
-    order = (s or {}).get("doc_order") or CRT_DEFAULT_ORDER
-    return {"doc_order": order, "labels": {k: CRT_ORDER_LABELS.get(k, k) for k in order}, "from_example": bool(s), "example_name": (s or {}).get("example_name")}
+    st = await _crt_order_settings(tenant_id(user))
+    labels = _crt_all_labels(st["custom_types"])
+    return {"doc_order": st["doc_order"], "excluded": st["excluded"], "custom_types": st["custom_types"], "labels": labels, "source": st["source"],
+            "from_example": st["source"] == "example", "example_name": st["example_name"], "default_order": CRT_DEFAULT_ORDER}
+
+
+@api_router.put("/crt/settings/order")
+async def crt_order_put(body: CrtOrderIn, user=Depends(get_current_user)):
+    """V50.z286 — Master: salva l'ordine predefinito dei documenti (riordino manuale), le tipologie escluse e quelle personalizzate."""
+    _ft_require_master(user)
+    custom = {}
+    for k, v in (body.custom_types or {}).items():
+        k = str(k).strip(); v = str(v).strip()
+        if not v:
+            continue
+        if not k.startswith("custom_"):
+            k = "custom_" + re.sub(r"[^a-z0-9]+", "_", v.lower()).strip("_")[:30]
+        custom[k] = v[:60]
+    labels = _crt_all_labels(custom)
+    order: List[str] = []
+    for x in body.doc_order:
+        if x in labels and x not in order:
+            order.append(x)
+    for x in CRT_DEFAULT_ORDER + list(custom):
+        if x not in order:
+            order.append(x)
+    excluded = [x for x in body.excluded if x in order]
+    await db.crt_settings.update_one({"tenant_id": tenant_id(user)}, {"$set": {"doc_order": order, "doc_excluded": excluded, "custom_types": custom, "doc_order_source": "manual", "updated_at": utcnow()}}, upsert=True)
+    return await crt_order_get(user)
+
+
+@api_router.delete("/crt/settings/order")
+async def crt_order_reset(user=Depends(get_current_user)):
+    """V50.z286 — Ripristina l'ordine predefinito (mantiene le tipologie personalizzate)."""
+    _ft_require_master(user)
+    await db.crt_settings.update_one({"tenant_id": tenant_id(user)}, {"$set": {"doc_order": CRT_DEFAULT_ORDER, "doc_excluded": [], "doc_order_source": "default", "updated_at": utcnow()}, "$unset": {"example_name": "", "pages": ""}}, upsert=True)
+    return await crt_order_get(user)
 
 
 # ------------------------------- condivisione rapida: link firmato + QR code -------------------------------

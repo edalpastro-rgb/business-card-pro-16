@@ -11,6 +11,8 @@ import { notify } from "@/src/utils/notify";
 import { shareDataUri } from "@/src/share";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CrtFilePick, PickedFile } from "@/src/CrtFilePick";
+import { CrtDocOrder } from "@/src/CrtDocOrder"; // V50.z286
+import { CrtSignDate } from "@/src/CrtSignDate"; // V50.z286
 import { SVC, STATUS_LABEL, crtStyles as s } from "./index";
 
 type Supply = { supply_id: string; pod: string; pdr: string; line_number: string; supply_address: string; meter_power_kw: string; voltage: string; current_supplier: string; months_count: number; annual: number | null; annual_method: string; unit: string; bill_name: string; overrides: Record<string, any> };
@@ -20,8 +22,10 @@ type Practice = {
   per_service: Record<string, Svc>; merged_pdf?: { name: string; size: number; pages: number; too_big?: boolean } | null; doc_types: Record<string, string>;
   available_identity_docs: { doc_id: string; doc_type: string; expiry_date?: string }[]; available_bills: { bill_id: string; bill_type: string; file_name: string; extracted?: { pod?: string; pdr?: string; fornitore?: string } }[];
   filled_forms: { form_id: string; name: string; service: string; part: number; parts: number; missing: any[] }[];
+  // V50.z286 — ordine documenti effettivo + data/luogo firma
+  doc_order_effective: string[]; doc_excluded_effective: string[]; doc_order_labels: Record<string, string>; doc_order_is_override: boolean;
+  sign_date?: string; sign_place?: string; sign_place_suggested: string; sign_date_effective: string;
 };
-const DOSSIER_ORDER = ["id_card", "tax_code", "visura", "iban", "sdi", "referent", "cte", "previous_contract"];
 const METHOD: Record<string, string> = { real: "reale 12 mesi", declared: "dichiarato in fattura", insufficient: "storico insufficiente (<4 mesi)" };
 const fmtMethod = (m: string) => METHOD[m] || (m.startsWith("estimated_") ? `stimato su ${m.replace("estimated_", "").replace("m", "")} mesi` : m);
 
@@ -36,6 +40,10 @@ export default function CrtPracticeScreen() {
   const [manual, setManual] = useState<Record<string, string>>({});
   const [pickBills, setPickBills] = useState<string | null>(null);
   const [share, setShare] = useState<{ url: string; qr_png_base64: string; expires_at: string } | null>(null);
+  // V50.z286 — ordine documenti solo per questa pratica (bozza locale) + luogo firma
+  const [orderOpen, setOrderOpen] = useState(false);
+  const [orderDraft, setOrderDraft] = useState<{ order: string[]; excluded: string[] } | null>(null);
+  const [placeDraft, setPlaceDraft] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try { setP(await api<Practice>(`/crt/${id}`)); const t = await api<any>("/form-templates"); setTemplates(t.items || t || []); } catch (e: any) { notify("CRT", e?.message || ""); }
@@ -55,6 +63,11 @@ export default function CrtPracticeScreen() {
   const download = () => run("dl", async () => { const r = await api<any>(`/crt/${id}/merged`); await shareDataUri(`data:${r.mime};base64,${r.data_base64}`, r.name, r.mime); });
   const qr = () => run("qr", async () => { setShare(await api<any>(`/crt/${id}/share-link`, { method: "POST" })); });
   const setStatus = (st: string) => run("status", async () => { await api(`/crt/${id}`, { method: "PUT", body: { status: st } }); });
+  const setSignDate = (iso: string) => run("sign", async () => { await api(`/crt/${id}`, { method: "PUT", body: { sign_date: iso } }); }, iso ? "Data firma impostata: vale per tutti i moduli (ricompila per aggiornarli)" : "Data firma: data di compilazione");
+  const savePlace = (v: string) => run("sign", async () => { await api(`/crt/${id}`, { method: "PUT", body: { sign_place: v } }); setPlaceDraft(null); }, "Luogo firma salvato: vale per tutti i moduli (ricompila per aggiornarli)");
+  const saveOrder = () => run("order", async () => { if (!orderDraft) return; await api(`/crt/${id}`, { method: "PUT", body: { doc_order: orderDraft.order, doc_excluded: orderDraft.excluded } }); setOrderDraft(null); setOrderOpen(false); }, "Ordine documenti salvato solo per questa pratica");
+  const resetOrder = () => run("order", async () => { await api(`/crt/${id}`, { method: "PUT", body: { doc_order: [], doc_excluded: [] } }); setOrderDraft(null); setOrderOpen(false); }, "Questa pratica usa l’ordine predefinito");
+  const DOSSIER_ORDER = Object.keys(p.doc_types);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.surface }} edges={["top"]}>
@@ -71,16 +84,17 @@ export default function CrtPracticeScreen() {
             const d = p.dossier?.[dt]; const vals = { ...(d?.extracted || {}), ...(d?.manual || {}) }; const n = Object.keys(vals).length; const open = openDoc === dt;
             const idDocs = dt === "id_card" ? p.available_identity_docs.filter((x) => /ident|carta/i.test(x.doc_type)) : dt === "tax_code" ? p.available_identity_docs.filter((x) => /fisc|sanit/i.test(x.doc_type)) : [];
             return (
-              <View key={dt} style={[s.selRow, { flexDirection: "column", alignItems: "stretch", gap: 6, paddingVertical: 8, borderWidth: 1, borderColor: n ? "#86EFAC" : theme.color.border }]} testID={`crt-doc-${dt}`}>
+              <View key={dt} style={[s.selRow, { flexDirection: "column", alignItems: "stretch", gap: 6, paddingVertical: 8, borderWidth: 1, borderColor: n || d?.files?.length ? "#86EFAC" : theme.color.border }]} testID={`crt-doc-${dt}`}>
                 <Pressable onPress={() => { setOpenDoc(open ? null : dt); setManual({}); }} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Ionicons name={n ? "checkmark-circle" : "ellipse-outline"} size={20} color={n ? "#15803D" : theme.color.muted} />
+                  <Ionicons name={n || d?.files?.length ? "checkmark-circle" : "ellipse-outline"} size={20} color={n || d?.files?.length ? "#15803D" : theme.color.muted} />
                   <Text style={{ flex: 1, fontWeight: "800", color: theme.color.onSurface }}>{p.doc_types[dt]}</Text>
-                  <Text style={s.hint}>{n ? `${n} dati` : "mancante"}</Text>
+                  <Text style={s.hint}>{n ? `${n} dati` : d?.files?.length ? "file caricato" : "mancante"}</Text>
                   <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={theme.color.muted} />
                 </Pressable>
                 {open ? (
                   <View style={{ gap: 6 }}>
                     {busy === `doc-${dt}` ? <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}><ActivityIndicator color={theme.color.brandPrimary} /><Text style={s.hint}>Axon sta leggendo il documento…</Text></View> : dt !== "referent" ? <CrtFilePick compact label="Telefono" onPicked={(f) => void uploadDoc(dt, f)} testID={`crt-doc-pick-${dt}`} /> : null}
+                    {d?.files?.length ? <Text style={s.hint}>📎 {d.files[d.files.length - 1].name}{p.doc_excluded_effective.includes(dt) ? " · escluso dal PDF unico" : ""}</Text> : null}
                     {idDocs.map((x) => <Pressable key={x.doc_id} onPress={() => void reuseId(dt, x.doc_id)} style={[s.btn, s.ghost, { minHeight: 38 }]}><Ionicons name="folder-open-outline" size={14} color={theme.color.brandPrimary} /><Text style={[s.btnTxt, { color: theme.color.brandPrimary, fontSize: 12 }]}>Usa {x.doc_type} già in scheda{x.expiry_date ? ` (scad. ${x.expiry_date})` : ""}</Text></Pressable>)}
                     {Object.entries(vals).map(([k, v]) => (
                       <View key={k} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={[s.hint, { width: 120 }]} numberOfLines={1}>{k}</Text><TextInput defaultValue={String(v)} onChangeText={(t) => setManual((m) => ({ ...m, [k]: t }))} style={[s.input, { flex: 1, minHeight: 38, fontSize: 13 }]} testID={`crt-doc-${dt}-${k}`} /></View>
@@ -142,7 +156,33 @@ export default function CrtPracticeScreen() {
         {/* 3 · PDF UNICO */}
         <View style={s.card} testID="crt-final">
           <Text style={s.section}>{p.services.length + 2} · PDF unico e condivisione</Text>
-          <Text style={s.hint}>Unisce moduli compilati (per servizio), documenti del dossier nell’ordine standard e indice iniziale; compresso e salvato negli allegati del cliente.</Text>
+          <Text style={s.hint}>Unisce moduli compilati e documenti del dossier nell’ordine scelto, con indice iniziale; compresso e salvato negli allegati del cliente.</Text>
+          {/* V50.z286 — data e luogo firma (facoltativi, mai vincolanti) */}
+          <Text style={s.label}>Data firma (facoltativa · anche retroattiva o posticipata)</Text>
+          <CrtSignDate value={p.sign_date || ""} effective={p.sign_date_effective} onChange={(iso) => void setSignDate(iso)} busy={busy === "sign"} />
+          <Text style={s.label}>Luogo firma (per tutti i moduli)</Text>
+          <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+            <TextInput value={placeDraft ?? (p.sign_place || "")} onChangeText={setPlaceDraft} placeholder={p.sign_place_suggested ? `Proposto: ${p.sign_place_suggested}` : "Es. Treviso"} placeholderTextColor={theme.color.muted} style={[s.input, { flex: 1 }]} testID="crt-sign-place" />
+            {placeDraft !== null && placeDraft !== (p.sign_place || "") ? <Pressable onPress={() => void savePlace(placeDraft)} style={[s.btn, { backgroundColor: theme.color.brandPrimary, minHeight: 44, paddingHorizontal: 12 }]} testID="crt-sign-place-save">{busy === "sign" ? <ActivityIndicator color="#FFF" /> : <Text style={s.btnTxt}>Salva</Text>}</Pressable> : null}
+          </View>
+          {!p.sign_place && p.sign_place_suggested ? (
+            <Pressable onPress={() => void savePlace(p.sign_place_suggested)} style={[s.chip, { alignSelf: "flex-start" }]} testID="crt-sign-place-suggest"><Ionicons name="sparkles" size={14} color={theme.color.brandPrimary} /><Text style={s.chipTxt}>Usa «{p.sign_place_suggested}» (da visura / scheda)</Text></Pressable>
+          ) : <Text style={s.hint}>{p.sign_place ? "Inserito a mano." : "Nessuna proposta: carica la visura camerale o inserisci il luogo a mano."}</Text>}
+          {/* V50.z286 — ordine documenti solo per questa pratica */}
+          <Pressable onPress={() => { setOrderOpen((v) => !v); if (!orderDraft) setOrderDraft({ order: p.doc_order_effective, excluded: p.doc_excluded_effective }); }} style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44 }} testID="crt-practice-order-toggle">
+            <Ionicons name="swap-vertical" size={16} color={theme.color.brandPrimary} />
+            <Text style={[s.hint, { color: theme.color.onSurface, flex: 1 }]}>Ordine documenti {p.doc_order_is_override ? "(personalizzato per questa pratica)" : "(predefinito)"}: {p.doc_order_effective.filter((k) => !p.doc_excluded_effective.includes(k)).map((k) => p.doc_order_labels[k] || k).join(" → ")}</Text>
+            <Ionicons name={orderOpen ? "chevron-up" : "chevron-down"} size={16} color={theme.color.muted} />
+          </Pressable>
+          {orderOpen && orderDraft ? (
+            <>
+              <CrtDocOrder order={orderDraft.order} excluded={orderDraft.excluded} labels={p.doc_order_labels} onChange={(o, e) => setOrderDraft({ order: o, excluded: e })} testID="crt-practice-order" />
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable onPress={saveOrder} disabled={busy === "order"} style={[s.btn, { flex: 1, backgroundColor: theme.color.brandPrimary }]} testID="crt-practice-order-save">{busy === "order" ? <ActivityIndicator color="#FFF" /> : <Text style={s.btnTxt}>Salva solo per questa pratica</Text>}</Pressable>
+                {p.doc_order_is_override ? <Pressable onPress={resetOrder} style={[s.btn, s.ghost]} testID="crt-practice-order-reset"><Text style={[s.btnTxt, { color: theme.color.brandPrimary }]}>Usa predefinito</Text></Pressable> : null}
+              </View>
+            </>
+          ) : null}
           {p.merged_pdf ? <Text style={[s.hint, { color: theme.color.onSurface }]}>📎 {p.merged_pdf.name} · {p.merged_pdf.pages} sezioni · {(p.merged_pdf.size / 1024).toFixed(0)} KB{p.merged_pdf.too_big ? " · ⚠️ oltre 10 MB: valuta invio per servizio" : ""}</Text> : null}
           <Pressable onPress={merge} disabled={busy === "merge"} style={[s.btn, { backgroundColor: "#7C3AED" }]} testID="crt-merge">{busy === "merge" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="albums-outline" size={18} color="#FFF" /><Text style={s.btnTxt}>{p.merged_pdf ? "Rigenera e condividi PDF unico" : "Genera PDF unico"}</Text></>}</Pressable>
           {p.merged_pdf ? (

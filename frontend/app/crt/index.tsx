@@ -10,6 +10,7 @@ import { notify } from "@/src/utils/notify";
 import { useAuth } from "@/src/auth";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CrtFilePick } from "@/src/CrtFilePick";
+import { CrtDocOrder } from "@/src/CrtDocOrder"; // V50.z286
 
 type Practice = { practice_id: string; title: string; contact_name: string; services: string[]; status: string; updated_at: string; merged_pdf?: { name: string } | null };
 type Contact = { contact_id: string; first_name: string; last_name: string; company?: string };
@@ -29,7 +30,10 @@ export default function CrtListScreen() {
   const [sel, setSel] = useState<Contact | null>(null);
   const [services, setServices] = useState<string[]>(["luce"]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [order, setOrder] = useState<{ doc_order: string[]; labels: Record<string, string>; from_example: boolean; example_name?: string } | null>(null);
+  type OrderInfo = { doc_order: string[]; excluded: string[]; custom_types: Record<string, string>; labels: Record<string, string>; source: string; from_example: boolean; example_name?: string };
+  const [order, setOrder] = useState<OrderInfo | null>(null);
+  const [orderDirty, setOrderDirty] = useState(false);
+  const [orderOpen, setOrderOpen] = useState(false);
   const isMaster = (user as any)?.role === "owner" || (user as any)?.is_owner;
 
   const load = useCallback(async () => {
@@ -51,8 +55,26 @@ export default function CrtListScreen() {
   };
   const uploadOrderExample = async (f: { name: string; data_base64: string }) => {
     setBusy("order");
-    try { const r = await api<any>("/crt/dossier-example", { method: "POST", body: { name: f.name, data_base64: f.data_base64 } }); setOrder({ doc_order: r.doc_order, labels: r.labels, from_example: true, example_name: f.name }); notify("Esempio pratica", `Ordine appreso: ${r.doc_order.map((k: string) => r.labels[k]).join(" → ")}`); }
+    try { const r = await api<any>("/crt/dossier-example", { method: "POST", body: { name: f.name, data_base64: f.data_base64 } }); setOrder(await api<OrderInfo>("/crt/settings/order")); setOrderDirty(false); notify("Esempio pratica", `Ordine appreso: ${r.doc_order.map((k: string) => r.labels[k]).join(" → ")}`); }
     catch (e: any) { notify("Esempio pratica", e?.message || ""); } finally { setBusy(null); }
+  };
+  // V50.z286 — ordine predefinito modificabile a mano: salva / ripristina / tipologie personalizzate
+  const saveOrder = async () => {
+    if (!order) return;
+    setBusy("order-save");
+    try { setOrder(await api<OrderInfo>("/crt/settings/order", { method: "PUT", body: { doc_order: order.doc_order, excluded: order.excluded, custom_types: order.custom_types } })); setOrderDirty(false); notify("Ordine documenti", "Ordine predefinito salvato: vale per tutte le nuove pratiche"); }
+    catch (e: any) { notify("Ordine documenti", e?.message || ""); } finally { setBusy(null); }
+  };
+  const resetOrder = async () => {
+    setBusy("order-save");
+    try { setOrder(await api<OrderInfo>("/crt/settings/order", { method: "DELETE" })); setOrderDirty(false); notify("Ordine documenti", "Ordine predefinito ripristinato"); }
+    catch (e: any) { notify("Ordine documenti", e?.message || ""); } finally { setBusy(null); }
+  };
+  const addCustom = (label: string) => {
+    if (!order) return;
+    const id = "custom_" + label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 30);
+    if (order.doc_order.includes(id)) return;
+    setOrder({ ...order, doc_order: [...order.doc_order, id], custom_types: { ...order.custom_types, [id]: label }, labels: { ...order.labels, [id]: label } }); setOrderDirty(true);
   };
   const filtered = contacts.filter((c) => `${c.first_name} ${c.last_name} ${c.company || ""}`.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
 
@@ -102,7 +124,24 @@ export default function CrtListScreen() {
           <View style={s.card} testID="crt-order-example">
             <Text style={s.section}>📚 Esempio pratica completa (ordine documenti)</Text>
             <Text style={s.hint}>Carica un contratto completo già organizzato: Axon riconosce la sequenza dei documenti e la usa come ordine standard del PDF unico.</Text>
-            {order ? <Text style={[s.hint, { color: theme.color.onSurface }]}>{order.from_example ? `Ordine appreso da «${order.example_name}»` : "Ordine predefinito"}: {order.doc_order.map((k) => order.labels[k] || k).join(" → ")}</Text> : null}
+            {order ? (
+              <View style={{ gap: 8 }}>
+                <Pressable onPress={() => setOrderOpen((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44 }} testID="crt-order-toggle">
+                  <Ionicons name="swap-vertical" size={16} color={theme.color.brandPrimary} />
+                  <Text style={[s.hint, { color: theme.color.onSurface, flex: 1 }]}>{order.source === "example" ? `Ordine appreso da «${order.example_name}»` : order.source === "manual" ? "Ordine personalizzato" : "Ordine predefinito"}: {order.doc_order.filter((k) => !order.excluded.includes(k)).map((k) => order.labels[k] || k).join(" → ")}</Text>
+                  <Ionicons name={orderOpen ? "chevron-up" : "chevron-down"} size={16} color={theme.color.muted} />
+                </Pressable>
+                {orderOpen ? (
+                  <>
+                    <CrtDocOrder order={order.doc_order} excluded={order.excluded} labels={order.labels} onChange={(o, e) => { setOrder({ ...order, doc_order: o, excluded: e }); setOrderDirty(true); }} onAddCustom={addCustom} testID="crt-order" />
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Pressable onPress={saveOrder} disabled={!orderDirty || busy === "order-save"} style={[s.btn, { flex: 1, backgroundColor: theme.color.brandPrimary }, !orderDirty && { opacity: 0.5 }]} testID="crt-order-save">{busy === "order-save" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="save-outline" size={16} color="#FFF" /><Text style={s.btnTxt}>Salva come predefinito</Text></>}</Pressable>
+                      <Pressable onPress={resetOrder} disabled={busy === "order-save"} style={[s.btn, s.ghost]} testID="crt-order-reset"><Ionicons name="refresh" size={16} color={theme.color.brandPrimary} /><Text style={[s.btnTxt, { color: theme.color.brandPrimary }]}>Ripristina</Text></Pressable>
+                    </View>
+                  </>
+                ) : null}
+              </View>
+            ) : null}
             {busy === "order" ? <ActivityIndicator color={theme.color.brandPrimary} /> : <CrtFilePick label="Carica esempio" compact onPicked={(f) => void uploadOrderExample(f)} testID="crt-order-pick" />}
             <Text style={s.hint}>I moduli vuoti e gli esempi compilati dei fornitori si caricano in «Modelli moduli» (non vengono memorizzati oltre il necessario: ricaricali quando il fornitore li aggiorna).</Text>
             <Pressable onPress={() => router.push("/form-templates" as any)} style={[s.btn, s.ghost]} testID="crt-goto-templates"><Ionicons name="document-attach-outline" size={16} color={theme.color.brandPrimary} /><Text style={[s.btnTxt, { color: theme.color.brandPrimary }]}>Apri Modelli moduli</Text></Pressable>
