@@ -247,19 +247,30 @@ async def assistant_tts(body: AssistantTTSIn, user=Depends(get_current_user)):
     if not key:
         raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
     voice = (body.voice or "").strip().lower()
+    s = None
     if voice not in {"alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"}:
         # try user setting fallback
-        s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_voice": 1}) or {}
+        s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_voice": 1, "assistant_speech_rate": 1}) or {}
         voice = (s.get("assistant_voice") or "nova").lower()
         if voice not in {"alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"}:
             voice = "nova"
+    # V50.z284 — velocità di lettura: override nel body, altrimenti impostazione utente (default 1.0), limitata a 0.5–2.0
+    speed = body.speed
+    if speed is None:
+        if s is None:
+            s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_speech_rate": 1}) or {}
+        speed = s.get("assistant_speech_rate")
+    try:
+        speed = min(2.0, max(0.5, float(speed or 1.0)))
+    except (TypeError, ValueError):
+        speed = 1.0
     try:
         from emergentintegrations.llm.openai.text_to_speech import OpenAITextToSpeech
         tts = OpenAITextToSpeech(api_key=key)
-        b64 = await tts.generate_speech_base64(text=text, model="tts-1", voice=voice, response_format="mp3")
+        b64 = await tts.generate_speech_base64(text=text, model="tts-1", voice=voice, speed=speed, response_format="mp3")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Errore TTS: {e}")
-    return {"audio_base64": b64, "mime": "audio/mpeg", "voice": voice}
+    return {"audio_base64": b64, "mime": "audio/mpeg", "voice": voice, "speed": speed}
 
 
 # =========================

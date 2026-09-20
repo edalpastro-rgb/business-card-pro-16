@@ -643,6 +643,11 @@ async def _prepare_assistant_prompt(
     except Exception:
         _cloud_section = ""
     system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
+    # V50.z284 — profilo interessi (form spuntabile + risposte libere del tour) → personalizzazione e suggerimenti proattivi
+    try:
+        system_message += await _axon_interest_section(user["user_id"])  # noqa: F821 — definita in axon_tour.py (stesso namespace)
+    except Exception:
+        pass
 
     # V50.z144 — PINNED rules RIATTIVATE e messe IN CIMA al system prompt come
     # direttive vincolanti (<REGOLE_ASSOLUTE>). Il rollback V50.z53 riguardava la
@@ -1079,6 +1084,11 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception:
         _cloud_section = ""
     system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
+    # V50.z284 — profilo interessi (form spuntabile + risposte libere del tour) → personalizzazione e suggerimenti proattivi
+    try:
+        system_message += await _axon_interest_section(user["user_id"])  # noqa: F821 — definita in axon_tour.py (stesso namespace)
+    except Exception:
+        pass
 
     # V50.z144 — PINNED rules in cima anche nell'endpoint non-streaming (stesso blocco dello stream).
     try:

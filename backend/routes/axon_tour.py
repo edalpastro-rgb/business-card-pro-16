@@ -117,7 +117,7 @@ def _tour_heuristic(text: str) -> List[str]:
 
 @api_router.post("/tour/profile")
 async def tour_profile(body: TourProfileIn, user=Depends(get_current_user)):
-    labels = ["Cosa fai e cosa ti fa perdere più tempo", "Funzione indispensabile", "Cosa ti aspetti da AdvisorOS"]
+    labels = ["Cosa si aspetta da Axon e cosa gli complica la vita nel lavoro quotidiano", "Funzione indispensabile", "Cosa ti aspetti da AdvisorOS"]
     if body.answers:
         text = "\n".join(f"{labels[i] if i < 3 else 'Altro'}: {(a or '').strip()}" for i, a in enumerate(body.answers[:3]) if (a or "").strip())[:3000]
     else:
@@ -147,7 +147,10 @@ async def tour_profile(body: TourProfileIn, user=Depends(get_current_user)):
         picks = _tour_heuristic(text)
     if not reply:
         reply = "Ho capito. Ecco cosa attivo per te."
-    await db.user_settings.update_one({"user_id": user["user_id"]}, {"$set": {"tour_profile": {"text": text, "features": picks, "at": utcnow()}}}, upsert=True)
+    await db.user_settings.update_one({"user_id": user["user_id"]}, {"$set": {"tour_profile": {"text": text, "features": picks, "at": utcnow()},
+                                                                              # V50.z284 — le risposte libere alimentano il profilo interessi usato da Axon
+                                                                              "axon_interest_profile.free_answers": [(a or "").strip()[:600] for a in (body.answers or [text]) if (a or "").strip()][:6],
+                                                                              "axon_interest_profile.updated_at": utcnow()}}, upsert=True)
     return {"features": [{"id": f, "name": names[f]} for f in picks], "reply": reply}
 
 
@@ -163,3 +166,207 @@ async def tour_contact_from_text(body: TourTextIn, user=Depends(get_current_user
         parts = text.split()
         contact = {"first_name": parts[0] if parts else "", "last_name": " ".join(parts[1:3]) if len(parts) > 1 else "", "note_ai": text}
     return {"contact": contact}
+
+
+# =====================================================================================
+# V50.z284 — FORM SPUNTABILE DEGLI INTERESSI (tour, schermata 2) + PROFILO INTERESSI usato da Axon
+#   GET  /tour/interest-questions            → 20 domande Sì/No base (round 1)
+#   POST /tour/interest-questions/next       → altre 20 domande NUOVE (LLM, fallback set statico) evitando ripetizioni
+#   POST /tour/interest-profile              → salva user_settings.axon_interest_profile + risposta «cosa attivo per te»
+#   _axon_interest_section(user_id)          → blocco per il system prompt di Axon (personalizzazione + suggerimenti proattivi)
+# =====================================================================================
+_INTEREST_Q_ROUND1: List[Tuple[str, str]] = [  # (feature_id, domanda)
+    ("offline", "Ti piacerebbe un CRM che funzioni anche offline (in aereo o dove non c'è rete) e sincronizzi tutto al ritorno della connessione?"),
+    ("km", "Vai spesso dai clienti in auto? Ti servirebbe sapere in anticipo quanti km percorri in un giorno e avere il resoconto mensile?"),
+    ("route", "Ti aiuterebbe un giro visite ottimizzato che mette in ordine i clienti da vedere nella stessa giornata?"),
+    ("map", "Vuoi vedere i tuoi clienti su una mappa per organizzarti per zona?"),
+    ("bills", "Analizzi bollette luce, gas o telefono dei clienti? Vorresti che Axon le leggesse ed estraesse i dati in automatico?"),
+    ("compare", "Ti serve confrontare la bolletta attuale del cliente con le offerte della tua azienda e stimare il risparmio?"),
+    ("crt", "Compili contratti (CRT) con i moduli PDF del fornitore? Vorresti che venissero precompilati in automatico da fatture e documenti?"),
+    ("scanner", "Fotografi spesso documenti (carte d'identità, visure, fatture)? Ti serve uno scanner che li ritagli e li legga?"),
+    ("business_card", "Raccogli biglietti da visita? Vorresti trasformarli in contatti con una foto (fronte e retro)?"),
+    ("calendar", "Gestisci molti appuntamenti? Ti serve un'agenda con promemoria e richiami da fare?"),
+    ("deadlines", "Hai contratti con scadenze o rinnovi da tenere sotto controllo con avvisi in anticipo?"),
+    ("whatsapp", "Comunichi con i clienti via WhatsApp o SMS? Ti piacerebbe inviare messaggi (anche a gruppi) direttamente dalla scheda cliente?"),
+    ("email", "Usi la posta elettronica per lavoro? Vuoi collegare le tue caselle e scrivere ai clienti dall'app?"),
+    ("voice", "Guidi molto? Ti servirebbe parlare con Axon a voce in auto (note, appuntamenti, chiamate) senza toccare il telefono?"),
+    ("notes", "Preferisci registrare note vocali sui clienti invece di scrivere?"),
+    ("team", "Hai collaboratori o una rete? Vuoi assegnare clienti, vedere i loro risultati e chattare con il team?"),
+    ("kpi", "Ti interessa un cruscotto con numeri e obiettivi (chiamate, appuntamenti, contratti) tuoi e del team?"),
+    ("courses", "Formi collaboratori o clienti? Ti servono corsi con slide generate dalla dettatura, quiz e attestati PDF?"),
+    ("referrals", "Lavori con il passaparola? Vuoi tracciare chi ti ha segnalato ogni cliente?"),
+    ("proactive", "Vuoi che Axon ti avvisi da solo (compleanni, clienti trascurati, scadenze) senza che glielo chieda?"),
+]
+_INTEREST_Q_ROUND2: List[Tuple[str, str]] = [
+    ("birthday", "Ti piacerebbe che Axon scrivesse e inviasse gli auguri di compleanno personalizzati ai clienti?"),
+    ("reviews", "Raccogli recensioni? Ti serve analizzarle e capire cosa pensano davvero i clienti?"),
+    ("pun", "Segui il PUN e il mercato dell'energia? Vuoi un widget in Home con i prezzi aggiornati?"),
+    ("offers", "Vuoi caricare le offerte della tua azienda così Axon le usa nei confronti e nelle proposte?"),
+    ("files", "Ti serve un archivio file condiviso (Master Files) per documenti e listini con i collaboratori?"),
+    ("pdf", "Vuoi generare report PDF (attività, KPI, analisi) da inviare a clienti o alla direzione?"),
+    ("chat", "Useresti una chat con Axon per chiedere informazioni sui tuoi clienti e sui tuoi dati?"),
+    ("wake", "Ti piacerebbe attivare Axon con la voce dicendo «Hey Axon»?"),
+    ("learn", "Vuoi insegnare ad Axon regole, listini e documenti della tua azienda così risponde come vuoi tu?"),
+    ("wizard", "Preferisci una configurazione guidata passo-passo delle tue aree di lavoro?"),
+    ("import", "Hai già una rubrica o un file Excel di contatti da importare?"),
+    ("gym", "Ti interessa allenare le tecniche di vendita (roleplay, gestione obiezioni) con Axon come coach?"),
+    ("forms", "Usi spesso moduli PDF da compilare (SEPA, deleghe)? Vuoi caricarli come modelli riutilizzabili?"),
+    ("iddocs", "Vuoi che Axon legga i documenti d'identità dei clienti e ti avvisi quando scadono?"),
+    ("axon_voice", "Vorresti scegliere la voce di Axon, la velocità di lettura e la lingua in cui ti risponde?"),
+    ("security", "Ti serve un accesso protetto con verifica in due passaggi (2FA)?"),
+    ("custom", "Vuoi personalizzare colori, logo e banner dell'app con il tuo brand?"),
+    ("call_log", "Registri l'esito delle telefonate (occupato, richiamare, appuntamento preso) per ogni cliente?"),
+    ("visits", "Vuoi che le visite ai clienti vengano rilevate automaticamente dal GPS quando ti fermi da loro?"),
+    ("help", "Ti piacerebbe un Help Center dentro l'app con guide e assistenza rapida?"),
+]
+
+
+def _interest_items(pairs: List[Tuple[str, str]], round_no: int) -> List[dict]:
+    return [{"id": f"q{round_no}_{i + 1}", "feature": fid, "text": q} for i, (fid, q) in enumerate(pairs)]
+
+
+class InterestAnswerIn(BaseModel):
+    id: str
+    text: str
+    answer: bool
+    feature: Optional[str] = None
+
+
+class InterestNextIn(BaseModel):
+    answers: List[InterestAnswerIn]
+    round: int = 1  # round appena completato → genera round+1
+
+
+class InterestProfileIn(BaseModel):
+    answers: List[InterestAnswerIn]
+    free_answers: Optional[List[str]] = None  # risposte libere (voce/testo) già date nel tour
+
+
+@api_router.get("/tour/interest-questions")
+async def tour_interest_questions(user=Depends(get_current_user)):
+    return {"round": 1, "questions": _interest_items(_INTEREST_Q_ROUND1, 1)}
+
+
+@api_router.post("/tour/interest-questions/next")
+async def tour_interest_questions_next(body: InterestNextIn, user=Depends(get_current_user)):
+    nxt = max(2, int(body.round) + 1)
+    asked_texts = {a.text.strip().lower() for a in body.answers}
+    asked_features = {a.feature for a in body.answers if a.feature}
+    yes = [a.text for a in body.answers if a.answer][:20]
+    no = [a.text for a in body.answers if not a.answer][:20]
+    questions: List[dict] = []
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if key:
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            catalog = "\n".join(f"- {fid}: {name}" for fid, name, _g in _TOUR_FEATURES)
+            chat = LlmChat(api_key=key, session_id=f"tour-iq-{uuid.uuid4().hex[:8]}",
+                           system_message=("Sei Axon, assistente di AdvisorOS (CRM per consulenti energia/telco e networker). Devi proporre 20 NUOVE domande Sì/No, in italiano, "
+                                           "brevi (max 25 parole), concrete e con il 'tu', per capire di cosa ha bisogno l'utente e quali funzioni gli servono. "
+                                           "Approfondisci le aree a cui ha detto SÌ (casi d'uso specifici, scorciatoie, automazioni), non ripetere le domande già poste e non insistere su aree a cui ha detto NO. "
+                                           "Ogni domanda va collegata a UNA funzione del catalogo (campo feature = id). Rispondi SOLO con JSON: {\"questions\": [{\"feature\": \"id\", \"text\": \"...\"}, ...]}\nCATALOGO:\n" + catalog)).with_model("anthropic", "claude-haiku-4-5-20251001")
+            prompt = "DOMANDE GIÀ POSTE (non ripeterle):\n" + "\n".join(f"- {t}" for t in sorted(asked_texts)) + "\n\nHA DETTO SÌ A:\n" + "\n".join(f"- {t}" for t in yes) + "\n\nHA DETTO NO A:\n" + "\n".join(f"- {t}" for t in no)
+            raw = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=40)
+            m = re.search(r"\{.*\}", raw or "", re.S)
+            data = _json_stdlib.loads(m.group(0)) if m else {}
+            seen = set(asked_texts)
+            for it in data.get("questions") or []:
+                fid = str(it.get("feature") or "").strip()
+                txt = str(it.get("text") or "").strip()
+                if not txt or txt.lower() in seen or fid not in _TOUR_IDS:
+                    continue
+                seen.add(txt.lower())
+                questions.append({"id": f"q{nxt}_{len(questions) + 1}", "feature": fid, "text": txt[:220]})
+                if len(questions) >= 20:
+                    break
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[tour] interest next-round LLM failed: %s", exc)
+    if len(questions) < 20:  # fallback: set statico, saltando funzioni già chieste
+        pool = [(f, q) for f, q in _INTEREST_Q_ROUND2 + _INTEREST_Q_ROUND1 if f not in asked_features and q.lower() not in asked_texts]
+        for f, q in pool:
+            if len(questions) >= 20:
+                break
+            if any(x["text"].lower() == q.lower() for x in questions):
+                continue
+            questions.append({"id": f"q{nxt}_{len(questions) + 1}", "feature": f, "text": q})
+    return {"round": nxt, "questions": questions}
+
+
+@api_router.post("/tour/interest-profile")
+async def tour_interest_profile(body: InterestProfileIn, user=Depends(get_current_user)):
+    names = {fid: name for fid, name, _g in _TOUR_FEATURES}
+    yes_f: List[str] = []
+    no_f: List[str] = []
+    for a in body.answers:
+        if not a.feature or a.feature not in _TOUR_IDS:
+            continue
+        if a.answer and a.feature not in yes_f:
+            yes_f.append(a.feature)
+        elif not a.answer and a.feature not in no_f and a.feature not in yes_f:
+            no_f.append(a.feature)
+    no_f = [f for f in no_f if f not in yes_f]
+    free = [str(t).strip() for t in (body.free_answers or []) if str(t).strip()][:6]
+    # sintesi «bisogni» (LLM, fallback testuale)
+    summary = ""
+    reply = ""
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if key and (yes_f or free):
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            chat = LlmChat(api_key=key, session_id=f"tour-ip-{uuid.uuid4().hex[:8]}",
+                           system_message=("Sei Axon, assistente di AdvisorOS. Ricevi le risposte di un utente a un questionario Sì/No sulle funzioni e alcune risposte libere. "
+                                           "Scrivi: (1) 'summary': profilo dei bisogni in 3-5 frasi brevi in terza persona (cosa fa, cosa gli complica la vita, cosa cerca), utile a un assistente per personalizzare le risposte; "
+                                           "(2) 'reply': UNA frase calda e concreta (max 25 parole, tu/te) che spiega cosa attivi per lui. Rispondi SOLO con JSON: {\"summary\": \"...\", \"reply\": \"...\"}")).with_model("anthropic", "claude-haiku-4-5-20251001")
+            prompt = "RISPOSTE LIBERE:\n" + "\n".join(f"- {t}" for t in free) + "\n\nINTERESSATO A:\n" + "\n".join(f"- {names.get(f, f)}" for f in yes_f) + "\n\nNON INTERESSATO A:\n" + "\n".join(f"- {names.get(f, f)}" for f in no_f)
+            raw = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=30)
+            m = re.search(r"\{.*\}", raw or "", re.S)
+            data = _json_stdlib.loads(m.group(0)) if m else {}
+            summary = str(data.get("summary") or "").strip()[:900]
+            reply = str(data.get("reply") or "").strip()[:300]
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[tour] interest profile LLM failed: %s", exc)
+    if not summary:
+        summary = ("Interessato a: " + ", ".join(names.get(f, f) for f in yes_f[:12])) if yes_f else "Nessuna area di interesse dichiarata."
+    if not reply:
+        reply = "Ho capito. Ecco cosa attivo per te."
+    picks = yes_f[:6] if yes_f else _tour_heuristic(" ".join(free))
+    profile = {
+        "yes_features": yes_f, "no_features": no_f, "free_answers": free, "summary": summary,
+        "answers": [{"id": a.id, "text": a.text[:220], "answer": bool(a.answer), "feature": a.feature} for a in body.answers][:120],
+        "updated_at": utcnow(),
+    }
+    await db.user_settings.update_one({"user_id": user["user_id"]}, {"$set": {"axon_interest_profile": profile}}, upsert=True)
+    return {"features": [{"id": f, "name": names[f]} for f in picks if f in names], "reply": reply, "yes_count": len(yes_f), "no_count": len(no_f)}
+
+
+async def _axon_interest_section(user_id: str) -> str:
+    """Blocco per il system prompt di Axon: profilo interessi (form + risposte libere del tour) → risposte personalizzate e suggerimenti proattivi."""
+    try:
+        row = await db.user_settings.find_one({"user_id": user_id}, {"axon_interest_profile": 1, "tour_profile": 1}) or {}
+    except Exception:
+        return ""
+    prof = row.get("axon_interest_profile") or {}
+    tour = row.get("tour_profile") or {}
+    if not prof and not tour:
+        return ""
+    names = {fid: name for fid, name, _g in _TOUR_FEATURES}
+    lines = ["\n\nPROFILO INTERESSI DELL'UTENTE (dichiarato nel tour guidato — usalo per personalizzare ogni risposta):"]
+    free = list(prof.get("free_answers") or [])
+    if not free and tour.get("text"):
+        free = [str(tour.get("text"))[:600]]
+    if free:
+        lines.append("- Cosa fa / cosa gli complica la vita / cosa si aspetta: " + " | ".join(str(t)[:300] for t in free[:4]))
+    if prof.get("summary"):
+        lines.append("- Sintesi bisogni: " + str(prof["summary"])[:900])
+    yes_f = [f for f in (prof.get("yes_features") or []) if f in names] or [f for f in (tour.get("features") or []) if f in names]
+    if yes_f:
+        lines.append("- INTERESSATO A (funzione → percorso): " + "; ".join(f"{names[f]} → {_TOUR_FEATURE_ROUTES.get(f, '/')}" for f in yes_f[:16]))
+    no_f = [f for f in (prof.get("no_features") or []) if f in names]
+    if no_f:
+        lines.append("- NON interessato a: " + ", ".join(names[f] for f in no_f[:16]))
+    lines.append(
+        "REGOLE: (1) adatta tono, esempi e priorità a questo profilo; (2) quando è pertinente al messaggio, proponi PROATTIVAMENTE al massimo UNA scorciatoia o funzione correlata "
+        "tra quelle di interesse, indicando il percorso nell'app (es. «Ho visto che usi la Mappa clienti: vuoi sapere in anticipo quanti km percorri in un giorno? Apri Resoconto Km»); "
+        "(3) mai insistere: se l'utente declina, non riproporla nella stessa conversazione; (4) non proporre funzioni marcate NON interessato salvo richiesta esplicita."
+    )
+    return "\n".join(lines) + "\n"

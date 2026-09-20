@@ -22,6 +22,7 @@ export const AXON_VOICES: { key: string; label: string; desc: string; gender: "F
   { key: "echo", label: "Echo", desc: "Maschile, morbida", gender: "M" },
   { key: "ash", label: "Ash", desc: "Maschile, decisa", gender: "M" },
 ];
+export const SPEECH_RATES = [0.75, 1, 1.25, 1.5, 2];
 export const AXON_LANGUAGES: { key: string; label: string; flag: string; sample: string }[] = [
   { key: "it", label: "Italiano", flag: "🇮🇹", sample: "Ciao, sono Axon, il tuo assistente. Questa è la mia voce." },
   { key: "en", label: "English", flag: "🇬🇧", sample: "Hi, I'm Axon, your assistant. This is my voice." },
@@ -40,29 +41,31 @@ export default function AxonVoiceScreen() {
   const pagePad = usePageBottomPadding();
   const [voice, setVoice] = useState("nova");
   const [lang, setLang] = useState("it");
+  const [rate, setRate] = useState(1); // V50.z284 — velocità di lettura (0.75–2×)
   const [loading, setLoading] = useState(true);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [stop, setStop] = useState<(() => void) | null>(null);
 
   useEffect(() => {
-    api<{ assistant_voice?: string; assistant_language?: string }>("/user-settings")
-      .then((s) => { if (s?.assistant_voice) setVoice(s.assistant_voice); if (s?.assistant_language) setLang(s.assistant_language); })
+    api<{ assistant_voice?: string; assistant_language?: string; assistant_speech_rate?: number }>("/user-settings")
+      .then((s) => { if (s?.assistant_voice) setVoice(s.assistant_voice); if (s?.assistant_language) setLang(s.assistant_language); if (s?.assistant_speech_rate) setRate(Number(s.assistant_speech_rate)); })
       .catch(() => {}).finally(() => setLoading(false));
     return () => { try { stop?.(); } catch {} };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const save = async (patch: { assistant_voice?: string; assistant_language?: string }) => {
+  const save = async (patch: { assistant_voice?: string; assistant_language?: string; assistant_speech_rate?: number }) => {
     try { await api("/user-settings", { method: "PUT", body: patch }); } catch (e: any) { notify("Axon", e?.message || "Salvataggio non riuscito"); }
   };
   const chooseVoice = async (v: string) => { setVoice(v); await save({ assistant_voice: v }); void preview(v, lang); };
   const chooseLang = async (l: string) => { setLang(l); await save({ assistant_language: l }); void preview(voice, l); };
-  const preview = async (v: string, l: string) => {
+  const chooseRate = async (r: number) => { setRate(r); await save({ assistant_speech_rate: r }); };
+  const preview = async (v: string, l: string, r: number = rate, who: string = v) => {
     try { stop?.(); } catch {}
-    setPreviewing(v);
+    setPreviewing(who);
     try {
       const sample = AXON_LANGUAGES.find((x) => x.key === l)?.sample || AXON_LANGUAGES[0].sample;
-      const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", { method: "POST", body: { text: sample, voice: v } });
-      const s = await playAudioBase64(r.audio_base64, r.mime || "audio/mpeg", () => setPreviewing(null));
+      const res = await api<{ audio_base64: string; mime: string }>("/assistant/tts", { method: "POST", body: { text: sample, voice: v, speed: r } });
+      const s = await playAudioBase64(res.audio_base64, res.mime || "audio/mpeg", () => setPreviewing(null));
       setStop(() => s);
     } catch (e: any) { setPreviewing(null); notify("Anteprima voce", e?.message || "Audio non disponibile"); }
   };
@@ -90,6 +93,23 @@ export default function AxonVoiceScreen() {
               );
             })}
           </View>
+
+          {/* V50.z284 — velocità di lettura + test */}
+          <Text style={s.section}>⏩ Velocità di lettura</Text>
+          <Text style={s.hint}>Quanto veloce parla Axon (tour, chat e conversazione continua). Tocca «Prova velocità» per ascoltare.</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }} testID="axon-rate-row">
+            {SPEECH_RATES.map((r) => {
+              const on = Math.abs(r - rate) < 0.01;
+              return (
+                <Pressable key={r} onPress={() => chooseRate(r)} style={[s.chip, on && s.chipOn]} testID={`axon-rate-${String(r).replace(".", "_")}`}>
+                  <Text style={[s.chipTxt, on && { color: "#FFF" }]}>{r}×{r === 1 ? " normale" : ""}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Pressable onPress={() => preview(voice, lang, rate, "rate")} disabled={previewing === "rate"} style={s.testBtn} testID="axon-rate-test">
+            {previewing === "rate" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="play-circle" size={20} color="#FFF" /><Text style={s.testBtnTxt}>Prova velocità ({rate}×)</Text></>}
+          </Pressable>
 
           <Text style={s.section}>🌍 Lingua delle risposte</Text>
           <Text style={s.hint}>Axon risponderà (testo e voce) nella lingua scelta. L'interfaccia dell'app resta in italiano.</Text>
@@ -122,5 +142,6 @@ const s = StyleSheet.create({
   play: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F3E8FF", alignItems: "center", justifyContent: "center" },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 42, borderRadius: 21, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
   chipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }, chipTxt: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
+  testBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 14, backgroundColor: "#7C3AED" }, testBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
   note: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#ECFDF5", borderRadius: 12, padding: 12 }, noteTxt: { flex: 1, fontSize: 12, color: "#065F46", lineHeight: 17 },
 });

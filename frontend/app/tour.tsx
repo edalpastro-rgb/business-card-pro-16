@@ -14,7 +14,8 @@ import { notify } from "@/src/utils/notify";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { uriToBase64DataUrl } from "@/src/utils/media";
-import { playAudioBase64 } from "@/src/AssistantChat";
+import { playAudioBase64, AudioStopper } from "@/src/AssistantChat";
+import { InterestForm } from "@/src/TourInterestForm"; // V50.z284 — form spuntabile 20 domande Sì/No
 import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
 import { ContactPreviewForm, flattenChannels, ExtractedContact } from "@/src/ContactPreviewForm"; // V50.z278
 import { ManualCropEditor, CropResult } from "@/src/ManualCropEditor"; // V50.z278
@@ -26,8 +27,17 @@ const FEATURE_ICON: Record<string, any> = { bills: "document-text", compare: "gi
 // • generazione: ogni nuova frase invalida quelle precedenti (anche se il loro audio TTS arriva dopo → viene scartato/fermato)
 // • prefetch: l'audio viene richiesto subito, ma la riproduzione parte solo dopo il countdown di lettura (se richiesto)
 // • stop globale: cambio schermata / uscita dal tour / mute → silenzio immediato
-const voice = { gen: 0, stop: (() => {}) as () => void, listeners: new Set<(remaining: number | null) => void>() };
-const voiceStop = () => { voice.gen += 1; try { voice.stop(); } catch {} voice.stop = () => {}; voice.listeners.forEach((l) => l(null)); };
+const voice = {
+  gen: 0, stop: (() => {}) as () => void, listeners: new Set<(remaining: number | null) => void>(),
+  // V50.z284 — pausa/riprendi/stop della frase in corso (Stop = salta la frase ma il flusso prosegue)
+  pauser: null as AudioStopper | null, paused: false, pausedListeners: new Set<(p: boolean) => void>(), finish: (() => {}) as () => void,
+};
+const setPausedState = (p: boolean) => { voice.paused = p; voice.pausedListeners.forEach((l) => l(p)); };
+const voiceStop = () => { voice.gen += 1; try { voice.stop(); } catch {} voice.stop = () => {}; voice.pauser = null; setPausedState(false); voice.listeners.forEach((l) => l(null)); };
+const voicePause = () => { if (voice.pauser?.pause) { voice.pauser.pause(); setPausedState(true); } };
+const voiceResume = () => { if (voice.pauser?.resume) { voice.pauser.resume(); setPausedState(false); } };
+/** Stop: ferma la voce della frase corrente e fa proseguire il flusso (come se avesse finito di parlare). */
+const voiceSkip = () => { try { voice.finish(); } catch {} };
 const tourMuted = { value: false }; // stato condiviso (aggiornato dal toggle in TourScreen)
 const MUTE_KEY = "tour_voice_muted";
 
@@ -41,7 +51,8 @@ async function speak(text: string, onEnded?: () => void, readSeconds = 0): Promi
   const myGen = voice.gen;
   const alive = () => voice.gen === myGen;
   let ended = false;
-  const end = () => { if (ended || !alive()) return; ended = true; voice.listeners.forEach((l) => l(null)); onEnded?.(); };
+  const end = () => { if (ended || !alive()) return; ended = true; try { voice.stop(); } catch {} voice.stop = () => {}; voice.pauser = null; setPausedState(false); voice.listeners.forEach((l) => l(null)); onEnded?.(); };
+  voice.finish = end;
   if (tourMuted.value) { const t = setTimeout(end, Math.max(1500, readSeconds * 1000)); voice.stop = () => clearTimeout(t); return; }
   const audioP = fetchTts(text);
   if (readSeconds > 0) {
@@ -60,6 +71,7 @@ async function speak(text: string, onEnded?: () => void, readSeconds = 0): Promi
     const stopper = await playAudioBase64(audio.b64, audio.mime, end);
     if (!alive()) { try { stopper(); } catch {} return; } // nel frattempo è arrivata un'altra frase o un cambio pagina
     voice.stop = stopper;
+    voice.pauser = stopper;
   } catch { end(); }
 }
 
@@ -68,6 +80,11 @@ function useVoiceState() {
   const [remaining, setRemaining] = useState<number | null>(null);
   useEffect(() => { voice.listeners.add(setRemaining); return () => { voice.listeners.delete(setRemaining); }; }, []);
   return remaining;
+}
+function useVoicePaused() {
+  const [paused, setPaused] = useState(voice.paused);
+  useEffect(() => { voice.pausedListeners.add(setPaused); return () => { voice.pausedListeners.delete(setPaused); }; }, []);
+  return paused;
 }
 
 export default function TourScreen() {
@@ -79,6 +96,8 @@ export default function TourScreen() {
   // V50.z266 — silenzia/riattiva la voce di Axon (persistito in cache locale + user-settings)
   const [muted, setMuted] = useState(false);
   const voiceState = useVoiceState();
+  const voicePaused = useVoicePaused();
+  const speaking = voiceState === 0 && !muted;
   // V50.z266 — schermata 3: finché l'anagrafica master non è completa il tour non si può saltare
   const [masterLocked, setMasterLocked] = useState(false);
   useEffect(() => {
@@ -127,12 +146,23 @@ export default function TourScreen() {
       {/* V50.z270 — stato voce (countdown di lettura / Axon parla) centrato sotto i punti, per non coprire header e status bar */}
       <View style={styles.voiceRow}>
         {voiceState !== null && voiceState > 0 ? <View style={styles.countdown} testID="tour-voice-countdown"><Ionicons name="time-outline" size={13} color={SKY} /><Text style={styles.countdownTxt}>Axon parla tra {voiceState}s</Text></View> : null}
-        {voiceState === 0 && !muted ? <View style={styles.countdown} testID="tour-voice-speaking"><Ionicons name="volume-high" size={13} color={SKY} /><Text style={styles.countdownTxt}>Axon parla…</Text></View> : null}
+        {speaking ? <View style={styles.countdown} testID="tour-voice-speaking"><Ionicons name={voicePaused ? "pause" : "volume-high"} size={13} color={SKY} /><Text style={styles.countdownTxt}>{voicePaused ? "Axon in pausa" : "Axon parla…"}</Text></View> : null}
       </View>
-      {/* V50.z270 — header sotto la status bar (insets.top), non sovrapposto alle icone di sistema */}
+      {/* V50.z284 — header: Pausa/Riprendi · Stop (mentre Axon parla) · Silenzia (pill ben visibile) · Salta */}
       <View style={[styles.topRight, { top: insets.top + 2 }]}>
-        <Pressable onPress={toggleMute} hitSlop={8} style={styles.muteBtn} testID="tour-mute" accessibilityLabel={muted ? "Riattiva la voce di Axon" : "Silenzia la voce di Axon"}>
-          <Ionicons name={muted ? "volume-mute" : "volume-high"} size={20} color={muted ? AMBER : SKY} />
+        {speaking ? (
+          <>
+            <Pressable onPress={voicePaused ? voiceResume : voicePause} hitSlop={6} style={styles.ctrlBtn} testID="tour-voice-pause" accessibilityLabel={voicePaused ? "Riprendi la voce di Axon" : "Metti in pausa la voce di Axon"}>
+              <Ionicons name={voicePaused ? "play" : "pause"} size={18} color={SKY} />
+            </Pressable>
+            <Pressable onPress={voiceSkip} hitSlop={6} style={styles.ctrlBtn} testID="tour-voice-stop" accessibilityLabel="Ferma la voce di Axon">
+              <Ionicons name="stop" size={18} color={SKY} />
+            </Pressable>
+          </>
+        ) : null}
+        <Pressable onPress={toggleMute} hitSlop={6} style={[styles.muteBtn, muted && styles.muteBtnOn]} testID="tour-mute" accessibilityLabel={muted ? "Riattiva la voce di Axon" : "Silenzia la voce di Axon"}>
+          <Ionicons name={muted ? "volume-mute" : "volume-high"} size={18} color={muted ? NAVY : SKY} />
+          <Text style={[styles.muteTxt, muted && { color: NAVY }]}>{muted ? "Riattiva" : "Silenzia"}</Text>
         </Pressable>
         {!(step === 3 && masterLocked) ? <Pressable onPress={finish} hitSlop={10} style={styles.skip} testID="tour-skip"><Text style={styles.skipTxt}>Salta</Text></Pressable> : null}
       </View>
@@ -184,7 +214,7 @@ function Welcome({ onNext, onFeatures }: { onNext: () => void; onFeatures: () =>
 const INTRO = "Ciao e benvenuto. Da oggi sarò il tuo assistente di fiducia. Potrai dirmi e chiedermi moltissime cose. Ti dico subito una cosa importante: non sono perfetto, e per darti il meglio avremo bisogno di conoscerci. Porta un po' di pazienza con me — imparo in fretta, soprattutto dai miei errori. Grazie per la comprensione.";
 const LEAD_IN = "Più sei preciso nel dirmi cosa è importante per te, più riuscirò ad adattarmi alle tue esigenze.";
 const QUESTIONS = [
-  "Prima di tutto dimmi: cosa fai e cosa ti fa perdere più tempo nel lavoro?",
+  "Per iniziare, dimmi cosa ti aspetti da me e cosa ti complica la vita nella gestione del tuo lavoro quotidiano, non dare nulla di scontato, raccontami tutto.",
   "Quale funzione per te è assolutamente indispensabile?",
   "Cosa ti aspetti da AdvisorOS? Più sei preciso, più lo adatto a te.",
 ];
@@ -197,6 +227,7 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
   const [reply, setReply] = useState<string | null>(null);
   const [features, setFeatures] = useState<{ id: string; name: string }[]>([]);
   const [lit, setLit] = useState(0);
+  const [formMode, setFormMode] = useState(false); // V50.z284 — form spuntabile al posto delle domande a voce
   const qIdx = answers.length; // domanda corrente (0..2); 3 = elaborazione
   const scrollRef = useRef<ScrollView>(null);
   const voiceState = useVoiceState();
@@ -207,11 +238,11 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
   useEffect(() => {
     let done = false;
     const next = (p: "lead" | "questions") => { if (done) return; done = true; setPhase(p); };
-    if (phase === "intro") void say(INTRO, () => next("lead"), 10);
+    if (phase === "intro") void say(INTRO, () => next("lead"), 5); // V50.z284 — countdown di lettura 5 s
     else if (phase === "lead") void say(LEAD_IN, () => next("questions"));
     return () => { done = true; };
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (phase === "questions" && qIdx < QUESTIONS.length) void say(QUESTIONS[qIdx]); }, [qIdx, say, phase]);
+  useEffect(() => { if (phase === "questions" && qIdx < QUESTIONS.length && !formMode) void say(QUESTIONS[qIdx]); }, [qIdx, say, phase, formMode]);
   useEffect(() => {
     if (!features.length) return;
     setLit(0);
@@ -235,6 +266,22 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     if (all.length >= QUESTIONS.length) await elaborate(all);
   };
+  // V50.z284 — form completato (NO, è tutto): il profilo interessi è salvato → mostra risposta + funzioni che «si accendono»
+  const onFormDone = (r: { features: { id: string; name: string }[]; reply: string }) => {
+    setFormMode(false); setReply(r.reply || ""); setFeatures(r.features || []);
+    void say(`Ho capito. Ecco cosa attivo per te. ${r.reply || ""}`);
+  };
+
+  if (formMode) {
+    return (
+      <View style={styles.screen}>
+        <ScrollView ref={scrollRef} contentContainerStyle={{ gap: 12, paddingBottom: 16 }} keyboardShouldPersistTaps="handled">
+          <AxonOrb />
+          <InterestForm freeAnswers={answers} onDone={onFormDone} onBack={() => setFormMode(false)} />
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
@@ -276,6 +323,12 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
           <View style={{ alignItems: "center", gap: 12 }}>
             <Text style={[styles.p, { fontSize: 12 }]}>Domanda {qIdx + 1} di {QUESTIONS.length}</Text>
             <View style={styles.micWrap}><VoiceDictationButton label="Rispondi a voce" testID="tour-voice" onTranscript={(t) => void submit(t)} /></View>
+            {/* V50.z284 — alternativa: form spuntabile (20 domande Sì/No, poi «È tutto o altre domande?») */}
+            <Pressable onPress={() => { voiceStop(); setFormMode(true); }} style={styles.formBtn} testID="tour-form-toggle">
+              <Ionicons name="checkbox-outline" size={20} color={SKY} />
+              <View style={{ flex: 1 }}><Text style={styles.formBtnTxt}>Preferisci un form spuntabile?</Text><Text style={styles.choiceSub}>20 domande Sì/No: rispondi con un tocco</Text></View>
+              <Ionicons name="chevron-forward" size={18} color={MUTED} />
+            </Pressable>
             {!typed ? <Pressable onPress={() => setTyped(true)} testID="tour-type-toggle"><Text style={styles.linkTxt}>Preferisco scrivere</Text></Pressable> : (
               <View style={{ width: "100%", gap: 8 }}>
                 <TextInput placeholder="Scrivi qui la tua risposta…" placeholderTextColor={MUTED} style={styles.input} multiline onChangeText={setDraft} value={draft} testID="tour-type-input" />
@@ -551,14 +604,16 @@ function Closing({ onFinish, onFeatures }: { onFinish: () => void; onFeatures: (
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: NAVY, paddingHorizontal: 24 },
-  dots: { flexDirection: "row", gap: 6, alignSelf: "center", marginBottom: 8 },
+  dots: { flexDirection: "row", gap: 6, alignSelf: "flex-start", marginBottom: 8, height: 40, alignItems: "center" },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.18)" }, dotOn: { backgroundColor: SKY, width: 22 }, dotDone: { backgroundColor: "rgba(56,189,248,0.6)" },
   skip: { paddingVertical: 10, paddingHorizontal: 8, minHeight: 44, justifyContent: "center" }, skipTxt: { color: MUTED, fontWeight: "700", fontSize: 13 },
-  topRight: { position: "absolute", right: 16, top: 0, flexDirection: "row", alignItems: "center", gap: 2, zIndex: 2 },
+  topRight: { position: "absolute", right: 16, top: 0, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 2 },
   countdown: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(56,189,248,0.12)", borderColor: "rgba(56,189,248,0.4)", borderWidth: 1, borderRadius: 12, paddingHorizontal: 8, height: 26 },
   voiceRow: { height: 28, alignItems: "center", justifyContent: "center", marginBottom: 2 },
   countdownTxt: { color: SKY, fontSize: 11, fontWeight: "800" },
-  muteBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
+  muteBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1.5, borderColor: SKY, backgroundColor: "rgba(56,189,248,0.14)" },
+  muteBtnOn: { backgroundColor: AMBER, borderColor: AMBER }, muteTxt: { color: SKY, fontWeight: "900", fontSize: 13 },
+  ctrlBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(56,189,248,0.5)", backgroundColor: "rgba(255,255,255,0.06)" },
   mandatory: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(251,191,36,0.10)", borderColor: "rgba(251,191,36,0.45)", borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
   mandatoryTxt: { flex: 1, color: AMBER, fontSize: 13, fontWeight: "800", lineHeight: 18 },
   errTxt: { color: AMBER, fontSize: 13, fontWeight: "700", textAlign: "center" },
@@ -575,6 +630,8 @@ const styles = StyleSheet.create({
   bubble: { backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 18, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }, bubbleUser: { backgroundColor: SKY, alignSelf: "flex-end", maxWidth: "90%" },
   bubbleTxt: { color: WHITE, fontSize: 16, lineHeight: 23 },
   micWrap: { alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 16, padding: 8 },
+  formBtn: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, backgroundColor: "rgba(56,189,248,0.10)", borderWidth: 1.5, borderColor: "rgba(56,189,248,0.55)", minHeight: 56, width: "100%" },
+  formBtnTxt: { color: WHITE, fontSize: 15, fontWeight: "900" },
   input: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 14, padding: 14, color: WHITE, fontSize: 15, minHeight: 80, textAlignVertical: "top", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" },
   feat: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", minHeight: 52 },
   featOn: { backgroundColor: "rgba(56,189,248,0.14)", borderColor: SKY },
