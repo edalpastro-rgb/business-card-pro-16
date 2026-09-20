@@ -92,6 +92,7 @@ MODULES = [
     "axon_stress_test.py",  # V50.z260 — Stress test AxonOS: 200+ domande × N ripetizioni via /assistant/chat/stream, valutazione deep link/coerenza/trap, report + HTML PDF, correzioni prompt (db.axon_prompt_rules) (isolato; DOPO axon_navigator: avvolge _prepare_assistant_prompt e _nav_intercept)
     "identity_documents.py",  # V50.z267 — Documenti di riconoscimento: OCR Gemini CI/patente/passaporto/CF fronte-retro, archivio (Object Storage → fallback Mongo), scadenze (job 09:15: email 90gg, popup/CRITICAL 30gg) (isolato; usa 05, 12, axon_personal_lock, axon_notifications)
     "form_templates.py",  # V50.z268 — Modelli moduli (Master): PDF → campi rilevati da Gemini (bbox) / AcroForm; compilazione per cliente da anagrafica + documenti + fatture → PDF pronto per stampa/firma, modificabile (isolato; usa PyMuPDF)
+    "offline_sync.py",  # V50.z279 — Modalità aereo/offline: replay idempotente della coda client, conflitti segnalati al Master
     "courses.py",  # V50.z273 — Area Corsi (Corporate Gym v2.0 Fase 1): cartelle corsi, lettura/partecipazione, lista partecipanti, export, reminder (isolato)
     "37_app_startup_scheduler.py",
 ]

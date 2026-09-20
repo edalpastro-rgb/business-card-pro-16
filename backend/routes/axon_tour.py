@@ -17,7 +17,7 @@ _TOUR_FEATURES: List[Tuple[str, str, str]] = [  # (id, nome, gruppo)
     ("team", "Team e collaboratori", "Master"), ("kpi", "KPI e statistiche", "Master"), ("gym", "Corporate Gym", "Master"), ("import", "Import contatti", "Master"),
     # V50.z277 — nuove funzioni nel tour (nomi identici alle voci APP_MAP → dedupe in «Tutte le funzioni»)
     ("courses", "Area Corsi", "Master"), ("courses_dashboard", "Dashboard Azienda corsi", "Master"), ("forms", "Modelli moduli (PDF da compilare)", "Master"),
-    ("iddocs", "Documenti di riconoscimento", "Impostazioni"), ("axon_voice", "Voce e lingua di Axon", "AxonOS"),
+    ("iddocs", "Documenti di riconoscimento", "Impostazioni"), ("axon_voice", "Voce e lingua di Axon", "AxonOS"), ("offline", "Modalità offline e sincronizzazione", "Impostazioni"),
     ("security", "Sicurezza e 2FA", "Impostazioni"), ("custom", "Personalizzazione", "Impostazioni"), ("help", "Help Center", "Impostazioni"),
 ]
 _TOUR_IDS = {f[0] for f in _TOUR_FEATURES}
@@ -30,12 +30,13 @@ _TOUR_FEATURE_ROUTES: Dict[str, str] = {
     "chat": "/axon-hub", "voice": "/voice-copilot", "notes": "/my-audios", "wake": "/wake-word", "learn": "/ai-teach", "proactive": "/axon-proactive", "wizard": "/setup",
     "email": "/email-accounts", "whatsapp": "/contatti", "birthday": "/calendario",
     "team": "/team", "kpi": "/team-insights", "gym": "/corporate-gym", "import": "/contacts-import",
-    "courses": "/courses", "courses_dashboard": "/courses/dashboard", "forms": "/form-templates", "iddocs": "/anagrafica-master", "axon_voice": "/axon-voice",
+    "courses": "/courses", "courses_dashboard": "/courses/dashboard", "forms": "/form-templates", "iddocs": "/anagrafica-master", "axon_voice": "/axon-voice", "offline": "/offline-sync",
     "security": "/security", "custom": "/impostazioni?section=branding", "help": "/help-center",
 }
 _TOUR_KEYWORDS = {
     "courses": ["corso", "corsi", "formazione", "formare", "attestat", "slide", "powerpoint", "quiz", "test ai collaborator"], "forms": ["modul", "compilare", "compilazione", "precompil"],
     "iddocs": ["carta d", "identit", "patente", "passaport", "tessera sanitaria", "scadenza document"], "axon_voice": ["voce di axon", "lingua", "cambiare voce"],
+    "offline": ["offline", "aereo", "senza rete", "senza connessione", "campo", "viaggi", "in giro", "zone senza"],
     "bills": ["bollett", "fattur", "energia", "luce", "gas"], "compare": ["confront", "offert", "risparm"], "route": ["giro", "visite", "strada", "km", "auto", "spostament"],
     "calendar": ["appuntament", "agenda", "calendar"], "deadlines": ["scadenz", "rinnov", "contratt"], "notes": ["nota", "appunt", "ricord"],
     "scanner": ["document", "scans", "carta", "pdf"], "email": ["email", "mail"], "whatsapp": ["whatsapp", "messagg"], "referrals": ["referenz", "passaparola", "segnalaz"],

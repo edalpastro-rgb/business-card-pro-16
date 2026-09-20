@@ -110,17 +110,23 @@ export function ContactChannelsEditor({ value, onChange, dark, testIdPrefix = "c
   );
 }
 
-type FormProps = { value: ExtractedContact; onChange: (patch: Partial<ExtractedContact>) => void; cardImage?: string | null; onRecrop?: () => void; dark?: boolean };
+type FormProps = { value: ExtractedContact; onChange: (patch: Partial<ExtractedContact>) => void; cardImage?: string | null; cardBack?: string | null; onRecrop?: () => void; onAddBack?: () => void; dark?: boolean };
 
-export function ContactPreviewForm({ value, onChange, cardImage, onRecrop, dark }: FormProps) {
+export function ContactPreviewForm({ value, onChange, cardImage, cardBack, onRecrop, onAddBack, dark }: FormProps) {
   const s = dark ? sd : sl;
   const people: PersonEntry[] = value.people || [];
   return (
     <View style={{ gap: 10 }}>
       {cardImage ? (
         <View style={{ alignItems: "center", gap: 6 }}>
-          <Image source={{ uri: cardImage.startsWith("data:") ? cardImage : `data:image/jpeg;base64,${cardImage}` }} style={s.cardImg} resizeMode="contain" testID="contact-card-thumb" />
-          {onRecrop ? <Pressable onPress={onRecrop} hitSlop={6} testID="contact-card-recrop"><Text style={s.addTxt}>✂️ Ritaglia di nuovo</Text></Pressable> : null}
+          <View style={{ flexDirection: "row", gap: 8, width: "100%" }}>
+            <Image source={{ uri: cardImage.startsWith("data:") ? cardImage : `data:image/jpeg;base64,${cardImage}` }} style={[s.cardImg, { flex: 1, width: undefined }]} resizeMode="contain" testID="contact-card-thumb" />
+            {cardBack ? <Image source={{ uri: cardBack.startsWith("data:") ? cardBack : `data:image/jpeg;base64,${cardBack}` }} style={[s.cardImg, { flex: 1, width: undefined }]} resizeMode="contain" testID="contact-card-back-thumb" /> : null}
+          </View>
+          <View style={{ flexDirection: "row", gap: 16 }}>
+            {onRecrop ? <Pressable onPress={onRecrop} hitSlop={6} testID="contact-card-recrop"><Text style={s.addTxt}>✂️ Ritaglia fronte</Text></Pressable> : null}
+            {onAddBack ? <Pressable onPress={onAddBack} hitSlop={6} testID="contact-card-add-back"><Text style={s.addTxt}>📷 Aggiungi retro</Text></Pressable> : null}
+          </View>
         </View>
       ) : null}
       {BASE_FIELDS.filter(([k]) => value[k] !== undefined && value[k] !== null && String(value[k]) !== "").map(([k, l]) => (

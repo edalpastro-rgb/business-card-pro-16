@@ -19,6 +19,7 @@ import { openInAppLink } from "@/src/utils/openInAppLink";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
 // V50.z147 — SupportFab non più montato (header Help rimosso); import rimosso.
 import { CalculatorFAB } from "@/src/CalculatorFAB";
+import { OfflineBanner } from "@/src/OfflineBanner"; // V50.z279 — modalità aereo/offline
 import { EdgePanel } from "@/src/EdgePanel";
 import { OnboardingWizard } from "@/src/OnboardingWizard";
 import { AnimatedSplash } from "@/src/AnimatedSplash";
@@ -202,6 +203,8 @@ function StackWithCallBar() {
   }, [user?.user_id]);
   return (
     <View style={{ flex: 1 }}>
+      {/* V50.z279 — Banner offline / sincronizzazione (sopra lo Stack, tocca → /offline-sync) */}
+      <OfflineBanner userId={user?.user_id} />
       {/* V50.z186 — padding dinamico = altezza tastiera (solo Android): il campo attivo resta visibile */}
       <AndroidKeyboardPadding>
         <Stack screenOptions={{ headerShown: false, animation: "fade" }} />

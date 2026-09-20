@@ -11,6 +11,7 @@ import { openInAppLink } from "@/src/utils/openInAppLink";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { PendingBadge } from "@/src/OfflineBanner"; // V50.z281
 import { theme } from "@/src/theme";
 import { ContactContractsSection } from "@/src/ContactContractsSection"; // V50.z262 — tab Contratti
 import { pickAvatarBase64 } from "@/src/image-picker";
@@ -55,7 +56,8 @@ type Contact = {
   company?: string; role?: string; fax?: string;
   phones?: { label: string; number: string; type: string; primary?: boolean }[]; emails?: { label: string; address: string; primary?: boolean }[];
   people?: { name: string; role?: string; phone?: string; email?: string }[]; contact_prefs?: { channels?: string[]; best_time?: string; note?: string };
-  business_card?: { data_base64: string; mime?: string; created_at?: string } | null;
+  _pending?: boolean; // V50.z281 — in attesa di sincronizzazione (offline)
+  business_card?: { data_base64: string; back_data_base64?: string; mime?: string; created_at?: string } | null;
   address_street?: string; address_number?: string; address_zip?: string; address_city?: string; address_province?: string;
   work_address?: string; residence_address?: string;
   birth_date?: string; fiscal_code?: string; vat_number?: string; anniversaries?: { name: string; date: string }[];
@@ -691,6 +693,7 @@ function ContactDetail() {
             <Text style={styles.nameCompact} numberOfLines={1} ellipsizeMode="tail">
               {c.first_name} {c.last_name}{c.contact_code ? ` · ${c.contact_code}` : ""}
             </Text>
+            <PendingBadge pending={c._pending} />
             <Text style={styles.areaTagCompact} numberOfLines={1}>
               {c.area === "energy" ? "Consulente Energetico" : "Networker"} · {c.source === "referral" ? "Referenza" : "Conoscenza"}
             </Text>
@@ -1060,8 +1063,15 @@ function ContactDetail() {
                 <Pressable onPress={() => setViewerFile({ id: "business_card", name: `Biglietto ${c.first_name} ${c.last_name}.jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.data_base64 })} testID="contact-business-card-open">
                   <Image source={{ uri: `data:${c.business_card.mime || "image/jpeg"};base64,${c.business_card.data_base64}` }} style={{ width: "100%", height: 160, borderRadius: 12, backgroundColor: "#F1F5F9" }} resizeMode="contain" />
                 </Pressable>
+                {c.business_card.back_data_base64 ? (
+                  <Pressable onPress={() => setViewerFile({ id: "business_card_back", name: `Biglietto ${c.first_name} ${c.last_name} (retro).jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.back_data_base64! })} testID="contact-business-card-back-open">
+                    <Image source={{ uri: `data:${c.business_card.mime || "image/jpeg"};base64,${c.business_card.back_data_base64}` }} style={{ width: "100%", height: 160, borderRadius: 12, backgroundColor: "#F1F5F9" }} resizeMode="contain" />
+                    <Text style={[styles.infoLabel, { textAlign: "center", marginTop: 2 }]}>Retro</Text>
+                  </Pressable>
+                ) : null}
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable onPress={() => setViewerFile({ id: "business_card", name: `Biglietto ${c.first_name} ${c.last_name}.jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.data_base64 })} style={styles.cardBtn}><Ionicons name="eye-outline" size={16} color={theme.color.brandPrimary} /><Text style={styles.cardBtnTxt}>Apri</Text></Pressable>
+                  {c.business_card.back_data_base64 ? <Pressable onPress={() => shareFile({ id: "business_card_back", name: `Biglietto ${c.first_name} ${c.last_name} (retro).jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.back_data_base64! })} style={styles.cardBtn} testID="contact-business-card-back-share"><Ionicons name="share-social-outline" size={16} color={theme.color.brandPrimary} /><Text style={styles.cardBtnTxt}>Retro</Text></Pressable> : null}
                   <Pressable onPress={() => shareFile({ id: "business_card", name: `Biglietto ${c.first_name} ${c.last_name}.jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.data_base64 })} style={styles.cardBtn} testID="contact-business-card-share"><Ionicons name="share-social-outline" size={16} color={theme.color.brandPrimary} /><Text style={styles.cardBtnTxt}>Condividi</Text></Pressable>
                 </View>
               </View>

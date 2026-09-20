@@ -1,4 +1,5 @@
 import { storage } from "@/src/utils/storage";
+import * as offline from "@/src/offline"; // V50.z279 — modalità aereo: cache GET + coda scritture
 
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL as string;
 const TOKEN_KEY = "auth_token_v1";
@@ -35,30 +36,43 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
         .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
         .join("&")
     : "";
+  const method: offline.Method = opts.method || "GET";
+  if (token) offline.setOfflineScope(token);
   let res: Response;
+  // V50.z279 — se siamo già offline non aspettiamo il timeout di rete: 4s poi cache/coda
+  let signal = opts.signal; let killer: any = null;
+  if (offline.isOffline() && !signal && typeof AbortController !== "undefined") { const ac = new AbortController(); signal = ac.signal; killer = setTimeout(() => ac.abort(), 4000); }
   try {
     res = await fetch(`${BASE}/api${path}${q}`, {
-      method: opts.method || "GET",
+      method,
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
-      signal: opts.signal,
+      signal,
     });
   } catch (netErr: any) {
+    const timedOut = killer && netErr?.name === "AbortError";
     // V29.n — AbortError from user "Stop" button — silent.
-    if (netErr?.name === "AbortError" || /aborted|abort/i.test(String(netErr?.message || ""))) {
+    if (!timedOut && (netErr?.name === "AbortError" || /aborted|abort/i.test(String(netErr?.message || "")))) {
       throw netErr;
     }
-    // V38S — Convert the raw "TypeError: Failed to fetch" (browser) or
-    // "Network request failed" (RN) into a user-friendly Italian message.
     const raw = String(netErr?.message || netErr || "");
-    if (/failed to fetch|network request failed|networkerror/i.test(raw)) {
-      throw new Error("Connessione al server interrotta. Verifica la rete e riprova.");
+    if (timedOut || /failed to fetch|network request failed|networkerror|load failed/i.test(raw)) {
+      // V50.z279 — MODALITÀ OFFLINE: GET → ultimo dato in cache; scritture → coda di sincronizzazione
+      offline.markOffline();
+      if (method === "GET") {
+        const c = await offline.cacheGet(path, q);
+        if (c) return c.data as T;
+        throw new offline.OfflineError("Dati non disponibili offline: apri questa sezione quando sei connesso.");
+      }
+      if (offline.canQueue(path, method, opts.body)) return (await offline.enqueue(method, path, opts.query, opts.body)) as T;
+      throw new offline.OfflineError("Funzione non disponibile offline: riprova quando torni connesso.");
     }
     throw netErr;
-  }
+  } finally { if (killer) clearTimeout(killer); }
+  offline.markOnline();
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
@@ -68,8 +82,16 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
     throw new Error(msg);
   }
   if (res.status === 204) return undefined as any;
-  return (await res.json()) as T;
+  const data = (await res.json()) as T;
+  if (method === "GET" && !path.startsWith("/offline")) void offline.cacheSet(path, q, data);
+  return data;
 }
+
+// V50.z279 — trasporto per la coda offline: replay idempotente + ping di riconnessione
+offline.bindOfflineTransport(
+  (op) => api("/offline/replay", { method: "POST", body: { op_id: op.op_id, method: op.method, path: op.path, query: op.query, body: op.body, queued_at: op.queued_at, base_updated_at: op.base_updated_at, label: op.label } }),
+  async () => { const ac = typeof AbortController !== "undefined" ? new AbortController() : null; const t = ac ? setTimeout(() => ac.abort(), 5000) : null; try { const r = await fetch(`${BASE}/api/health`, { signal: ac?.signal }); return r.ok; } finally { if (t) clearTimeout(t); } },
+);
 
 // V50.z84 — Multipart upload helper (per allegati chat)
 export async function apiUpload<T = any>(path: string, form: FormData): Promise<T> {

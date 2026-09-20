@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import { api } from "@/src/api";
+import { PendingBadge } from "@/src/OfflineBanner"; // V50.z281
 import { theme } from "@/src/theme";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { apptTypeColor, DEFAULT_APPT_TYPES } from "@/app/appointment/new";
@@ -19,6 +20,7 @@ import { useScrollMemory } from "@/src/utils/appStatePersist"; // V50.z243
 const BDAY_SEEN_KEY = "calendar_birthdays_seen_v1"; // V50.z152
 
 type Appointment = {
+  _pending?: boolean; // V50.z281 — creato/modificato offline
   appointment_id: string; title: string; area: "energy" | "network";
   start_at: string; end_at?: string; is_phone: boolean; done: boolean;
   location: string; notes: string; contact_id?: string;
@@ -37,6 +39,7 @@ type Settings = { energy_title: string; energy_color: string; network_title: str
 type TeamMember = { user_id: string; name: string; email?: string; role: string; color: string; is_me: boolean; is_owner: boolean };
 
 type CalItem = {
+  _pending?: boolean; // V50.z281
   kind: "appt" | "birthday";
   id: string;
   title: string;
@@ -170,7 +173,7 @@ function CalendarioScreen() {
       // Only own appointments + birthdays
       list.push(
         ...appts.map((a): CalItem => ({
-          kind: "appt", id: a.appointment_id, title: a.title, area: a.area,
+          kind: "appt", id: a.appointment_id, title: a.title, area: a.area, _pending: a._pending,
           start_at: new Date(a.start_at), is_phone: a.is_phone, done: a.done,
           location: a.location, contact_id: a.contact_id, original: a,
           is_mine: true, read_only: false,
@@ -184,7 +187,7 @@ function CalendarioScreen() {
         ...teamAppts
           .filter((a) => !a.is_mine)
           .map((a): CalItem => ({
-            kind: "appt", id: a.appointment_id, title: a.title,
+            kind: "appt", id: a.appointment_id, title: a.title, _pending: a._pending,
             area: (a.area as any) || "energy",
             start_at: new Date(a.start_at),
             is_phone: a.is_phone, done: a.done,
@@ -677,7 +680,7 @@ function CalendarioScreen() {
                         <Ionicons name="lock-closed" size={11} color={theme.color.muted} />
                       )}
                     </View>
-                    <Text style={[styles.apptTitle, item.done && { textDecorationLine: "line-through", color: theme.color.muted }]}>{item.title}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}><Text style={[styles.apptTitle, item.done && { textDecorationLine: "line-through", color: theme.color.muted }]}>{item.title}</Text><PendingBadge pending={item._pending} /></View>
                     {item.location ? <Text style={styles.loc} numberOfLines={1}><Ionicons name="location-outline" size={11} color={theme.color.muted} /> {item.location}</Text> : null}
                     {/* V50.z241 — distanza da te / dall'ufficio */}
                     {distByAppt[item.id] ? (
@@ -745,7 +748,7 @@ function CalendarioScreen() {
                   >
                     <View style={[styles.backlogDot, { backgroundColor: eventColor(item) }]} />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.backlogItemTitle} numberOfLines={1}>{item.title}</Text>
+                      <Text style={styles.backlogItemTitle} numberOfLines={1}>{item._pending ? "⏳ " : ""}{item.title}</Text>
                       <Text style={styles.backlogItemMeta}>
                         {dateFmt} · {timeFmt}{isPast ? ` · ${daysAgo} ${daysAgo === 1 ? "giorno" : "giorni"} fa` : " · oggi"}
                       </Text>

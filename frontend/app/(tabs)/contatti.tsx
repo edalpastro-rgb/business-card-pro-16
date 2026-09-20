@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { PendingBadge } from "@/src/OfflineBanner"; // V50.z281
 import { theme } from "@/src/theme";
 import { isAreaVisible, areaCategories } from "@/src/utils/areaAccess";
 import { ModuleErrorBoundary } from "@/src/shared";
@@ -12,6 +13,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { useScrollMemory } from "@/src/utils/appStatePersist";
 
 type Contact = {
+  _pending?: boolean; // V50.z281 — creato/modificato offline, in attesa di sincronizzazione
   contact_id: string; first_name: string; last_name: string; phone: string; email: string;
   area: "energy" | "network"; source: "personal" | "referral"; address: string;
   area_categories?: Record<string, { category?: string; subcategory?: string }>;
@@ -310,7 +312,7 @@ function ContattiScreen() {
                   </Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.name}>{item.first_name} {item.last_name}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}><Text style={styles.name}>{item.first_name} {item.last_name}</Text><PendingBadge pending={item._pending} /></View>
                   <Text style={styles.sub}>{item.phone || item.email || "—"}</Text>
                   <View style={styles.tags}>
                     <View style={[styles.tag, { borderColor: colorFor(item.area) }]}>

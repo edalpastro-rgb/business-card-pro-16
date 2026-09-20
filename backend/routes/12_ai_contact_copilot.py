@@ -20,6 +20,7 @@ class AIVoiceIn(BaseModel):
 class AIImageIn(BaseModel):
     image_base64: str  # data URL or plain b64
     mime: Optional[str] = "image/jpeg"
+    back_image_base64: Optional[str] = None  # V50.z280 — retro del biglietto (servizi, orari, social, note)
 
 
 CONTACT_EXTRACTION_SYSTEM = (
@@ -650,6 +651,7 @@ async def ai_contact_from_card(body: AIImageIn, user=Depends(get_current_user)):
             bare_b64 = b64
     else:
         bare_b64 = b64
+    back_b64 = (body.back_image_base64 or "").split(",", 1)[-1] if body.back_image_base64 else ""
 
     async def _run(model_name: str):
         chat = LlmChat(
@@ -657,9 +659,11 @@ async def ai_contact_from_card(body: AIImageIn, user=Depends(get_current_user)):
             session_id=f"card-ocr-{uuid.uuid4().hex[:8]}",
             system_message=CONTACT_EXTRACTION_SYSTEM,
         ).with_model("gemini", model_name)
+        intro = ("Ecco le immagini di un biglietto da visita italiano: la PRIMA è il FRONTE, la SECONDA è il RETRO (leggile entrambe, potrebbero essere ruotate). Unisci le informazioni dei due lati: dal retro prendi servizi offerti, orari di apertura, marchi/partner, social, slogan e mettili in `notes` insieme all'attività; eventuali numeri/email/persone aggiuntive vanno nei rispettivi campi. "
+                 if back_b64 else "Ecco l'immagine di un biglietto da visita italiano (potrebbe essere ruotato: leggilo in ogni orientamento). ")
         msg = UserMessage(
-            text="Ecco l'immagine di un biglietto da visita italiano (potrebbe essere ruotato: leggilo in ogni orientamento). Estrai TUTTI i dati: nome, cognome, ruolo, azienda (ragione sociale completa), OGNI numero di telefono con la sua etichetta (cellulari di ciascuna persona, telefono fisso, fax), OGNI email, partita IVA, indirizzo con civico, CAP, città, provincia, sito web, altre persone citate (soci/colleghi) con i loro numeri, e una breve nota sull'attività. Restituisci un JSON compatto.",
-            file_contents=[ImageContent(image_base64=bare_b64)],
+            text=intro + "Estrai TUTTI i dati: nome, cognome, ruolo, azienda (ragione sociale completa), OGNI numero di telefono con la sua etichetta (cellulari di ciascuna persona, telefono fisso, fax), OGNI email, partita IVA, indirizzo con civico, CAP, città, provincia, sito web, altre persone citate (soci/colleghi) con i loro numeri, e una nota sull'attività (servizi, orari). Restituisci un JSON compatto.",
+            file_contents=[ImageContent(image_base64=bare_b64)] + ([ImageContent(image_base64=back_b64)] if back_b64 else []),
         )
         return await chat.send_message(msg)
 

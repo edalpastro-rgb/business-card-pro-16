@@ -296,6 +296,12 @@ QUESTIONS = [
     ("documenti", "Mi avvisi quando scade la patente?", ["/anagrafica-master"], "conv"),
     ("voce", "Voglio cambiare la voce di Axon", ["/axon-voice"], ""),
     ("voce", "Come cambio la lingua con cui Axon mi risponde?", ["/axon-voice"], ""),
+    # ── V50.z279 — MODALITÀ OFFLINE ──
+    ("offline", "L'app funziona anche in modalità aereo?", ["/offline-sync"], "conv"),
+    ("offline", "Ho inserito un cliente senza rete: quando lo vedono i miei colleghi?", ["/offline-sync"], "conv"),
+    ("offline", "Dove vedo le modifiche in attesa di sincronizzazione?", ["/offline-sync"], ""),
+    ("offline", "sono in una zona senza campo, posso lavorare lo stesso?", ["/offline-sync"], "conv"),
+    ("offline", "Posso usare Axon con la voce quando sono offline?", ["/offline-sync"], "conv"),
 ]
 
 

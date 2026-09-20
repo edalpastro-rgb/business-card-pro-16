@@ -20,7 +20,7 @@ import { ContactPreviewForm, flattenChannels, ExtractedContact } from "@/src/Con
 import { ManualCropEditor, CropResult } from "@/src/ManualCropEditor"; // V50.z278
 
 const NAVY = "#0B1B33"; const SKY = "#38BDF8"; const MUTED = "#94A3B8"; const WHITE = "#FFFFFF"; const AMBER = "#FBBF24";
-const FEATURE_ICON: Record<string, any> = { bills: "document-text", compare: "git-compare", route: "car-sport", calendar: "calendar", deadlines: "alarm", notes: "mic", scanner: "scan", email: "mail", whatsapp: "logo-whatsapp", referrals: "share-social", contacts: "people", voice: "mic-circle", team: "people-circle", kpi: "stats-chart", chat: "chatbubbles", proactive: "notifications", km: "speedometer", visits: "location", map: "map", files: "folder", pdf: "document", offers: "pricetags", pun: "flash", courses: "school", courses_dashboard: "bar-chart", forms: "document-attach", iddocs: "id-card", axon_voice: "volume-high" };
+const FEATURE_ICON: Record<string, any> = { bills: "document-text", compare: "git-compare", route: "car-sport", calendar: "calendar", deadlines: "alarm", notes: "mic", scanner: "scan", email: "mail", whatsapp: "logo-whatsapp", referrals: "share-social", contacts: "people", voice: "mic-circle", team: "people-circle", kpi: "stats-chart", chat: "chatbubbles", proactive: "notifications", km: "speedometer", visits: "location", map: "map", files: "folder", pdf: "document", offers: "pricetags", pun: "flash", courses: "school", courses_dashboard: "bar-chart", forms: "document-attach", iddocs: "id-card", axon_voice: "volume-high", offline: "airplane" };
 
 // V50.z270 — Motore voce del tour: UNA sola voce alla volta.
 // • generazione: ogni nuova frase invalida quelle precedenti (anche se il loro audio TTS arriva dopo → viene scartato/fermato)
@@ -404,10 +404,15 @@ function FirstContact({ say, onNext, intro, masterName, onEditMaster }: { say: (
   const [rawShot, setRawShot] = useState<string | null>(null);
   const [cropCorners, setCropCorners] = useState<{ x: number; y: number }[] | undefined>(undefined);
   const [cardImage, setCardImage] = useState<string | null>(null);
+  // V50.z280 — retro del biglietto (lato B: servizi, orari, social)
+  const [cardBack, setCardBack] = useState<string | null>(null);
+  const [side, setSide] = useState<"front" | "back">("front");
+  const [askBack, setAskBack] = useState(false);
   const router = useRouter();
   useEffect(() => { if (!intro) void say(Q3); }, [say, intro]);
 
-  const fromCard = async () => {
+  const fromCard = async (which: "front" | "back" = "front") => {
+    setSide(which);
     try {
       const res = await launchCameraUniversal({ quality: 0.7, base64: Platform.OS !== "web" });
       if (res.canceled || !res.assets?.[0]) return;
@@ -430,14 +435,23 @@ function FirstContact({ say, onNext, intro, masterName, onEditMaster }: { say: (
       setRawShot(dataUrl); // apre l'editor di ritaglio
     } catch (e: any) { notify("Biglietto", e?.message || "Impossibile acquisire il biglietto"); } finally { setBusy(null); }
   };
+  const readCard = async (front: string, back: string | null) => {
+    setBusy(back ? "Leggo fronte e retro…" : "Leggo il biglietto…");
+    try { const res = await api<{ contact: ExtractedContact }>("/ai/contact-from-card", { method: "POST", body: { image_base64: front, back_image_base64: back || undefined } }); setPreview(res.contact || {}); }
+    catch (e: any) { notify("Biglietto", e?.message || "Impossibile leggere il biglietto"); } finally { setBusy(null); }
+  };
   const onCropped = async (r: CropResult) => {
     setRawShot(null);
     const cropped = `data:${r.mime || "image/jpeg"};base64,${r.data_base64}`;
+    if (side === "back") {
+      setCardBack(cropped); setAskBack(false);
+      if (!preview && cardImage) await readCard(cardImage, cropped);   // prima lettura con entrambi i lati
+      else if (preview && cardImage) await readCard(cardImage, cropped); // retro aggiunto dopo: rilegge unendo i dati
+      return;
+    }
     setCardImage(cropped);
-    if (preview) return; // ri-ritaglio: aggiorna solo l'immagine
-    setBusy("Leggo il biglietto…");
-    try { const res = await api<{ contact: ExtractedContact }>("/ai/contact-from-card", { method: "POST", body: { image_base64: cropped } }); setPreview(res.contact || {}); }
-    catch (e: any) { notify("Biglietto", e?.message || "Impossibile leggere il biglietto"); } finally { setBusy(null); }
+    if (preview) return; // ri-ritaglio del fronte: aggiorna solo l'immagine
+    setAskBack(true);    // chiedi se fotografare anche il retro prima di leggere
   };
   const fromText = async (t: string) => {
     if (!t.trim()) return;
@@ -453,7 +467,7 @@ function FirstContact({ say, onNext, intro, masterName, onEditMaster }: { say: (
       const body: any = { ...flat, first_name: flat.first_name || flat.company || "Nuovo", last_name: flat.last_name || "" };
       if (body.note_ai) { body.notes = body.note_ai; delete body.note_ai; }
       if (body.notes) { body.general_note = body.notes; delete body.notes; }
-      if (cardImage) body.business_card = { data_base64: cardImage.split(",")[1] || cardImage, mime: "image/jpeg", created_at: new Date().toISOString() };
+      if (cardImage) body.business_card = { data_base64: cardImage.split(",")[1] || cardImage, back_data_base64: cardBack ? cardBack.split(",")[1] || cardBack : undefined, mime: "image/jpeg", created_at: new Date().toISOString() };
       const c = await api<any>("/contacts", { method: "POST", body });
       const name = `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.company || "Cliente";
       setCreated({ id: c.contact_id, name }); void say(`Fatto. ${name} è in anagrafica${cardImage ? " con il biglietto da visita" : ""}.`);
@@ -481,15 +495,15 @@ function FirstContact({ say, onNext, intro, masterName, onEditMaster }: { say: (
         ) : preview ? (
           <View style={styles.card} testID="tour-contact-preview">
             <Text style={[styles.p, { fontSize: 13, textAlign: "left" }]}>Controlla i dati: tocca ★ per indicare telefono ed email principali e scegli come preferisce essere contattato.</Text>
-            <ContactPreviewForm value={preview} onChange={patch} dark cardImage={cardImage} onRecrop={cardImage ? () => setRawShot(cardImage) : undefined} />
+            <ContactPreviewForm value={preview} onChange={patch} dark cardImage={cardImage} cardBack={cardBack} onRecrop={cardImage ? () => { setSide("front"); setRawShot(cardImage); } : undefined} onAddBack={cardImage && !cardBack ? () => void fromCard("back") : undefined} />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
-              <Pressable onPress={() => { setPreview(null); setCardImage(null); }} style={[styles.choice, { flex: 1 }]} testID="tour-contact-retry"><Text style={styles.choiceTxt}>Riprova</Text></Pressable>
+              <Pressable onPress={() => { setPreview(null); setCardImage(null); setCardBack(null); }} style={[styles.choice, { flex: 1 }]} testID="tour-contact-retry"><Text style={styles.choiceTxt}>Riprova</Text></Pressable>
               <Pressable onPress={save} disabled={!!busy} style={[styles.cta, { flex: 2, marginTop: 0 }]} testID="tour-contact-save"><Text style={styles.ctaTxt}>Salva in anagrafica</Text></Pressable>
             </View>
           </View>
         ) : (
           <View style={{ gap: 10 }}>
-            <Pressable onPress={fromCard} disabled={!!busy} style={styles.choice} testID="tour-choice-card"><Ionicons name="scan" size={22} color={SKY} /><View style={{ flex: 1 }}><Text style={styles.choiceTxt}>Scansiona il biglietto da visita</Text><Text style={styles.choiceSub}>Fotografalo e ritaglialo: leggo tutti i numeri, email, P.IVA e referenti</Text></View></Pressable>
+            <Pressable onPress={() => void fromCard("front")} disabled={!!busy} style={styles.choice} testID="tour-choice-card"><Ionicons name="scan" size={22} color={SKY} /><View style={{ flex: 1 }}><Text style={styles.choiceTxt}>Scansiona il biglietto da visita</Text><Text style={styles.choiceSub}>Fotografalo e ritaglialo: leggo tutti i numeri, email, P.IVA e referenti</Text></View></Pressable>
             <View style={[styles.choice, { flexDirection: "column", alignItems: "stretch", gap: 10 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}><Ionicons name="mic" size={22} color={SKY} /><View style={{ flex: 1 }}><Text style={styles.choiceTxt}>Dimmelo a voce</Text><Text style={styles.choiceSub}>«Mario Rossi, elettricista di Treviso, 333 1234567»</Text></View></View>
               <View style={styles.micWrap}><VoiceDictationButton label="Detta il cliente" testID="tour-contact-voice" onTranscript={(t) => void fromText(t)} /></View>
@@ -503,7 +517,16 @@ function FirstContact({ say, onNext, intro, masterName, onEditMaster }: { say: (
           </View>
         )}
       </ScrollView>
-      {rawShot ? <ManualCropEditor visible imageBase64={rawShot} initialCorners={cropCorners} enhance={false} title="Ritaglia il biglietto" onCancel={() => setRawShot(null)} onDone={(r) => void onCropped(r)} /> : null}
+      {askBack && cardImage && !preview && !busy ? (
+        <View style={styles.card} testID="tour-card-back-ask">
+          <Text style={[styles.p, { fontSize: 14, textAlign: "left" }]}>Fronte acquisito ✅ Vuoi fotografare anche il retro? Axon legge servizi, orari e altri recapiti sul lato B.</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+            <Pressable onPress={() => void fromCard("back")} style={[styles.choice, { flex: 1 }]} testID="tour-card-back-yes"><Text style={styles.choiceTxt}>📷 Fotografa il retro</Text></Pressable>
+            <Pressable onPress={() => { setAskBack(false); void readCard(cardImage, null); }} style={[styles.choice, { flex: 1 }]} testID="tour-card-back-no"><Text style={styles.choiceTxt}>Continua senza</Text></Pressable>
+          </View>
+        </View>
+      ) : null}
+      {rawShot ? <ManualCropEditor visible imageBase64={rawShot} initialCorners={cropCorners} enhance={false} title={side === "back" ? "Ritaglia il retro del biglietto" : "Ritaglia il biglietto"} onCancel={() => setRawShot(null)} onDone={(r) => void onCropped(r)} /> : null}
       {created ? <Pressable onPress={onNext} style={styles.cta} testID="tour-next-3"><Text style={styles.ctaTxt}>Continua</Text><Ionicons name="arrow-forward" size={18} color={NAVY} /></Pressable>
         : <Pressable onPress={onNext} style={styles.link} testID="tour-skip-3"><Text style={styles.linkTxt}>Il primo cliente lo aggiungo dopo</Text></Pressable>}
     </View>

@@ -145,7 +145,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const r = await api<{ user: User }>("/auth/me");
       setUser(r.user);
-    } catch {
+    } catch (e: any) {
+      // V50.z279 — offline senza cache: non invalidare la sessione (il token resta valido al ritorno online)
+      if (e?.offline) { setUser(null); return; }
       await clearToken();
       await saveTrust(null);
       setUser(null);
