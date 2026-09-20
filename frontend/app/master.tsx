@@ -46,6 +46,7 @@ function MasterScreen() {
   const [alerts, setAlerts] = useState<Alerts>({ unread: 0, latest: [] });
   // V45 — Badge counter for pending rule proposals (Master)
   const [pendingProposals, setPendingProposals] = useState<number>(0);
+  const [newCourses, setNewCourses] = useState<number>(0); // V50.z285 — badge «Area Corsi» (corsi non ancora aperti)
   // V46 — Safe bottom padding for slide-up sheets on Android gesture-nav / iOS home indicator.
   const bottomPad = useBottomSheetPadding();
   // V50.a — Padding standard globale per il contenuto scrollabile con
@@ -112,6 +113,10 @@ function MasterScreen() {
       try {
         const r = await api<{ pending: number }>("/axon/rule-proposals/count-pending");
         if (alive) setPendingProposals(r.pending || 0);
+      } catch { /* silent */ }
+      try {
+        const c = await api<{ new_count?: number }>("/courses");
+        if (alive) setNewCourses(c.new_count || 0);
       } catch { /* silent */ }
     };
     fetchCount();
@@ -279,6 +284,9 @@ function MasterScreen() {
     { label: "Azioni rapide", icon: "flash", color: "#0EA5E9", onPress: () => goto("/quick-actions") },
     // Team & Insights (giallo #EAB308) — Corporate Gym (Blocco 1)
     { label: "Corporate Gym", icon: "barbell", color: "#EAB308", onPress: () => goto("/corporate-gym") },
+    // V50.z285 — Area Corsi nella griglia (prima solo card dentro Team Insights → introvabile); badge = corsi nuovi
+    { label: "Area Corsi", icon: "school", color: "#EAB308", onPress: () => goto("/courses"), badge: newCourses },
+    { label: "Team Insights", icon: "analytics", color: "#EAB308", onPress: () => goto("/team-insights") },
   ];
 
   // V48 — Apply saved order (if any), placing unknown/new buttons at the end.
