@@ -37,6 +37,7 @@ export default function CoursesScreen() {
       <View style={s.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.title}>Area Corsi</Text><Text style={s.sub}>{canManage ? "Cartelle corsi, lettura e partecipazione del team" : "I corsi assegnati a te"}</Text></View>
+        {canManage ? <Pressable onPress={() => router.push("/courses/dashboard" as any)} hitSlop={8} style={s.hBtn} testID="courses-dashboard"><Ionicons name="stats-chart" size={22} color="#7C3AED" /></Pressable> : null}
         {canManage ? <Pressable onPress={() => router.push("/courses/new" as any)} style={s.addBtn} testID="courses-new"><Ionicons name="add" size={18} color="#FFF" /><Text style={s.addTxt}>Nuova</Text></Pressable> : null}
       </View>
       <ScrollView contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: pagePad }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>

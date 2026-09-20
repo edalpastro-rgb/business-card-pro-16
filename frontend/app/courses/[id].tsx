@@ -12,6 +12,8 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { shareDataUri } from "@/src/share";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { CourseQuizSection, CourseReportSection } from "@/src/CourseExtras"; // V50.z274
+import { CourseSlidesSection } from "@/src/CourseSlides"; // V50.z275
 
 type Participant = { user_id: string; name: string; read_at?: string | null; status: "yes" | "no" | "pending"; notes?: string; answered_at?: string | null };
 type Course = {
@@ -74,11 +76,18 @@ export default function CourseDetail() {
         <Text style={s.section}>Materiali ({c.files.length})</Text>
         {c.files.length === 0 ? <Text style={s.hint}>Nessun allegato</Text> : c.files.map((f) => (
           <Pressable key={f.file_id} onPress={() => openFile(f.file_id)} style={s.row} testID={`course-file-${f.file_id}`}>
-            <Ionicons name={f.mime.startsWith("image/") ? "image" : f.mime.startsWith("audio/") ? "musical-notes" : "document-text"} size={20} color="#7C3AED" />
+            <Ionicons name={f.mime.startsWith("image/") ? "image" : f.mime.startsWith("audio/") ? "musical-notes" : f.name.toLowerCase().endsWith(".pptx") ? "easel" : "document-text"} size={20} color="#7C3AED" />
             <Text style={{ flex: 1, color: theme.color.onSurface, fontWeight: "600" }} numberOfLines={1}>{f.name}</Text>
             {busy === f.file_id ? <ActivityIndicator color="#7C3AED" size="small" /> : <Ionicons name="download-outline" size={18} color={theme.color.muted} />}
           </Pressable>
         ))}
+
+        {/* V50.z275 — Presentazione PowerPoint (AI / manuale) */}
+        <CourseSlidesSection courseId={c.course_id} isCreator={c.is_creator} />
+
+        {/* V50.z274 — Test/Quiz e Relazione fine corso */}
+        <CourseQuizSection courseId={c.course_id} isCreator={c.is_creator} />
+        <CourseReportSection courseId={c.course_id} />
 
         {!c.is_creator ? (
           <View style={[s.card, { borderColor: "#C4B5FD" }]} testID="course-participation">

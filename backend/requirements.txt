@@ -129,6 +129,7 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-jose==3.5.0
 python-multipart==0.0.32
+python-pptx==1.0.2
 pytokens==0.4.1
 PyYAML==6.0.3
 qrcode==8.2
@@ -168,5 +169,6 @@ watchfiles==1.2.0
 wcwidth==0.8.3
 websockets==16.1
 xlrd==2.0.2
+xlsxwriter==3.2.9
 yarl==1.24.2
 zipp==4.1.0
