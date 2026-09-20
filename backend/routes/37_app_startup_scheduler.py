@@ -322,6 +322,11 @@ async def _start_scheduler():
             _iddoc_expiry_job, "cron", hour=9, minute=15,
             id="identity-docs-expiry", replace_existing=True,
         )
+        # V50.z273 — Reminder Area Corsi (non letto / non ha risposto): ogni giorno 08:45
+        _birthday_scheduler.add_job(
+            _courses_reminder_job, "cron", hour=8, minute=45,
+            id="courses-reminders", replace_existing=True,
+        )
         _birthday_scheduler.start()
         logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
         logger.info("Rule-proposals scheduler started (daily 03:00 Europe/Rome)")

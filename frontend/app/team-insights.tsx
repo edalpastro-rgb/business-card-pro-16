@@ -505,6 +505,8 @@ export default function TeamInsightsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140, gap: 12 }}>
+        {/* V50.z273 — AREA CORSI (Corporate Gym v2.0): cartelle corsi, lettura/partecipazione del team */}
+        {!selected ? <CoursesCard router={router} /> : null}
         {selected ? (
           <TeamDetailView
             data={detail}
@@ -680,3 +682,22 @@ const styles = StyleSheet.create({
   profileRowTxt: { fontSize: 14, color: "#0F172A", fontWeight: "600", marginTop: 4 },
   profileMeta: { fontSize: 10, color: "#94A3B8", textAlign: "right", marginTop: 6 },
 });
+
+// V50.z273 — Card «Area Corsi» nel blocco Team Insights (badge con i corsi nuovi non ancora aperti)
+function CoursesCard({ router }: { router: ReturnType<typeof useRouter> }) {
+  const [info, setInfo] = React.useState<{ total: number; newCount: number; canManage: boolean } | null>(null);
+  React.useEffect(() => {
+    api<{ items: any[]; new_count: number; can_manage: boolean }>("/courses").then((r) => setInfo({ total: (r.items || []).length, newCount: r.new_count || 0, canManage: !!r.can_manage })).catch(() => setInfo({ total: 0, newCount: 0, canManage: false }));
+  }, []);
+  return (
+    <Pressable onPress={() => router.push("/courses" as any)} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FAF5FF", borderWidth: 1, borderColor: "#E9D5FF", borderRadius: 16, padding: 14, minHeight: 72 }} testID="team-courses-card">
+      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" }}><Ionicons name="school" size={22} color="#FFF" /></View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 15, fontWeight: "900", color: "#1F1147" }}>Area Corsi</Text>
+        <Text style={{ fontSize: 12, color: "#6B21A8", marginTop: 2 }}>{info ? `${info.total} cartelle corso${info.canManage ? " · lettura e partecipazione del team" : ""}` : "Caricamento…"}</Text>
+      </View>
+      {info && info.newCount > 0 ? <View style={{ backgroundColor: "#DC2626", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: "#FFF", fontSize: 11, fontWeight: "900" }}>{info.newCount} nuovi</Text></View> : null}
+      <Ionicons name="chevron-forward" size={18} color="#7C3AED" />
+    </Pressable>
+  );
+}
