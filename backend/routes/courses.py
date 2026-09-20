@@ -168,7 +168,15 @@ async def courses_list(include_archived: bool = False, user=Depends(get_current_
 async def course_get(course_id: str, user=Depends(get_current_user)):
     c = await _course_get(course_id, user)
     names = await _course_names([c["created_by"], *(c.get("recipients") or [])])
-    return _course_public(c, user, names)
+    out = _course_public(c, user, names)
+    # V50.z276 — idoneità attestato (mio + per partecipante se creatore)
+    t = await db.courses_tests.find_one({"course_id": course_id}, {"_id": 0, "questions": 1, "responses": 1})
+    certs = c.get("certificates") or {}
+    out["has_test"] = bool(t and t.get("questions"))
+    out["my_certificate"] = {"eligible": _course_cert_eligible(c, t, user["user_id"]), **(certs.get(user["user_id"]) or {})}
+    for p in out.get("participants") or []:
+        p["certificate_eligible"] = _course_cert_eligible(c, t, p["user_id"])
+    return out
 
 
 @api_router.post("/courses/{course_id}/read")
@@ -205,6 +213,8 @@ async def course_participation(course_id: str, body: ParticipationIn, user=Depen
                           dedupe_key=f"course_part_{course_id}_{uid}_{body.status}_{now.strftime('%Y%m%d%H%M')}", extra={"urgency": "HIGH" if body.status == "no" else "NORMAL"}, team_copy=False)
     except Exception:  # noqa: BLE001
         pass
+    if body.status == "yes":
+        await _course_cert_issue_if_ready(c, uid)  # V50.z276
     return {"ok": True, "participation": rec}
 
 
@@ -458,6 +468,7 @@ async def course_test_submit(course_id: str, body: QuizSubmitIn, user=Depends(ge
                           f"Punteggio {score}/{total}" + (" · risposta aperta inclusa" if open_answers else ""), deeplink=f"/courses/{course_id}", dedupe_key=f"course_test_{course_id}_{user['user_id']}", team_copy=False)
     except Exception:  # noqa: BLE001
         pass
+    await _course_cert_issue_if_ready(c, user["user_id"])  # V50.z276
     return {"ok": True, "score": score, "total": total}
 
 
@@ -606,7 +617,8 @@ COURSE_SLIDES_SYSTEM = (
     "Crea una presentazione PowerPoint chiara e didattica in italiano. Restituisci SOLO JSON: "
     "{\"title\": \"titolo presentazione\", \"subtitle\": \"sottotitolo breve\", \"slides\": [{\"title\": \"titolo slide (max 8 parole)\", "
     "\"bullets\": [\"punto chiave conciso (max 18 parole)\", ...], \"notes\": \"note per il relatore, 2-4 frasi\"}, ...]}. "
-    "Ogni slide 3-5 bullet. Prima slide = agenda/obiettivi, ultima = riepilogo/conclusioni. Non inventare dati non presenti nei materiali."
+    "Ogni slide 3-5 bullet. Prima slide = agenda/obiettivi, ultima = riepilogo/conclusioni. Non inventare dati non presenti nei materiali. "
+    "Se il formatore ha dettato indicazioni (struttura, argomenti, tono, esempi), seguile fedelmente: se i materiali sono scarsi, costruisci le slide a partire da ciò che ha dettato."
 )
 
 _OFFICE_XML_TAG = re.compile(r"<[^>]+>")
@@ -709,10 +721,12 @@ async def course_slides_generate(course_id: str, body: SlidesGenerateIn, user=De
     """AI: legge appunti + allegati (PDF/immagini/office/testo) → bozza slide (salvata, modificabile)."""
     c = await _course_creator_only(course_id, user)
     text, images = await _course_materials(c)
-    if len(text) < 60 and not images:
-        raise HTTPException(status_code=400, detail="Materiali insufficienti: aggiungi appunti o allegati al corso")
+    instr = (body.instructions or "").strip()[:4000]
+    if len(text) < 60 and not images and len(instr) < 40:
+        raise HTTPException(status_code=400, detail="Materiali insufficienti: aggiungi appunti o allegati al corso, oppure detta a voce cosa vuoi nelle slide")
     n = max(3, min(20, int(body.n_slides or 8)))
-    prompt = f"Genera esattamente {n} slide.\n" + (f"ISTRUZIONI DEL FORMATORE: {body.instructions.strip()[:1000]}\n" if (body.instructions or "").strip() else "") + f"\nMATERIALI:\n{text}"
+    prompt = (f"Genera esattamente {n} slide.\n" + (f"INDICAZIONI DEL FORMATORE (dettate a voce o scritte — hanno priorità sui materiali e vanno seguite fedelmente):\n{instr}\n" if instr else "")
+              + f"\nMATERIALI DEL CORSO:\n{text}")
     data = await _ft_llm(COURSE_SLIDES_SYSTEM, prompt, images or None, session="course-slides")
     slides = _course_slides_norm(str(data.get("title") or ""), str(data.get("subtitle") or ""), data.get("slides") or [])
     if not slides:
@@ -850,3 +864,105 @@ async def course_slides_attach(course_id: str, user=Depends(get_current_user)):
     files.append(meta)
     await db.courses_folders.update_one({"course_id": course_id}, {"$set": {"files": files, "updated_at": utcnow()}})
     return {"ok": True, "file": {k: v for k, v in meta.items() if k != "data_b64"}}
+
+
+# =====================================================================================
+# V50.z276 — ATTESTATO DI PARTECIPAZIONE (PDF automatico) · SLIDE DA VOCE (dettatura → istruzioni AI)
+# Idoneo = ha risposto ✅ Partecipo E (nessun test oppure test completato). Quando diventa idoneo riceve la notifica
+# «🎓 Attestato disponibile» (deeplink al corso) e il PDF è scaricabile da lui e dal creatore.
+# =====================================================================================
+def _course_cert_eligible(c: dict, t: Optional[dict], uid: str) -> bool:
+    if (c.get("participation") or {}).get(uid, {}).get("status") != "yes":
+        return False
+    if t and t.get("questions"):
+        return uid in (t.get("responses") or {})
+    return True
+
+
+async def _course_cert_issue_if_ready(c: dict, uid: str) -> None:
+    """Chiamata dopo partecipazione/test: se idoneo e non ancora emesso → registra + notifica."""
+    c = await db.courses_folders.find_one({"course_id": c["course_id"]}, {"_id": 0, "files": 0, "body_text": 0}) or c
+    if (c.get("certificates") or {}).get(uid):
+        return
+    t = await db.courses_tests.find_one({"course_id": c["course_id"]}, {"_id": 0, "questions": 1, "responses": 1})
+    if not _course_cert_eligible(c, t, uid):
+        return
+    cert = {"cert_id": f"ATT-{utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}", "issued_at": utcnow()}
+    await db.courses_folders.update_one({"course_id": c["course_id"]}, {"$set": {f"certificates.{uid}": cert}})
+    try:
+        await axon_notify(uid, c["tenant_id"], "reminder", f"🎓 Attestato disponibile: {c['title']}", "Hai completato il corso: scarica il tuo attestato di partecipazione in PDF dalla cartella del corso.",
+                          deeplink=f"/courses/{c['course_id']}", dedupe_key=f"course_cert_{c['course_id']}_{uid}", team_copy=False)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _course_build_certificate_pdf(c: dict, cert: dict, person: str, trainer: str, company: str, logo_b64: str, score: Optional[Tuple[int, int]]) -> bytes:
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.pdfgen import canvas as _canvas
+    from reportlab.lib.colors import HexColor
+    from reportlab.lib.utils import ImageReader
+    W, H = landscape(A4)
+    buf = io.BytesIO()
+    cv = _canvas.Canvas(buf, pagesize=(W, H))
+    purple, gold, dark, muted = HexColor("#6B21A8"), HexColor("#D97706"), HexColor("#1E1B4B"), HexColor("#64748B")
+    cv.setFillColor(HexColor("#FAF5FF")); cv.rect(0, 0, W, H, stroke=0, fill=1)
+    cv.setStrokeColor(purple); cv.setLineWidth(6); cv.rect(28, 28, W - 56, H - 56, stroke=1, fill=0)
+    cv.setStrokeColor(gold); cv.setLineWidth(1.5); cv.rect(40, 40, W - 80, H - 80, stroke=1, fill=0)
+    y = H - 90
+    if logo_b64:
+        try:
+            raw = base64.b64decode(logo_b64.split(",", 1)[1] if logo_b64.startswith("data:") else logo_b64)
+            img = ImageReader(io.BytesIO(raw)); iw, ih = img.getSize(); h = 54; w = iw * h / ih
+            cv.drawImage(img, (W - w) / 2, y - 30, w, h, mask="auto"); y -= 70
+        except Exception:  # noqa: BLE001
+            pass
+    if company:
+        cv.setFillColor(muted); cv.setFont("Helvetica-Bold", 13); cv.drawCentredString(W / 2, y, company.upper()); y -= 40
+    cv.setFillColor(purple); cv.setFont("Helvetica-Bold", 34); cv.drawCentredString(W / 2, y, "ATTESTATO DI PARTECIPAZIONE"); y -= 42
+    cv.setFillColor(muted); cv.setFont("Helvetica", 14); cv.drawCentredString(W / 2, y, "Si certifica che"); y -= 44
+    cv.setFillColor(dark); cv.setFont("Helvetica-Bold", 30); cv.drawCentredString(W / 2, y, person); y -= 18
+    cv.setStrokeColor(gold); cv.setLineWidth(1); cv.line(W / 2 - 200, y, W / 2 + 200, y); y -= 34
+    cv.setFillColor(muted); cv.setFont("Helvetica", 14); cv.drawCentredString(W / 2, y, "ha partecipato con esito positivo al corso di formazione"); y -= 36
+    cv.setFillColor(purple); cv.setFont("Helvetica-Bold", 22)
+    title = c.get("title") or "Corso"
+    cv.drawCentredString(W / 2, y, title[:70] + ("…" if len(title) > 70 else "")); y -= 32
+    d = (c.get("course_date") or "").split("-")
+    info = " · ".join(x for x in ("/".join(reversed(d)) if len(d) == 3 else "", c.get("location") or "") if x)
+    cv.setFillColor(dark); cv.setFont("Helvetica", 13)
+    if info:
+        cv.drawCentredString(W / 2, y, info); y -= 22
+    if score and score[1]:
+        cv.drawCentredString(W / 2, y, f"Test finale superato: {score[0]}/{score[1]} risposte corrette ({round(score[0] / score[1] * 100)}%)"); y -= 22
+    # firme
+    yb = 95
+    cv.setStrokeColor(dark); cv.setLineWidth(0.8)
+    cv.line(110, yb, 330, yb); cv.line(W - 330, yb, W - 110, yb)
+    cv.setFillColor(dark); cv.setFont("Helvetica-Bold", 11); cv.drawCentredString(220, yb - 16, trainer or "Il formatore"); cv.drawCentredString(W - 220, yb - 16, company or "La direzione")
+    cv.setFillColor(muted); cv.setFont("Helvetica", 9); cv.drawCentredString(220, yb - 29, "Formatore"); cv.drawCentredString(W - 220, yb - 29, "Azienda")
+    issued = cert.get("issued_at")
+    issued_txt = issued.astimezone().strftime("%d/%m/%Y") if isinstance(issued, datetime) else ""
+    cv.setFont("Helvetica", 9); cv.drawCentredString(W / 2, 52, f"Attestato n. {cert.get('cert_id')} · rilasciato il {issued_txt} · generato da AdvisorOS")
+    cv.showPage(); cv.save()
+    return buf.getvalue()
+
+
+@api_router.get("/courses/{course_id}/certificate")
+async def course_certificate(course_id: str, user_id: Optional[str] = None, user=Depends(get_current_user)):
+    """PDF attestato: il collaboratore scarica il proprio; il creatore può scaricare quello di ogni partecipante (?user_id=)."""
+    c = await _course_get(course_id, user)
+    creator = c.get("created_by") == user["user_id"] or is_owner(user)
+    uid = user_id if (user_id and creator) else user["user_id"]
+    t = await db.courses_tests.find_one({"course_id": course_id}, {"_id": 0, "questions": 1, "responses": 1})
+    if not _course_cert_eligible(c, t, uid):
+        raise HTTPException(status_code=400, detail="Attestato non ancora disponibile: serve ✅ Partecipo e il test completato")
+    cert = (c.get("certificates") or {}).get(uid)
+    if not cert:
+        cert = {"cert_id": f"ATT-{utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}", "issued_at": utcnow()}
+        await db.courses_folders.update_one({"course_id": course_id}, {"$set": {f"certificates.{uid}": cert}})
+    names = await _course_names([uid, c["created_by"]])
+    owner = await db.users.find_one({"user_id": c["tenant_id"]}, {"_id": 0, "company_name": 1, "company_logo_base64": 1}) or {}
+    resp = ((t or {}).get("responses") or {}).get(uid) or {}
+    score = (int(resp.get("score") or 0), int(resp.get("total") or 0)) if resp else None
+    raw = await run_in_threadpool(_course_build_certificate_pdf, c, cert, names.get(uid, uid), names.get(c["created_by"], ""), (owner.get("company_name") or "").strip(), owner.get("company_logo_base64") or "", score)
+    safe = re.sub(r"[^A-Za-z0-9_\- ]+", "", f"Attestato {names.get(uid, '')} {c['title']}").strip() or "attestato"
+    return {"name": f"{safe}.pdf", "mime": "application/pdf", "data_base64": base64.b64encode(raw).decode(), "cert": cert}

@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { shareDataUri } from "@/src/share";
+import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 
 type Slide = { title: string; bullets: string[]; notes?: string };
 type Deck = { title: string; subtitle?: string; slides: Slide[]; source?: string; visible_to_recipients?: boolean; author?: string; updated_at?: string };
@@ -98,10 +99,11 @@ export function CourseSlidesSection({ courseId, isCreator }: { courseId: string;
     return (
       <View style={s.card} testID="course-slides-ai">
         <Text style={s.section}>✨ Genera con AI dai materiali</Text>
-        <Text style={s.hint}>Axon legge appunti, PDF, immagini e documenti allegati al corso e prepara una bozza di presentazione che potrai modificare.</Text>
+        <Text style={s.hint}>Axon legge appunti, PDF, immagini e documenti allegati al corso e prepara una bozza di presentazione che potrai modificare. Puoi anche dettare a voce cosa vuoi nelle slide: Axon le crea al volo, anche senza materiali.</Text>
         <Text style={s.hint}>Numero di slide:</Text>
         <View style={{ flexDirection: "row", gap: 8 }}>{[5, 8, 12, 16].map((n) => <Pressable key={n} onPress={() => setNSlides(n)} style={[s.chip, nSlides === n && s.chipOn]} testID={`slides-n-${n}`}><Text style={[s.chipTxt, nSlides === n && { color: "#FFF" }]}>{n}</Text></Pressable>)}</View>
-        <TextInput value={instr} onChangeText={setInstr} placeholder="Istruzioni opzionali (es. tono semplice, focus su obiezioni clienti…)" placeholderTextColor={theme.color.muted} style={[s.input, { minHeight: 60 }]} multiline testID="slides-instructions" />
+        <VoiceDictationButton label={instr ? "Detta ancora (aggiunge)" : "🎤 Detta cosa vuoi nelle slide"} onTranscript={(t) => setInstr((x) => (x ? x + " " + t : t))} testID="slides-dictate" />
+        <TextInput value={instr} onChangeText={setInstr} placeholder="Indicazioni per Axon (dettate o scritte): argomenti, struttura, tono, esempi da inserire…" placeholderTextColor={theme.color.muted} style={[s.input, { minHeight: 80 }]} multiline testID="slides-instructions" />
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Pressable onPress={() => setMode("view")} style={[s.btn, s.btnGhost]} disabled={busy === "ai"}><Text style={{ fontWeight: "800", color: theme.color.muted }}>Annulla</Text></Pressable>
           <Pressable onPress={generate} disabled={busy === "ai"} style={[s.btn, { flex: 1, backgroundColor: "#7C3AED" }]} testID="slides-generate">{busy === "ai" ? <><ActivityIndicator color="#FFF" /><Text style={{ fontWeight: "800", color: "#FFF" }}>Axon sta leggendo i materiali…</Text></> : <Text style={{ fontWeight: "900", color: "#FFF" }}>Genera bozza</Text>}</Pressable>

@@ -15,11 +15,12 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CourseQuizSection, CourseReportSection } from "@/src/CourseExtras"; // V50.z274
 import { CourseSlidesSection } from "@/src/CourseSlides"; // V50.z275
 
-type Participant = { user_id: string; name: string; read_at?: string | null; status: "yes" | "no" | "pending"; notes?: string; answered_at?: string | null };
+type Participant = { user_id: string; name: string; read_at?: string | null; status: "yes" | "no" | "pending"; notes?: string; answered_at?: string | null; certificate_eligible?: boolean };
 type Course = {
   course_id: string; title: string; description?: string; body_text?: string; course_date?: string; location?: string; maps_url?: string; status: string; creator_name?: string; reminder_days: number;
   is_creator: boolean; is_new: boolean; my_participation: "yes" | "no" | "pending"; my_notes: string; recipient_count: number; read_count: number; yes_count: number; no_count: number;
   files: { file_id: string; name: string; mime: string; size?: number }[]; participants?: Participant[];
+  has_test?: boolean; my_certificate?: { eligible: boolean; cert_id?: string; issued_at?: string }; // V50.z276
 };
 const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
 
@@ -49,6 +50,12 @@ export default function CourseDetail() {
     setBusy(fid);
     try { const r = await api<{ name: string; mime: string; data_base64: string }>(`/courses/${id}/files/${fid}`); await shareDataUri(`data:${r.mime};base64,${r.data_base64}`, r.name, r.mime); }
     catch (e: any) { notify("File", e?.message || ""); } finally { setBusy(null); }
+  };
+  // V50.z276 — Attestato PDF (mio, oppure di un partecipante se creatore)
+  const certificate = async (userId?: string) => {
+    setBusy(`cert-${userId || "me"}`);
+    try { const r = await api<{ name: string; mime: string; data_base64: string }>(`/courses/${id}/certificate`, { query: userId ? { user_id: userId } : undefined }); await shareDataUri(`data:${r.mime};base64,${r.data_base64}`, r.name, r.mime); }
+    catch (e: any) { notify("Attestato", e?.message || ""); } finally { setBusy(null); }
   };
   const exportList = async (kind: "xlsx" | "pdf") => {
     setBusy("export");
@@ -90,6 +97,19 @@ export default function CourseDetail() {
         <CourseReportSection courseId={c.course_id} />
 
         {!c.is_creator ? (
+          <>
+          {/* V50.z276 — Attestato di partecipazione */}
+          <View style={[s.card, { borderColor: c.my_certificate?.eligible ? "#FCD34D" : theme.color.border, backgroundColor: c.my_certificate?.eligible ? "#FFFBEB" : "#FFF" }]} testID="course-certificate">
+            <Text style={s.section}>🎓 Attestato di partecipazione</Text>
+            {c.my_certificate?.eligible ? (
+              <>
+                <Text style={s.hint}>Complimenti! Hai completato il corso{c.has_test ? " e il test" : ""}. Il tuo attestato PDF è pronto{c.my_certificate.cert_id ? ` (n. ${c.my_certificate.cert_id})` : ""}.</Text>
+                <Pressable onPress={() => certificate()} disabled={busy === "cert-me"} style={[s.pBtn, { backgroundColor: "#D97706", borderColor: "#D97706", flexDirection: "row", gap: 8 }]} testID="course-certificate-download">
+                  {busy === "cert-me" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="ribbon" size={18} color="#FFF" /><Text style={[s.pTxt, { color: "#FFF" }]}>Scarica attestato PDF</Text></>}
+                </Pressable>
+              </>
+            ) : <Text style={s.hint}>Lo ricevi automaticamente quando rispondi ✅ Partecipo{c.has_test ? " e completi il test del corso" : ""}.</Text>}
+          </View>
           <View style={[s.card, { borderColor: "#C4B5FD" }]} testID="course-participation">
             <Text style={s.section}>Partecipi al corso?</Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
@@ -104,9 +124,11 @@ export default function CourseDetail() {
             ) : null}
             {c.my_participation !== "pending" && !askNo ? <Text style={s.hint}>Risposta inviata al Master. Puoi cambiarla in qualsiasi momento.</Text> : null}
           </View>
+          </>
         ) : (
           <View style={[s.card, { borderColor: "#C4B5FD" }]} testID="course-participants">
             <Text style={s.section}>Partecipanti · 👀 {c.read_count}/{c.recipient_count} letto · ✅ {c.yes_count} · ❌ {c.no_count} · ⏳ {pending}</Text>
+            {(c.participants || []).some((p) => p.certificate_eligible) ? <Text style={s.hint}>🎓 = attestato disponibile: tocca il nastro per scaricare il PDF del collaboratore.</Text> : null}
             {(c.participants || []).map((p) => (
               <View key={p.user_id} style={s.pRow}>
                 <Pressable onPress={() => setOpen(open === p.user_id ? null : p.user_id)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }} testID={`course-participant-${p.user_id}`}>
@@ -115,6 +137,7 @@ export default function CourseDetail() {
                     <Text style={{ fontWeight: "800", color: theme.color.onSurface }}>{p.name}</Text>
                     <Text style={s.hint}>{p.read_at ? `✅ letto ${fmt(p.read_at)}` : "⏳ non letto"} · {p.status === "yes" ? "partecipa" : p.status === "no" ? "non partecipa" : "in attesa"}</Text>
                   </View>
+                  {p.certificate_eligible ? <Pressable onPress={() => certificate(p.user_id)} hitSlop={8} disabled={busy === `cert-${p.user_id}`} testID={`course-cert-${p.user_id}`}>{busy === `cert-${p.user_id}` ? <ActivityIndicator size="small" color="#D97706" /> : <Ionicons name="ribbon" size={20} color="#D97706" />}</Pressable> : null}
                   {p.notes ? <Ionicons name={open === p.user_id ? "chevron-up" : "chatbox-ellipses-outline"} size={18} color="#7C3AED" /> : null}
                 </Pressable>
                 {open === p.user_id && p.notes ? <Text style={s.notes}>📝 {p.notes}</Text> : null}
