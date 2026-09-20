@@ -16,6 +16,8 @@ import { launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { uriToBase64DataUrl } from "@/src/utils/media";
 import { playAudioBase64 } from "@/src/AssistantChat";
 import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
+import { ContactPreviewForm, flattenChannels, ExtractedContact } from "@/src/ContactPreviewForm"; // V50.z278
+import { ManualCropEditor, CropResult } from "@/src/ManualCropEditor"; // V50.z278
 
 const NAVY = "#0B1B33"; const SKY = "#38BDF8"; const MUTED = "#94A3B8"; const WHITE = "#FFFFFF"; const AMBER = "#FBBF24";
 const FEATURE_ICON: Record<string, any> = { bills: "document-text", compare: "git-compare", route: "car-sport", calendar: "calendar", deadlines: "alarm", notes: "mic", scanner: "scan", email: "mail", whatsapp: "logo-whatsapp", referrals: "share-social", contacts: "people", voice: "mic-circle", team: "people-circle", kpi: "stats-chart", chat: "chatbubbles", proactive: "notifications", km: "speedometer", visits: "location", map: "map", files: "folder", pdf: "document", offers: "pricetags", pun: "flash", courses: "school", courses_dashboard: "bar-chart", forms: "document-attach", iddocs: "id-card", axon_voice: "volume-high" };
@@ -394,42 +396,70 @@ function MasterThenFirstContact({ say, onNext, onLockChange }: { say: (t: string
 const Q3 = "Aggiungiamo il tuo primo cliente. Hai un biglietto da visita o preferisci dirmelo a voce?";
 function FirstContact({ say, onNext, intro, masterName, onEditMaster }: { say: (t: string) => Promise<void>; onNext: () => void; intro?: string; masterName?: string; onEditMaster?: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const [preview, setPreview] = useState<Record<string, string> | null>(null);
+  const [preview, setPreview] = useState<ExtractedContact | null>(null);
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
   const [typed, setTyped] = useState(false);
   const [text, setText] = useState("");
+  // V50.z278 — biglietto: foto originale → ritaglio contorni (angoli pre-rilevati) → OCR adattivo; l'immagine ritagliata viene salvata in scheda
+  const [rawShot, setRawShot] = useState<string | null>(null);
+  const [cropCorners, setCropCorners] = useState<{ x: number; y: number }[] | undefined>(undefined);
+  const [cardImage, setCardImage] = useState<string | null>(null);
   const router = useRouter();
   useEffect(() => { if (!intro) void say(Q3); }, [say, intro]);
 
   const fromCard = async () => {
     try {
-      const res = await launchCameraUniversal({ quality: 0.6, base64: Platform.OS !== "web" });
+      const res = await launchCameraUniversal({ quality: 0.7, base64: Platform.OS !== "web" });
       if (res.canceled || !res.assets?.[0]) return;
       const a = res.assets[0];
       const dataUrl = a.uri?.startsWith("data:") ? a.uri : a.base64 ? `data:${a.mimeType || "image/jpeg"};base64,${a.base64}` : await uriToBase64DataUrl(a.uri!, a.mimeType || "image/jpeg");
-      setBusy("Leggo il biglietto…");
-      const r = await api<{ contact: Record<string, string> }>("/ai/contact-from-card", { method: "POST", body: { image_base64: dataUrl } });
-      setPreview(r.contact || {});
-    } catch (e: any) { notify("Biglietto", e?.message || "Impossibile leggere il biglietto"); } finally { setBusy(null); }
+      setBusy("Cerco i contorni del biglietto…");
+      try {
+        const d = await api<{ detected: boolean; corners: number[][] | null }>("/scanner/detect-corners", { method: "POST", body: { data_base64: dataUrl.split(",")[1] || dataUrl, mime: a.mimeType || "image/jpeg" } });
+        // accetta gli angoli rilevati solo se plausibili per un biglietto (area 8-90%, proporzioni ~1.2-2.2 in una delle due direzioni)
+        const cs = d.detected && d.corners?.length === 4 ? d.corners.map(([x, y]) => ({ x, y })) : null;
+        let ok = false;
+        if (cs) {
+          const w = (Math.hypot(cs[1].x - cs[0].x, cs[1].y - cs[0].y) + Math.hypot(cs[2].x - cs[3].x, cs[2].y - cs[3].y)) / 2;
+          const hh = (Math.hypot(cs[3].x - cs[0].x, cs[3].y - cs[0].y) + Math.hypot(cs[2].x - cs[1].x, cs[2].y - cs[1].y)) / 2;
+          const iw = a.width || 4, ih = a.height || 3; const ratio = (w * iw) / Math.max(1e-6, hh * ih); const area = w * hh;
+          ok = area > 0.08 && area < 0.9 && ((ratio > 1.2 && ratio < 2.2) || (ratio > 0.45 && ratio < 0.85));
+        }
+        setCropCorners(ok && cs ? cs : undefined);
+      } catch { setCropCorners(undefined); }
+      setRawShot(dataUrl); // apre l'editor di ritaglio
+    } catch (e: any) { notify("Biglietto", e?.message || "Impossibile acquisire il biglietto"); } finally { setBusy(null); }
+  };
+  const onCropped = async (r: CropResult) => {
+    setRawShot(null);
+    const cropped = `data:${r.mime || "image/jpeg"};base64,${r.data_base64}`;
+    setCardImage(cropped);
+    if (preview) return; // ri-ritaglio: aggiorna solo l'immagine
+    setBusy("Leggo il biglietto…");
+    try { const res = await api<{ contact: ExtractedContact }>("/ai/contact-from-card", { method: "POST", body: { image_base64: cropped } }); setPreview(res.contact || {}); }
+    catch (e: any) { notify("Biglietto", e?.message || "Impossibile leggere il biglietto"); } finally { setBusy(null); }
   };
   const fromText = async (t: string) => {
     if (!t.trim()) return;
     setBusy("Ascolto…");
-    try { const r = await api<{ contact: Record<string, string> }>("/tour/contact-from-text", { method: "POST", body: { text: t } }); setPreview(r.contact || {}); }
+    try { const r = await api<{ contact: ExtractedContact }>("/tour/contact-from-text", { method: "POST", body: { text: t } }); setPreview(r.contact || {}); }
     catch (e: any) { notify("Axon", e?.message || "Non ho capito, riprova"); } finally { setBusy(null); }
   };
   const save = async () => {
     if (!preview) return;
     setBusy("Salvo in anagrafica…");
     try {
-      const body: any = { ...preview, first_name: preview.first_name || preview.company || "Nuovo", last_name: preview.last_name || "" };
+      const flat = flattenChannels(preview);
+      const body: any = { ...flat, first_name: flat.first_name || flat.company || "Nuovo", last_name: flat.last_name || "" };
       if (body.note_ai) { body.notes = body.note_ai; delete body.note_ai; }
+      if (body.notes) { body.general_note = body.notes; delete body.notes; }
+      if (cardImage) body.business_card = { data_base64: cardImage.split(",")[1] || cardImage, mime: "image/jpeg", created_at: new Date().toISOString() };
       const c = await api<any>("/contacts", { method: "POST", body });
       const name = `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.company || "Cliente";
-      setCreated({ id: c.contact_id, name }); void say(`Fatto. ${name} è in anagrafica.`);
+      setCreated({ id: c.contact_id, name }); void say(`Fatto. ${name} è in anagrafica${cardImage ? " con il biglietto da visita" : ""}.`);
     } catch (e: any) { notify("Anagrafica", e?.message || "Salvataggio non riuscito"); } finally { setBusy(null); }
   };
-  const FIELDS: [string, string][] = [["first_name", "Nome"], ["last_name", "Cognome"], ["company", "Azienda"], ["phone", "Telefono"], ["email", "Email"], ["address_city", "Città"], ["role", "Ruolo"]];
+  const patch = (p: Partial<ExtractedContact>) => setPreview((prev) => ({ ...(prev || {}), ...p }));
 
   return (
     <View style={styles.screen}>
@@ -450,17 +480,16 @@ function FirstContact({ say, onNext, intro, masterName, onEditMaster }: { say: (
           </View>
         ) : preview ? (
           <View style={styles.card} testID="tour-contact-preview">
-            {FIELDS.filter(([k]) => preview[k]).map(([k, l]) => (
-              <View key={k} style={styles.fieldRow}><Text style={styles.fieldLbl}>{l}</Text><TextInput value={String(preview[k])} onChangeText={(v) => setPreview((p) => ({ ...(p || {}), [k]: v }))} style={styles.fieldVal} testID={`tour-field-${k}`} /></View>
-            ))}
+            <Text style={[styles.p, { fontSize: 13, textAlign: "left" }]}>Controlla i dati: tocca ★ per indicare telefono ed email principali e scegli come preferisce essere contattato.</Text>
+            <ContactPreviewForm value={preview} onChange={patch} dark cardImage={cardImage} onRecrop={cardImage ? () => setRawShot(cardImage) : undefined} />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
-              <Pressable onPress={() => setPreview(null)} style={[styles.choice, { flex: 1 }]} testID="tour-contact-retry"><Text style={styles.choiceTxt}>Riprova</Text></Pressable>
+              <Pressable onPress={() => { setPreview(null); setCardImage(null); }} style={[styles.choice, { flex: 1 }]} testID="tour-contact-retry"><Text style={styles.choiceTxt}>Riprova</Text></Pressable>
               <Pressable onPress={save} disabled={!!busy} style={[styles.cta, { flex: 2, marginTop: 0 }]} testID="tour-contact-save"><Text style={styles.ctaTxt}>Salva in anagrafica</Text></Pressable>
             </View>
           </View>
         ) : (
           <View style={{ gap: 10 }}>
-            <Pressable onPress={fromCard} disabled={!!busy} style={styles.choice} testID="tour-choice-card"><Ionicons name="scan" size={22} color={SKY} /><View style={{ flex: 1 }}><Text style={styles.choiceTxt}>Scansiona il biglietto da visita</Text><Text style={styles.choiceSub}>Fotografalo: leggo io nome, telefono ed email</Text></View></Pressable>
+            <Pressable onPress={fromCard} disabled={!!busy} style={styles.choice} testID="tour-choice-card"><Ionicons name="scan" size={22} color={SKY} /><View style={{ flex: 1 }}><Text style={styles.choiceTxt}>Scansiona il biglietto da visita</Text><Text style={styles.choiceSub}>Fotografalo e ritaglialo: leggo tutti i numeri, email, P.IVA e referenti</Text></View></Pressable>
             <View style={[styles.choice, { flexDirection: "column", alignItems: "stretch", gap: 10 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}><Ionicons name="mic" size={22} color={SKY} /><View style={{ flex: 1 }}><Text style={styles.choiceTxt}>Dimmelo a voce</Text><Text style={styles.choiceSub}>«Mario Rossi, elettricista di Treviso, 333 1234567»</Text></View></View>
               <View style={styles.micWrap}><VoiceDictationButton label="Detta il cliente" testID="tour-contact-voice" onTranscript={(t) => void fromText(t)} /></View>
@@ -474,6 +503,7 @@ function FirstContact({ say, onNext, intro, masterName, onEditMaster }: { say: (
           </View>
         )}
       </ScrollView>
+      {rawShot ? <ManualCropEditor visible imageBase64={rawShot} initialCorners={cropCorners} enhance={false} title="Ritaglia il biglietto" onCancel={() => setRawShot(null)} onDone={(r) => void onCropped(r)} /> : null}
       {created ? <Pressable onPress={onNext} style={styles.cta} testID="tour-next-3"><Text style={styles.ctaTxt}>Continua</Text><Ionicons name="arrow-forward" size={18} color={NAVY} /></Pressable>
         : <Pressable onPress={onNext} style={styles.link} testID="tour-skip-3"><Text style={styles.linkTxt}>Il primo cliente lo aggiungo dopo</Text></Pressable>}
     </View>

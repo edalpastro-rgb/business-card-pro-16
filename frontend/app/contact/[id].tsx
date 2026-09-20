@@ -51,6 +51,11 @@ type CFile = { id: string; name: string; mime: string; size: number; created_at:
 type Contact = {
   contact_id: string; first_name: string; last_name: string; phone: string; email: string; address: string;
   phone_alt?: string; whatsapp?: string; email_alt?: string; telegram?: string;
+  // V50.z278 — anagrafica adattiva da biglietto da visita
+  company?: string; role?: string; fax?: string;
+  phones?: { label: string; number: string; type: string; primary?: boolean }[]; emails?: { label: string; address: string; primary?: boolean }[];
+  people?: { name: string; role?: string; phone?: string; email?: string }[]; contact_prefs?: { channels?: string[]; best_time?: string; note?: string };
+  business_card?: { data_base64: string; mime?: string; created_at?: string } | null;
   address_street?: string; address_number?: string; address_zip?: string; address_city?: string; address_province?: string;
   work_address?: string; residence_address?: string;
   birth_date?: string; fiscal_code?: string; vat_number?: string; anniversaries?: { name: string; date: string }[];
@@ -1027,11 +1032,40 @@ function ContactDetail() {
                 ))}
               </View>
             )}
-            <InfoRow icon="call-outline" label="Telefono principale" value={c.phone || "—"} />
-            {c.phone_alt ? <InfoRow icon="call-outline" label="Telefono 2°" value={c.phone_alt} /> : null}
+            {c.company ? <InfoRow icon="business-outline" label="Azienda" value={c.company} /> : null}
+            {c.role ? <InfoRow icon="briefcase-outline" label="Ruolo" value={c.role} /> : null}
+            {(c.phones || []).length ? (c.phones || []).map((p, i) => (
+              <InfoRow key={`ph-${i}`} icon={p.type === "fax" ? "print-outline" : p.type === "landline" ? "call-outline" : "phone-portrait-outline"} label={`${p.primary ? "★ " : ""}${p.label || "Telefono"}${p.type === "fax" ? " (fax)" : p.type === "landline" ? " (fisso)" : ""}`} value={p.number} href={p.type === "fax" ? undefined : `tel:${p.number.replace(/[^\d+]/g, "")}`} />
+            )) : (<>
+              <InfoRow icon="call-outline" label="Telefono principale" value={c.phone || "—"} />
+              {c.phone_alt ? <InfoRow icon="call-outline" label="Telefono 2°" value={c.phone_alt} /> : null}
+              {c.fax ? <InfoRow icon="print-outline" label="Fax" value={c.fax} /> : null}
+            </>)}
             {c.whatsapp ? <InfoRow icon="logo-whatsapp" label="WhatsApp" value={c.whatsapp} /> : null}
-            <InfoRow icon="mail-outline" label="Email principale" value={c.email || "—"} />
-            {c.email_alt ? <InfoRow icon="mail-outline" label="Email 2°" value={c.email_alt} /> : null}
+            {(c.emails || []).length ? (c.emails || []).map((e, i) => (
+              <InfoRow key={`em-${i}`} icon="mail-outline" label={`${e.primary ? "★ " : ""}${e.label || "Email"}`} value={e.address} href={`mailto:${e.address}`} />
+            )) : (<>
+              <InfoRow icon="mail-outline" label="Email principale" value={c.email || "—"} />
+              {c.email_alt ? <InfoRow icon="mail-outline" label="Email 2°" value={c.email_alt} /> : null}
+            </>)}
+            {(c.contact_prefs?.channels || []).length || c.contact_prefs?.best_time ? (
+              <InfoRow icon="chatbubbles-outline" label="Preferenze di contatto" value={[(c.contact_prefs?.channels || []).map((ch) => ({ call: "Telefonata", whatsapp: "WhatsApp", email: "Email", sms: "SMS" } as Record<string, string>)[ch] || ch).join(", "), c.contact_prefs?.best_time].filter(Boolean).join(" · ")} />
+            ) : null}
+            {(c.people || []).map((p, i) => (
+              <InfoRow key={`pp-${i}`} icon="people-outline" label={`Referente: ${p.name}${p.role ? ` (${p.role})` : ""}`} value={[p.phone, p.email].filter(Boolean).join(" · ") || "—"} href={p.phone ? `tel:${p.phone.replace(/[^\d+]/g, "")}` : undefined} />
+            ))}
+            {c.business_card?.data_base64 ? (
+              <View style={{ marginTop: 6, gap: 6 }} testID="contact-business-card">
+                <Text style={styles.infoLabel}>Biglietto da visita</Text>
+                <Pressable onPress={() => setViewerFile({ id: "business_card", name: `Biglietto ${c.first_name} ${c.last_name}.jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.data_base64 })} testID="contact-business-card-open">
+                  <Image source={{ uri: `data:${c.business_card.mime || "image/jpeg"};base64,${c.business_card.data_base64}` }} style={{ width: "100%", height: 160, borderRadius: 12, backgroundColor: "#F1F5F9" }} resizeMode="contain" />
+                </Pressable>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable onPress={() => setViewerFile({ id: "business_card", name: `Biglietto ${c.first_name} ${c.last_name}.jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.data_base64 })} style={styles.cardBtn}><Ionicons name="eye-outline" size={16} color={theme.color.brandPrimary} /><Text style={styles.cardBtnTxt}>Apri</Text></Pressable>
+                  <Pressable onPress={() => shareFile({ id: "business_card", name: `Biglietto ${c.first_name} ${c.last_name}.jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.data_base64 })} style={styles.cardBtn} testID="contact-business-card-share"><Ionicons name="share-social-outline" size={16} color={theme.color.brandPrimary} /><Text style={styles.cardBtnTxt}>Condividi</Text></Pressable>
+                </View>
+              </View>
+            ) : null}
             {(c.address_street || c.address_city) || showLegacyAddr || c.work_address || c.residence_address ? (
               <View style={{ marginTop: 4 }}>
                 {distanceOrigin ? (
@@ -1550,6 +1584,8 @@ function InfoRow({ icon, label, value, href }: { icon: any; label: string; value
 }
 
 const styles = StyleSheet.create({
+  cardBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
+  cardBtnTxt: { fontWeight: "800", fontSize: 13, color: theme.color.brandPrimary },
   root: { flex: 1, backgroundColor: theme.color.surface },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
   hero: { padding: 20, paddingTop: 4, alignItems: "center" },

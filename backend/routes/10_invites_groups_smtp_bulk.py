@@ -407,7 +407,7 @@ async def group_contacts(group_id: str, user=Depends(get_current_user)):
     q = scope_query(user, {"group_ids": group_id})
     items = await db.contacts.find(
         q,
-        {"_id": 0, "notes": 0, "files": 0},
+        {"_id": 0, "notes": 0, "files": 0, "business_card": 0},
     ).sort("last_name", 1).to_list(2000)
     return {"items": items}
 

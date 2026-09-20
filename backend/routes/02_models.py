@@ -363,6 +363,16 @@ class ContactIn(BaseModel):
     custom_fields: Dict[str, Any] = Field(default_factory=dict)
     # V50.z71 — Indirizzo preferito (main | legacy | work | residence) — mostrato in cima nella scheda
     preferred_address: Optional[str] = None
+    # V50.z278 — Anagrafica adattiva (biglietto da visita): azienda/ruolo, fax, elenco recapiti con etichetta e flag principale,
+    # altri referenti sul biglietto, preferenze di contatto, immagine del biglietto (JPEG ritagliato, base64)
+    company: str = ""
+    role: str = ""
+    fax: str = ""
+    phones: List[Dict[str, Any]] = Field(default_factory=list)   # [{label, number, type: mobile|landline|fax|other, primary}]
+    emails: List[Dict[str, Any]] = Field(default_factory=list)   # [{label, address, primary}]
+    people: List[Dict[str, Any]] = Field(default_factory=list)   # [{name, role, phone, email}]
+    contact_prefs: Dict[str, Any] = Field(default_factory=dict)  # {channels: [call|whatsapp|email|sms], best_time, note}
+    business_card: Optional[Dict[str, Any]] = None               # {data_base64, mime, created_at}
 
 
 class ContactUpdate(BaseModel):
@@ -427,6 +437,15 @@ class ContactUpdate(BaseModel):
     custom_fields: Optional[Dict[str, Any]] = None
     # V50.z71 — Indirizzo preferito (main | legacy | work | residence)
     preferred_address: Optional[str] = None
+    # V50.z278 — Anagrafica adattiva
+    company: Optional[str] = None
+    role: Optional[str] = None
+    fax: Optional[str] = None
+    phones: Optional[List[Dict[str, Any]]] = None
+    emails: Optional[List[Dict[str, Any]]] = None
+    people: Optional[List[Dict[str, Any]]] = None
+    contact_prefs: Optional[Dict[str, Any]] = None
+    business_card: Optional[Dict[str, Any]] = None
     # V50.z256 — Frequenza ripasso (giorni: 30/60/90/120 o personalizzato; 0 = nessuna)
     revisit_every_days: Optional[int] = None
 

@@ -23,16 +23,84 @@ class AIImageIn(BaseModel):
 
 
 CONTACT_EXTRACTION_SYSTEM = (
-    "Sei un assistente che estrae informazioni di contatto da testo o pagine web. "
+    "Sei un assistente che estrae informazioni di contatto da testo, biglietti da visita o pagine web. "
     "Rispondi SEMPRE con un oggetto JSON valido (senza testo aggiuntivo, senza markdown) con questi campi opzionali: "
-    "first_name (string), last_name (string), phone (string, con prefisso internazionale se disponibile), "
-    "phone_alt (string), email (string), email_alt (string), company (string), role (string), "
-    "address_street (string), address_city (string), address_zip (string), address_province (string), "
+    "first_name (string), last_name (string), role (string, ruolo/qualifica), company (string, ragione sociale completa con forma giuridica es. s.n.c., s.r.l.), "
+    "phones (array di oggetti {label, number, type}: UNO per OGNI numero presente, senza tralasciarne nessuno; type = mobile|landline|fax|other; "
+    "label = a chi/cosa si riferisce, es. 'Cell. Rudy', 'Cell. Massimo', 'Tel. ufficio', 'Fax'; number con prefisso +39 se italiano), "
+    "emails (array di oggetti {label, address}: una per ogni email presente), fax (string), vat_number (string, partita IVA 11 cifre), fiscal_code (string), "
+    "people (array di oggetti {name, role, phone, email}: le ALTRE persone citate oltre al contatto principale, es. soci o colleghi; se sul biglietto c'è 'di Andriolo R. & Ferronato M.' e un 'cell. Massimo', associa il numero a Ferronato M.), "
+    "address_street (string, via), address_number (string, numero civico), address_city (string), address_zip (string), address_province (string, sigla), "
     "website (string), linkedin (string), telegram (string), whatsapp (string), "
     "birth_date (string in formato DD/MM/YYYY se identificabile), "
-    "notes (string, breve descrizione professionale). "
+    "notes (string, breve descrizione professionale: attività, servizi, orari). "
+    "Il contatto principale (first_name/last_name) è la persona il cui cellulare è indicato per primo o che è nominata per prima. "
+    "Associa SEMPRE ogni numero alla persona o funzione giusta usando le etichette presenti (cell., tel., fax, nome accanto al numero). "
     "Se un campo non è presente, omettilo. Rispondi in italiano nei campi testuali. NON aggiungere spiegazioni."
 )
+
+_PHONE_TYPE_RX = {"fax": re.compile(r"\bfax\b", re.I), "mobile": re.compile(r"\b(cell|cellulare|mobile|mob)\b\.?", re.I)}
+
+
+def _norm_extracted_contact(data: dict) -> dict:
+    """V50.z278 — Rende coerente l'estrazione adattiva: liste phones/emails con flag `primary`, campi piatti
+    (phone = cellulare principale, phone_alt = fisso, fax, email) sempre valorizzati per il resto dell'app."""
+    if not isinstance(data, dict):
+        return {}
+    ppl = []
+    for p in (data.get("people") if isinstance(data.get("people"), list) else []):
+        if isinstance(p, dict) and str(p.get("name") or "").strip():
+            ppl.append({"name": str(p.get("name") or "").strip()[:80], "role": str(p.get("role") or "").strip()[:60], "phone": str(p.get("phone") or "").strip()[:30], "email": str(p.get("email") or "").strip()[:120]})
+    data["people"] = ppl
+    phones = []
+    seen = set()
+    raw_phones = data.get("phones") if isinstance(data.get("phones"), list) else []
+    # i numeri degli altri referenti entrano nell'elenco recapiti, associati al nome
+    raw_phones = raw_phones + [{"label": f"Cell. {p['name']}", "number": p["phone"], "type": ""} for p in ppl if p["phone"]]
+    for src in ([{"label": "Telefono", "number": data.get("phone"), "type": "mobile"}, {"label": "Telefono 2", "number": data.get("phone_alt"), "type": "landline"},
+                 {"label": "Fax", "number": data.get("fax"), "type": "fax"}] if not raw_phones else []) + raw_phones:
+        if not isinstance(src, dict):
+            continue
+        num = re.sub(r"[^\d+]", "", str(src.get("number") or ""))
+        if len(num) < 6 or num in seen:
+            continue
+        seen.add(num)
+        label = str(src.get("label") or "").strip()[:40]
+        typ = str(src.get("type") or "").lower()
+        if typ not in ("mobile", "landline", "fax", "other"):
+            typ = "fax" if _PHONE_TYPE_RX["fax"].search(label) else "mobile" if _PHONE_TYPE_RX["mobile"].search(label) or re.match(r"^(\+39)?3\d{8,9}$", num) else "landline"
+        phones.append({"label": label or {"mobile": "Cellulare", "landline": "Telefono fisso", "fax": "Fax"}.get(typ, "Telefono"), "number": str(src.get("number") or "").strip()[:30], "type": typ, "primary": False})
+    emails = []
+    seen_e = set()
+    raw_emails = data.get("emails") if isinstance(data.get("emails"), list) else []
+    for src in ([{"label": "Email", "address": data.get("email")}, {"label": "Email 2", "address": data.get("email_alt")}] if not raw_emails else []) + raw_emails:
+        if not isinstance(src, dict):
+            continue
+        addr = str(src.get("address") or "").strip().lower()
+        if "@" not in addr or addr in seen_e:
+            continue
+        seen_e.add(addr)
+        emails.append({"label": str(src.get("label") or "Email").strip()[:40], "address": addr[:120], "primary": False})
+    # principale: primo cellulare (altrimenti primo numero non fax), prima email
+    main = next((p for p in phones if p["type"] == "mobile"), None) or next((p for p in phones if p["type"] != "fax"), None)
+    if main:
+        main["primary"] = True
+        data["phone"] = main["number"]
+    land = next((p for p in phones if p["type"] == "landline"), None)
+    data["phone_alt"] = land["number"] if land else (next((p["number"] for p in phones if p is not main and p["type"] != "fax"), ""))
+    fax = next((p for p in phones if p["type"] == "fax"), None)
+    data["fax"] = fax["number"] if fax else str(data.get("fax") or "")
+    if emails:
+        emails[0]["primary"] = True
+        data["email"] = emails[0]["address"]
+        data["email_alt"] = emails[1]["address"] if len(emails) > 1 else ""
+    data["phones"], data["emails"] = phones, emails
+    if data.get("vat_number"):
+        data["vat_number"] = re.sub(r"[^\dA-Za-z]", "", str(data["vat_number"]))[:16]
+    for k in list(data.keys()):
+        if data[k] in ("", None, [], {}) and k not in ("phones", "emails", "people"):
+            data.pop(k)
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +214,7 @@ async def _llm_extract_contact(text: str, model: str = "claude-haiku-4-5-2025100
     data.pop("parse_error", None)
     data.pop("error_message", None)
     data.pop("parse_error_kind", None)
-    return data
+    return _norm_extracted_contact(data)
 
 
 @api_router.post("/ai/contact-from-url")
@@ -590,7 +658,7 @@ async def ai_contact_from_card(body: AIImageIn, user=Depends(get_current_user)):
             system_message=CONTACT_EXTRACTION_SYSTEM,
         ).with_model("gemini", model_name)
         msg = UserMessage(
-            text="Ecco l'immagine di un biglietto da visita italiano. Estrai i dati (nome, cognome, ruolo/qualifica, azienda, telefono, telefono alternativo, email, email alternativa, indirizzo, città, CAP, provincia, sito web) e restituisci un JSON compatto.",
+            text="Ecco l'immagine di un biglietto da visita italiano (potrebbe essere ruotato: leggilo in ogni orientamento). Estrai TUTTI i dati: nome, cognome, ruolo, azienda (ragione sociale completa), OGNI numero di telefono con la sua etichetta (cellulari di ciascuna persona, telefono fisso, fax), OGNI email, partita IVA, indirizzo con civico, CAP, città, provincia, sito web, altre persone citate (soci/colleghi) con i loro numeri, e una breve nota sull'attività. Restituisci un JSON compatto.",
             file_contents=[ImageContent(image_base64=bare_b64)],
         )
         return await chat.send_message(msg)
@@ -618,7 +686,7 @@ async def ai_contact_from_card(body: AIImageIn, user=Depends(get_current_user)):
     data.pop("parse_error", None)
     data.pop("error_message", None)
     data.pop("parse_error_kind", None)
-    return {"contact": data}
+    return {"contact": _norm_extracted_contact(data)}
 
 
 # =========================

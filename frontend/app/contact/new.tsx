@@ -10,6 +10,7 @@ import { pickCommonFile } from "@/src/utils/filePicker";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { ContactChannelsEditor, flattenChannels, PhoneEntry, EmailEntry, PersonEntry, ContactPrefs } from "@/src/ContactPreviewForm"; // V50.z278
 import { theme } from "@/src/theme";
 import { isAreaVisible, areaCategories } from "@/src/utils/areaAccess";
 import { scheduleBirthdayReminder } from "@/src/notifications";
@@ -83,6 +84,10 @@ function NewContactScreen() {
     first_name: "", last_name: "",
     phone: "", phone_alt: "", whatsapp: "",
     email: "", email_alt: "", telegram: "",
+    // V50.z278 — anagrafica adattiva (azienda/ruolo/fax, elenco recapiti con principale, referenti, preferenze)
+    company: "", role: "", fax: "",
+    phones: [] as PhoneEntry[], emails: [] as EmailEntry[], people: [] as PersonEntry[], contact_prefs: {} as ContactPrefs,
+    business_card: null as null | { data_base64: string; mime: string; created_at: string },
     address_street: "", address_number: "", address_zip: "", address_city: "", address_province: "",
     work_address: "", residence_address: "",
     birth_date: "", fiscal_code: "", vat_number: "",
@@ -172,6 +177,8 @@ function NewContactScreen() {
           first_name: c.first_name || "", last_name: c.last_name || "",
           phone: c.phone || "", phone_alt: c.phone_alt || "", whatsapp: c.whatsapp || "",
           email: c.email || "", email_alt: c.email_alt || "", telegram: c.telegram || "",
+          company: c.company || "", role: c.role || "", fax: c.fax || "",
+          phones: c.phones || [], emails: c.emails || [], people: c.people || [], contact_prefs: c.contact_prefs || {},
           address_street: c.address_street || "", address_number: c.address_number || "",
           address_zip: c.address_zip || "", address_city: c.address_city || "", address_province: c.address_province || "",
           work_address: c.work_address || "", residence_address: c.residence_address || "",
@@ -234,11 +241,9 @@ function NewContactScreen() {
   };
   const closeAI = () => { setAiMode(null); setAiPreview(null); };
 
-  const applyAIFields = (data: Record<string, string>) => {
-    // Merge company/role/website/linkedin into general_note if not empty
+  const applyAIFields = (data: Record<string, any>) => {
+    // V50.z278 — azienda/ruolo/fax/P.IVA/recapiti/referenti sono campi strutturati; in nota restano solo sito/linkedin/descrizione
     const extras: string[] = [];
-    if (data.company) extras.push(`Azienda: ${data.company}`);
-    if (data.role) extras.push(`Ruolo: ${data.role}`);
     if (data.website) extras.push(`Sito: ${data.website}`);
     if (data.linkedin) extras.push(`LinkedIn: ${data.linkedin}`);
     if (data.notes) extras.push(data.notes);
@@ -261,6 +266,11 @@ function NewContactScreen() {
       telegram: data.telegram || f.telegram,
       birth_date: data.birth_date || f.birth_date,
       general_note: notesPart,
+      company: data.company || f.company, role: data.role || f.role, fax: data.fax || f.fax,
+      vat_number: data.vat_number || f.vat_number, fiscal_code: data.fiscal_code || f.fiscal_code, address_number: data.address_number || f.address_number, website: data.website || f.website,
+      phones: Array.isArray(data.phones) && data.phones.length ? data.phones : f.phones,
+      emails: Array.isArray(data.emails) && data.emails.length ? data.emails : f.emails,
+      people: Array.isArray(data.people) && data.people.length ? data.people : f.people,
     }));
     closeAI();
   };
@@ -290,6 +300,8 @@ function NewContactScreen() {
     try {
       const r = await api<{ contact: Record<string, string> }>("/ai/contact-from-card", { method: "POST", body: { image_base64: dataUrl } });
       setAiPreview(r.contact || {});
+      // V50.z278 — il biglietto viene salvato nella scheda cliente (apri/condividi dal dettaglio)
+      setForm((f) => ({ ...f, business_card: { data_base64: dataUrl.split(",")[1] || dataUrl, mime: a.mimeType || "image/jpeg", created_at: new Date().toISOString() } }));
     } catch (e: any) {
       notify("Errore OCR", e?.message || "Impossibile leggere il biglietto");
     } finally { setAiBusy(false); }
@@ -851,7 +863,8 @@ function NewContactScreen() {
     setBusy(true);
     try {
       const { tag_input, photos, ...payload } = form;
-      const body: any = { ...payload };
+      const body: any = (payload.phones.length || payload.emails.length) ? flattenChannels(payload as any) : { ...payload };
+      if (!body.business_card) delete body.business_card;
       body.address = [
         [form.address_street, form.address_number].filter(Boolean).join(" "),
         form.address_city, form.address_province, form.address_zip
@@ -1668,11 +1681,22 @@ function NewContactScreen() {
           </Section>
 
           <Section title="Contatti">
+            <Row>
+              <Field flex={1} label="Azienda" testID="c-company" value={form.company} onChangeText={(t: string) => setForm({ ...form, company: t })} />
+              <Field flex={1} label="Ruolo" testID="c-role" value={form.role} onChangeText={(t: string) => setForm({ ...form, role: t })} />
+            </Row>
+            {(form.phones.length || form.emails.length) ? (
+              <View style={{ marginBottom: 10 }}>
+                <ContactChannelsEditor value={form as any} onChange={(patch) => setForm((f) => ({ ...f, ...(patch as any) }))} testIdPrefix="c" />
+                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 6 }}>I campi Telefono/Email principali qui sotto vengono aggiornati in base alle ★ scelte.</Text>
+              </View>
+            ) : null}
             <Field label="Telefono cellulare" testID="c-phone" value={form.phone} onChangeText={(t: string) => setForm({ ...form, phone: t })} keyboardType="phone-pad" />
             <Row>
               <Field flex={1} label="Telefono fisso" testID="c-phone-alt" value={form.phone_alt} onChangeText={(t: string) => setForm({ ...form, phone_alt: t })} keyboardType="phone-pad" />
               <Field flex={1} label="WhatsApp" testID="c-whatsapp" value={form.whatsapp} onChangeText={(t: string) => setForm({ ...form, whatsapp: t })} keyboardType="phone-pad" />
             </Row>
+            <Field label="Fax" testID="c-fax" value={form.fax} onChangeText={(t: string) => setForm({ ...form, fax: t })} keyboardType="phone-pad" />
             <Field label="Email principale" testID="c-email" value={form.email} onChangeText={(t: string) => setForm({ ...form, email: t })} keyboardType="email-address" autoCapitalize="none" />
             <Field label="Email 2°" testID="c-email-alt" value={form.email_alt} onChangeText={(t: string) => setForm({ ...form, email_alt: t })} keyboardType="email-address" autoCapitalize="none" />
             <Field label="Telegram (username, es. @mario)" testID="c-telegram" value={form.telegram} onChangeText={(t: string) => setForm({ ...form, telegram: t })} autoCapitalize="none" />
@@ -2267,7 +2291,7 @@ function NewContactScreen() {
                   {Object.entries(aiPreview).map(([k, v]) => (
                     <View key={k} style={{ flexDirection: "row", gap: 8 }}>
                       <Text style={{ fontSize: 12, color: theme.color.muted, fontWeight: "700", width: 100 }}>{k}</Text>
-                      <Text style={{ fontSize: 12, color: theme.color.onSurface, flex: 1 }}>{String(v)}</Text>
+                      <Text style={{ fontSize: 12, color: theme.color.onSurface, flex: 1 }}>{Array.isArray(v) ? (v as any[]).map((x: any) => typeof x === "object" ? [x.label || x.name, x.number || x.address || x.phone].filter(Boolean).join(": ") : String(x)).join("\n") : typeof v === "object" ? JSON.stringify(v) : String(v)}</Text>
                     </View>
                   ))}
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>

@@ -23,13 +23,15 @@ type Props = {
   onDone: (r: CropResult) => void;
   enhance?: boolean;
   grayscale?: boolean;
+  initialCorners?: Pt[];       // V50.z278 — angoli pre-rilevati (0..1) es. da /scanner/detect-corners
+  title?: string;
 };
 
 type Pt = { x: number; y: number };
 const HANDLE = 44;
 const DEFAULT_CORNERS: Pt[] = [{ x: 0.08, y: 0.08 }, { x: 0.92, y: 0.08 }, { x: 0.92, y: 0.92 }, { x: 0.08, y: 0.92 }];
 
-export function ManualCropEditor({ visible, imageBase64, onCancel, onDone, enhance = true, grayscale = false }: Props) {
+export function ManualCropEditor({ visible, imageBase64, onCancel, onDone, enhance = true, grayscale = false, initialCorners, title }: Props) {
   const uri = imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
   const [box, setBox] = useState({ w: 0, h: 0 });          // container layout
   const [img, setImg] = useState({ w: 0, h: 0 });          // natural size
@@ -39,8 +41,9 @@ export function ManualCropEditor({ visible, imageBase64, onCancel, onDone, enhan
 
   useEffect(() => {
     if (!visible) return;
-    setCorners(DEFAULT_CORNERS);
-    cornersRef.current = DEFAULT_CORNERS;
+    const start = initialCorners && initialCorners.length === 4 ? initialCorners : DEFAULT_CORNERS;
+    setCorners(start);
+    cornersRef.current = start;
     Image.getSize(uri, (w, h) => setImg({ w, h }), () => setImg({ w: 3, h: 4 }));
   }, [visible, uri]);
 
@@ -119,7 +122,7 @@ export function ManualCropEditor({ visible, imageBase64, onCancel, onDone, enhan
           <Pressable onPress={onCancel} hitSlop={10} testID="crop-cancel" style={styles.hdrBtn}>
             <Ionicons name="close" size={24} color="#FFF" />
           </Pressable>
-          <Text style={styles.title}>Ritaglia documento</Text>
+          <Text style={styles.title}>{title || "Ritaglia documento"}</Text>
           <Pressable onPress={resetFull} hitSlop={10} testID="crop-reset" style={styles.hdrBtn}>
             <Ionicons name="expand-outline" size={22} color="#FFF" />
           </Pressable>
