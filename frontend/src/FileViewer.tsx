@@ -1,11 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, Platform, ActivityIndicator, ScrollView, Image, useWindowDimensions } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { View, Text, StyleSheet, Modal, Pressable, Platform, ActivityIndicator, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme } from "@/src/theme";
 import { WebView } from "react-native-webview";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { api } from "@/src/api";
+import { PdfPagesZoom } from "@/src/PdfPagesZoom";
 
 type Props = {
   visible: boolean;
@@ -33,7 +34,7 @@ type Props = {
  */
 export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onShare }: Props) {
   const insets = useSafeAreaInsets(); // V50.z251 — header sotto la status bar/notch (prima paddingTop fisso → titolo sopra i bottoni)
-  const { width: winW } = useWindowDimensions();
+  const { width: winW, height: winH } = useWindowDimensions();
   const isPdf = mime.toLowerCase().includes("pdf");
   const isImg = mime.toLowerCase().startsWith("image/");
   const isHtml = mime.toLowerCase().includes("html");
@@ -124,7 +125,10 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
   const [pdfTotal, setPdfTotal] = useState(0);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfErr, setPdfErr] = useState<string | null>(null);
+  const pdfLoadingRef = useRef(false);
   const loadPages = async (start: number) => {
+    if (pdfLoadingRef.current) return;
+    pdfLoadingRef.current = true;
     setPdfBusy(true); setPdfErr(null);
     try {
       const r = await api<{ pages: string[]; total: number; start: number }>("/files/pdf-pages", { method: "POST", body: { pdf_base64: dataBase64, start, max_pages: 8, dpi: 110 } });
@@ -132,8 +136,13 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
       setPdfPages((prev) => (start === 0 ? r.pages : [...prev, ...r.pages]));
     } catch (e: any) {
       setPdfErr(e?.message || "Impossibile aprire il PDF");
-    } finally { setPdfBusy(false); }
+    } finally { setPdfBusy(false); pdfLoadingRef.current = false; }
   };
+  // V50.z283 — pagine ad alta risoluzione (200 dpi) per lo zoom: testo piccolo leggibile
+  const fetchHiRes = useCallback(async (start: number, count: number) => {
+    const r = await api<{ pages: string[] }>("/files/pdf-pages", { method: "POST", body: { pdf_base64: dataBase64, start, max_pages: count, dpi: 200 } });
+    return r.pages;
+  }, [dataBase64]);
   useEffect(() => {
     if (Platform.OS === "web" || !visible || !isPdf) return;
     setPdfPages([]); setPdfTotal(0);
@@ -234,15 +243,15 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
                 <Pressable onPress={() => loadPages(0)} style={styles.retryBtn} testID="fileviewer-pdf-retry"><Text style={styles.retryTxt}>Riprova</Text></Pressable>
               </View>
             ) : (
-              <ScrollView style={{ flex: 1, backgroundColor: "#111" }} contentContainerStyle={{ paddingBottom: 40 }} maximumZoomScale={3} minimumZoomScale={1} testID="fileviewer-pdf-pages">
-                {pdfPages.map((p, i) => (
-                  <Image key={i} source={{ uri: `data:image/jpeg;base64,${p}` }} style={{ width: winW, height: winW * 1.414, backgroundColor: "#FFF", marginBottom: 6 }} resizeMode="contain" />
-                ))}
-                {pdfBusy ? <View style={{ padding: 24 }}><ActivityIndicator size="large" color="#FFF" /><Text style={styles.loadingTxt}>Preparazione pagine…</Text></View> : null}
-                {!pdfBusy && pdfPages.length < pdfTotal ? (
-                  <Pressable onPress={() => loadPages(pdfPages.length)} style={styles.retryBtn} testID="fileviewer-pdf-more"><Text style={styles.retryTxt}>Carica altre pagine ({pdfPages.length}/{pdfTotal})</Text></Pressable>
-                ) : null}
-              </ScrollView>
+              <PdfPagesZoom
+                pages={pdfPages}
+                total={pdfTotal}
+                busy={pdfBusy}
+                winW={winW}
+                winH={winH}
+                onLoadMore={() => void loadPages(pdfPages.length)}
+                fetchHiRes={fetchHiRes}
+              />
             )
           ) : isHtml ? (
             <WebView
