@@ -484,7 +484,11 @@ function ImpostazioniScreen() {
         )}
         {/* V50.z249 — Personalizzazione aziendale: pannello logo/P.IVA/firma + blocchi esistenti (branding PDF, sede, email) */}
         {sec === "branding" && (
-          <SettingsLinkRows rows={[{ label: "Logo aziendale, P.IVA e firma documenti", sub: "Logo nell'header per tutta l'organizzazione, ragione sociale, firma PDF", icon: "business", href: "/personalizzazione-aziendale", testID: "brand-org" }]} />
+          <SettingsLinkRows rows={[{ label: "Logo aziendale, P.IVA e firma documenti", sub: "Logo nell'header per tutta l'organizzazione, ragione sociale, firma PDF", icon: "business", href: "/personalizzazione-aziendale", testID: "brand-org" },
+            // V50.z290 — editor del Libretto illustrativo / presentazione AdvisorOS (Master): prima raggiungibile solo dal bottone in fondo al libretto
+            { label: "Libretto illustrativo e presentazione AdvisorOS", sub: "Modifica testi, sezioni e mockup del libretto; anteprima e PDF", icon: "book", href: "/libretto-editor", testID: "brand-libretto-editor" },
+            { label: "Anteprima libretto (PDF)", sub: "Come lo vedono collaboratori e clienti", icon: "reader", href: "/libretto", testID: "brand-libretto-view" },
+          ]} />
         )}
         {/* V50.z249 — Preferenze generali: lingua e tema */}
         {sec === "general" && (

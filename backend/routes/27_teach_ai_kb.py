@@ -73,14 +73,16 @@ def _require_super_master(user: Dict[str, Any]) -> None:
     import os as _os
     emails_env = (_os.environ.get("SUPER_MASTER_EMAILS") or "").strip()
     email = (user.get("email") or "").strip().lower()
+    # V50.z290 — il Master (owner radice del tenant) può SEMPRE modificare il libretto: in produzione la lista email
+    # non coincideva con l'account di login e il bottone «Modifica libretto» spariva (restava solo il PDF).
+    is_root_owner = (user.get("role") or "member") == "owner" and not user.get("parent_user_id")
+    if is_root_owner:
+        return
     if emails_env:
         allowed = {e.strip().lower() for e in emails_env.split(",") if e.strip()}
-        if email not in allowed:
-            raise HTTPException(status_code=403, detail="Sezione riservata al Super Master")
-    else:
-        # Fallback MVP: qualsiasi owner tenant può modificare
-        if (user.get("role") or "member") != "owner":
-            raise HTTPException(status_code=403, detail="Sezione riservata al Super Master")
+        if email in allowed:
+            return
+    raise HTTPException(status_code=403, detail="Sezione riservata al Super Master")
 
 
 # ─── V50.v — Libretto Informativo: contenuto EDITABILE dal Super Master ──────
