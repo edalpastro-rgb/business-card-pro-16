@@ -89,6 +89,7 @@ MODULES = [
     "contact_visits.py",  # V50.z256 — Rilevamento Visite: visite confermate, candidati GPS, frequenza ripasso, /visits/* (isolato; dopo axon_geo_routing e geo_km_log; avvolge _prepare_assistant_prompt)
     "axon_tour.py",
     "admin_reset.py",  # V50.z288 — Azzera dati di test (Master)
+    "axon_rules_engine.py",  # V50.z294 — Motore regole assolute con peso + conflict resolver (wrap _build_pinned_rules_section, _maybe_push_command)
     "auth_devices.py",  # V50.z293 — Registro dispositivi (1 telefono + 1 tablet + 1 PC), log accessi
     "axon_navigator.py",  # V50.z259 — Navigatore AxonOS: mappa completa app con deep link [[NAV:route|label]], flussi multi-step, azioni confermabili [[ACTION]], suggerimenti proattivi (/axon/nav/*) (isolato; avvolge _maybe_push_command e _prepare_assistant_prompt; DOPO axon_neo_bridge, contact_visits, 19 core)
     "axon_stress_test.py",  # V50.z260 — Stress test AxonOS: 200+ domande × N ripetizioni via /assistant/chat/stream, valutazione deep link/coerenza/trap, report + HTML PDF, correzioni prompt (db.axon_prompt_rules) (isolato; DOPO axon_navigator: avvolge _prepare_assistant_prompt e _nav_intercept)

@@ -21,7 +21,10 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { MicroTutorial, TUTORIAL_INSEGNA_AXON } from "@/src/MicroTutorial";
 import { DistillConversationModal } from "@/src/DistillConversationModal";
-type Rule = { rule_id: string; category?: string; categories?: string[]; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string };
+type Rule = { rule_id: string; category?: string; categories?: string[]; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string; priority_weight?: number };
+// V50.z294 — pesi del motore regole (0-100): in conflitto vince il peso maggiore
+const RULE_WEIGHTS = [100, 80, 60, 40] as const;
+const RULE_WEIGHT_LABEL: Record<number, string> = { 100: "massima", 80: "alta", 60: "normale", 40: "bassa" };
 type LastError = { reason?: string; message?: string; at?: string } | string;
 type LastChanges = { status: "first" | "unchanged" | "changed"; text?: string; at?: string; prev_at?: string };
 type UrlItem = { url_id: string; url: string; name: string; category?: string; frequency: "manual" | "daily" | "weekly" | "monthly"; username?: string; password_masked?: boolean; last_fetched_at?: string; last_summary?: string; last_error?: LastError; last_changes?: LastChanges };
@@ -301,6 +304,10 @@ export default function AiTeachScreen() {
     setCustomCatInput("");
   }, [customCatInput, toggleEditCategory]);
 
+  const setRuleWeight = async (ruleId: string, w: number) => {
+    try { await api(`/axon/rules-engine/${ruleId}`, { method: "PUT", body: { priority_weight: w } }); setRules((rs) => rs.map((x) => (x.rule_id === ruleId ? { ...x, priority_weight: w } : x))); }
+    catch (e: any) { notify("Peso regola", e?.message || ""); }
+  };
   const removeRule = async (id: string) => {
     try { await api(`/ai-teach/rules/${id}`, { method: "DELETE" }); load(); } catch (e: any) { notify("Errore", e?.message || ""); }
   };
@@ -683,6 +690,18 @@ export default function AiTeachScreen() {
                     <Pressable testID={`del-rule-${r.rule_id}`} onPress={() => removeRule(r.rule_id)} hitSlop={8}><Ionicons name="trash-outline" size={16} color="#DC2626" /></Pressable>
                   </View>
                   <Text style={styles.cardTxt} numberOfLines={4}>{r.text}</Text>
+                  {/* V50.z294 — peso della regola per il conflict resolver */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }} testID={`rule-weight-${r.rule_id}`}>
+                    <Ionicons name="scale-outline" size={13} color="#64748B" /><Text style={{ fontSize: 11, color: "#64748B", fontWeight: "700" }}>Peso</Text>
+                    {RULE_WEIGHTS.map((w) => {
+                      const on = (r.priority_weight ?? 60) === w;
+                      return (
+                        <Pressable key={w} onPress={() => void setRuleWeight(r.rule_id, w)} style={{ minHeight: 30, paddingHorizontal: 9, borderRadius: 15, backgroundColor: on ? "#7C3AED" : "#F1F5F9", justifyContent: "center" }} testID={`rule-weight-${r.rule_id}-${w}`}>
+                          <Text style={{ fontSize: 11, fontWeight: "800", color: on ? "#FFF" : "#475569" }}>{w} · {RULE_WEIGHT_LABEL[w]}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                   {r.files?.length ? (
                     <View style={styles.filesRow}>
                       {r.files.map((f, i) => (
