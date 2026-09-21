@@ -44,9 +44,10 @@ async def _neo_save_prompt(user: dict, text: str, source: str, origin_note: Opti
     return doc
 
 
-_NEO_HOWTO = ("Non ho un canale diretto con Neo (l'agente di sviluppo Emergent): il prompt è **salvato in Master Files → Prompt per Neo** con stato *in attesa*. "
-              "Per farlo eseguire apri la chat di sviluppo Emergent e scrivi: **«Neo, leggi i prompt in coda»**. Neo lo legge dal database e lo marca come letto/completato — "
-              "chiedimi «stato prompt Neo» quando vuoi.")
+# V50.z291 — Neo NON può leggere il database dell'app pubblicata: il testo va copiato e incollato nella chat di sviluppo.
+_NEO_HOWTO = ("Non ho un canale diretto con Neo (l'agente di sviluppo Emergent) e Neo non può leggere il database dell'app pubblicata: il prompt è **salvato in Master Files → Prompt per Neo** con stato *in attesa*. "
+              "Per farlo eseguire: **copia il testo del prompt** (te lo mostro con «stato prompt Neo» oppure aprilo in Master Files → Prompt per Neo → Copia) e **incollalo nella chat di sviluppo Emergent**. "
+              "Quando Neo l'ha eseguito, dimmi «prompt Neo #N completato» e lo segno come fatto.")
 
 
 _neo_prev_push_cmd = _maybe_push_command
@@ -56,6 +57,14 @@ async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: 
     txt = (msg or "").strip()
     if txt and re.search(r"\bneo\b", txt, re.IGNORECASE):
         try:
+            # V50.z291 — «prompt Neo #3 completato / eseguito / fatto» → marca done (o «letto» → read)
+            md = re.search(r"prompt\s+(?:per\s+)?neo\s+#?\s*(\d+)\s+(?:è\s+stato\s+|e\s+stato\s+)?(completat\w*|eseguit\w*|fatt\w*|lett\w*|chius\w*)", txt, re.IGNORECASE)
+            if md:
+                seq = int(md.group(1)); st = "read" if md.group(2).lower().startswith("lett") else "done"
+                r = await db.master_files.update_one({"user_id": tenant_id(user), "category": _NEO_CAT, "neo_seq": seq}, {"$set": {"neo_status": st, "neo_note": f"Segnato dall'utente il {utcnow().strftime('%d/%m %H:%M')}", "updated_at": utcnow()}})
+                if r.matched_count:
+                    return {"reply": f"✅ Prompt per Neo #{seq} segnato come **{_NEO_STATUS_LABEL[st]}**.", "cmd": "neo_mark"}
+                return {"reply": f"Non trovo il prompt per Neo #{seq}. Chiedimi «stato prompt Neo» per l'elenco.", "cmd": "neo_mark"}
             if _NEO_STATUS_RE.search(txt) and not _NEO_SEND_RE.search(txt):
                 tid = tenant_id(user)
                 c = await _neo_counts(tid)
@@ -63,7 +72,10 @@ async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: 
                 if not items:
                     return {"reply": "📭 Nessun prompt per Neo in coda. Scrivimi «invia questo prompt a Neo» seguito dal testo (o dopo che te l'ho preparato) e lo salvo in Master Files → Prompt per Neo.", "cmd": "neo_status"}
                 lines = [f"• #{d.get('neo_seq')} {d.get('title')} — *{_NEO_STATUS_LABEL.get(d.get('neo_status') or 'pending')}*" + (f" · nota Neo: {d['neo_note']}" if d.get("neo_note") else "") for d in items]
-                return {"reply": f"📋 **Prompt per Neo** — {c['pending']} in attesa · {c['read']} letti · {c['done']} completati\n\n" + "\n".join(lines) + "\n\n" + ("Per farli eseguire: nella chat di sviluppo Emergent scrivi «Neo, leggi i prompt in coda»." if c["pending"] else "Tutto letto da Neo ✅"), "cmd": "neo_status"}
+                # V50.z291 — testo integrale dei prompt in attesa, pronto da copiare/incollare nella chat di sviluppo Emergent
+                pend = [d for d in items if (d.get("neo_status") or "pending") == "pending"][:3]
+                blocks = "".join(f"\n\n**Prompt #{d.get('neo_seq')} — copia e incolla a Neo:**\n```\n{(d.get('body') or '')[:2500]}\n```" for d in pend)
+                return {"reply": f"📋 **Prompt per Neo** — {c['pending']} in attesa · {c['read']} letti · {c['done']} completati\n\n" + "\n".join(lines) + blocks + "\n\n" + ("Neo non legge il database dell'app: copia il testo qui sopra e incollalo nella chat di sviluppo Emergent; poi dimmi «prompt Neo #N completato»." if c["pending"] else "Tutto letto da Neo ✅"), "cmd": "neo_status"}
             m = _NEO_SEND_RE.search(txt)
             if m:
                 rest = (txt[:m.start()] + txt[m.end():]).strip(" \n:,.;-–—")
@@ -99,7 +111,8 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
             prep["system_message"] += (
                 "\n\n🔗 NEO (AGENTE DI SVILUPPO EMERGENT) — REGOLA VINCOLANTE: tu NON hai NESSUN canale diretto con Neo, né via Teams, email, file o API. "
                 "Non dire MAI «lo invio io a Neo», «glielo passo», «l'ho mandato a Neo» o simili: sarebbe falso. Il flusso reale è: l'utente ti dice «invia questo prompt a Neo» → il prompt viene salvato in "
-                "Master Files → cartella «Prompt per Neo» (stato: in attesa) → l'utente, nella chat di sviluppo Emergent, scrive «Neo, leggi i prompt in coda» → Neo legge dal database e marca letto/completato. "
+                "Master Files → cartella «Prompt per Neo» (stato: in attesa) → l'utente COPIA il testo del prompt (da «stato prompt Neo» o da Master Files) e lo INCOLLA nella chat di sviluppo Emergent → dopo l'esecuzione dice «prompt Neo #N completato». "
+                "Neo NON può leggere il database dell'app pubblicata: non dire mai che «Neo lo legge dal database». "
                 "Se ti chiedono di inviare qualcosa a Neo, spiega questo flusso e invita a scrivere «invia questo prompt a Neo» (con il testo) per salvarlo. "
                 "Nota: «Neo» può essere anche il tuo nome predefinito; se l'utente parla di Neo come sviluppatore, non confonderlo con te. "
                 f"Stato coda prompt per Neo: {c['pending']} in attesa, {c['read']} letti, {c['done']} completati."

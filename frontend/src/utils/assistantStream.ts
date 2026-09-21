@@ -38,6 +38,8 @@ export type StreamAssistantChatArgs = {
   attachments?: { name: string; mime: string; data_base64: string }[];
   // V50.z126 — etichetta azione rapida (il backend arricchisce il prompt e salva in cache)
   quick_label?: string;
+  // V50.z291 — posizione attuale nell'app (route, parametri, titolo) → Axon sa dove si trova l'utente
+  client_context?: { route: string; params?: Record<string, string>; title?: string };
   signal?: AbortSignal;
   onMeta?: (meta: StreamMeta) => void;
   onProgress?: (p: StreamProgress) => void;
@@ -158,6 +160,7 @@ export async function streamAssistantChat(
         session_id: args.session_id,
         attachments: args.attachments || [],
         quick_label: args.quick_label || undefined,
+        client_context: args.client_context || undefined,
       }),
       signal: args.signal,
     });
@@ -264,6 +267,7 @@ export async function streamAssistantChat(
       session_id: args.session_id,
       attachments: args.attachments || [],
       quick_label: args.quick_label || undefined,
+      client_context: args.client_context || undefined,
     }));
   });
 

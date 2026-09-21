@@ -6505,3 +6505,8 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 ## V50.z290 — Libretto: ripristinato «Modifica libretto» per il Master + accesso da Impostazioni — DONE
 - Causa: `_require_super_master` (27_teach_ai_kb.py) autorizzava solo le email in `SUPER_MASTER_EMAILS`; in produzione l'account di login non coincideva → `/libretto/permission` can_edit=false → nel libretto restava solo «Scarica PDF». Ora l'owner radice del tenant (Master) può sempre modificare; la lista email resta come autorizzazione aggiuntiva.
 - Impostazioni → Personalizzazione Aziendale: righe «Libretto illustrativo e presentazione AdvisorOS» (→ /libretto-editor) e «Anteprima libretto (PDF)» (→ /libretto).
+
+## V50.z291 — Axon vede dove si trova l'utente + flusso «Prompt per Neo» corretto — DONE
+- Frontend: `AssistantChat` invia `client_context {route, params}` (usePathname/useGlobalSearchParams) a ogni messaggio (`assistantStream.ts`, fetch+XHR).
+- Backend: `AssistantChatIn.client_context`; `axon_navigator._nav_position_section` → sezione «📍 POSIZIONE ATTUALE» nel prompt (voce APP_MAP per route esatta/prefisso, parametri, regole: parti da qui, non rimandare dove è già, bug riferito alla schermata); l'intercettore «mi sono perso/cosa posso fare qui» lascia rispondere l'LLM se l'utente non è in Home; `user["_client_ctx"]` impostato nello stream (22_axon_alarm_commit_teach) e nel non-stream ri-registrato.
+- Neo bridge: testo corretto (Neo NON legge il DB dell'app pubblicata → copia/incolla nella chat Emergent), «stato prompt Neo» mostra il testo integrale dei prompt in attesa in blocco copiabile, comando «prompt Neo #N completato/letto» marca lo stato.

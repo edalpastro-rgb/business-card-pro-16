@@ -31,7 +31,7 @@ import { ensureVoiceAudioMode, releaseVoiceAudioMode } from "@/src/voice/voiceAu
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import { useRouter, usePathname, useGlobalSearchParams } from "expo-router";
 import { api } from "@/src/api";
 import { SentenceSpeaker } from "@/src/utils/sentenceSpeaker";
 import { useAuth } from "@/src/auth";
@@ -208,6 +208,15 @@ export async function playAudioBase64(
 export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const { user } = useAuth();
   const router = useRouter();
+  // V50.z291 — posizione attuale dell'utente (route + parametri) inviata a ogni messaggio: Axon sa esattamente dove si trova
+  const pathname = usePathname();
+  const globalParams = useGlobalSearchParams<Record<string, string>>();
+  const clientContextRef = useRef<{ route: string; params?: Record<string, string> } | undefined>(undefined);
+  useEffect(() => {
+    const params: Record<string, string> = {};
+    for (const [k, v] of Object.entries(globalParams || {})) if (typeof v === "string" && v) params[k] = v.slice(0, 80);
+    clientContextRef.current = pathname ? { route: pathname, params: Object.keys(params).length ? params : undefined } : undefined;
+  }, [pathname, globalParams]);
   const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal // V29.ao — safe area insets per non finire sotto la gesture bar
   // V28.y — Only the Master can save rules/URLs to Insegna ad Axon
   const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
@@ -766,6 +775,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         session_id: sessionId || undefined,
         attachments: attachmentsPayload,
         quick_label: opts?.quickLabel && !attachmentsPayload.length ? opts.quickLabel : undefined,
+        client_context: clientContextRef.current, // V50.z291 — dove si trova l'utente adesso
         signal: controller.signal,
         onProgress: (p) => {
           // V50.z126 — Stato del preflight visibile ("Sto raccogliendo il contesto…")

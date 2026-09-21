@@ -278,11 +278,40 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
 _nav_prev_prepare = _prepare_assistant_prompt  # noqa: F821 — definita nei moduli precedenti
 
 
+def _nav_position_section(ctx: Optional[dict]) -> str:
+    """V50.z291 — Sezione «POSIZIONE ATTUALE»: route del client → voce della mappa app (nome, gruppo, descrizione)."""
+    if not isinstance(ctx, dict):
+        return ""
+    route = str(ctx.get("route") or "").strip()
+    if not route:
+        return ""
+    path = route.split("?")[0].rstrip("/") or "/"
+    params = ctx.get("params") if isinstance(ctx.get("params"), dict) else {}
+    title = str(ctx.get("title") or "").strip()
+    hit = None
+    for e in APP_MAP:  # match esatto, poi per prefisso (route dinamiche tipo /contact/abc)
+        if (e.get("route") or "").split("?")[0].rstrip("/") == path:
+            hit = e; break
+    if not hit:
+        cands = [e for e in APP_MAP if path.startswith((e.get("route") or "").split("?")[0].rstrip("/") + "/") and len(e.get("route") or "") > 1]
+        hit = max(cands, key=lambda e: len(e.get("route") or ""), default=None)
+    name = hit["name"] if hit else (title or path)
+    desc = f" — {hit['desc']}" if hit and hit.get("desc") else ""
+    grp = f" [{hit['group']}]" if hit and hit.get("group") else ""
+    prm = (" · parametri: " + ", ".join(f"{k}={str(v)[:40]}" for k, v in list(params.items())[:6])) if params else ""
+    return ("\n\n📍 POSIZIONE ATTUALE DELL'UTENTE (in tempo reale, dal client): schermata «" + name + "»" + grp + " · route " + route[:160] + prm + desc + ".\n"
+            "REGOLE: (1) quando chiede aiuto, indicazioni o segnala un problema, parti da QUESTA schermata («qui dove sei, tocca…»); "
+            "(2) NON rimandarlo alla schermata in cui si trova già e non chiedergli dove si trova; (3) se la soluzione è altrove, indica il percorso da qui con il marker NAV; "
+            "(4) se segnala un bug, riferiscilo a questa schermata e route nella descrizione del problema.")
+
+
 async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     prep = await _nav_prev_prepare(user, body)
     try:
         msg = getattr(body, "message", None) or (body.get("message") if isinstance(body, dict) else "") or ""
         section = _nav_prompt_section(user, msg)
+        ctx = getattr(body, "client_context", None) or (body.get("client_context") if isinstance(body, dict) else None) or (user.get("_client_ctx") if isinstance(user, dict) else None)
+        section += _nav_position_section(ctx)
         pro = await _nav_proactive_hints(user)
         if pro:
             section += "\n\nSUGGERIMENTO PROATTIVO (menzionalo solo se pertinente alla conversazione, con il suo marker): " + pro[0]["text"] + " " + _nav(pro[0]["route"], pro[0]["label"])
@@ -698,6 +727,11 @@ async def _nav_intercept(msg: str, user: dict):
         if _RX_ORGANIZE.search(t):
             return await _nav_flow_organize(user)
         if _RX_LOST.search(t):
+            # V50.z291 — se sappiamo dove si trova (schermata diversa dalla Home), lascia rispondere l'LLM con la POSIZIONE ATTUALE
+            _ctx = user.get("_client_ctx") if isinstance(user, dict) else None
+            _route = str((_ctx or {}).get("route") or "").split("?")[0].rstrip("/") if isinstance(_ctx, dict) else ""
+            if _route and _route not in ("", "/", "/home", "/(tabs)/home"):
+                return None
             return _nav_flow_lost()
         if _RX_KPI.search(t):
             txt = "Ecco dove vedi come stai andando: la dashboard in Home riassume appuntamenti, esiti e contratti."
@@ -751,6 +785,7 @@ for _r in list(api_router.routes):
 if _nav_orig_chat is not None:
     @api_router.post("/assistant/chat")
     async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):  # noqa: F811
+        user["_client_ctx"] = body.client_context  # V50.z291
         r = await _nav_intercept(body.message or "", user)
         if r and r.get("reply") is not None:
             sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
