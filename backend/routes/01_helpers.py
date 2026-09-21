@@ -115,12 +115,14 @@ def verify_password(pw: str, hashed: str) -> bool:
         return False
 
 
-def create_jwt(user_id: str) -> str:
+def create_jwt(user_id: str, device_id: Optional[str] = None) -> str:
     payload = {
         "sub": user_id,
         "iat": int(utcnow().timestamp()),
         "exp": int((utcnow() + timedelta(days=JWT_EXP_DAYS)).timestamp()),
     }
+    if device_id:
+        payload["did"] = device_id  # V50.z293 — token legato al dispositivo (registro dispositivi)
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
 
@@ -199,9 +201,11 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
 
     # Try JWT first
     user_id = None
+    device_id = None
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
         user_id = payload.get("sub")
+        device_id = payload.get("did")
     except Exception:
         # Try session token (Google auth)
         session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
@@ -213,9 +217,18 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
                 if exp < utcnow():
                     raise HTTPException(status_code=401, detail="Session expired")
             user_id = session.get("user_id")
+            device_id = session.get("device_id")
 
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token")
+    # V50.z293 — registro dispositivi: se il token è legato a un dispositivo sospeso/rimosso → 401 «device_suspended»
+    if device_id:
+        try:
+            await _device_gate(user_id, device_id)  # noqa: F821 — definita in auth_devices.py (stesso namespace)
+        except HTTPException:
+            raise
+        except NameError:
+            pass
 
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0, "totp_secret": 0, "totp_secret_pending": 0, "backup_codes": 0})
     if not user:

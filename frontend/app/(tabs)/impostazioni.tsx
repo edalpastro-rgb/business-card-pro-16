@@ -467,6 +467,8 @@ function ImpostazioniScreen() {
           <SettingsLinkRows rows={[
             { label: "PIN e biometria · Spazio Personale", sub: "Cambia PIN, FaceID/impronta, recupero via email", icon: "finger-print", href: "/spazio-personale", testID: "sec-personal-lock" },
             { label: "Blocco app & Autenticazione a due fattori", sub: "Blocco con PIN all'apertura, 2FA, dispositivi", icon: "shield-checkmark", href: "/security", testID: "sec-app-lock" },
+            // V50.z293 — registro dispositivi (1 telefono + 1 tablet + 1 PC), team e log accessi per il Master
+            { label: "Dispositivi collegati", sub: "1 telefono + 1 tablet + 1 PC per account · team e log accessi (Master)", icon: "phone-portrait", href: "/devices", testID: "sec-devices" },
             { label: "Come proteggiamo i tuoi dati", icon: "shield-half", href: "/security-info", testID: "sec-info" },
           ]} />
           <ChangePasswordCard />

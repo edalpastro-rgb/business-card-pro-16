@@ -30,7 +30,7 @@ async def register(body: RegisterInput):
 
 
 @api_router.post("/auth/login")
-async def login(body: LoginInput):
+async def login(body: LoginInput, request: Request):
     user = await db.users.find_one({"email": body.email.lower()})
     if not user or not user.get("password_hash") or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Credenziali non valide")
@@ -42,7 +42,8 @@ async def login(body: LoginInput):
             "temp_token": create_temp_2fa_token(user["user_id"]),
         }
 
-    token = create_jwt(user["user_id"])
+    dev = await _device_register_login(user, body.device, request)  # V50.z293
+    token = create_jwt(user["user_id"], dev.get("device_id") if dev else None)
     strip_id(user)
     user.pop("password_hash", None)
     trust_expires_at = utcnow() + timedelta(hours=DEVICE_TRUST_HOURS)
@@ -50,11 +51,12 @@ async def login(body: LoginInput):
         "token": token,
         "user": UserOut(**user).model_dump(),
         "trust_expires_at": trust_expires_at.isoformat(),
+        "device": dev,
     }
 
 
 @api_router.post("/auth/login/2fa")
-async def login_2fa(body: TwoFAVerifyInput):
+async def login_2fa(body: TwoFAVerifyInput, request: Request):
     try:
         payload = jwt.decode(body.temp_token, JWT_SECRET, algorithms=[JWT_ALG])
     except Exception:
@@ -110,14 +112,16 @@ async def login_2fa(body: TwoFAVerifyInput):
         codes_list[used_backup_index]["used_at"] = utcnow()
         await db.users.update_one({"user_id": user_id}, {"$set": {"backup_codes": codes_list}})
 
-    token = create_jwt(user_id)
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0, "totp_secret": 0, "backup_codes": 0})
+    dev = await _device_register_login(user, body.device, request)  # V50.z293
+    token = create_jwt(user_id, dev.get("device_id") if dev else None)
     trust_expires_at = utcnow() + timedelta(hours=DEVICE_TRUST_HOURS)
     return {
         "token": token,
         "user": UserOut(**user).model_dump(),
         "trust_expires_at": trust_expires_at.isoformat(),
         "used_backup_code": used_backup_index is not None,
+        "device": dev,
     }
 
 
@@ -235,7 +239,7 @@ async def twofa_status(user=Depends(get_current_user)):
 
 
 @api_router.post("/auth/google-session")
-async def google_session(body: GoogleSessionInput):
+async def google_session(body: GoogleSessionInput, request: Request):
     """Exchange Emergent session_id -> session_token, upsert user, store session."""
     # V45c — Base URL from env only; fail fast if not configured to avoid
     # silent environment drift.
@@ -294,7 +298,10 @@ async def google_session(body: GoogleSessionInput):
         upsert=True,
     )
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
-    return {"token": session_token, "user": UserOut(**user).model_dump()}
+    dev = await _device_register_login(user, body.device, request)  # V50.z293
+    if dev:
+        await db.user_sessions.update_one({"session_token": session_token}, {"$set": {"device_id": dev["device_id"]}})
+    return {"token": session_token, "user": UserOut(**user).model_dump(), "device": dev}
 
 
 @api_router.get("/auth/me")
@@ -306,7 +313,21 @@ async def auth_me(user=Depends(get_current_user)):
 async def logout(authorization: Optional[str] = Header(None)):
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ", 1)[1].strip()
+        sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0, "user_id": 1, "device_id": 1})
         await db.user_sessions.delete_one({"session_token": token})
+        # V50.z293 — fine sessione del dispositivo: libera lo slot e riattiva l'eventuale dispositivo sospeso dello stesso tipo
+        did = (sess or {}).get("device_id"); uid = (sess or {}).get("user_id")
+        if not did:
+            try:
+                payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG], options={"verify_exp": False})
+                did, uid = payload.get("did"), payload.get("sub")
+            except Exception:
+                did = None
+        if did and uid:
+            try:
+                await _device_end_session(uid, did, reason="logout")  # noqa: F821
+            except NameError:
+                pass
     return {"ok": True}
 
 

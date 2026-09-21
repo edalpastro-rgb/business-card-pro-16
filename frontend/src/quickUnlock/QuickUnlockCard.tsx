@@ -4,6 +4,7 @@
 // con i pulsanti Impronta/Face ID e PIN: superata la verifica locale, il secret viene scambiato con un
 // JWT (`POST /auth/quick-unlock/login`). La 2FA TOTP resta sul login classico (il dispositivo fidato è il 2° fattore).
 import React, { useEffect, useState } from "react";
+import { getDeviceInfo } from "@/src/device"; // V50.z293
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -92,7 +93,7 @@ export function QuickUnlockCard({ onUseOtherAccount, onSuccess }: Props) {
     if (!enr) return;
     setBusy(true); setErr(null);
     try {
-      const r = await api<{ token: string; user: User }>("/auth/quick-unlock/login", { method: "POST", body: { device_id: enr.device_id, secret: enr.secret } });
+      const r = await api<{ token: string; user: User }>("/auth/quick-unlock/login", { method: "POST", body: { device_id: enr.device_id, secret: enr.secret, device: await getDeviceInfo() } }); // V50.z293
       await loginWithSession(r.token, r.user);
       onSuccess();
     } catch (e: any) {

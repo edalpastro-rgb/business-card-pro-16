@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { getDeviceInfo, onDeviceSuspended } from "@/src/device"; // V50.z293
+import { notify } from "@/src/utils/notify";
 import { Platform } from "react-native";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
@@ -167,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try {
             const r = await api<{ token: string; user: User }>("/auth/google-session", {
               method: "POST",
-              body: { session_id: m[1] },
+              body: { session_id: m[1], device: await getDeviceInfo() },
             });
             await setToken(r.token);
             const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
@@ -189,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const m = initial ? initial.match(/[?#&]session_id=([^&#]+)/) : null;
           if (m && !usedSessionIds.has(m[1])) {
             usedSessionIds.add(m[1]);
-            const r = await api<{ token: string; user: User }>("/auth/google-session", { method: "POST", body: { session_id: m[1] } });
+            const r = await api<{ token: string; user: User }>("/auth/google-session", { method: "POST", body: { session_id: m[1], device: await getDeviceInfo() } });
             await setToken(r.token);
             const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
             await saveTrust(iso);
@@ -232,7 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const r = await api<
       | { requires_2fa: true; temp_token: string }
       | { requires_2fa?: false; token: string; user: User; trust_expires_at: string }
-    >("/auth/login", { method: "POST", body: { email, password } });
+    >("/auth/login", { method: "POST", body: { email, password, device: await getDeviceInfo() } }); // V50.z293
 
     if ("requires_2fa" in r && r.requires_2fa) {
       return { requires_2fa: true, temp_token: r.temp_token };
@@ -249,7 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const verify2FA = async (tempToken: string, code: string) => {
     const r = await api<{ token: string; user: User; trust_expires_at: string }>(
       "/auth/login/2fa",
-      { method: "POST", body: { temp_token: tempToken, code } }
+      { method: "POST", body: { temp_token: tempToken, code, device: await getDeviceInfo() } }
     );
     await setToken(r.token);
     await saveTrust(r.trust_expires_at);
@@ -308,7 +310,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     usedSessionIds.add(m[1]);
     const r = await api<{ token: string; user: User }>("/auth/google-session", {
       method: "POST",
-      body: { session_id: m[1] },
+      body: { session_id: m[1], device: await getDeviceInfo() },
     });
     await setToken(r.token);
     const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
@@ -317,6 +319,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await storage.secureSet(LAST_UNLOCK_KEY, Date.now());
     setUser(r.user);
   };
+
+  // V50.z293 — dispositivo sospeso da un altro login dello stesso tipo → esci e avvisa
+  useEffect(() => onDeviceSuspended(() => {
+    void (async () => {
+      await clearToken(); await saveTrust(null); setTrustExpiresAt(null); setUser(null); setLocked(false);
+      notify("Sessione chiusa", "Il tuo account è stato aperto su un altro dispositivo dello stesso tipo: questo è stato disconnesso. Quando l'altro termina la sessione potrai rientrare.");
+    })();
+  }), []);
 
   const logout = async () => {
     try { await api("/auth/logout", { method: "POST" }); } catch {}

@@ -9,14 +9,24 @@ class RegisterInput(BaseModel):
     name: str
 
 
+class DeviceIn(BaseModel):
+    """V50.z293 — identità del dispositivo che effettua il login (registro dispositivi: 1 telefono + 1 tablet + 1 PC)."""
+    device_id: str
+    type: str = "phone"  # phone | tablet | pc
+    name: Optional[str] = None
+    platform: Optional[str] = None
+
+
 class LoginInput(BaseModel):
     email: EmailStr
     password: str
+    device: Optional[DeviceIn] = None
 
 
 class TwoFAVerifyInput(BaseModel):
     temp_token: str
     code: str
+    device: Optional[DeviceIn] = None
 
 
 class TwoFAConfirmInput(BaseModel):
@@ -30,6 +40,7 @@ class TwoFADisableInput(BaseModel):
 
 class GoogleSessionInput(BaseModel):
     session_id: str
+    device: Optional[DeviceIn] = None
 
 
 class UserOut(BaseModel):

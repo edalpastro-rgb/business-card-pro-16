@@ -26,6 +26,7 @@ class QuEnrollIn(BaseModel):
 class QuLoginIn(BaseModel):
     device_id: str
     secret: str
+    device: Optional[DeviceIn] = None  # V50.z293 — identità dispositivo per il registro (1 telefono + 1 tablet + 1 PC)
 
 
 def _qu_hash(secret: str) -> str:
@@ -55,7 +56,7 @@ async def quick_unlock_enroll(body: QuEnrollIn, user=Depends(get_current_user)):
 
 
 @api_router.post("/auth/quick-unlock/login")
-async def quick_unlock_login(body: QuLoginIn):
+async def quick_unlock_login(body: QuLoginIn, request: Request):
     d = await db.quick_unlock_devices.find_one({"device_id": body.device_id})
     if not d or not _qu_secrets.compare_digest(d.get("secret_hash") or "", _qu_hash(body.secret)):
         raise HTTPException(status_code=401, detail="Accesso rapido non valido: esegui il login con email e password")
@@ -67,7 +68,8 @@ async def quick_unlock_login(body: QuLoginIn):
     if not user or user.get("disabled"):
         raise HTTPException(status_code=401, detail="Account non disponibile")
     await db.quick_unlock_devices.update_one({"_id": d["_id"]}, {"$set": {"last_used_at": utcnow()}})
-    return {"token": create_jwt(user["user_id"]), "user": UserOut(**user).model_dump()}
+    dev = await _device_register_login(user, body.device, request)  # V50.z293
+    return {"token": create_jwt(user["user_id"], dev.get("device_id") if dev else None), "user": UserOut(**user).model_dump(), "device": dev}
 
 
 @api_router.get("/auth/quick-unlock/devices")
