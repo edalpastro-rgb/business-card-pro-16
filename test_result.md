@@ -395,3 +395,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z302 — (1) Richieste creative ad Axon → AI invece del template L1 (_nav_is_creative in axon_navigator.py; verificato con tests/ask_axon.py). (2) Presenze corso: PUT /courses/{id}/attendance, eligibilità attestato solo ai presenti (e non prima della data del corso), UI card «📋 Presenze in aula» in courses/[id].tsx. Backend verificato via script (futuro → non idoneo; assente → issue-all 0; presente → 1 + PDF 200; sub 403). UI verificata via screenshot (Salva presenze → Presenze salvate → «Rilascia attestati ai presenti (1/1)»)."
+
+  - agent: "main"
+    message: "V50.z303 — Aggiornata la conoscenza di Axon (APP_MAP navigator, sezioni omniscience, catalogo tour) con Fase 5 corsi, presenze, dispositivi, regole con peso, coda chat, screenshot, consigliato per te, reset dati, libretto editor, prompt Neo; link verificati via scan delle route expo-router (0 rotti); cache semantica svuotata. Verifica con tests/ask_axon.py OK."
