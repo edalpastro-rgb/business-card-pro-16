@@ -349,6 +349,23 @@ async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: 
             n = _punq_wants_table("", txt)
             if n is not None and len(txt) <= 1200:
                 t = await _punq_table(n)
+                ctx = user.get("_client_ctx") if isinstance(user, dict) else None
+                if isinstance(ctx, dict) and ctx.get("voice"):  # V50.z305 — VOCE BREVE: niente tabella letta ad alta voce
+                    rows = []
+                    for ln in (t["table_markdown"] or "").split("\n"):
+                        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+                        if len(cells) >= 2 and re.search(r"\d", cells[1]) and "previsione" not in ln.lower() and ":---" not in ln and "Mese" not in cells[0]:
+                            rows.append((re.sub(r"[*🟢🔴🟡_]", "", cells[0]).strip(), re.sub(r"[*🟢🔴🟡_]", "", cells[1]).strip()))
+                    last = rows[-3:]
+                    if last:
+                        trend = ""
+                        try:
+                            a, b = float(last[0][1].replace(",", ".")), float(last[-1][1].replace(",", "."))
+                            trend = ", in salita" if b > a * 1.02 else ", in calo" if b < a * 0.98 else ", stabile"
+                        except Exception:  # noqa: BLE001
+                            pass
+                        spoken = "PUN monorario degli ultimi mesi: " + ", ".join(f"{m} {v} euro al chilowattora" for m, v in last) + trend + ". Vuoi la tabella completa in chat?"
+                        return {"reply": spoken, "cmd": "pun_table_voice"}
                 return {"reply": t["table_markdown"], "cmd": "pun_table"}
     except Exception as exc:  # noqa: BLE001
         logger.warning("[punq] chat failed: %s", exc)

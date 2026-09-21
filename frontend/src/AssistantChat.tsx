@@ -805,7 +805,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         session_id: sessionId || undefined,
         attachments: attachmentsPayload,
         quick_label: opts?.quickLabel && !attachmentsPayload.length ? opts.quickLabel : undefined,
-        client_context: clientContextRef.current, // V50.z291 — dove si trova l'utente adesso
+        client_context: { ...(clientContextRef.current || { route: "" }), voice: wantSpeech || undefined }, // V50.z291 — dove si trova l'utente · V50.z305 voice=true → risposta breve parlata
         signal: controller.signal,
         onProgress: (p) => {
           // V50.z126 — Stato del preflight visibile ("Sto raccogliendo il contesto…")
@@ -996,7 +996,18 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     }
   };
 
+  // V50.z305 — VOCE BREVE: a voce non si leggono tabelle/markdown lunghi: si parlano solo le frasi, la tabella resta in chat.
+  const speakableText = (raw: string): string => {
+    const lines = (raw || "").replace(/\[\[(NAV|ACTION):[^\]]*\]\]/g, "").split("\n");
+    const hadTable = lines.some((l) => /^\s*\|.*\|\s*$/.test(l));
+    const kept = lines.filter((l) => !/^\s*\|.*\|\s*$/.test(l) && !/^\s*[-:| ]+$/.test(l)).map((l) => l.replace(/[*_#`>]+/g, "").trim()).filter(Boolean);
+    let out = kept.join(" ").replace(/\s+/g, " ").trim();
+    if (out.length > 700) out = out.slice(0, 700).replace(/[^.!?]*$/, "").trim() || out.slice(0, 700);
+    if (hadTable) out = (out ? out + " " : "") + "La tabella completa è in chat.";
+    return out || raw;
+  };
   const speakReply = async (text: string, forceIdx?: number, onEnded?: () => void) => {
+    text = speakableText(text);
     try {
       // Stop any previous playback
       if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }

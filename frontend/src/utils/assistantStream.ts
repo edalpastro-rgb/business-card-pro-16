@@ -39,7 +39,7 @@ export type StreamAssistantChatArgs = {
   // V50.z126 — etichetta azione rapida (il backend arricchisce il prompt e salva in cache)
   quick_label?: string;
   // V50.z291 — posizione attuale nell'app (route, parametri, titolo) → Axon sa dove si trova l'utente
-  client_context?: { route: string; params?: Record<string, string>; title?: string };
+  client_context?: { route: string; params?: Record<string, string>; title?: string; voice?: boolean }; // V50.z305 voice → risposta breve
   signal?: AbortSignal;
   onMeta?: (meta: StreamMeta) => void;
   onProgress?: (p: StreamProgress) => void;

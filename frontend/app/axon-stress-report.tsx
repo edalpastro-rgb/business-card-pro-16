@@ -17,7 +17,7 @@ import { theme } from "@/src/theme";
 const NAVY = "#1B2B4B"; const VIOLET = "#7C3AED";
 type Rep = { rep: number; reply: string; ok: boolean | null; routes: string[]; actions: string[]; reason: string };
 type Item = { id: string; category: string; question: string; expected: string[]; flag: string; reps: Rep[]; outcome: "passed" | "failed" | "inconsistent" | "skipped" | "error" | null; correction?: { expected_text: string; rule: string } | null; correction_applied?: boolean };
-type Summary = { tested: number; passed: number; failed: number; inconsistent: number; errors?: number; pct_passed: number; pct_failed: number; pct_inconsistent: number };
+type Summary = { tested: number; passed: number; failed: number; inconsistent: number; errors?: number; pct_passed: number; pct_failed: number; pct_inconsistent: number; by_category?: Record<string, { tested: number; passed: number; failed: number; inconsistent: number }> };
 type RunHead = { run_id: string; status: "running" | "done" | "stopped" | "error"; reps: number; total: number; done: number; created_at: string; summary?: Summary | null; error?: string | null };
 type Filter = "all" | "passed" | "failed" | "inconsistent" | "error";
 type NightlyCfg = { enabled: boolean; hour: number; mode: "quick" | "full"; reps: number; threshold_pct: number; drop_pct: number };
@@ -237,6 +237,14 @@ export default function AxonStressReportScreen() {
                 <View style={[styles.kpi, { borderColor: "#FCD34D" }]}><Text style={[styles.kpiN, { color: "#92400E" }]}>{S.pct_inconsistent}%</Text><Text style={styles.kpiL}>Incoerenti</Text></View>
               </View>
 
+              {/* V50.z305 — Regole di stile (aspetta → OK!, solo tabella, sì/no, scelte A)/B), motivazioni) */}
+              {S.by_category?.stile?.tested ? (
+                <View style={[styles.card, { borderColor: S.by_category.stile.passed === S.by_category.stile.tested ? "#86EFAC" : "#FCD34D" }]} testID="stress-stile">
+                  <Text style={styles.cardTitle}>⚡ Regole di stile: {S.by_category.stile.passed}/{S.by_category.stile.tested} rispettate</Text>
+                  <Text style={styles.cardTxt}>{"«aspetta» → solo «OK!» · «solo tabella» → solo tabella · domande sì/no → prima riga diretta · scelte → «A) / B)» (pulsanti) · domande strane o doppie → risposta motivata. Apri le voci «stile» qui sotto per leggere la motivazione data da Axon."}</Text>
+                </View>
+              ) : null}
+
               {(S.errors || 0) > 0 && (
                 <View style={[styles.card, { borderColor: "#E9D5FF", backgroundColor: "#FAF5FF" }]} testID="stress-llm-error">
                   <Text style={[styles.cardTitle, { color: "#6B21A8" }]}>⛔ {S.errors} domande non valutate per errore LLM</Text>
@@ -275,7 +283,8 @@ export default function AxonStressReportScreen() {
                         {it.reps.map((r) => (
                           <View key={r.rep} style={styles.rep}>
                             <Text style={styles.repHead}>{r.ok === null ? "⛔" : r.ok ? "✅" : "❌"} Ripetizione {r.rep}{r.reason ? ` — ${r.reason}` : ""}</Text>
-                            <Text style={styles.repTxt} numberOfLines={8}>{r.reply.replace(/\[\[(NAV|ACTION):[^\]]*\]\]/g, "").trim() || "(vuota)"}</Text>
+                            {it.flag.startsWith("style:") ? <Text style={styles.repLinks}>Risposta / motivazione di Axon:</Text> : null}
+                            <Text style={styles.repTxt} numberOfLines={it.flag.startsWith("style:") ? undefined : 8}>{r.reply.replace(/\[\[(NAV|ACTION):[^\]]*\]\]/g, "").trim() || "(vuota)"}</Text>
                             {r.routes.length > 0 && <Text style={styles.repLinks}>Link: {r.routes.join("  ")}</Text>}
                             {r.actions.length > 0 && <Text style={styles.repLinks}>Azioni: {r.actions.join(", ")}</Text>}
                           </View>
@@ -318,6 +327,7 @@ const styles = StyleSheet.create({
   headBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
   card: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: theme.color.border, gap: 8 },
   cardTitle: { fontSize: 15, fontWeight: "900", color: theme.color.onSurface },
+  cardTxt: { fontSize: 12, color: theme.color.muted, marginTop: 4, lineHeight: 17 },
   hint: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

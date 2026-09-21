@@ -112,6 +112,35 @@ def _st_evaluate(q: dict, reply: str) -> dict:
             matched = e; break
         if any(_st_route_matches(r, e) for r in routes):
             matched = e; break
+    if flag.startswith("style:"):  # V50.z305 — regole di stile (prompt correzione 21/09)
+        kind = flag.split(":", 1)[1]
+        body = _ST_NAV_RX.sub("", reply or "").strip()
+        lines = [ln for ln in body.split("\n") if ln.strip()]
+        first = (lines[0] if lines else "").strip().lower()
+        table_lines = [ln for ln in lines if ln.strip().startswith("|")]
+        text_lines = [ln for ln in lines if not ln.strip().startswith("|")]
+        preamble = any(first.startswith(k) for k in ["ecco", "certo", "perfetto", "sto ", "dammi un", "ottima domanda", "premessa", "allora"])
+        motivates = any(k in low for k in ["perché", "perche", "poiché", "poiche", "in quanto", "dato che", "motivo", "dipende", "infatti", "quindi", "significa", "non ha senso", "non è possibile", "non e possibile"])
+        if kind == "wait":
+            ok = body.strip().rstrip(".") == "OK!" or body.strip() == "OK"; reason = "" if ok else f"Doveva rispondere SOLO «OK!» (ha scritto {len(body)} caratteri)"
+        elif kind == "table_only":
+            ok = len(table_lines) >= 3 and not text_lines; reason = "" if ok else ("Nessuna tabella Markdown" if len(table_lines) < 3 else f"Testo fuori tabella: «{text_lines[0][:60]}»")
+        elif kind == "yesno":
+            words = len(first.split())
+            ok = words <= 16 and (first.startswith(("sì", "si,", "si ", "no", "certo", "esatto", "non ")) or ("sì" in first or "no" in first.split())) and not preamble
+            reason = "" if ok else f"Prima riga non diretta/sì-no ({words} parole): «{first[:70]}»"
+        elif kind == "choice":
+            opts = _st_re.findall(r"(?m)^\s*(?:\*\*)?\(?([A-D])[\)\.:]", body)
+            ok = len(set(opts)) >= 2; reason = "" if ok else "Mancano le opzioni «A) … / B) …» una per riga (niente pulsanti)"
+        else:  # double_wrong / double_right / motivate
+            needed = [k for k in (exp or [])]
+            has_kw = (not needed) or any(k.lower() in low for k in needed)
+            motivates = motivates or len(body) >= 120  # una spiegazione articolata vale come motivazione anche senza «perché»
+            ok = has_kw and motivates and len(body) >= 40 and not preamble
+            reason = "" if ok else ("Manca la motivazione (perché/poiché/dipende…)" if not motivates else f"Manca il contenuto atteso ({', '.join(needed[:4])}…)" if not has_kw else "Preambolo o risposta troppo corta")
+        if broken:
+            ok = False; reason = f"Deep link inesistente: {', '.join(broken)}"
+        return {"ok": ok, "routes": routes, "actions": actions, "matched": None, "broken": broken, "reason": reason, "motivation": body[:400]}
     if flag.startswith("guard:"):
         kind = flag.split(":", 1)[1]
         forbidden = [k for k in (q.get("forbidden") or []) if k.lower() in low]
@@ -281,7 +310,12 @@ async def _st_finalize(run_id: str):
             q = {"question": it["question"], "expected": it["expected"], "flag": it["flag"]}
             it["correction"] = _st_suggest_correction(q, reps)
     tested = passed + failed + inconsistent
-    summary = {"tested": tested, "passed": passed, "failed": failed, "inconsistent": inconsistent, "errors": errors,
+    by_cat: dict = {}  # V50.z305 — resoconto per categoria (es. «stile»)
+    for it in items:
+        c = by_cat.setdefault(it.get("category") or "altro", {"tested": 0, "passed": 0, "failed": 0, "inconsistent": 0})
+        if it.get("outcome") in ("passed", "failed", "inconsistent"):
+            c["tested"] += 1; c[it["outcome"]] += 1
+    summary = {"tested": tested, "passed": passed, "failed": failed, "inconsistent": inconsistent, "errors": errors, "by_category": by_cat,
                "pct_passed": round(100 * passed / tested, 1) if tested else 0,
                "pct_failed": round(100 * failed / tested, 1) if tested else 0,
                "pct_inconsistent": round(100 * inconsistent / tested, 1) if tested else 0}
@@ -640,10 +674,15 @@ async def _st_nightly_after_finalize(run: dict):
         reasons.append(f"calo di {round(prev_pct - pct, 1)} punti rispetto alla notte precedente ({prev_pct}%)")
     verdict = "alert" if reasons else "ok"
     await db.axon_stress_runs.update_one({"run_id": run["run_id"]}, {"$set": {"nightly_verdict": verdict, "nightly_reasons": reasons, "nightly_prev_pct": prev_pct}})
-    if not reasons:
-        return
-    title = "⚠️ Qualità Axon in calo"
-    msg = f"Test notturno: {'; '.join(reasons)}. {s.get('failed', 0)} fallite, {s.get('inconsistent', 0)} incoerenti su {s.get('tested', 0)}. Apri il report per applicare le correzioni."
+    # V50.z305 — RESOCONTO SEMPRE (anche se tutto ok): il Master vuole vedere ogni notte l'esito, con il dettaglio «stile»
+    st = (s.get("by_category") or {}).get("stile") or {}
+    stile_txt = f" Regole di stile: {st.get('passed', 0)}/{st.get('tested', 0)} ok." if st.get("tested") else ""
+    if reasons:
+        title = "⚠️ Qualità Axon in calo"
+        msg = f"Test notturno: {'; '.join(reasons)}. {s.get('failed', 0)} fallite, {s.get('inconsistent', 0)} incoerenti su {s.get('tested', 0)}.{stile_txt} Apri il report per applicare le correzioni."
+    else:
+        title = f"🧪 Stress test notturno: {pct}% corrette"
+        msg = f"{s.get('passed', 0)} ok, {s.get('failed', 0)} fallite, {s.get('inconsistent', 0)} incoerenti su {s.get('tested', 0)}" + (f" (notte precedente {prev_pct}%)" if prev_pct is not None else "") + f".{stile_txt} Apri il resoconto per leggere risposte e motivazioni."
     try:
         await db.axon_alerts.insert_one({"alert_id": f"aal_{uuid.uuid4().hex[:12]}", "tenant_id": uid, "type": "stress_quality", "title": title, "message": msg,
                                          "route": f"/axon-stress-report?run={run['run_id']}", "run_id": run["run_id"], "seen": False, "created_at": utcnow()})

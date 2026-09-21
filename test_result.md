@@ -401,3 +401,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z304 — Prompt correzione definitiva: «aspetta»→«OK!» deterministico, blocco STILE RISPOSTA vincolante (+ direttive solo-tabella / domanda diretta / dato aggiornato), avviso ⚠️ CONFLITTO obbligatorio nel rules engine, pulsanti automatici A)/B)/ORA (src/axon-choice-buttons.tsx in AssistantChat). Backend verificato con tests/ask_axon.py; parser pulsanti testato con 6 casi (tsx). Da verificare visivamente in app i pulsanti su una risposta con opzioni A)/B)."
+
+  - agent: "main"
+    message: "V50.z305 — Stress test categoria «stile» (16 domande: aspetta/solo tabella/sì-no/scelte A)B)/motivazioni su domande strane e doppie) con valutatore dedicato, by_category nel summary, resoconto notturno sempre inviato (alert Home) e card «Regole di stile» nel report; run stile 16/16, regressione 70 domande 98,6%. Voce breve: client_context.voice → prompt voce in testa, TTS senza tabelle, PUN parlato. Verificato via API/stream."

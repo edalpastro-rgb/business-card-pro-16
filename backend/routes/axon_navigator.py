@@ -323,11 +323,17 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
         section = _nav_prompt_section(user, msg)
         ctx = getattr(body, "client_context", None) or (body.get("client_context") if isinstance(body, dict) else None) or (user.get("_client_ctx") if isinstance(user, dict) else None)
         section += _nav_position_section(ctx)
+        voice_block = ""
+        if isinstance(ctx, dict) and ctx.get("voice"):  # V50.z305 — VOCE BREVE (in TESTA al prompt: vince su regole/tabelle PUN)
+            voice_block = ("🔊 REGOLA ASSOLUTA PESO 100 — MODALITÀ VOCE: l'utente ha PARLATO e la risposta verrà LETTA ad alta voce. "
+                           "Rispondi come al telefono: massimo 3 frasi brevi (≤ 60 parole totali), linguaggio naturale. VIETATO: tabelle Markdown, elenchi, titoli #, grassetti, emoji, link. "
+                           "Se la risposta avrebbe bisogno di una tabella (PUN, listini, storici): di' a voce solo i 2-3 numeri chiave in una frase e chiudi con «Vuoi la tabella completa in chat?». "
+                           "Questa regola prevale su qualsiasi altra regola di formato (anche quelle insegnate dal Master) finché l'utente parla a voce.\n\n")
         pro = await _nav_proactive_hints(user)
         if pro:
             section += "\n\nSUGGERIMENTO PROATTIVO (menzionalo solo se pertinente alla conversazione, con il suo marker): " + pro[0]["text"] + " " + _nav(pro[0]["route"], pro[0]["label"])
         if isinstance(prep, dict) and isinstance(prep.get("system_message"), str):
-            prep["system_message"] = prep["system_message"] + "\n\n" + section
+            prep["system_message"] = voice_block + prep["system_message"] + "\n\n" + section + ("\n\n" + voice_block if voice_block else "")
     except Exception as e:
         logger.warning("[NAV] prompt section failed: %s", e)
     return prep
@@ -677,6 +683,10 @@ _RX_DIRECT_Q = _nav_re.compile(r"^(hai |sei |puoi |riesci |ce l'hai|c'[èe] |esi
 _RX_SEARCH_NEED = _nav_re.compile(r"\b(aggiornat\w* (a |ad )?oggi|di oggi|oggi|adesso|ora per ora|ultimi dati|dati aggiornati|in tempo reale|live|gme|futures|prezzo attuale|quotazion\w*|cerca sul web|ricerca web|sul web|online)\b", _nav_re.I)
 
 
+_RX_MOTIVATE = _nav_re.compile(r"\b(motiva\w*|motivazion\w*|argomenta\w*|giustifica\w*|e perch[éè]|perch[éè]\s*\?|spiega(mi)? (il )?perch[éè]|spiegami (come|cosa|se)|[èe] vero che|giusto\?|corretto\?|sbagliat\w*\?)", _nav_re.I)
+_RX_CHOICE_REQ = _nav_re.compile(r"\b((due|tre|quattro|2|3|4) (opzioni|scelte|alternative|possibilit\w*|strade|proposte)|opzioni? a\)|a\) e b\)|come pulsanti|con i pulsanti|dammi le (due|tre) scelte|proponimi|quale preferisco|cosa mi consigli tra|meglio .* o )", _nav_re.I)
+
+
 def _nav_style_rules(msg: str) -> str:
     """Blocco STILE RISPOSTA (sempre) + direttive condizionali in base al messaggio."""
     t = (msg or "").strip()
@@ -759,6 +769,10 @@ async def _nav_intercept(msg: str, user: dict):
             return _nav_reply("Questa funzione non è disponibile in AdvisorOS.")
         # V50.z302 — richiesta creativa (scrivi/prepara un discorso, una mail, un testo di N parole…) → AI genera il contenuto, niente template
         if _nav_is_creative(t):
+            return None
+        # V50.z305 — vanno all'AI (non al template): richieste di MOTIVAZIONE, di SCELTE A)/B), domande dirette sì/no
+        # (la prima riga deve essere «Sì, …/No, …», cosa che un template non può garantire) — salvo intento esplicito «apri/dove trovo».
+        if not _RX_OPEN_SCREEN.search(t) and (_RX_MOTIVATE.search(t) or _RX_CHOICE_REQ.search(t) or (_RX_DIRECT_Q.search(t) and len(t.split()) >= 5)):
             return None
         if _RX_BILL_FLOW.search(t):
             return _nav_reply("Attivo l'analisi fattura: fotografa o carica la bolletta, Axon estrae i dati e confronta le offerte luce/gas mostrando il risparmio per il cliente.\n" + _nav("/bill-quick", "🧾 Analisi fattura e confronto offerte") + "\n" + _nav("/bill-quick?config=1", "⚙️ Regole di confronto"))

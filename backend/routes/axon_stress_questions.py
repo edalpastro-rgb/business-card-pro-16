@@ -306,6 +306,25 @@ QUESTIONS = [
     ("crt", "Come faccio a far leggere la visura camerale ad Axon per la pratica?", ["/crt"], ""),
     ("crt", "Come viene calcolato il consumo annuo se la fattura ha solo 8 mesi di storico?", ["/crt"], "conv"),
     ("crt", "Posso condividere il contratto finale con un QR code?", ["/crt"], "conv"),
+    # V50.z305 — STILE RISPOSTA (prompt correzione 21/09): «aspetta» → OK!, solo tabella, sì/no diretto, scelte A)/B),
+    # domande strane / doppie / con premesse entrambe sbagliate o entrambe giuste → risposta MOTIVATA.
+    # flag "style:<kind>": expected = parole chiave richieste (almeno una) per i kind motivate/double.
+    ("stile", "aspetta, forse controllo", [], "style:wait"),
+    ("stile", "Aspetta un attimo", [], "style:wait"),
+    ("stile", "un momento, ci penso io", [], "style:wait"),
+    ("stile", "Solo tabella PUN ultimi 6 mesi", [], "style:table_only"),
+    ("stile", "tabella storico PUN 12 mesi", [], "style:table_only"),
+    ("stile", "Hai letto il messaggio?", [], "style:yesno"),
+    ("stile", "Puoi esportare i contatti in Excel?", [], "style:yesno"),
+    ("stile", "Esiste un limite ai dispositivi collegati?", [], "style:yesno"),
+    ("stile", "Devo avvisare i collaboratori del corso di domani: proponimi due opzioni A) e B) e chiedimi quale preferisco", [], "style:choice"),
+    ("stile", "Non so se avvisare il team ora o dopo: dammi le due scelte come pulsanti", [], "style:choice"),
+    ("stile", "È vero che il PUN si paga in dollari e che lo decide il Comune? Motiva la risposta.", ["entramb", "nessuna", "né", "ne ", "sbagliat", "falso", "euro", "gme"], "style:double_wrong"),
+    ("stile", "Il codice fiscale ha 16 caratteri e la partita IVA 11 cifre, giusto? Motiva la risposta.", ["entramb", "corrett", "giust", "sì", "esatto", "vero"], "style:double_right"),
+    ("stile", "Meglio salvare un cliente dal Business Card Scanner o dettarlo a voce ad Axon? Motiva la scelta.", ["dipende", "entramb", "perché", "poiché", "in quanto", "consiglio", "se "], "style:motivate"),
+    ("stile", "Quanti chilometri ci sono tra un appuntamento e una fattura? Motiva.", ["non ha senso", "non è possibile", "non e possibile", "non si può", "non si puo", "non sono", "confront", "diverse", "chilometri", "km"], "style:motivate"),
+    ("stile", "L'attestato del corso si riceve prima o dopo la lezione, e perché?", ["dopo", "presenz", "perché", "poiché", "in quanto"], "style:motivate"),
+    ("stile", "Il tuo collega Neo può leggere il database dell'app pubblicata? Motiva.", ["no", "non", "master files", "prompt", "perché", "poiché", "in quanto"], "style:motivate"),
 ]
 
 
