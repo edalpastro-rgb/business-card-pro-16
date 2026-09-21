@@ -21,6 +21,19 @@ def _course_time(v: Optional[str]) -> str:
     return f"{int(m.group(1)):02d}:{m.group(2)}"
 
 
+def _course_today_str() -> str:
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Europe/Rome")).strftime("%Y-%m-%d")
+    except Exception:  # noqa: BLE001
+        return utcnow().strftime("%Y-%m-%d")
+
+
+class AttendanceIn(BaseModel):  # V50.z302 — spunta presenze del formatore
+    present: List[str] = Field(default_factory=list)
+    absent: List[str] = Field(default_factory=list)
+
+
 class CourseFileIn(BaseModel):
     name: str
     mime: str = "application/octet-stream"
@@ -112,12 +125,17 @@ def _course_public(c: dict, user: dict, names: Dict[str, str]) -> dict:
     out["no_count"] = sum(1 for r in (c.get("recipients") or []) if (part.get(r) or {}).get("status") == "no")
     if is_creator:  # lista partecipanti: SOLO il creatore
         certs = c.get("certificates") or {}
+        att = c.get("attendance") or {}
         out["participants"] = [{
             "user_id": r, "name": names.get(r, r), "read_at": reads.get(r), "status": (part.get(r) or {}).get("status") or "pending",
             "notes": (part.get(r) or {}).get("notes") or "", "answered_at": (part.get(r) or {}).get("timestamp"),
             "certificate_issued": bool(certs.get(r)), "certificate_id": (certs.get(r) or {}).get("cert_id"),  # V50.z300
+            "present": (att.get(r) or {}).get("present") if r in att else None,  # V50.z302 — True/False/None (non registrata)
         } for r in (c.get("recipients") or [])]
         out["certificates_issued"] = sum(1 for r in (c.get("recipients") or []) if certs.get(r))
+        out["present_count"] = sum(1 for r in (c.get("recipients") or []) if (att.get(r) or {}).get("present"))
+    out["attendance_taken_at"] = c.get("attendance_taken_at")
+    out["is_today_or_past"] = bool(c.get("course_date")) and c["course_date"] <= _course_today_str()
     return out
 
 
@@ -458,10 +476,13 @@ async def courses_run_reminders(user=Depends(get_current_user)):
 async def course_certificates_issue_all(course_id: str, user=Depends(get_current_user)):
     """V50.z300 — Il creatore rilascia l'attestato a TUTTI i partecipanti ✅ (anche senza test completato) → notifica «🎓 Attestato pronto»."""
     c = await _course_creator_only(course_id, user)
-    part, certs = c.get("participation") or {}, dict(c.get("certificates") or {})
+    part, certs, att = c.get("participation") or {}, dict(c.get("certificates") or {}), c.get("attendance") or {}
+    taken = bool(c.get("attendance_taken_at"))
     issued = []
     for r in c.get("recipients") or []:
         if (part.get(r) or {}).get("status") != "yes" or certs.get(r):
+            continue
+        if taken and not (att.get(r) or {}).get("present"):  # V50.z302 — presenze registrate: solo ai presenti
             continue
         cert = {"cert_id": f"ATT-{utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}", "issued_at": utcnow(), "issued_by": user["user_id"]}
         await db.courses_folders.update_one({"course_id": course_id}, {"$set": {f"certificates.{r}": cert}})
@@ -472,6 +493,31 @@ async def course_certificates_issue_all(course_id: str, user=Depends(get_current
         except Exception:  # noqa: BLE001
             pass
     return {"ok": True, "issued": len(issued), "total_certificates": len(certs)}
+
+
+@api_router.put("/courses/{course_id}/attendance")
+async def course_attendance(course_id: str, body: AttendanceIn, user=Depends(get_current_user)):
+    """V50.z302 — Spunta presenze del formatore (giorno del corso): presenti/assenti tra i destinatari. Da questo momento
+    l'attestato spetta SOLO ai presenti (anche il rilascio automatico del giorno dopo e «Rilascia a tutti»)."""
+    c = await _course_creator_only(course_id, user)
+    recipients = set(c.get("recipients") or [])
+    now = utcnow()
+    upd: Dict[str, Any] = {"attendance_taken_at": now, "updated_at": now}
+    for r in body.present:
+        if r in recipients:
+            upd[f"attendance.{r}"] = {"present": True, "at": now, "by": user["user_id"]}
+    for r in body.absent:
+        if r in recipients and r not in body.present:
+            upd[f"attendance.{r}"] = {"present": False, "at": now, "by": user["user_id"]}
+    await db.courses_folders.update_one({"course_id": course_id}, {"$set": upd})
+    c2 = await db.courses_folders.find_one({"course_id": course_id}, {"_id": 0})
+    names = await _course_names([c2["created_by"], *(c2.get("recipients") or [])])
+    out = _course_public(c2, user, names)
+    t = await db.courses_tests.find_one({"course_id": course_id}, {"_id": 0, "questions": 1, "responses": 1})
+    out["has_test"] = bool(t and t.get("questions"))
+    for p in out.get("participants") or []:
+        p["certificate_eligible"] = _course_cert_eligible(c2, t, p["user_id"])
+    return out
 
 
 # =====================================================================================
@@ -996,6 +1042,14 @@ def _course_cert_eligible(c: dict, t: Optional[dict], uid: str) -> bool:
     if (c.get("certificates") or {}).get(uid):  # V50.z300 — già emesso (anche dal Master con «Rilascia a tutti»)
         return True
     if (c.get("participation") or {}).get(uid, {}).get("status") != "yes":
+        return False
+    # V50.z302 — PRESENZE: se il formatore ha registrato le presenze, l'attestato spetta SOLO ai presenti;
+    # se il corso ha una data futura, l'attestato non è ancora disponibile (si rilascia dopo la lezione).
+    att = c.get("attendance") or {}
+    if c.get("attendance_taken_at"):
+        if not (att.get(uid) or {}).get("present"):
+            return False
+    elif c.get("course_date") and c["course_date"] > _course_today_str():
         return False
     if t and t.get("questions"):
         return uid in (t.get("responses") or {})

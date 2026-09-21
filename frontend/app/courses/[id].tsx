@@ -15,10 +15,11 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CourseQuizSection, CourseReportSection } from "@/src/CourseExtras"; // V50.z274
 import { CourseSlidesSection } from "@/src/CourseSlides"; // V50.z275
 
-type Participant = { user_id: string; name: string; read_at?: string | null; status: "yes" | "no" | "pending"; notes?: string; answered_at?: string | null; certificate_eligible?: boolean; certificate_issued?: boolean; certificate_id?: string | null };
+type Participant = { user_id: string; name: string; read_at?: string | null; status: "yes" | "no" | "pending"; notes?: string; answered_at?: string | null; certificate_eligible?: boolean; certificate_issued?: boolean; certificate_id?: string | null; present?: boolean | null };
 type Course = {
   course_id: string; title: string; description?: string; body_text?: string; course_date?: string; course_time?: string; location?: string; maps_url?: string; status: string; creator_name?: string; reminder_days: number;
   pre_reminders?: number[]; certificates_issued?: number; // V50.z300
+  attendance_taken_at?: string | null; present_count?: number; is_today_or_past?: boolean; // V50.z302
   is_creator: boolean; is_new: boolean; my_participation: "yes" | "no" | "pending"; my_notes: string; recipient_count: number; read_count: number; yes_count: number; no_count: number;
   files: { file_id: string; name: string; mime: string; size?: number }[]; participants?: Participant[];
   has_test?: boolean; my_certificate?: { eligible: boolean; cert_id?: string; issued_at?: string }; // V50.z276
@@ -36,12 +37,27 @@ export default function CourseDetail() {
   const [askNo, setAskNo] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  // V50.z302 — spunta presenze (creatore): stato locale uid → presente
+  const [att, setAtt] = useState<Record<string, boolean>>({});
+  const [attDirty, setAttDirty] = useState(false);
 
   const load = useCallback(async () => {
-    try { const r = await api<Course>(`/courses/${id}`); setC(r); setNotes(r.my_notes || ""); if (!r.is_creator && r.is_new) { await api(`/courses/${id}/read`, { method: "POST" }).catch(() => {}); } }
+    try {
+      const r = await api<Course>(`/courses/${id}`); setC(r); setNotes(r.my_notes || "");
+      setAtt(Object.fromEntries((r.participants || []).filter((p) => p.status !== "no").map((p) => [p.user_id, p.present ?? p.status === "yes"]))); setAttDirty(false);
+      if (!r.is_creator && r.is_new) { await api(`/courses/${id}/read`, { method: "POST" }).catch(() => {}); }
+    }
     catch (e: any) { notify("Corso", e?.message || ""); }
   }, [id]);
   useEffect(() => { void load(); }, [load]);
+  const saveAttendance = async () => {
+    setBusy("att");
+    try {
+      const present = Object.keys(att).filter((k) => att[k]); const absent = Object.keys(att).filter((k) => !att[k]);
+      await api(`/courses/${id}/attendance`, { method: "PUT", body: { present, absent } }); await load();
+      notify("Presenze", `Registrate: ${present.length} presenti · ${absent.length} assenti. Gli attestati andranno solo ai presenti.`);
+    } catch (e: any) { notify("Presenze", e?.message || ""); } finally { setBusy(null); }
+  };
 
   const participate = async (status: "yes" | "no") => {
     if (status === "no" && !askNo) { setAskNo(true); return; }
@@ -124,7 +140,7 @@ export default function CourseDetail() {
                   {busy === "cert-me" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="ribbon" size={18} color="#FFF" /><Text style={[s.pTxt, { color: "#FFF" }]}>Scarica attestato PDF</Text></>}
                 </Pressable>
               </>
-            ) : <Text style={s.hint}>Lo ricevi automaticamente quando rispondi ✅ Partecipo{c.has_test ? " e completi il test del corso" : ""}.</Text>}
+            ) : <Text style={s.hint}>{c.course_date && !c.is_today_or_past ? `Lo ricevi dopo la lezione del ${c.course_date.split("-").reverse().join("/")}, quando il formatore conferma la tua presenza${c.has_test ? " e hai completato il test" : ""}.` : `Lo ricevi automaticamente quando rispondi ✅ Partecipo${c.has_test ? " e completi il test del corso" : ""}${c.attendance_taken_at ? " ed è confermata la tua presenza" : ""}.`}</Text>}
           </View>
           <View style={[s.card, { borderColor: "#C4B5FD" }]} testID="course-participation">
             <Text style={s.section}>Partecipi al corso?</Text>
@@ -165,6 +181,23 @@ export default function CourseDetail() {
               <Pressable onPress={() => exportList("pdf")} disabled={busy === "export"} style={s.exp} testID="course-export-pdf"><Ionicons name="print-outline" size={16} color="#DC2626" /><Text style={[s.expTxt, { color: "#DC2626" }]}>PDF / Stampa</Text></Pressable>
             </View>
             <Text style={s.hint}>Reminder automatico: {c.reminder_days ? `dopo ${c.reminder_days} giorni se non apre o non risponde` : "disattivato"}</Text>
+            {/* V50.z302 — Spunta presenze del formatore (giorno del corso) → attestati solo ai presenti */}
+            <Text style={s.section}>📋 Presenze in aula</Text>
+            {(c.participants || []).some((p) => p.status !== "no") ? (
+              <>
+                <Text style={s.hint}>{c.attendance_taken_at ? `Registrate il ${fmt(c.attendance_taken_at)} · ${c.present_count || 0} presenti. Gli attestati vanno solo ai presenti.` : c.is_today_or_past ? "Spunta chi è presente in aula, poi salva: gli attestati andranno solo ai presenti." : `Disponibile dal giorno del corso${c.course_date ? ` (${c.course_date.split("-").reverse().join("/")})` : ""}: puoi comunque pre-compilarla.`}</Text>
+                {(c.participants || []).filter((p) => p.status !== "no").map((p) => (
+                  <Pressable key={`att-${p.user_id}`} onPress={() => { setAtt((a) => ({ ...a, [p.user_id]: !a[p.user_id] })); setAttDirty(true); }} style={[s.row, { minHeight: 44, borderColor: att[p.user_id] ? "#A7F3D0" : theme.color.border, backgroundColor: att[p.user_id] ? "#ECFDF5" : "#FFF" }]} testID={`course-att-${p.user_id}`}>
+                    <Ionicons name={att[p.user_id] ? "checkbox" : "square-outline"} size={22} color={att[p.user_id] ? "#059669" : theme.color.muted} />
+                    <Text style={{ flex: 1, color: theme.color.onSurface, fontWeight: "700" }}>{p.name}</Text>
+                    <Text style={s.hint}>{p.status === "yes" ? "✅ iscritto" : "⏳ senza risposta"}{p.present === true ? " · presente" : p.present === false ? " · assente" : ""}</Text>
+                  </Pressable>
+                ))}
+                <Pressable onPress={saveAttendance} disabled={busy === "att" || (!attDirty && !!c.attendance_taken_at)} style={[s.pBtn, { backgroundColor: attDirty || !c.attendance_taken_at ? "#059669" : "#F1F5F9", borderColor: attDirty || !c.attendance_taken_at ? "#059669" : theme.color.border, flexDirection: "row", gap: 8, minHeight: 44 }]} testID="course-att-save">
+                  {busy === "att" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="clipboard" size={18} color={attDirty || !c.attendance_taken_at ? "#FFF" : theme.color.muted} /><Text style={[s.pTxt, { color: attDirty || !c.attendance_taken_at ? "#FFF" : theme.color.muted }]}>{c.attendance_taken_at && !attDirty ? "Presenze salvate" : `Salva presenze (${Object.values(att).filter(Boolean).length} presenti)`}</Text></>}
+                </Pressable>
+              </>
+            ) : <Text style={s.hint}>Nessun iscritto da registrare.</Text>}
             {/* V50.z300 — Fase 5: promemoria pre-lezione + rilascio attestati */}
             <Text style={s.section}>🔔 Promemoria prima della lezione</Text>
             {c.course_date ? (
@@ -177,9 +210,9 @@ export default function CourseDetail() {
               </>
             ) : <Text style={s.hint}>Imposta la data del corso per attivare i promemoria pre-lezione.</Text>}
             <Pressable onPress={issueAll} disabled={busy === "issue-all" || c.yes_count === 0} style={[s.pBtn, { backgroundColor: c.yes_count ? "#D97706" : "#F1F5F9", borderColor: c.yes_count ? "#D97706" : theme.color.border, flexDirection: "row", gap: 8, minHeight: 44 }]} testID="course-issue-all">
-              {busy === "issue-all" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="ribbon" size={18} color={c.yes_count ? "#FFF" : theme.color.muted} /><Text style={[s.pTxt, { color: c.yes_count ? "#FFF" : theme.color.muted }]}>Rilascia attestati a tutti i ✅ ({c.certificates_issued || 0}/{c.yes_count})</Text></>}
+              {busy === "issue-all" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="ribbon" size={18} color={c.yes_count ? "#FFF" : theme.color.muted} /><Text style={[s.pTxt, { color: c.yes_count ? "#FFF" : theme.color.muted }]}>Rilascia attestati {c.attendance_taken_at ? `ai presenti (${c.certificates_issued || 0}/${c.present_count || 0})` : `a tutti i ✅ (${c.certificates_issued || 0}/${c.yes_count})`}</Text></>}
             </Pressable>
-            <Text style={s.hint}>{"Emette l'attestato anche a chi non ha completato il test e avvisa ogni partecipante «🎓 Attestato pronto»."}</Text>
+            <Text style={s.hint}>{c.attendance_taken_at ? "Emette l'attestato solo a chi è stato segnato presente (anche senza test completato) e lo avvisa «🎓 Attestato pronto»." : "Emette l'attestato anche a chi non ha completato il test e avvisa ogni partecipante «🎓 Attestato pronto»."}</Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable onPress={archive} style={s.exp} testID="course-archive"><Ionicons name="archive-outline" size={16} color="#7C3AED" /><Text style={[s.expTxt, { color: "#7C3AED" }]}>{c.status === "archived" ? "Riattiva" : "Archivia"}</Text></Pressable>
               <Pressable onPress={remove} style={[s.exp, { borderColor: "#FECACA" }]} testID="course-delete"><Ionicons name="trash-outline" size={16} color="#DC2626" /><Text style={[s.expTxt, { color: "#DC2626" }]}>Elimina</Text></Pressable>

@@ -251,6 +251,7 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
         "Se sì → rispondi con 1-2 frasi che spiegano cosa fa la funzione e aggiungi il deep link nel formato ESATTO [[NAV:<route>|<etichetta breve>]] (uno per riga, in fondo, max 3). L'app lo trasforma in un pulsante che porta direttamente alla schermata.",
         "NON descrivere il percorso a parole (es. 'vai in Impostazioni → Generale'): usa sempre il marker. Se la route contiene {id}, sostituiscilo con il contact_id reale se lo conosci, altrimenti usa la lista (/contatti).",
         "Solo se NESSUNA funzione corrisponde al bisogno, rispondi in modo conversazionale senza marker.",
+        "RICHIESTE CREATIVE / DI SCRITTURA (es. «scrivimi un discorso per il team», «prepara una mail al cliente», «testo di 300 parole», traduzioni, script, post): l'utente vuole IL CONTENUTO, non una schermata → scrivi tu il testo completo, curato e pronto all'uso, rispettando lunghezza/tono/lingua richiesti; NESSUN marker [[NAV]] a meno che non chieda esplicitamente di aprire una funzione.",
         "Bisogni vaghi/indiretti → interpreta e proponi la funzione: " + "; ".join(f"«{v}» → {', '.join(_NAV_BY_ID[i]['name'] for i in ids if i in _NAV_BY_ID)}" for v, ids in VAGUE_MAP) + ".",
         "«Come faccio a impostare/configurare X» → cerca X nell'elenco e porta direttamente alla configurazione.",
         "FUNZIONI INESISTENTI (es. tema scuro, firma digitale dei contratti, pagare bollette, saldo conto corrente, prenotare voli, negozio gadget, fatture emesse ai clienti, videochiamate, SMS massivi, traduzione automatica, modalità offline): rispondi ESATTAMENTE «Questa funzione non è disponibile in AdvisorOS.» — senza inventare alternative, senza marker, senza rimandare ad altre schermate.",
@@ -266,7 +267,7 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
             cur = e["group"]; lines.append(f"[{cur}]")
         lines.append(f"- {e['name']} · {e['route']} · {e['desc']}")
     hints = _nav_match(msg, user)
-    if hints:
+    if hints and not _nav_is_creative(msg or ""):  # V50.z302 — nessun suggerimento di schermata per le richieste creative
         lines.append("")
         lines.append("SUGGERIMENTI PER QUESTO MESSAGGIO (probabile funzione cercata): " + " ".join(_nav(h["route"], h["name"]) for h in hints))
     return "\n".join(lines)
@@ -651,6 +652,16 @@ def _nav_flow_howto(user: dict, x: str) -> "dict | None":
 # ---------------------------------------------------------------------------
 _RX_NAV_INTENT = _nav_re.compile(r"\b(come|dove|voglio|vorrei|apri|aprire|mostra|mostrami|fammi vedere|vedere|vedo|trovo|trovare|imposta\w*|configur\w*|attiv\w*|disattiv\w*|cambi\w*|modific\w*|aggiung\w*|cre\w*|nuov\w*|colleg\w*|scansion\w*|analizz\w*|import\w*|fiss\w*|pianific\w*|programm\w*|segnal\w*|scaric\w*|gestisc\w*|personalizz\w*|invit\w*|registr\w*|ottimizz\w*|esport\w*|carica\w*|metto|mettere|inserire|inserisco|serve|servirebbe|posso|si fa|funziona|vai|portami|andare|c'[èe]|esiste)\b", _nav_re.I)
 _RX_DATA_Q = _nav_re.compile(r"\b(quanti|quante|quanto (ho|abbiamo|manca)|a che ora|chi [èe]|qual [èe] (il|la) (numero|telefono|indirizzo|mail|email|prossimo|prossima)|riassumi|riepilogo di|elenca|leggimi|dimmi (chi|quando|quanto|quanti|quante))\b", _nav_re.I)
+# V50.z302 — RICHIESTE CREATIVE / DI SCRITTURA (discorso al team, email al cliente, testo di N parole, traduzione, poesia, script…):
+# vanno all'AI che PRODUCE il contenuto, mai al template L1 «Apri …». Un link è utile solo se l'utente vuole aprire una schermata.
+_RX_CREATIVE = _nav_re.compile(
+    r"(\b(scriv\w*|redig\w*|compon\w*|traduc\w*|riformul\w*|riscriv\w*|correggi (il|la|questo|questa)|sintetizz\w*|invent\w*|butta\w* gi[uù]|suggerisc\w* (un|una|il|la|come)|proponi\w* (un|una|il|la)|(prepar\w*|gener\w*|cre\w*|fammi|dammi|voglio|vorrei|mi servirebbe|mi serve|serve|ho bisogno di|potresti (scrivere|preparare|fare|farmi))\s+(un|una|uno|un'|il|la|lo|le|gli|dei|delle|degli|del|della|\d+)?\s*(bozza|bozze|testo|testi|discorso|discorsi|speech|mail|e-mail|email|messaggio|messaggi|whatsapp|sms|lettera|lettere|post|articolo|articoli|poesia|poesie|slogan|frase|frasi|risposta|risposte|script|copione|comunicato|racconto|storia|elenco puntato|scaletta|riassunto|sintesi|traduzione|paragrafo|paragrafi|titolo|titoli|didascalia|descrizione|pitch|obiezion\w*|argomentazion\w*|spiegazione|idee|consigli|esempi|battuta|auguri|biglietto di auguri|invito))"
+    r"|\b\d+\s*(parole|righe|versi|frasi|punti|paragrafi)\b|\bmotivazional\w*|\bdiscorso\b|\bpoesia\b|\bslogan\b|\bstorytelling\b|\bin (inglese|tedesco|francese|spagnolo|italiano)\b|\btono (formale|informale|professionale|amichevole)\b)", _nav_re.I)
+_RX_OPEN_SCREEN = _nav_re.compile(r"\b(apri|aprire|aprimi|portami|vai (a|su|in|al|alla)|mostrami la schermata|dove (trovo|si trova|sta)|come (apro|arrivo|entro))\b", _nav_re.I)
+
+
+def _nav_is_creative(t: str) -> bool:
+    return bool(_RX_CREATIVE.search(t)) and not _RX_OPEN_SCREEN.search(t)
 
 
 def _nav_template_reply(msg: str, user: dict) -> Optional[dict]:
@@ -705,6 +716,9 @@ async def _nav_intercept(msg: str, user: dict):
             return _nav_reply("Vuoi collegare la tua casella mail? Se sì, vai qui.\n" + _nav("/smtp", "✉️ Configura SMTP (invio email)") + "\n" + _nav("/email-accounts", "📥 Caselle mail (IMAP)"))
         if _RX_TRAP.search(t):
             return _nav_reply("Questa funzione non è disponibile in AdvisorOS.")
+        # V50.z302 — richiesta creativa (scrivi/prepara un discorso, una mail, un testo di N parole…) → AI genera il contenuto, niente template
+        if _nav_is_creative(t):
+            return None
         if _RX_BILL_FLOW.search(t):
             return _nav_reply("Attivo l'analisi fattura: fotografa o carica la bolletta, Axon estrae i dati e confronta le offerte luce/gas mostrando il risparmio per il cliente.\n" + _nav("/bill-quick", "🧾 Analisi fattura e confronto offerte") + "\n" + _nav("/bill-quick?config=1", "⚙️ Regole di confronto"))
         if _RX_CONTRACTS_CLIENT.search(t) and not _RX_GOTO.match(t):

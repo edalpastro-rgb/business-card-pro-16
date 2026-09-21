@@ -392,3 +392,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z301 — Prompt Neo #9 (chat non bloccante): verificato attivo; fix coda bloccata da bozza `processing` orfana (_cq_unstick 150 s), bozze in coda ora visibili inline in chat (src/ChatQueueInline.tsx: pos/ETA, Invia ora, Modifica, Elimina), sendingRef anti-race, testo ripristinato se enqueue fallisce. E2E web OK (3 messaggi durante risposta lunga → coda → svuotata)."
+
+  - agent: "main"
+    message: "V50.z302 — (1) Richieste creative ad Axon → AI invece del template L1 (_nav_is_creative in axon_navigator.py; verificato con tests/ask_axon.py). (2) Presenze corso: PUT /courses/{id}/attendance, eligibilità attestato solo ai presenti (e non prima della data del corso), UI card «📋 Presenze in aula» in courses/[id].tsx. Backend verificato via script (futuro → non idoneo; assente → issue-all 0; presente → 1 + PDF 200; sub 403). UI verificata via screenshot (Salva presenze → Presenze salvate → «Rilascia attestati ai presenti (1/1)»)."
