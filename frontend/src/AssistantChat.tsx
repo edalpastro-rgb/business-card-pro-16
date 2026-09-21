@@ -2238,6 +2238,7 @@ function MessageBubble({
   onAction?: (action: string, payload: Record<string, any>) => Promise<void> | void; // V50.z259
 }) {
   const isUser = msg.role === "user";
+  const { user: authUser } = useAuth(); // V50.z289 — nome consulente per l’intestazione dei PDF
   return (
     <View style={[styles.bubbleRow, { justifyContent: isUser ? "flex-end" : "flex-start" }]}>
       {!isUser && (
@@ -2419,7 +2420,8 @@ function MessageBubble({
               <Text style={[styles.msgActionTxt, isUser && { color: "#EDE9FE" }]}>Copia</Text>
             </Pressable>
             <Pressable
-              onPress={() => shareText(msg.content, `${assistantName} · AdvisorOS`)}
+              // V50.z289 — se il messaggio contiene una tabella, la condivisione usa il PDF con la stessa maschera della chat (non il markdown grezzo)
+              onPress={() => (parseMessageSegments(msg.content || "").some((sg) => sg.type === "table") ? exportConversationPdf([msg], assistantName, authUser?.name || undefined) : shareText(msg.content, `${assistantName} · AdvisorOS`))}
               hitSlop={8}
               accessibilityLabel="Condividi messaggio"
               testID="msg-share-btn"
@@ -2430,7 +2432,7 @@ function MessageBubble({
             </Pressable>
             {!isUser && (
               <Pressable
-                onPress={() => exportConversationPdf([msg], assistantName, undefined, `${assistantName} · risposta`)}
+                onPress={() => exportConversationPdf([msg], assistantName, authUser?.name || undefined)}
                 hitSlop={8}
                 accessibilityLabel="Esporta messaggio in PDF"
                 testID="msg-pdf-btn"

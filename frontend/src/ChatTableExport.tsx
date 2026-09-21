@@ -124,10 +124,36 @@ function rowTint(r: string[]): { backgroundColor: string } | null {
   return null;
 }
 
-function nowStamp(): string {
+/** V50.z289 — data leggibile per i nomi file (es. 21-09-2026), niente nomi tutti numerici. */
+export function dateStamp(): string {
   const d = new Date();
   const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+}
+
+/** V50.z289 — Titolo parlante della tabella (es. «PUN medi per fasce · ultimi 18 mesi»). */
+export function deriveTableTitle(table: ParsedTable): string {
+  const heads = table.headers.map((h) => h.toLowerCase());
+  const n = table.rows.length;
+  const monthly = heads[0]?.includes("mese") || /^(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i.test(table.rows[0]?.[0]?.replace(/^[^\wÀ-ÿ]+/, "") || "");
+  if (heads.some((h) => h.includes("pun"))) {
+    const fasce = heads.some((h) => /\bf[123]\b/.test(h));
+    return `PUN ${fasce ? "medi per fasce" : "medio mensile"}${monthly ? ` · ultimi ${n} mesi` : ""}`;
+  }
+  if (heads.some((h) => h.includes("psv"))) return `PSV gas${monthly ? ` · ultimi ${n} mesi` : ""}`;
+  const first = table.headers[0]?.replace(/[*_`]/g, "").trim();
+  return first ? `Tabella ${first} · ${n} righe` : `Tabella · ${n} righe`;
+}
+
+/** V50.z289 — nome file sicuro e leggibile: «Tabella PUN medi per fasce 21-09-2026». */
+export function tableFileName(title: string, ext: string): string {
+  const base = title.replace(/[·|/\\:*?"<>]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 70);
+  return `${base.toLowerCase().startsWith("tabella") ? base : `Tabella ${base}`} ${dateStamp()}.${ext}`;
+}
+
+/** V50.z289 — cella markdown → HTML: **grassetto**, _corsivo_, escape del resto. */
+export function cellHtml(c: string): string {
+  return escapeHtml(c).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(^|\s)_(.+?)_(?=\s|$)/g, "$1<i>$2</i>");
 }
 
 /**
@@ -144,16 +170,28 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function tableToHtml(table: ParsedTable, title: string, brand?: TableBrandHeader | null, orgSig = ""): string {
-  const headerCells = table.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
+/** V50.z289 — solo la <table> (riusata anche nell'export PDF dei messaggi chat, stessa maschera della chat). */
+export function tableInnerHtml(table: ParsedTable): string {
+  const headerCells = table.headers.map((h) => `<th>${cellHtml(h)}</th>`).join("");
   const bodyRows = table.rows
     .map(
       (r, ri) =>
-        `<tr class="${ri % 2 === 1 ? "zebra" : ""}"${rowTint(r) ? ` style="background:${rowTint(r)!.backgroundColor}"` : ""}>${r.map((c) => `<td${rowTint(r) ? ` style="background:${rowTint(r)!.backgroundColor}"` : ""}>${escapeHtml(c)}</td>`).join("")}</tr>`,
+        `<tr class="${ri % 2 === 1 ? "zebra" : ""}"${rowTint(r) ? ` style="background:${rowTint(r)!.backgroundColor}"` : ""}>${r.map((c) => `<td${rowTint(r) ? ` style="background:${rowTint(r)!.backgroundColor}"` : ""}>${cellHtml(c)}</td>`).join("")}</tr>`,
     )
     .join("");
+  return `<table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+}
+
+export const TABLE_CSS = `
+    table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: auto; page-break-inside: auto; }
+    thead th { background: #7C3AED; color: #FFFFFF; text-align: left; font-weight: 700; padding: 8px 6px; border: 1px solid #7C3AED; }
+    tbody td { padding: 6px; border: 1px solid #E5E7EB; vertical-align: top; word-break: break-word; }
+    tbody tr.zebra td { background: #F8FAFC; }
+    tbody tr { page-break-inside: avoid; page-break-after: auto; }`;
+
+function tableToHtml(table: ParsedTable, title: string, brand?: TableBrandHeader | null, orgSig = ""): string {
   const orientation = table.headers.length > 5 ? "landscape" : "portrait";
-  const exportedAt = new Date().toLocaleString("it-IT");
+  const exportedAt = new Date().toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
   // V50.z140 — Header tabella (logo + nome azienda) configurato dal Master
   const brandLogo = brand?.logo_base64 ? toDataUri(brand.logo_base64) : "";
   const brandBlock = brand && (brand.name || brandLogo)
@@ -170,22 +208,15 @@ function tableToHtml(table: ParsedTable, title: string, brand?: TableBrandHeader
     .brand-logo { max-height: 56px; max-width: 180px; object-fit: contain; }
     .brand-name { font-size: 20px; font-weight: 800; color: #1E3A5F; }
     h1 { color: #4C1D95; font-size: 18px; margin: 0 0 4px 0; font-weight: 800; letter-spacing: -0.2px; }
-    .meta { color: #94A3B8; font-size: 10px; margin: 0 0 16px 0; }
-    table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: auto; page-break-inside: auto; }
-    thead th { background: #7C3AED; color: #FFFFFF; text-align: left; font-weight: 700; padding: 8px 6px; border: 1px solid #7C3AED; }
-    tbody td { padding: 6px; border: 1px solid #E5E7EB; vertical-align: top; word-break: break-word; }
-    tbody tr.zebra td { background: #F8FAFC; }
-    tbody tr { page-break-inside: avoid; page-break-after: auto; }
+    .meta { color: #64748B; font-size: 11px; margin: 0 0 16px 0; }
+    ${TABLE_CSS}
     .footer { color: #94A3B8; font-size: 9px; margin-top: 12px; font-style: italic; }
   </style>
   </head><body>
     ${brandBlock}
     <h1>${escapeHtml(title)}</h1>
-    <p class="meta">Esportato da AdvisorOS · ${escapeHtml(exportedAt)}</p>
-    <table>
-      <thead><tr>${headerCells}</tr></thead>
-      <tbody>${bodyRows}</tbody>
-    </table>
+    <p class="meta">${escapeHtml(exportedAt)}</p>
+    ${tableInnerHtml(table)}
     <p class="footer">${table.rows.length} righe totali · ${table.headers.length} colonne</p>
     ${orgSig ? `<p class="footer" style="text-align:center;border-top:1px solid #E5E7EB;padding-top:8px;">${escapeHtml(orgSig)}</p>` : ""}
   </body></html>`;
@@ -207,7 +238,7 @@ export function invalidateTableBrandHeader() {
   _brandCache = null;
 }
 
-async function fetchTableBrandHeader(): Promise<TableBrandHeader> {
+export async function fetchTableBrandHeader(): Promise<TableBrandHeader> {
   if (_brandCache && Date.now() - _brandCache.at < BRAND_TTL_MS) return _brandCache.data;
   if (_brandInflight) return _brandInflight;
   _brandInflight = api<TableBrandHeader>("/table-header")
@@ -323,14 +354,15 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
   const doExport = useCallback(async (format: "pdf" | "png", source: "preview" | "full" = "preview") => {
     try {
       setBusyFormat(format);
-      const stamp = nowStamp();
-      const baseName = `Tabella-Axon-${stamp}`;
-      const filename = `${baseName}.${format}`;
+      // V50.z289 — titolo parlante + nome file con data leggibile (es. «Tabella PUN medi per fasce 21-09-2026.pdf»)
+      const title = deriveTableTitle(table);
+      const filename = tableFileName(title, format);
       const mime = format === "pdf" ? "application/pdf" : "image/png";
       let data_base64: string | null = "";
 
       if (format === "pdf") {
-        data_base64 = await tableToPdfBase64(table, `Tabella esportata (${table.rows.length} righe)`, brand);
+        const b = brand && brand.name ? brand : { ...(brand || { logo_base64: "", source: "none" as const }), name: user?.name || "" };
+        data_base64 = await tableToPdfBase64(table, title, b);
         // Su web `tableToPdfBase64` apre il print dialog del browser e ritorna null.
         // In quel caso non condividiamo né salviamo — il PDF è già stato prodotto dal browser.
         if (data_base64 === null) {
@@ -428,7 +460,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
         <View style={[styles.fullRoot, { paddingTop: insets.top }]}>
           <View style={styles.fullHdr}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.fullTitle}>Tabella AxonOS</Text>
+              <Text style={styles.fullTitle} numberOfLines={1}>{deriveTableTitle(table)}</Text>
               <Text style={styles.fullSub}>{table.rows.length} righe · {table.headers.length} colonne · scorri in ogni direzione</Text>
             </View>
             <Pressable onPress={() => !busyFormat && setFull(false)} hitSlop={12} style={styles.fullClose} testID="table-fullscreen-close">
