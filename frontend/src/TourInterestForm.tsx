@@ -2,7 +2,7 @@
 // «È tutto o vuoi rispondere ad altre domande?» [SÌ → altre 20 domande nuove (AI)] [NO → salva profilo interessi e prosegue].
 // Le risposte finiscono in user_settings.axon_interest_profile e vengono usate da Axon (prompt) per personalizzare e suggerire scorciatoie.
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
@@ -10,13 +10,15 @@ import { notify } from "@/src/utils/notify";
 const NAVY = "#0B1B33"; const SKY = "#38BDF8"; const MUTED = "#94A3B8"; const WHITE = "#FFFFFF";
 
 type Q = { id: string; feature: string; text: string };
-type Answer = { id: string; text: string; answer: boolean; feature?: string };
+type Answer = { id: string; text: string; answer: boolean | null; feature?: string; note?: string };
 type DoneResult = { features: { id: string; name: string }[]; reply: string };
 
 export function InterestForm({ freeAnswers, onDone, onBack }: { freeAnswers: string[]; onDone: (r: DoneResult) => void; onBack: () => void }) {
   const [rounds, setRounds] = useState<Q[][]>([]);
   const [round, setRound] = useState(1);
   const [ans, setAns] = useState<Record<string, boolean>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({}); // V50.z295 — nota/precisazione per domanda
+  const [noteOpen, setNoteOpen] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"next" | "done" | null>(null);
 
@@ -30,8 +32,9 @@ export function InterestForm({ freeAnswers, onDone, onBack }: { freeAnswers: str
   const all = rounds.flat();
   const total = all.length;
   const answered = all.filter((q) => ans[q.id] !== undefined).length;
-  const complete = total > 0 && answered === total;
-  const answersList = (): Answer[] => all.filter((q) => ans[q.id] !== undefined).map((q) => ({ id: q.id, text: q.text, answer: !!ans[q.id], feature: q.feature }));
+  const missing = total - answered;
+  // V50.z295 — SÌ/NO sempre attivi: le domande senza risposta vengono saltate (non bloccano più il form)
+  const answersList = (): Answer[] => all.filter((q) => ans[q.id] !== undefined || (notes[q.id] || "").trim()).map((q) => ({ id: q.id, text: q.text, answer: ans[q.id] ?? null, feature: q.feature, note: (notes[q.id] || "").trim() || undefined }));
 
   const more = async () => {
     setBusy("next");
@@ -77,21 +80,38 @@ export function InterestForm({ freeAnswers, onDone, onBack }: { freeAnswers: str
                     <Ionicons name={v === false ? "checkbox" : "square-outline"} size={18} color={v === false ? WHITE : MUTED} /><Text style={[s.chipTxt, v === false && { color: WHITE }]}>No</Text>
                   </Pressable>
                 </View>
+                {/* V50.z295 — nota facoltativa: «Sì/No non basta» → precisazione registrata da Axon (es. soglie) */}
+                {noteOpen[q.id] || notes[q.id] ? (
+                  <TextInput
+                    value={notes[q.id] || ""}
+                    onChangeText={(txt) => setNotes((n) => ({ ...n, [q.id]: txt }))}
+                    placeholder="Es. 2 settimane no, ma oltre un mese sì"
+                    placeholderTextColor={MUTED}
+                    multiline
+                    autoFocus={!!noteOpen[q.id] && !notes[q.id]}
+                    style={s.noteInput}
+                    testID={`tour-iq-${q.id}-note`}
+                  />
+                ) : (
+                  <Pressable onPress={() => setNoteOpen((o) => ({ ...o, [q.id]: true }))} style={s.noteBtn} hitSlop={6} testID={`tour-iq-${q.id}-note-open`}>
+                    <Text style={s.noteBtnTxt}>Aggiungi nota 🪄 clicca qui</Text>
+                  </Pressable>
+                )}
               </View>
             );
           })}
         </View>
       ))}
       {/* Fondo pagina: domanda ben visibile SÌ / NO */}
-      <View style={[s.ask, !complete && { opacity: 0.6 }]} testID="tour-interest-ask">
+      <View style={s.ask} testID="tour-interest-ask">
         <Ionicons name="help-circle" size={26} color={SKY} />
         <Text style={s.askTitle}>È tutto o vuoi rispondere ad altre domande?</Text>
-        {!complete ? <Text style={s.askHint}>Rispondi a tutte le domande per continuare · mancano {total - answered}</Text> : <Text style={s.askHint}>SÌ = altre 20 domande nuove · NO = proseguo con la configurazione</Text>}
+        <Text style={s.askHint}>SÌ = altre 20 domande nuove (quante ne vuoi) · NO = proseguo con la configurazione{missing > 0 ? ` · ${missing} senza risposta verranno saltate` : ""}</Text>
         <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
-          <Pressable onPress={more} disabled={!complete || !!busy} style={[s.bigBtn, s.bigBtnYes]} testID="tour-interest-more">
+          <Pressable onPress={more} disabled={!!busy} style={[s.bigBtn, s.bigBtnYes]} testID="tour-interest-more">
             {busy === "next" ? <ActivityIndicator color={NAVY} /> : <><Ionicons name="add-circle" size={20} color={NAVY} /><Text style={s.bigBtnTxt}>SÌ, altre domande</Text></>}
           </Pressable>
-          <Pressable onPress={finish} disabled={!complete || !!busy} style={[s.bigBtn, s.bigBtnNo]} testID="tour-interest-done">
+          <Pressable onPress={finish} disabled={!!busy} style={[s.bigBtn, s.bigBtnNo]} testID="tour-interest-done">
             {busy === "done" ? <ActivityIndicator color={WHITE} /> : <><Ionicons name="checkmark-circle" size={20} color={WHITE} /><Text style={[s.bigBtnTxt, { color: WHITE }]}>NO, è tutto</Text></>}
           </Pressable>
         </View>
@@ -120,5 +140,7 @@ const s = StyleSheet.create({
   bigBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 54, borderRadius: 14, paddingHorizontal: 8 },
   bigBtnYes: { backgroundColor: SKY }, bigBtnNo: { backgroundColor: "#15803D" },
   bigBtnTxt: { color: NAVY, fontWeight: "900", fontSize: 14 },
+  noteBtn: { minHeight: 32, justifyContent: "center", alignSelf: "flex-start" }, noteBtnTxt: { color: SKY, fontSize: 12, fontWeight: "800" },
+  noteInput: { backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(56,189,248,0.45)", borderRadius: 10, padding: 10, color: WHITE, fontSize: 14, minHeight: 44, lineHeight: 20 },
   back: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44 }, backTxt: { color: MUTED, fontSize: 13, fontWeight: "700" },
 });

@@ -55,6 +55,7 @@ import { SetupNudgeCard, hasSetupNudge } from "@/src/SetupNudgeCard"; // V50.z21
 import { NavChips, NavProactiveCard, extractNavChips } from "@/src/NavChips"; // V50.z259 — deep link [[NAV]] / azioni [[ACTION]] / suggerimenti proattivi
 import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 — avviso interessi futuri (CarPlay…) dal wizard
 import { ChatQueuePanel, type QueueItem } from "@/src/ChatQueuePanel"; // V50.z223 — coda messaggi non bloccante + chat parallele
+import { ChatQueueInline } from "@/src/ChatQueueInline"; // V50.z301 — bozze in coda visibili dentro la chat
 import { AXON_OPEN_CHAT_EVENT, consumePendingPrompt } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
@@ -246,6 +247,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // V50.z85 — Scanner jscanify (WebView cross-platform)
   const [scannerOpen, setScannerOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  // V50.z301 — guardia sincrona anti-doppio invio: `sending` (state) nella closure di sendRef può essere stantio
+  // quando processQueue chiama send() subito dopo la fine dello stream → la bozza veniva scartata in silenzio.
+  const sendingRef = useRef(false);
   // V29.n — Riferimento all'AbortController della chiamata in corso, per il pulsante "Stop".
   const abortRef = useRef<AbortController | null>(null);
   const [loadingHist, setLoadingHist] = useState(false);
@@ -696,7 +700,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const send = async (text?: string, opts?: { forceSpeak?: boolean; onSpoken?: () => void; quickLabel?: string }) => {
     const msg = (text ?? input).trim();
     // V28.l — Consenti l'invio se c'è ALMENO un allegato, anche senza testo
-    if ((!msg && pendingAttachments.length === 0) || sending) return;
+    if ((!msg && pendingAttachments.length === 0) || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     setInput("");
     // Optimistic add — include attachment names in the shown message
@@ -746,6 +751,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           } else if (opts?.onSpoken) {
             opts.onSpoken();
           }
+          sendingRef.current = false;
           setSending(false);
           return;
         }
@@ -910,6 +916,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       abortRef.current = null;
       setProgressText(null);
       prog.stop();
+      sendingRef.current = false;
       setSending(false);
       // V50.z245 — BUG «bottoni assenti»: se lo stream si chiude senza evento `done` (proxy, rete, stop, errore)
       // la bolla restava `streaming: true` per sempre → niente Copia/Condividi/PDF. Ora viene sempre finalizzata.
@@ -927,9 +934,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const enqueue = async (content: string, priority: "URGENT" | "HIGH" | "NORMAL" = "NORMAL") => {
     try {
       const r = await api<{ draft_id: string; position_in_queue: number; estimated_time: string }>("/chat/messages", { method: "POST", body: { content, priority, session_id: sessionId || undefined } });
-      notify("⏳ In coda", `Posizione ${r.position_in_queue} · parte tra ~${r.estimated_time}. Puoi continuare a scrivere.`);
+      notify("⏳ In coda", `${r.position_in_queue}° in coda · parte tra ~${r.estimated_time}. Puoi continuare a scrivere.`);
       await refreshQueue();
-    } catch (e: any) { notify("Non in coda", String(e?.message || e)); }
+    } catch (e: any) {
+      // V50.z301 — mai perdere il testo: se la coda non risponde, il messaggio torna nell'input
+      setInput((cur) => (cur.trim() ? cur : content));
+      notify("Non in coda", String(e?.message || e));
+    }
   };
   const processQueue = useCallback(async () => {
     if (queueBusyRef.current) return;
@@ -1844,6 +1855,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   </Pressable>
                 </>
               )}
+              {/* V50.z301 — bozze in coda visibili in chat (⏳ pos./ETA · Invia ora · Modifica · Elimina); quella in elaborazione è già la bolla utente sopra */}
+              <ChatQueueInline items={queue.filter((q) => q.status === "pending")} onChanged={() => void refreshQueue()} onSendNow={(it) => void sendNow(it)} />
             </ScrollView>
             </View>
 

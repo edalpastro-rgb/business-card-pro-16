@@ -386,3 +386,9 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z264 — Tour: (1) /tour-features mostra in cima il numero reale di funzioni (testID tour-features-total) calcolato dal backend GET /tour/features → total = unione automatica APP_MAP (Navigatore) + capacità AxonOS (_TOUR_FEATURES) + schermate reali dal file-system expo-router non ancora mappate (esclusi schermi tecnici); attualmente 142; le voci con route sono tappabili. (2) Schermata 2: intro vocale+testuale di Axon (testID tour-intro) → frase di raccordo 'Più sei preciso…' (tour-lead-in) → prima domanda parte automaticamente a fine audio (onEnded di playAudioBase64; fallback a tempo 26s/7s); link 'Vai alle domande' (tour-intro-skip). Verificato via Playwright."
+
+  - agent: "main"
+    message: "V50.z300 — AREA CORSI Fase 5 (courses.py: course_time, pre_reminders, job pre-lezione/post-lezione, POST /courses/{id}/certificates/issue-all; courses/new.tsx + courses/[id].tsx) + Card «Consigliato per te» in Home (src/RecommendedForYou.tsx, GET /tour/recommendations, POST /tour/recommendations/dismiss). Backend verificato con tests/test_courses_phase5.py (tutto OK, incluso post-lezione: sub «📝 Completa il test», owner «🎓 Corso svolto»). Home card verificata via screenshot. Corso demo crs_1d62c3820bd1 creato per i test frontend (da eliminare)."
+
+  - agent: "main"
+    message: "V50.z301 — Prompt Neo #9 (chat non bloccante): verificato attivo; fix coda bloccata da bozza `processing` orfana (_cq_unstick 150 s), bozze in coda ora visibili inline in chat (src/ChatQueueInline.tsx: pos/ETA, Invia ora, Modifica, Elimina), sendingRef anti-race, testo ripristinato se enqueue fallisce. E2E web OK (3 messaggi durante risposta lunga → coda → svuotata)."

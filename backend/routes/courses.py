@@ -6,6 +6,19 @@
 # Isolato: usa descendant_user_ids, tenant_id, axon_notify, _put_object_sync/_get_object_sync.
 
 COURSE_REMINDER_DEFAULT_DAYS = 3
+COURSE_PRE_REMINDER_DEFAULT = (1,)  # V50.z300 — Fase 5: promemoria 1 giorno prima della lezione
+COURSE_PRE_REMINDER_ALLOWED = (0, 1, 2, 3, 7, 14)
+
+
+def _course_pre_reminders(vals: Optional[List[int]]) -> List[int]:
+    return sorted({int(v) for v in (vals or []) if int(v) in COURSE_PRE_REMINDER_ALLOWED}, reverse=True)
+
+
+def _course_time(v: Optional[str]) -> str:
+    m = re.match(r"^\s*(\d{1,2})[:.](\d{2})\s*$", v or "")
+    if not m or int(m.group(1)) > 23 or int(m.group(2)) > 59:
+        return ""
+    return f"{int(m.group(1)):02d}:{m.group(2)}"
 
 
 class CourseFileIn(BaseModel):
@@ -19,10 +32,12 @@ class CourseIn(BaseModel):
     description: Optional[str] = ""
     body_text: Optional[str] = ""  # testo libero / appunti del corso
     course_date: Optional[str] = ""  # AAAA-MM-GG
+    course_time: Optional[str] = ""  # V50.z300 — HH:MM (Fase 5)
     location: Optional[str] = ""
     maps_url: Optional[str] = ""
     recipients: List[str] = Field(default_factory=list)  # user_id; vuoto = tutti i collaboratori del creatore
     reminder_days: int = COURSE_REMINDER_DEFAULT_DAYS  # 0 = disattivato
+    pre_reminders: List[int] = Field(default_factory=lambda: list(COURSE_PRE_REMINDER_DEFAULT))  # V50.z300 — giorni prima della lezione (0 = giorno stesso)
     files: List[CourseFileIn] = Field(default_factory=list)
 
 
@@ -31,10 +46,12 @@ class CourseUpdate(BaseModel):
     description: Optional[str] = None
     body_text: Optional[str] = None
     course_date: Optional[str] = None
+    course_time: Optional[str] = None  # V50.z300
     location: Optional[str] = None
     maps_url: Optional[str] = None
     recipients: Optional[List[str]] = None
     reminder_days: Optional[int] = None
+    pre_reminders: Optional[List[int]] = None  # V50.z300
     status: Optional[str] = None  # active | archived
     add_files: Optional[List[CourseFileIn]] = None
     remove_file_ids: Optional[List[str]] = None
@@ -94,10 +111,13 @@ def _course_public(c: dict, user: dict, names: Dict[str, str]) -> dict:
     out["yes_count"] = sum(1 for r in (c.get("recipients") or []) if (part.get(r) or {}).get("status") == "yes")
     out["no_count"] = sum(1 for r in (c.get("recipients") or []) if (part.get(r) or {}).get("status") == "no")
     if is_creator:  # lista partecipanti: SOLO il creatore
+        certs = c.get("certificates") or {}
         out["participants"] = [{
             "user_id": r, "name": names.get(r, r), "read_at": reads.get(r), "status": (part.get(r) or {}).get("status") or "pending",
             "notes": (part.get(r) or {}).get("notes") or "", "answered_at": (part.get(r) or {}).get("timestamp"),
+            "certificate_issued": bool(certs.get(r)), "certificate_id": (certs.get(r) or {}).get("cert_id"),  # V50.z300
         } for r in (c.get("recipients") or [])]
+        out["certificates_issued"] = sum(1 for r in (c.get("recipients") or []) if certs.get(r))
     return out
 
 
@@ -135,6 +155,7 @@ async def course_create(body: CourseIn, user=Depends(get_current_user)):
     doc = {
         "course_id": course_id, "tenant_id": tid, "created_by": user["user_id"], "title": body.title.strip()[:160] or "Corso",
         "description": (body.description or "").strip()[:2000], "body_text": (body.body_text or "")[:20000], "course_date": (body.course_date or "")[:10],
+        "course_time": _course_time(body.course_time), "pre_reminders": _course_pre_reminders(body.pre_reminders),
         "location": (body.location or "").strip()[:200], "maps_url": (body.maps_url or "").strip()[:500], "recipients": recipients,
         "reminder_days": max(0, min(30, int(body.reminder_days or 0))), "files": files, "status": "active", "reads": {}, "participation": {},
         "reminders_sent": {}, "created_at": utcnow(), "updated_at": utcnow(),
@@ -230,6 +251,10 @@ async def course_update(course_id: str, body: CourseUpdate, user=Depends(get_cur
             upd[k] = v.strip() if isinstance(v, str) and k != "body_text" else v
     if body.reminder_days is not None:
         upd["reminder_days"] = max(0, min(30, int(body.reminder_days)))
+    if body.course_time is not None:
+        upd["course_time"] = _course_time(body.course_time)
+    if body.pre_reminders is not None:
+        upd["pre_reminders"] = _course_pre_reminders(body.pre_reminders)
     files = list(c.get("files") or [])
     if body.remove_file_ids:
         files = [f for f in files if f.get("file_id") not in set(body.remove_file_ids)]
@@ -310,37 +335,113 @@ async def course_export(course_id: str, fmt: str = "xlsx", user=Depends(get_curr
 
 
 # ---------- Reminder automatici: non ha aperto entro X giorni / ha letto ma non ha risposto ----------
+# V50.z300 — Fase 5: + promemoria PRIMA della lezione (pre_reminders: N giorni prima / giorno stesso) ai partecipanti
+# (✅ o ⏳, mai a chi ha detto ❌) e al creatore (riepilogo presenze); il giorno DOPO la lezione: attestati emessi
+# in automatico agli idonei, «completa il test» a chi manca, riepilogo attestati al creatore.
+def _course_when_text(c: dict, days_until: int) -> str:
+    when = "Oggi" if days_until == 0 else "Domani" if days_until == 1 else f"Tra {days_until} giorni"
+    d = (c.get("course_date") or "").split("-")
+    parts = [when + (" alle " + c["course_time"] if c.get("course_time") else "") + (" (" + "/".join(reversed(d)) + ")" if len(d) == 3 and days_until > 1 else "")]
+    if c.get("location"):
+        parts.append("📍 " + c["location"])
+    return " · ".join(parts)
+
+
+async def _courses_pre_lesson(c: dict, today, sent: dict, now: datetime) -> int:
+    """Promemoria pre-lezione + post-lezione per un corso. Ritorna il numero di notifiche inviate."""
+    n = 0
+    try:
+        from datetime import date as _date
+        y, m, d = (c.get("course_date") or "").split("-")
+        cdate = _date(int(y), int(m), int(d))
+    except Exception:  # noqa: BLE001
+        return 0
+    days_until = (cdate - today).days
+    part = c.get("participation") or {}
+    recipients = c.get("recipients") or []
+    tid, cid, title = c["tenant_id"], c["course_id"], c["title"]
+    link = f"/courses/{cid}"
+
+    async def _send(uid: str, key: str, ttl: str, msg: str, urgency: str = "NORMAL") -> None:
+        nonlocal n
+        if sent.get(key):
+            return
+        try:
+            await axon_notify(uid, tid, "reminder", ttl, msg, deeplink=link, dedupe_key=f"course_rem_{cid}_{key}", extra={"urgency": urgency}, team_copy=False)
+            sent[key] = now.isoformat(); n += 1
+        except Exception:  # noqa: BLE001
+            pass
+
+    if days_until in (c.get("pre_reminders") or []):
+        when = _course_when_text(c, days_until)
+        for r in recipients:
+            st = (part.get(r) or {}).get("status")
+            if st == "no":
+                continue
+            msg = f"{when}. " + ("Ti aspettiamo!" if st == "yes" else "Non hai ancora indicato se partecipi: rispondi ✅ / ❌.")
+            await _send(r, f"pre{days_until}_{r}", f"📅 Corso {'oggi' if days_until == 0 else 'domani' if days_until == 1 else f'tra {days_until} giorni'}: {title}", msg, "HIGH" if days_until <= 1 else "NORMAL")
+        yes = sum(1 for r in recipients if (part.get(r) or {}).get("status") == "yes")
+        no = sum(1 for r in recipients if (part.get(r) or {}).get("status") == "no")
+        await _send(c["created_by"], f"pre{days_until}_creator", f"📅 Il tuo corso «{title}»: {when}",
+                    f"Presenze: ✅ {yes} partecipano · ❌ {no} · ⏳ {len(recipients) - yes - no} in attesa di risposta.")
+    if days_until == -1:  # giorno dopo la lezione
+        t = await db.courses_tests.find_one({"course_id": cid}, {"_id": 0, "questions": 1, "responses": 1})
+        issued, missing_test = 0, 0
+        for r in recipients:
+            if (part.get(r) or {}).get("status") != "yes":
+                continue
+            await _course_cert_issue_if_ready(c, r)  # notifica «🎓 Attestato disponibile» se idoneo e non ancora emesso
+            fresh = await db.courses_folders.find_one({"course_id": cid}, {"_id": 0, "certificates": 1}) or {}
+            if (fresh.get("certificates") or {}).get(r):
+                issued += 1
+            elif t and t.get("questions"):
+                missing_test += 1
+                await _send(r, f"post_test_{r}", f"📝 Completa il test: {title}", "Il corso si è svolto ieri: completa il test per ricevere il tuo attestato di partecipazione.")
+        await _send(c["created_by"], "post_creator", f"🎓 Corso svolto: {title}",
+                    f"Attestati pronti: {issued}" + (f" · {missing_test} partecipanti devono ancora completare il test" if missing_test else "") + ". Apri il corso per scaricarli o rilasciarli a tutti.")
+    return n
+
+
 async def _courses_reminder_job():
     n = 0
     now = utcnow()
     try:
+        from zoneinfo import ZoneInfo
+        today = datetime.now(ZoneInfo("Europe/Rome")).date()
+    except Exception:  # noqa: BLE001
+        today = now.date()
+    try:
         tests_map = {t["course_id"]: t for t in await db.courses_tests.find({}, {"_id": 0, "course_id": 1, "responses": 1, "reminder_days": 1}).to_list(2000)}
-        async for c in db.courses_folders.find({"status": "active", "$or": [{"reminder_days": {"$gt": 0}}, {"course_id": {"$in": list(tests_map.keys())}}]}, {"_id": 0, "files": 0, "body_text": 0}):
+        async for c in db.courses_folders.find({"status": "active"}, {"_id": 0, "files": 0, "body_text": 0}):
+            sent = c.get("reminders_sent") or {}
+            before = dict(sent)
+            if c.get("course_date"):
+                n += await _courses_pre_lesson(c, today, sent, now)
             days = int(c.get("reminder_days") or 0)
             created = c.get("created_at")
-            if not isinstance(created, datetime):
-                continue
-            created = created if created.tzinfo else created.replace(tzinfo=timezone.utc)
-            if days > 0 and (now - created).days < days and c["course_id"] not in tests_map:
-                continue
-            reads, part, sent = c.get("reads") or {}, c.get("participation") or {}, c.get("reminders_sent") or {}
-            for r in c.get("recipients") or []:
-                key = None
-                if days > 0 and (now - created).days >= days and r not in reads:
-                    key, title, msg = f"read_{r}", f"⏰ Corso da leggere: {c['title']}", f"Non hai ancora aperto la cartella del corso (da {days} giorni)."
-                elif not (part.get(r) or {}).get("status"):
-                    key, title, msg = f"part_{r}", f"⏰ Indica se partecipi: {c['title']}", "Hai letto il corso ma non hai ancora risposto ✅ Partecipo / ❌ Non partecipo."
-                elif tests_map.get(c["course_id"]) and r not in (tests_map[c["course_id"]].get("responses") or {}) and int(tests_map[c["course_id"]].get("reminder_days") or 0) > 0 \
-                        and (now - created).days >= int(tests_map[c["course_id"]].get("reminder_days") or 0):
-                    key, title, msg = f"test_{r}", f"📝 Test da completare: {c['title']}", "Non hai ancora completato il test del corso."
-                if not key or sent.get(key):
-                    continue
-                try:
-                    await axon_notify(r, c["tenant_id"], "reminder", title, msg, deeplink=f"/courses/{c['course_id']}", dedupe_key=f"course_rem_{c['course_id']}_{key}", team_copy=False)
-                    sent[key] = now.isoformat(); n += 1
-                except Exception:  # noqa: BLE001
-                    pass
-            await db.courses_folders.update_one({"course_id": c["course_id"]}, {"$set": {"reminders_sent": sent}})
+            has_test = c["course_id"] in tests_map
+            if isinstance(created, datetime) and (days > 0 or has_test):
+                created = created if created.tzinfo else created.replace(tzinfo=timezone.utc)
+                if not (days > 0 and (now - created).days < days and not has_test):
+                    reads, part = c.get("reads") or {}, c.get("participation") or {}
+                    for r in c.get("recipients") or []:
+                        key = None
+                        if days > 0 and (now - created).days >= days and r not in reads:
+                            key, title, msg = f"read_{r}", f"⏰ Corso da leggere: {c['title']}", f"Non hai ancora aperto la cartella del corso (da {days} giorni)."
+                        elif not (part.get(r) or {}).get("status"):
+                            key, title, msg = f"part_{r}", f"⏰ Indica se partecipi: {c['title']}", "Hai letto il corso ma non hai ancora risposto ✅ Partecipo / ❌ Non partecipo."
+                        elif tests_map.get(c["course_id"]) and r not in (tests_map[c["course_id"]].get("responses") or {}) and int(tests_map[c["course_id"]].get("reminder_days") or 0) > 0 \
+                                and (now - created).days >= int(tests_map[c["course_id"]].get("reminder_days") or 0):
+                            key, title, msg = f"test_{r}", f"📝 Test da completare: {c['title']}", "Non hai ancora completato il test del corso."
+                        if not key or sent.get(key):
+                            continue
+                        try:
+                            await axon_notify(r, c["tenant_id"], "reminder", title, msg, deeplink=f"/courses/{c['course_id']}", dedupe_key=f"course_rem_{c['course_id']}_{key}", team_copy=False)
+                            sent[key] = now.isoformat(); n += 1
+                        except Exception:  # noqa: BLE001
+                            pass
+            if sent != before:
+                await db.courses_folders.update_one({"course_id": c["course_id"]}, {"$set": {"reminders_sent": sent}})
     except Exception as exc:  # noqa: BLE001
         logger.warning("[courses] reminder job error: %s", exc)
     return {"sent": n}
@@ -351,6 +452,26 @@ async def courses_run_reminders(user=Depends(get_current_user)):
     if not await _course_can_manage(user):
         raise HTTPException(status_code=403, detail="Solo Master/Manager")
     return await _courses_reminder_job()
+
+
+@api_router.post("/courses/{course_id}/certificates/issue-all")
+async def course_certificates_issue_all(course_id: str, user=Depends(get_current_user)):
+    """V50.z300 — Il creatore rilascia l'attestato a TUTTI i partecipanti ✅ (anche senza test completato) → notifica «🎓 Attestato pronto»."""
+    c = await _course_creator_only(course_id, user)
+    part, certs = c.get("participation") or {}, dict(c.get("certificates") or {})
+    issued = []
+    for r in c.get("recipients") or []:
+        if (part.get(r) or {}).get("status") != "yes" or certs.get(r):
+            continue
+        cert = {"cert_id": f"ATT-{utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}", "issued_at": utcnow(), "issued_by": user["user_id"]}
+        await db.courses_folders.update_one({"course_id": course_id}, {"$set": {f"certificates.{r}": cert}})
+        certs[r] = cert; issued.append(r)
+        try:
+            await axon_notify(r, c["tenant_id"], "reminder", f"🎓 Attestato pronto: {c['title']}", "Il formatore ha rilasciato il tuo attestato di partecipazione: scaricalo in PDF dalla cartella del corso.",
+                              deeplink=f"/courses/{course_id}", dedupe_key=f"course_cert_{course_id}_{r}", extra={"urgency": "HIGH"}, team_copy=False)
+        except Exception:  # noqa: BLE001
+            pass
+    return {"ok": True, "issued": len(issued), "total_certificates": len(certs)}
 
 
 # =====================================================================================
@@ -872,6 +993,8 @@ async def course_slides_attach(course_id: str, user=Depends(get_current_user)):
 # «🎓 Attestato disponibile» (deeplink al corso) e il PDF è scaricabile da lui e dal creatore.
 # =====================================================================================
 def _course_cert_eligible(c: dict, t: Optional[dict], uid: str) -> bool:
+    if (c.get("certificates") or {}).get(uid):  # V50.z300 — già emesso (anche dal Master con «Rilascia a tutti»)
+        return True
     if (c.get("participation") or {}).get(uid, {}).get("status") != "yes":
         return False
     if t and t.get("questions"):

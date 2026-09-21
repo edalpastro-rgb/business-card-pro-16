@@ -1,0 +1,36 @@
+{
+  "summary": "V50.z300 Fase 5 Area Corsi + 'Consigliato per te' fully verified. Backend edge cases (course_time normalization '9.30'→'09:30', invalid '25:99'→'', pre_reminders [1,7,99]→[7,1], put pre_reminders [0]→[0], recipient status='no' excluded from pre-reminder run, tour/recommendations dismiss 'zzz'→400, sub POST issue-all→403): 4/4 pytest passed against public URL. Frontend (390x844 web): login owner→tour-skip→Home shows testID 'home-recommended' with 5 cards (offline, courses, forms, deadlines, team) — tap 'home-recommended-courses' navigates to /courses ✅. /courses/new exposes testID course-time (Ora HH:MM) + chips course-pre-reminder-{7,3,1,0} (default 1 selected). Owner detail (/courses/<id>): '10:00' shown in header, '🔔 Promemoria prima della lezione' section with 4 chip toggles (chip 7 DOM-click toggled bg white→#7C3AED and persisted after reload). Issue-all button: initially disabled/grey (bg #F1F5F9, 0/0). Sub view (/courses/<id>): testID course-pre-reminder-hint visible with text '🔔 Riceverai un promemoria 1 giorno prima, il giorno stesso.'. Sub course-yes click via DOM turns green (rgb(5,150,105)). Owner re-open: issue-all becomes '(1/1)' with orange bg (rgb(217,119,6)); clicking triggers backend and body contains 'attestat' (auto cert already emitted since course has no test — second issue-all returns 0 new). Auth submit still requires DOM el.click() (not page.click) per iter90 note; same applies to pre-reminder Pressable chips and course-yes on this app's react-native-web build.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/courses/new", "issues": ["Tap on 'Scegli' (course-recipients-pick) on web navigates the tab bar rather than opening an inline modal — cannot verify multi-select recipient picker via Playwright without native touch events. Not a blocker for testing (bypassed via API create), but flag for main agent that the pick modal may be dismissed by an ancestor touch handler on web."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_courses_phase5_edge.py",
+    "/app/backend/tests/test_courses_phase5.py",
+    "/app/test_reports/pytest/v50z300_edge.xml"
+  ],
+  "action_items": [
+    "Optional: investigate why 'Scegli' recipient picker on /courses/new drops to /contatti when interacted with on react-native-web (Escape key or overlay tap may propagate). Native/Expo Go likely OK."
+  ],
+  "critical_code_review_comments": [
+    "/app/frontend/app/courses/[id].tsx togglePre() optimistically updates state before PUT — good UX; but on PUT failure it re-loads which may briefly flash the previous state. Consider a busy indicator on the chip while the PUT is in flight.",
+    "issue-all button in courses/[id].tsx uses c.yes_count==0 to disable; ensure disabled state also blocks tap on web (currently `disabled` attribute on Pressable-turned-div may still receive click events). Consider adding pointer-events:none inline when disabled."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_courses_phase5_edge.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (4/4 edge tests, previously 100% on full suite)",
+    "frontend": "100% critical flows validated (home card + tap → /courses, /courses/new fields, owner detail chips + issue-all, sub detail hint + course-yes)"
+  },
+  "seed_data_creation": "Created course crs_6f8485488f0c (deleted). Also cleaned crs_1d62c3820bd1 demo course (deleted 200). MongoDB user_settings.recommendations_dismissed unset for owner user_a1fccc0121dc.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "IMPORTANT for this app on react-native-web: TouchableOpacity/Pressable-based buttons often DON'T fire onPress via Playwright page.click(force=True). Use DOM click: await page.evaluate(\"() => document.querySelector('[data-testid=\\\"X\\\"]').click()\"). This is required for auth-submit-button, course-pre-reminder-*, course-yes, course-issue-all. On Home there are TWO copies of home-recommended in the DOM (react-native-web mount), use .last locator. Backend URL: https://business-card-pro-16.preview.emergentagent.com. Owner: test@dalpastro.it/Test1234! Sub: sub1@dalpastro.it/Sub12345!.",
+  "rca_of_issue": "N/A — feature works as specified. Only observation: chip toggle Pressable on react-native-web didn't respond to Playwright's synthetic click(force=True) but works with DOM el.click(); this is a testing-only artifact (native users tap the chip and it toggles normally)."
+}

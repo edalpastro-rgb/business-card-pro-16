@@ -228,8 +228,9 @@ def _interest_items(pairs: List[Tuple[str, str]], round_no: int) -> List[dict]:
 class InterestAnswerIn(BaseModel):
     id: str
     text: str
-    answer: bool
+    answer: Optional[bool] = None  # None = saltata (V50.z295)
     feature: Optional[str] = None
+    note: Optional[str] = None  # V50.z295 — precisazione dell'utente («2 settimane no, oltre un mese sì»)
 
 
 class InterestNextIn(BaseModel):
@@ -252,8 +253,8 @@ async def tour_interest_questions_next(body: InterestNextIn, user=Depends(get_cu
     nxt = max(2, int(body.round) + 1)
     asked_texts = {a.text.strip().lower() for a in body.answers}
     asked_features = {a.feature for a in body.answers if a.feature}
-    yes = [a.text for a in body.answers if a.answer][:20]
-    no = [a.text for a in body.answers if not a.answer][:20]
+    yes = [a.text + (f" (nota: {a.note.strip()})" if a.note and a.note.strip() else "") for a in body.answers if a.answer is True][:40]
+    no = [a.text + (f" (nota: {a.note.strip()})" if a.note and a.note.strip() else "") for a in body.answers if a.answer is False][:40]
     questions: List[dict] = []
     key = os.environ.get("EMERGENT_LLM_KEY")
     if key:
@@ -297,8 +298,9 @@ async def tour_interest_profile(body: InterestProfileIn, user=Depends(get_curren
     names = {fid: name for fid, name, _g in _TOUR_FEATURES}
     yes_f: List[str] = []
     no_f: List[str] = []
+    notes = [f"«{a.text[:120]}» → {a.note.strip()[:300]}" for a in body.answers if a.note and a.note.strip()][:40]
     for a in body.answers:
-        if not a.feature or a.feature not in _TOUR_IDS:
+        if not a.feature or a.feature not in _TOUR_IDS or a.answer is None:
             continue
         if a.answer and a.feature not in yes_f:
             yes_f.append(a.feature)
@@ -310,14 +312,14 @@ async def tour_interest_profile(body: InterestProfileIn, user=Depends(get_curren
     summary = ""
     reply = ""
     key = os.environ.get("EMERGENT_LLM_KEY")
-    if key and (yes_f or free):
+    if key and (yes_f or free or notes):
         try:
             from emergentintegrations.llm.chat import LlmChat, UserMessage
             chat = LlmChat(api_key=key, session_id=f"tour-ip-{uuid.uuid4().hex[:8]}",
                            system_message=("Sei Axon, assistente di AdvisorOS. Ricevi le risposte di un utente a un questionario Sì/No sulle funzioni e alcune risposte libere. "
                                            "Scrivi: (1) 'summary': profilo dei bisogni in 3-5 frasi brevi in terza persona (cosa fa, cosa gli complica la vita, cosa cerca), utile a un assistente per personalizzare le risposte; "
                                            "(2) 'reply': UNA frase calda e concreta (max 25 parole, tu/te) che spiega cosa attivi per lui. Rispondi SOLO con JSON: {\"summary\": \"...\", \"reply\": \"...\"}")).with_model("anthropic", "claude-haiku-4-5-20251001")
-            prompt = "RISPOSTE LIBERE:\n" + "\n".join(f"- {t}" for t in free) + "\n\nINTERESSATO A:\n" + "\n".join(f"- {names.get(f, f)}" for f in yes_f) + "\n\nNON INTERESSATO A:\n" + "\n".join(f"- {names.get(f, f)}" for f in no_f)
+            prompt = "RISPOSTE LIBERE:\n" + "\n".join(f"- {t}" for t in free) + "\n\nINTERESSATO A:\n" + "\n".join(f"- {names.get(f, f)}" for f in yes_f) + "\n\nNON INTERESSATO A:\n" + "\n".join(f"- {names.get(f, f)}" for f in no_f) + "\n\nNOTE/PRECISAZIONI DELL'UTENTE (importanti: definiscono soglie e preferenze):\n" + "\n".join(f"- {n}" for n in notes)
             raw = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=30)
             m = re.search(r"\{.*\}", raw or "", re.S)
             data = _json_stdlib.loads(m.group(0)) if m else {}
@@ -331,12 +333,45 @@ async def tour_interest_profile(body: InterestProfileIn, user=Depends(get_curren
         reply = "Ho capito. Ecco cosa attivo per te."
     picks = yes_f[:6] if yes_f else _tour_heuristic(" ".join(free))
     profile = {
-        "yes_features": yes_f, "no_features": no_f, "free_answers": free, "summary": summary,
-        "answers": [{"id": a.id, "text": a.text[:220], "answer": bool(a.answer), "feature": a.feature} for a in body.answers][:120],
+        "yes_features": yes_f, "no_features": no_f, "free_answers": free, "summary": summary, "notes": notes,
+        "answers": [{"id": a.id, "text": a.text[:220], "answer": a.answer, "feature": a.feature, "note": (a.note or "").strip()[:300] or None} for a in body.answers][:400],
         "updated_at": utcnow(),
     }
     await db.user_settings.update_one({"user_id": user["user_id"]}, {"$set": {"axon_interest_profile": profile}}, upsert=True)
     return {"features": [{"id": f, "name": names[f]} for f in picks if f in names], "reply": reply, "yes_count": len(yes_f), "no_count": len(no_f)}
+
+
+# =====================================================================================
+# V50.z300 — CARD «CONSIGLIATO PER TE» (Home): scorciatoie alle funzioni a cui l'utente ha detto SÌ nel tour
+#   GET  /tour/recommendations           → fino a 8 funzioni (yes_features del form, fallback tour_profile.features), meno quelle nascoste
+#   POST /tour/recommendations/dismiss   → nasconde una funzione dalla card (user_settings.recommendations_dismissed)
+# =====================================================================================
+class RecommendationDismissIn(BaseModel):
+    feature: str
+
+
+@api_router.get("/tour/recommendations")
+async def tour_recommendations(user=Depends(get_current_user)):
+    row = await db.user_settings.find_one({"user_id": user["user_id"]}, {"axon_interest_profile": 1, "tour_profile": 1, "recommendations_dismissed": 1}) or {}
+    prof = row.get("axon_interest_profile") or {}
+    tour = row.get("tour_profile") or {}
+    hidden = set(row.get("recommendations_dismissed") or [])
+    names = {fid: (name, grp) for fid, name, grp in _TOUR_FEATURES}
+    picks: List[str] = []
+    for f in list(prof.get("yes_features") or []) + list(tour.get("features") or []):
+        if f in names and f not in picks and f not in hidden and _TOUR_FEATURE_ROUTES.get(f):
+            picks.append(f)
+    has_profile = bool(prof.get("yes_features") or tour.get("features"))
+    items = [{"id": f, "name": names[f][0], "group": names[f][1], "route": _TOUR_FEATURE_ROUTES[f]} for f in picks[:8]]
+    return {"has_profile": has_profile, "items": items, "summary": str(prof.get("summary") or "")[:300]}
+
+
+@api_router.post("/tour/recommendations/dismiss")
+async def tour_recommendations_dismiss(body: RecommendationDismissIn, user=Depends(get_current_user)):
+    if body.feature not in _TOUR_IDS:
+        raise HTTPException(status_code=400, detail="Funzione sconosciuta")
+    await db.user_settings.update_one({"user_id": user["user_id"]}, {"$addToSet": {"recommendations_dismissed": body.feature}}, upsert=True)
+    return {"ok": True}
 
 
 async def _axon_interest_section(user_id: str) -> str:
@@ -358,6 +393,8 @@ async def _axon_interest_section(user_id: str) -> str:
         lines.append("- Cosa fa / cosa gli complica la vita / cosa si aspetta: " + " | ".join(str(t)[:300] for t in free[:4]))
     if prof.get("summary"):
         lines.append("- Sintesi bisogni: " + str(prof["summary"])[:900])
+    if prof.get("notes"):
+        lines.append("- PRECISAZIONI dell'utente (soglie/preferenze da rispettare alla lettera): " + " | ".join(str(n)[:200] for n in prof["notes"][:12]))
     yes_f = [f for f in (prof.get("yes_features") or []) if f in names] or [f for f in (tour.get("features") or []) if f in names]
     if yes_f:
         lines.append("- INTERESSATO A (funzione → percorso): " + "; ".join(f"{names[f]} → {_TOUR_FEATURE_ROUTES.get(f, '/')}" for f in yes_f[:16]))

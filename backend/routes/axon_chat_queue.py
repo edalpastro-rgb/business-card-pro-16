@@ -11,6 +11,17 @@ from pymongo import ReturnDocument
 
 _CQ_PRIO = {"URGENT": 0, "HIGH": 1, "NORMAL": 2}
 _CQ_ETA_SEC = 45
+_CQ_STALE_SEC = 150  # V50.z301 — bozza «processing» da oltre 150 s (app chiusa/rete caduta durante lo stream) → torna pending
+
+
+async def _cq_unstick(uid: str) -> int:
+    """V50.z301 — BUG «coda bloccata»: se il client muore mentre una bozza è in `processing`, `cq_next` rispondeva per sempre
+    «busy» e nessun messaggio veniva più elaborato. Le bozze in elaborazione da troppo tempo tornano pending (retry_count+1)."""
+    limit = utcnow() - timedelta(seconds=_CQ_STALE_SEC)
+    r = await db.axon_chat_queue.update_many(
+        {"user_id": uid, "status": "processing", "$or": [{"started_at": {"$lt": limit}}, {"started_at": {"$exists": False}, "updated_at": {"$lt": limit}}]},
+        {"$set": {"status": "pending", "updated_at": utcnow()}, "$unset": {"started_at": ""}, "$inc": {"retry_count": 1}})
+    return r.modified_count
 
 
 class CqMessageIn(BaseModel):
@@ -49,6 +60,7 @@ def _cq_out(d: dict, pos: Optional[int] = None) -> dict:
 
 
 async def _cq_list(uid: str, session_id: Optional[str] = None) -> List[dict]:
+    await _cq_unstick(uid)
     q: Dict[str, Any] = {"user_id": uid, "status": {"$in": ["pending", "processing"]}}
     if session_id:
         q["session_id"] = session_id

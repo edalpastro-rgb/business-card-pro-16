@@ -20,6 +20,7 @@ const APPT_TODAY_WIDGET = ["appointments_today"];
 import { HomeTipsBanner } from "@/src/HomeTipsBanner";
 import { CgymAlertStrip } from "@/src/corporate-gym/CgymAlertStrip"; // Corporate Gym (Blocco 1)
 import { ProactiveBubbles } from "@/src/ProactiveBubbles"; // V50.z196 — Blocco 9: bubble proattive AxonOS
+import { RecommendedForYou } from "@/src/RecommendedForYou"; // V50.z300 — Card «Consigliato per te» (risposte del Tour)
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5: «AxonOS sta leggendo i tuoi file…»
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
@@ -221,7 +222,7 @@ export default function HomeScreen() {
         const href = "/tour" as any; // V50.z257 — nuovo Tour conversazionale (4 schermate)
         const attempt = (n: number) => {
           if (!mounted || n > 5) return;
-          if ((pathnameRef.current || "").includes("libretto")) return;
+          if ((pathnameRef.current || "").includes("libretto") || (pathnameRef.current || "").includes("tour")) return;
           try {
             if (n % 2 === 1) router.push(href); else router.replace(href);
           } catch { /* retry below */ }
@@ -553,6 +554,9 @@ export default function HomeScreen() {
             <Ionicons name="chevron-forward" size={18} color={C.white} />
           </Pressable>
         )}
+
+        {/* V50.z300 — Card «Consigliato per te»: scorciatoie alle funzioni scelte nel Tour */}
+        <RecommendedForYou />
 
         {/* V50.z120 — Sezione widget dashboard (meteo, appuntamenti oggi, PUN, scadenze…)
              spostata SOTTO il bottone Interfaccia Master su richiesta utente */}

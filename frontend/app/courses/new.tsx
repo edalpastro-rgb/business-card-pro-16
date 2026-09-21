@@ -14,15 +14,17 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 type Member = { user_id: string; name: string };
 type F = { name: string; mime: string; data_base64: string };
+const PRE_REMINDERS: [number, string][] = [[7, "7 gg prima"], [3, "3 gg prima"], [1, "1 gg prima"], [0, "Giorno stesso"]]; // V50.z300
 
 export default function NewCourseScreen() {
   const router = useRouter();
   const pagePad = usePageBottomPadding();
   const [team, setTeam] = useState<Member[]>([]);
   const [title, setTitle] = useState(""); const [desc, setDesc] = useState(""); const [body, setBody] = useState("");
-  const [date, setDate] = useState(""); const [loc, setLoc] = useState(""); const [maps, setMaps] = useState("");
+  const [date, setDate] = useState(""); const [time, setTime] = useState(""); const [loc, setLoc] = useState(""); const [maps, setMaps] = useState("");
   const [all, setAll] = useState(true); const [sel, setSel] = useState<string[]>([]);
   const [reminder, setReminder] = useState(3);
+  const [preRem, setPreRem] = useState<number[]>([1]); // V50.z300 — promemoria prima della lezione
   const [files, setFiles] = useState<F[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -42,7 +44,7 @@ export default function NewCourseScreen() {
     if (!all && sel.length === 0) { notify("Corso", "Scegli almeno un destinatario"); return; }
     setSaving(true);
     try {
-      const r = await api<{ course_id: string }>("/courses", { method: "POST", body: { title, description: desc, body_text: body, course_date: date, location: loc, maps_url: maps, recipients: all ? [] : sel, reminder_days: reminder, files } });
+      const r = await api<{ course_id: string }>("/courses", { method: "POST", body: { title, description: desc, body_text: body, course_date: date, course_time: time, location: loc, maps_url: maps, recipients: all ? [] : sel, reminder_days: reminder, pre_reminders: preRem, files } });
       router.replace(`/courses/${r.course_id}` as any);
     } catch (e: any) { notify("Corso", e?.message || "Creazione non riuscita"); } finally { setSaving(false); }
   };
@@ -58,9 +60,10 @@ export default function NewCourseScreen() {
         <TextInput value={title} onChangeText={setTitle} placeholder="Titolo del corso *" placeholderTextColor={theme.color.muted} style={s.input} testID="course-title" />
         <TextInput value={desc} onChangeText={setDesc} placeholder="Descrizione / indicazioni" placeholderTextColor={theme.color.muted} style={[s.input, { minHeight: 70 }]} multiline testID="course-desc" />
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <TextInput value={date} onChangeText={setDate} placeholder="Data (AAAA-MM-GG)" placeholderTextColor={theme.color.muted} style={[s.input, { flex: 1 }]} testID="course-date" />
-          <TextInput value={loc} onChangeText={setLoc} placeholder="Luogo" placeholderTextColor={theme.color.muted} style={[s.input, { flex: 1 }]} testID="course-location" />
+          <TextInput value={date} onChangeText={setDate} placeholder="Data (AAAA-MM-GG)" placeholderTextColor={theme.color.muted} style={[s.input, { flex: 1.4 }]} testID="course-date" />
+          <TextInput value={time} onChangeText={setTime} placeholder="Ora (HH:MM)" placeholderTextColor={theme.color.muted} style={[s.input, { flex: 1 }]} keyboardType="numbers-and-punctuation" testID="course-time" />
         </View>
+        <TextInput value={loc} onChangeText={setLoc} placeholder="Luogo" placeholderTextColor={theme.color.muted} style={s.input} testID="course-location" />
         <TextInput value={maps} onChangeText={setMaps} placeholder="Link Google Maps / Waze (opzionale)" placeholderTextColor={theme.color.muted} style={s.input} autoCapitalize="none" />
         <TextInput value={body} onChangeText={setBody} placeholder="Appunti / testo libero del corso" placeholderTextColor={theme.color.muted} style={[s.input, { minHeight: 110 }]} multiline />
 
@@ -79,6 +82,13 @@ export default function NewCourseScreen() {
           {[0, 3, 7, 14].map((d) => <Pressable key={d} onPress={() => setReminder(d)} style={[s.chip, reminder === d && s.chipOn]} testID={`course-reminder-${d}`}><Text style={[s.chipTxt, reminder === d && { color: "#FFF" }]}>{d === 0 ? "Off" : `${d} gg`}</Text></Pressable>)}
         </View>
 
+        <Text style={s.section}>Promemoria ai partecipanti prima della lezione</Text>
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          {PRE_REMINDERS.map(([d, label]) => { const on = preRem.includes(d); return (
+            <Pressable key={d} onPress={() => setPreRem((l) => on ? l.filter((x) => x !== d) : [...l, d])} style={[s.chip, on && s.chipOn]} testID={`course-pre-reminder-${d}`}><Text style={[s.chipTxt, on && { color: "#FFF" }]}>{label}</Text></Pressable>); })}
+        </View>
+        <Text style={s.hint}>{date ? (preRem.length ? "Avviso a chi partecipa (o non ha ancora risposto) e riepilogo presenze a te. Il giorno dopo: attestati agli idonei." : "Nessun promemoria pre-lezione.") : "Inserisci la data del corso per attivare i promemoria."}</Text>
+
         <Text style={s.section}>Allegati (PDF, Excel, foto, audio, testo)</Text>
         {files.map((f, i) => <View key={i} style={s.row}><Ionicons name="document" size={18} color="#7C3AED" /><Text style={{ flex: 1, color: theme.color.onSurface }} numberOfLines={1}>{f.name}</Text><Pressable onPress={() => setFiles((l) => l.filter((_, k) => k !== i))} hitSlop={8}><Ionicons name="close-circle" size={18} color={theme.color.muted} /></Pressable></View>)}
         <Pressable onPress={pick} style={s.pick} testID="course-add-file"><Ionicons name="attach" size={18} color="#7C3AED" /><Text style={{ color: "#7C3AED", fontWeight: "800" }}>Aggiungi file {Platform.OS === "web" ? "dal computer" : "dal dispositivo"}</Text></Pressable>
@@ -93,6 +103,7 @@ const s = StyleSheet.create({
   saveBtn: { backgroundColor: "#7C3AED", borderRadius: 10, paddingHorizontal: 16, minHeight: 40, alignItems: "center", justifyContent: "center" }, saveTxt: { color: "#FFF", fontWeight: "900" },
   input: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, minHeight: 46, fontSize: 14, color: theme.color.onSurface },
   section: { fontSize: 14, fontWeight: "900", color: theme.color.onSurface, marginTop: 6 },
+  hint: { fontSize: 12, color: theme.color.muted },
   chip: { paddingHorizontal: 12, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: theme.color.border, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF" },
   chipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }, chipTxt: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
   row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, minHeight: 46 },

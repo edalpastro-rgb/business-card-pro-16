@@ -15,14 +15,17 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CourseQuizSection, CourseReportSection } from "@/src/CourseExtras"; // V50.z274
 import { CourseSlidesSection } from "@/src/CourseSlides"; // V50.z275
 
-type Participant = { user_id: string; name: string; read_at?: string | null; status: "yes" | "no" | "pending"; notes?: string; answered_at?: string | null; certificate_eligible?: boolean };
+type Participant = { user_id: string; name: string; read_at?: string | null; status: "yes" | "no" | "pending"; notes?: string; answered_at?: string | null; certificate_eligible?: boolean; certificate_issued?: boolean; certificate_id?: string | null };
 type Course = {
-  course_id: string; title: string; description?: string; body_text?: string; course_date?: string; location?: string; maps_url?: string; status: string; creator_name?: string; reminder_days: number;
+  course_id: string; title: string; description?: string; body_text?: string; course_date?: string; course_time?: string; location?: string; maps_url?: string; status: string; creator_name?: string; reminder_days: number;
+  pre_reminders?: number[]; certificates_issued?: number; // V50.z300
   is_creator: boolean; is_new: boolean; my_participation: "yes" | "no" | "pending"; my_notes: string; recipient_count: number; read_count: number; yes_count: number; no_count: number;
   files: { file_id: string; name: string; mime: string; size?: number }[]; participants?: Participant[];
   has_test?: boolean; my_certificate?: { eligible: boolean; cert_id?: string; issued_at?: string }; // V50.z276
 };
 const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+const PRE_REMINDERS: [number, string][] = [[7, "7 gg prima"], [3, "3 gg prima"], [1, "1 gg prima"], [0, "Giorno stesso"]]; // V50.z300
+const preLabel = (d: number) => (d === 0 ? "il giorno stesso" : d === 1 ? "1 giorno prima" : `${d} giorni prima`);
 
 export default function CourseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -66,6 +69,19 @@ export default function CourseDetail() {
   };
   const archive = async () => { try { await api(`/courses/${id}`, { method: "PUT", body: { status: c?.status === "archived" ? "active" : "archived" } }); await load(); } catch (e: any) { notify("Corso", e?.message || ""); } };
   const remove = async () => { try { await api(`/courses/${id}`, { method: "DELETE" }); router.back(); } catch (e: any) { notify("Corso", e?.message || ""); } };
+  // V50.z300 — Fase 5: promemoria pre-lezione (creatore) + rilascio attestati a tutti i partecipanti ✅
+  const togglePre = async (d: number) => {
+    if (!c) return;
+    const cur = c.pre_reminders || [];
+    const next = cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d];
+    setC({ ...c, pre_reminders: next });
+    try { await api(`/courses/${id}`, { method: "PUT", body: { pre_reminders: next } }); } catch (e: any) { notify("Promemoria", e?.message || ""); await load(); }
+  };
+  const issueAll = async () => {
+    setBusy("issue-all");
+    try { const r = await api<{ issued: number; total_certificates: number }>(`/courses/${id}/certificates/issue-all`, { method: "POST" }); await load(); notify("Attestati", r.issued ? `Rilasciati ${r.issued} attestati: i partecipanti sono stati avvisati 🎓` : "Nessun nuovo attestato da rilasciare (tutti i partecipanti ✅ lo hanno già)."); }
+    catch (e: any) { notify("Attestati", e?.message || ""); } finally { setBusy(null); }
+  };
 
   if (!c) return <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surface }}><ActivityIndicator color="#7C3AED" /></SafeAreaView>;
   const pending = c.recipient_count - c.yes_count - c.no_count;
@@ -73,7 +89,7 @@ export default function CourseDetail() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.surface }}>
       <View style={s.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
-        <View style={{ flex: 1 }}><Text style={s.title} numberOfLines={1}>{c.title}</Text><Text style={s.sub}>{c.course_date ? `📅 ${c.course_date.split("-").reverse().join("/")}  ` : ""}{c.location ? `📍 ${c.location}` : ""}{c.creator_name ? `  · di ${c.creator_name}` : ""}</Text></View>
+        <View style={{ flex: 1 }}><Text style={s.title} numberOfLines={1}>{c.title}</Text><Text style={s.sub}>{c.course_date ? `📅 ${c.course_date.split("-").reverse().join("/")}${c.course_time ? ` ${c.course_time}` : ""}  ` : ""}{c.location ? `📍 ${c.location}` : ""}{c.creator_name ? `  · di ${c.creator_name}` : ""}</Text></View>
       </View>
       <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad }}>
         {c.description ? <View style={s.card}><Text style={s.body}>{c.description}</Text></View> : null}
@@ -123,6 +139,7 @@ export default function CourseDetail() {
               </View>
             ) : null}
             {c.my_participation !== "pending" && !askNo ? <Text style={s.hint}>Risposta inviata al Master. Puoi cambiarla in qualsiasi momento.</Text> : null}
+            {c.course_date && (c.pre_reminders || []).length && c.my_participation !== "no" ? <Text style={s.hint} testID="course-pre-reminder-hint">🔔 Riceverai un promemoria {(c.pre_reminders || []).map(preLabel).join(", ")}.</Text> : null}
           </View>
           </>
         ) : (
@@ -137,7 +154,7 @@ export default function CourseDetail() {
                     <Text style={{ fontWeight: "800", color: theme.color.onSurface }}>{p.name}</Text>
                     <Text style={s.hint}>{p.read_at ? `✅ letto ${fmt(p.read_at)}` : "⏳ non letto"} · {p.status === "yes" ? "partecipa" : p.status === "no" ? "non partecipa" : "in attesa"}</Text>
                   </View>
-                  {p.certificate_eligible ? <Pressable onPress={() => certificate(p.user_id)} hitSlop={8} disabled={busy === `cert-${p.user_id}`} testID={`course-cert-${p.user_id}`}>{busy === `cert-${p.user_id}` ? <ActivityIndicator size="small" color="#D97706" /> : <Ionicons name="ribbon" size={20} color="#D97706" />}</Pressable> : null}
+                  {p.certificate_eligible ? <Pressable onPress={() => certificate(p.user_id)} hitSlop={8} disabled={busy === `cert-${p.user_id}`} testID={`course-cert-${p.user_id}`}>{busy === `cert-${p.user_id}` ? <ActivityIndicator size="small" color="#D97706" /> : <Ionicons name={p.certificate_issued ? "ribbon" : "ribbon-outline"} size={20} color="#D97706" />}</Pressable> : null}
                   {p.notes ? <Ionicons name={open === p.user_id ? "chevron-up" : "chatbox-ellipses-outline"} size={18} color="#7C3AED" /> : null}
                 </Pressable>
                 {open === p.user_id && p.notes ? <Text style={s.notes}>📝 {p.notes}</Text> : null}
@@ -148,6 +165,21 @@ export default function CourseDetail() {
               <Pressable onPress={() => exportList("pdf")} disabled={busy === "export"} style={s.exp} testID="course-export-pdf"><Ionicons name="print-outline" size={16} color="#DC2626" /><Text style={[s.expTxt, { color: "#DC2626" }]}>PDF / Stampa</Text></Pressable>
             </View>
             <Text style={s.hint}>Reminder automatico: {c.reminder_days ? `dopo ${c.reminder_days} giorni se non apre o non risponde` : "disattivato"}</Text>
+            {/* V50.z300 — Fase 5: promemoria pre-lezione + rilascio attestati */}
+            <Text style={s.section}>🔔 Promemoria prima della lezione</Text>
+            {c.course_date ? (
+              <>
+                <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                  {PRE_REMINDERS.map(([d, label]) => { const on = (c.pre_reminders || []).includes(d); return (
+                    <Pressable key={d} onPress={() => togglePre(d)} style={[s.chip, on && s.chipOn]} testID={`course-pre-reminder-${d}`}><Text style={[s.chipTxt, on && { color: "#FFF" }]}>{label}</Text></Pressable>); })}
+                </View>
+                <Text style={s.hint}>{(c.pre_reminders || []).length ? `Avviso a chi partecipa o non ha risposto (mai a chi ha detto ❌) e riepilogo presenze a te, alle 08:45 ${(c.pre_reminders || []).map(preLabel).join(", ")}. Il giorno dopo la lezione: attestati automatici agli idonei e riepilogo.` : "Disattivati: nessun avviso pre-lezione."}</Text>
+              </>
+            ) : <Text style={s.hint}>Imposta la data del corso per attivare i promemoria pre-lezione.</Text>}
+            <Pressable onPress={issueAll} disabled={busy === "issue-all" || c.yes_count === 0} style={[s.pBtn, { backgroundColor: c.yes_count ? "#D97706" : "#F1F5F9", borderColor: c.yes_count ? "#D97706" : theme.color.border, flexDirection: "row", gap: 8, minHeight: 44 }]} testID="course-issue-all">
+              {busy === "issue-all" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="ribbon" size={18} color={c.yes_count ? "#FFF" : theme.color.muted} /><Text style={[s.pTxt, { color: c.yes_count ? "#FFF" : theme.color.muted }]}>Rilascia attestati a tutti i ✅ ({c.certificates_issued || 0}/{c.yes_count})</Text></>}
+            </Pressable>
+            <Text style={s.hint}>{"Emette l'attestato anche a chi non ha completato il test e avvisa ogni partecipante «🎓 Attestato pronto»."}</Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable onPress={archive} style={s.exp} testID="course-archive"><Ionicons name="archive-outline" size={16} color="#7C3AED" /><Text style={[s.expTxt, { color: "#7C3AED" }]}>{c.status === "archived" ? "Riattiva" : "Archivia"}</Text></Pressable>
               <Pressable onPress={remove} style={[s.exp, { borderColor: "#FECACA" }]} testID="course-delete"><Ionicons name="trash-outline" size={16} color="#DC2626" /><Text style={[s.expTxt, { color: "#DC2626" }]}>Elimina</Text></Pressable>
@@ -172,4 +204,6 @@ const s = StyleSheet.create({
   pRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.color.border, gap: 6 },
   notes: { fontSize: 13, color: theme.color.onSurface, backgroundColor: "#FEF3C7", borderRadius: 8, padding: 8, marginLeft: 28 },
   exp: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" }, expTxt: { fontWeight: "800", fontSize: 13 },
+  chip: { paddingHorizontal: 12, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: theme.color.border, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF" },
+  chipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }, chipTxt: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
 });
