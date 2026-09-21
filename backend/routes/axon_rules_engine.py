@@ -128,6 +128,8 @@ async def _build_pinned_rules_section(tenant: str, user_msg: str) -> str:  # noq
         lines.append("CONFLITTI RISOLTI PER QUESTO MESSAGGIO (vince il peso maggiore):")
         for c in res["conflicts"][:6]:
             lines.append(f"- {c['rule_a']} ({c['tag_a']}) vs {c['rule_b']} ({c['tag_b']}) → VINCE {c['winner']} {c['weights']}")
+        # V50.z304 (prompt correzione 21/09 — regola 9): il conflitto va DICHIARATO all'utente, non risolto in silenzio
+        lines.append("OBBLIGO: apri la risposta con UNA riga «⚠️ CONFLITTO: <regola A> vs <regola B> → applico <vincente> (peso maggiore). Vuoi cambiare?» e poi rispondi applicando la vincente. Eccezione: se il messaggio è una richiesta «solo tabella» o un «aspetta», ometti l'avviso.")
     lines.append("</REGOLE_ASSOLUTE>")
     return "\n".join(lines) + "\n\n"
 

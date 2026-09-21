@@ -279,6 +279,7 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
     if hints and not _nav_is_creative(msg or ""):  # V50.z302 — nessun suggerimento di schermata per le richieste creative
         lines.append("")
         lines.append("SUGGERIMENTI PER QUESTO MESSAGGIO (probabile funzione cercata): " + " ".join(_nav(h["route"], h["name"]) for h in hints))
+    lines.append(_nav_style_rules(msg))  # V50.z304 — stile risposta vincolante
     return "\n".join(lines)
 
 
@@ -669,6 +670,34 @@ _RX_CREATIVE = _nav_re.compile(
 _RX_OPEN_SCREEN = _nav_re.compile(r"\b(apri|aprire|aprimi|portami|vai (a|su|in|al|alla)|mostrami la schermata|dove (trovo|si trova|sta)|come (apro|arrivo|entro))\b", _nav_re.I)
 
 
+# V50.z304 — PROMPT CORREZIONE DEFINITIVA (21/09): stile risposta hardcoded
+_RX_WAIT = _nav_re.compile(r"^(?=.*\b(?:aspett\w*|attimo|momento|secondo|minuto|attendi|attendere|fermo|fermati|stop|forse|lascia stare|ci penso|aspé|aspe)\b)\W*(?:(?:aspett\w*|un attimo|un momento|un secondo|un minuto|attendi|attendere|fermo|fermati|stop|forse|controllo|verifico|guardo|vedo|ci penso|penso|io|dai|dammi|lascia stare|ok|okay|no|si|sì|momento|attimo|aspé|aspe|poi ti dico|ti dico|dopo|un po|prima|che)\W*){1,7}$", _nav_re.I)
+_RX_TABLE_ONLY = _nav_re.compile(r"\b(solo (la )?tabella|tabella|tabelle|listino|storico pun|storico prezzi|serie storica|elenco in tabella|in formato tabella|tabellare)\b", _nav_re.I)
+_RX_DIRECT_Q = _nav_re.compile(r"^(hai |sei |puoi |riesci |ce l'hai|c'[èe] |esiste |funziona |[èe] (pronto|pronta|fatto|fatta|vero|corretto|giusto|aggiornat)|ti ricordi|ricordi |confermi|sai |conosci |hai (letto|capito|visto|ricevuto|fatto|aggiornato|salvato|inviato))", _nav_re.I)
+_RX_SEARCH_NEED = _nav_re.compile(r"\b(aggiornat\w* (a |ad )?oggi|di oggi|oggi|adesso|ora per ora|ultimi dati|dati aggiornati|in tempo reale|live|gme|futures|prezzo attuale|quotazion\w*|cerca sul web|ricerca web|sul web|online)\b", _nav_re.I)
+
+
+def _nav_style_rules(msg: str) -> str:
+    """Blocco STILE RISPOSTA (sempre) + direttive condizionali in base al messaggio."""
+    t = (msg or "").strip()
+    lines = [
+        "",
+        "⚡ STILE RISPOSTA (VINCOLANTE — prompt correzione 21/09):",
+        "1) RISPOSTA DIRETTA PRIMA: la PRIMA riga è sempre la risposta secca (verbo + oggetto, 1-2 frasi). Contesto, dettagli, tabelle e proposte SOLO dopo, in un paragrafo separato. VIETATI i preamboli: «Sto analizzando», «Dammi un momento», «Ecco cosa ho trovato», «Ecco», «Premessa», «Certo!», «Perfetto!».",
+        "2) SCELTE E AZIONI: quando proponi opzioni scrivile una per riga come «A) …», «B) …» (max 5) oppure con parole-azione in maiuscolo tra virgolette «ORA» / «DOPO» / «MODIFICA» / «CANCELLA» / «INVIA»: l'app le trasforma automaticamente in pulsanti cliccabili. Non descrivere mai una scelta senza questo formato.",
+        "3) FONTI: priorità 🌐 LIVE > 📥 PDF allegato > 📂 DRIVE > 📄 MASTER FILES > 🔍 WEB; se usi una fonte citala in coda con la sua icona. Se il dato NON è di oggi: «Aggiornato al <data>. Lo aggiorno da GME/web?». Se una ricerca fallisce: «Non ho trovato <cosa> in <fonte>. Vuoi che <alternativa>?». Mai silenzio, mai dati vecchi spacciati per attuali.",
+        "4) TONO CONCISO: niente disclaimer inutili, niente riepiloghi di ciò che l'utente ha appena scritto, niente frasi di cortesia ripetute.",
+        "5) MEMORIA: applica sempre ciò che il Master ti ha insegnato; non chiedere mai di ripetere regole già date.",
+    ]
+    if _RX_TABLE_ONLY.search(t) and "?" not in t.replace("??", "?").rstrip("?") and len(t.split()) <= 14:
+        lines.append("🔒 RICHIESTA «SOLO TABELLA» RILEVATA: l'output è ESCLUSIVAMENTE la tabella Markdown (intestazione + righe). ZERO testo prima, ZERO testo dopo, ZERO note/fonti/disclaimer/legenda. Dati mancanti → `n/d` nella cella. Nessuna frase del tipo «Ecco la tabella».")
+    elif _RX_DIRECT_Q.search(t) and len(t.split()) <= 12:
+        lines.append("🔒 DOMANDA DIRETTA RILEVATA: prima riga = SOLO «Sì, …» / «No, …» / il dato richiesto (max 12 parole). Poi, se serve davvero, UNA frase di contesto o UNA domanda con opzioni A)/B).")
+    if _RX_SEARCH_NEED.search(t):
+        lines.append("🔒 DATO AGGIORNATO RICHIESTO: verifica la data del dato che usi e dichiarala nella prima riga («Dati GME del <data>»). Se non è odierno, proponi «A) Aggiorno da GME ora  B) Uso l'ultimo disponibile».")
+    return "\n".join(lines)
+
+
 def _nav_is_creative(t: str) -> bool:
     return bool(_RX_CREATIVE.search(t)) and not _RX_OPEN_SCREEN.search(t)
 
@@ -708,6 +737,9 @@ async def _nav_intercept(msg: str, user: dict):
         t = (msg or "").strip()
         if not (1 <= len(t) <= 220):
             return None
+        # V50.z304 — «aspetta / un momento / forse» → SOLO «OK!» (regola 4 del prompt correzione)
+        if _RX_WAIT.match(t):
+            return _nav_reply("OK!")
         # V50.z262 — correzioni stress test
         if _RX_GIBBERISH.match(t):
             return _nav_reply("Non ho capito il messaggio 🙂 Scrivimi cosa ti serve (es. «aggiungi cliente», «calendario», «analizza bolletta») e ti porto nella schermata giusta.")
@@ -782,7 +814,7 @@ async def _nav_intercept(msg: str, user: dict):
 _nav_prev_push = _maybe_push_command  # noqa: F821
 
 
-_NAV_NOLINK_OK = ("Questa funzione non è disponibile", "La frase sembra incompleta", "Non ho capito il messaggio", "Sono Axon, l'assistente")
+_NAV_NOLINK_OK = ("OK!", "Questa funzione non è disponibile", "La frase sembra incompleta", "Non ho capito il messaggio", "Sono Axon, l'assistente")
 
 
 async def _maybe_push_command(msg: str, user: dict):  # noqa: F811

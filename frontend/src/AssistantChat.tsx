@@ -56,6 +56,7 @@ import { NavChips, NavProactiveCard, extractNavChips } from "@/src/NavChips"; //
 import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 — avviso interessi futuri (CarPlay…) dal wizard
 import { ChatQueuePanel, type QueueItem } from "@/src/ChatQueuePanel"; // V50.z223 — coda messaggi non bloccante + chat parallele
 import { ChatQueueInline } from "@/src/ChatQueueInline"; // V50.z301 — bozze in coda visibili dentro la chat
+import { ChoiceButtons, extractChoices } from "@/src/axon-choice-buttons"; // V50.z304 — pulsanti A)/B) e azioni «ORA»
 import { AXON_OPEN_CHAT_EVENT, consumePendingPrompt } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
@@ -1826,6 +1827,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 <QuickReplyButtons key={`qr-${messages.length}`} question={messages[messages.length - 1].content} messageId={messages[messages.length - 1].message_id} onSelect={onQuickReply} />
               )}
               <QuickReplyToast visible={quickReplyToast} />
+              {/* V50.z304 — pulsanti automatici per scelte «A) / B)» e azioni «ORA» «MODIFICA»… nell'ultima risposta di Axon */}
+              {!sending && messages.length > 0 && messages[messages.length - 1].role === "assistant" && !messages[messages.length - 1].streaming
+                && !isClosedQuestion(messages[messages.length - 1].content) && (() => { const ch = extractChoices(messages[messages.length - 1].content); return ch.length ? <ChoiceButtons key={`ch-${messages.length}`} choices={ch} onSelect={(t) => void send(t)} /> : null; })()}
               {/* V50.z211 — avviso «Completa la configurazione…» → link diretto al wizard Set Up and Go */}
               {messages.length > 0 && messages[messages.length - 1].role === "assistant" && !messages[messages.length - 1].streaming && hasSetupNudge(messages[messages.length - 1].content) && (
                 <SetupNudgeCard key={`nudge-${messages.length}`} onOpen={onClose} />

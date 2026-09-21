@@ -398,3 +398,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z303 — Aggiornata la conoscenza di Axon (APP_MAP navigator, sezioni omniscience, catalogo tour) con Fase 5 corsi, presenze, dispositivi, regole con peso, coda chat, screenshot, consigliato per te, reset dati, libretto editor, prompt Neo; link verificati via scan delle route expo-router (0 rotti); cache semantica svuotata. Verifica con tests/ask_axon.py OK."
+
+  - agent: "main"
+    message: "V50.z304 — Prompt correzione definitiva: «aspetta»→«OK!» deterministico, blocco STILE RISPOSTA vincolante (+ direttive solo-tabella / domanda diretta / dato aggiornato), avviso ⚠️ CONFLITTO obbligatorio nel rules engine, pulsanti automatici A)/B)/ORA (src/axon-choice-buttons.tsx in AssistantChat). Backend verificato con tests/ask_axon.py; parser pulsanti testato con 6 casi (tsx). Da verificare visivamente in app i pulsanti su una risposta con opzioni A)/B)."
