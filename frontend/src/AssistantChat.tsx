@@ -453,6 +453,29 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     } finally { setAttaching(false); }
   };
 
+  // V50.z292 — Screenshot della schermata corrente con un tocco: il modal si nasconde un istante, cattura lo schermo
+  // (react-native-view-shot captureScreen) e allega l'immagine con il nome della schermata (route) per segnalare problemi ad Axon.
+  const [hideForShot, setHideForShot] = useState(false);
+  const attachScreenshot = async () => {
+    if (attaching || sending) return;
+    if (Platform.OS === "web") { notify("Screenshot", "Su web usa lo screenshot del browser e allegalo con il pulsante Foto; sul telefono basta un tocco."); return; }
+    setAttaching(true);
+    setHideForShot(true);
+    try {
+      await new Promise((r) => setTimeout(r, 450)); // attende la chiusura animata del modal
+      const { captureScreen } = await import("react-native-view-shot");
+      const b64 = await captureScreen({ format: "jpg", quality: 0.75, result: "base64" });
+      const route = (clientContextRef.current?.route || "schermata").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "schermata";
+      addPendingAttachment({ name: `screenshot_${route}_${new Date().toTimeString().slice(0, 5).replace(":", "")}.jpg`, mime: "image/jpeg", base64: b64 });
+      if (!input.trim()) setInput(`Ho un problema in questa schermata (${clientContextRef.current?.route || "app"}): `);
+    } catch (e: any) {
+      notify("Screenshot", e?.message || "Cattura non riuscita");
+    } finally {
+      setHideForShot(false);
+      setAttaching(false);
+    }
+  };
+
   // V50.z85 — Cattura foto (camera o galleria) come attachment
   const attachPhoto = async (source: "camera" | "gallery") => {
     if (attaching || sending) return;
@@ -1569,7 +1592,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       ];
 
   return (
-    <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
+    <Modal visible={visible && !hideForShot} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <Pressable style={styles.backdropTouch} onPress={onClose} />
         <View ref={sheetContainerRef} style={[styles.sheet, { paddingBottom: insets.bottom }]}>
@@ -1922,6 +1945,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     testID="assistant-photo"
                   >
                     <Ionicons name="camera" size={18} color="#DB2777" />
+                  </Pressable>
+                  {/* V50.z292 — Screenshot della schermata corrente (un tocco) per segnalare problemi */}
+                  <Pressable
+                    onPress={attachScreenshot}
+                    disabled={sending || attaching}
+                    hitSlop={4}
+                    style={[styles.attachBtn, { backgroundColor: "#ECFEFF" }]}
+                    accessibilityLabel="Allega screenshot della schermata"
+                    testID="assistant-screenshot"
+                  >
+                    <Ionicons name="phone-portrait-outline" size={18} color="#0E7490" />
                   </Pressable>
                   {/* V50.z85 — Scanner documenti jscanify */}
                   <Pressable
