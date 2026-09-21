@@ -241,7 +241,7 @@ _OMNI_EXTRA_SECTIONS.append((
 
 
 # ---------------------------------------------------------------------------- Risposta DETERMINISTICA (nessun LLM) quando l'utente chiede lo stato
-_OPS_CMD_RE = re.compile(r"(outbox|fetcher|\bgme\b|message_id|msg_[a-z0-9_]+|stato\s+(degli\s+|dei\s+)?(invii|sistemi|job)|in\s+coda|riprov\w*\s+(l'|il\s+)?invio|(il\s+)?prompt\s+(è|e')\s+(arrivat|stato\s+inviat|partit))", re.I)
+_OPS_CMD_RE = re.compile(r"(outbox|fetcher|\bgme\b|message_id|msg_[a-z0-9_]+|stato\s+(degli\s+|dei\s+)?(invii|sistemi|job)|(invii|messaggi|notifiche|push)\s+in\s+coda|riprov\w*\s+(l'|il\s+)?invio|(il\s+)?prompt\s+(è|e')\s+(arrivat|stato\s+inviat|partit))", re.I)
 _ops_prev_push_cmd = _maybe_push_command
 
 

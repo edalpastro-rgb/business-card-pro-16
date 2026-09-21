@@ -759,7 +759,7 @@ async def _nav_intercept(msg: str, user: dict):
             return _nav_reply("Capisco la frustrazione. Resto a disposizione per aiutarti con qualcosa di concreto: clienti, appuntamenti, fatture o un problema da segnalare.\n" + _nav("/help-center", "🛟 Segnala un problema"))
         if _RX_ROLE.search(t):
             return _nav_reply("Sono Axon, l'assistente di AdvisorOS: ti aiuto con clienti, appuntamenti, giri, fatture e tutto ciò che riguarda l'app. Non condivido dettagli tecnici o riservati. Dimmi pure cosa ti serve fare.")
-        if _RX_IMPOSSIBLE.search(t):
+        if _RX_IMPOSSIBLE.search(t) and not _nav_re.search(r"\bneo\b|\bprompt", t, _nav_re.I):  # V50.z306 — «cancella tutti i prompt per Neo» è un comando reale
             return _nav_reply("Non posso eseguire questa operazione: è irreversibile o riguarda dati di altre persone e non è consentita dall'assistente. Se vuoi cancellare i tuoi dati, la richiesta ufficiale si fa dall'Help Center; per il resto l'operazione va fatta manualmente dalla schermata dedicata.\n" + _nav("/help-center?deletion=1", "🛟 Richiesta cancellazione dati") + "\n" + _nav("/help-center", "💬 Help Center"))
         if _RX_TRUNC.match(t):
             return _nav_reply("La frase sembra incompleta 🙂 Dimmi cosa vuoi fare (es. «aggiungere un cliente», «vedere il calendario», «analizzare una bolletta») e ti porto subito nella schermata giusta.")
@@ -831,8 +831,16 @@ _nav_prev_push = _maybe_push_command  # noqa: F821
 _NAV_NOLINK_OK = ("OK!", "Questa funzione non è disponibile", "La frase sembra incompleta", "Non ho capito il messaggio", "Sono Axon, l'assistente")
 
 
+# V50.z306 — DOMANDE «PERCHÉ» / LAMENTELE / META (sul comportamento di Axon): niente template né comandi deterministici
+# (es. «Ti ho chiesto perché ci sono 13 prompt in coda» finiva su «Spese» o su «Stato invii»): risponde l'AI con il contesto.
+_RX_WHY_META = _nav_re.compile(r"\b(perch[éè']|perche\b|come mai|cosa ti succede|che ti succede|cosa ti [èe] successo|continui ad? ignorare|ignori le regole|non hai (capito|letto|risposto)|rileggi|ti ho chiesto|ti avevo (detto|chiesto)|non ti ho chiesto|hai sbagliato|[èe] sbagliat\w|non ha senso|mi prendi in giro|follia|assurdo)\b", _nav_re.I)
+
+
 async def _maybe_push_command(msg: str, user: dict):  # noqa: F811
     """Stream: prova prima il Navigatore, poi la catena precedente (push/neo)."""
+    t0 = (msg or "").strip()
+    if _RX_WHY_META.search(t0) and not _RX_OPEN_SCREEN.search(t0) and not _nav_re.search(r"\b(cancell\w*|azzer\w*|elimin\w*|svuot\w*)\b.*\bneo\b", t0, _nav_re.I):
+        return None
     r = await _nav_intercept(msg, user)
     if r:
         rep = r.get("reply") or ""

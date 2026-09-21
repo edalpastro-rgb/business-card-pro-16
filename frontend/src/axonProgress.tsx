@@ -10,7 +10,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 const AXON = "#8B5CF6";
 const AXON_DARK = "#6D28D9";
-export const PROGRESS_SHOW_AFTER_MS = 3000;
+export const PROGRESS_SHOW_AFTER_MS = 700; // V50.z306 — regola «rispondi subito»: entro 1 s dico che ci sto ragionando
+export const PROGRESS_CONTEXT_AFTER_MS = 3000; // da qui in poi frase contestuale (GME, PDF, CRM…)
 
 export type ProgressCtx = { message: string; attachmentNames: string[] };
 export type ServerProgress = { stage?: string; text?: string; model?: string };
@@ -23,6 +24,9 @@ export function progressHint(ctx: ProgressCtx, server: ServerProgress | null, el
   const pdf = names.some((n) => /\.pdf$/.test(n));
   const image = names.some((n) => /\.(png|jpe?g|webp|heic)$/.test(n));
   const stage = server?.stage || "";
+
+  // V50.z306 — primo secondo: ack immediato, poi frasi contestuali
+  if (elapsedSec * 1000 < PROGRESS_CONTEXT_AFTER_MS && stage !== "thinking" && stage !== "cache") return "Un attimo, ci ragiono…";
 
   // Fase di scrittura (modello già al lavoro): messaggio dedicato
   if (stage === "thinking") {
@@ -57,9 +61,10 @@ export function useAxonProgress() {
 
   const tick = useCallback(() => {
     if (!ctx.current || hidden.current) return;
-    const sec = Math.floor((Date.now() - started.current) / 1000);
+    const ms = Date.now() - started.current;
+    const sec = Math.floor(ms / 1000);
     setElapsed(sec);
-    if (sec * 1000 >= PROGRESS_SHOW_AFTER_MS) {
+    if (ms >= PROGRESS_SHOW_AFTER_MS) {
       setText(progressHint(ctx.current, server.current, sec));
       setVisible(true);
     }
@@ -74,7 +79,7 @@ export function useAxonProgress() {
   const start = useCallback((c: ProgressCtx) => {
     stop();
     ctx.current = c; hidden.current = false; started.current = Date.now();
-    timer.current = setInterval(tick, 1000);
+    timer.current = setInterval(tick, 350); // V50.z306 — 350 ms: la bolla «Un attimo, ci ragiono…» compare entro 1 s
   }, [stop, tick]);
 
   /** Fase comunicata dal server (event `progress`). */

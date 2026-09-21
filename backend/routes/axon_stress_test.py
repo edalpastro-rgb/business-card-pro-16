@@ -127,7 +127,8 @@ def _st_evaluate(q: dict, reply: str) -> dict:
             ok = len(table_lines) >= 3 and not text_lines; reason = "" if ok else ("Nessuna tabella Markdown" if len(table_lines) < 3 else f"Testo fuori tabella: «{text_lines[0][:60]}»")
         elif kind == "yesno":
             words = len(first.split())
-            ok = words <= 16 and (first.startswith(("sì", "si,", "si ", "no", "certo", "esatto", "non ")) or ("sì" in first or "no" in first.split())) and not preamble
+            direct = first.startswith(("sì", "si,", "si ", "no", "certo", "esatto", "non "))
+            ok = not preamble and ((direct and words <= 40) or (words <= 16 and ("sì" in first or "no" in first.split())))
             reason = "" if ok else f"Prima riga non diretta/sì-no ({words} parole): «{first[:70]}»"
         elif kind == "choice":
             opts = _st_re.findall(r"(?m)^\s*(?:\*\*)?\(?([A-D])[\)\.:]", body)

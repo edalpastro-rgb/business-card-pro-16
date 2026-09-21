@@ -55,8 +55,26 @@ _neo_prev_push_cmd = _maybe_push_command
 
 async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: F811
     txt = (msg or "").strip()
-    if txt and re.search(r"\bneo\b", txt, re.IGNORECASE):
+    if txt and (re.search(r"\bneo\b", txt, re.IGNORECASE) or re.search(r"\bprompt\w*\s+(?:ancora\s+)?in\s+coda\b", txt, re.IGNORECASE)):
         try:
+            # V50.z306 — «cancella/azzera/elimina/svuota (tutti i) prompt per Neo / la coda Neo» → cancellazione REALE su database
+            # (prima l'AI diceva «coda azzerata» senza farlo: i prompt restavano «in attesa»).
+            mc = re.match(r"^\W*(?:ok\s+|allora\s+|per favore\s+|axon\s+|neo\s+)?(cancell\w*|azzer\w*|elimin\w*|svuot\w*|pulisc\w*|rimuov\w*|butta\w*)\b", txt, re.IGNORECASE)
+            if mc and len(txt) <= 120 and re.search(r"\b(prompt|coda|richieste|task)\b", txt, re.IGNORECASE):
+                tid = tenant_id(user)
+                only_seq = re.search(r"#\s*(\d+)", txt)
+                q = {"user_id": tid, "category": _NEO_CAT}
+                if only_seq:
+                    q["neo_seq"] = int(only_seq.group(1))
+                elif not re.search(r"\b(tutt[oi]|tutte|anche i completati|completati)\b", txt, re.IGNORECASE):
+                    q["neo_status"] = {"$in": ["pending", "read", None]}  # default: solo quelli non completati
+                r = await db.master_files.delete_many(q)
+                c = await _neo_counts(tid)
+                left = sum(c.values())
+                return {"reply": f"🗑️ Cancellati **{r.deleted_count}** prompt per Neo (verificato a database). Rimasti: **{c['pending']}** in attesa · {c['done']} completati · {left} totali." + ("" if left else " La coda è vuota."), "cmd": "neo_clear"}
+            # V50.z306 — «scrivi/prepara/crea un prompt per Neo» SENZA testo → NON salvare nulla: lo prepara l'AI e lo mostra qui
+            if re.search(r"\b(scriv\w*|prepar\w*|cre\w*|redig\w*|compon\w*|fammi|buttami gi[uù])\b[^.]{0,40}\bprompt\b", txt, re.IGNORECASE) and len(txt) < 160 and not re.search(r"\b(salva\w*|invia\w*|manda\w*)\s+(questo|quello|il prompt che)", txt, re.IGNORECASE):
+                return None
             # V50.z291 — «prompt Neo #3 completato / eseguito / fatto» → marca done (o «letto» → read)
             md = re.search(r"prompt\s+(?:per\s+)?neo\s+#?\s*(\d+)\s+(?:è\s+stato\s+|e\s+stato\s+)?(completat\w*|eseguit\w*|fatt\w*|lett\w*|chius\w*)", txt, re.IGNORECASE)
             if md:
@@ -80,6 +98,11 @@ async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: 
             if m:
                 rest = (txt[:m.start()] + txt[m.end():]).strip(" \n:,.;-–—")
                 origin = None
+                # V50.z306 — «per Neo» senza verbo di invio e senza testo (es. «azzera la coda dei prompt per Neo», «domanda per Neo…»)
+                # NON è un ordine di salvataggio: mai salvare l'ultimo messaggio di Axon di propria iniziativa.
+                has_verb = re.search(r"\b(invia|manda|passa|gira|inoltra|trasmetti|spedisci|consegna|autorizz)\w*", txt, re.IGNORECASE)
+                if not has_verb and len(rest) < 40:
+                    return None
                 if len(rest) >= 40:
                     content = rest
                     source = "chat_user"
@@ -115,7 +138,10 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
                 "Neo NON può leggere il database dell'app pubblicata: non dire mai che «Neo lo legge dal database». "
                 "Se ti chiedono di inviare qualcosa a Neo, spiega questo flusso e invita a scrivere «invia questo prompt a Neo» (con il testo) per salvarlo. "
                 "Nota: «Neo» può essere anche il tuo nome predefinito; se l'utente parla di Neo come sviluppatore, non confonderlo con te. "
-                f"Stato coda prompt per Neo: {c['pending']} in attesa, {c['read']} letti, {c['done']} completati."
+                f"STATO REALE coda prompt per Neo (letto ADESSO dal database, prevale su qualsiasi numero citato dall'utente o detto in precedenza): {c['pending']} in attesa, {c['read']} letti, {c['done']} completati. "
+                "Se l'utente cita un numero diverso, dì che il dato reale è questo e che l'informazione precedente era sbagliata; non inventare mai conteggi. "
+                "Comandi deterministici disponibili: «stato prompt Neo» (elenco + testi da copiare), «cancella tutti i prompt per Neo» / «cancella il prompt Neo #N» (cancellazione reale), «prompt Neo #N completato». "
+                "Se l'utente chiede «scrivi/prepara un prompt per Neo», PREPARA il testo del prompt qui in chat (titolo, problema, comportamento atteso, file/schermate) SENZA salvarlo: lo salverà lui con «invia questo prompt a Neo»."
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning("[neo-bridge] prompt failed: %s", exc)

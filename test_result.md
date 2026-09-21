@@ -404,3 +404,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z305 — Stress test categoria «stile» (16 domande: aspetta/solo tabella/sì-no/scelte A)B)/motivazioni su domande strane e doppie) con valutatore dedicato, by_category nel summary, resoconto notturno sempre inviato (alert Home) e card «Regole di stile» nel report; run stile 16/16, regressione 70 domande 98,6%. Voce breve: client_context.voice → prompt voce in testa, TTS senza tabelle, PUN parlato. Verificato via API/stream."
+
+  - agent: "main"
+    message: "V50.z306 — Fix da log utente: domande perché/meta → AI (no template/ops), Neo bridge (cancellazione reale coda, no salvataggi indesiderati, conteggio reale nel prompt), bolla «Un attimo, ci ragiono…» entro 0,7 s, evaluator yesno rilassato. Verificato via stream + stress parziale (trap/offline/stile ok; 2 fallimenti crt pre-esistenti: «Dove compilo un nuovo contratto luce e gas» → template contratti/AI, «consumo annuo 8 mesi» → link Calendario)."
