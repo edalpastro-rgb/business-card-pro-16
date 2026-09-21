@@ -6570,3 +6570,7 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 - **«15 secondi di silenzio»**: la bolla intermedia ora compare entro ~0,7 s con «Un attimo, ci ragiono…» (prima 3 s), poi dai 3 s le frasi contestuali (GME, PDF, CRM…) — `axonProgress.tsx` (tick 350 ms).
 - Valutatore stress `style:yesno` più realistico (prima riga «Sì, …/No, …» fino a 40 parole). HTTP 520 nel log = errore transitorio del proxy/rete, non dell'app.
 - Verificato via stream: salva prompt → stato → «azzera la coda dei prompt per Neo» → 🗑️ Cancellati 2, coda vuota; «Ti ho chiesto perché…» → risposta AI con dato reale; «scrivi prompt… lo giro a Neo» → prompt preparato in chat. Stress: trap 14/14, offline 5/5, stile 15/16 (poi rilassato), crt 2/4 pre-esistenti.
+
+## V50.z307 — Regola «onestà sul funzionamento» (Axon non promette funzioni inesistenti) — DONE
+- `axon_navigator._nav_style_rules` punto 6: Axon non deve più inventare «regole nuove», parole magiche («Rileggi», «Riascolti», «2 secondi di pausa») o «controllo il backend adesso»; quando l'utente segnala un errore ripetuto: 1 riga «Hai ragione: <errore>. Si corregge nel codice: vuoi il prompt per Neo?» + risposta alla domanda originale. Verificato: risposta onesta con opzioni A) Insegna ad Axon / B) Prompt per Neo.
+- Nota per l'utente: il log del 22/09 00:20 proviene dall'app PUBBLICATA (1.0.79/260) che NON contiene le correzioni V50.z301–z307 → serve deploy (regole/Neo/coda lato server) + nuove build (bolla «Un attimo», pulsanti, TTS).
