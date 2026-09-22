@@ -5,6 +5,10 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z319 (Giu 2026) — Fix build Android EAS: expo-speech-recognition
+- Errore build: `:expo-speech-recognition:compileReleaseKotlin` → `Unresolved reference 'OptimizedRecord'`. Causa: `expo-speech-recognition@57.1.0` (dal v56 la versione segue l'SDK Expo → richiede SDK 57 / expo-modules-core con `OptimizedRecord`), progetto su Expo SDK 54. Fix: `yarn expo install expo-speech-recognition@3.1.3` (tag npm `sdk-54`; API usata in `src/violawake/commandCapture.native.ts` identica). **NON aggiornare a ≥56 finché il progetto resta su SDK 54.**
+- `backend/.env`: `MS_SCOPES` con spazi ora tra virgolette (deployment_agent BLOCKER).
+
 ## Backlog (Giu 2026) — Registro chiamate Android (READ_CALL_LOG) — RINVIATO dall'utente
 L'utente ha scelto di NON procedere per ora (vincolo Google Play: READ_CALL_LOG solo per dialer predefinito → funzionerebbe solo su APK sideload). Preferenze già raccolte per quando servirà: sync automatico al ritorno in primo piano; chiamata abbinata → voce nello storico contatto senza chiedere esito; numeri sconosciuti → lista «Numeri sconosciuti» con «Crea contatto»; UI = pagina «Registro chiamate» (menu laterale + card Home) + tab Chiamate del contatto. Stato attuale: nessuna lib nativa, nessun permesso, nessun endpoint lookup-by-phone.
 
