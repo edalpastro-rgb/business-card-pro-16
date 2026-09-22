@@ -5,6 +5,9 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## Backlog (Giu 2026) — Registro chiamate Android (READ_CALL_LOG) — RINVIATO dall'utente
+L'utente ha scelto di NON procedere per ora (vincolo Google Play: READ_CALL_LOG solo per dialer predefinito → funzionerebbe solo su APK sideload). Preferenze già raccolte per quando servirà: sync automatico al ritorno in primo piano; chiamata abbinata → voce nello storico contatto senza chiedere esito; numeri sconosciuti → lista «Numeri sconosciuti» con «Crea contatto»; UI = pagina «Registro chiamate» (menu laterale + card Home) + tab Chiamate del contatto. Stato attuale: nessuna lib nativa, nessun permesso, nessun endpoint lookup-by-phone.
+
 ## V50.z251 (Set 2026) — Fattura in Master Files › Fatture, viewer PDF senza CDN, Apri PDF nativo, safe area
 - `DocumentScannerModal.doSave`: category = `source === "bills" ? "bills" : "scanner"`; fallimenti → notify «Salvataggio non completato ⚠️» con i messaggi (`_upl_master_store` alza già 503 «Archivio file non disponibile, riprova»: non è silenzioso, ora è mostrato).
 - Backend: `heavy_ops.pdf_render(data, max_pages, dpi, start)` + `POST /files/pdf-pages {pdf_base64, start, max_pages≤40, dpi 50-200}` → `{pages: [jpeg b64], total, start}`.
