@@ -416,3 +416,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z310 — CONFRONTO COLLABORATORI: GET /team-insights/compare?period=30|90|365|all (Master-only) + app/team-compare.tsx (classifica, barre per metrica, testa a testa, tabella; link da Master grid/hub e Team Insights). tests/test_team_compare.py OK. V50.z311 — refactor AssistantChat.tsx: FAB → src/AssistantFAB.tsx, bolle → src/assistant/ChatBubbles.tsx, stili → chatStyles.ts, audio → utils/audioPlayback.ts (spostamenti meccanici, nessuna modifica logica). Verificato E2E web: FAB → chat → 'aspetta' → 'OK!'."
+
+  - agent: "main"
+    message: "V50.z312-z314 — Landing pubblica riprogettata (app/landing.tsx + src/landing/*: palette marchio navy/arancio/blu, orb Axon, aurora, mantra IA-aggiunta vs Axon-nel-CRM, demo animata 15 s AppDemoPlayer, modularità interattiva, modulo Richiedi demo). Backend POST /public/demo-request (35_reviews_leads.py) → lead source=landing_demo + bubble Home via _apx_emit(type lead_demo). index.tsx: landing al primo avvio su mobile (AsyncStorage landing_seen_v1). Testing agent iteration_93: tutto PASS."

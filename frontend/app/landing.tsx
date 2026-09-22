@@ -7,14 +7,19 @@
  * Pronto all'uso (OS proprietario, aree preconfigurate su richiesta), Modularità (blocchi
  * attivabili), CTA finale, footer. Effetti: src/landing/LandingFx.tsx.
  */
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Linking, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { LP } from "@/src/landing/palette";
 import { AxonOrb, Aurora, RotatingWord, Reveal, LiveDot } from "@/src/landing/LandingFx";
 import { AppDemoPlayer } from "@/src/landing/AppDemoPlayer";
+import { DemoRequestForm } from "@/src/landing/DemoRequestForm";
+
+import { LANDING_SEEN_KEY } from "@/src/landing/landingSeen"; // V50.z314 — su telefono la landing si mostra solo al primo avvio
 
 type IonName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -63,7 +68,12 @@ export default function LandingScreen() {
   const [mods, setMods] = useState<Record<string, boolean>>(() => Object.fromEntries(MODULES.map((m) => [m.key, m.on])));
   const activeCount = Object.values(mods).filter(Boolean).length;
 
+  const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView | null>(null);
+  const demoY = useRef(0);
+  useEffect(() => { AsyncStorage.setItem(LANDING_SEEN_KEY, "1").catch(() => {}); }, []);
   const goLogin = () => router.push("/login" as any);
+  const goDemo = () => scrollRef.current?.scrollTo({ y: Math.max(0, demoY.current - 12), animated: true });
   const openMail = () => {
     const url = "mailto:info@advisoros.it";
     if (Platform.OS === "web") {
@@ -74,7 +84,7 @@ export default function LandingScreen() {
   };
 
   return (
-    <ScrollView style={s.root} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+    <ScrollView ref={scrollRef} style={s.root} contentContainerStyle={[s.scroll, { paddingTop: insets.top, paddingBottom: insets.bottom }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       {/* ───────────── HERO ───────────── */}
       <View style={[s.hero, { minHeight: Math.max(620, height * 0.92) }]} testID="landing-hero">
         <Aurora />
@@ -302,10 +312,28 @@ export default function LandingScreen() {
               <Text style={[s.ctaTxt, { fontSize: 20 }]}>ENTRA</Text>
               <Ionicons name="arrow-forward" size={24} color={LP.onBrand} />
             </Pressable>
-            <Pressable onPress={openMail} hitSlop={8}>
-              <Text style={s.ctaHint}>Oppure richiedi una demo → <Text style={{ color: LP.brand, fontWeight: "800" }}>info@advisoros.it</Text></Text>
+            <Pressable onPress={goDemo} hitSlop={8} testID="landing-goto-demo">
+              <Text style={s.ctaHint}>Oppure <Text style={{ color: LP.brand, fontWeight: "800" }}>richiedi una demo gratuita ↓</Text></Text>
             </Pressable>
           </Reveal>
+        </View>
+      </View>
+
+      {/* ───────────── RICHIEDI UNA DEMO ───────────── */}
+      <View style={[s.section, s.sectionAlt]} testID="landing-demo" onLayout={(e) => { demoY.current = e.nativeEvent.layout.y; }}>
+        <View style={s.container}>
+          <Reveal>
+            <Text style={s.kicker}>RICHIEDI UNA DEMO</Text>
+            <Text style={[s.title, compact && s.titleCompact]}>
+              Vuoi vederlo{"\n"}<Text style={s.titleAccent}>sul tuo lavoro?</Text>
+            </Text>
+            <Text style={s.lead}>
+              Lasciaci nome, azienda e telefono: ti richiamiamo per una demo di AdvisorOS con Axon sui tuoi casi reali. Senza impegno.
+            </Text>
+          </Reveal>
+          <View style={{ marginTop: 28 }}>
+            <DemoRequestForm />
+          </View>
         </View>
       </View>
 

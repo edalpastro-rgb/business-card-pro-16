@@ -56,6 +56,7 @@ _APX_TYPE_LABELS = {
     "briefing": "Briefing mattutino", "weekly": "Report settimanale", "inactive": "Cliente inattivo", "appointment_tomorrow": "Appuntamento domani",
     "contract_expiry": "Contratto in scadenza", "goal_progress": "Obiettivo settimanale", "deadline": "Scadenza critica",
     "callback_overdue": "Richiamata urgente non evasa", "imported_anomaly": "Anomalia dati importati", "custom_reminder": "Promemoria di AxonOS",
+    "lead_demo": "Richiesta demo (landing)",
 }
 
 _OMNI_EXTRA_SECTIONS.append((

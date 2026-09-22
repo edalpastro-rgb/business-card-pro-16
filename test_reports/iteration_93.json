@@ -1,0 +1,26 @@
+{
+  "summary": "V50.z314 — Landing pubblica + Richiedi una demo + Home bubble AXONOS TI SEGNALA. Backend: 7/7 pytest passed (POST /api/public/demo-request 200 with valid payload, 422 on short name/phone, 400 on consent=false, honeypot returns 200 without saving lead; owner GET /api/leads contains the seed lead with source=landing_demo/status=analyzed/free_text prefix; GET /api/axon/proactive/items?home=true contains type=lead_demo bubble mentioning 'Test Demo Agent' and 'Agenzia Test'). Frontend landing (390 & 1200): hero slogan-1 'Il CRM che pensa con te.' + landing-enter-btn visible; mantra/modulistica/ready/modules/cta sections all render; demo player caption changes from '1/4 · Scatti la bolletta' to '2/4 · Axon legge e capisce' within ~4.5s, pause toggle works; landing-module-corsi flips SPENTO→ATTIVO on tap; landing-goto-demo scrolls to landing-demo; demo-submit correctly disabled while empty, enabled after filling name/company/phone; submit produces demo-form-done 'Richiesta inviata!' (with axon reply generated in <45s). Regression: landing-enter-btn on mobile → /login OK; root '/' redirect → /landing OK. Owner Home (post-login on mobile): 'AXONOS TI SEGNALA' section with 'Richiesta demo (landing)' bubble containing 'Playwright Demo · PW Srl · Tel. +39 333 0000000' visible; /leads deep-link shows the card with '🏢 PW Srl · DEMO dalla landing' + phone. Console: 0 errors on /landing; 6 pre-existing 405/404 background calls on /leads (not related to this change — same as prior iterations). No red-screen anywhere.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z314_demo_request.py",
+    "/app/test_reports/pytest/v50z314_demo.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "35_reviews_leads.py public_demo_request: honeypot returns {ok:true} without a lead_id — front-end doesn't rely on lead_id so this is fine, but consider distinguishing internally (metric) for spam analytics.",
+    "DemoRequestForm.tsx honeypot: TextInput inside a pointerEvents='none' + accessibilityElementsHidden view is correctly invisible; verified no rendering issues on web."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (all critical flows verified)"},
+  "seed_data_creation": "1 lead created via /api/public/demo-request during backend tests (Test Demo Agent / Agenzia Test) + 1 lead via UI (Playwright Demo / PW Srl). Both visible in owner /api/leads with source=landing_demo.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Landing page loaded via /landing (public, no auth). Backend POST /api/public/demo-request accepts DemoRequestIn with honeypot 'website' field. Owner test@dalpastro.it/Test1234! sees seeded leads on Home under AXONOS TI SEGNALA. Login submit button on /login is a Pressable div with text 'Accedi' — Playwright query_selector by role/button doesn't work; use mouse.click at coords of the second visible 'Accedi' element. First-login redirects to /tour; navigate directly to /leads to bypass.",
+  "rca_of_issue": "N/A — no bugs found in this iteration."
+}

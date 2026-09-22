@@ -1079,3 +1079,70 @@ async def delete_lead(lead_id: str, user=Depends(get_current_user)):
 
 
 # =====================================================================
+
+
+# =========================================================================
+# V50.z314 — RICHIESTA DEMO dalla landing pubblica → lead per il proprietario della piattaforma
+# (env DEMO_LEAD_OWNER_EMAIL, altrimenti il Master più anziano) + avviso in Home (bubble proattiva),
+# in chat Axon e push. Il lead compare in «Richieste Info (Lead)» con source="landing_demo".
+# =========================================================================
+class DemoRequestIn(BaseModel):
+    full_name: str = Field(min_length=2, max_length=120)
+    company: str = Field(min_length=1, max_length=160)
+    phone: str = Field(min_length=6, max_length=40)
+    email: Optional[EmailStr] = None
+    consent_privacy: bool = True
+    website: str = ""  # honeypot anti-spam: deve restare vuoto
+
+
+async def _demo_lead_owner() -> Optional[dict]:
+    email = (os.environ.get("DEMO_LEAD_OWNER_EMAIL") or "").strip().lower()
+    proj = {"_id": 0, "password_hash": 0, "sensitive_password_enc": 0}
+    if email:
+        u = await db.users.find_one({"email": email}, proj)
+        if u:
+            return u
+    return await db.users.find_one({"role": "owner", "parent_user_id": None}, proj, sort=[("created_at", 1)])
+
+
+@api_router.post("/public/demo-request")
+async def public_demo_request(body: DemoRequestIn):
+    if body.website.strip():
+        return {"ok": True}  # bot: fingiamo successo senza salvare
+    if not body.consent_privacy:
+        raise HTTPException(status_code=400, detail="Devi accettare l'informativa privacy")
+    owner = await _demo_lead_owner()
+    if not owner:
+        raise HTTPException(status_code=503, detail="Servizio non disponibile")
+    tid = owner["user_id"]
+    lead_id = f"lead_{uuid.uuid4().hex[:12]}"
+    company = body.company.strip()
+    doc = {
+        "lead_id": lead_id, "user_id": tid, "source": "landing_demo",
+        "full_name": body.full_name.strip(), "company": company,
+        "email": (body.email or "").strip().lower() or None, "phone": body.phone.strip(),
+        "needs": [], "free_text": f"Richiesta DEMO dalla landing pubblica · Azienda: {company}",
+        "consent_privacy": True, "created_at": utcnow(), "status": "new",
+        "axon_reply_text": None, "axon_generated_at": None,
+        "master_reply_text": None, "master_reply_channel": None, "master_replied_at": None,
+    }
+    await db.public_leads.insert_one(doc)
+    try:
+        master_name = " ".join([owner.get("first_name") or "", owner.get("last_name") or ""]).strip() or owner.get("name") or owner.get("email") or "il tuo consulente"
+        reply_text = await _generate_axon_lead_reply(doc, master_name, style="friendly")
+        await db.public_leads.update_one({"lead_id": lead_id}, {"$set": {"axon_reply_text": reply_text, "axon_generated_at": utcnow(), "status": "analyzed"}})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[demo-request] axon reply failed for %s: %s", lead_id, exc)
+    try:
+        contact_line = doc["phone"] + (f" · {doc['email']}" if doc.get("email") else "")
+        await _apx_emit(owner, "alert", "lead_demo",
+                        f"🆕 Richiesta demo: {doc['full_name']} ({company})",
+                        f"{doc['full_name']} · {company} · Tel. {contact_line}. Chiede una demo di AdvisorOS dalla landing.",
+                        f"🆕 **Nuova richiesta demo dalla landing**\n\n• Nome: {doc['full_name']}\n• Azienda: {company}\n• Telefono: {doc['phone']}"
+                        + (f"\n• Email: {doc['email']}" if doc.get("email") else "") + "\n\nLa trovi in Richieste Info (Lead). Vuoi che prepari il messaggio di risposta?",
+                        dedupe_key=f"lead_demo:{lead_id}",
+                        actions=[{"label": "Apri il lead", "route": "/leads"}, {"label": "Prepara la risposta", "prompt": f"Prepara un messaggio WhatsApp breve per {doc['full_name']} di {company} che ha chiesto una demo di AdvisorOS: proponi due orari."}],
+                        source="landing", extra={"lead_id": lead_id}, push=True)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[demo-request] notify failed: %s", exc)
+    return {"ok": True, "lead_id": lead_id}

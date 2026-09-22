@@ -26,6 +26,8 @@ type Lead = {
   full_name: string;
   email?: string | null;
   phone?: string | null;
+  company?: string | null; // V50.z314 — richiesta demo dalla landing
+  source?: string | null;  // "landing_demo" | undefined (form pubblico)
   needs: string[];
   free_text: string;
   created_at: string;
@@ -408,6 +410,7 @@ export default function LeadsPage() {
                   <Text style={styles.freeTextPrev} numberOfLines={2}>“{l.free_text}”</Text>
                 ) : null}
                 <View style={styles.contactMini}>
+                  {l.company ? <Text style={styles.contactMiniTxt} testID={`lead-company-${l.lead_id}`}>🏢 {l.company}{l.source === "landing_demo" ? " · DEMO dalla landing" : ""}</Text> : null}
                   {l.email ? <Text style={styles.contactMiniTxt}>✉️ {l.email}</Text> : null}
                   {l.phone ? <Text style={styles.contactMiniTxt}>📞 {l.phone}</Text> : null}
                 </View>
