@@ -12,7 +12,9 @@ import { shareDataUri } from "@/src/share";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CrtFilePick, PickedFile } from "@/src/CrtFilePick";
 import { CrtDocOrder } from "@/src/CrtDocOrder"; // V50.z286
-import { CrtSignDate } from "@/src/CrtSignDate"; // V50.z286
+import { CrtTrainingBlock } from "@/src/CrtTrainingBlock"; // V50.z326 — BLOCCO 1
+import { CrtSaveShareBlock } from "@/src/CrtSaveShareBlock"; // V50.z326 — BLOCCO 4
+import { useAuth } from "@/src/auth";
 import { SVC, STATUS_LABEL, crtStyles as s } from "./index";
 
 type Supply = { supply_id: string; pod: string; pdr: string; line_number: string; supply_address: string; meter_power_kw: string; voltage: string; current_supplier: string; months_count: number; annual: number | null; annual_method: string; unit: string; bill_name: string; overrides: Record<string, any> };
@@ -33,6 +35,8 @@ export default function CrtPracticeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const pagePad = usePageBottomPadding();
+  const { user } = useAuth();
+  const isMaster = (user as any)?.role === "owner" || (user as any)?.is_owner;
   const [p, setP] = useState<Practice | null>(null);
   const [templates, setTemplates] = useState<{ template_id: string; name: string }[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -43,7 +47,6 @@ export default function CrtPracticeScreen() {
   // V50.z286 — ordine documenti solo per questa pratica (bozza locale) + luogo firma
   const [orderOpen, setOrderOpen] = useState(false);
   const [orderDraft, setOrderDraft] = useState<{ order: string[]; excluded: string[] } | null>(null);
-  const [placeDraft, setPlaceDraft] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try { setP(await api<Practice>(`/crt/${id}`)); const t = await api<any>("/form-templates"); setTemplates(t.items || t || []); } catch (e: any) { notify("CRT", e?.message || ""); }
@@ -59,12 +62,11 @@ export default function CrtPracticeScreen() {
   const selectAllBills = (svc: string) => run(`bills-${svc}`, async () => { await api(`/crt/${id}/services/${svc}`, { method: "PUT", body: { bill_ids: p.available_bills.filter((b) => b.bill_type === svc).map((b) => b.bill_id) } }); });
   const setAnnual = (svc: string, sid: string, v: string) => run(`ann-${sid}`, async () => { await api(`/crt/${id}/services/${svc}`, { method: "PUT", body: { supply_overrides: { [sid]: { annual: v ? Number(v.replace(/\D/g, "")) : null } } } }); });
   const fill = (svc: string, tid: string) => run(`fill-${svc}`, async () => { const r = await api<any>(`/crt/${id}/services/${svc}/fill`, { method: "POST", body: { template_id: tid } }); notify("Axon", `${r.supplies} forniture su ${r.copies} ${r.copies > 1 ? "copie del modulo" : "modulo"} (${r.rows_per_form} righe per modulo)`); });
-  const merge = () => run("merge", async () => { const r = await api<any>(`/crt/${id}/merge`, { method: "POST", body: { include_dossier: true } }); await shareDataUri(`data:application/pdf;base64,${r.data_base64}`, r.name, "application/pdf"); });
-  const download = () => run("dl", async () => { const r = await api<any>(`/crt/${id}/merged`); await shareDataUri(`data:${r.mime};base64,${r.data_base64}`, r.name, r.mime); });
+  const merge = () => run("merge", async () => { await api<any>(`/crt/${id}/merge`, { method: "POST", body: { include_dossier: true } }); }, "Documento unico composto e salvato negli allegati del cliente");
   const qr = () => run("qr", async () => { setShare(await api<any>(`/crt/${id}/share-link`, { method: "POST" })); });
   const setStatus = (st: string) => run("status", async () => { await api(`/crt/${id}`, { method: "PUT", body: { status: st } }); });
   const setSignDate = (iso: string) => run("sign", async () => { await api(`/crt/${id}`, { method: "PUT", body: { sign_date: iso } }); }, iso ? "Data firma impostata: vale per tutti i moduli (ricompila per aggiornarli)" : "Data firma: data di compilazione");
-  const savePlace = (v: string) => run("sign", async () => { await api(`/crt/${id}`, { method: "PUT", body: { sign_place: v } }); setPlaceDraft(null); }, "Luogo firma salvato: vale per tutti i moduli (ricompila per aggiornarli)");
+  const savePlace = (v: string) => run("sign", async () => { await api(`/crt/${id}`, { method: "PUT", body: { sign_place: v } }); }, "Luogo firma salvato: vale per tutti i moduli (ricompila per aggiornarli)");
   const saveOrder = () => run("order", async () => { if (!orderDraft) return; await api(`/crt/${id}`, { method: "PUT", body: { doc_order: orderDraft.order, doc_excluded: orderDraft.excluded } }); setOrderDraft(null); setOrderOpen(false); }, "Ordine documenti salvato solo per questa pratica");
   const resetOrder = () => run("order", async () => { await api(`/crt/${id}`, { method: "PUT", body: { doc_order: [], doc_excluded: [] } }); setOrderDraft(null); setOrderOpen(false); }, "Questa pratica usa l’ordine predefinito");
   const DOSSIER_ORDER = Object.keys(p.doc_types);
@@ -73,13 +75,20 @@ export default function CrtPracticeScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.surface }} edges={["top"]}>
       <View style={s.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn} testID="crt-detail-back"><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
-        <View style={{ flex: 1 }}><Text style={s.title} numberOfLines={1}>{p.title}</Text><Text style={s.sub}>{p.contact_name} · {STATUS_LABEL[p.status] || p.status}</Text></View>
+        <View style={{ flex: 1 }}><Text style={s.title} numberOfLines={1}>{p.title}</Text><Text style={s.sub}>Autocompilazione CRT · {p.contact_name} · {STATUS_LABEL[p.status] || p.status}</Text></View>
       </View>
       <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }}>
-        {/* 1 · DOSSIER */}
+        {/* V50.z326 — BLOCCO 1 · Modelli di addestramento */}
+        <CrtTrainingBlock isMaster={!!isMaster} signDate={p.sign_date || ""} signDateEffective={p.sign_date_effective} signPlace={p.sign_place || ""} signPlaceSuggested={p.sign_place_suggested}
+          onSignDate={(iso) => void setSignDate(iso)} onSignPlace={(v) => void savePlace(v)} busy={busy === "sign"} />
+
+        {/* BLOCCO 2 · Documenti del cliente */}
         <View style={s.card} testID="crt-dossier">
-          <Text style={s.section}>1 · Dossier documenti</Text>
-          <Text style={s.hint}>Carica da telefono, Drive o Dropbox: Axon estrae i dati. Tocca una card per vedere/correggere i valori. Il dossier vale per tutti i servizi della pratica.</Text>
+          <Text style={s.section}>BLOCCO 2 · Documenti del cliente</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, backgroundColor: "#EDE9FE" }} testID="crt-client-docs-cta">
+            <Ionicons name="cloud-upload-outline" size={28} color="#7C3AED" />
+            <View style={{ flex: 1 }}><Text style={{ fontWeight: "900", color: theme.color.onSurface, fontSize: 15 }}>Carica documenti cliente</Text><Text style={s.hint}>Telefono, Drive o Dropbox: apri un documento qui sotto e carica il file. Axon estrae i dati e li mostra in anteprima per la verifica.</Text></View>
+          </View>
           {DOSSIER_ORDER.map((dt) => {
             const d = p.dossier?.[dt]; const vals = { ...(d?.extracted || {}), ...(d?.manual || {}) }; const n = Object.keys(vals).length; const open = openDoc === dt;
             const idDocs = dt === "id_card" ? p.available_identity_docs.filter((x) => /ident|carta/i.test(x.doc_type)) : dt === "tax_code" ? p.available_identity_docs.filter((x) => /fisc|sanit/i.test(x.doc_type)) : [];
@@ -115,7 +124,7 @@ export default function CrtPracticeScreen() {
           const bills = p.available_bills.filter((b) => b.bill_type === svc); const forms = p.filled_forms.filter((f) => f.service === svc);
           return (
             <View key={svc} style={[s.card, { borderColor: meta.color }]} testID={`crt-svc-${svc}`}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><Ionicons name={meta.icon} size={18} color={meta.color} /><Text style={s.section}>{si + 2} · Servizio {meta.label}</Text></View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><Ionicons name={meta.icon} size={18} color={meta.color} /><Text style={s.section}>BLOCCO 3 · Composizione · Servizio {meta.label}</Text></View>
               <Text style={s.label}>Fatture del cliente ({sv.bill_ids.length}/{bills.length} selezionate) → una fornitura per POD/PDR</Text>
               {bills.length === 0 ? <Text style={s.hint}>Nessuna fattura {meta.label} analizzata per questo cliente: caricale prima dal caricatore fatture della scheda cliente.</Text> : (
                 <View style={{ flexDirection: "row", gap: 8 }}>
@@ -153,48 +162,33 @@ export default function CrtPracticeScreen() {
           );
         })}
 
-        {/* 3 · PDF UNICO */}
+        {/* V50.z326 — BLOCCO 3 · Composizione documento finale */}
         <View style={s.card} testID="crt-final">
-          <Text style={s.section}>{p.services.length + 2} · PDF unico e condivisione</Text>
-          <Text style={s.hint}>Unisce moduli compilati e documenti del dossier nell’ordine scelto, con indice iniziale; compresso e salvato negli allegati del cliente.</Text>
-          {/* V50.z286 — data e luogo firma (facoltativi, mai vincolanti) */}
-          <Text style={s.label}>Data firma (facoltativa · anche retroattiva o posticipata)</Text>
-          <CrtSignDate value={p.sign_date || ""} effective={p.sign_date_effective} onChange={(iso) => void setSignDate(iso)} busy={busy === "sign"} />
-          <Text style={s.label}>Luogo firma (per tutti i moduli)</Text>
-          <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-            <TextInput value={placeDraft ?? (p.sign_place || "")} onChangeText={setPlaceDraft} placeholder={p.sign_place_suggested ? `Proposto: ${p.sign_place_suggested}` : "Es. Treviso"} placeholderTextColor={theme.color.muted} style={[s.input, { flex: 1 }]} testID="crt-sign-place" />
-            {placeDraft !== null && placeDraft !== (p.sign_place || "") ? <Pressable onPress={() => void savePlace(placeDraft)} style={[s.btn, { backgroundColor: theme.color.brandPrimary, minHeight: 44, paddingHorizontal: 12 }]} testID="crt-sign-place-save">{busy === "sign" ? <ActivityIndicator color="#FFF" /> : <Text style={s.btnTxt}>Salva</Text>}</Pressable> : null}
-          </View>
-          {!p.sign_place && p.sign_place_suggested ? (
-            <Pressable onPress={() => void savePlace(p.sign_place_suggested)} style={[s.chip, { alignSelf: "flex-start" }]} testID="crt-sign-place-suggest"><Ionicons name="sparkles" size={14} color={theme.color.brandPrimary} /><Text style={s.chipTxt}>Usa «{p.sign_place_suggested}» (da visura / scheda)</Text></Pressable>
-          ) : <Text style={s.hint}>{p.sign_place ? "Inserito a mano." : "Nessuna proposta: carica la visura camerale o inserisci il luogo a mano."}</Text>}
-          {/* V50.z286 — ordine documenti solo per questa pratica */}
+          <Text style={s.section}>BLOCCO 3 · Composizione documento finale</Text>
+          <Text style={s.hint}>Axon assembla il documento unico (moduli compilati + documenti del cliente) con indice iniziale. Ordine pagine modificabile qui sotto o predefinito dal Master. Ogni sezione è correggibile prima di salvare (Blocco 2 e servizi).</Text>
           <Pressable onPress={() => { setOrderOpen((v) => !v); if (!orderDraft) setOrderDraft({ order: p.doc_order_effective, excluded: p.doc_excluded_effective }); }} style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44 }} testID="crt-practice-order-toggle">
             <Ionicons name="swap-vertical" size={16} color={theme.color.brandPrimary} />
-            <Text style={[s.hint, { color: theme.color.onSurface, flex: 1 }]}>Ordine documenti {p.doc_order_is_override ? "(personalizzato per questa pratica)" : "(predefinito)"}: {p.doc_order_effective.filter((k) => !p.doc_excluded_effective.includes(k)).map((k) => p.doc_order_labels[k] || k).join(" → ")}</Text>
+            <Text style={[s.hint, { color: theme.color.onSurface, flex: 1 }]}>Ordine pagine {p.doc_order_is_override ? "(personalizzato per questa pratica)" : "(predefinito Master)"}: {p.doc_order_effective.filter((k) => !p.doc_excluded_effective.includes(k)).map((k) => p.doc_order_labels[k] || k).join(" → ")}</Text>
             <Ionicons name={orderOpen ? "chevron-up" : "chevron-down"} size={16} color={theme.color.muted} />
           </Pressable>
           {orderOpen && orderDraft ? (
             <>
               <CrtDocOrder order={orderDraft.order} excluded={orderDraft.excluded} labels={p.doc_order_labels} onChange={(o, e) => setOrderDraft({ order: o, excluded: e })} testID="crt-practice-order" />
               <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable onPress={saveOrder} disabled={busy === "order"} style={[s.btn, { flex: 1, backgroundColor: theme.color.brandPrimary }]} testID="crt-practice-order-save">{busy === "order" ? <ActivityIndicator color="#FFF" /> : <Text style={s.btnTxt}>Salva solo per questa pratica</Text>}</Pressable>
+                <Pressable onPress={saveOrder} disabled={busy === "order"} style={[s.btn, { flex: 1, backgroundColor: theme.color.brandPrimary }]} testID="crt-practice-order-save">{busy === "order" ? <ActivityIndicator color="#FFF" /> : <Text style={s.btnTxt}>Salva ordine per questa pratica</Text>}</Pressable>
                 {p.doc_order_is_override ? <Pressable onPress={resetOrder} style={[s.btn, s.ghost]} testID="crt-practice-order-reset"><Text style={[s.btnTxt, { color: theme.color.brandPrimary }]}>Usa predefinito</Text></Pressable> : null}
               </View>
             </>
           ) : null}
           {p.merged_pdf ? <Text style={[s.hint, { color: theme.color.onSurface }]}>📎 {p.merged_pdf.name} · {p.merged_pdf.pages} sezioni · {(p.merged_pdf.size / 1024).toFixed(0)} KB{p.merged_pdf.too_big ? " · ⚠️ oltre 10 MB: valuta invio per servizio" : ""}</Text> : null}
-          <Pressable onPress={merge} disabled={busy === "merge"} style={[s.btn, { backgroundColor: "#7C3AED" }]} testID="crt-merge">{busy === "merge" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="albums-outline" size={18} color="#FFF" /><Text style={s.btnTxt}>{p.merged_pdf ? "Rigenera e condividi PDF unico" : "Genera PDF unico"}</Text></>}</Pressable>
-          {p.merged_pdf ? (
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable onPress={download} style={[s.btn, s.ghost, { flex: 1 }]} testID="crt-download"><Ionicons name="share-social-outline" size={16} color={theme.color.brandPrimary} /><Text style={[s.btnTxt, { color: theme.color.brandPrimary }]}>Mail / WhatsApp</Text></Pressable>
-              <Pressable onPress={qr} style={[s.btn, s.ghost, { flex: 1 }]} testID="crt-qr">{busy === "qr" ? <ActivityIndicator color={theme.color.brandPrimary} /> : <><Ionicons name="qr-code-outline" size={16} color={theme.color.brandPrimary} /><Text style={[s.btnTxt, { color: theme.color.brandPrimary }]}>QR code</Text></>}</Pressable>
-            </View>
-          ) : null}
+          <Pressable onPress={merge} disabled={busy === "merge"} style={[s.btn, { backgroundColor: "#7C3AED", minHeight: 56 }]} testID="crt-merge">{busy === "merge" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="albums-outline" size={20} color="#FFF" /><Text style={[s.btnTxt, { fontSize: 15 }]}>{p.merged_pdf ? "Rigenera documento unico" : "Componi documento unico"}</Text></>}</Pressable>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
             {Object.entries(STATUS_LABEL).map(([k, l]) => <Pressable key={k} onPress={() => void setStatus(k)} style={[s.chip, p.status === k && { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]} testID={`crt-status-${k}`}><Text style={[s.chipTxt, p.status === k && { color: "#FFF" }]}>{l}</Text></Pressable>)}
           </View>
         </View>
+
+        {/* V50.z326 — BLOCCO 4 · Salvataggio e condivisione */}
+        <CrtSaveShareBlock practiceId={p.practice_id} contactName={p.contact_name} hasPdf={!!p.merged_pdf} busy={busy} run={run} onQr={qr} onMerge={() => void merge()} />
       </ScrollView>
 
       {/* scelta fatture */}

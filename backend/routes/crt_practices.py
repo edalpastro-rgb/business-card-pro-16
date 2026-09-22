@@ -583,7 +583,57 @@ async def crt_merged_download(practice_id: str, user=Depends(get_current_user)):
     return {"name": p["merged_pdf"]["name"], "mime": "application/pdf", "data_base64": base64.b64encode(raw).decode()}
 
 
-# ------------------------------- esempi compilati → Axon impara -------------------------------
+# ------------------------------- V50.z326 — Autocompilazione CRT: campi da estrarre + salva nel database Master -------------------------------
+CRT_EXTRACT_PRESETS = [
+    {"key": "full_name", "label": "Nome e cognome"}, {"key": "tax_code", "label": "Codice fiscale"}, {"key": "vat_number", "label": "Partita IVA"},
+    {"key": "address", "label": "Indirizzo / sede"}, {"key": "iban", "label": "IBAN"}, {"key": "birth", "label": "Data e luogo di nascita"},
+    {"key": "id_document", "label": "Numero e scadenza documento"}, {"key": "phone", "label": "Telefono"}, {"key": "email", "label": "Email"},
+    {"key": "pod_pdr", "label": "POD / PDR"}, {"key": "company_name", "label": "Ragione sociale"}, {"key": "rea", "label": "REA / registro imprese"},
+]
+
+
+class CrtExtractIn(BaseModel):
+    fields: List[str] = Field(default_factory=list)
+    custom_fields: List[str] = Field(default_factory=list)
+    sign_place_date_everywhere: bool = True
+    notes: Optional[str] = ""
+
+
+@api_router.get("/crt/settings/extract")
+async def crt_extract_get(user=Depends(get_current_user)):
+    s = await db.crt_settings.find_one({"tenant_id": tenant_id(user)}, {"_id": 0, "extract": 1}) or {}
+    ex = s.get("extract") or {}
+    return {"presets": CRT_EXTRACT_PRESETS, "fields": ex.get("fields") or [p["key"] for p in CRT_EXTRACT_PRESETS[:5]],
+            "custom_fields": ex.get("custom_fields") or [], "sign_place_date_everywhere": ex.get("sign_place_date_everywhere", True), "notes": ex.get("notes") or ""}
+
+
+@api_router.put("/crt/settings/extract")
+async def crt_extract_put(body: CrtExtractIn, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master può impostare i campi da estrarre")
+    ex = {"fields": [f for f in body.fields if f][:40], "custom_fields": [c.strip()[:60] for c in body.custom_fields if c.strip()][:20],
+          "sign_place_date_everywhere": body.sign_place_date_everywhere, "notes": (body.notes or "").strip()[:500], "updated_at": utcnow()}
+    await db.crt_settings.update_one({"tenant_id": tenant_id(user)}, {"$set": {"extract": ex, "tenant_id": tenant_id(user)}}, upsert=True)
+    return {"ok": True, **ex}
+
+
+@api_router.post("/crt/{practice_id}/save-master")
+async def crt_save_master(practice_id: str, user=Depends(get_current_user)):
+    """Copia il PDF unico della pratica nel database Master (master_files, categoria files)."""
+    p = await _crt_get(practice_id, user)
+    if not p.get("merged_pdf"):
+        raise HTTPException(status_code=404, detail="Genera prima il PDF unico")
+    raw = await _ft_load_pdf(p["merged_pdf"])
+    if not raw:
+        raise HTTPException(status_code=404, detail="PDF non disponibile")
+    b64 = base64.b64encode(raw).decode()
+    owner_id = user.get("parent_user_id") or user["user_id"]
+    fid = f"mf_{uuid.uuid4().hex[:12]}"
+    await db.master_files.insert_one({"file_id": fid, "user_id": owner_id, "created_by": user["user_id"], "category": "files", "name": p["merged_pdf"]["name"],
+                                      "title": f"CRT · {p.get('title') or ''}".strip(), "body": f"Pratica CRT di {p.get('contact_name') or ''}", "mime": "application/pdf",
+                                      "data_base64": b64, "size": len(raw), "created_at": utcnow(), "updated_at": utcnow(), "source": "crt", "source_practice_id": practice_id})
+    await db.crt_practices.update_one({"practice_id": practice_id}, {"$set": {"saved_master_file_id": fid, "saved_master_at": utcnow()}})
+    return {"ok": True, "file_id": fid, "name": p["merged_pdf"]["name"]}
 @api_router.post("/form-templates/{template_id}/examples")
 async def form_template_example(template_id: str, body: FormExampleIn, user=Depends(get_current_user)):
     """Zona esempi: carica un modulo COMPILATO d'esempio. Axon confronta con i campi del modello e impara:

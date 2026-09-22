@@ -437,3 +437,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z323 — Axon Core fase 1: routes/axon_core.py (users.product advisor|lite, manifest, /axon/core/me, admin products, set product), identità/sezione prompt per prodotto in 21_axon_streaming, product in register/google/UserOut, admin customers 'App:'. pytest test_v50z323 3/3 (chat Lite risponde come AxonOS Lite). Prompt Lite: /app/memory/AXON_CORE_LITE_PROMPT.md"
+
+  - agent: "main"
+    message: "V50.z326 — Autocompilazione CRT in 4 blocchi: src/CrtTrainingBlock.tsx (Blocco 1), src/CrtSaveShareBlock.tsx (Blocco 4), app/crt/[id].tsx ristrutturato; backend crt_practices.py: GET/PUT /crt/settings/extract, POST /crt/{id}/save-master. pytest 1/1, screenshot web ok."
