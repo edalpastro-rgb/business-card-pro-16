@@ -58,6 +58,8 @@ class UserSettingsIn(BaseModel):
     banner_image_url: Optional[str] = None  # Master banner override
     assistant_name: Optional[str] = None  # AI assistant custom name (default "Neo")
     assistant_response_mode: Optional[str] = None  # "text" | "voice" | "both" (default "text")
+    pun_alert_threshold: Optional[float] = None  # V50.z325 — soglia €/kWh media parziale mese (0 = disattivo)
+    pun_alert_band: Optional[str] = None  # V50.z325 — monorario | F1 | F2 | F3
     assistant_voice: Optional[str] = None  # OpenAI TTS voice: alloy | echo | fable | onyx | nova | shimmer
     assistant_language: Optional[str] = None  # V50.z271 — lingua delle risposte di Axon (it | en | es | fr | de | pt | ro | uk | ar | zh)
     # V28.o — Azioni rapide personalizzabili mostrate nell'empty state della chat Axon.

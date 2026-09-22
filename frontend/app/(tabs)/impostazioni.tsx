@@ -19,6 +19,7 @@ import { AxonMemoryEntryCard } from "@/src/AxonMemoryEntryCard"; // V50.z192 —
 import { AppInfoCard } from "@/src/AppInfoCard"; // V50.z208 — Piano attivo + versione APK
 import { PromoRedeemCard } from "@/src/PromoCodeField"; // V50.z320 — codice promozionale
 import { ReferralCard } from "@/src/ReferralCard"; // V50.z322 — Invita un amico
+import { PunAlertCard } from "@/src/PunAlertCard"; // V50.z325 — Avviso soglia PUN
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5
 import { ResetTestDataCard } from "@/src/ResetTestDataCard"; // V50.z288 — Azzera dati di test (Master)
 import { AxonToneLevelPicker } from "@/src/AxonToneLevelPicker"; // V50.z218 — Blocco 6: tono a 5 livelli (5 = Fantasiosa)
@@ -814,6 +815,8 @@ function ImpostazioniScreen() {
         </>)}
 
         {sec === "axon" && (<>
+        {/* V50.z325 — Avviso soglia PUN (media parziale del mese) */}
+        <PunAlertCard />
         {/* AI Assistant customization — available to all users */}
         <View style={styles.card} testID="assistant-name-card">
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>

@@ -514,9 +514,47 @@ async def _punq_partial_refresh(year: Optional[int] = None, month: Optional[int]
     return {**doc, "saved": True}
 
 
+async def _punq_threshold_alerts(doc: dict) -> int:
+    """V50.z325 — Avviso soglia: per ogni utente con `pun_alert_threshold` (€/kWh) impostato, se la media parziale del mese
+    (fascia scelta, default monorario) SUPERA la soglia → card proattiva + messaggio in chat, una sola volta per mese/soglia (dedupe)."""
+    sent = 0
+    key = doc.get("month_key"); label = f"{_GME_MONTH_NAMES_REV.get(int(doc.get('month') or 0), '').capitalize()} {doc.get('year')}"
+    async for st in db.user_settings.find({"pun_alert_threshold": {"$gt": 0}}, {"_id": 0, "user_id": 1, "pun_alert_threshold": 1, "pun_alert_band": 1}):
+        band = st.get("pun_alert_band") if st.get("pun_alert_band") in ("monorario", "F1", "F2", "F3") else "monorario"
+        raw = doc.get(band)
+        if raw is None:
+            continue
+        val = round(float(raw) / 1000.0, 6)  # €/MWh → €/kWh
+        thr = float(st["pun_alert_threshold"])
+        if val <= thr:
+            continue
+        user = await db.users.find_one({"user_id": st["user_id"]}, {"_id": 0})
+        if not user:
+            continue
+        band_lbl = "monorario" if band == "monorario" else band
+        title = f"⚡ PUN {label} sopra la tua soglia"
+        body = f"Media parziale {band_lbl} giorni 1–{doc.get('days')}: {_punq_fmt(val)} €/kWh (soglia {_punq_fmt(thr)})"
+        chat = (f"⚡ **Attenzione PUN**: la media parziale {band_lbl} di **{label}** (giorni 1–{doc.get('days')}) è **{_punq_fmt(val)} €/kWh**, "
+                f"sopra la soglia che hai impostato ({_punq_fmt(thr)} €/kWh). Monorario {_punq_fmt(_punq_kwh(doc.get('monorario'), '€/MWh'))} · "
+                f"F1 {_punq_fmt(_punq_kwh(doc.get('F1'), '€/MWh'))} · F2 {_punq_fmt(_punq_kwh(doc.get('F2'), '€/MWh'))} · F3 {_punq_fmt(_punq_kwh(doc.get('F3'), '€/MWh'))}. "
+                f"Vuoi la tabella completa o avvisare i tuoi clienti?")
+        try:
+            r = await _apx_emit(user, "alert", "pun_threshold", title, body, chat, f"pun_threshold:{key}:{band}:{thr}",
+                                [{"label": "Tabella PUN 18 mesi", "prompt": "Tabella PUN medio per fasce ultimi 18 mesi"}], "scheduler",
+                                {"month_key": key, "band": band, "value": val, "threshold": thr})
+            if r:
+                sent += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[punq] threshold alert failed for %s: %s", st["user_id"], exc)
+    return sent
+
+
 async def _punq_partial_tick() -> dict:
     try:
-        return await _punq_partial_refresh()
+        r = await _punq_partial_refresh()
+        if r.get("saved"):
+            r["alerts_sent"] = await _punq_threshold_alerts(r)
+        return r
     except Exception as exc:  # noqa: BLE001
         logger.warning("[punq] partial refresh failed: %s", exc)
         return {"saved": False, "error": str(exc)}
