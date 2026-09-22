@@ -1,5 +1,6 @@
 import { storage } from "@/src/utils/storage";
 import { emitDeviceSuspended } from "@/src/device"; // V50.z293
+import { emitSubscriptionExpired } from "@/src/paywallEvents"; // V50.z330
 import * as offline from "@/src/offline"; // V50.z279 — modalità aereo: cache GET + coda scritture
 
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL as string;
@@ -93,6 +94,8 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
     } catch {}
     // V50.z293 — dispositivo sospeso/rimosso dal registro (account in uso su un altro dispositivo dello stesso tipo) → logout forzato
     if (res.status === 401 && msg === "device_suspended") emitDeviceSuspended(msg);
+    // V50.z330 — prova/abbonamento scaduto → schermata /paywall
+    if (res.status === 402 && msg === "subscription_expired") emitSubscriptionExpired();
     throw new Error(msg);
   }
   if (res.status === 204) return undefined as any;

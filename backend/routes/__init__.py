@@ -102,5 +102,6 @@ MODULES = [
     "axon_promo_codes.py",  # V50.z320 — Codici promozionali: CRUD Super Admin (/admin/promo-codes), riscatto utente (/promo/redeem), job scadenza premium (isolato; usa 36 require_super_admin)
     "axon_referral.py",  # V50.z322 — «Invita un amico»: codice personale AMICO-NOME-XXXX, premi configurabili (GET/PUT /admin/referral-settings), GET /referral/me, GET /admin/referrals; riscatto via /promo/redeem (isolato; DOPO axon_promo_codes)
     "axon_core.py",  # V50.z323 — Axon Core: users.product (advisor|lite), identità/sezione prompt per prodotto, manifest, admin prodotti (DOPO 36)
+    "axon_paywall.py",  # V50.z330 — Paywall fine prova: middleware 402 subscription_expired, Stripe Checkout (/billing/*), webhook, richiesta attivazione (DOPO 10, 36, axon_personal_lock; PRIMA di 37)
     "37_app_startup_scheduler.py",
 ]

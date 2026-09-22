@@ -16,9 +16,11 @@ type Props = {
   /** Onboarding: mostra «Salta» e chiama onDone dopo applicazione o salto */
   onDone?: () => void | Promise<void>;
   compact?: boolean;
+  /** V50.z330 — Paywall: chiamato dopo un riscatto riuscito (es. per ricontrollare lo stato abbonamento) */
+  onApplied?: () => void;
 };
 
-export function PromoCodeField({ onDone, compact }: Props) {
+export function PromoCodeField({ onDone, compact, onApplied }: Props) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -34,6 +36,7 @@ export function PromoCodeField({ onDone, compact }: Props) {
       setResult({ ok: true, text: `${r.benefit_summary} · ${r.message}` });
       setCode("");
       AsyncStorage.removeItem(PENDING_REFERRAL_KEY).catch(() => {});
+      onApplied?.();
     } catch (e: any) {
       setResult({ ok: false, text: e?.message || "Codice non valido" });
     } finally {

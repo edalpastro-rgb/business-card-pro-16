@@ -27,6 +27,7 @@ import { EdgePanel } from "@/src/EdgePanel";
 import { OnboardingWizard } from "@/src/OnboardingWizard";
 import { AnimatedSplash } from "@/src/AnimatedSplash";
 import { FabStackProvider } from "@/src/FabStack";
+import { usePaywallGuard } from "@/src/paywall"; // V50.z330
 import { ActiveCallProvider } from "@/src/CallTimerBar";
 import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
@@ -152,7 +153,7 @@ function StackWithCallBar() {
   const { user } = useAuth();
   // V50.z257 — Tour conversazionale a schermo intero: niente FAB/Edge/bottom nav sopra
   const pathname = usePathname() || "";
-  const inTour = pathname.startsWith("/tour");
+  const inTour = pathname.startsWith("/tour") || pathname.startsWith("/paywall"); // V50.z330 — sul paywall niente FAB/tab bar/edge panel
   const router = useRouter();
   useEffect(() => {
     // V50.z13 — Response listener globale: tap su notifica sveglia/timer/
@@ -206,6 +207,7 @@ function StackWithCallBar() {
     if (!user?.user_id) return;
     registerForPush(user.user_id).catch(() => {});
   }, [user?.user_id]);
+  usePaywallGuard(user?.user_id); // V50.z330 — abbonamento scaduto → /paywall
   return (
     <View style={{ flex: 1 }}>
       {/* V50.z279 — Banner offline / sincronizzazione (sopra lo Stack, tocca → /offline-sync) */}

@@ -220,13 +220,16 @@ async def _promo_apply_benefit(code_doc: dict, target: dict) -> str:
     v = int(code_doc.get("benefit_value") or 1)
     uid = target["user_id"]
     if t in ("free_weeks", "free_months"):
-        if target.get("subscription_status") == "free_forever":
+        cur = _promo_as_dt(target.get("trial_expires_at"))
+        # V50.z330 — account senza scadenza (free_forever o «active» storico senza trial_expires_at) = illimitato:
+        # non va trasformato in una prova a termine (prima un codice «1 settimana» riduceva l'owner a 7 giorni!)
+        if target.get("subscription_status") == "free_forever" or (cur is None and target.get("subscription_status") in (None, "active")):
             return "Il tuo accesso è già illimitato: il codice è stato registrato."
         delta = timedelta(weeks=v) if t == "free_weeks" else timedelta(days=30 * v)
-        cur = _promo_as_dt(target.get("trial_expires_at"))
         base = cur if (cur and cur > now) else now
         new_exp = base + delta
         await db.users.update_one({"user_id": uid}, {"$set": {"trial_expires_at": new_exp, "subscription_status": "trial" if target.get("subscription_status") in (None, "trial", "expired") else target.get("subscription_status")}})
+        _pw_invalidate()  # noqa: F821 — V50.z330: sblocca subito il paywall
         return f"Periodo gratuito esteso fino al {new_exp.strftime('%d/%m/%Y')}."
     if t == "premium":
         pd = code_doc.get("premium_days")

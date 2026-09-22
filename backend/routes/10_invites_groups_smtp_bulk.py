@@ -49,7 +49,7 @@ def _subscription_state(user: dict) -> Dict[str, Any]:
             if exp.tzinfo is None:
                 exp = exp.replace(tzinfo=timezone.utc)
             days_left = int(-(-(exp - utcnow()).total_seconds() // 86400))  # V50.z329 — per eccesso: giorno 1 → 14
-            if status_str == "trial" and days_left < 0:
+            if status_str in ("trial", "active") and days_left < 0:  # V50.z330 — anche i piani pagati (Stripe) scadono
                 status_str = "expired"
     return {
         "status": status_str,
@@ -292,6 +292,7 @@ async def extend_trial(user_id: str, body: ExtendTrialIn, user=Depends(get_curre
         {"user_id": user_id},
         {"$set": {"trial_expires_at": new_exp, "subscription_status": "trial"}},
     )
+    _pw_invalidate()  # noqa: F821 — V50.z330
     fresh = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     return {"user_id": user_id, "subscription": _subscription_state(fresh), "trial_expires_at": new_exp.isoformat()}
 
@@ -308,6 +309,7 @@ async def set_free_forever(user_id: str, user=Depends(get_current_user)):
         {"user_id": user_id},
         {"$set": {"subscription_status": "free_forever"}, "$unset": {"trial_expires_at": ""}},
     )
+    _pw_invalidate()  # noqa: F821 — V50.z330
     fresh = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     return {"user_id": user_id, "subscription": _subscription_state(fresh)}
 
