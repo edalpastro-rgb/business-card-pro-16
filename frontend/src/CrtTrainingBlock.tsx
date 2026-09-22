@@ -48,14 +48,14 @@ export function CrtTrainingBlock({ isMaster, signDate, signDateEffective, signPl
           <Ionicons name="school-outline" size={26} color="#7C3AED" />
           <Text style={{ fontWeight: "800", color: theme.color.onSurface }}>Carica contratto compilato di esempio</Text>
           <Text style={s.hint}>Axon impara da documenti già compilati come riferimento</Text>
-          {isMaster ? (loading === "ex" ? <ActivityIndicator color="#7C3AED" /> : <CrtFilePick compact label="Carica" onPicked={(f) => void uploadExample(f)} testID="crt-train-example-pick" />) : <Text style={s.hint}>Solo Master</Text>}
+          {isMaster ? (loading === "ex" ? <ActivityIndicator color="#7C3AED" /> : <CrtFilePick compact dropZone dropHint="Trascina qui il contratto compilato oppure" label="Carica" onPicked={(f) => void uploadExample(f)} testID="crt-train-example-pick" />) : <Text style={s.hint}>Solo Master</Text>}
           {example?.example_name ? <Text style={s.hint} numberOfLines={1}>📎 {example.example_name}</Text> : null}
         </View>
         <View style={{ flex: 1, gap: 6, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface }} testID="crt-train-blank">
           <Ionicons name="document-outline" size={26} color={theme.color.brandPrimary} />
           <Text style={{ fontWeight: "800", color: theme.color.onSurface }}>Carica modulo vuoto da compilare</Text>
           <Text style={s.hint}>Il template che Axon riempirà con i dati del cliente</Text>
-          {loading === "tpl" ? <ActivityIndicator color={theme.color.brandPrimary} /> : <CrtFilePick compact label="Carica" onPicked={(f) => void uploadBlank(f)} testID="crt-train-blank-pick" />}
+          {loading === "tpl" ? <ActivityIndicator color={theme.color.brandPrimary} /> : <CrtFilePick compact dropZone dropHint="Trascina qui il modulo vuoto oppure" label="Carica" onPicked={(f) => void uploadBlank(f)} testID="crt-train-blank-pick" />}
         </View>
       </View>
       {blanks.length ? blanks.map((t) => (

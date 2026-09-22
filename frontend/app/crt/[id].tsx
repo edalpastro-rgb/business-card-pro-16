@@ -102,7 +102,7 @@ export default function CrtPracticeScreen() {
                 </Pressable>
                 {open ? (
                   <View style={{ gap: 6 }}>
-                    {busy === `doc-${dt}` ? <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}><ActivityIndicator color={theme.color.brandPrimary} /><Text style={s.hint}>Axon sta leggendo il documento…</Text></View> : dt !== "referent" ? <CrtFilePick compact label="Telefono" onPicked={(f) => void uploadDoc(dt, f)} testID={`crt-doc-pick-${dt}`} /> : null}
+                    {busy === `doc-${dt}` ? <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}><ActivityIndicator color={theme.color.brandPrimary} /><Text style={s.hint}>Axon sta leggendo il documento…</Text></View> : dt !== "referent" ? <CrtFilePick compact dropZone dropHint="Trascina qui il documento del cliente oppure" label="Telefono" onPicked={(f) => void uploadDoc(dt, f)} testID={`crt-doc-pick-${dt}`} /> : null}
                     {d?.files?.length ? <Text style={s.hint}>📎 {d.files[d.files.length - 1].name}{p.doc_excluded_effective.includes(dt) ? " · escluso dal PDF unico" : ""}</Text> : null}
                     {idDocs.map((x) => <Pressable key={x.doc_id} onPress={() => void reuseId(dt, x.doc_id)} style={[s.btn, s.ghost, { minHeight: 38 }]}><Ionicons name="folder-open-outline" size={14} color={theme.color.brandPrimary} /><Text style={[s.btnTxt, { color: theme.color.brandPrimary, fontSize: 12 }]}>Usa {x.doc_type} già in scheda{x.expiry_date ? ` (scad. ${x.expiry_date})` : ""}</Text></Pressable>)}
                     {Object.entries(vals).map(([k, v]) => (

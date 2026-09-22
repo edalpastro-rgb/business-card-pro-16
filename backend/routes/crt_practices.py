@@ -354,6 +354,8 @@ async def crt_dossier_upload(practice_id: str, doc_type: str, body: CrtDossierIn
         raw = base64.b64decode(body.data_base64.split(",", 1)[-1])
         if len(raw) > 12 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="File troppo grande (max 12MB)")
+        if len(raw) < 4 * 1024:  # V50.z332 — immagine/PDF minuscolo = illeggibile: Axon inventerebbe i dati
+            raise HTTPException(status_code=400, detail="File troppo piccolo o illeggibile: carica una foto nitida o un PDF del documento")
         images: List[str] = []
         text = ""
         if body.mime == "application/pdf" or body.name.lower().endswith(".pdf"):
@@ -368,6 +370,7 @@ async def crt_dossier_upload(practice_id: str, doc_type: str, body: CrtDossierIn
             images = [base64.b64encode(raw).decode()]
         if doc_type != "referent" and not file_only:
             prompt = CRT_DOC_PROMPTS.get(doc_type, "Estrai in JSON tutti i dati anagrafici, fiscali e di contatto presenti.")
+            prompt += "\n\nREGOLA: se il documento è illeggibile, sfocato, vuoto o non è del tipo atteso, rispondi {} (JSON vuoto). NON inventare mai dati plausibili."
             data = await _ft_llm(CRT_DOC_SYSTEM, prompt + ("\n\nTESTO DEL DOCUMENTO:\n" + text[:20000] if text.strip() else ""), images or None, session="crt-dossier")
             entry["extracted"] = {**entry.get("extracted", {}), **{k: (str(v) if not isinstance(v, (list, dict)) else json.dumps(v, ensure_ascii=False)) for k, v in data.items() if v not in (None, "", [])}}
             if doc_type == "iban" and entry["extracted"].get("iban"):
@@ -687,7 +690,12 @@ async def crt_dossier_example(body: CrtOrderExampleIn, user=Depends(get_current_
     """Master carica un CONTRATTO COMPLETO d'esempio (PDF con tutti i documenti in ordine): Axon riconosce la sequenza dei documenti e la salva come ordine standard del PDF unico."""
     _ft_require_master(user)
     raw = _ft_b64_to_bytes(body.data_base64)
-    pages = _ft_render_pages(raw, dpi=60)[:30]
+    try:
+        pages = _ft_render_pages(raw, dpi=60)[:30]
+    except Exception:
+        pages = []
+    if not pages:  # V50.z332 — file non leggibile (PDF corrotto/vuoto) → 400 chiaro invece di 500
+        raise HTTPException(status_code=400, detail="File non leggibile: carica un PDF (o immagine) valido della pratica completa")
     data = await _ft_llm(
         "Classifica ogni pagina di una pratica contrattuale energia/telco italiana. Rispondi SOLO JSON: {\"pages\": [{\"page\": 1, \"type\": \"<tipo>\"}], \"order\": [\"<tipi in ordine di prima comparsa, senza ripetizioni>\"]}. "
         "Tipi ammessi: " + ", ".join(CRT_ORDER_LABELS.keys()) + ". form_luce/form_gas/form_telco = moduli contratto del fornitore; sepa = mandato SEPA; pda = proposta di adesione; procura = procura/delega; "

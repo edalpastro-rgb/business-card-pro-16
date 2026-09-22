@@ -192,4 +192,4 @@ export async function retryOp(op_id: string) { const q = await loadQueue(); cons
 export async function dropOp(op_id: string) { queue = (await loadQueue()).filter((o) => o.op_id !== op_id); await saveQueue(); }
 
 // ---------- precaricamento ----------
-export const PREFETCH_PATHS = ["/auth/me", "/auth/profile", "/user-settings", "/settings", "/contacts", "/appointments", "/appointments/stats", "/calendar/team", "/calendar/team-members", "/groups", "/callbacks", "/deadlines/upcoming", "/courses", "/team/members", "/axon/notifications", "/master/info", "/reports", "/my-thing", "/chat/channels", "/subscription/status", "/tour/features", "/identity-docs", "/form-templates"];
+export const PREFETCH_PATHS = ["/auth/me", "/user-settings", "/settings", "/contacts", "/appointments", "/appointments/stats", "/calendar/team", "/calendar/team-members", "/groups", "/callbacks", "/deadlines/upcoming", "/courses", "/team/members", "/axon-notifications", "/master/info", "/reports", "/my-thing", "/chat/channels", "/subscription/status", "/tour/features", "/identity-documents", "/form-templates"];

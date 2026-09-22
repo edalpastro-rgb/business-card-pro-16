@@ -1,4 +1,5 @@
 // crt/index.tsx — V50.z282 — COMPILAZIONE CRT: elenco pratiche + nuova pratica (cliente + servizi multi) + zona esempi (Master)
+// V50.z332 — Redesign elenco: riepilogo, CTA «Nuova pratica», card pratica (servizi/stato/PDF), blocco Master «Modelli e ordine documenti» con drag & drop
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -78,22 +79,35 @@ export default function CrtListScreen() {
   };
   const filtered = contacts.filter((c) => `${c.first_name} ${c.last_name} ${c.company || ""}`.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
 
+  const nBozza = items.filter((p) => p.status === "bozza").length;
+  const nPdf = items.filter((p) => !!p.merged_pdf).length;
+  const STATUS_STYLE: Record<string, { bg: string; fg: string }> = { bozza: { bg: "#FEF3C7", fg: "#92400E" }, completa: { bg: "#DCFCE7", fg: "#166534" }, inviata: { bg: "#DBEAFE", fg: "#1E40AF" }, attivata: { bg: "#DCFCE7", fg: "#166534" }, ko: { bg: "#FEE2E2", fg: "#991B1B" } };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.surface }} edges={["top"]}>
       <View style={s.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn} testID="crt-back"><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
-        <View style={{ flex: 1 }}><Text style={s.title}>Compilazione CRT</Text><Text style={s.sub}>Pratiche contratto: dossier, fatture, moduli compilati da Axon, PDF unico</Text></View>
+        <View style={{ flex: 1 }}><Text style={s.title}>Compilazione CRT</Text><Text style={s.sub}>Axon compila i moduli, tu controlli e firmi</Text></View>
         <Pressable onPress={() => setCreating((v) => !v)} style={s.newBtn} testID="crt-new"><Ionicons name={creating ? "close" : "add"} size={20} color="#FFF" /></Pressable>
       </View>
       <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
+        {/* Riepilogo */}
+        <View style={s.statRow} testID="crt-stats">
+          <View style={s.stat}><Text style={s.statN}>{items.length}</Text><Text style={s.statL}>Pratiche</Text></View>
+          <View style={s.stat}><Text style={[s.statN, { color: "#B45309" }]}>{nBozza}</Text><Text style={s.statL}>In bozza</Text></View>
+          <View style={s.stat}><Text style={[s.statN, { color: "#15803D" }]}>{nPdf}</Text><Text style={s.statL}>PDF unico pronto</Text></View>
+        </View>
+
+        {/* Nuova pratica */}
         {creating ? (
           <View style={s.card} testID="crt-create">
-            <Text style={s.section}>Nuova pratica</Text>
+            <Text style={s.section}>NUOVA PRATICA</Text>
             <Text style={s.label}>Cliente</Text>
             {sel ? <Pressable onPress={() => setSel(null)} style={s.selRow} testID="crt-selected-contact"><Ionicons name="person" size={16} color={theme.color.brandPrimary} /><Text style={{ flex: 1, fontWeight: "800", color: theme.color.onSurface }}>{sel.first_name} {sel.last_name}{sel.company ? ` · ${sel.company}` : ""}</Text><Ionicons name="close" size={16} color={theme.color.muted} /></Pressable> : (
               <>
                 <TextInput value={q} onChangeText={setQ} placeholder="Cerca cliente…" placeholderTextColor={theme.color.muted} style={s.input} testID="crt-contact-search" />
                 {q ? filtered.map((c) => <Pressable key={c.contact_id} onPress={() => { setSel(c); setQ(""); }} style={s.selRow} testID={`crt-pick-${c.contact_id}`}><Text style={{ color: theme.color.onSurface }}>{c.first_name} {c.last_name}{c.company ? ` · ${c.company}` : ""}</Text></Pressable>) : null}
+                {q && !filtered.length ? <Pressable onPress={() => router.push("/contact/new" as any)} style={s.selRow} testID="crt-new-contact"><Ionicons name="person-add-outline" size={16} color={theme.color.brandPrimary} /><Text style={{ color: theme.color.brandPrimary, fontWeight: "800" }}>Nessun risultato · crea nuovo contatto</Text></Pressable> : null}
               </>
             )}
             <Text style={s.label}>Servizi (anche più di uno)</Text>
@@ -102,50 +116,84 @@ export default function CrtListScreen() {
                 <Pressable key={k} onPress={() => setServices((l) => (on ? l.filter((x) => x !== k) : [...l, k]))} style={[s.chip, on && { backgroundColor: SVC[k].color, borderColor: SVC[k].color }]} testID={`crt-svc-${k}`}><Ionicons name={SVC[k].icon as any} size={14} color={on ? "#FFF" : SVC[k].color} /><Text style={[s.chipTxt, on && { color: "#FFF" }]}>{SVC[k].label}</Text></Pressable>
               ); })}
             </View>
-            <Pressable onPress={create} disabled={busy === "create" || !services.length} style={[s.btn, { backgroundColor: theme.color.brandPrimary }]} testID="crt-create-submit">{busy === "create" ? <ActivityIndicator color="#FFF" /> : <Text style={s.btnTxt}>Crea pratica</Text>}</Pressable>
+            <Pressable onPress={create} disabled={busy === "create" || !services.length} style={[s.btn, { backgroundColor: theme.color.brandPrimary }]} testID="crt-create-submit">{busy === "create" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="sparkles" size={16} color="#FFF" /><Text style={s.btnTxt}>Crea pratica e apri i 4 blocchi</Text></>}</Pressable>
+          </View>
+        ) : (
+          <Pressable onPress={() => setCreating(true)} style={s.ctaCard} testID="crt-new-cta">
+            <View style={s.ctaIcon}><Ionicons name="add" size={26} color="#FFF" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.ctaTitle}>Nuova pratica</Text>
+              <Text style={s.hint}>Scegli il cliente e i servizi: Axon prepara dossier, moduli e PDF unico in 4 blocchi.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+          </Pressable>
+        )}
+
+        {/* Pratiche */}
+        <Text style={s.section}>PRATICHE</Text>
+        {items.length === 0 && !loading ? (
+          <View style={[s.card, { alignItems: "center", paddingVertical: 22 }]} testID="crt-empty">
+            <Ionicons name="folder-open-outline" size={30} color={theme.color.muted} />
+            <Text style={[s.hint, { textAlign: "center" }]}>Nessuna pratica ancora. Tocca «Nuova pratica» per iniziare la prima Compilazione CRT.</Text>
           </View>
         ) : null}
-
-        {items.length === 0 && !loading ? <Text style={s.hint}>Nessuna pratica: tocca + per iniziare una Compilazione CRT.</Text> : null}
-        {items.map((p) => (
-          <Pressable key={p.practice_id} onPress={() => router.push(`/crt/${p.practice_id}` as any)} style={s.card} testID={`crt-item-${p.practice_id}`}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={[s.section, { flex: 1 }]} numberOfLines={1}>{p.title}</Text>
-              <Text style={[s.badge, p.status === "bozza" ? { backgroundColor: "#FEF3C7", color: "#92400E" } : { backgroundColor: "#DCFCE7", color: "#166534" }]}>{STATUS_LABEL[p.status] || p.status}</Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-              {p.services.map((k) => <Ionicons key={k} name={(SVC as any)[k]?.icon || "document"} size={14} color={(SVC as any)[k]?.color || theme.color.muted} />)}
-              <Text style={s.hint}>{p.contact_name} · {new Date(p.updated_at).toLocaleDateString("it-IT")}{p.merged_pdf ? " · 📎 PDF unico pronto" : ""}</Text>
-            </View>
-          </Pressable>
-        ))}
-
-        {isMaster ? (
-          <View style={s.card} testID="crt-order-example">
-            <Text style={s.section}>📚 Esempio pratica completa (ordine documenti)</Text>
-            <Text style={s.hint}>Carica un contratto completo già organizzato: Axon riconosce la sequenza dei documenti e la usa come ordine standard del PDF unico.</Text>
-            {order ? (
-              <View style={{ gap: 8 }}>
-                <Pressable onPress={() => setOrderOpen((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44 }} testID="crt-order-toggle">
-                  <Ionicons name="swap-vertical" size={16} color={theme.color.brandPrimary} />
-                  <Text style={[s.hint, { color: theme.color.onSurface, flex: 1 }]}>{order.source === "example" ? `Ordine appreso da «${order.example_name}»` : order.source === "manual" ? "Ordine personalizzato" : "Ordine predefinito"}: {order.doc_order.filter((k) => !order.excluded.includes(k)).map((k) => order.labels[k] || k).join(" → ")}</Text>
-                  <Ionicons name={orderOpen ? "chevron-up" : "chevron-down"} size={16} color={theme.color.muted} />
-                </Pressable>
-                {orderOpen ? (
-                  <>
-                    <CrtDocOrder order={order.doc_order} excluded={order.excluded} labels={order.labels} onChange={(o, e) => { setOrder({ ...order, doc_order: o, excluded: e }); setOrderDirty(true); }} onAddCustom={addCustom} testID="crt-order" />
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      <Pressable onPress={saveOrder} disabled={!orderDirty || busy === "order-save"} style={[s.btn, { flex: 1, backgroundColor: theme.color.brandPrimary }, !orderDirty && { opacity: 0.5 }]} testID="crt-order-save">{busy === "order-save" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="save-outline" size={16} color="#FFF" /><Text style={s.btnTxt}>Salva come predefinito</Text></>}</Pressable>
-                      <Pressable onPress={resetOrder} disabled={busy === "order-save"} style={[s.btn, s.ghost]} testID="crt-order-reset"><Ionicons name="refresh" size={16} color={theme.color.brandPrimary} /><Text style={[s.btnTxt, { color: theme.color.brandPrimary }]}>Ripristina</Text></Pressable>
-                    </View>
-                  </>
-                ) : null}
+        {items.map((p) => {
+          const st = STATUS_STYLE[p.status] || STATUS_STYLE.bozza;
+          return (
+            <Pressable key={p.practice_id} onPress={() => router.push(`/crt/${p.practice_id}` as any)} style={s.pratica} testID={`crt-item-${p.practice_id}`}>
+              <View style={s.svcCol}>
+                {p.services.map((k) => <View key={k} style={[s.svcDot, { backgroundColor: (SVC as any)[k]?.color || theme.color.muted }]}><Ionicons name={(SVC as any)[k]?.icon || "document"} size={13} color="#FFF" /></View>)}
               </View>
-            ) : null}
-            {busy === "order" ? <ActivityIndicator color={theme.color.brandPrimary} /> : <CrtFilePick label="Carica esempio" compact onPicked={(f) => void uploadOrderExample(f)} testID="crt-order-pick" />}
-            <Text style={s.hint}>I moduli vuoti e gli esempi compilati dei fornitori si caricano in «Modelli moduli» (non vengono memorizzati oltre il necessario: ricaricali quando il fornitore li aggiorna).</Text>
-            <Pressable onPress={() => router.push("/form-templates" as any)} style={[s.btn, s.ghost]} testID="crt-goto-templates"><Ionicons name="document-attach-outline" size={16} color={theme.color.brandPrimary} /><Text style={[s.btnTxt, { color: theme.color.brandPrimary }]}>Apri Modelli moduli</Text></Pressable>
-          </View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={s.praticaTitle} numberOfLines={1}>{p.contact_name || p.title}</Text>
+                <Text style={s.hint} numberOfLines={1}>{p.services.map((k) => (SVC as any)[k]?.label || k).join(" + ")} · agg. {new Date(p.updated_at).toLocaleDateString("it-IT")}</Text>
+                <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                  <Text style={[s.badge, { backgroundColor: st.bg, color: st.fg }]}>{STATUS_LABEL[p.status] || p.status}</Text>
+                  <Text style={[s.badge, p.merged_pdf ? { backgroundColor: "#DCFCE7", color: "#166534" } : { backgroundColor: theme.color.surface, color: theme.color.muted }]}>{p.merged_pdf ? "📎 PDF unico pronto" : "PDF unico da comporre"}</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+            </Pressable>
+          );
+        })}
+
+        {/* Master: modelli e ordine documenti */}
+        {isMaster ? (
+          <>
+            <Text style={[s.section, { marginTop: 6 }]}>MODELLI E ORDINE DOCUMENTI · Master</Text>
+            <View style={s.card} testID="crt-order-example">
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View style={[s.blockIcon, { backgroundColor: "#EDE9FE" }]}><Ionicons name="school-outline" size={20} color="#7C3AED" /></View>
+                <View style={{ flex: 1 }}><Text style={s.cardTitle}>Esempio pratica completa</Text><Text style={s.hint}>Axon impara la sequenza dei documenti e la usa come ordine standard del PDF unico.</Text></View>
+              </View>
+              {busy === "order" ? <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}><ActivityIndicator color="#7C3AED" /><Text style={s.hint}>Axon sta leggendo l&apos;esempio…</Text></View> : <CrtFilePick label="Carica esempio" compact dropZone dropHint="Trascina qui la pratica completa (PDF) oppure" onPicked={(f) => void uploadOrderExample(f)} testID="crt-order-pick" />}
+              {order ? (
+                <View style={{ gap: 8 }}>
+                  <Pressable onPress={() => setOrderOpen((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44 }} testID="crt-order-toggle">
+                    <Ionicons name="swap-vertical" size={16} color={theme.color.brandPrimary} />
+                    <Text style={[s.hint, { color: theme.color.onSurface, flex: 1 }]} numberOfLines={orderOpen ? undefined : 2}>{order.source === "example" ? `Ordine appreso da «${order.example_name}»` : order.source === "manual" ? "Ordine personalizzato" : "Ordine predefinito"}: {order.doc_order.filter((k) => !order.excluded.includes(k)).map((k) => order.labels[k] || k).join(" → ")}</Text>
+                    <Ionicons name={orderOpen ? "chevron-up" : "chevron-down"} size={16} color={theme.color.muted} />
+                  </Pressable>
+                  {orderOpen ? (
+                    <>
+                      <CrtDocOrder order={order.doc_order} excluded={order.excluded} labels={order.labels} onChange={(o, e) => { setOrder({ ...order, doc_order: o, excluded: e }); setOrderDirty(true); }} onAddCustom={addCustom} testID="crt-order" />
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <Pressable onPress={saveOrder} disabled={!orderDirty || busy === "order-save"} style={[s.btn, { flex: 1, backgroundColor: theme.color.brandPrimary }, !orderDirty && { opacity: 0.5 }]} testID="crt-order-save">{busy === "order-save" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="save-outline" size={16} color="#FFF" /><Text style={s.btnTxt}>Salva come predefinito</Text></>}</Pressable>
+                        <Pressable onPress={resetOrder} disabled={busy === "order-save"} style={[s.btn, s.ghost]} testID="crt-order-reset"><Ionicons name="refresh" size={16} color={theme.color.brandPrimary} /><Text style={[s.btnTxt, { color: theme.color.brandPrimary }]}>Ripristina</Text></Pressable>
+                      </View>
+                    </>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+            <Pressable onPress={() => router.push("/form-templates" as any)} style={s.card} testID="crt-goto-templates">
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View style={[s.blockIcon, { backgroundColor: theme.color.brandTertiary }]}><Ionicons name="document-attach-outline" size={20} color={theme.color.brandPrimary} /></View>
+                <View style={{ flex: 1 }}><Text style={s.cardTitle}>Modelli moduli dei fornitori</Text><Text style={s.hint}>Moduli vuoti ed esempi compilati per Luce, Gas e Telco. Ricaricali quando il fornitore li aggiorna.</Text></View>
+                <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+              </View>
+            </Pressable>
+          </>
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -164,5 +212,17 @@ export const crtStyles = StyleSheet.create({
   chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" }, chipTxt: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
   btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 12, paddingHorizontal: 14 }, ghost: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
   btnTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
+  // V50.z332 — elenco ridisegnato (stesso linguaggio dei 4 blocchi)
+  statRow: { flexDirection: "row", gap: 8 },
+  stat: { flex: 1, backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 10, alignItems: "center", gap: 2 },
+  statN: { fontSize: 20, fontWeight: "900", color: theme.color.onSurface }, statL: { fontSize: 10, fontWeight: "700", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.4, textAlign: "center" },
+  ctaCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 16, borderWidth: 1.5, borderColor: theme.color.brandPrimary, padding: 14, minHeight: 72 },
+  ctaIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" },
+  ctaTitle: { fontSize: 16, fontWeight: "900", color: theme.color.brandPrimary },
+  pratica: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12 },
+  praticaTitle: { fontSize: 15, fontWeight: "900", color: theme.color.onSurface },
+  svcCol: { gap: 4 }, svcDot: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  blockIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  cardTitle: { fontSize: 14, fontWeight: "900", color: theme.color.onSurface },
 });
 const s = crtStyles;

@@ -402,7 +402,7 @@ const s = StyleSheet.create({
   lead: { color: LP.onSurface2, fontSize: 17, lineHeight: 26, marginTop: 16, maxWidth: 720 },
 
   compareRow: { flexDirection: "row", gap: 16, marginTop: 36, alignItems: "flex-start" },
-  compareCol: { flexDirection: "column" },
+  compareCol: { flexDirection: "column", alignItems: "stretch" }, // V50.z332 — su telefono le card a tutta larghezza (prima si stringevano e il testo usciva)
   card: { backgroundColor: LP.surface2, borderRadius: 20, borderWidth: 1, borderColor: LP.border, padding: 20, gap: 12 },
   cardOff: { opacity: 0.9 },
   cardOn: { borderColor: LP.axonLine, backgroundColor: LP.surface3, shadowColor: LP.axon, shadowOpacity: 0.25, shadowRadius: 30, shadowOffset: { width: 0, height: 0 } },
