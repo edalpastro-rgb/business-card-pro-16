@@ -199,12 +199,19 @@ async def _punq_table(n: int) -> dict:
 
 
 async def _punq_forecast_row(avail: List[dict]) -> Optional[dict]:
-    """V50.z245 — Riga 🟡 del MESE CORRENTE (previsione), sempre presente e deterministica.
-    Fonte: se in `gme_pun_cache` esiste già un documento per il mese corrente (inserimento manuale/provvisorio del Master) → quei valori;
-    altrimenti media semplice degli ultimi 3 mesi chiusi disponibili (marcata «previsione», mai spacciata per dato ufficiale)."""
+    """V50.z245 — Riga 🟡 del MESE CORRENTE, sempre presente e deterministica.
+    V50.z324 — Priorità: (1) media PARZIALE reale del mese (giorni 1–N, prezzi orari GME Esiti MGP, `gme_pun_partial`, job giornaliero);
+    (2) documento provvisorio/manuale del Master in `gme_pun_cache`; (3) media semplice degli ultimi 3 mesi chiusi («previsione»)."""
     today = datetime.now(_PUNQ_TZ)
     key = f"{today.year:04d}-{today.month:02d}"
     label = f"{_GME_MONTH_NAMES_REV.get(today.month, '').capitalize()} {today.year}"
+    p = await db.gme_pun_partial.find_one({"month_key": key}, {"_id": 0})
+    if p and p.get("monorario") is not None and p.get("days"):
+        upd = p.get("updated_at")
+        upd_s = upd.astimezone(_PUNQ_TZ).strftime("%d/%m %H:%M") if isinstance(upd, datetime) else ""
+        return {"month_key": key, "label": label, "kind": "partial", "days": p["days"], "last_day": p.get("last_day"),
+                "basis": f"media parziale GME giorni 1–{p['days']} ({p['days']} gg, agg. {upd_s})",
+                "kwh": {k: _punq_kwh(p.get(k), "€/MWh") for k in ("monorario", "F1", "F2", "F3")}}
     d = await db.gme_pun_cache.find_one({"month_key": key}, {"_id": 0})
     if d and d.get("monorario") is not None:
         u = d.get("unit") or "€/MWh"
@@ -245,7 +252,7 @@ def _punq_markdown(rows: List[dict], n: int, missing: List[str], last_extract: O
         lines.append(f"| {lab} | {cells[0]} | {cells[1]} | {cells[2]} | {cells[3]} | {delta} |")
     if forecast:
         k = forecast["kwh"]
-        tag = "previsione" if forecast["kind"] == "forecast" else "provvisorio"
+        tag = "previsione" if forecast["kind"] == "forecast" else ("parziale 1–%s" % forecast.get("days") if forecast["kind"] == "partial" else "provvisorio")
         lines.append(f"| 🟡 **{forecast['label']}** · _{tag}_ | 🟡 {_punq_fmt(k['monorario'])} | 🟡 {_punq_fmt(k['F1'])} | 🟡 {_punq_fmt(k['F2'])} | 🟡 {_punq_fmt(k['F3'])} | — |")
     if missing:
         lines.append("")
@@ -354,7 +361,7 @@ async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: 
                     rows = []
                     for ln in (t["table_markdown"] or "").split("\n"):
                         cells = [c.strip() for c in ln.strip().strip("|").split("|")]
-                        if len(cells) >= 2 and re.search(r"\d", cells[1]) and "previsione" not in ln.lower() and ":---" not in ln and "Mese" not in cells[0]:
+                        if len(cells) >= 2 and re.search(r"\d", cells[1]) and "previsione" not in ln.lower() and "parziale" not in ln.lower() and ":---" not in ln and "Mese" not in cells[0]:
                             rows.append((re.sub(r"[*🟢🔴🟡_]", "", cells[0]).strip(), re.sub(r"[*🟢🔴🟡_]", "", cells[1]).strip()))
                     last = rows[-3:]
                     if last:
@@ -430,12 +437,119 @@ async def _punq_daily_tick() -> dict:
     return r
 
 
+# ============================================================================ V50.z324 — MEDIA PARZIALE MESE CORRENTE (GME Esiti MGP, prezzi orari)
+# Fonte pubblica: pagina «Esiti › MGP › PUN» di gme.mercatoelettrico.org → API DNN GetMEPrezzi (Granularita=h, Zona=PUN) con cookie +
+# anti-forgery token della pagina. Fasce ARERA: F1 lun–ven 08–19 · F2 lun–ven 07–08 e 19–23, sab 07–23 · F3 lun–sab 23–07, domeniche e festivi.
+# Collezione `gme_pun_partial` (separata da `gme_pun_cache`: il PDF ufficiale del mese chiuso NON viene mai bloccato dal dato parziale).
+_PUNQ_ESITI_PAGE = "https://gme.mercatoelettrico.org/it-it/Home/Esiti/Elettricita/MGP/Esiti/PUN"
+_PUNQ_ESITI_API = "https://gme.mercatoelettrico.org/DesktopModules/GmeEsitiPrezziME/API/item/GetMEPrezzi"
+
+
+def _punq_it_holidays(year: int) -> set:
+    from dateutil.easter import easter as _easter
+    from datetime import date as _date
+    e = _easter(year)
+    fixed = [(1, 1), (1, 6), (4, 25), (5, 1), (6, 2), (8, 15), (11, 1), (12, 8), (12, 25), (12, 26)]
+    return {_date(year, m, d) for m, d in fixed} | {e, e + timedelta(days=1)}
+
+
+def _punq_fascia(day, hour_1based: int, holidays: set) -> str:
+    """hour_1based: 1 = 00:00–01:00 … 24 = 23:00–24:00."""
+    if day in holidays or day.weekday() == 6:
+        return "F3"
+    h0 = hour_1based - 1  # ora di inizio
+    if day.weekday() == 5:  # sabato
+        return "F2" if 7 <= h0 < 23 else "F3"
+    if 8 <= h0 < 19:
+        return "F1"
+    if h0 == 7 or 19 <= h0 < 23:
+        return "F2"
+    return "F3"
+
+
+async def _punq_fetch_esiti_hourly(start: str, end: str) -> List[dict]:
+    """Prezzi orari PUN [{df: 20260901, h: 1..24, p: €/MWh}] tra due date YYYYMMDD (inclusive)."""
+    async with httpx.AsyncClient(timeout=40, follow_redirects=True, headers=_PUNQ_HEADERS) as cli:
+        page = await cli.get(_PUNQ_ESITI_PAGE)
+        page.raise_for_status()
+        m_tok = re.search(r'__RequestVerificationToken"[^>]*value="([^"]+)"', page.text)
+        m_tab = re.search(r'"TabId":(\d+)', page.text)
+        m_mod = re.search(r'"ModuleId":(\d+)', page.text)
+        if not m_tok:
+            raise RuntimeError("anti-forgery token non trovato nella pagina GME Esiti")
+        hdr = {"RequestVerificationToken": m_tok.group(1), "TabId": m_tab.group(1) if m_tab else "48", "ModuleId": m_mod.group(1) if m_mod else "530",
+               "Referer": _PUNQ_ESITI_PAGE, "Accept": "application/json"}
+        r = await cli.get(_PUNQ_ESITI_API, headers=hdr, params={"DataInizio": start, "DataFine": end, "Granularita": "h", "Mercato": "MGP", "Zona": "PUN", "Tipologia": "PUN"})
+        r.raise_for_status()
+        data = r.json()
+        return [x for x in data if isinstance(x, dict) and x.get("p") is not None and x.get("df") and x.get("h")]
+
+
+async def _punq_partial_refresh(year: Optional[int] = None, month: Optional[int] = None) -> dict:
+    """Scarica i prezzi orari del mese (giorni 1–N pubblicati, incluso il day-ahead) e salva la media parziale monorario/F1/F2/F3 in `gme_pun_partial`."""
+    from datetime import date as _date
+    today = datetime.now(_PUNQ_TZ)
+    y, m = year or today.year, month or today.month
+    key = f"{y:04d}-{m:02d}"
+    last_dom = (datetime(y + (m == 12), (m % 12) + 1, 1) - timedelta(days=1)).day
+    rows = await _punq_fetch_esiti_hourly(f"{y:04d}{m:02d}01", f"{y:04d}{m:02d}{last_dom:02d}")
+    if not rows:
+        return {"month_key": key, "days": 0, "saved": False}
+    hol = _punq_it_holidays(y)
+    acc = {"monorario": [0.0, 0], "F1": [0.0, 0], "F2": [0.0, 0], "F3": [0.0, 0]}
+    days = set()
+    for x in rows:
+        df = str(x["df"]); day = _date(int(df[:4]), int(df[4:6]), int(df[6:8]))
+        days.add(day)
+        band = _punq_fascia(day, int(x["h"]), hol)
+        for k in ("monorario", band):
+            acc[k][0] += float(x["p"]); acc[k][1] += 1
+    doc = {"month_key": key, "year": y, "month": m, "days": len(days), "first_day": min(days).isoformat(), "last_day": max(days).isoformat(),
+           "total_hours": acc["monorario"][1], "unit": "€/MWh", "source_kind": "gme_esiti_api", "source_url": _PUNQ_ESITI_PAGE, "updated_at": utcnow()}
+    for k, (s, n) in acc.items():
+        doc[k] = round(s / n, 6) if n else None
+        doc[f"{k}_hours"] = n
+    await db.gme_pun_partial.update_one({"month_key": key}, {"$set": doc}, upsert=True)
+    logger.info("[punq] partial %s: %s gg, monorario %.2f €/MWh", key, doc["days"], doc["monorario"] or 0)
+    return {**doc, "saved": True}
+
+
+async def _punq_partial_tick() -> dict:
+    try:
+        return await _punq_partial_refresh()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[punq] partial refresh failed: %s", exc)
+        return {"saved": False, "error": str(exc)}
+
+
+@api_router.post("/quick-action/pun/partial/refresh")
+async def punq_partial_refresh_now(user=Depends(get_current_user)):
+    if user.get("parent_user_id"):
+        raise HTTPException(status_code=403, detail="Solo il Master può aggiornare il dato parziale")
+    r = await _punq_partial_tick()
+    if not r.get("saved"):
+        raise HTTPException(status_code=502, detail=f"GME non raggiungibile: {r.get('error') or 'nessun dato'}")
+    return r
+
+
+@api_router.get("/quick-action/pun/partial")
+async def punq_partial_get(user=Depends(get_current_user)):
+    today = datetime.now(_PUNQ_TZ)
+    d = await db.gme_pun_partial.find_one({"month_key": f"{today.year:04d}-{today.month:02d}"}, {"_id": 0})
+    if d and isinstance(d.get("updated_at"), datetime):
+        d["updated_at"] = d["updated_at"].isoformat()
+    return d or {"month_key": f"{today.year:04d}-{today.month:02d}", "days": 0}
+
+
 @app.on_event("startup")
 async def _punq_start():
     try:
         await db.axon_pun_meta.create_index([("key", 1)], unique=True)
         _axn_scheduler.add_job(_punq_daily_tick, "cron", day=1, hour=7, minute=0, id="punq-monthly", replace_existing=True)      # 1° del mese: aggiornamento tabella
         _axn_scheduler.add_job(_punq_daily_tick, "cron", hour=6, minute=40, id="punq-daily", replace_existing=True)             # recupero: il PDF GME esce tra il 1° e il 6°
+        # V50.z324 — media PARZIALE del mese corrente ogni giorno: 08:00 UTC (richiesta utente) + 13:30 Roma (dopo pubblicazione esiti day-ahead ~12:55)
+        _axn_scheduler.add_job(_punq_partial_tick, "cron", hour=8, minute=0, timezone="UTC", id="punq-partial-daily", replace_existing=True)
+        _axn_scheduler.add_job(_punq_partial_tick, "cron", hour=13, minute=30, id="punq-partial-afternoon", replace_existing=True)
 
         async def _boot():
             await _punq_asyncio.sleep(20)
@@ -450,6 +564,7 @@ async def _punq_start():
                 logger.warning("[punq] backfill cleanup failed: %s", exc)
             r = await _punq_daily_tick()
             logger.info("[punq] boot refresh: %s", r)
+            await _punq_partial_tick()  # V50.z324 — dato parziale mese corrente subito disponibile al boot
         _punq_asyncio.create_task(_boot())
         logger.info("[punq] PUN calculator armed")
     except Exception as exc:  # noqa: BLE001
