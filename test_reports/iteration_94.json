@@ -1,0 +1,31 @@
+{
+  "summary": "V50.z315 — ViolaWake tested against public URL: 15/15 backend pytest passed (module gating, permission checks, settings validation 400/422, deterministic routing chat/trigger/cancel/wake-strip, events log, module OFF cascade). Frontend on web verified: /login (owner) → /viola-wake shows header 'Viola · comandi vocali', viola-state = 'Non disponibile qui' with native-build info box, viola-module-switch present for owner (isMaster=true), viola-user-switch renders and is gated by module state, events list gets populated after test commands (both 'Comando' and 'Trigger' badges seen), free command 'che appuntamenti ho domani?' opens the Axon chat modal (Scrivi a Neo…) and auto-sends the prompt (user bubble visible + assistant replied). /home renders assistant-fab which opens chat and gives 'OK!' reply for 'aspetta un attimo'. /landing renders with no red-screen and no violawake/ExpoSpeechRecognition console errors. Impostazioni → Integrazioni row 'int-viola' present and taps navigate to /viola-wake. Left module ENABLED at the end for further UI testing. No blocking bugs. Deprecated packages / SafeAreaView issues: none detected in this module.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      { "screen": "/viola-wake", "issues": ["State pill transitions ('Elaboro…' → 'Sto rispondendo') are too fast to observe on web because the TTS promise resolves ~instantly (no audio playback headless) and settle() flips back to 'unsupported'. Not a bug per spec ('TTS audio may not play headless — fine'), but final lastReply text ('OK!', trigger reply) persists in the card only until the next command overwrites it — acceptable."] }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_viola_wake_pytest.py",
+    "/app/test_reports/pytest/v50z315_violawake.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/viola_wake.py: routing helper _vw_route + _vw_strip_wake are pure functions and cleanly unit-testable. Good separation.",
+    "Module PUT with enabled=false correctly cascades to disabling all tenant users' settings.enabled — verified end-to-end.",
+    "Frontend Provider on web keeps state='unsupported' after runCommand settle(); state transitions happen but revert quickly. If a stable 'reply shown' indicator is desired in tests, consider keeping speaking state or lastReply visible longer, or exposing a data-testid for lastReply/lastTranscript."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_viola_wake_pytest.py (new pytest suite)"
+  ],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "seed_data_creation": "None. Module left enabled at teardown for UI runs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login flow requires ~4s wait for splash before filling auth-email-input/auth-password-input and clicking auth-submit-button. After successful login, user is redirected to /tour — dismiss via text 'Salta'. Set localStorage.helpcenter_seen_v1='1' to avoid help overlays. In Impostazioni page, tap 'Integrazioni' section chip before searching for int-viola row. viola-module-switch and viola-user-switch aria-checked reads as null in Playwright — infer state via API call GET /api/viola-wake/settings using Bearer token from localStorage key 'auth_token_v1' (JSON-encoded string).",
+  "rca_of_issue": "N/A — no bugs found."
+}

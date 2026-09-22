@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  DeviceEventEmitter, // V50.z315 — prompt vocale ViolaWake a chat già aperta
   View,
   Text,
   Pressable,
@@ -45,7 +46,7 @@ import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 �
 import { ChatQueuePanel, type QueueItem } from "@/src/ChatQueuePanel"; // V50.z223 — coda messaggi non bloccante + chat parallele
 import { ChatQueueInline } from "@/src/ChatQueueInline"; // V50.z301 — bozze in coda visibili dentro la chat
 import { ChoiceButtons, extractChoices } from "@/src/axon-choice-buttons"; // V50.z304 — pulsanti A)/B) e azioni «ORA»
-import { consumePendingPrompt } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
+import { consumePendingPrompt, consumePendingVoice, AXON_OPEN_CHAT_EVENT } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
 import { conversationToText, copyText, shareText, exportConversationPdf } from "@/src/utils/chatExport";
@@ -241,7 +242,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       loadHistory();
       // V50.z196 — Blocco 9: prompt in attesa (tap su bubble/notifica proattiva o voce) → inviato appena la chat è aperta
       const pending = consumePendingPrompt();
-      if (pending) setTimeout(() => { void sendRef.current?.(pending); }, 900);
+      const pendingVoice = consumePendingVoice(); // V50.z315 — ViolaWake → risposta parlata
+      if (pending) setTimeout(() => { void sendRef.current?.(pending, pendingVoice ? { forceSpeak: true } : undefined); }, 900);
       // V50.z17 — Al primo avvio dell'assistente AxonOS, apri l'HELP CENTER
       // (termini d'uso + richiesta cancellazione dati). Flag salvato su
       // AsyncStorage: `helpcenter_seen_v1`.
@@ -815,6 +817,18 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // V50.z196 — ref stabile a send() per il prompt proattivo in attesa (evita chiusure stantie nell'effect di apertura)
   const sendRef = useRef(send);
   useEffect(() => { sendRef.current = send; });
+
+  // V50.z315 — ViolaWake / bubble: se la chat è GIÀ aperta quando arriva un prompt, lo inviamo subito
+  // (l'effetto su `visible` scatta solo all'apertura).
+  useEffect(() => {
+    if (!visible) return;
+    const sub = DeviceEventEmitter.addListener(AXON_OPEN_CHAT_EVENT, () => {
+      const p = consumePendingPrompt();
+      const v = consumePendingVoice();
+      if (p) void sendRef.current?.(p, v ? { forceSpeak: true } : undefined);
+    });
+    return () => sub.remove();
+  }, [visible]);
 
   // V50.z223 — CODA: refresh, enqueue, elaborazione sequenziale (URGENT > HIGH > NORMAL, poi FIFO), toast «Bozza elaborata»
   const refreshQueue = useCallback(async () => {

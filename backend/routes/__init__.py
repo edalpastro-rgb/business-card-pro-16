@@ -98,5 +98,6 @@ MODULES = [
     "crt_practices.py",  # V50.z282 — Compilazione CRT (pratiche multi-servizio, dossier, forniture per POD, replica moduli, PDF unico, esempi)
     "offline_sync.py",  # V50.z279 — Modalità aereo/offline: replay idempotente della coda client, conflitti segnalati al Master
     "courses.py",  # V50.z273 — Area Corsi (Corporate Gym v2.0 Fase 1): cartelle corsi, lettura/partecipazione, lista partecipanti, export, reminder (isolato)
+    "viola_wake.py",  # V50.z315 — ViolaWake: modulo opzionale per azienda (wake-word «Viola» offline → comando → Axon voce / trigger proattivo); impostazioni, routing deterministico, log eventi (isolato; usa axon_proactive)
     "37_app_startup_scheduler.py",
 ]

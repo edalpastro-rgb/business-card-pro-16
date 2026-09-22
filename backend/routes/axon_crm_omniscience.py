@@ -37,6 +37,7 @@ _OMNI_EXTRA_SECTIONS = [
     ("Google Drive / Dropbox", "/google-drive, /dropbox", "Collegamento cloud: cartelle indicizzate per Axon, allegati in chat, manuali Corporate Gym."),
     ("Biglietto da visita", "/business-card", "Biglietto digitale con QR/link pubblico, statistiche visualizzazioni, recensioni pubbliche e lead."),
     ("Team Insights", "/team-insights", "Analisi AI delle performance dei collaboratori (Master)."),
+    ("Viola · comandi vocali (ViolaWake)", "/viola-wake", "Modulo opzionale per azienda (attivato dal Master, sovrapprezzo): wake-word «Viola» riconosciuta offline sul telefono (Picovoice), comando trascritto dal telefono, poi trigger proattivo (briefing/scansione/report) o chat Axon con risposta parlata. Richiede build nativa. API /viola-wake/settings, /viola-wake/module, /viola-wake/route, /viola-wake/events."),
     ("Confronto collaboratori", "/team-compare", "Master: KPI a confronto per periodo (30/90/365 gg/sempre): classifica con punteggio 0-100, grafico per metrica (contratti, valore €, appuntamenti svolti, contatti, chiamate, richiamate, corsi/attestati, domande ad Axon, conversione), testa a testa fra due collaboratori, tabella completa con media squadra. API GET /team-insights/compare?period=30."),
     ("Team", "/team", "Collaboratori del tenant: ruoli, inviti, profili, visibilità contatti."),
     ("Gruppi", "/groups", "Gruppi/etichette di contatti con colore."),

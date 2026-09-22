@@ -482,6 +482,8 @@ function ImpostazioniScreen() {
             { label: "Dropbox", icon: "cloud", href: "/dropbox", testID: "int-dropbox" },
             { label: "Outlook", icon: "logo-microsoft", href: "/outlook", testID: "int-outlook" },
             { label: "API & integrazioni AxonOS (Business / Home)", sub: "Home Assistant, servizi esterni", icon: "code-slash", href: "/axon-integrations", testID: "int-api" },
+            // V50.z315 — ViolaWake: modulo opzionale wake-word «Viola» → Axon a mani libere
+            { label: "Viola · comandi vocali a mani libere", sub: "Wake-word «Viola» offline → Axon (modulo opzionale per azienda)", icon: "ear", href: "/viola-wake", testID: "int-viola" },
           ]} />
         )}
         {/* V50.z249 — Personalizzazione aziendale: pannello logo/P.IVA/firma + blocchi esistenti (branding PDF, sede, email) */}

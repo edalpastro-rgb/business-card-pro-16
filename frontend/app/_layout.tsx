@@ -14,6 +14,8 @@ import { AppLockOverlay } from "@/src/AppLock";
 import { WakeWordService } from "@/src/wakeword/WakeWordService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AssistantFAB } from "@/src/AssistantFAB";
+import { ViolaWakeProvider } from "@/src/violawake/ViolaWakeProvider"; // V50.z315 — ViolaWake (wake-word «Viola»)
+import { ViolaStatusPill } from "@/src/violawake/ViolaStatusPill";
 import * as Linking from "expo-linking";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
@@ -127,6 +129,7 @@ function LockGate() {
   // perdendo pagina corrente, form e scroll.
   return (
     <View style={{ flex: 1 }}>
+      <ViolaWakeProvider>
       <FabStackProvider>
         <ActiveCallProvider>
           <StackWithCallBar />
@@ -137,6 +140,7 @@ function LockGate() {
           <AppLockOverlay />
         </Modal>
       ) : null}
+      </ViolaWakeProvider>
     </View>
   );
 }
@@ -220,6 +224,8 @@ function StackWithCallBar() {
       {/* V50.z200 — Heartbeat versione app → Axon rileva da solo gli aggiornamenti (APK/IPA) */}
       <SystemHeartbeat userId={user?.user_id} />
       {inTour ? null : <AssistantFAB />}
+      {/* V50.z315 — ViolaWake: pill di stato («Viola in ascolto» / trascrizione / risposta) */}
+      {user && !inTour ? <ViolaStatusPill /> : null}
       {/* V50.z147 — Rimosso il bottone Help/Support Center dalle top header di tutte le pagine
           (`<SupportFab />`, V49.j/k): ridondante con il tab "Help" della bottom bar (V50.z141).
           Il componente resta in `src/SupportFab.tsx` per eventuale riuso. */}

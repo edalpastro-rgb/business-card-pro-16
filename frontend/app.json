@@ -20,6 +20,7 @@
           "audio",
           "location"
         ],
+        "NSSpeechRecognitionUsageDescription": "Trascrive sul telefono i comandi vocali per Axon",
         "NSContactsUsageDescription": "Importa i contatti dalla tua rubrica",
         "NSLocationWhenInUseUsageDescription": "Meteo, mappa clienti e percorsi dalla tua posizione",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Rileva automaticamente le visite ai clienti"
@@ -43,6 +44,7 @@
         "USE_FINGERPRINT",
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
+        "MODIFY_AUDIO_SETTINGS",
         "RECORD_AUDIO",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MICROPHONE",
@@ -61,7 +63,13 @@
     },
     "plugins": [
       "expo-router",
-      ["expo-location", { "isAndroidBackgroundLocationEnabled": true, "locationAlwaysAndWhenInUsePermission": "Rileva automaticamente le visite ai clienti" }],
+      [
+        "expo-location",
+        {
+          "isAndroidBackgroundLocationEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "Rileva automaticamente le visite ai clienti"
+        }
+      ],
       "expo-task-manager",
       [
         "expo-splash-screen",
@@ -125,7 +133,16 @@
         {
           "cameraPermission": "Scansiona documenti con ritaglio automatico"
         }
-      ]
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Di' «Viola» e parla con Axon a mani libere",
+          "speechRecognitionPermission": "Trascrive sul telefono i comandi vocali per Axon",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ],
+      "./plugins/withViolaWake.js"
     ],
     "experiments": {
       "typedRoutes": true

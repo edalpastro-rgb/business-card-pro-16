@@ -8,15 +8,22 @@ import { api } from "@/src/api";
 
 export const AXON_OPEN_CHAT_EVENT = "axon:open-chat";
 let pendingPrompt: string | null = null;
+let pendingVoice = false; // V50.z315 — ViolaWake: risposta parlata anche se la chat è in modalità testo
 
-export function openAxonChat(prompt?: string | null) {
+export function openAxonChat(prompt?: string | null, opts?: { voice?: boolean }) {
   pendingPrompt = prompt && prompt.trim() ? prompt.trim() : null;
-  DeviceEventEmitter.emit(AXON_OPEN_CHAT_EVENT, { prompt: pendingPrompt });
+  pendingVoice = !!opts?.voice && !!pendingPrompt;
+  DeviceEventEmitter.emit(AXON_OPEN_CHAT_EVENT, { prompt: pendingPrompt, voice: pendingVoice });
 }
 
 /** Letto UNA volta dal modal chat quando si apre: se c'è un prompt in attesa lo invia. */
 export function consumePendingPrompt(): string | null {
   const p = pendingPrompt; pendingPrompt = null; return p;
+}
+
+/** Letto insieme al prompt: true se la risposta va anche letta a voce (comando vocale ViolaWake). */
+export function consumePendingVoice(): boolean {
+  const v = pendingVoice; pendingVoice = false; return v;
 }
 
 export type ProactiveAction = { label: string; prompt?: string; route?: string };

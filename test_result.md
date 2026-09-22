@@ -419,3 +419,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z312-z314 — Landing pubblica riprogettata (app/landing.tsx + src/landing/*: palette marchio navy/arancio/blu, orb Axon, aurora, mantra IA-aggiunta vs Axon-nel-CRM, demo animata 15 s AppDemoPlayer, modularità interattiva, modulo Richiedi demo). Backend POST /public/demo-request (35_reviews_leads.py) → lead source=landing_demo + bubble Home via _apx_emit(type lead_demo). index.tsx: landing al primo avvio su mobile (AsyncStorage landing_seen_v1). Testing agent iteration_93: tutto PASS."
+
+  - agent: "main"
+    message: "V50.z315 — ViolaWake: backend routes/viola_wake.py (settings/module/route/event/events) testato con tests/test_viola_wake.py; SDK src/violawake (Porcupine native + expo-speech-recognition, stub web), provider in _layout, pill di stato, schermata /viola-wake (link Impostazioni→Integrazioni). Su web/anteprima: stato «Non disponibile qui», ma modulo/impostazioni/test comando scritto funzionano (briefing → risposta parlata via TTS; comando libero → chat Axon con forceSpeak). Ascolto reale solo su build nativa con AccessKey Picovoice."
