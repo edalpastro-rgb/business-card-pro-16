@@ -431,3 +431,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z320 — Codici promozionali: backend routes/axon_promo_codes.py (GET/POST/PATCH/DELETE /admin/promo-codes (super admin), GET /admin/promo-codes/{id}/redemptions, POST /promo/redeem, GET /promo/my, job promo-premium-expiry 00:20). Frontend: app/admin/promo-codes.tsx (lista, crea, dettaglio con utilizzi, attiva/disattiva, elimina), src/PromoCodeField.tsx (campo onboarding saltabile + card Impostazioni›Abbonamento), tour.tsx step promo dopo nome+voce, master.tsx tile «Codici Promozionali» (super admin). pytest tests/test_v50z320_promo_codes.py 5/5."
+
+  - agent: "main"
+    message: "V50.z321-z322 — Coesistenza promo↔inviti (GET /invites → promo_codes per invitato; redemptions → invited_by_email) + «Invita un amico»: routes/axon_referral.py (GET /referral/me, GET/PUT /admin/referral-settings, GET /admin/referrals; riscatto via /promo/redeem fallback AMICO-…), src/ReferralCard.tsx, app/invita-amico.tsx, login ?ref= → pending_referral_code_v1 → prefill PromoCodeField. pytest test_v50z321 + test_v50z322 6/6 (+5 promo)."

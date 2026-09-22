@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, useWindowDimensions, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { PENDING_REFERRAL_KEY } from "@/src/PromoCodeField"; // V50.z322 — link «Invita un amico» ?ref=CODE
 import { QuickUnlockCard, maybeOfferQuickUnlock } from "@/src/quickUnlock/QuickUnlockCard"; // V50.z187 — accesso rapido (isolato)
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
@@ -16,6 +18,14 @@ export default function LoginScreen() {
   const router = useRouter();
   const { loginEmail, loginGoogle, register, verify2FA } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
+  // V50.z322 — arrivo da link amico (/login?ref=AMICO-…): memorizzo il codice (precompilato nell'onboarding) e apro la registrazione
+  const { ref: refParam } = useLocalSearchParams<{ ref?: string }>();
+  useEffect(() => {
+    const code = typeof refParam === "string" ? refParam.trim().toUpperCase() : "";
+    if (!code) return;
+    AsyncStorage.setItem(PENDING_REFERRAL_KEY, code).catch(() => {});
+    setMode("register");
+  }, [refParam]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");

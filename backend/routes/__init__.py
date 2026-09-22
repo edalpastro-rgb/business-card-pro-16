@@ -100,5 +100,6 @@ MODULES = [
     "courses.py",  # V50.z273 — Area Corsi (Corporate Gym v2.0 Fase 1): cartelle corsi, lettura/partecipazione, lista partecipanti, export, reminder (isolato)
     "viola_wake.py",  # V50.z315 — ViolaWake: modulo opzionale per azienda (wake-word «Viola» offline → comando → Axon voce / trigger proattivo); impostazioni, routing deterministico, log eventi (isolato; usa axon_proactive)
     "axon_promo_codes.py",  # V50.z320 — Codici promozionali: CRUD Super Admin (/admin/promo-codes), riscatto utente (/promo/redeem), job scadenza premium (isolato; usa 36 require_super_admin)
+    "axon_referral.py",  # V50.z322 — «Invita un amico»: codice personale AMICO-NOME-XXXX, premi configurabili (GET/PUT /admin/referral-settings), GET /referral/me, GET /admin/referrals; riscatto via /promo/redeem (isolato; DOPO axon_promo_codes)
     "37_app_startup_scheduler.py",
 ]

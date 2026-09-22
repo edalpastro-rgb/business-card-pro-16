@@ -3,11 +3,14 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 
 const C = theme.color;
 const VIOLET = "#8B5CF6"; // identità Axon (uguale in chiaro e scuro)
+/** V50.z322 — codice amico ricevuto via link /login?ref=…, precompilato al primo onboarding */
+export const PENDING_REFERRAL_KEY = "pending_referral_code_v1";
 
 type Props = {
   /** Onboarding: mostra «Salta» e chiama onDone dopo applicazione o salto */
@@ -19,6 +22,7 @@ export function PromoCodeField({ onDone, compact }: Props) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => { AsyncStorage.getItem(PENDING_REFERRAL_KEY).then((c) => { if (c) setCode(c); }).catch(() => {}); }, []);
 
   const apply = async () => {
     const c = code.trim();
@@ -29,6 +33,7 @@ export function PromoCodeField({ onDone, compact }: Props) {
       const r = await api<{ message: string; benefit_summary: string }>("/promo/redeem", { method: "POST", body: { code: c } });
       setResult({ ok: true, text: `${r.benefit_summary} · ${r.message}` });
       setCode("");
+      AsyncStorage.removeItem(PENDING_REFERRAL_KEY).catch(() => {});
     } catch (e: any) {
       setResult({ ok: false, text: e?.message || "Codice non valido" });
     } finally {
@@ -40,14 +45,14 @@ export function PromoCodeField({ onDone, compact }: Props) {
     <View style={[s.card, compact && s.cardCompact]} testID="promo-code-field">
       <View style={s.head}>
         <Ionicons name="pricetag" size={18} color={VIOLET} />
-        <Text style={s.title}>Hai un codice promozionale?</Text>
+        <Text style={s.title}>Hai un codice promozionale o un codice amico?</Text>
       </View>
       <Text style={s.sub}>Inseriscilo qui{onDone ? " (facoltativo)" : ""}: il beneficio viene applicato subito al tuo account.</Text>
       <View style={s.row}>
         <TextInput
           value={code}
           onChangeText={(t) => { setCode(t.toUpperCase()); setResult(null); }}
-          placeholder="ES. LANCIO2026"
+          placeholder="ES. LANCIO2026 o AMICO-…"
           placeholderTextColor={C.muted}
           style={s.input}
           autoCapitalize="characters"

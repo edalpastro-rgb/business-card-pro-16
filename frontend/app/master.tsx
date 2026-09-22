@@ -911,6 +911,7 @@ function SettingsHubSection({
         { icon: "analytics", label: "Team Insights", hint: "Metriche + profilo AI dei collaboratori", onPress: () => onGoto("/team-insights"), ownerOnly: true, testID: "hub-insights" },
         { icon: "podium", label: "Confronto collaboratori", hint: "Classifica KPI, grafico per metrica, testa a testa", onPress: () => onGoto("/team-compare"), ownerOnly: true, testID: "hub-compare" },
         { icon: "person-add", label: "Invita Collaboratore", hint: "Genera link / QR con ruolo", onPress: () => onGoto("/invite-collaborator"), ownerOnly: true, testID: "hub-invite-collab" },
+        { icon: "gift", label: "Invita un amico", hint: "Codice personale · giorni gratis per te e per chi arriva", onPress: () => onGoto("/invita-amico"), testID: "hub-invita-amico" },
         { icon: "mail-unread", label: "Richieste Info (Lead)", hint: "Lead pubblici con risposte AxonOS", onPress: () => onGoto("/leads"), testID: "hub-leads" },
       ],
     },

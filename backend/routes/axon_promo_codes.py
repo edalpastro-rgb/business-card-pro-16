@@ -256,6 +256,12 @@ async def promo_redeem(body: PromoRedeemIn, user=Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Inserisci un codice")
     doc = await db.promo_codes.find_one({"code": code})
     if not doc or not doc.get("active", True):
+        # V50.z322 — fallback: codice amico («Invita un amico»)
+        if code.startswith("AMICO-") or await db.users.find_one({"referral_code": code}, {"_id": 1}):
+            target = user
+            if user.get("parent_user_id"):
+                target = await db.users.find_one({"user_id": user["parent_user_id"]}) or user
+            return await _ref_redeem(code, user, target)
         raise HTTPException(status_code=404, detail="Codice non valido")
     now = utcnow()
     exp = _promo_as_dt(doc.get("expires_at"))
