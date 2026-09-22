@@ -192,7 +192,13 @@ export default function ViolaWakeScreen() {
           ))}
         </View>
 
-        <Text style={s.foot}>Su Android l'ascolto continua con app aperta o in secondo piano recente; con lo schermo bloccato a lungo il sistema può sospendere il microfono. Su iOS funziona con app aperta e a schermo spento (audio in background); Apple non consente il microfono sempre acceso con app chiusa.</Text>
+        <Text style={s.foot}>
+          {Platform.OS === "android"
+            ? (v.backgroundService
+              ? "Android: servizio in primo piano attivo — mentre l'ascolto è acceso vedi la notifica fissa «Viola in ascolto» e il microfono resta attivo anche a schermo bloccato. Dalla notifica puoi spegnerlo."
+              : "Android: questa build non include ancora il servizio in primo piano «Viola in ascolto» (serve una nuova build): l'ascolto continua con app aperta o in secondo piano recente.")
+            : "iOS: funziona con app aperta e a schermo spento (audio in background); Apple non consente il microfono sempre acceso con app chiusa."}
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );

@@ -10,6 +10,7 @@ import { openAxonChat } from "@/src/axonProactive";
 import { playAudioBase64 } from "@/src/utils/audioPlayback";
 import { violaApi } from "./api";
 import { createWakeEngine, WAKE_ENGINE_SUPPORTED } from "./wakeEngine";
+import { startForegroundService, stopForegroundService, FOREGROUND_SERVICE_AVAILABLE } from "./foregroundService";
 import { captureCommand, abortCapture, getMicPermission, requestMicPermission, requestRecognizerPermission, recognitionAvailable, supportsOnDevice, CAPTURE_SUPPORTED } from "./commandCapture";
 import type { ViolaState, ViolaSettings, ViolaModule, WakeEngine, PermissionStatus } from "./types";
 import { VIOLA_KEYWORD_LABEL } from "./types";
@@ -27,6 +28,7 @@ type Ctx = {
   isMaster: boolean;
   supported: boolean;
   hasKey: boolean;
+  backgroundService: boolean; // Android: servizio in primo piano disponibile nella build
   onDeviceStt: boolean;
   permission: PermissionStatus | null;
   refresh: () => Promise<void>;
@@ -204,6 +206,8 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
       await engine.start();
       setKeywordLabel(engine.keywordLabel);
       setState("listening");
+      // Android: servizio in primo piano con notifica «Viola in ascolto» → microfono attivo anche a schermo bloccato
+      if (Platform.OS === "android") void startForegroundService(engine.keywordLabel);
     } catch (e: any) {
       engineRef.current = null;
       setError(String(e?.message || e));
@@ -216,8 +220,8 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
   const shouldRun = !!user && !!settings?.enabled && !!module?.enabled;
   useEffect(() => {
     if (shouldRun) void startEngine();
-    else { void stopEngine(); abortCapture(); setState(supported ? "off" : "unsupported"); }
-    return () => { void stopEngine(); };
+    else { void stopEngine(); void stopForegroundService(); abortCapture(); setState(supported ? "off" : "unsupported"); }
+    return () => { void stopEngine(); void stopForegroundService(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldRun, settings?.sensitivity, settings?.keyword_mode]);
 
@@ -261,7 +265,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
   }, [supported, handleWake]);
 
   const value = useMemo<Ctx>(() => ({
-    state, error, lastTranscript, lastReply, keywordLabel, settings, module, isMaster, supported, hasKey, onDeviceStt, permission,
+    state, error, lastTranscript, lastReply, keywordLabel, settings, module, isMaster, supported, hasKey, backgroundService: FOREGROUND_SERVICE_AVAILABLE, onDeviceStt, permission,
     refresh, updateSettings, setModule, askPermission, openSettings, simulateWake, runCommand,
   }), [state, error, lastTranscript, lastReply, keywordLabel, settings, module, isMaster, supported, hasKey, onDeviceStt, permission, refresh, updateSettings, setModule, askPermission, openSettings, simulateWake, runCommand]);
 

@@ -142,7 +142,8 @@
           "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
         }
       ],
-      "./plugins/withViolaWake.js"
+      "./plugins/withViolaWake.js",
+      "./plugins/withViolaWakeService.js"
     ],
     "experiments": {
       "typedRoutes": true

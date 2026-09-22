@@ -11,6 +11,8 @@ import { VIOLA_FALLBACK_KEYWORD_LABEL, VIOLA_KEYWORD_LABEL } from "./types";
 export const WAKE_ENGINE_SUPPORTED = true;
 
 const CUSTOM_KEYWORD_PATH = Platform.OS === "android" ? "viola_android.ppn" : "ViolaWakeModels/viola_ios.ppn";
+// «Viola» è italiano → Porcupine richiede il modello lingua IT (assets/keywords/porcupine_params_it.pv, copiato dal plugin)
+const IT_MODEL_PATH = Platform.OS === "android" ? "porcupine_params_it.pv" : "ViolaWakeModels/porcupine_params_it.pv";
 
 export function createWakeEngine(opts: WakeEngineOptions): WakeEngine {
   let manager: PorcupineManager | null = null;
@@ -28,7 +30,7 @@ export function createWakeEngine(opts: WakeEngineOptions): WakeEngine {
   const build = async () => {
     if (opts.keywordMode === "custom") {
       try {
-        return await PorcupineManager.fromKeywordPaths(opts.accessKey, [CUSTOM_KEYWORD_PATH], onDetect, onProcError, undefined, undefined, [opts.sensitivity]);
+        return await PorcupineManager.fromKeywordPaths(opts.accessKey, [CUSTOM_KEYWORD_PATH], onDetect, onProcError, IT_MODEL_PATH, undefined, [opts.sensitivity]);
       } catch (e: any) {
         // .ppn assente o non valido → fallback alla parola integrata
         keywordLabel = VIOLA_FALLBACK_KEYWORD_LABEL;
