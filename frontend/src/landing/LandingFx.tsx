@@ -42,17 +42,17 @@ export function AxonOrb({ size = 220 }: { size?: number }) {
   return (
     <View style={{ width: size * 1.6, height: size * 1.6, alignItems: "center", justifyContent: "center" }} testID="landing-axon-orb">
       <Animated.View style={[{ position: "absolute", alignItems: "center", justifyContent: "center" }, halo]}>
-        <SoftGlow color={LP.brandLineSoft} size={size * 1.45} />
+        <SoftGlow color={LP.axonLineSoft} size={size * 1.45} />
       </Animated.View>
-      <Animated.View style={[{ position: "absolute", width: size * 1.25, height: size * 1.25, borderRadius: size, borderWidth: 1, borderColor: LP.brandLine }, ringA]} />
-      <Animated.View style={[{ position: "absolute", width: size * 1.25, height: size * 1.25, borderRadius: size, borderWidth: 1, borderColor: LP.brandLineSoft }, ringB]} />
+      <Animated.View style={[{ position: "absolute", width: size * 1.25, height: size * 1.25, borderRadius: size, borderWidth: 1, borderColor: LP.axonLine }, ringA]} />
+      <Animated.View style={[{ position: "absolute", width: size * 1.25, height: size * 1.25, borderRadius: size, borderWidth: 1, borderColor: LP.axonLineSoft }, ringB]} />
       <Animated.View
         style={[
-          { width: size, height: size, borderRadius: r, shadowColor: LP.brand, shadowRadius: 40, shadowOffset: { width: 0, height: 0 }, elevation: 12 },
+          { width: size, height: size, borderRadius: r, shadowColor: LP.axon, shadowRadius: 40, shadowOffset: { width: 0, height: 0 }, elevation: 12 },
           core,
         ]}
       >
-        <LinearGradient colors={[LP.brand, LP.brandDeep, LP.surfaceInk]} start={{ x: 0.2, y: 0.1 }} end={{ x: 0.9, y: 1 }} style={{ flex: 1, borderRadius: r, alignItems: "center", justifyContent: "center" }}>
+        <LinearGradient colors={[LP.axon, LP.axonDeep, LP.axonInk]} start={{ x: 0.2, y: 0.1 }} end={{ x: 0.9, y: 1 }} style={{ flex: 1, borderRadius: r, alignItems: "center", justifyContent: "center" }}>
           <View style={{ width: size * 0.42, height: size * 0.42, borderRadius: size, backgroundColor: LP.coreWhite, opacity: 0.9 }} />
         </LinearGradient>
       </Animated.View>
@@ -135,7 +135,7 @@ export function ScanLine({ height }: { height: number }) {
     y.value = withRepeat(withSequence(withTiming(1, { duration: 1900, easing: Easing.inOut(Easing.ease) }), withDelay(300, withTiming(0, { duration: 0 }))), -1, false);
   }, [y]);
   const st = useAnimatedStyle(() => ({ transform: [{ translateY: interpolate(y.value, [0, 1], [0, height - 4]) }], opacity: interpolate(y.value, [0, 0.05, 0.95, 1], [0, 1, 1, 0]) }));
-  return <Animated.View pointerEvents="none" style={[{ position: "absolute", left: 0, right: 0, height: 3, backgroundColor: LP.brand, shadowColor: LP.brand, shadowRadius: 12, shadowOpacity: 1, shadowOffset: { width: 0, height: 0 } }, st]} />;
+  return <Animated.View pointerEvents="none" style={[{ position: "absolute", left: 0, right: 0, height: 3, backgroundColor: LP.axon, shadowColor: LP.axon, shadowRadius: 12, shadowOpacity: 1, shadowOffset: { width: 0, height: 0 } }, st]} />;
 }
 
 /** Campo modulo che si «riempie» da solo (larghezza animata + testo). */
@@ -158,7 +158,7 @@ export function AutoField({ label, value, delay }: { label: string; value: strin
 }
 
 /** Pallino luminoso che pulsa (indicatore «Axon acceso»). */
-export function LiveDot({ color = LP.brand }: { color?: string }) {
+export function LiveDot({ color = LP.axon }: { color?: string }) {
   const p = useSharedValue(0);
   useEffect(() => {
     p.value = withRepeat(withTiming(1, { duration: 1200 }), -1, true);
@@ -177,6 +177,6 @@ const fx = StyleSheet.create({
   field: { gap: 4 },
   fieldLbl: { color: LP.muted, fontSize: 10, fontWeight: "700", letterSpacing: 1.2, textTransform: "uppercase" },
   fieldBox: { height: 34, borderRadius: 8, backgroundColor: LP.surface3, borderWidth: 1, borderColor: LP.border, overflow: "hidden", justifyContent: "center", paddingHorizontal: 10 },
-  fieldBar: { position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: LP.brandTint },
+  fieldBar: { position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: LP.axonTint },
   fieldVal: { color: LP.onSurface, fontSize: 13, fontWeight: "700" },
 });

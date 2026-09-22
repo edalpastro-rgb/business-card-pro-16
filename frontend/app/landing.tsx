@@ -13,7 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { LP } from "@/src/landing/palette";
-import { AxonOrb, Aurora, RotatingWord, Reveal, ScanLine, AutoField, LiveDot } from "@/src/landing/LandingFx";
+import { AxonOrb, Aurora, RotatingWord, Reveal, LiveDot } from "@/src/landing/LandingFx";
+import { AppDemoPlayer } from "@/src/landing/AppDemoPlayer";
 
 type IonName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -110,7 +111,7 @@ export default function LandingScreen() {
           </Reveal>
         </View>
         <View style={s.scrollCue} pointerEvents="none">
-          <Ionicons name="chevron-down" size={22} color={LP.brand} />
+          <Ionicons name="chevron-down" size={22} color={LP.axon} />
         </View>
       </View>
 
@@ -147,13 +148,13 @@ export default function LandingScreen() {
             <Reveal delay={250} style={{ flex: 1 }}>
               <View style={[s.card, s.cardOn]} testID="landing-compare-axon">
                 <View style={s.cardHead}>
-                  <View style={[s.badge, s.badgeOn]}><LiveDot /><Text style={[s.badgeTxt, { color: LP.brand }]}>AXON</Text></View>
+                  <View style={[s.badge, s.badgeOn]}><LiveDot /><Text style={[s.badgeTxt, { color: LP.axon }]}>AXON</Text></View>
                   <Text style={s.cardTitle}>Nel CRM</Text>
                 </View>
                 <View style={s.diagram}>
                   <View style={[s.crmBox, s.crmBoxOn]}>
                     <View style={s.coreDot} />
-                    <Text style={[s.crmBoxTxt, { color: LP.brand }]}>CRM + Axon</Text>
+                    <Text style={[s.crmBoxTxt, { color: LP.axon }]}>CRM + Axon</Text>
                     <View style={s.nodes}>
                       {["Clienti", "Contratti", "Agenda", "Corsi"].map((n) => (
                         <View key={n} style={s.node}><Text style={s.nodeTxt}>{n}</Text></View>
@@ -162,7 +163,7 @@ export default function LandingScreen() {
                   </View>
                 </View>
                 {AXON_AI.map((t) => (
-                  <View key={t} style={s.li}><Ionicons name="checkmark-circle" size={16} color={LP.brand} /><Text style={s.liTxt}>{t}</Text></View>
+                  <View key={t} style={s.li}><Ionicons name="checkmark-circle" size={16} color={LP.axon} /><Text style={s.liTxt}>{t}</Text></View>
                 ))}
               </View>
             </Reveal>
@@ -170,7 +171,7 @@ export default function LandingScreen() {
 
           <Reveal delay={150}>
             <View style={s.privacyBand} testID="landing-privacy">
-              <Ionicons name="shield-checkmark" size={26} color={LP.brand} />
+              <Ionicons name="shield-checkmark" size={26} color={LP.axon} />
               <View style={{ flex: 1 }}>
                 <Text style={s.privacyTitle}>I tuoi dati restano solo ed esclusivamente tuoi.</Text>
                 <Text style={s.privacyTxt}>Isolati per azienda. Mai usati per addestrare modelli. Axon lavora dentro il tuo perimetro, non fuori.</Text>
@@ -194,39 +195,21 @@ export default function LandingScreen() {
             </Text>
           </Reveal>
 
-          <View style={[s.compareRow, compact && s.compareCol, { alignItems: "stretch" }]}>
-            <Reveal delay={100} style={{ flex: 1 }}>
-              <View style={[s.card, s.docCard]}>
-                <Text style={s.smallCaps}>ENTRATA</Text>
-                <View style={s.docPaper}>
-                  <ScanLine height={150} />
-                  <View style={[s.docLine, { width: "60%" }]} />
-                  <View style={[s.docLine, { width: "85%" }]} />
-                  <View style={[s.docLine, { width: "72%" }]} />
-                  <View style={[s.docLine, { width: "40%" }]} />
-                  <View style={[s.docLine, { width: "78%" }]} />
-                </View>
+          <View style={[s.compareRow, compact && s.compareCol, { alignItems: "center" }]}>
+            <Reveal delay={100} style={compact ? { width: "100%", alignItems: "center" } : { flex: 1, alignItems: "center" }}>
+              <AppDemoPlayer width={compact ? Math.min(300, width - 56) : 300} />
+            </Reveal>
+            <Reveal delay={250} style={compact ? { width: "100%", marginTop: 8 } : { flex: 1, alignSelf: "stretch" }}>
+              <View style={[s.card, s.cardOn]} testID="landing-autofill">
+                <Text style={s.smallCaps}>15 SECONDI · L&apos;APP IN AZIONE</Text>
+                <Text style={s.cardTitle}>Da una foto al contratto firmabile.</Text>
                 {DOC_INPUTS.map((d) => (
                   <View key={d.label} style={s.li}>
-                    <Ionicons name={d.icon} size={16} color={LP.brand} />
+                    <Ionicons name={d.icon} size={16} color={LP.axon} />
                     <Text style={s.liTxt}><Text style={{ color: LP.onSurface, fontWeight: "800" }}>{d.label}</Text>  →  {d.out}</Text>
                   </View>
                 ))}
-              </View>
-            </Reveal>
-            <View style={[s.arrowWrap, compact && { transform: [{ rotate: "90deg" }], alignSelf: "center" }]}>
-              <Ionicons name="arrow-forward" size={28} color={LP.brand} />
-            </View>
-            <Reveal delay={250} style={{ flex: 1 }}>
-              <View style={[s.card, s.cardOn]} testID="landing-autofill">
-                <Text style={s.smallCaps}>USCITA · COMPILATO DA AXON</Text>
-                <View style={{ gap: 10, marginTop: 8 }}>
-                  <AutoField label="Cliente" value="Rossi Mario" delay={200} />
-                  <AutoField label="Codice POD" value="IT001E12345678" delay={700} />
-                  <AutoField label="Consumo annuo" value="3.250 kWh" delay={1200} />
-                  <AutoField label="Fornitore attuale" value="Rilevato dalla bolletta" delay={1700} />
-                </View>
-                <View style={[s.li, { marginTop: 8 }]}><Ionicons name="flash" size={16} color={LP.brand} /><Text style={s.liTxt}>Contratto pronto per la firma, già archiviato nella scheda cliente.</Text></View>
+                <View style={[s.li, { marginTop: 4 }]}><Ionicons name="flash" size={16} color={LP.brand} /><Text style={s.liTxt}>Contratto pronto per la firma, già archiviato nella scheda cliente. Zero errori di trascrizione.</Text></View>
               </View>
             </Reveal>
           </View>
@@ -290,13 +273,13 @@ export default function LandingScreen() {
                     accessibilityState={{ checked: on }}
                   >
                     <View style={s.modTop}>
-                      <Ionicons name={m.icon} size={20} color={on ? LP.brand : LP.muted} />
+                      <Ionicons name={m.icon} size={20} color={on ? LP.axon : LP.muted} />
                       <View style={[s.toggle, on && s.toggleOn]}>
                         <View style={[s.knob, on && s.knobOn]} />
                       </View>
                     </View>
                     <Text style={[s.modLbl, !on && { color: LP.muted }]}>{m.label}</Text>
-                    <Text style={[s.modState, on && { color: LP.brand }]}>{on ? "ATTIVO" : "SPENTO"}</Text>
+                    <Text style={[s.modState, on && { color: LP.axon }]}>{on ? "ATTIVO" : "SPENTO"}</Text>
                   </Pressable>
                 </Reveal>
               );
@@ -350,14 +333,14 @@ const s = StyleSheet.create({
 
   // Hero
   hero: { justifyContent: "center", alignItems: "center", paddingVertical: 48, overflow: "hidden", backgroundColor: LP.surface },
-  eyebrow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: LP.brandLine, backgroundColor: LP.brandGlow },
-  eyebrowTxt: { color: LP.brand, fontSize: 13, fontWeight: "800", letterSpacing: 0.6 },
+  eyebrow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: LP.axonLine, backgroundColor: LP.axonGlow },
+  eyebrowTxt: { color: LP.axon, fontSize: 13, fontWeight: "800", letterSpacing: 0.6 },
   h1: { color: LP.onSurface, fontSize: 56, fontWeight: "900", letterSpacing: -2, textAlign: "center", lineHeight: 60, marginTop: 4 },
   h1Compact: { fontSize: 38, lineHeight: 42, letterSpacing: -1.2 },
   rotRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "center", flexWrap: "wrap", marginTop: 10, marginBottom: 28 },
   h2: { color: LP.onSurface2, fontSize: 24, fontWeight: "600", letterSpacing: -0.4 },
   h2Compact: { fontSize: 18 },
-  h2Accent: { color: LP.brand, fontWeight: "900" },
+  h2Accent: { color: LP.axon, fontWeight: "900" },
   cta: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 34, paddingVertical: 16, borderRadius: 999, backgroundColor: LP.brand, shadowColor: LP.brand, shadowOpacity: 0.55, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 10, minHeight: 56 },
   ctaBig: { paddingHorizontal: 44, paddingVertical: 20 },
   ctaTxt: { color: LP.onBrand, fontSize: 17, fontWeight: "900", letterSpacing: 2 },
@@ -377,36 +360,32 @@ const s = StyleSheet.create({
   compareCol: { flexDirection: "column" },
   card: { backgroundColor: LP.surface2, borderRadius: 20, borderWidth: 1, borderColor: LP.border, padding: 20, gap: 12 },
   cardOff: { opacity: 0.9 },
-  cardOn: { borderColor: LP.brandLine, backgroundColor: LP.surface3, shadowColor: LP.brand, shadowOpacity: 0.25, shadowRadius: 30, shadowOffset: { width: 0, height: 0 } },
+  cardOn: { borderColor: LP.axonLine, backgroundColor: LP.surface3, shadowColor: LP.axon, shadowOpacity: 0.25, shadowRadius: 30, shadowOffset: { width: 0, height: 0 } },
   cardHead: { gap: 8 },
   badge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1 },
   badgeOff: { borderColor: LP.errorText, backgroundColor: LP.offRed },
-  badgeOn: { borderColor: LP.brandLine, backgroundColor: LP.brandTint },
+  badgeOn: { borderColor: LP.axonLine, backgroundColor: LP.axonTint },
   badgeTxt: { fontSize: 11, fontWeight: "900", letterSpacing: 1.4 },
   cardTitle: { color: LP.onSurface, fontSize: 22, fontWeight: "900", letterSpacing: -0.5 },
   diagram: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, minHeight: 96 },
   crmBox: { flex: 1, minHeight: 76, borderRadius: 14, borderWidth: 1, borderColor: LP.borderStrong, backgroundColor: LP.surface, alignItems: "center", justifyContent: "center", padding: 10, gap: 8 },
-  crmBoxOn: { borderColor: LP.brandLine, backgroundColor: LP.surfaceInk },
+  crmBoxOn: { borderColor: LP.axonLine, backgroundColor: LP.axonTint },
   crmBoxTxt: { color: LP.onSurface2, fontSize: 13, fontWeight: "900", letterSpacing: 1.5 },
-  coreDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: LP.brand, shadowColor: LP.brand, shadowRadius: 14, shadowOpacity: 1, shadowOffset: { width: 0, height: 0 } },
+  coreDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: LP.axon, shadowColor: LP.axon, shadowRadius: 14, shadowOpacity: 1, shadowOffset: { width: 0, height: 0 } },
   nodes: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center" },
-  node: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1, borderColor: LP.brandLineSoft },
-  nodeTxt: { color: LP.brand, fontSize: 10, fontWeight: "700" },
+  node: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1, borderColor: LP.axonLineSoft },
+  nodeTxt: { color: LP.axon, fontSize: 10, fontWeight: "700" },
   dashed: { width: 34, height: 0, borderTopWidth: 2, borderStyle: "dashed", borderColor: LP.errorText },
   plugBox: { alignItems: "center", gap: 4, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: LP.errorText, backgroundColor: LP.offRed },
   plugTxt: { color: LP.errorText, fontSize: 10, fontWeight: "800" },
   li: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   liTxt: { flex: 1, color: LP.onSurface2, fontSize: 14, lineHeight: 20 },
 
-  privacyBand: { flexDirection: "row", alignItems: "center", gap: 16, marginTop: 24, padding: 20, borderRadius: 20, borderWidth: 1, borderColor: LP.brandLine, backgroundColor: LP.brandTint },
+  privacyBand: { flexDirection: "row", alignItems: "center", gap: 16, marginTop: 24, padding: 20, borderRadius: 20, borderWidth: 1, borderColor: LP.axonLine, backgroundColor: LP.axonTint },
   privacyTitle: { color: LP.onSurface, fontSize: 18, fontWeight: "900", letterSpacing: -0.4 },
   privacyTxt: { color: LP.onSurface2, fontSize: 14, lineHeight: 20, marginTop: 4 },
 
-  docCard: {},
   smallCaps: { color: LP.muted, fontSize: 11, fontWeight: "800", letterSpacing: 2 },
-  docPaper: { height: 150, borderRadius: 12, backgroundColor: LP.surface, borderWidth: 1, borderColor: LP.borderStrong, padding: 16, gap: 12, overflow: "hidden", position: "relative" },
-  docLine: { height: 8, borderRadius: 4, backgroundColor: LP.surface3 },
-  arrowWrap: { alignSelf: "center", paddingVertical: 8 },
 
   stepsRow: { flexDirection: "row", gap: 16, marginTop: 36 },
   step: { flex: 1, padding: 22, borderRadius: 20, borderWidth: 1, borderColor: LP.border, backgroundColor: LP.surface2, gap: 8 },
@@ -414,17 +393,17 @@ const s = StyleSheet.create({
   stepT: { color: LP.onSurface, fontSize: 18, fontWeight: "900", letterSpacing: -0.3 },
   stepD: { color: LP.onSurface2, fontSize: 14, lineHeight: 20 },
 
-  axonAlways: { flexDirection: "row", alignItems: "center", gap: 10, alignSelf: "flex-start", marginTop: 24, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: LP.brandLine, backgroundColor: LP.brandTint },
-  axonAlwaysTxt: { color: LP.brand, fontSize: 13, fontWeight: "800" },
+  axonAlways: { flexDirection: "row", alignItems: "center", gap: 10, alignSelf: "flex-start", marginTop: 24, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: LP.axonLine, backgroundColor: LP.axonTint },
+  axonAlwaysTxt: { color: LP.axon, fontSize: 13, fontWeight: "800" },
   modGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 16, justifyContent: "space-between" },
   mod: { borderRadius: 18, borderWidth: 1, padding: 16, gap: 10, minHeight: 120, justifyContent: "space-between" },
-  modOn: { borderColor: LP.brandLine, backgroundColor: LP.surface3, shadowColor: LP.brand, shadowOpacity: 0.35, shadowRadius: 22, shadowOffset: { width: 0, height: 0 } },
+  modOn: { borderColor: LP.axonLine, backgroundColor: LP.surface3, shadowColor: LP.axon, shadowOpacity: 0.35, shadowRadius: 22, shadowOffset: { width: 0, height: 0 } },
   modOff: { borderColor: LP.border, backgroundColor: LP.surface },
   modTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   toggle: { width: 38, height: 22, borderRadius: 11, backgroundColor: LP.border, padding: 2, justifyContent: "center" },
-  toggleOn: { backgroundColor: LP.brand },
+  toggleOn: { backgroundColor: LP.axon },
   knob: { width: 18, height: 18, borderRadius: 9, backgroundColor: LP.muted },
-  knobOn: { backgroundColor: LP.onBrand, alignSelf: "flex-end" },
+  knobOn: { backgroundColor: LP.onSurface, alignSelf: "flex-end" },
   modLbl: { color: LP.onSurface, fontSize: 15, fontWeight: "800", letterSpacing: -0.2 },
   modState: { color: LP.muted, fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
 
