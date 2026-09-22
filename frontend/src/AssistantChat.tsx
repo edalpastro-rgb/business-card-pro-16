@@ -46,7 +46,9 @@ import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 �
 import { ChatQueuePanel, type QueueItem } from "@/src/ChatQueuePanel"; // V50.z223 — coda messaggi non bloccante + chat parallele
 import { ChatQueueInline } from "@/src/ChatQueueInline"; // V50.z301 — bozze in coda visibili dentro la chat
 import { ChoiceButtons, extractChoices } from "@/src/axon-choice-buttons"; // V50.z304 — pulsanti A)/B) e azioni «ORA»
-import { consumePendingPrompt, consumePendingVoice, AXON_OPEN_CHAT_EVENT } from "@/src/axonProactive"; // V50.z196 — Blocco 9 apertura chat proattiva
+import { consumePendingPrompt, consumePendingVoice, AXON_OPEN_CHAT_EVENT } from "@/src/axonProactive";
+import { matchLocalCommand, playActivationEffect, startFindPhone, stopFindPhone } from "@/src/activation/events"; // V50.z318
+import { ActivationOverlay } from "@/src/activation/ActivationOverlay"; // V50.z318 — mirror dentro il Modal chat // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
 import { conversationToText, copyText, shareText, exportConversationPdf } from "@/src/utils/chatExport";
@@ -609,6 +611,20 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     setMessages((prev) => [...prev, optimistic]);
     const attachmentsPayload = pendingAttachments;
     setPendingAttachments([]);
+
+    // V50.z318 — Comandi LOCALI del telefono (nessun LLM): «{nome}, fai l'effetto» · «dove sei» / «trova il mio telefono» · «stop»
+    const stripName = (s: string) => (s.toLowerCase().startsWith(assistantName.toLowerCase()) ? s.slice(assistantName.length).replace(/^[,!\s]+/, "") : s);
+    const local = !attachmentsPayload.length ? matchLocalCommand(stripName(msg)) : null;
+    if (local) {
+      const reply =
+        local === "effect" ? (playActivationEffect({ name: assistantName, voice: assistantVoice, greet: true }), `✨ Ecco l'effetto di attivazione.`) :
+        local === "find_phone" ? (startFindPhone(assistantName), `📍 Sono qui! Vibro e suono finché non tocchi lo schermo o dici «stop».`) :
+        (stopFindPhone(), "OK!");
+      setMessages((prev) => [...prev, { role: "assistant", content: reply, created_at: new Date().toISOString() }]);
+      sendingRef.current = false;
+      setSending(false);
+      return;
+    }
 
     // V29.ag — Azioni rapide: usa endpoint server-side con cache + auto-refresh.
     // V50.z126 — Solo lookup cache (istantaneo). Su miss NON attendiamo la POST
@@ -2078,6 +2094,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           </View>
         </View>
       </Modal>
+      {/* V50.z318 — onda di attivazione / trova il telefono visibili anche sopra la chat (RN Modal = finestra nativa sopra tutto) */}
+      <ActivationOverlay mirror />
     </Modal>
   );
 }

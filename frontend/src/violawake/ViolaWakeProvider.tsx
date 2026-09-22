@@ -6,7 +6,9 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState, Platform, Linking } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/src/auth";
+import { api } from "@/src/api";
 import { openAxonChat } from "@/src/axonProactive";
+import { playActivationEffect, startFindPhone, stopFindPhone } from "@/src/activation/events"; // V50.z318
 import { playAudioBase64 } from "@/src/utils/audioPlayback";
 import { violaApi } from "./api";
 import { createWakeEngine, WAKE_ENGINE_SUPPORTED } from "./wakeEngine";
@@ -133,7 +135,22 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
     }
     if (route.mode === "cancel") {
       void violaApi.logEvent("cancelled", { transcript });
+      stopFindPhone(); // «stop» ferma anche «trova il mio telefono»
       await speak("OK!");
+      settle();
+      return;
+    }
+    if (route.mode === "effect") {
+      void violaApi.logEvent("effect", { transcript });
+      const us = await api<{ assistant_name?: string; assistant_voice?: string }>("/user-settings").catch(() => ({} as any));
+      playActivationEffect({ name: us?.assistant_name || "Axon", voice: us?.assistant_voice, greet: true });
+      settle();
+      return;
+    }
+    if (route.mode === "find_phone") {
+      void violaApi.logEvent("find_phone", { transcript });
+      const us = await api<{ assistant_name?: string }>("/user-settings").catch(() => ({} as any));
+      startFindPhone(us?.assistant_name || "Axon");
       settle();
       return;
     }

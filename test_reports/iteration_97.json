@@ -1,0 +1,31 @@
+{
+  "summary": "V50.z318 AxonOS Activation — Backend 7/7 pytest PASS (user-settings flags, ViolaWake routing effect/find_phone/find_phone/cancel/chat). Frontend first-launch tour flow PASS: assistant-setup-step shown as first step (no Salta), name=Viola + shimmer voice, OK → activation-overlay visible within ~1s and detached within 3s, chat modal opened with placeholder 'Scrivi a Viola…', reload confirmed setup step does NOT reappear. GET /user-settings correctly persisted assistant_name='Viola', assistant_voice='shimmer', assistant_setup_done=true, activation_done=true. Chat commands PASS: 'Viola, dove sei?' → find-phone-overlay visible + reply '📍 Sono qui!…'; 'trova il mio telefono' → overlay visible; 'stop' → overlay detached + reply 'OK!'; 'Viola, fai l'effetto' → activation-overlay visible ~3s + reply contains 'Ecco l\\'effetto'; normal LLM query 'che ore sono?' → streamed reply '11:38 di martedì 22 settembre 2026'. Restored settings to assistant_name=Neo, assistant_voice=nova.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ActivationOverlay (find-phone-overlay)", "issue": "On web preview, tapping the overlay does NOT dismiss it — the assistant chat Modal is rendered above the overlay in DOM order and intercepts click/pointer events. The onPress handler on the outer Pressable never fires when the chat modal is open. Users must use the 'stop' command instead. Native rendering (RN Modal/portal) is unaffected. Reference: /app/frontend/src/activation/ActivationOverlay.tsx:129 (Pressable onPress={find ? stopFind : undefined}).", "testID": "find-phone-overlay", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z318_axon_activation.py",
+    "/app/test_reports/pytest/v50z318_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL/LOW PRIORITY: On web the find-phone-overlay is not tappable to dismiss because the chat Modal sits above it. Consider elevating the overlay z-index on web (Platform.OS === 'web' with position:'fixed' at maximum stacking context, or portal it above Modals via react-native-web Portal). Currently the 'stop' command works as a viable fallback."
+  ],
+  "critical_code_review_comments": [
+    "playActivationEffect + startFindPhone use DeviceEventEmitter which is React Native only; works on web preview via react-native-web polyfill — verified working.",
+    "matchLocalCommand regex correctly handles all 4 command classes; backend _vw_route mirrors the same logic (ViolaWake also returns mode='effect' and 'find_phone').",
+    "doubleBuzz() returns early on web (Platform.OS==='web') — vibration/haptics cannot be asserted headless as expected."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "95%"},
+  "seed_data_creation": "None. Used existing owner test@dalpastro.it. Reset flags to false before UI test, then let UI complete the flow. Restored settings to assistant_name=Neo, assistant_voice=nova after tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "For send button click: the previous testing note said 'outside viewport' — I confirmed this. Workaround that works on web: page.evaluate(\"document.querySelector('[data-testid=\\\"assistant-send\\\"]').dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}))\") — scroll_into_view_if_needed also works. For find-phone-overlay dismissal on web, tapping the overlay does NOT work because chat Modal intercepts events; the 'stop' command reliably closes it. Auth-submit-button on web login page has the same intercept issue — dispatchEvent works reliably.",
+  "rca_of_issue": "find-phone-overlay tap-to-dismiss on web: React Native Modal (chat) is rendered as a fixed-position div sibling AFTER ActivationOverlay in DOM. Even though ActivationOverlay uses zIndex:99999, the Modal creates a new stacking context that receives pointer events. On native, RN's Modal uses a separate window layer and the overlay (rendered inside a Portal at root _layout) can sit above properly."
+}

@@ -1,3 +1,4 @@
+import re
 """
 V50.z315 — VIOLAWAKE (modulo standalone opzionale) — backend.
 
@@ -86,6 +87,11 @@ def _vw_route(transcript: str) -> dict:
     low = cmd.lower().strip()
     if not low or low in VW_STOP_WORDS or any(low.startswith(s) for s in VW_STOP_WORDS):
         return {"mode": "cancel", "prompt": "", "reply": "OK!"}
+    # V50.z318 — effetti locali del telefono (gestiti dall'app, nessun LLM)
+    if re.search(r"\bfai (l'|lo |l )?effetto\b|\beffetto di attivazione\b|\battivati\b", low):
+        return {"mode": "effect", "prompt": cmd}
+    if re.search(r"\bdove sei\b|\btrova il (mio )?telefono\b|\bdov'è il (mio )?telefono\b|\bcerca il (mio )?telefono\b", low):
+        return {"mode": "find_phone", "prompt": cmd}
     for action, keys in VW_TRIGGER_RULES:
         if any(k in low for k in keys):
             return {"mode": "trigger", "action": action, "prompt": cmd}

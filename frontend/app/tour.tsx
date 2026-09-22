@@ -19,6 +19,9 @@ import { InterestForm } from "@/src/TourInterestForm"; // V50.z284 — form spun
 import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
 import { ContactPreviewForm, flattenChannels, ExtractedContact } from "@/src/ContactPreviewForm"; // V50.z278
 import { ManualCropEditor, CropResult } from "@/src/ManualCropEditor"; // V50.z278
+import { AssistantSetupStep } from "@/src/activation/AssistantSetupStep"; // V50.z318 — step obbligatorio nome+voce
+import { playActivationEffect } from "@/src/activation/events";
+import { openAxonChat } from "@/src/axonProactive";
 
 const NAVY = "#0B1B33"; const SKY = "#38BDF8"; const MUTED = "#94A3B8"; const WHITE = "#FFFFFF"; const AMBER = "#FBBF24";
 const FEATURE_ICON: Record<string, any> = { bills: "document-text", compare: "git-compare", route: "car-sport", calendar: "calendar", deadlines: "alarm", notes: "mic", scanner: "scan", email: "mail", whatsapp: "logo-whatsapp", referrals: "share-social", contacts: "people", voice: "mic-circle", team: "people-circle", kpi: "stats-chart", chat: "chatbubbles", proactive: "notifications", km: "speedometer", visits: "location", map: "map", files: "folder", pdf: "document", offers: "pricetags", pun: "flash", courses: "school", courses_dashboard: "bar-chart", forms: "document-attach", iddocs: "id-card", axon_voice: "volume-high", offline: "airplane", crt: "document-text" };
@@ -125,6 +128,22 @@ export default function TourScreen() {
     });
   }, [fade]);
 
+  // V50.z318 — Step 0 OBBLIGATORIO: nome + voce dell'assistente, se non ancora configurati nel profilo
+  const [setup, setSetup] = useState<{ needed: boolean; name?: string; voice?: string } | null>(null);
+  useEffect(() => {
+    api<{ assistant_setup_done?: boolean; assistant_name?: string; assistant_voice?: string }>("/user-settings")
+      .then((s) => setSetup({ needed: !s?.assistant_setup_done, name: s?.assistant_name, voice: s?.assistant_voice }))
+      .catch(() => setSetup({ needed: false }));
+  }, []);
+  const activate = useCallback(async (name: string, voiceKey: string) => {
+    voiceStop();
+    await api("/user-settings", { method: "PUT", body: { assistant_name: name, assistant_voice: voiceKey, assistant_setup_done: true, activation_done: true, onboarding_done: true } }).catch(() => {});
+    if (user?.user_id) await AsyncStorage.setItem(`onboarding_done_${user.user_id}`, "1").catch(() => {});
+    router.replace("/(tabs)/home" as any);
+    // apre la chat e lancia l'effetto (vibrazione doppia → onda 3 s → «Ciao, sono {nome}. Sono pronto.»)
+    setTimeout(() => { openAxonChat(); playActivationEffect({ name, voice: voiceKey, greet: true }); }, 700);
+  }, [router, user?.user_id]);
+
   const finish = useCallback(async () => {
     voiceStop();
     if (user?.user_id) await AsyncStorage.setItem(`onboarding_done_${user.user_id}`, "1").catch(() => {});
@@ -164,14 +183,18 @@ export default function TourScreen() {
           <Ionicons name={muted ? "volume-mute" : "volume-high"} size={18} color={muted ? NAVY : SKY} />
           <Text style={[styles.muteTxt, muted && { color: NAVY }]}>{muted ? "Riattiva" : "Silenzia"}</Text>
         </Pressable>
-        {!(step === 3 && masterLocked) ? <Pressable onPress={finish} hitSlop={10} style={styles.skip} testID="tour-skip"><Text style={styles.skipTxt}>Salta</Text></Pressable> : null}
+        {!(step === 3 && masterLocked) && !setup?.needed ? <Pressable onPress={finish} hitSlop={10} style={styles.skip} testID="tour-skip"><Text style={styles.skipTxt}>Salta</Text></Pressable> : null}
       </View>
+      {setup === null ? null : setup.needed ? (
+        <AssistantSetupStep initialName={setup.name} initialVoice={setup.voice} onDone={activate} />
+      ) : (
       <Animated.View style={{ flex: 1, opacity: fade }}>
         {step === 1 && <Welcome onNext={() => go(2)} onFeatures={() => router.push("/tour-features" as any)} />}
         {step === 2 && <TalkToAxon key={tourRun} say={say} onNext={() => go(3)} onVoiceSettings={() => { voiceStop(); router.push("/axon-voice" as any); }} />}
         {step === 3 && <MasterThenFirstContact key={tourRun} say={say} onNext={() => go(4)} onLockChange={setMasterLocked} />}
         {step === 4 && <Closing onFinish={finish} onFeatures={() => router.push("/tour-features" as any)} />}
       </Animated.View>
+      )}
       {/* V50.z265 — «Ricomincia dal principio»: su ogni schermata, riporta alla 1 (e riavvia lo stato delle schermate 2/3) */}
       <Pressable onPress={restart} hitSlop={8} style={styles.restart} testID="tour-restart">
         <Ionicons name="refresh" size={13} color={MUTED} /><Text style={styles.restartTxt}>Ricomincia dal principio</Text>

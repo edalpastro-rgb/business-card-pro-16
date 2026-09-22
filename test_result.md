@@ -425,3 +425,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z317 — PDF tabella: export chat → solo tabella (buildTablesOnlyHtml + printHtmlWeb, niente window.print della pagina); schermo intero → fitTableLayout per 1 pagina A4. Testing agent iteration_96: 3/3 PASS."
+
+  - agent: "main"
+    message: "V50.z318 — Attivazione AxonOS: step obbligatorio nome+voce nel tour, onda di energia 3 s + vibrazione doppia + TTS «Ciao, sono {nome}. Sono pronto.», comandi locali «fai l'effetto» / «dove sei» / «trova il mio telefono» / «stop» (chat + ViolaWake). Overlay mirror dentro il Modal chat. Testing agent iteration_97 PASS."

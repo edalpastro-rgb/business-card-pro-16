@@ -33,6 +33,8 @@ export type ViolaSettingsResponse = {
 export type ViolaRoute =
   | { mode: "cancel"; prompt: string; reply: string }
   | { mode: "trigger"; action: "briefing" | "weekly_report" | "scan"; prompt: string }
+  | { mode: "effect"; prompt: string }      // V50.z318 — «fai l'effetto»
+  | { mode: "find_phone"; prompt: string }  // V50.z318 — «dove sei» / «trova il mio telefono»
   | { mode: "chat"; prompt: string };
 
 export type ViolaEvent = {

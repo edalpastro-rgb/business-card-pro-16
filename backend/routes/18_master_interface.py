@@ -71,6 +71,9 @@ class UserSettingsIn(BaseModel):
     home_address: Optional[str] = None
     # Tour guidato di benvenuto completato/saltato (per-utente, sopravvive a reinstall/cambio device)
     onboarding_done: Optional[bool] = None
+    # V50.z318 — Attivazione AxonOS: nome+voce scelti (step obbligatorio) ed effetto di attivazione riprodotto una volta
+    assistant_setup_done: Optional[bool] = None
+    activation_done: Optional[bool] = None
     # V50.z256 — Rilevamento Visite GPS {enabled, stay_minutes, radius_m, mode: realtime|evening|both, recap_time "HH:MM"}
     visit_detection: Optional[Dict[str, Any]] = None
     # V50.z266 — Tour guidato: voce di Axon silenziata (tasto altoparlante in alto a destra)
@@ -571,6 +574,8 @@ async def get_user_settings(user=Depends(get_current_user)):
     else:
         s["assistant_quick_actions"] = _normalize_quick_actions(s.get("assistant_quick_actions"))
     s["onboarding_done"] = bool(s.get("onboarding_done"))
+    s["assistant_setup_done"] = bool(s.get("assistant_setup_done"))
+    s["activation_done"] = bool(s.get("activation_done"))
     s["tour_voice_muted"] = bool(s.get("tour_voice_muted"))
     try:
         s["assistant_speech_rate"] = min(2.0, max(0.5, float(s.get("assistant_speech_rate") or 1.0)))
