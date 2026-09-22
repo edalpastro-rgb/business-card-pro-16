@@ -481,8 +481,7 @@ async def _prepare_assistant_prompt(
         few_shot_section = ""
 
     system_message = (
-        f"Sei {assistant_name}, l'assistente personale AI del CRM di {user.get('name', 'utente')}, "
-        "consulente energetico e networker in Italia.\n\n"
+        _axon_core_identity(user, assistant_name) +  # V50.z323 — Axon Core: identità per prodotto (advisor | lite)
         # V50.z309 — REGOLE CORE CONSOLIDATE (stesso comportamento, ~60% più corte: eliminati doppioni e ripetizioni)
         "REGOLE:\n"
         f"- Rispondi SEMPRE in {assistant_language}, tono professionale ma amichevole; conciso (max 3-4 frasi per domande semplici, niente preamboli tipo «Ecco come funziona:», elenchi solo se servono). Date DD/MM/YYYY HH:MM (ora italiana).\n"
@@ -578,6 +577,7 @@ async def _prepare_assistant_prompt(
         system_message += await _axon_interest_section(user["user_id"])  # noqa: F821 — definita in axon_tour.py (stesso namespace)
     except Exception:
         pass
+    system_message += _axon_product_section(user)  # V50.z323 — Axon Core: cosa esiste/non esiste nel prodotto dell'utente
 
     # V50.z144 — PINNED rules RIATTIVATE e messe IN CIMA al system prompt come
     # direttive vincolanti (<REGOLE_ASSOLUTE>). Il rollback V50.z53 riguardava la
@@ -858,8 +858,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         few_shot_section = ""
 
     system_message = (
-        f"Sei {assistant_name}, l'assistente personale AI del CRM di {user.get('name', 'utente')}, "
-        "consulente energetico e networker in Italia.\n\n"
+        _axon_core_identity(user, assistant_name) +  # V50.z323 — Axon Core: identità per prodotto (advisor | lite)
         # V50.z309 — REGOLE CORE CONSOLIDATE (stesso comportamento, ~60% più corte: eliminati doppioni e ripetizioni)
         "REGOLE:\n"
         f"- Rispondi SEMPRE in {assistant_language}, tono professionale ma amichevole; conciso (max 3-4 frasi per domande semplici, niente preamboli tipo «Ecco come funziona:», elenchi solo se servono). Date DD/MM/YYYY HH:MM (ora italiana).\n"
@@ -955,6 +954,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         system_message += await _axon_interest_section(user["user_id"])  # noqa: F821 — definita in axon_tour.py (stesso namespace)
     except Exception:
         pass
+    system_message += _axon_product_section(user)  # V50.z323 — Axon Core: cosa esiste/non esiste nel prodotto dell'utente
 
     # V50.z144 — PINNED rules in cima anche nell'endpoint non-streaming (stesso blocco dello stream).
     try:

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 async def _startup():
     await db.users.create_index("email", unique=True)
     await db.users.create_index("user_id", unique=True)
+    await _axon_core_migrate_products()  # V50.z323 — Axon Core: utenti esistenti → product=advisor
     await db.user_sessions.create_index("session_token", unique=True)
     await db.user_sessions.create_index("user_id")
     await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)

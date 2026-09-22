@@ -32,6 +32,7 @@ type Customer = {
   last_name?: string;
   role?: string;
   advisor_tier?: Tier;
+  product?: "advisor" | "lite"; // V50.z323 — Axon Core
   created_at?: string;
   last_login?: string;
   parent_user_id?: string;
@@ -257,6 +258,7 @@ export default function AdminCustomersPage() {
               </View>
               <View style={styles.cardMeta}>
                 <Text style={styles.cardMetaTxt}>Ruolo: {c.role || "—"}</Text>
+                <Text style={styles.cardMetaTxt} testID={`cust-product-${c.user_id}`}>App: {c.product === "lite" ? "AxonOS Lite" : "AdvisorOS"}</Text>
                 <Text style={styles.cardMetaTxt}>Login: {fmt(c.last_login)}</Text>
               </View>
             </Pressable>

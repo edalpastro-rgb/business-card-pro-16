@@ -434,3 +434,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z321-z322 — Coesistenza promo↔inviti (GET /invites → promo_codes per invitato; redemptions → invited_by_email) + «Invita un amico»: routes/axon_referral.py (GET /referral/me, GET/PUT /admin/referral-settings, GET /admin/referrals; riscatto via /promo/redeem fallback AMICO-…), src/ReferralCard.tsx, app/invita-amico.tsx, login ?ref= → pending_referral_code_v1 → prefill PromoCodeField. pytest test_v50z321 + test_v50z322 6/6 (+5 promo)."
+
+  - agent: "main"
+    message: "V50.z323 — Axon Core fase 1: routes/axon_core.py (users.product advisor|lite, manifest, /axon/core/me, admin products, set product), identità/sezione prompt per prodotto in 21_axon_streaming, product in register/google/UserOut, admin customers 'App:'. pytest test_v50z323 3/3 (chat Lite risponde come AxonOS Lite). Prompt Lite: /app/memory/AXON_CORE_LITE_PROMPT.md"

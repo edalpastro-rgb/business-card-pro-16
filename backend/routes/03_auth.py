@@ -17,6 +17,7 @@ async def register(body: RegisterInput):
         "role": "owner",
         "areas": ["energy", "network"],
         "picture": None,
+        "product": body.product or "advisor",  # V50.z323 — Axon Core
         "created_at": utcnow(),
     }
     await db.users.insert_one(doc)
@@ -26,7 +27,7 @@ async def register(body: RegisterInput):
         **SettingsModel().model_dump(),
     })
     token = create_jwt(user_id)
-    return {"token": token, "user": UserOut(**{k: doc.get(k) for k in ["user_id", "email", "name", "picture", "role", "areas", "parent_user_id"]}).model_dump()}
+    return {"token": token, "user": UserOut(**{k: doc.get(k) for k in ["user_id", "email", "name", "picture", "role", "areas", "parent_user_id", "product"]}).model_dump()}
 
 
 @api_router.post("/auth/login")
@@ -279,6 +280,7 @@ async def google_session(body: GoogleSessionInput, request: Request):
             "password_hash": None,
             "role": "owner",
             "areas": ["energy", "network"],
+            "product": body.product or "advisor",  # V50.z323 — Axon Core
             "created_at": utcnow(),
         })
         await db.settings.insert_one({

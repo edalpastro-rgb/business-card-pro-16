@@ -7,6 +7,7 @@ class RegisterInput(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     name: str
+    product: Optional[Literal["advisor", "lite"]] = None  # V50.z323 — Axon Core: app di provenienza (default advisor)
 
 
 class DeviceIn(BaseModel):
@@ -41,6 +42,7 @@ class TwoFADisableInput(BaseModel):
 class GoogleSessionInput(BaseModel):
     session_id: str
     device: Optional[DeviceIn] = None
+    product: Optional[Literal["advisor", "lite"]] = None  # V50.z323
 
 
 class UserOut(BaseModel):
@@ -51,6 +53,7 @@ class UserOut(BaseModel):
     role: str = "owner"
     areas: List[str] = Field(default_factory=lambda: ["energy", "network"])
     parent_user_id: Optional[str] = None
+    product: str = "advisor"  # V50.z323 — Axon Core: advisor | lite
     avatar_base64: Optional[str] = None
     two_factor_enabled: bool = False
     additional_emails: List[str] = Field(default_factory=list)  # V38H

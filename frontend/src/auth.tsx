@@ -263,7 +263,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (email: string, password: string, name: string) => {
     const r = await api<{ token: string; user: User }>("/auth/register", {
       method: "POST",
-      body: { email, password, name },
+      body: { email, password, name, product: "advisor" }, // V50.z323 — Axon Core: questa app è AdvisorOS
     });
     await setToken(r.token);
     const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();

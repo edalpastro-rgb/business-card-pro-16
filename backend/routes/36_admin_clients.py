@@ -169,11 +169,12 @@ async def list_admin_customers(tier: str = "all", user=Depends(require_super_adm
     docs = await db.users.find(
         q,
         {"_id": 0, "user_id": 1, "email": 1, "first_name": 1, "last_name": 1,
-         "role": 1, "advisor_tier": 1, "created_at": 1, "last_login": 1, "parent_user_id": 1}
+         "role": 1, "advisor_tier": 1, "created_at": 1, "last_login": 1, "parent_user_id": 1, "product": 1}
     ).sort("last_login", -1).to_list(2000)
     # Assign default tier "test" if missing
     for d in docs:
         d.setdefault("advisor_tier", "test")
+        d.setdefault("product", "advisor")  # V50.z323
     return {"items": docs}
 
 
