@@ -1,7 +1,7 @@
 // V50.z311 — Bolle messaggio, pannello conversazione hands-free e indicatore "sta scrivendo"
 // (estratti da AssistantChat.tsx, nessuna modifica logica).
 import React, { useEffect, useRef } from "react";
-import { View, Text, Pressable, Animated, Easing, Image } from "react-native";
+import { View, Text, Pressable, Animated, Easing } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "@/src/auth";
 import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";

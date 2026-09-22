@@ -104,6 +104,9 @@ APP_MAP: list = [
     dict(id="funzioni", name="Tutte le funzioni", route="/tour-features", group="Help", desc="Elenco completo delle funzioni per gruppo.", kw=["tutte le funzioni", "quali funzioni", "funzioni app", "cosa sa fare l app", "tutte le funzioni", "cosa sa fare", "elenco funzioni", "cosa posso fare"]),
     # ── PROFILO / IMPOSTAZIONI ──
     dict(id="impostazioni", name="Profilo e impostazioni", route="/impostazioni", group="Profilo", desc="Hub impostazioni: profilo, preferenze, notifiche, sicurezza, abbonamento, Axon, integrazioni.", kw=["impostazioni", "profilo", "settings", "configurazione", "preferenze"]),
+    # V50.z327 — promo + referral (prima Axon inventava «Profilo → Codice amico»)
+    dict(id="promo_code", name="Codice promozionale / codice amico", route="/impostazioni?section=billing", group="Profilo", desc="Profilo › Abbonamento e Pagamenti › card «Codice promozionale»: inserisci un codice promo o un codice amico AMICO-… per giorni gratis.", kw=["codice promozionale", "codice promo", "codice sconto", "codice amico", "inserire il codice", "dove inserisco il codice", "riscattare codice", "riscatto codice", "coupon"]),
+    dict(id="invita_amico", name="Invita un amico", route="/invita-amico", group="Profilo", desc="Il tuo codice personale e il link da condividere (WhatsApp, link): giorni gratis per te e per chi arriva.", kw=["invita un amico", "invitare un amico", "invita amici", "codice invito", "il mio codice", "link amico", "referral", "programma amici", "giorni gratis"]),
     dict(id="profilo_dati", name="Dati personali", route="/impostazioni?section=general", group="Profilo", desc="Nome, foto, telefono, firma, lingua.", kw=["dati personali", "il mio nome", "foto profilo", "telefono", "firma"]),
     dict(id="preferenze", name="Preferenze generali", route="/impostazioni?section=general", group="Profilo", desc="Lingua, tema, comportamento generale.", kw=["preferenze generali", "lingua", "tema"]),
     dict(id="notifiche", name="Notifiche", route="/axon-notifications?tab=prefs", group="Profilo", desc="Push, promemoria, copie team, livelli di urgenza, orari silenziosi.", kw=["imposto notifiche", "notifiche", "push", "avvisi telefono", "suoni", "non disturbare"]),
@@ -862,7 +865,7 @@ async def _maybe_push_command(msg: str, user: dict):  # noqa: F811
     t0 = (msg or "").strip()
     if _RX_WHY_META.search(t0) and not _RX_OPEN_SCREEN.search(t0) and not _nav_re.search(r"\b(cancell\w*|azzer\w*|elimin\w*|svuot\w*)\b.*\bneo\b", t0, _nav_re.I):
         return None
-    r = await _nav_intercept(msg, user)
+    r = None if _user_product(user) == "lite" else await _nav_intercept(msg, user)  # noqa: F821 — V50.z327: il Navigatore ha solo schermate AdvisorOS
     if r:
         rep = r.get("reply") or ""
         if "[[NAV:" not in rep and "[[ACTION:" not in rep and not rep.startswith(_NAV_NOLINK_OK):
@@ -884,7 +887,7 @@ if _nav_orig_chat is not None:
     @api_router.post("/assistant/chat")
     async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):  # noqa: F811
         user["_client_ctx"] = body.client_context  # V50.z291
-        r = await _nav_intercept(body.message or "", user)
+        r = None if _user_product(user) == "lite" else await _nav_intercept(body.message or "", user)  # noqa: F821 — V50.z327
         if r and r.get("reply") is not None:
             sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
             mid = uuid.uuid4().hex[:16]

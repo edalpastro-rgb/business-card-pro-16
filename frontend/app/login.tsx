@@ -253,6 +253,10 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 24,
   },
+  // V50.z327 — schermata 2FA: prima questi stili non esistevano (testo nero su gradiente blu)
+  heroContent: { alignItems: "center", gap: 8, paddingHorizontal: 24 },
+  title: { color: "#FFFFFF", fontSize: 22, fontWeight: "800", textAlign: "center" },
+  subtitle: { color: "rgba(255,255,255,0.85)", fontSize: 14, textAlign: "center" },
   formCard: {
     backgroundColor: theme.color.surface,
     borderRadius: 20,

@@ -756,7 +756,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         cache_eligible = _is_query_cacheable(msg, has_attachments, has_history) and not getattr(body, "no_cache", False)  # V50.z260
         if cache_eligible:
             yield sse("progress", {"stage": "cache", "text": "Controllo se ho già risposto a qualcosa di simile…"})
-            cached = await _semantic_cache_lookup(msg, tenant=_tenant_val)
+            cached = await _semantic_cache_lookup(msg, tenant=_tenant_val, product=_user_product(user))  # noqa: F821 — V50.z327
             if cached:
                 # Persist both messages
                 now = utcnow()
@@ -911,6 +911,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                     web_sources=web_sources,
                     assistant_name=assistant_name,
                     tenant=_tenant_val,
+                    product=_user_product(user),  # noqa: F821 — V50.z327
                 ))
             except Exception:
                 pass

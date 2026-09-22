@@ -29,6 +29,12 @@ _AM_SECTIONS = [
     ("argomenti", "Argomenti frequenti", "sparkles", "Di cosa parli più spesso con Axon."),
     ("integrazioni", "Integrazioni e dati sincronizzati", "link", "Cosa è collegato al tuo AdvisorOS."),
 ]
+# V50.z327 — Axon Core: stesse sezioni, parole neutre per AxonOS Lite (persone, non clienti; AxonOS Lite, non AdvisorOS)
+_AM_SECTIONS_LITE = {
+    "clienti_chiave": ("Persone importanti", "Le persone di cui parli più spesso."),
+    "stile_lavoro": ("Le tue abitudini", "Come organizzi le tue giornate."),
+    "integrazioni": ("Collegamenti e dati sincronizzati", "Cosa è collegato al tuo AxonOS Lite."),
+}
 _AM_MODEL = ("anthropic", "claude-haiku-4-5-20251001")
 _AM_DAYS = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
 
@@ -246,7 +252,10 @@ async def am_get(user=Depends(get_current_user)):
     items = await db.axon_user_memory.find({"user_id": uid}, {"_id": 0}).sort([("section", 1), ("confidence", -1)]).to_list(500)
     u = await db.users.find_one({"user_id": uid}, {"_id": 0, "axon_memory_analyzed_at": 1})
     secs = []
+    lite = _user_product(user) == "lite"  # noqa: F821 — V50.z327: etichette neutre per AxonOS Lite (niente CRM)
     for key, label, icon, intro in _AM_SECTIONS:
+        if lite:
+            label, intro = _AM_SECTIONS_LITE.get(key, (label, intro))
         secs.append({"key": key, "label": label, "icon": icon, "intro": intro, "items": [_am_out(i) for i in items if i.get("section") == key]})
     forgotten = await db.axon_user_memory_forgotten.count_documents({"user_id": uid})
     last = (u or {}).get("axon_memory_analyzed_at")

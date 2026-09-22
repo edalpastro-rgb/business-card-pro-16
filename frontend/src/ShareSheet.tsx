@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Modal, Pressable, StyleSheet, ActivityIndicator, Platform, Linking, TextInput } from "react-native";
+import { View, Text, Modal, Pressable, StyleSheet, ActivityIndicator, Platform, TextInput } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";

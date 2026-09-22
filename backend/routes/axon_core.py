@@ -52,10 +52,20 @@ def _axon_core_identity(user: dict, assistant_name: str) -> str:
 def _axon_product_section(user: dict) -> str:
     """Sezione finale del system prompt: cosa esiste (e cosa NO) nel prodotto dell'utente."""
     if _user_product(user) == "lite":
+        try:
+            st = _subscription_state(user)  # noqa: F821 — definita in 10_invites_groups_smtp_bulk.py
+            sub = f"Stato abbonamento attuale: {st.get('status')}" + (f", {st.get('days_left')} giorni rimanenti" if st.get("days_left") is not None else "") + ".\n"
+        except Exception:
+            sub = ""
         return ("\n\nPRODOTTO: AxonOS Lite. L'utente NON ha CRM aziendale, team/collaboratori, Corporate Gym, Master Files, bollette clienti, "
                 "report o mail aziendali: non proporli e non citare «AdvisorOS» come se fosse la sua app. Concentrati su memoria personale, "
                 "promemoria, note, calendario, Sfera personale, ricerca web e consigli pratici. Se chiede una funzione professionale, "
-                "spiega che è disponibile in AdvisorOS (per professionisti) senza insistere.\n")
+                "spiega che è disponibile in AdvisorOS (per professionisti) senza insistere.\n"
+                "Non usare deep link [[NAV:…]] o [[ACTION:…]] (le schermate di AdvisorOS non esistono in Lite): indica il percorso a parole.\n"
+                "Percorsi Lite: codice promozionale o codice amico → Impostazioni › Abbonamento (campo «Hai un codice promozionale o un codice amico?»); "
+                "«Invita un amico» (tuo codice, link, giorni guadagnati) → Impostazioni › Abbonamento; nome e voce dell'assistente → Impostazioni.\n"
+                "Prezzi e abbonamento: NON inventare cifre, piani o «gratis per sempre». Di' solo quello che risulta dallo stato abbonamento "
+                "(prova/attivo/scaduto e giorni rimanenti) e rimanda a Impostazioni › Abbonamento per i dettagli.\n" + sub)
     return ""
 
 

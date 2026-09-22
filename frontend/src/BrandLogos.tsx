@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, ImageProps, StyleSheet, View, ViewStyle } from "react-native";
+import { Image, StyleSheet, View, ViewStyle } from "react-native";
 
 /**
  * V29.e — Brand logos AdvisorOS + AxonOS.

@@ -7,7 +7,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
-import { scheduleCallbackReminder, cancelByTag } from "@/src/notifications";
+import { scheduleCallbackReminder, cancelCallbackReminder } from "@/src/notifications";
 
 type Contact = { contact_id: string; first_name: string; last_name: string; area: string };
 
@@ -74,7 +74,7 @@ export default function NewCallbackScreen() {
       setBusy(true);
       try {
         await api(`/callbacks/${editId}`, { method: "DELETE" });
-        await cancelByTag(`cb_${editId}`);
+        await cancelCallbackReminder(editId);
         router.back();
       } catch (e: any) {
         if (Platform.OS === "web") window.alert("Impossibile eliminare: " + (e?.message || ""));

@@ -11,7 +11,6 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   Platform,
-  Animated,
   Image,
   Alert,
 } from "react-native";
@@ -32,7 +31,6 @@ import { SentenceSpeaker } from "@/src/utils/sentenceSpeaker";
 import { useAuth } from "@/src/auth";
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { pickCommonFile } from "@/src/utils/filePicker";
-import { ModuleErrorBoundary } from "@/src/shared/ModuleErrorBoundary";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
 import { DocumentScannerModal } from "@/src/DocumentScannerModal";
 import { DropboxPickerModal } from "@/src/DropboxPickerModal";

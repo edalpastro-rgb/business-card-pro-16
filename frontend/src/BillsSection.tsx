@@ -1,6 +1,5 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform, TextInput, Modal } from "react-native";
-import Svg, { Rect, Text as SvgText, Line } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as Print from "expo-print";
@@ -300,52 +299,6 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
     }
   };
 
-  const printHtmlOnWeb = (html: string, downloadName: string) => {
-    const win = (globalThis as unknown as { window?: Window }).window as Window | undefined;
-    const doc: Document | undefined = win?.document;
-    if (!win || !doc) return;
-    const iframe = doc.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    iframe.setAttribute("aria-hidden", "true");
-    doc.body.appendChild(iframe);
-    const cw = iframe.contentWindow;
-    const cd = iframe.contentDocument || cw?.document;
-    if (!cd) { doc.body.removeChild(iframe); return; }
-    cd.open();
-    cd.write(html);
-    cd.close();
-    const doPrint = () => {
-      try {
-        cw?.focus();
-        cw?.print();
-      } catch {}
-      // Remove after a longer delay to let print dialog settle
-      setTimeout(() => { try { doc.body.removeChild(iframe); } catch {} }, 4000);
-    };
-    // Wait for content to load
-    if (cd.readyState === "complete") {
-      setTimeout(doPrint, 250);
-    } else {
-      iframe.onload = () => setTimeout(doPrint, 250);
-    }
-    // Also offer a download fallback in case the print dialog is blocked
-    try {
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = doc.createElement("a");
-      a.href = url;
-      a.download = downloadName.replace(/\.pdf$/i, ".html");
-      a.style.display = "none";
-      doc.body.appendChild(a);
-      // Only auto-download on browsers that block print — skip for now, user can use print dialog "save as PDF"
-      setTimeout(() => { try { doc.body.removeChild(a); URL.revokeObjectURL(url); } catch {} }, 60_000);
-    } catch {}
-  };
 
   // V38G — Save a base64 file to the contact's files array ONLY if a file with
   // the same name doesn't already exist. Returns true if saved, false if skipped.
@@ -593,8 +546,6 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   // causing duplicate copies to appear in the contact's file section).
   // V38R — Save the analysis HTML/PDF using a user-provided filename.
   // Called from the SaveConfirmModal ("Salva sul cliente" button).
-  const analysisSavedRef = useRef<Set<string>>(new Set());
-  const autoSaveGuardRef = useRef<Set<string>>(new Set());
   const saveBillAnalysisWithName = async (bill: Bill, chosenName: string) => {
     if (!contactId || bill.status !== "done") return false;
     // Do not trip the guard here — the modal is explicit, user may want to
@@ -1801,57 +1752,6 @@ function pointLabel(p: ConsumoPoint, idx: number): string {
   return MONTHS_IT[idx] || "";
 }
 
-function ConsumoBarChart({ data, unit, color }: { data: any; unit: string; color: string }) {
-  const points = normalizeConsumi(data, unit);
-  if (points.length === 0) return <Text style={{ fontSize: 11, color: theme.color.muted }}>Nessun dato di consumo.</Text>;
-  const width = 320;
-  const height = 160;
-  const padL = 30;
-  const padR = 8;
-  const padT = 10;
-  const padB = 30;
-  const chartW = width - padL - padR;
-  const chartH = height - padT - padB;
-  const max = Math.max(1, ...points.map((p) => p.value));
-  // Compute nice Y ticks (4 levels)
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(max * f));
-  const barGap = 3;
-  const barW = (chartW / points.length) - barGap;
-  return (
-    <View style={{ backgroundColor: "#FFF", borderRadius: 8, padding: 6, borderWidth: 1, borderColor: theme.color.border }}>
-      <Svg width={width} height={height}>
-        {/* Y grid + labels */}
-        {yTicks.map((t, i) => {
-          const y = padT + chartH - (chartH * (t / max));
-          return (
-            <React.Fragment key={i}>
-              <Line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#E5E7EB" strokeWidth={1} />
-              <SvgText x={padL - 4} y={y + 3} fontSize={8} fill="#6B7280" textAnchor="end">{t}</SvgText>
-            </React.Fragment>
-          );
-        })}
-        {/* Bars */}
-        {points.map((p, i) => {
-          const h = (p.value / max) * chartH;
-          const x = padL + i * (barW + barGap);
-          const y = padT + chartH - h;
-          return (
-            <React.Fragment key={i}>
-              <Rect x={x} y={y} width={barW} height={h} fill={color} rx={2} />
-              {/* Value label above bar */}
-              {p.value > 0 && (
-                <SvgText x={x + barW / 2} y={y - 2} fontSize={7} fill="#374151" textAnchor="middle">{p.value}</SvgText>
-              )}
-              {/* Month label */}
-              <SvgText x={x + barW / 2} y={height - padB + 10} fontSize={8} fill="#6B7280" textAnchor="middle">{pointLabel(p, i)}</SvgText>
-            </React.Fragment>
-          );
-        })}
-      </Svg>
-      <Text style={{ fontSize: 10, color: theme.color.muted, textAlign: "right", marginTop: 2 }}>Unità: {unit}</Text>
-    </View>
-  );
-}
 
 function normalizeNotes(v: any): string[] {
   if (!v) return [];
@@ -2065,19 +1965,6 @@ export function buildReportHtml(rep: any, contactName?: string, branding?: { age
 </body></html>`;
 }
 
-function ulList(items: any): string {
-  const list = normalizeNotes(items);
-  if (list.length === 0) return "";
-  return `<ul style="margin:4px 0 8px 20px;padding:0;">${list.map((it) => `<li style="font-size:12px;margin-bottom:3px;line-height:1.5;">${esc(it)}</li>`).join("")}</ul>`;
-}
-
-function renderSectionCard(title: string, color: string, emoji: string, bodyHtml: string): string {
-  return `
-    <div style="margin-top:14px;border:1px solid ${color};border-radius:10px;overflow:hidden;">
-      <div style="background:${color};color:#FFF;padding:8px 12px;font-weight:800;font-size:13px;">${emoji} ${esc(title)}</div>
-      <div style="padding:12px;background:#FFF;">${bodyHtml}</div>
-    </div>`;
-}
 
 /* ============================================================================
  * V38B — Slide-style comparison report (A4 landscape, presentation-look)
@@ -2463,9 +2350,6 @@ function slideExecutive(es: any, cmp: any, name: string): string {
   ` + slideClose();
 }
 
-// Legacy stub — kept so other code paths don't break
-function kvGridHtml(_rows: { k: string; v: any; hi?: boolean }[]): string { void _rows; return ""; }
-function comparisonMatrixHtml(_rows: { parametro?: string; attuale?: string; proposta?: string; delta?: string; vantaggio?: string }[]): string { void _rows; return ""; }
 
 export function buildComparisonHtml(rep: any, contactName?: string, branding?: { agency_name?: string; logo_base64?: string; slogan?: string; contacts?: string }, cfg?: ComparisonRenderCfg | null): string {
   // V50.z251 — stile/layout/sezioni dal pannello «Configura Analisi Fatture»

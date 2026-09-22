@@ -1,7 +1,7 @@
 // V50.z315 — Pill di stato ViolaWake, sopra ogni schermata quando l'ascolto è attivo
 // (listening → «Viola in ascolto», capturing → trascrizione live, thinking, speaking → risposta).
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { Text, StyleSheet, Pressable } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, interpolate, FadeInDown, FadeOutUp } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";

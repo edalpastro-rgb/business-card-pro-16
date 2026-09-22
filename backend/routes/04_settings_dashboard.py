@@ -203,6 +203,16 @@ async def get_latest_pun(user=Depends(get_current_user)):
         )
     if not doc:
         return {"available": False}
+    # V50.z327 — se il mese corrente ha già dati parziali (job giornaliero GME, gme_pun_partial), il widget mostra QUELLO
+    # (etichetta «parziale · N gg») e il delta è rispetto all'ultimo mese chiuso — prima restava fermo al mese precedente fino a fine mese.
+    partial = None
+    try:
+        _now = utcnow()
+        partial = await db.gme_pun_partial.find_one({"month_key": f"{_now.year:04d}-{_now.month:02d}", "days": {"$gte": 1}}, {"_id": 0})
+    except Exception:
+        partial = None
+    if partial and (partial.get("year"), partial.get("month")) > (doc.get("year"), doc.get("month")):
+        prev, doc = doc, {**partial, "month_name": None, "partial": True}
     def _delta(cur, old):
         try:
             if cur is None or old is None or old == 0: return None
@@ -234,6 +244,9 @@ async def get_latest_pun(user=Depends(get_current_user)):
         "delta_f1_pct": delta_f1,
         "delta_f2_pct": delta_f2,
         "delta_f3_pct": delta_f3,
+        "partial": bool(doc.get("partial")),
+        "partial_days": doc.get("days") if doc.get("partial") else None,
+        "partial_updated_at": (doc.get("updated_at").isoformat() if isinstance(doc.get("updated_at"), datetime) else doc.get("updated_at")) if doc.get("partial") else None,
     }
 
 

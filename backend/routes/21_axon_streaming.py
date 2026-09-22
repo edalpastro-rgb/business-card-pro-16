@@ -103,7 +103,7 @@ def _is_query_cacheable(msg: str, has_attachments: bool, has_history: bool) -> b
 
 _AXON_LANG_NAMES = {"it": "italiano", "en": "inglese", "es": "spagnolo", "fr": "francese", "de": "tedesco", "pt": "portoghese", "ro": "rumeno", "uk": "ucraino", "ar": "arabo", "zh": "cinese"}  # V50.z271
 
-async def _semantic_cache_lookup(msg: str, tenant: Optional[str] = None) -> Optional[dict]:
+async def _semantic_cache_lookup(msg: str, tenant: Optional[str] = None, product: str = "advisor") -> Optional[dict]:
     """Search the semantic cache for a similar previously-answered question.
     V50.k — TENANT-SHARED cache: cerca prima nel cache del tenant (condiviso
     tra tutti i collaboratori dello stesso Master), poi fallback al cache
@@ -113,10 +113,12 @@ async def _semantic_cache_lookup(msg: str, tenant: Optional[str] = None) -> Opti
     if not tokens:
         return None
     now = utcnow()
+    # V50.z327 — Axon Core: la cache è per prodotto (advisor | lite); le voci legacy senza `product` valgono per advisor
+    prod_q = {"product": product} if product != "advisor" else {"product": {"$in": [None, "advisor"]}}
     # First: try tenant-scoped cache (highest priority)
     if tenant:
         cursor = db.axon_semantic_cache.find(
-            {"expires_at": {"$gt": now}, "tenant_id": tenant},
+            {"expires_at": {"$gt": now}, "tenant_id": tenant, **prod_q},
             {"_id": 0},
         ).sort("created_at", -1).limit(SEM_CACHE_CANDIDATE_LIMIT)
         best = None
@@ -132,7 +134,7 @@ async def _semantic_cache_lookup(msg: str, tenant: Optional[str] = None) -> Opti
             return best
     # Fallback: legacy global cache (entries without tenant_id)
     cursor = db.axon_semantic_cache.find(
-        {"expires_at": {"$gt": now}, "tenant_id": {"$in": [None, ""]}},
+        {"expires_at": {"$gt": now}, "tenant_id": {"$in": [None, ""]}, **prod_q},
         {"_id": 0},
     ).sort("created_at", -1).limit(SEM_CACHE_CANDIDATE_LIMIT)
     best = None
@@ -155,6 +157,7 @@ async def _semantic_cache_save(
     web_sources: List[dict],
     assistant_name: str,
     tenant: Optional[str] = None,
+    product: str = "advisor",
 ) -> None:
     """Persist a Q/A pair into the semantic cache with TTL.
     V50.k — Salva con `tenant_id` per abilitare cache condiviso tra
@@ -171,6 +174,7 @@ async def _semantic_cache_save(
         await db.axon_semantic_cache.insert_one({
             "cache_id": uuid.uuid4().hex,
             "tenant_id": tenant or None,
+            "product": product,  # V50.z327 — Axon Core
             "question": msg[:1000],
             "tokens": tokens,
             "reply": reply,
@@ -658,7 +662,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # queries: no attachments, no prior history, no live-data tokens.
     cache_eligible = _is_query_cacheable(msg, bool(body.attachments), bool(history))
     if cache_eligible:
-        cached = await _semantic_cache_lookup(msg)
+        cached = await _semantic_cache_lookup(msg, tenant=tenant_id(user), product=_user_product(user))  # noqa: F821 — V50.z327
         if cached:
             # Persist both user & assistant messages for continuity
             now = utcnow()
@@ -1038,6 +1042,8 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
                 used_web_search=used_web_search,
                 web_sources=web_sources_out,
                 assistant_name=assistant_name,
+                tenant=tenant_id(user),
+                product=_user_product(user),  # noqa: F821 — V50.z327
             ))
         except Exception:
             pass

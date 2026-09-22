@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Image, Platform, ActivityIndicator } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { View, Text, StyleSheet, Pressable, Image, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 
 type ActiveEvent = {
   event_id: string;

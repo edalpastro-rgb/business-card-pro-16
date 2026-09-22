@@ -440,3 +440,8 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z326 — Autocompilazione CRT in 4 blocchi: src/CrtTrainingBlock.tsx (Blocco 1), src/CrtSaveShareBlock.tsx (Blocco 4), app/crt/[id].tsx ristrutturato; backend crt_practices.py: GET/PUT /crt/settings/extract, POST /crt/{id}/save-master. pytest 1/1, screenshot web ok."
+
+## V50.z327 (Sept 2026) — Audit: Lite contract + product-scoped semantic cache + PUN partial in Home + dead code
+- New tests: `backend/tests/test_v50z327_lite_contract.py` (13), `backend/tests/test_v50z328_audit.py` (12, by testing agent). Reports: iteration_100/101.
+- E2E recipe for Playwright on RN-web (login form not drivable): set localStorage `auth_token_v1`=JSON.stringify(token), `trust_expires_at_v1`=JSON.stringify(ISO +24h), `app_last_unlock_v1`=JSON.stringify(Date.now()) BEFORE page.goto. Without trust key AuthProvider clears token → 401.
+- `/pun/latest` now returns the current-month partial (`partial: true`, `partial_days`, `partial_updated_at`) when `gme_pun_partial` has data; Home widget testID `widget-pun-partial`.

@@ -16,7 +16,7 @@ import { CgymWidget } from "@/src/corporate-gym/CgymWidget"; // Corporate Gym (B
  */
 
 type Widget = { id: string; enabled: boolean; order: number; label: string; coming_soon: boolean };
-type PunLatest = { available: boolean; month_name?: string; month_short?: string; year?: number; F1?: number; F2?: number; F3?: number; monorario?: number; unit?: string; source_url?: string; delta_pct?: number | null; delta_f1_pct?: number | null; delta_f2_pct?: number | null; delta_f3_pct?: number | null };
+type PunLatest = { available: boolean; month_name?: string; month_short?: string; year?: number; F1?: number; F2?: number; F3?: number; monorario?: number; unit?: string; source_url?: string; delta_pct?: number | null; delta_f1_pct?: number | null; delta_f2_pct?: number | null; delta_f3_pct?: number | null; partial?: boolean; partial_days?: number | null; partial_updated_at?: string | null };
 
 // V50.z132 — `only` / `exclude` permettono di renderizzare un sottoinsieme di
 // widget in punti diversi della Home (es. "Appuntamenti di oggi" sotto Ritelefonate).
@@ -132,11 +132,17 @@ function PunLiveCard({ data }: { data: PunLatest | null }) {
     );
   }
   const unit = data.unit || "€/MWh";
+  // V50.z327 — mese corrente parziale (job giornaliero GME): etichetta «parziale · N gg · agg. gg/mm»
+  const upd = data.partial_updated_at ? new Date(data.partial_updated_at) : null;
+  const partialTxt = data.partial ? `PUN ${data.month_short || ""} parziale · ${data.partial_days || 0} gg${upd ? ` · agg. ${upd.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}` : ""}` : null;
   return (
-    <View style={styles.punCardCompact} testID="widget-pun">
-      <PunFascia label="F1" value={data.F1} delta={data.delta_f1_pct} monthTag={data.month_short} unit={unit} bg="#EEF2FF" fg="#4338CA" />
-      <PunFascia label="F2" value={data.F2} delta={data.delta_f2_pct} unit={unit} bg="#FEF3C7" fg="#B45309" />
-      <PunFascia label="F3" value={data.F3} delta={data.delta_f3_pct} unit={unit} bg="#DCFCE7" fg="#15803D" />
+    <View style={{ gap: 4 }} testID="widget-pun">
+      <View style={styles.punCardCompact}>
+        <PunFascia label="F1" value={data.F1} delta={data.delta_f1_pct} monthTag={data.month_short} unit={unit} bg="#EEF2FF" fg="#4338CA" />
+        <PunFascia label="F2" value={data.F2} delta={data.delta_f2_pct} unit={unit} bg="#FEF3C7" fg="#B45309" />
+        <PunFascia label="F3" value={data.F3} delta={data.delta_f3_pct} unit={unit} bg="#DCFCE7" fg="#15803D" />
+      </View>
+      {partialTxt ? <Text style={styles.punPartial} testID="widget-pun-partial">{partialTxt} · Δ vs mese chiuso</Text> : null}
     </View>
   );
 }
@@ -178,6 +184,7 @@ const styles = StyleSheet.create({
   fasciaTopRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   fasciaLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
   fasciaMonth: { fontSize: 8, fontWeight: "800", letterSpacing: 0.6, opacity: 0.75 },
+  punPartial: { fontSize: 10, color: theme.color.muted, textAlign: "center", fontWeight: "600" },
   fasciaVal: { fontSize: 14, fontWeight: "900", marginTop: 1 },
   fasciaUnit: { fontSize: 8, fontWeight: "700", opacity: 0.7 },
   fasciaDelta: { fontSize: 10, fontWeight: "800", marginTop: 2 },

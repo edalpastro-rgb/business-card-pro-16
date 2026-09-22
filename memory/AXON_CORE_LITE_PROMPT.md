@@ -20,11 +20,14 @@ Così Axon impara da tutti i clienti (Advisor + Lite) e ogni miglioramento è di
    digitazione live). Axon sa già che l'utente è Lite: identità «assistente personale AxonOS Lite», niente CRM/team.
    TTS: `POST /api/assistant/tts {text}`. Nome/voce/lingua: `GET/PUT /api/user-settings {assistant_name, assistant_voice,
    assistant_language, assistant_setup_done, activation_done, onboarding_done}`.
-5. **Memoria personale** (privata per utente): `GET/POST /api/axon/memory`, `PUT/DELETE /api/axon/memory/{item_id}`,
-   `POST /api/axon/memory/analyze`; Sfera personale `GET /api/axon/personal-space/summary`, audio `POST /api/audio-records/{id}/transcribe`.
+5. **Memoria personale** (privata per utente): `GET /api/axon/memory` → `{sections:[{key,label,icon,intro,items[]}], stats, last_analyzed_at}`
+   (etichette già neutre per Lite: «Persone importanti», «Le tue abitudini»…); `POST /api/axon/memory {section, text, sphere?}` con `section` ∈
+   `comunicazione | clienti_chiave | scadenze_ricorrenti | stile_lavoro | argomenti | integrazioni` (testo ≥ 3 caratteri, max 300);
+   `PUT /api/axon/memory/{id} {text}`, `DELETE /api/axon/memory/{id}`, `POST /api/axon/memory/analyze`;
+   Sfera personale `GET /api/axon/personal-space/summary`, audio `POST /api/audio-records/{id}/transcribe`.
 6. **Proattività / promemoria**: `GET/PUT /api/axon/proactive/config`, `POST /api/axon/proactive/trigger`,
-   `GET /api/axon/proactive/items`, `POST /api/axon/proactive/items/{id}/{action}`, `GET/POST /api/axon/proactive/reminders`,
-   `DELETE /api/axon/proactive/reminders/{id}`.
+   `GET /api/axon/proactive/items`, `POST /api/axon/proactive/items/{id}/{action}`, `GET /api/axon/proactive/reminders`,
+   `POST /api/axon/proactive/reminders {text, due_at}` (`due_at` ISO 8601), `DELETE /api/axon/proactive/reminders/{id}`.
 7. **Codici promozionali + Invita un amico** (stessa logica e stessi testID di AdvisorOS):
    - Onboarding, dopo nome+voce e PRIMA delle 3 domande di profilazione: campo «Hai un codice promozionale o un codice amico?»
      facoltativo, «Salta, non ho un codice» → `POST /api/promo/redeem {code}` (accetta promo E codici `AMICO-…`).
@@ -36,6 +39,13 @@ Così Axon impara da tutti i clienti (Advisor + Lite) e ogni miglioramento è di
    - La gestione (creazione codici, premi referral) resta SOLO nel pannello Super Admin di AdvisorOS: in Lite non serve.
 8. **Abbonamento/prova**: `GET /api/subscription/status` → `{status: trial|active|expired|free_forever, days_left, expires_at}`.
 9. **Setup guidato**: `GET/PUT /api/axon/setup/state`.
+
+## Garanzie lato Core (già attive, V50.z327)
+- Per utenti `lite` Axon NON emette deep link `[[NAV:…]]`/`[[ACTION:…]]` (schermate AdvisorOS) e non usa il Navigatore CRM: descrive i percorsi a parole
+  (es. «Impostazioni › Abbonamento»). Lite deve quindi avere quelle schermate con quei nomi.
+- Cache semantica delle risposte separata per prodotto: una risposta data a un utente Lite non viene mai riproposta a un utente Advisor e viceversa.
+- Su prezzi/piani Axon non inventa cifre: riporta solo `GET /api/subscription/status` e rimanda a Impostazioni › Abbonamento.
+- Test di contratto eseguibile in AdvisorOS: `backend/tests/test_v50z327_lite_contract.py` (13 test: tutti gli endpoint qui sopra).
 
 ## Regole
 - Non reimplementare logica Axon in Lite (prompt, memoria, regole, cache): vive solo in Axon Core.

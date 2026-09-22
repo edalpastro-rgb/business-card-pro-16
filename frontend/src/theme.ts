@@ -1,6 +1,9 @@
 export const theme = {
   color: {
     surface: "#F7F8FB",
+    // V50.z327 — alias usati da 27 schermate (prima risolvevano a undefined → sfondo trasparente)
+    bg: "#F7F8FB",
+    background: "#F7F8FB",
     onSurface: "#111820",
     surfaceSecondary: "#FFFFFF",
     surfaceTertiary: "#EAEFF4",
@@ -9,6 +12,8 @@ export const theme = {
     onSurfaceInverse: "#FFFFFF",
     brand: "#1C4869",
     brandPrimary: "#1C4869",
+    primary: "#1C4869", // alias (GoogleDrivePickerModal, MicroTutorial, OnboardingWizard)
+    navy: "#1C4869",
     onBrandPrimary: "#FFFFFF",
     brandSecondary: "#3A739C",
     brandTertiary: "#E6F0F7",
