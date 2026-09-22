@@ -165,11 +165,14 @@ async def list_invites(user=Depends(get_current_user)):
         if inv.get("used_by_user_id"):
             u = await db.users.find_one({"user_id": inv["used_by_user_id"]}, {"_id": 0, "password_hash": 0})
             if u:
+                # V50.z321 — coesistenza con i codici promozionali: elenco codici riscattati dall'invitato
+                promos = await db.promo_redemptions.find({"user_id": u["user_id"]}, {"_id": 0, "code": 1, "benefit_summary": 1, "redeemed_at": 1}).sort("redeemed_at", -1).to_list(20)
                 inv["invited_user"] = {
                     "user_id": u["user_id"],
                     "name": u.get("name"),
                     "email": u.get("email"),
                     "subscription": _subscription_state(u),
+                    "promo_codes": [{"code": p["code"], "benefit_summary": p.get("benefit_summary"), "redeemed_at": p["redeemed_at"].isoformat() if isinstance(p.get("redeemed_at"), datetime) else p.get("redeemed_at")} for p in promos],
                 }
     return {"items": items}
 

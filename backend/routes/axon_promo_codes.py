@@ -196,9 +196,18 @@ async def promo_codes_redemptions(code_id: str, user=Depends(require_super_admin
     if not doc:
         raise HTTPException(status_code=404, detail="Codice non trovato")
     rows = await db.promo_redemptions.find({"code_id": code_id}, {"_id": 0}).sort("redeemed_at", -1).to_list(2000)
+    # V50.z321 — coesistenza con «Invita Cliente/Collaboratore»: se l'utente è arrivato da un invito, mostro chi lo ha invitato
+    inviter_cache: Dict[str, Optional[str]] = {}
     for r in rows:
         if isinstance(r.get("redeemed_at"), datetime):
             r["redeemed_at"] = r["redeemed_at"].isoformat()
+        u = await db.users.find_one({"user_id": r.get("user_id")}, {"_id": 0, "invited_by": 1, "trial_expires_at": 1, "subscription_status": 1})
+        inviter_id = (u or {}).get("invited_by")
+        if inviter_id and inviter_id not in inviter_cache:
+            inviter = await db.users.find_one({"user_id": inviter_id}, {"_id": 0, "email": 1})
+            inviter_cache[inviter_id] = (inviter or {}).get("email")
+        r["invited_by_email"] = inviter_cache.get(inviter_id) if inviter_id else None
+        r["subscription"] = _subscription_state(u) if u else None
     return {"code": _promo_out(doc), "items": rows}
 
 

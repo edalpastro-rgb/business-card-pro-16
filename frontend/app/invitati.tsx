@@ -9,7 +9,7 @@ import { theme } from "@/src/theme";
 import Constants from "expo-constants";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
-type InvitedUser = { user_id: string; name: string; email: string; subscription: { status: string; days_left?: number | null; expires_at?: string | null; is_active: boolean } };
+type InvitedUser = { user_id: string; name: string; email: string; subscription: { status: string; days_left?: number | null; expires_at?: string | null; is_active: boolean }; promo_codes?: { code: string; benefit_summary?: string; redeemed_at?: string }[] };
 type Invite = { invite_token: string; trial_days: number; note: string; created_at: string; used_at?: string | null; invited_user?: InvitedUser };
 
 function getPublicOrigin(): string {
@@ -190,6 +190,10 @@ export default function InvitatiScreen() {
               {invited && <Text style={styles.inviteEmail}>{invited.email}</Text>}
               {i.note && <Text style={styles.inviteNote}>&quot;{i.note}&quot;</Text>}
               <Text style={styles.inviteMeta}>Trial iniziale: {i.trial_days} gg · Creato: {new Date(i.created_at).toLocaleDateString("it-IT")}</Text>
+              {/* V50.z321 — coesistenza invito + codici promozionali: codici riscattati dall'invitato */}
+              {invited?.promo_codes && invited.promo_codes.length > 0 ? (
+                <Text style={styles.inviteMeta} testID={`inv-promo-${i.invite_token}`}>🎟 Codici promo: {invited.promo_codes.map((p) => `${p.code} (${p.benefit_summary || ""})`).join(", ")}</Text>
+              ) : null}
               {!used ? (
                 <Pressable testID={`inv-copy-${i.invite_token}`} onPress={() => copyInviteLink(i.invite_token)} style={styles.copyBtn}>
                   <Ionicons name="copy-outline" size={14} color="#FFF" />

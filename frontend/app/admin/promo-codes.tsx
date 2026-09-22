@@ -18,7 +18,7 @@ type Promo = {
   premium_days: number | null; benefit_summary: string; expires_at: string | null; max_uses: number | null; uses_count: number;
   active: boolean; status: "active" | "disabled" | "expired" | "exhausted"; created_at: string; last_used_at: string | null;
 };
-type Redemption = { redemption_id: string; email: string; name: string; benefit_summary: string; redeemed_at: string };
+type Redemption = { redemption_id: string; email: string; name: string; benefit_summary: string; redeemed_at: string; invited_by_email?: string | null; subscription?: { status: string; days_left?: number | null } | null };
 
 const BENEFITS: { id: BenefitType; label: string; icon: keyof typeof Ionicons.glyphMap; valueLabel: string }[] = [
   { id: "free_weeks", label: "Settimane gratuite", icon: "calendar-outline", valueLabel: "Numero di settimane" },
@@ -235,6 +235,8 @@ function PromoDetailModal({ promo, onClose, onToggle, onDelete }: { promo: Promo
                   <View style={{ flex: 1 }}>
                     <Text style={s.redName}>{r.name || r.email}</Text>
                     <Text style={s.redSub}>{r.email} · {fmtDateTime(r.redeemed_at)}</Text>
+                    {r.invited_by_email ? <Text style={s.redSub}>👥 Arrivato da invito di {r.invited_by_email}</Text> : null}
+                    {r.subscription?.status === "trial" && r.subscription.days_left != null ? <Text style={s.redSub}>⏳ Prova: {r.subscription.days_left} gg residui</Text> : null}
                   </View>
                 </View>
               ))}
