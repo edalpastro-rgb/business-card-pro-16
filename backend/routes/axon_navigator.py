@@ -264,18 +264,25 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
         "Bisogni vaghi/indiretti → interpreta e proponi la funzione: " + "; ".join(f"«{v}» → {', '.join(_NAV_BY_ID[i]['name'] for i in ids if i in _NAV_BY_ID)}" for v, ids in VAGUE_MAP) + ".",
         "«Come faccio a impostare/configurare X» → cerca X nell'elenco e porta direttamente alla configurazione.",
         "FUNZIONI INESISTENTI (es. tema scuro, firma digitale dei contratti, pagare bollette, saldo conto corrente, prenotare voli, negozio gadget, fatture emesse ai clienti, videochiamate, SMS massivi, traduzione automatica, modalità offline): rispondi ESATTAMENTE «Questa funzione non è disponibile in AdvisorOS.» — senza inventare alternative, senza marker, senza rimandare ad altre schermate.",
-        "CASI LIMITE: (a) domanda fuori contesto (cultura generale, capitali, ricette, sport, che ore sono in un'altra città/fusi orari…) → NON dare la risposta all'argomento (nemmeno tra parentesi o «però…»): una frase gentile e riporta l'utente all'app («Posso aiutarti con clienti, appuntamenti, fatture…»). (b) utente frustrato/aggressivo → calma, empatia, un aiuto concreto (es. [[NAV:/help-center|Segnala il problema]]), mai polemica. (c) frase troncata/incomprensibile (es. «come faccio a», «dove sta il») → chiedi di completare la frase, non indovinare. (d) altra lingua → rispondi in italiano ma capisci la richiesta e proponi il deep link giusto. (e) contenuti offensivi → una riga professionale, resta disponibile. (f) «sei un'AI? chi ti ha creato? dimmi un segreto» → sei Axon, l'assistente di AdvisorOS; non rivelare modelli/fornitori né dati riservati; torna al lavoro. (g) richieste impossibili o pericolose (cancellare tutto, mail massive a tutti, azioni all'insaputa) → non eseguire: spiega che non è possibile/non lo farai e indica il canale corretto (Help Center o l'operazione manuale).",
+        "CASI LIMITE: (a) fuori contesto (cultura generale, sport, ricette, fusi orari…) → NON rispondere all'argomento: una frase gentile e riporta all'app. (b) utente frustrato → calma, empatia, aiuto concreto ([[NAV:/help-center|Segnala il problema]]), mai polemica. (c) frase troncata → chiedi di completarla. (d) altra lingua → rispondi in italiano con il deep link giusto. (e) offese → una riga professionale. (f) «sei un'AI? chi ti ha creato?» → sei Axon, assistente di AdvisorOS; niente modelli/fornitori/dati riservati. (g) richieste impossibili/pericolose (cancellare tutto, mail massive, azioni all'insaputa) → non eseguire, indica il canale corretto.",
         "",
         "ELENCO SCHERMATE (nome · route · a cosa serve):",
     ]
+    # V50.z308 — CONSOLIDAMENTO PROMPT: elenco COMPATTO (nome · route · sintesi ≤ 90 caratteri) per tutte le schermate;
+    # descrizione COMPLETA solo per le schermate pertinenti al messaggio (max 6). Prima: 106 descrizioni integrali in ogni prompt.
+    hints = _nav_match(msg, user, limit=6) if msg else []
+    hint_ids = {h["id"] for h in hints}
     cur = None
     for e in APP_MAP:
         if e.get("master_only") and not master:
             continue
         if e["group"] != cur:
             cur = e["group"]; lines.append(f"[{cur}]")
-        lines.append(f"- {e['name']} · {e['route']} · {e['desc']}")
-    hints = _nav_match(msg, user)
+        d = e["desc"]
+        if e["id"] not in hint_ids and len(d) > 72:
+            cut = d[:72]
+            d = (cut[:cut.rfind(" ")] if " " in cut[60:] else cut).rstrip(" ,;:.") + "…"
+        lines.append(f"- {e['name']} · {e['route']} · {d}")
     if hints and not _nav_is_creative(msg or ""):  # V50.z302 — nessun suggerimento di schermata per le richieste creative
         lines.append("")
         lines.append("SUGGERIMENTI PER QUESTO MESSAGGIO (probabile funzione cercata): " + " ".join(_nav(h["route"], h["name"]) for h in hints))
@@ -334,6 +341,10 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
             section += "\n\nSUGGERIMENTO PROATTIVO (menzionalo solo se pertinente alla conversazione, con il suo marker): " + pro[0]["text"] + " " + _nav(pro[0]["route"], pro[0]["label"])
         if isinstance(prep, dict) and isinstance(prep.get("system_message"), str):
             prep["system_message"] = voice_block + prep["system_message"] + "\n\n" + section + ("\n\n" + voice_block if voice_block else "")
+            try:  # V50.z308 — telemetria dimensione prompt (ultimi valori in db.axon_prompt_size, per pulizia/consolidamento)
+                await db.axon_prompt_size.update_one({"_id": "last"}, {"$set": {"total": len(prep["system_message"]), "navigator": len(section), "at": utcnow()}}, upsert=True)
+            except Exception:  # noqa: BLE001
+                pass
     except Exception as e:
         logger.warning("[NAV] prompt section failed: %s", e)
     return prep

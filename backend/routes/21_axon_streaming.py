@@ -656,6 +656,12 @@ async def _prepare_assistant_prompt(
     # MEMORIA_PERSISTENTE resta NON iniettata.
     if _pinned_section:
         system_message = _pinned_section + system_message
+    try:  # V50.z308 — telemetria dimensioni sezioni (db.axon_prompt_size.sections) per il consolidamento del prompt
+        _sizes = {"base_core": len(system_message) - len(_brain_section) - len(_scripts_section) - len(_cheat_section) - len(_cloud_section) - len(_pinned_section or ""),
+                  "brain": len(_brain_section), "scripts": len(_scripts_section), "cheat": len(_cheat_section), "cloud": len(_cloud_section), "pinned": len(_pinned_section or "")}
+        await db.axon_prompt_size.update_one({"_id": "last"}, {"$set": {"sections": _sizes}}, upsert=True)
+    except Exception:  # noqa: BLE001
+        pass
 
     if history:
         convo_text = ""

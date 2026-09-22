@@ -64,7 +64,7 @@ _OMNI_EXTRA_SECTIONS = [
     ("Chat non bloccante (coda messaggi)", "Chat Axon (bottone AxonOS) · tab «Coda»", "Mentre Axon sta elaborando una risposta puoi continuare a scrivere: il tasto invio diventa arancione ⏱ e il messaggio va in coda server-side (sopravvive alla chiusura dell'app) con priorità URGENTE/ALTA/NORMALE. Ogni bozza compare in chat come bolla tratteggiata «⏳ N° in coda · ~ETA» con Invia ora (urgente, salta la coda), Modifica (cambia il testo prima dell'elaborazione) ed Elimina; parte da sola appena Axon finisce (una alla volta). Tab «Coda»: elaborate di recente e bozze non riuscite con Riprova. Una bozza rimasta bloccata in elaborazione si sblocca da sola dopo 150 secondi."),
     ("Screenshot e contesto schermata per Axon", "Chat Axon → allegati (📎) → «Screenshot schermata»", "Con un tocco Axon cattura la schermata da cui è stato aperto e la allega al messaggio (utile per segnalare bug o chiedere aiuto su ciò che vedi). Axon riceve sempre anche la POSIZIONE ATTUALE dell'utente nell'app (schermata/route) e la usa per rispondere «dove sono» e per suggerire la funzione giusta."),
     ("Consigliato per te (Home)", "/home", "Card in Home sotto «Interfaccia Master» con le scorciatoie alle funzioni a cui l'utente ha detto SÌ nel form interessi del Tour guidato (fino a 8, con icona e gruppo); × nasconde una voce, ↻ rifà il tour. Nascosta se il tour non è stato fatto."),
-    ("Tour guidato e form interessi", "/tour (tutte le funzioni: /tour-features)", "Tour conversazionale a 4 schermate con voce di Axon (pausa/stop/silenzia, velocità lettura). Form spuntabile di 20 domande Sì/No per round, con «Aggiungi nota» sotto ogni domanda (precisazioni che Axon rispetta alla lettera), round illimitati di altre 20 domande generate dall'AI finché l'utente dice «NO, è tutto»; le risposte creano il profilo interessi usato da Axon per personalizzare risposte e suggerimenti proattivi e alimentano la card «Consigliato per te»."),
+    ("Tour guidato e form interessi", "/tour (tutte le funzioni: /tour-features)", "Primo avvio in 3 DOMANDE a tocco (ruolo · cosa vendi · quanti clienti) con voce di Axon (pausa/stop/silenzia): la Home viene configurata subito con le funzioni giuste (card «Consigliato per te»). Poi, OPZIONALE, il «Profilo completo»: form spuntabile di 20 domande Sì/No per round, con «Aggiungi nota» sotto ogni domanda (precisazioni che Axon rispetta alla lettera), round illimitati di altre 20 domande generate dall'AI finché l'utente dice «NO, è tutto»; le risposte creano il profilo interessi usato da Axon per personalizzare risposte e suggerimenti proattivi e alimentano la card «Consigliato per te»."),
     ("Azzera dati di test (Master)", "/impostazioni (hub, in fondo — solo Master)", "Cancella in un colpo tutti i dati di prova (clienti, appuntamenti, ritelefonate, contratti, scadenze…) preservando account, collaboratori, impostazioni, branding e tutto ciò che è stato insegnato ad Axon (regole, conoscenza, esempi). Richiede la parola di conferma."),
     ("Editor Libretto illustrativo", "/libretto-editor (Impostazioni → Personalizzazione)", "Il Master modifica testi, sezioni e mockup del Libretto illustrativo / presentazione AdvisorOS, con anteprima e PDF."),
     ("Prompt per Neo", "Master Files → Prompt per Neo", "Le richieste di sviluppo dettate ad Axon («prompt per Neo») vengono salvate in Master Files con stato in attesa/completato: l'utente le copia e le incolla nella chat di sviluppo; «stato prompt Neo» le elenca, «prompt Neo #N completato» le chiude. Axon non ha un canale diretto con Neo."),
@@ -73,23 +73,48 @@ _OMNI_EXTRA_SECTIONS = [
 _OMNI_APP_MAP_CACHE = {"text": None}
 
 
-def _omni_app_map_text() -> str:
-    if _OMNI_APP_MAP_CACHE["text"] is not None:
-        return _OMNI_APP_MAP_CACHE["text"]
-    lines = ["MAPPA DELL'APP ADVISOROS (tutte le sezioni e cosa fanno — usa per spiegare l'app e orientare l'utente):"]
+def _omni_app_map_entries() -> list:
+    """[(titolo, testo_completo)] — libretto + sezioni extra (cache)."""
+    if _OMNI_APP_MAP_CACHE.get("entries") is not None:
+        return _OMNI_APP_MAP_CACHE["entries"]
+    entries = []
     try:
         with open(_OMNI_APP_MAP_PATH, "r", encoding="utf-8") as fh:
             for sec in _omni_json.load(fh):
                 if sec.get("id") in ("consigli", "faq", "intro"):
                     continue
                 desc = " ".join((sec.get("paragraphs") or [])[:2])[:420]
-                lines.append(f"• {sec.get('title')} — {sec.get('subtitle')}. {desc}")
+                entries.append((str(sec.get("title") or ""), f"• {sec.get('title')} — {sec.get('subtitle')}. {desc}"))
     except Exception as exc:  # noqa: BLE001
         logger.debug("[axon-omni] app map load failed: %s", exc)
     for name, route, desc in _OMNI_EXTRA_SECTIONS:
-        lines.append(f"• {name} ({route}) — {desc}")
-    _OMNI_APP_MAP_CACHE["text"] = "\n".join(lines)
-    return _OMNI_APP_MAP_CACHE["text"]
+        entries.append((name, f"• {name} ({route}) — {desc}"))
+    _OMNI_APP_MAP_CACHE["entries"] = entries
+    return entries
+
+
+_OMNI_STOP = {"come", "cosa", "dove", "quando", "perché", "perche", "posso", "puoi", "sono", "della", "delle", "degli", "dello", "nella", "nelle", "questo", "questa", "quale", "quali", "fare", "faccio", "voglio", "vorrei", "anche", "molto", "tutti", "tutte", "essere", "avere", "mi", "ti", "che", "per", "con", "una", "uno", "gli", "le", "il", "la", "di", "da", "in", "un", "e", "a", "o", "è", "ho", "hai", "ha", "se", "non", "ma", "del", "al", "ai", "sul", "sui"}
+
+
+def _omni_app_map_text(msg: str = "") -> str:
+    """V50.z308 — CONSOLIDAMENTO PROMPT: prima TUTTE le ~75 sezioni (≈13k+ caratteri) finivano in ogni prompt, in doppio con
+    l'elenco del Navigatore. Ora: indice compatto dei titoli + testo completo SOLO delle sezioni pertinenti al messaggio (max 8)."""
+    entries = _omni_app_map_entries()
+    words = {w for w in _omni_re.findall(r"[a-zà-ù0-9]{3,}", _omni_norm(msg)) if w not in _OMNI_STOP}
+    scored = []
+    for title, text in entries:
+        low = _omni_norm(text)
+        sc = sum(3 if w in _omni_norm(title) else 1 for w in words if w in low)
+        if sc:
+            scored.append((sc, text))
+    scored.sort(key=lambda x: -x[0])
+    picked = [t for _, t in scored[:8]]
+    lines = ["MAPPA DELL'APP ADVISOROS — indice sezioni (dettagli sotto solo per quelle pertinenti; per le altre usa l'ELENCO SCHERMATE del Navigatore): "
+             + " · ".join(t for t, _ in entries)]
+    if picked:
+        lines.append("SEZIONI PERTINENTI A QUESTO MESSAGGIO:")
+        lines.extend(picked)
+    return "\n".join(lines)
 
 
 def _omni_norm(s: str) -> str:
@@ -475,7 +500,7 @@ async def _build_crm_omniscience_section(user: dict, msg: str) -> str:
     import time as _omni_time
     _t0 = _omni_time.time()
     msg_low = (msg or "").lower()
-    parts = ["\n\n" + _omni_app_map_text()]
+    parts = ["\n\n" + _omni_app_map_text(msg)]
     try:
         ov = await _omni_overview(user, msg_low)
     except Exception as exc:  # noqa: BLE001

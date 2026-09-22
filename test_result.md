@@ -407,3 +407,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z306 — Fix da log utente: domande perché/meta → AI (no template/ops), Neo bridge (cancellazione reale coda, no salvataggi indesiderati, conteggio reale nel prompt), bolla «Un attimo, ci ragiono…» entro 0,7 s, evaluator yesno rilassato. Verificato via stream + stress parziale (trap/offline/stile ok; 2 fallimenti crt pre-esistenti: «Dove compilo un nuovo contratto luce e gas» → template contratti/AI, «consumo annuo 8 mesi» → link Calendario)."
+
+  - agent: "main"
+    message: "V50.z308 — Primo avvio ridotto a 3 domande a tocco (POST /tour/quick-start) + form 20 domande opzionale; screenshot OK (tour-opt-*). Consolidamento prompt: 72.8k → 52.7k caratteri (−28%) via elenco navigatore compatto + mappa omniscienza per pertinenza; stress 60 domande 98,3% invariato."

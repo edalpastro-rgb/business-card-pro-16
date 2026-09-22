@@ -345,6 +345,46 @@ async def tour_interest_profile(body: InterestProfileIn, user=Depends(get_curren
 
 
 # =====================================================================================
+# V50.z308 — PRIMO AVVIO IN 3 DOMANDE (tap): ruolo · cosa vendi · quanti clienti → profilo interessi + funzioni attivate.
+# Il form completo (20 domande Sì/No, round illimitati) resta OPZIONALE («Profilo completo»). Nessun suggerimento «durante l'uso».
+# =====================================================================================
+_QUICK_MAP = {
+    "role": {"master": ["team", "kpi", "courses", "courses_dashboard", "custom"], "consulente": ["contacts", "calendar", "route", "visits", "referrals"], "backoffice": ["files", "pdf", "forms", "deadlines", "scanner"]},
+    "sells": {"luce_gas": ["pun", "bills", "compare", "offers", "crt"], "telefonia": ["offers", "compare", "contacts"], "fotovoltaico": ["bills", "pdf", "calendar", "offers"], "altro": ["offers", "contacts", "calendar"]},
+    "clients": {"lt50": ["business_card", "import", "wizard", "chat"], "50_300": ["map", "deadlines", "birthday", "reviews"], "gt300": ["import", "km", "team", "kpi"]},
+}
+_QUICK_LABEL = {"master": "titolare/Master", "consulente": "consulente", "backoffice": "back office", "luce_gas": "luce e gas", "telefonia": "telefonia e internet", "fotovoltaico": "fotovoltaico ed efficienza", "altro": "altri servizi", "lt50": "meno di 50 clienti", "50_300": "tra 50 e 300 clienti", "gt300": "oltre 300 clienti"}
+
+
+class QuickStartIn(BaseModel):
+    role: str
+    sells: List[str] = Field(default_factory=list)
+    clients: str
+
+
+@api_router.post("/tour/quick-start")
+async def tour_quick_start(body: QuickStartIn, user=Depends(get_current_user)):
+    names = {fid: name for fid, name, _g in _TOUR_FEATURES}
+    picks: List[str] = []
+    for f in _QUICK_MAP["role"].get(body.role, []) + [x for s_ in body.sells for x in _QUICK_MAP["sells"].get(s_, [])] + _QUICK_MAP["clients"].get(body.clients, []):
+        if f in names and f not in picks:
+            picks.append(f)
+    if not picks:
+        raise HTTPException(status_code=400, detail="Risposte non valide")
+    row = await db.user_settings.find_one({"user_id": user["user_id"]}, {"axon_interest_profile": 1}) or {}
+    prof = row.get("axon_interest_profile") or {}
+    yes_f = list(prof.get("yes_features") or [])
+    for f in picks:
+        if f not in yes_f:
+            yes_f.append(f)
+    summary = f"Primo avvio: {_QUICK_LABEL.get(body.role, body.role)}, vende {', '.join(_QUICK_LABEL.get(s_, s_) for s_ in body.sells) or 'n/d'}, {_QUICK_LABEL.get(body.clients, body.clients)}."
+    prof.update({"yes_features": yes_f, "quick": {"role": body.role, "sells": body.sells, "clients": body.clients}, "summary": (summary + " " + str(prof.get("summary") or "")).strip()[:600], "updated_at": utcnow()})
+    await db.user_settings.update_one({"user_id": user["user_id"]}, {"$set": {"axon_interest_profile": prof}}, upsert=True)
+    reply = f"Sei {_QUICK_LABEL.get(body.role, body.role)} e vendi {', '.join(_QUICK_LABEL.get(s_, s_) for s_ in body.sells) or 'vari servizi'}: ti ho preparato la Home con le funzioni giuste. Il profilo completo (20 domande) lo puoi fare quando vuoi."
+    return {"features": [{"id": f, "name": names[f]} for f in picks[:8]], "reply": reply}
+
+
+# =====================================================================================
 # V50.z300 — CARD «CONSIGLIATO PER TE» (Home): scorciatoie alle funzioni a cui l'utente ha detto SÌ nel tour
 #   GET  /tour/recommendations           → fino a 8 funzioni (yes_features del form, fallback tour_profile.features), meno quelle nascoste
 #   POST /tour/recommendations/dismiss   → nasconde una funzione dalla card (user_settings.recommendations_dismissed)

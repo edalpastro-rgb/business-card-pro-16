@@ -209,40 +209,36 @@ function Welcome({ onNext, onFeatures }: { onNext: () => void; onFeatures: () =>
   );
 }
 
-// ---------- 2 · Prima conversazione (3 domande, una alla volta) ----------
-// V50.z264 — intro di Axon (vocale + testuale) prima della prima domanda
-const INTRO = "Ciao e benvenuto. Da oggi sarò il tuo assistente di fiducia. Potrai dirmi e chiedermi moltissime cose. Ti dico subito una cosa importante: non sono perfetto, e per darti il meglio avremo bisogno di conoscerci. Porta un po' di pazienza con me — imparo in fretta, soprattutto dai miei errori. Grazie per la comprensione.";
-const LEAD_IN = "Più sei preciso nel dirmi cosa è importante per te, più riuscirò ad adattarmi alle tue esigenze.";
-const QUESTIONS = [
-  "Per iniziare, dimmi cosa ti aspetti da me e cosa ti complica la vita nella gestione del tuo lavoro quotidiano, non dare nulla di scontato, raccontami tutto.",
-  "Quale funzione per te è assolutamente indispensabile?",
-  "Cosa ti aspetti da AdvisorOS? Più sei preciso, più lo adatto a te.",
+// ---------- 2 · Primo avvio in 3 domande (tap) ----------
+// V50.z308 — prima erano 3 domande aperte a voce («raccontami tutto») + form da 20: troppo per il primo giorno.
+// Ora: intro breve → 3 domande a scelta rapida (ruolo · cosa vendi · quanti clienti) → Home già configurata.
+// Il form completo (20 domande Sì/No, round illimitati) resta opzionale («Profilo completo»). Nessun suggerimento «durante l'uso».
+const INTRO = "Ciao, sono Axon, il tuo assistente. Tre domande veloci e preparo AdvisorOS su misura per te.";
+type QuickQ = { id: "role" | "sells" | "clients"; text: string; multi?: boolean; options: { id: string; label: string; icon: keyof typeof Ionicons.glyphMap }[] };
+const QUICK_QUESTIONS: QuickQ[] = [
+  { id: "role", text: "Che ruolo hai?", options: [{ id: "master", label: "Titolare / Master", icon: "ribbon" }, { id: "consulente", label: "Consulente / Agente", icon: "briefcase" }, { id: "backoffice", label: "Back office", icon: "desktop" }] },
+  { id: "sells", text: "Cosa vendi principalmente?", multi: true, options: [{ id: "luce_gas", label: "Luce e gas", icon: "flash" }, { id: "telefonia", label: "Telefonia / Internet", icon: "wifi" }, { id: "fotovoltaico", label: "Fotovoltaico / Efficienza", icon: "sunny" }, { id: "altro", label: "Altro", icon: "ellipsis-horizontal" }] },
+  { id: "clients", text: "Quanti clienti gestisci?", options: [{ id: "lt50", label: "Sto iniziando (meno di 50)", icon: "leaf" }, { id: "50_300", label: "Tra 50 e 300", icon: "people" }, { id: "gt300", label: "Più di 300", icon: "business" }] },
 ];
 function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded?: () => void, readSeconds?: number) => Promise<void>; onNext: () => void; onVoiceSettings: () => void }) {
-  const [answers, setAnswers] = useState<string[]>([]);
-  const [phase, setPhase] = useState<"intro" | "lead" | "questions">("intro");
-  const [typed, setTyped] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [phase, setPhase] = useState<"intro" | "questions">("intro");
+  const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState<string | null>(null);
   const [features, setFeatures] = useState<{ id: string; name: string }[]>([]);
   const [lit, setLit] = useState(0);
-  const [formMode, setFormMode] = useState(false); // V50.z284 — form spuntabile al posto delle domande a voce
-  const qIdx = answers.length; // domanda corrente (0..2); 3 = elaborazione
+  const [formMode, setFormMode] = useState(false); // profilo completo (20 domande) — opzionale
+  const qIdx = QUICK_QUESTIONS.findIndex((q) => !(picked[q.id] || []).length); // -1 = tutte risposte
   const scrollRef = useRef<ScrollView>(null);
   const voiceState = useVoiceState();
-  const reading = (p: "intro" | "lead" | "questions") => phase === p && voiceState === 0; // 0 = Axon sta parlando
+  const reading = (p: "intro" | "questions") => phase === p && voiceState === 0;
 
-  // V50.z270 — Sequenza RIGOROSAMENTE in serie, una voce sola: intro (10 s di lettura con countdown, poi voce) → a fine voce
-  // compare e parte la frase di raccordo → a fine voce compare e parte la prima domanda. Nessun timer parallelo.
   useEffect(() => {
     let done = false;
-    const next = (p: "lead" | "questions") => { if (done) return; done = true; setPhase(p); };
-    if (phase === "intro") void say(INTRO, () => next("lead"), 5); // V50.z284 — countdown di lettura 5 s
-    else if (phase === "lead") void say(LEAD_IN, () => next("questions"));
+    if (phase === "intro") void say(INTRO, () => { if (!done) { done = true; setPhase("questions"); } }, 2);
     return () => { done = true; };
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (phase === "questions" && qIdx < QUESTIONS.length && !formMode) void say(QUESTIONS[qIdx]); }, [qIdx, say, phase, formMode]);
+  useEffect(() => { if (phase === "questions" && qIdx >= 0 && !formMode) void say(QUICK_QUESTIONS[qIdx].text); }, [qIdx, say, phase, formMode]);
   useEffect(() => {
     if (!features.length) return;
     setLit(0);
@@ -251,22 +247,29 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
   }, [features]);
   useEffect(() => { if (reply !== null) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80); }, [reply]);
 
-  const elaborate = async (all: string[]) => {
+  const finishQuick = async (p: Record<string, string[]>) => {
     setBusy(true);
     try {
-      const r = await api<{ features: { id: string; name: string }[]; reply: string }>("/tour/profile", { method: "POST", body: { answers: all } });
+      const r = await api<{ features: { id: string; name: string }[]; reply: string }>("/tour/quick-start", { method: "POST", body: { role: p.role?.[0], sells: p.sells || [], clients: p.clients?.[0] } });
       setReply(r.reply || ""); setFeatures(r.features || []);
       void say(`Ho capito. Ecco cosa attivo per te. ${r.reply || ""}`);
-    } catch (e: any) { notify("Axon", e?.message || "Non ho capito, riprova"); setAnswers(all.slice(0, 2)); } finally { setBusy(false); }
+    } catch (e: any) { notify("Axon", e?.message || "Riprova"); setPicked({}); } finally { setBusy(false); }
   };
-  const submit = async (text: string) => {
-    const t = text.trim(); if (!t || busy) return;
-    const all = [...answers, t];
-    setAnswers(all); setDraft(""); setTyped(false);
+  const choose = (q: QuickQ, optId: string) => {
+    if (busy) return;
+    const cur = picked[q.id] || [];
+    if (q.multi) { setPicked({ ...picked, [q.id]: cur.includes(optId) ? cur.filter((x) => x !== optId) : [...cur, optId] }); return; }
+    const next = { ...picked, [q.id]: [optId] };
+    setPicked(next);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
-    if (all.length >= QUESTIONS.length) await elaborate(all);
+    if (QUICK_QUESTIONS.every((qq) => (next[qq.id] || []).length)) void finishQuick(next);
   };
-  // V50.z284 — form completato (NO, è tutto): il profilo interessi è salvato → mostra risposta + funzioni che «si accendono»
+  const confirmMulti = (q: QuickQ) => {
+    if (!(picked[q.id] || []).length) return;
+    const next = { ...picked, [q.id]: [...picked[q.id], "__ok"] };
+    setPicked(next);
+    if (QUICK_QUESTIONS.every((qq) => (next[qq.id] || []).length)) void finishQuick(next);
+  };
   const onFormDone = (r: { features: { id: string; name: string }[]; reply: string }) => {
     setFormMode(false); setReply(r.reply || ""); setFeatures(r.features || []);
     void say(`Ho capito. Ecco cosa attivo per te. ${r.reply || ""}`);
@@ -277,7 +280,7 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
       <View style={styles.screen}>
         <ScrollView ref={scrollRef} contentContainerStyle={{ gap: 12, paddingBottom: 16 }} keyboardShouldPersistTaps="handled">
           <AxonOrb />
-          <InterestForm freeAnswers={answers} onDone={onFormDone} onBack={() => setFormMode(false)} />
+          <InterestForm freeAnswers={[]} onDone={onFormDone} onBack={() => setFormMode(false)} />
         </ScrollView>
       </View>
     );
@@ -287,20 +290,28 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
     <View style={styles.screen}>
       <ScrollView ref={scrollRef} contentContainerStyle={{ flexGrow: 1, justifyContent: "center", gap: 12 }} keyboardShouldPersistTaps="handled">
         <AxonOrb busy={busy} />
-        {/* V50.z271 — «Evidenzia lettura»: la bolla che Axon sta leggendo si illumina (bordo + sfondo azzurro) */}
         <View style={[styles.bubble, reading("intro") && styles.bubbleReading]} testID="tour-intro"><Text style={styles.bubbleTxt}>{INTRO}</Text></View>
-        {/* V50.z265 — link discreto voce/lingua subito dopo l'intro: se ignorato il flusso prosegue da solo alla prima domanda */}
         <Pressable onPress={onVoiceSettings} hitSlop={6} style={styles.voiceLink} testID="tour-voice-settings-link">
           <Ionicons name="options-outline" size={14} color={SKY} />
           <Text style={styles.voiceLinkTxt}>Vuoi cambiare la mia voce o la lingua? <Text style={{ textDecorationLine: "underline" }}>Tocca qui</Text></Text>
         </Pressable>
-        {phase !== "intro" ? <View style={[styles.bubble, reading("lead") && styles.bubbleReading]} testID="tour-lead-in"><Text style={styles.bubbleTxt}>{LEAD_IN}</Text></View> : null}
-        {phase === "questions" ? QUESTIONS.slice(0, Math.min(qIdx + 1, QUESTIONS.length)).map((q, i) => (
-          <React.Fragment key={i}>
-            <View style={[styles.bubble, reading("questions") && i === qIdx && styles.bubbleReading]} testID={`tour-q-${i + 1}`}><Text style={styles.bubbleTxt}>{q}</Text></View>
-            {answers[i] ? <View style={[styles.bubble, styles.bubbleUser]} testID={`tour-a-${i + 1}`}><Text style={[styles.bubbleTxt, { color: NAVY }]}>{answers[i]}</Text></View> : null}
-          </React.Fragment>
-        )) : (
+        {phase === "questions" ? QUICK_QUESTIONS.map((q, i) => {
+          const answered = (picked[q.id] || []).filter((x) => x !== "__ok");
+          const done = q.multi ? (picked[q.id] || []).includes("__ok") : answered.length > 0;
+          if (i > qIdx && qIdx >= 0 && !done) return null;
+          return (
+            <React.Fragment key={q.id}>
+              <View style={[styles.bubble, reading("questions") && i === qIdx && styles.bubbleReading]} testID={`tour-q-${i + 1}`}><Text style={styles.bubbleTxt}>{q.text}</Text>{q.multi && !done ? <Text style={[styles.bubbleTxt, { color: MUTED, fontSize: 13, marginTop: 4 }]}>Puoi sceglierne più di uno.</Text> : null}</View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }} testID={`tour-opts-${q.id}`}>
+                {q.options.filter((o) => !done || answered.includes(o.id)).map((o) => { const on = answered.includes(o.id); return (
+                  <Pressable key={o.id} onPress={() => !done && choose(q, o.id)} disabled={done} style={[styles.quickOpt, on && styles.quickOptOn]} testID={`tour-opt-${q.id}-${o.id}`}>
+                    <Ionicons name={o.icon} size={16} color={on ? NAVY : SKY} /><Text style={[styles.quickOptTxt, on && { color: NAVY }]}>{o.label}</Text>
+                  </Pressable>); })}
+                {q.multi && !done && answered.length ? <Pressable onPress={() => confirmMulti(q)} style={[styles.quickOpt, styles.quickOptOn]} testID={`tour-opt-${q.id}-ok`}><Ionicons name="checkmark" size={16} color={NAVY} /><Text style={[styles.quickOptTxt, { color: NAVY }]}>Avanti</Text></Pressable> : null}
+              </View>
+            </React.Fragment>
+          );
+        }) : (
           <Pressable onPress={() => setPhase("questions")} style={{ alignSelf: "center" }} testID="tour-intro-skip"><Text style={styles.linkTxt}>Vai alle domande</Text></Pressable>
         )}
         {reply !== null ? (
@@ -318,25 +329,13 @@ function TalkToAxon({ say, onNext, onVoiceSettings }: { say: (t: string, onEnded
                 );
               })}
             </View>
-          </>
-        ) : phase === "questions" && qIdx < QUESTIONS.length && !busy ? (
-          <View style={{ alignItems: "center", gap: 12 }}>
-            <Text style={[styles.p, { fontSize: 12 }]}>Domanda {qIdx + 1} di {QUESTIONS.length}</Text>
-            <View style={styles.micWrap}><VoiceDictationButton label="Rispondi a voce" testID="tour-voice" onTranscript={(t) => void submit(t)} /></View>
-            {/* V50.z284 — alternativa: form spuntabile (20 domande Sì/No, poi «È tutto o altre domande?») */}
             <Pressable onPress={() => { voiceStop(); setFormMode(true); }} style={styles.formBtn} testID="tour-form-toggle">
               <Ionicons name="checkbox-outline" size={20} color={SKY} />
-              <View style={{ flex: 1 }}><Text style={styles.formBtnTxt}>Preferisci un form spuntabile?</Text><Text style={styles.choiceSub}>20 domande Sì/No: rispondi con un tocco</Text></View>
+              <View style={{ flex: 1 }}><Text style={styles.formBtnTxt}>Profilo completo (opzionale)</Text><Text style={styles.choiceSub}>20 domande Sì/No con note: Axon si adatta ancora meglio. Puoi farlo anche dopo da Impostazioni → Tour.</Text></View>
               <Ionicons name="chevron-forward" size={18} color={MUTED} />
             </Pressable>
-            {!typed ? <Pressable onPress={() => setTyped(true)} testID="tour-type-toggle"><Text style={styles.linkTxt}>Preferisco scrivere</Text></Pressable> : (
-              <View style={{ width: "100%", gap: 8 }}>
-                <TextInput placeholder="Scrivi qui la tua risposta…" placeholderTextColor={MUTED} style={styles.input} multiline onChangeText={setDraft} value={draft} testID="tour-type-input" />
-                <Pressable onPress={() => submit(draft)} style={[styles.cta, { alignSelf: "flex-end", paddingHorizontal: 18 }]} testID="tour-type-send"><Text style={styles.ctaTxt}>Invia</Text></Pressable>
-              </View>
-            )}
-          </View>
-        ) : busy ? <Text style={[styles.p, { fontSize: 14 }]}>Axon sta elaborando le tue risposte…</Text> : null}
+          </>
+        ) : busy ? <Text style={[styles.p, { fontSize: 14 }]}>Axon sta preparando la tua Home…</Text> : null}
       </ScrollView>
       {features.length > 0 && lit >= features.length ? (
         <Pressable onPress={onNext} style={styles.cta} testID="tour-next-2"><Text style={styles.ctaTxt}>Continua</Text><Ionicons name="arrow-forward" size={18} color={NAVY} /></Pressable>
@@ -630,6 +629,9 @@ const styles = StyleSheet.create({
   bubble: { backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 18, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }, bubbleUser: { backgroundColor: SKY, alignSelf: "flex-end", maxWidth: "90%" },
   bubbleTxt: { color: WHITE, fontSize: 16, lineHeight: 23 },
   micWrap: { alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 16, padding: 8 },
+  quickOpt: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1.5, borderColor: SKY, backgroundColor: "rgba(56,189,248,0.10)" },
+  quickOptOn: { backgroundColor: SKY, borderColor: SKY },
+  quickOptTxt: { color: SKY, fontWeight: "800", fontSize: 14 },
   formBtn: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, backgroundColor: "rgba(56,189,248,0.10)", borderWidth: 1.5, borderColor: "rgba(56,189,248,0.55)", minHeight: 56, width: "100%" },
   formBtnTxt: { color: WHITE, fontSize: 15, fontWeight: "900" },
   input: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 14, padding: 14, color: WHITE, fontSize: 15, minHeight: 80, textAlignVertical: "top", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" },
