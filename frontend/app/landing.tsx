@@ -21,7 +21,7 @@ import { DemoRequestForm } from "@/src/landing/DemoRequestForm";
 
 import { LANDING_SEEN_KEY } from "@/src/landing/landingSeen";
 // V50.z330 — URL pubblico di AxonOS Lite (configurabile da .env; default alla pagina Lite del sito)
-const LITE_URL = process.env.EXPO_PUBLIC_LITE_URL || "https://advisoros.com/lite"; // V50.z314 — su telefono la landing si mostra solo al primo avvio
+const LITE_URL = process.env.EXPO_PUBLIC_LITE_URL || "https://advisoros.it/lite"; // V50.z314 — su telefono la landing si mostra solo al primo avvio
 
 type IonName = React.ComponentProps<typeof Ionicons>["name"];
 

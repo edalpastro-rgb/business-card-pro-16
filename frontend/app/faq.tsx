@@ -1,5 +1,5 @@
 // faq.tsx — V50.z329 — Domande frequenti (accordion) · raggiungibile da Help Center e dal Navigatore Axon.
-// In fondo: «Scopri di più su AxonOS» → landing pubblica advisoros.com.
+// In fondo: «Scopri di più su AxonOS» → landing pubblica advisoros.it (dominio principale; advisoros.cloud → redirect).
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Linking, LayoutAnimation, Platform, UIManager } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -10,7 +10,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) UIManager.setLayoutAnimationEnabledExperimental(true);
 
-export const LANDING_URL = "https://advisoros.com";
+export const LANDING_URL = process.env.EXPO_PUBLIC_LANDING_URL || "https://advisoros.it";
 
 export const FAQ_ITEMS: { q: string; a: string; icon: React.ComponentProps<typeof Ionicons>["name"] }[] = [
   { icon: "school-outline", q: "Come carico un contratto esempio per addestrare Axon?", a: "Vai nella sezione Compilazione CRT, blocco Modelli di addestramento. Clicca \"Carica contratto compilato di esempio\" e seleziona il file da Drive, Dropbox o dal tuo dispositivo. Axon lo analizza e impara automaticamente la struttura e i campi da compilare." },
@@ -56,7 +56,7 @@ export default function FaqScreen() {
         <Pressable onPress={() => void Linking.openURL(LANDING_URL)} style={({ pressed }) => [styles.cta, pressed && { opacity: 0.85 }]} testID="faq-landing-link" accessibilityRole="link">
           <View style={{ flex: 1 }}>
             <Text style={styles.ctaTitle}>Scopri di più su AxonOS</Text>
-            <Text style={styles.ctaSub}>Il cervello dentro AdvisorOS: apre advisoros.com</Text>
+            <Text style={styles.ctaSub}>Il cervello dentro AdvisorOS: apre advisoros.it</Text>
           </View>
           <Ionicons name="open-outline" size={20} color={theme.color.onBrandPrimary} />
         </Pressable>
