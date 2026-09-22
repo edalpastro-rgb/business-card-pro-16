@@ -13,7 +13,7 @@ export const ROUTE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 /** Rotte da NON ripristinare (auth, landing, root, flussi transitori). */
 export function isRestorableRoute(pathname: string): boolean {
   if (!pathname || pathname === "/" || pathname === "/index" || pathname === "/home" || pathname === "/(tabs)/home") return false;
-  return !/^\/(login|landing|adv-landing|register|forgot|reset|auth|2fa|verify|voice-copilot|_sitemap)/.test(pathname);
+  return !/^\/(login|landing|register|forgot|reset|auth|2fa|verify|voice-copilot|_sitemap)/.test(pathname);
 }
 
 /** Se un deeplink (tap su notifica) sta guidando la navigazione al cold start, il ripristino automatico viene saltato. */

@@ -48,7 +48,7 @@ def _subscription_state(user: dict) -> Dict[str, Any]:
         if exp:
             if exp.tzinfo is None:
                 exp = exp.replace(tzinfo=timezone.utc)
-            days_left = int((exp - utcnow()).total_seconds() // 86400)
+            days_left = int(-(-(exp - utcnow()).total_seconds() // 86400))  # V50.z329 — per eccesso: giorno 1 → 14
             if status_str == "trial" and days_left < 0:
                 status_str = "expired"
     return {

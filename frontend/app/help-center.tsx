@@ -110,6 +110,16 @@ export default function HelpCenterScreen() {
           <Ionicons name="chevron-forward" size={18} color="#FFF" />
         </Pressable>
 
+        {/* V50.z329 — FAQ (accordion) + link alla landing */}
+        <Pressable testID="help-faq" onPress={() => router.push("/faq" as any)} style={styles.faqBtn}>
+          <View style={styles.faqIcon}><Ionicons name="help-circle" size={22} color={theme.color.brandPrimary} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.faqTitle}>Domande frequenti</Text>
+            <Text style={styles.faqHint}>Addestramento Axon, CRT, salvataggio documenti, collaboratori, sicurezza</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+        </Pressable>
+
         <View style={styles.badge}>
           <Ionicons name="shield-checkmark" size={20} color="#7C3AED" />
           <Text style={styles.badgeTxt}>Termini di utilizzo · assistente AI</Text>
@@ -257,6 +267,10 @@ const styles = StyleSheet.create({
   replayIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   replayTitle: { fontSize: 16, fontWeight: "900", color: "#FFF" },
   replayHint: { fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 2 },
+  faqBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, padding: 14, minHeight: 64, borderWidth: 1, borderColor: theme.color.border },
+  faqIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
+  faqTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
+  faqHint: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
   root: { flex: 1, backgroundColor: theme.color.surface },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

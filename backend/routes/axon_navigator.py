@@ -99,6 +99,7 @@ APP_MAP: list = [
     # ── HELP ──
     dict(id="help", name="Help", route="/help", group="Help", desc="Aiuto: libretto, manuale PDF, segnala bug/idea, privacy, tour.", kw=["help", "aiuto", "supporto", "assistenza"]),
     dict(id="libretto", name="Libretto informativo", route="/libretto", group="Help", desc="Guida a tutte le funzioni dell'app, scaricabile in PDF (manuale).", kw=["libretto", "manuale", "guida", "istruzioni", "scarica manuale", "pdf manuale"]),
+    dict(id="faq", name="Domande frequenti (FAQ)", route="/faq", group="Help", desc="Risposte rapide: addestrare Axon con un contratto esempio, ordine pagine, dove si salva il documento, nuovi fornitori, sicurezza dati, collaboratori, briefing pre-appuntamento; link «Scopri di più su AxonOS».", kw=["faq", "domande frequenti", "domande e risposte", "come funziona axon", "briefing pre-appuntamento", "dati al sicuro", "contratto esempio"]),
     dict(id="segnala", name="Segnala bug / idea", route="/help-center", group="Help", desc="Invia un ticket: problema, idea, richiesta privacy.", kw=["cancellazione dati", "cancellare i miei dati", "axon non risponde", "app lenta", "non si genera", "non funziona", "segnala", "bug", "problema", "idea", "suggerimento", "ticket", "non funziona"]),
     dict(id="tour", name="Tour guidato", route="/tour", group="Help", desc="Tour conversazionale iniziale con Axon.", kw=["sono nuovo", "aiutami a iniziare", "nuovo utente", "tour", "tutorial", "onboarding", "rifare il tour"]),
     dict(id="funzioni", name="Tutte le funzioni", route="/tour-features", group="Help", desc="Elenco completo delle funzioni per gruppo.", kw=["tutte le funzioni", "quali funzioni", "funzioni app", "cosa sa fare l app", "tutte le funzioni", "cosa sa fare", "elenco funzioni", "cosa posso fare"]),
@@ -270,7 +271,7 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
         "Bisogni vaghi/indiretti → interpreta e proponi la funzione: " + "; ".join(f"«{v}» → {', '.join(_NAV_BY_ID[i]['name'] for i in ids if i in _NAV_BY_ID)}" for v, ids in VAGUE_MAP) + ".",
         "«Come faccio a impostare/configurare X» → cerca X nell'elenco e porta direttamente alla configurazione.",
         "FUNZIONI INESISTENTI (es. tema scuro, firma digitale dei contratti, pagare bollette, saldo conto corrente, prenotare voli, negozio gadget, fatture emesse ai clienti, videochiamate, SMS massivi, traduzione automatica, modalità offline): rispondi ESATTAMENTE «Questa funzione non è disponibile in AdvisorOS.» — senza inventare alternative, senza marker, senza rimandare ad altre schermate.",
-        "CASI LIMITE: (a) fuori contesto (cultura generale, sport, ricette, fusi orari…) → NON rispondere all'argomento: una frase gentile e riporta all'app. (b) utente frustrato → calma, empatia, aiuto concreto ([[NAV:/help-center|Segnala il problema]]), mai polemica. (c) frase troncata → chiedi di completarla. (d) altra lingua → rispondi in italiano con il deep link giusto. (e) offese → una riga professionale. (f) «sei un'AI? chi ti ha creato?» → sei Axon, assistente di AdvisorOS; niente modelli/fornitori/dati riservati. (g) richieste impossibili/pericolose (cancellare tutto, mail massive, azioni all'insaputa) → non eseguire, indica il canale corretto.",
+        "CASI LIMITE: (a) fuori contesto (cultura generale, sport, ricette, fusi orari, curiosità…) → NON dare la risposta, nemmeno in una parola o «tra parentesi» (vietato «Parigi», l'ora, la ricetta): solo una frase gentile («Non è il mio campo qui in AdvisorOS 🙂») e riporta all'app. (b) utente frustrato → calma, empatia, aiuto concreto ([[NAV:/help-center|Segnala il problema]]), mai polemica. (c) frase troncata → chiedi di completarla. (d) altra lingua → rispondi in italiano con il deep link giusto. (e) offese → una riga professionale. (f) «sei un'AI? chi ti ha creato?» → sei Axon, assistente di AdvisorOS; niente modelli/fornitori/dati riservati. (g) richieste impossibili/pericolose (cancellare tutto, mail massive, azioni all'insaputa) → non eseguire, indica il canale corretto.",
         "",
         "ELENCO SCHERMATE (nome · route; per le pertinenti anche a cosa serve):",
     ]
@@ -330,6 +331,8 @@ def _nav_position_section(ctx: Optional[dict]) -> str:
 
 async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     prep = await _nav_prev_prepare(user, body)
+    if _user_product(user) == "lite":  # noqa: F821 — V50.z329: niente mappa schermate/guardia off-topic AdvisorOS per Lite
+        return prep
     try:
         msg = getattr(body, "message", None) or (body.get("message") if isinstance(body, dict) else "") or ""
         section = _nav_prompt_section(user, msg)

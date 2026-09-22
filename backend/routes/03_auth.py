@@ -3,6 +3,9 @@
 # namespace condiviso: le definizioni di TUTTI i moduli sono visibili qui (nessun import necessario).
 # Auth
 # =========================
+TRIAL_DAYS = 14  # V50.z329 — giorni di prova gratuita alla registrazione
+
+
 @api_router.post("/auth/register")
 async def register(body: RegisterInput):
     existing = await db.users.find_one({"email": body.email.lower()})
@@ -18,6 +21,8 @@ async def register(body: RegisterInput):
         "areas": ["energy", "network"],
         "picture": None,
         "product": body.product or "advisor",  # V50.z323 — Axon Core
+        "subscription_status": "trial",  # V50.z329 — prova gratuita di TRIAL_DAYS giorni per ogni nuovo iscritto (promo/referral la estendono)
+        "trial_expires_at": utcnow() + timedelta(days=TRIAL_DAYS),
         "created_at": utcnow(),
     }
     await db.users.insert_one(doc)
@@ -281,6 +286,8 @@ async def google_session(body: GoogleSessionInput, request: Request):
             "role": "owner",
             "areas": ["energy", "network"],
             "product": body.product or "advisor",  # V50.z323 — Axon Core
+            "subscription_status": "trial",  # V50.z329
+            "trial_expires_at": utcnow() + timedelta(days=TRIAL_DAYS),
             "created_at": utcnow(),
         })
         await db.settings.insert_one({

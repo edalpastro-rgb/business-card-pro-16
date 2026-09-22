@@ -461,13 +461,13 @@ export default function HomeScreen() {
         {subscription?.status === "trial" && (subscription.days_left ?? 999) <= 7 && (
           <View style={[styles.banner, { backgroundColor: (subscription.days_left ?? 0) <= 3 ? C.dangerSoft : C.warningSoft, borderColor: (subscription.days_left ?? 0) <= 3 ? C.danger : C.warning }]}>
             <Ionicons name="time" size={18} color={(subscription.days_left ?? 0) <= 3 ? C.danger : C.warning} />
-            <Text style={styles.bannerTxt}>Trial in scadenza: {subscription.days_left} giorni residui</Text>
+            <Text style={styles.bannerTxt}>Prova gratuita in scadenza: {subscription.days_left} giorni residui</Text>
           </View>
         )}
         {subscription?.status === "expired" && (
           <View style={[styles.banner, { backgroundColor: C.dangerSoft, borderColor: C.danger }]}>
             <Ionicons name="alert-circle" size={18} color={C.danger} />
-            <Text style={[styles.bannerTxt, { color: C.danger }]}>Trial scaduto — contatta chi ti ha invitato per rinnovare</Text>
+            <Text style={[styles.bannerTxt, { color: C.danger }]}>Prova gratuita scaduta — rinnova da Profilo › Abbonamento o inserisci un codice promo/amico</Text>
           </View>
         )}
 

@@ -59,14 +59,19 @@ def _axon_product_section(user: dict) -> str:
             sub = ""
         return ("\n\nPRODOTTO: AxonOS Lite. L'utente NON ha CRM aziendale, team/collaboratori, Corporate Gym, Master Files, bollette clienti, "
                 "report o mail aziendali: non proporli e non citare «AdvisorOS» come se fosse la sua app. Concentrati su memoria personale, "
-                "promemoria, note, calendario, Sfera personale, ricerca web e consigli pratici. Se chiede una funzione professionale, "
+                "promemoria, note, calendario, Sfera personale, ricerca web e consigli pratici. Le domande generali (cultura, calcoli, ricette, meteo, fusi orari, "
+                "curiosità) sono benvenute: rispondi in modo completo e utile, senza riportare l'utente «al lavoro». Se chiede una funzione professionale, "
                 "spiega che è disponibile in AdvisorOS (per professionisti) senza insistere.\n"
                 "Non usare deep link [[NAV:…]] o [[ACTION:…]] (le schermate di AdvisorOS non esistono in Lite): indica il percorso a parole.\n"
                 "Percorsi Lite: codice promozionale o codice amico → Impostazioni › Abbonamento (campo «Hai un codice promozionale o un codice amico?»); "
                 "«Invita un amico» (tuo codice, link, giorni guadagnati) → Impostazioni › Abbonamento; nome e voce dell'assistente → Impostazioni.\n"
                 "Prezzi e abbonamento: NON inventare cifre, piani o «gratis per sempre». Di' solo quello che risulta dallo stato abbonamento "
                 "(prova/attivo/scaduto e giorni rimanenti) e rimanda a Impostazioni › Abbonamento per i dettagli.\n" + sub)
-    return ""
+    # V50.z329 — AdvisorOS resta sul lavoro: le domande generali (cultura, sport, ricette, fusi orari…) non ricevono la risposta
+    return ("\n\nPRODOTTO: AdvisorOS (CRM professionale). DOMANDE FUORI CONTESTO (cultura generale, sport, ricette, fusi orari, curiosità): "
+            "NON dare la risposta, nemmeno in una parola: una frase gentile («Non è il mio campo qui in AdvisorOS 🙂») e riporta l'utente alle funzioni dell'app "
+            "(clienti, appuntamenti, fatture, documenti). Eccezioni ammesse perché servono al lavoro: meteo, calcoli/conversioni, PUN/energia, normativa di settore, "
+            "traduzioni e testi per clienti.\n")
 
 
 @api_router.get("/axon/core/manifest")
