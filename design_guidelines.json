@@ -1,52 +1,52 @@
 {
-  "app_name": "ProSync CRM",
-  "personality": "1 iOS-Native Clean",
-  "personality_one_liner": "An elegant, corporate, and highly trustworthy CRM that balances dual professional roles with flawless clarity and iOS-native comfort.",
+  "app_name": "AdvisorOS Landing Page",
+  "personality": "6 Glass / Luxe DARK fused with 7 Dark-First Utility typography (Space Grotesk + Satoshi)",
+  "personality_one_liner": "A cinematic, deeply technical command center where security meets absolute AI integration—Axon isn't just an addition, it's the core.",
   "color": {
-    "surface": "#F7F8FB",
-    "onSurface": "#111820",
-    "surfaceSecondary": "#FFFFFF",
-    "onSurfaceSecondary": "#111820",
-    "surfaceTertiary": "#EAEFF4",
-    "onSurfaceTertiary": "#293847",
-    "surfaceInverse": "#141D26",
-    "onSurfaceInverse": "#FFFFFF",
-    "brand": "#1C4869",
-    "brandPrimary": "#1C4869",
-    "onBrandPrimary": "#FFFFFF",
-    "brandSecondary": "#3A739C",
-    "onBrandSecondary": "#FFFFFF",
-    "brandTertiary": "#E6F0F7",
-    "onBrandTertiary": "#1C4869",
-    "success": "#2D7A5A",
+    "surface": "#090A09",
+    "onSurface": "#F0F4F0",
+    "surfaceSecondary": "#131513",
+    "onSurfaceSecondary": "#E0E5E0",
+    "surfaceTertiary": "#1C201C",
+    "onSurfaceTertiary": "#C0C8C0",
+    "surfaceInverse": "#F0F4F0",
+    "onSurfaceInverse": "#090A09",
+    "brand": "#00FA9A",
+    "brandPrimary": "#00FA9A",
+    "onBrandPrimary": "#042010",
+    "brandSecondary": "#00C87A",
+    "onBrandSecondary": "#000000",
+    "brandTertiary": "#06331C",
+    "onBrandTertiary": "#00FA9A",
+    "success": "#28A745",
     "onSuccess": "#FFFFFF",
-    "warning": "#B77C14",
-    "onWarning": "#FFFFFF",
-    "error": "#C83232",
+    "warning": "#FFC107",
+    "onWarning": "#000000",
+    "error": "#DC3545",
     "onError": "#FFFFFF",
-    "info": "#1B6CB0",
+    "info": "#17A2B8",
     "onInfo": "#FFFFFF",
-    "border": "#E2E8F0",
-    "borderStrong": "#CBD5E1",
-    "divider": "#EDF1F5",
-    "energy_red": "#C83232",
-    "onEnergy_red": "#FFFFFF",
-    "networker_blue": "#1B6CB0",
-    "onNetworker_blue": "#FFFFFF"
+    "border": "#2A2F2A",
+    "borderStrong": "#3A423A",
+    "divider": "#1F241F",
+    "muted": "#828E82",
+    "onBrand": "#042010"
   },
   "typography": {
-    "displayFontFamily": "Plus Jakarta Sans",
-    "textFontFamily": "Geist",
+    "displayFontFamily": "Space Grotesk",
+    "textFontFamily": "Satoshi",
     "scale": {
       "sm": 12,
       "base": 14,
       "lg": 16,
       "xl": 20,
-      "2xl": 24
+      "2xl": 24,
+      "3xl": 32,
+      "4xl": 48
     }
   },
   "spacing": {
-    "rule": "Generous padding around content. Avoid dense dashboards unless absolutely necessary. Use iOS-native spacing rhythms.",
+    "rule": "Generous vertical breathing room for cinematic feel, tight and structural padding within data cards.",
     "xs": 4,
     "sm": 8,
     "md": 12,
@@ -61,20 +61,19 @@
     "lg": 20,
     "pill": 999
   },
-  "shadow_tier": "1",
-  "navigation": "bottom_tabs",
-  "icon_set": "Ionicons",
+  "shadow_tier": 0,
+  "navigation": "stack_only",
+  "icon_set": "Phosphor",
   "glassmorphism": {
     "enabled": true,
     "do's": [
-      "Bottom tab bar",
-      "Sticky headers over scrolling content",
-      "Modals/Bottom sheets headers"
+      "Use intense blur over the glowing hero background.",
+      "Use translucent tinted bases (brandTertiary) under glass cards to ensure foreground readability.",
+      "Apply glass to sticky headers, feature cards, and the Axon core visual container."
     ],
     "dont's": [
-      "Every single list row",
-      "Form inputs",
-      "Cards in dense data feeds"
+      "Never blur body text regions or form fields.",
+      "Never rely on blur alone for contrast; always include a translucent base layer."
     ]
   },
   "platform_libraries": {
@@ -85,94 +84,48 @@
     },
     "image": "expo-image",
     "blur": "expo-blur",
-    "bottom_sheet": "@gorhom/bottom-sheet",
-    "animation": "react-native-reanimated",
-    "gesture": "react-native-gesture-handler"
+    "animation": "react-native-reanimated"
   },
   "screens": [
     {
-      "name": "Login",
-      "purpose": "Secure entry via email or Google with a premium corporate aesthetic.",
+      "name": "Landing",
+      "purpose": "A high-conversion, visually striking landing page introducing Axon as the core of AdvisorOS.",
       "states": {
-        "loading": "Centered brand spinner.",
-        "empty": "N/A",
-        "error": "Standard alert toast/message."
+        "loading": "Centered brandPrimary pulsing orb.",
+        "empty": "N/A - static scrolling page.",
+        "error": "Standard subtle error state with retry button."
       },
-      "layout": "Hero image at the top (abstract slate/blue background) overlaid with a subtle gradient scrim. Bottom half contains a clean, single-column form on surfaceSecondary. Email, Password, and 'Accedi con Google' button."
-    },
-    {
-      "name": "Dashboard (Home)",
-      "purpose": "Dual-area quick stats overview and daily callbacks.",
-      "states": {
-        "loading": "Skeleton loaders for stat cards.",
-        "empty": "Illustration of a planner with a message to start adding appointments.",
-        "error": "Error loading dashboard data with a retry button."
-      },
-      "layout": "Sticky glass header. Two main summary cards side-by-side using a grid (flexWrap, space-between). One card accented with energy_red, the other with networker_blue. Below, a scrollable list of 'Da Richiamare Oggi' (Callbacks) grouped by area, with distinct colored dot indicators."
-    },
-    {
-      "name": "Contatti (Contacts)",
-      "purpose": "Manage clients with personal/referral tags and area assignment.",
-      "states": {
-        "loading": "List skeleton.",
-        "empty": "Empty desk/clipboard photo with 'Nessun contatto trovato'.",
-        "error": "Error state with retry CTA."
-      },
-      "layout": "Sticky header with search bar and filter chips (Tutti, Energia, Network). Vertical list of contacts with minimum 56pt tappable height. Avatar (initials), Name, Tag (Conoscenza/Referenza), and Area indicator."
-    },
-    {
-      "name": "Dettaglio Contatto (Contact Detail)",
-      "purpose": "Deep dive into a contact, offering text/voice notes, files, and Waze link.",
-      "states": {
-        "loading": "Skeleton profile.",
-        "empty": "N/A",
-        "error": "Error loading contact."
-      },
-      "layout": "Cover image (abstract blue) with gradient scrim and initials avatar overlapping. Tabbed or segmented control layout below: Info (Address with Waze icon), Note (Text/Voice), File (PDF/JPG list). Floating action button to add a note or file."
-    },
-    {
-      "name": "Calendario",
-      "purpose": "Shared appointment view color-coded by area with quick actions.",
-      "states": {
-        "loading": "Calendar skeleton.",
-        "empty": "Empty state illustration of a planner.",
-        "error": "Error loading appointments."
-      },
-      "layout": "Weekly/Monthly calendar strip at the top. Scrollable vertical list of appointments below. Each card has a thick left border (red for Energy, blue for Network), a phone icon if it's a call, and a 'Fatto' (Done) checkbox. Tapping opens the post-meeting checklist."
-    },
-    {
-      "name": "Report",
-      "purpose": "Analytics for both areas across multiple timeframes.",
-      "states": {
-        "loading": "Chart skeletons.",
-        "empty": "No data available yet.",
-        "error": "Failed to load metrics."
-      },
-      "layout": "Segmented control at the top (Giorno, Settimana, Mese, Anno). Two distinct sections (or toggleable via tabs): Consulenza Energetica (Red accents) and Network (Blue accents). Large typography for key metrics (Appuntamenti, Contratti, Prodotti)."
+      "layout": "1. Hero: Center-aligned typography 'La nostra risposta: prepararci al futuro' floating above a massive animated glowing Axon orb. CTA 'ENTRA' sticky or prominent.\n2. Mantra (Axon vs Standard AI): Side-by-side comparison on large screens, stacked on mobile. Left card shows generic AI, right card shows Axon deeply embedded in the CRM with glowing neural lines.\n3. Modulistica (OCR): A staggered layout showing document upload leading to structured green glowing data fields. Highlight zero-typing.\n4. Pronto All'uso: Text-heavy but highly styled block emphasizing proprietary OS and pre-configured deployment.\n5. Modularity: A grid of 4-6 toggle cards (Agenda, Contratti, Corsi, Palestra Aziendale). Toggling them triggers a brandPrimary glow, demonstrating customizability.\n6. Footer: Clean, centered contact info@advisoros.it and final CTA."
     }
   ],
   "images": {
-    "login_hero": {
-      "url": "https://images.pexels.com/photos/5912576/pexels-photo-5912576.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "alt": "Dark blue textured corporate background"
+    "hero_orb_background": {
+      "url": "https://images.unsplash.com/photo-1709990740078-05aa8ee5b9b7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwxfHxkYXJrJTIwY2luZW1hdGljJTIwYWJzdHJhY3QlMjBncmVlbiUyMGdsb3dpbmclMjBvcmIlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc5MDA2NTIxMHww&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1709990740078-05aa8ee5b9b7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwxfHxkYXJrJTIwY2luZW1hdGljJTIwYWJzdHJhY3QlMjBncmVlbiUyMGdsb3dpbmclMjBvcmIlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc5MDA2NTIxMHww&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark cinematic abstract green glowing orb background representing Axon core"
     },
-    "empty_dashboard": {
-      "url": "https://images.pexels.com/photos/5712140/pexels-photo-5712140.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "alt": "Open planner with pen on a glass desk"
+    "axon_crm_neural_texture": {
+      "url": "https://images.unsplash.com/photo-1706017280457-60d8ea21d14c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwxfHxtYWNybyUyMHNob3QlMjBmdXR1cmlzdGljJTIwbWljcm9jaGlwJTIwZ3JlZW4lMjBuZW9uJTIwbGlnaHRpbmd8ZW58MHx8fHwxNzkwMDY1MjEwfDA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1706017280457-60d8ea21d14c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwxfHxtYWNybyUyMHNob3QlMjBmdXR1cmlzdGljJTIwbWljcm9jaGlwJTIwZ3JlZW4lMjBuZW9uJTIwbGlnaHRpbmd8ZW58MHx8fHwxNzkwMDY1MjEwfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Futuristic microchip green neon lighting"
     },
-    "empty_contacts": {
-      "url": "https://images.pexels.com/photos/4101348/pexels-photo-4101348.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "alt": "Empty clipboard on marble desk"
+    "glass_module_texture": {
+      "url": "https://images.unsplash.com/photo-1584384689201-e0bcbe2c7f1d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwxfHxkYXJrJTIwbHV4dXJ5JTIwZnJvc3RlZCUyMGdsYXNzJTIwdGV4dHVyZXxlbnwwfHx8fDE3OTAwNjUyMTB8MA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1584384689201-e0bcbe2c7f1d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwxfHxkYXJrJTIwbHV4dXJ5JTIwZnJvc3RlZCUyMGdsYXNzJTIwdGV4dHVyZXxlbnwwfHx8fDE3OTAwNjUyMTB8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark luxury frosted glass texture for modular cards"
     }
   },
   "instructions_to_main_agent": [
-    "Strictly follow the 'iOS-Native Clean' personality guidelines. Use generous spacing (md/lg), rounded corners (md:12), and subtle shadow (tier 1).",
-    "Implement a clear dual-identity UI. Use 'energy_red' (#C83232) for Consulente Energetico elements and 'networker_blue' (#1B6CB0) for Networker elements. These should be used as accents (left borders on cards, dot indicators, tags) on top of the clean white/slate base.",
-    "The UI text MUST be in Italian as requested in the problem statement (e.g., 'Contatti', 'Calendario', 'Appuntamenti', 'Fatto').",
-    "Ensure every screen with a primary action has a sticky CTA at the bottom over scrolling content, wrapped in a glassmorphism container.",
-    "For the Contact Detail screen, incorporate a segmented control to switch between 'Note', 'File', and 'Info'. Ensure the Waze integration is prominent in the Info tab.",
-    "Post-meeting checklists are specific to the area. For Energy: 'Non interessato', 'Contratto fatto', 'Richiamare'. For Networker: 'Post appuntamento', 'Ok abo', 'Ok cliente', 'Dare seguito', 'Primo avvio', 'Presentazione prodotti', 'Incontro open', 'Incontro BBS', 'Incontro WES'. Use native-feeling bottom sheets or modals for these checklists.",
-    "All images used as backgrounds MUST include a vertical gradient scrim (transparent to surfaceInverse) to guarantee text readability.",
-    "Do NOT use any emojis in the UI. Use Ionicons filled/outlined icons appropriately."
+    "The page is a single scrollable view (landing.tsx). Must be responsive (works on <720px mobile and ~1000px max-width container on web).",
+    "Hero MUST strictly contain only the phrase 'La nostra risposta: prepararci al futuro' and 1-2 powerful slogans to invite a click. No standard title or logo in the center.",
+    "Implement an animated, fluid glowing orb in the Hero using react-native-reanimated and expo-blur to represent Axon. It should feel alive and reactive if possible.",
+    "Use Dark-First Utility typography (Space Grotesk + Satoshi) combined with Glass/Luxe Dark aesthetics (cinematic lighting, blurred panels, jewel tone brandPrimary).",
+    "Use EXACT Italian copy derived from the prompt. For Mantra: 'Non un'IA aggiunta. Un'IA nata nel CRM. Axon protegge la tua privacy. I dati rimangono esclusivamente tuoi.'",
+    "For Modulistica (OCR): 'Zero digitazione. Solo azione. Scatta una foto, carica un PDF. Axon compila tutto per te.' Include visual of OCR auto-populating fields.",
+    "For Modularity: 'Costruisci il tuo ecosistema.' Show toggle switches (Agenda, Contratti, Corsi, Palestra Aziendale) that users can interact with.",
+    "For Pronto all'uso: 'Nessun bug. Nessuna configurazione. Sistema Operativo proprietario, fornito pre-configurato su richiesta.'",
+    "Retain the CTA 'ENTRA' and footer contact 'info@advisoros.it'.",
+    "All images used as background must include a vertical gradient scrim (transparent to surfaceInverse) to guarantee text readability.",
+    "Never use blue, indigo, or purple. Rely entirely on the Emerald (brandPrimary) against Obsidian (surface) for visual punch."
   ]
 }
