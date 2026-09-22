@@ -327,6 +327,11 @@ async def _start_scheduler():
             _courses_reminder_job, "cron", hour=8, minute=45,
             id="courses-reminders", replace_existing=True,
         )
+        # V50.z320 — Fine periodo premium da codice promozionale → ripristino tier: ogni giorno 00:20
+        _birthday_scheduler.add_job(
+            _promo_premium_expiry_job, "cron", hour=0, minute=20,
+            id="promo-premium-expiry", replace_existing=True,
+        )
         _birthday_scheduler.start()
         logger.info("Birthday scheduler started (daily 09:00 Europe/Rome)")
         logger.info("Rule-proposals scheduler started (daily 03:00 Europe/Rome)")

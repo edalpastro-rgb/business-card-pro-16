@@ -20,6 +20,7 @@ import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
 import { ContactPreviewForm, flattenChannels, ExtractedContact } from "@/src/ContactPreviewForm"; // V50.z278
 import { ManualCropEditor, CropResult } from "@/src/ManualCropEditor"; // V50.z278
 import { AssistantSetupStep } from "@/src/activation/AssistantSetupStep"; // V50.z318 — step obbligatorio nome+voce
+import { PromoCodeField } from "@/src/PromoCodeField"; // V50.z320 — codice promozionale opzionale
 import { playActivationEffect } from "@/src/activation/events";
 import { openAxonChat } from "@/src/axonProactive";
 
@@ -143,6 +144,10 @@ export default function TourScreen() {
     // apre la chat e lancia l'effetto (vibrazione doppia → onda 3 s → «Ciao, sono {nome}. Sono pronto.»)
     setTimeout(() => { openAxonChat(); playActivationEffect({ name, voice: voiceKey, greet: true }); }, 700);
   }, [router, user?.user_id]);
+  // V50.z320 — dopo nome+voce: campo opzionale «Hai un codice promozionale?» (saltabile) → poi attivazione
+  const [pendingSetup, setPendingSetup] = useState<{ name: string; voice: string } | null>(null);
+  const onSetupDone = useCallback((name: string, voiceKey: string) => { voiceStop(); setPendingSetup({ name, voice: voiceKey }); }, []);
+  const onPromoDone = useCallback(async () => { if (pendingSetup) await activate(pendingSetup.name, pendingSetup.voice); }, [pendingSetup, activate]);
 
   const finish = useCallback(async () => {
     voiceStop();
@@ -186,7 +191,15 @@ export default function TourScreen() {
         {!(step === 3 && masterLocked) && !setup?.needed ? <Pressable onPress={finish} hitSlop={10} style={styles.skip} testID="tour-skip"><Text style={styles.skipTxt}>Salta</Text></Pressable> : null}
       </View>
       {setup === null ? null : setup.needed ? (
-        <AssistantSetupStep initialName={setup.name} initialVoice={setup.voice} onDone={activate} />
+        pendingSetup ? (
+          <ScrollView contentContainerStyle={styles.promoStep} keyboardShouldPersistTaps="handled" testID="promo-step">
+            <View style={styles.promoOrb}><Ionicons name="gift" size={32} color="#FFFFFF" /></View>
+            <Text style={styles.promoTitle}>Quasi pronto, {pendingSetup.name} ti aspetta</Text>
+            <PromoCodeField onDone={onPromoDone} />
+          </ScrollView>
+        ) : (
+        <AssistantSetupStep initialName={setup.name} initialVoice={setup.voice} onDone={onSetupDone} />
+        )
       ) : (
       <Animated.View style={{ flex: 1, opacity: fade }}>
         {step === 1 && <Welcome onNext={() => go(2)} onFeatures={() => router.push("/tour-features" as any)} />}
@@ -625,6 +638,10 @@ function Closing({ onFinish, onFeatures }: { onFinish: () => void; onFeatures: (
 }
 
 const styles = StyleSheet.create({
+  // V50.z320 — step codice promozionale
+  promoStep: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 20, paddingVertical: 24, gap: 16 },
+  promoOrb: { alignSelf: "center", width: 72, height: 72, borderRadius: 36, backgroundColor: "#8B5CF6", alignItems: "center", justifyContent: "center" },
+  promoTitle: { fontSize: 22, fontWeight: "800", color: WHITE, textAlign: "center" },
   root: { flex: 1, backgroundColor: NAVY, paddingHorizontal: 24 },
   dots: { flexDirection: "row", gap: 6, alignSelf: "flex-start", marginBottom: 8, height: 40, alignItems: "center" },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.18)" }, dotOn: { backgroundColor: SKY, width: 22 }, dotDone: { backgroundColor: "rgba(56,189,248,0.6)" },

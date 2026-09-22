@@ -918,6 +918,7 @@ function SettingsHubSection({
       color: "#8B5CF6", label: "Gestione Clienti AdvisorOS", icon: "shield-checkmark",
       items: [
         { icon: "people-outline", label: "Elenco Clienti + Tier", hint: "Paganti/Test/AxonOS + storico utilizzo + broadcast", onPress: () => onGoto("/admin/customers"), superAdminOnly: true, testID: "hub-admin-customers" },
+        { icon: "pricetags", label: "Codici Promozionali", hint: "Crea codici (settimane/mesi gratis, premium, crediti), scadenza, max utilizzi, chi li ha usati", onPress: () => onGoto("/admin/promo-codes"), superAdminOnly: true, testID: "hub-admin-promo" },
       ],
     },
     {

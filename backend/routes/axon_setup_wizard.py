@@ -53,6 +53,12 @@ async def _sw_get(uid: str) -> dict:
         d = _sw_default(uid)
         await db.axon_setup_state.insert_one(dict(d))
         d.pop("_id", None)
+        return d
+    # V50.z320 — altri moduli (aree/sfera) fanno upsert sullo stesso doc: se mancano i campi del wizard (steps/status) li completo
+    missing = {k: v for k, v in _sw_default(uid).items() if k not in d}
+    if missing:
+        await db.axon_setup_state.update_one({"user_id": uid}, {"$set": missing})
+        d.update(missing)
     return d
 
 

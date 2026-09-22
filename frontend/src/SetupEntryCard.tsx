@@ -13,7 +13,7 @@ export function SetupEntryCard() {
   const [s, setS] = useState<S | null>(null);
   useFocusEffect(useCallback(() => { api<S>("/axon/setup/state").then(setS).catch(() => {}); }, []));
 
-  const done = s ? Object.values(s.steps).filter((x) => x.done).length : 0;
+  const done = s?.steps ? Object.values(s.steps).filter((x) => x.done).length : 0;
   const label = !s ? "La mia configurazione Set Up" : s.status === "completed" ? "La mia configurazione Set Up" : s.status === "in_progress" ? `Configurazione in corso · passo ${s.current_step}` : "Completa la configurazione";
   const sub = !s ? "Set Up and Go" : s.status === "completed" ? `${s.mode === "setup" ? "Set Up and Go" : "Full and Go"} · ${done} step completati · tutti i campi modificabili, sincronizzati con AxonOS`
     : s.status === "in_progress" ? "Riprendi da dove eri rimasto" : "Pochi minuti: così AxonOS ti conosce e ti aiuta davvero";

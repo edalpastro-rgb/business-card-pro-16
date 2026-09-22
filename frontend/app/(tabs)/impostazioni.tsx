@@ -17,6 +17,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { invalidateTableBrandHeader } from "@/src/ChatTableExport";
 import { AxonMemoryEntryCard } from "@/src/AxonMemoryEntryCard"; // V50.z192 — Profilo → Memoria AxonOS
 import { AppInfoCard } from "@/src/AppInfoCard"; // V50.z208 — Piano attivo + versione APK
+import { PromoRedeemCard } from "@/src/PromoCodeField"; // V50.z320 — codice promozionale
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5
 import { ResetTestDataCard } from "@/src/ResetTestDataCard"; // V50.z288 — Azzera dati di test (Master)
 import { AxonToneLevelPicker } from "@/src/AxonToneLevelPicker"; // V50.z218 — Blocco 6: tono a 5 livelli (5 = Fantasiosa)
@@ -514,6 +515,8 @@ function ImpostazioniScreen() {
         {sec === "billing" && (<>
         {/* V50.z208 — In cima, sempre visibile: piano attivo + versione APK installata (tap → dettagli aggiornamento) */}
         <AppInfoCard />
+        {/* V50.z320 — Codice promozionale (settimane/mesi gratis, premium, crediti) + storico */}
+        <PromoRedeemCard />
         {/* V50.z211 — Configurazione guidata «Set Up and Go» (accesso in qualsiasi momento, anche dopo «Dopo») */}
         <SetupEntryCard />
         <SetupProcessingBadge compact />

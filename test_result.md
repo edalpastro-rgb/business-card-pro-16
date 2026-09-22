@@ -428,3 +428,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z318 — Attivazione AxonOS: step obbligatorio nome+voce nel tour, onda di energia 3 s + vibrazione doppia + TTS «Ciao, sono {nome}. Sono pronto.», comandi locali «fai l'effetto» / «dove sei» / «trova il mio telefono» / «stop» (chat + ViolaWake). Overlay mirror dentro il Modal chat. Testing agent iteration_97 PASS."
+
+  - agent: "main"
+    message: "V50.z320 — Codici promozionali: backend routes/axon_promo_codes.py (GET/POST/PATCH/DELETE /admin/promo-codes (super admin), GET /admin/promo-codes/{id}/redemptions, POST /promo/redeem, GET /promo/my, job promo-premium-expiry 00:20). Frontend: app/admin/promo-codes.tsx (lista, crea, dettaglio con utilizzi, attiva/disattiva, elimina), src/PromoCodeField.tsx (campo onboarding saltabile + card Impostazioni›Abbonamento), tour.tsx step promo dopo nome+voce, master.tsx tile «Codici Promozionali» (super admin). pytest tests/test_v50z320_promo_codes.py 5/5."

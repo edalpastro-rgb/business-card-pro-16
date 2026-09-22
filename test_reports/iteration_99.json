@@ -1,0 +1,30 @@
+{
+  "summary": "V50.z320 Codici Promozionali RETEST — UI testing BLOCKED by login-form flakiness on Playwright/mobile-web. Code review confirms both iteration_98 fixes look correctly applied: (a) /app/frontend/src/SetupEntryCard.tsx L16 now uses `s?.steps ? Object.values(s.steps).filter((x) => x.done).length : 0` guard (was the null crash), (b) /app/frontend/app/admin/promo-codes.tsx L219-244 moved `<Pressable testID=promo-delete>` OUTSIDE the internal ScrollView so it sits in the sheet footer (should stay in viewport). Login: backend /api/auth/login returns 200 with valid token (verified via curl for test@dalpastro.it & demo@advisoros.it). Frontend login form on 390x844 could not be programmatically submitted this run — after typing email+password (values confirmed present in DOM), clicking auth-submit-button produced a 422 with 'email: value is not a valid email address' because the react-native-web TextInput state for the email field appears to reset on focus change (Tab / clicking password / clicking submit). Same helper worked in iteration_98, so this looks like a Playwright↔RN TextInput timing flake — NOT a product bug (no code change to auth this iteration). Because login could not be completed by the automation, I could NOT re-validate steps 1-4 (create TESTUI*, redeem in Impostazioni, re-redeem error, invalid-code error, promo-my history line, admin detail 1/5 + demo@advisoros.it row, delete flow, onboarding promo-step). No pageerror / red-screen / new console errors surfaced during the attempts. Deprecated packages / SafeAreaView issues: none newly detected on the reviewed files.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Automated UI login → cannot proceed to protected screens", "issue": "page.locator('[data-testid=auth-email-input]').click + keyboard.type sets DOM .value correctly, but after focus change (Tab or clicking password) the email TextInput state resets in the RN-web layer, so POST /api/auth/login is called with empty email → 422. Manual login in a real browser is expected to work. Recommend adding blur-committed value or plain <input type=email> shim for e2e stability.", "affected_testIDs": ["auth-email-input","auth-password-input","auth-submit-button"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_99.json"],
+  "action_items": [
+    "MAIN AGENT: please self-test the V50.z320 UI flow manually — code fixes look correct; iteration_99 could not automate login due to a TextInput/Playwright timing flake unrelated to the promo-codes feature.",
+    "Consider making /login TextInputs more e2e-friendly: onChangeText should synchronously update the state used by the submit handler (current behaviour appears to lose the value on blur when Playwright fires the click).",
+    "Cleanup: no new TESTUI* codes were persisted this iteration (creation flow blocked before login); confirm iteration_98's TESTUI86367 was cleaned via mongo before shipping."
+  ],
+  "critical_code_review_comments": [
+    "SetupEntryCard fix looks minimal & correct (guard on s?.steps). No further defensive changes needed there.",
+    "PromoDetailModal footer button: promo-delete is now outside ScrollView with fixed marginTop:14 and borderColor error — will stay above the safe-area padding as long as the sheet's maxHeight:92% + paddingBottom:32 keep total content < viewport. Good.",
+    "PromoCodeField shows raw e?.message from api() — depends on backend detail() strings matching the review request assertions ('Hai già utilizzato questo codice' / 'Codice non valido'). Since this was not exercised in this run, main agent should double-check the exact detail strings from /app/backend/routes/axon_promo_codes.py match the assertion text in the review request."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not_tested_this_iteration", "frontend": "0% executed / code review only — login-automation blocker"},
+  "seed_data_creation": "None (creation blocked on step 1).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login helper needs to survive RN-web TextInput blur-reset behaviour. Try one of: (a) do everything within a single locator chain without inter-input Tab, using page.fill (which fires native input+change together), then submit via Enter on the password field (returnKeyType='done'); (b) programmatically set AsyncStorage's IndexedDB (database name 'RKStorage', store 'keyvaluepairs', key 'auth_token_v1', value JSON.stringify(token)) then reload — LocalStorage will NOT work because storage/index.web.ts uses AsyncStorage; (c) drive login through a real user gesture (mouse.click on button locator, NOT bounding-box mouse.down/up which loses focus). Once past login, the two fixes appear correct on inspection: SetupEntryCard.tsx L16 guards Object.values(s.steps), and admin/promo-codes.tsx moved promo-delete outside the ScrollView.",
+  "rca_of_issue": "Repro of automation blocker: page.goto /login → click auth-tab-login → click email input → keyboard.type 'test@dalpastro.it' → keyboard.press Tab OR click pwd input → email input DOM .value is preserved but RN state loses it → click auth-submit-button → POST /api/auth/login body has email='' → 422 'not a valid email address' → still on /login. Root cause is not in product code (fixes verified by inspection); it's a Playwright/RN-web sync gap. Mitigation options listed under context_for_next_testing_agent."
+}
