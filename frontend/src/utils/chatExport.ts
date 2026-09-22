@@ -5,7 +5,7 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { notify } from "@/src/utils/notify";
 // V50.z289 — le tabelle markdown nei messaggi vengono esportate con la STESSA maschera della chat (thead viola, zebra, righe colorate)
-import { parseMessageSegments, tableInnerHtml, TABLE_CSS, deriveTableTitle, tableFileName, fetchTableBrandHeader, type ParsedTable } from "@/src/ChatTableExport";
+import { parseMessageSegments, tableInnerHtml, TABLE_CSS, tableCss, fitTableLayout, PDF_PAGE, printHtmlWeb, deriveTableTitle, tableFileName, fetchTableBrandHeader, type ParsedTable } from "@/src/ChatTableExport";
 
 // V50.z160 — Esporta / condividi le chat AxonOS (singolo messaggio o intera
 // conversazione): testo via share sheet nativo (WhatsApp, gruppi, mail, social),
@@ -121,6 +121,37 @@ ${rows}
 }
 
 /**
+ * V50.z317 — PDF «solo tabella»: intestazione (logo/nome), titolo, data di aggiornamento, tabella. Nient'altro
+ * (niente testo del messaggio, niente bolle). Font/padding adattati per stare in UNA pagina A4.
+ */
+function buildTablesOnlyHtml(tables: ParsedTable[], title: string, brandName?: string, brandLogo?: string): { html: string; pageW: number; pageH: number } {
+  const hasBrand = !!(brandName || brandLogo);
+  const totalRows = tables.reduce((n, tb) => n + tb.rows.length + 1, 0);
+  const fit = fitTableLayout(totalRows, Math.max(...tables.map((tb) => tb.headers.length)), hasBrand, 0);
+  const brandBlock = hasBrand ? `<div class="brand">${brandLogo ? `<img class="brand-logo" src="${brandLogo.startsWith("data:") ? brandLogo : `data:image/png;base64,${brandLogo}`}" />` : ""}<div class="brand-name">${esc(brandName || "")}</div></div>` : "";
+  const html = `<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><title>${esc(title)}</title>
+<style>
+  @page { size: A4 ${fit.orientation}; margin: ${PDF_PAGE.margin}px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #0F172A; }
+  .brand { display: flex; align-items: center; gap: 14px; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 3px solid #7C3AED; height: 66px; }
+  .brand-logo { max-height: 48px; max-width: 160px; object-fit: contain; }
+  .brand-name { font-size: 18px; font-weight: 800; color: #1E3A5F; }
+  h1 { font-size: 16px; margin: 0 0 2px; color: #4C1D95; line-height: 20px; }
+  .sub { color: #64748B; font-size: 10px; margin-bottom: 10px; line-height: 14px; }
+  .tbl + .tbl { margin-top: 10px; }
+  ${tableCss(fit.fontSize, fit.pad, fit.fits)}
+</style></head><body>
+${brandBlock}
+<h1>${esc(title)}</h1>
+<div class="sub">Aggiornato al ${esc(fmtDate())}</div>
+${tables.map((tb) => `<div class="tbl">${tableInnerHtml(tb)}</div>`).join("")}
+</body></html>`;
+  return { html, pageW: fit.pageW, pageH: fit.pageH };
+}
+
+/**
  * V50.z289 — PDF di un messaggio o della conversazione:
  *  - intestazione = nome azienda/consulente (header tabelle del Master, altrimenti nome utente), titolo parlante, data e ora;
  *  - tabelle renderizzate come in chat; nome file leggibile («Tabella PUN medi per fasce 21-09-2026.pdf»).
@@ -131,13 +162,19 @@ export async function exportConversationPdf(messages: ExportMsg[], assistantName
   const brandName = brand.name || userName || "";
   const docTitle = tables.length === 1 ? deriveTableTitle(tables[0]) : tables.length > 1 ? `${deriveTableTitle(tables[0])} (+${tables.length - 1} tabelle)` : (title || `Conversazione con ${assistantName}`);
   const fileName = tables.length ? tableFileName(docTitle, "pdf") : `${docTitle.replace(/[·|/\\:*?"<>]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60)} ${new Date().toLocaleDateString("it-IT").replace(/\//g, "-")}.pdf`;
-  const html = buildHtml(messages, assistantName, userName, docTitle, brandName, brand.logo_base64);
+  // V50.z317 — se ci sono tabelle: PDF SOLO tabella (intestazione, titolo, data, dati). Nient'altro.
+  const wide = tables.some((tb) => tb.headers.length > 5);
+  const doc = tables.length
+    ? buildTablesOnlyHtml(tables, docTitle, brandName, brand.logo_base64)
+    : { html: buildHtml(messages, assistantName, userName, docTitle, brandName, brand.logo_base64), pageW: wide ? 842 : 595, pageH: wide ? 595 : 842 };
+  const html = doc.html;
   try {
     if (Platform.OS === "web") {
-      await Print.printAsync({ html });
+      // NB: Print.printAsync su web = window.print() dell'INTERA pagina → usiamo una finestra dedicata
+      printHtmlWeb(html);
       return;
     }
-    const { uri } = await Print.printToFileAsync({ html, width: tables.some((tb) => tb.headers.length > 5) ? 842 : 595, height: tables.some((tb) => tb.headers.length > 5) ? 595 : 842 });
+    const { uri } = await Print.printToFileAsync({ html, width: doc.pageW, height: doc.pageH });
     // rinomina il file (expo-print genera nomi casuali) così il PDF condiviso ha un nome parlante
     let shareUri = uri;
     try {

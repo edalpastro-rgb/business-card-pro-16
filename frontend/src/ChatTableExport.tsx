@@ -182,15 +182,45 @@ export function tableInnerHtml(table: ParsedTable): string {
   return `<table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`;
 }
 
-export const TABLE_CSS = `
-    table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: auto; page-break-inside: auto; }
-    thead th { background: #7C3AED; color: #FFFFFF; text-align: left; font-weight: 700; padding: 8px 6px; border: 1px solid #7C3AED; }
-    tbody td { padding: 6px; border: 1px solid #E5E7EB; vertical-align: top; word-break: break-word; }
+/** CSS tabella con font/padding parametrici (V50.z317: adattati per far stare tutto in UNA pagina). */
+export function tableCss(fontSize = 10, pad = 6, singlePage = false): string {
+  return `
+    table { width: 100%; border-collapse: collapse; font-size: ${fontSize}px; line-height: 1.25; table-layout: auto; page-break-inside: ${singlePage ? "avoid" : "auto"}; }
+    thead th { background: #7C3AED; color: #FFFFFF; text-align: left; font-weight: 700; padding: ${pad + 1}px ${pad}px; border: 1px solid #7C3AED; }
+    tbody td { padding: ${pad}px; border: 1px solid #E5E7EB; vertical-align: top; word-break: break-word; }
     tbody tr.zebra td { background: #F8FAFC; }
     tbody tr { page-break-inside: avoid; page-break-after: auto; }`;
+}
+export const TABLE_CSS = tableCss();
+
+/** Punti A4 (72 dpi) e margini pagina usati nei PDF tabella. */
+export const PDF_PAGE = { portrait: { w: 595, h: 842 }, landscape: { w: 842, h: 595 }, margin: 20 } as const;
+
+/**
+ * V50.z317 — Calcola font e padding perché intestazione + titolo + data + tabella stiano in UNA sola pagina A4.
+ * Stima altezza riga = font*1.25 + 2*pad + 1 (bordo); riduce progressivamente fino a 6px.
+ */
+export function fitTableLayout(rowCount: number, colCount: number, hasBrand: boolean, extraLines = 1): { fontSize: number; pad: number; orientation: "portrait" | "landscape"; pageW: number; pageH: number; fits: boolean } {
+  const orientation: "portrait" | "landscape" = colCount > 5 ? "landscape" : "portrait";
+  const page = PDF_PAGE[orientation];
+  const available = page.h - 2 * PDF_PAGE.margin - (hasBrand ? 84 : 0) - 30 /* h1 */ - 26 /* meta */ - extraLines * 16 - 12;
+  let fontSize = 10;
+  let pad = 6;
+  let fits = false;
+  for (; fontSize >= 6; fontSize -= 0.5) {
+    pad = Math.max(2, Math.round(fontSize * 0.55));
+    const rowH = fontSize * 1.25 + 2 * pad + 1;
+    const headH = fontSize * 1.25 + 2 * (pad + 1) + 1;
+    if (headH + rowCount * rowH <= available) { fits = true; break; }
+  }
+  // tabelle enormi (non stanno in una pagina nemmeno a 6px): pagine multiple, senza spingere tutto in pagina 2
+  return { fontSize: Math.max(6, fontSize), pad, orientation, pageW: page.w, pageH: page.h, fits };
+}
 
 function tableToHtml(table: ParsedTable, title: string, brand?: TableBrandHeader | null, orgSig = ""): string {
-  const orientation = table.headers.length > 5 ? "landscape" : "portrait";
+  const hasBrand = !!(brand && (brand.name || brand.logo_base64));
+  const fit = fitTableLayout(table.rows.length, table.headers.length, hasBrand, orgSig ? 2 : 1);
+  const orientation = fit.orientation;
   const exportedAt = new Date().toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
   // V50.z140 — Header tabella (logo + nome azienda) configurato dal Master
   const brandLogo = brand?.logo_base64 ? toDataUri(brand.logo_base64) : "";
@@ -201,24 +231,24 @@ function tableToHtml(table: ParsedTable, title: string, brand?: TableBrandHeader
   <meta charset="UTF-8">
   <title>${escapeHtml(title)}</title>
   <style>
-    @page { size: A4 ${orientation}; margin: 24px; }
+    @page { size: A4 ${orientation}; margin: ${PDF_PAGE.margin}px; }
     * { box-sizing: border-box; }
-    body { font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; color: #1B2B4B; margin: 0; padding: 24px; }
-    .brand { display: flex; align-items: center; gap: 14px; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 3px solid #7C3AED; }
-    .brand-logo { max-height: 56px; max-width: 180px; object-fit: contain; }
-    .brand-name { font-size: 20px; font-weight: 800; color: #1E3A5F; }
-    h1 { color: #4C1D95; font-size: 18px; margin: 0 0 4px 0; font-weight: 800; letter-spacing: -0.2px; }
-    .meta { color: #64748B; font-size: 11px; margin: 0 0 16px 0; }
-    ${TABLE_CSS}
-    .footer { color: #94A3B8; font-size: 9px; margin-top: 12px; font-style: italic; }
+    html, body { margin: 0; padding: 0; }
+    body { font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; color: #1B2B4B; }
+    .brand { display: flex; align-items: center; gap: 14px; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 3px solid #7C3AED; height: 66px; }
+    .brand-logo { max-height: 48px; max-width: 160px; object-fit: contain; }
+    .brand-name { font-size: 18px; font-weight: 800; color: #1E3A5F; }
+    h1 { color: #4C1D95; font-size: 16px; margin: 0 0 2px 0; font-weight: 800; letter-spacing: -0.2px; line-height: 20px; }
+    .meta { color: #64748B; font-size: 10px; margin: 0 0 10px 0; line-height: 14px; }
+    ${tableCss(fit.fontSize, fit.pad, fit.fits)}
+    .footer { color: #94A3B8; font-size: 8px; margin: 6px 0 0 0; font-style: italic; line-height: 12px; page-break-inside: avoid; }
   </style>
   </head><body>
     ${brandBlock}
     <h1>${escapeHtml(title)}</h1>
     <p class="meta">${escapeHtml(exportedAt)}</p>
     ${tableInnerHtml(table)}
-    <p class="footer">${table.rows.length} righe totali · ${table.headers.length} colonne</p>
-    ${orgSig ? `<p class="footer" style="text-align:center;border-top:1px solid #E5E7EB;padding-top:8px;">${escapeHtml(orgSig)}</p>` : ""}
+    <p class="footer">${table.rows.length} righe · ${table.headers.length} colonne${orgSig ? ` · ${escapeHtml(orgSig)}` : ""}</p>
   </body></html>`;
 }
 
@@ -278,6 +308,26 @@ function BrandHeaderRow({ brand, large }: { brand: TableBrandHeader | null; larg
 }
 
 /**
+ * V50.z317 — WEB: stampa SOLO l'HTML passato (finestra dedicata + window.print).
+ * NB: su web `Print.printAsync({html})` di expo-print chiama semplicemente window.print()
+ * → stamperebbe l'intera pagina della chat. Per questo tutti gli export PDF web passano da qui.
+ */
+export function printHtmlWeb(html: string): void {
+  try {
+    const w = window.open("", "_blank", "width=900,height=1000");
+    if (!w) throw new Error("Popup bloccato dal browser");
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => {
+      try { w.focus(); w.print(); } catch { /* noop */ }
+    }, 350);
+  } catch (e: any) {
+    throw new Error(`Errore stampa PDF: ${e?.message || String(e)}`);
+  }
+}
+
+/**
  * V29.an — Genera un PDF reale via expo-print (native) o print dialog (web).
  *
  * - Native (iOS/Android): `Print.printToFileAsync({ html })` scrive un PDF nel
@@ -291,31 +341,16 @@ function BrandHeaderRow({ brand, large }: { brand: TableBrandHeader | null; larg
 async function tableToPdfBase64(table: ParsedTable, title: string, brand?: TableBrandHeader | null): Promise<string | null> {
   const html = tableToHtml(table, title, brand, await fetchOrgSignature()); // V50.z233 — firma aziendale nei report/tabelle esportati
   if (Platform.OS === "web") {
-    // Web: open a print window and let the browser handle PDF export.
-    try {
-      const w = window.open("", "_blank", "width=900,height=1000");
-      if (!w) throw new Error("Popup bloccato dal browser");
-      w.document.open();
-      w.document.write(html);
-      w.document.close();
-      // Wait a tick to let the browser render, then print.
-      setTimeout(() => {
-        try {
-          w.focus();
-          w.print();
-        } catch {}
-      }, 300);
-      return null; // No base64 available on web print flow
-    } catch (e: any) {
-      throw new Error(`Errore stampa PDF: ${e?.message || String(e)}`);
-    }
+    printHtmlWeb(html);
+    return null; // No base64 available on web print flow
   }
   // Native (iOS/Android)
+  const fit = fitTableLayout(table.rows.length, table.headers.length, !!(brand && (brand.name || brand.logo_base64)));
   const { uri } = await Print.printToFileAsync({
     html,
     // width/height in points (72dpi). A4 portrait = 595 x 842.
-    width: table.headers.length > 5 ? 842 : 595,
-    height: table.headers.length > 5 ? 595 : 842,
+    width: fit.pageW,
+    height: fit.pageH,
     base64: false,
   });
   // Leggi il file come base64 (expo-file-system è stabile su Hermes)

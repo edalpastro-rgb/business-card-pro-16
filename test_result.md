@@ -422,3 +422,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z315 — ViolaWake: backend routes/viola_wake.py (settings/module/route/event/events) testato con tests/test_viola_wake.py; SDK src/violawake (Porcupine native + expo-speech-recognition, stub web), provider in _layout, pill di stato, schermata /viola-wake (link Impostazioni→Integrazioni). Su web/anteprima: stato «Non disponibile qui», ma modulo/impostazioni/test comando scritto funzionano (briefing → risposta parlata via TTS; comando libero → chat Axon con forceSpeak). Ascolto reale solo su build nativa con AccessKey Picovoice."
+
+  - agent: "main"
+    message: "V50.z317 — PDF tabella: export chat → solo tabella (buildTablesOnlyHtml + printHtmlWeb, niente window.print della pagina); schermo intero → fitTableLayout per 1 pagina A4. Testing agent iteration_96: 3/3 PASS."

@@ -28,6 +28,17 @@ export type ApiOptions = {
   signal?: AbortSignal;
 };
 
+/** V50.z317 — FastAPI 422 restituisce `detail` come lista di oggetti → testo leggibile (evita «[object Object]»). */
+function detailToText(d: unknown, fallback: string): string {
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) {
+    const parts = d.map((x: any) => (typeof x === "string" ? x : x?.msg ? `${(x.loc || []).slice(-1)[0] || "campo"}: ${x.msg}` : "")).filter(Boolean);
+    return parts.length ? parts.join(" · ") : fallback;
+  }
+  if (d && typeof d === "object") return (d as any).message || (d as any).msg || fallback;
+  return fallback;
+}
+
 export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise<T> {
   const token = await getToken();
   const q = opts.query
@@ -78,7 +89,7 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
     let msg = `HTTP ${res.status}`;
     try {
       const j = await res.json();
-      msg = j.detail || j.message || msg;
+      msg = detailToText(j.detail, j.message || msg);
     } catch {}
     // V50.z293 — dispositivo sospeso/rimosso dal registro (account in uso su un altro dispositivo dello stesso tipo) → logout forzato
     if (res.status === 401 && msg === "device_suspended") emitDeviceSuspended(msg);
@@ -109,7 +120,7 @@ export async function apiUpload<T = any>(path: string, form: FormData): Promise<
   });
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
-    try { const j = await res.json(); msg = j.detail || j.message || msg; } catch {}
+    try { const j = await res.json(); msg = detailToText(j.detail, j.message || msg); } catch {}
     throw new Error(msg);
   }
   return (await res.json()) as T;

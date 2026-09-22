@@ -1,0 +1,28 @@
+{
+  "summary": "Frontend-only retest of the chat table PDF export fix (V50.z317) on AdvisorOS Expo web. All 3 required tests PASSED end-to-end. Login via UI is confirmed working with a MOBILE viewport (390x844) — desktop viewport (1280x900) leaves the Accedi button unresponsive (no /api/auth/login request fires), which is why iteration_95 was blocked. With mobile viewport + helpcenter_seen_v1='1' pre-seed + Salta tap after login, we reached /home, opened Assistant FAB, generated a 19-row markdown table, and verified: TEST1 msg-pdf popup HTML contains <table + 'Aggiornato al' + class=\"brand\" + <h1 and DOES NOT contain class=\"msg\"/class=\"body\"; TEST2 fullscreen table-full-export-pdf popup renders exactly 1 A4 page (regex /Type /Page match = 1) with document.body.scrollHeight = 523 (< 1123) and no .msg/.body wrappers; TEST3 non-table 'auguri' message popup contains class=\"body\" + class=\"brand\" and no <table.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_96.json"],
+  "action_items": [
+    "Optional (not related to this fix): the Accedi login button does not respond to click when the page is rendered in desktop-sized viewport (>=1280 wide) on Playwright — the same click at 390x844 mobile viewport fires POST /api/auth/login correctly. Consider adding a broader hit area / Pressable wrapper that reacts at any viewport, so headless automation on desktop viewports doesn't get stuck.",
+    "Minor cleanup (out of scope): observed GET /api/auth/profile → 405 and GET /api/axon/notifications, GET /api/identity-docs → 404 in console during home load. Not related to PDF export, but visible as red console errors."
+  ],
+  "critical_code_review_comments": [
+    "chatExport.exportConversationPdf correctly branches on tables.length: buildTablesOnlyHtml (brand + h1 + 'Aggiornato al' + <table>, no .msg/.body) vs buildHtml (full conversation with .msg/.body) — validated at runtime.",
+    "Web path uses printHtmlWeb(html) → window.open + document.write only the fragment; the main chat page never enters print mode.",
+    "fitTableLayout auto-shrinks font/pad so 19 rows fit A4 portrait (scrollHeight=523px, < 1123 A4 point height) → single-page PDF confirmed via popup.pdf().",
+    "msg-pdf-btn (ChatBubbles.tsx:342) passes only the single assistant message to exportConversationPdf → no conversation leak."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100% (3/3 tests)"},
+  "seed_data_creation": "None. Used existing test@dalpastro.it Owner account.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login on this preview host works only when viewport is mobile-sized (<=~500px wide). Recipe: set_viewport 390x844, add_init_script setting localStorage.helpcenter_seen_v1='1' BEFORE goto, fill auth-email-input/auth-password-input, click auth-submit-button force=True, wait 6s, if 'Salta' visible click it force=True (tour after first login), wait ~2s → land on /home. Assistant FAB testID assistant-fab, input placeholder 'Scrivi a Neo…', send testID assistant-send. For msg-pdf-btn / table-full-export-pdf use context.expect_page() to capture the popup opened by printHtmlWeb; then popup.content()/popup.pdf(format='A4', prefer_css_page_size=True, print_background=True).",
+  "rca_of_issue": "Not a bug in the PDF export feature — all fix acceptance criteria met at runtime. Previous iteration_95 was blocked purely by using a desktop viewport where the Pressable auth-submit-button did not fire onPress. The V50.z317 change (buildTablesOnlyHtml + printHtmlWeb) is verified working: table-only PDF for markdown tables (with brand header + title + 'Aggiornato al' date, no chat bubble wrappers, single A4 page for 19 rows), and full conversation layout preserved for non-table messages."
+}
