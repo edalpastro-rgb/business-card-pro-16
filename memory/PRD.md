@@ -6708,3 +6708,8 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 - **E2E verificato** con carta 4242: utente scaduto → /home ⇒ redirect /paywall ⇒ Stripe ⇒ ritorno ⇒ 30 gg accreditati, 402 sparito, richiesta attivazione aperta chiusa come `paid`.
 - **Landing**: card footer «Non sei un professionista? Scopri AxonOS Lite» (`landing-lite-link`) → `EXPO_PUBLIC_LITE_URL` (default `https://advisoros.com/lite`, in frontend/.env) — **URL da confermare**.
 - Test: `backend/tests/test_v50z330_paywall.py` (7). Credenziali utente scaduto in test_credentials.md.
+
+## V50.z331 — Dominio principale advisoros.it + prompt per il job LandingPage — DONE
+- Decisione: `advisoros.it` dominio principale (mail aziendali emanuele@/info@/help@ su Aruba «Dominio con Email»), `advisoros.cloud` → redirect dal registrar. Tutti i link app ora su advisoros.it (`EXPO_PUBLIC_LANDING_URL`, `EXPO_PUBLIC_LITE_URL=https://advisoros.it/lite`, FAQ, landing).
+- Vincolo Emergent (supporto): il job Expo/mobile NON supporta dominio custom → il sito pubblico vive nel job separato «LandingPage» (web) che punta al backend AdvisorOS tramite `POST /api/public/demo-request` (lead in `public_leads`, analisi Axon, avviso Master). Nessun DB separato per la landing.
+- Prompt pronto: `/app/memory/LANDING_JOB_PROMPT.md` (endpoint, body, honeypot, errori, link, palette, pagina /lite, /faq, dominio, test di accettazione).
