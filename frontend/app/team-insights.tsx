@@ -502,6 +502,17 @@ export default function TeamInsightsScreen() {
             {selected ? "Profilo comportamentale AI" : `${items.length} collaboratori`}
           </Text>
         </View>
+        {!selected ? (
+          <Pressable
+            onPress={() => router.push("/team-compare" as any)}
+            hitSlop={10}
+            style={[styles.backBtn, { width: "auto", paddingHorizontal: 10, flexDirection: "row", gap: 4 }]}
+            testID="insights-compare"
+          >
+            <Ionicons name="podium" size={16} color="#FFF" />
+            <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "800" }}>Confronta</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140, gap: 12 }}>

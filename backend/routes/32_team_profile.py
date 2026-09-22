@@ -240,6 +240,179 @@ async def team_insights_list(user=Depends(get_current_user)):
     return {"items": out, "total": len(out)}
 
 
+# =========================================================================
+# V50.z310 — CONFRONTO COLLABORATORI (Master): KPI per periodo, classifica,
+# medie di squadra e migliore per metrica. Dati per collaboratore = documenti
+# del tenant con created_by = collaboratore (contatti, appuntamenti, chiamate,
+# richiamate, contratti) + corsi (recipients/participation/attendance/certificates).
+# =========================================================================
+TEAM_COMPARE_PERIODS = {"30": 30, "90": 90, "365": 365, "all": None}
+
+# (chiave, etichetta, unità, peso nel punteggio composito, migliore = più alto?)
+TEAM_COMPARE_METRICS: List[Dict[str, Any]] = [
+    {"key": "contracts", "label": "Contratti", "unit": "n", "weight": 3.0},
+    {"key": "contracts_amount", "label": "Valore contratti", "unit": "€", "weight": 2.0},
+    {"key": "appts_done", "label": "Appuntamenti svolti", "unit": "n", "weight": 2.0},
+    {"key": "appts", "label": "Appuntamenti fissati", "unit": "n", "weight": 1.0},
+    {"key": "contacts_new", "label": "Nuovi contatti", "unit": "n", "weight": 1.5},
+    {"key": "calls", "label": "Chiamate", "unit": "n", "weight": 1.0},
+    {"key": "call_minutes", "label": "Minuti al telefono", "unit": "min", "weight": 0.5},
+    {"key": "callbacks_done", "label": "Richiamate fatte", "unit": "n", "weight": 1.0},
+    {"key": "callbacks_pending", "label": "Richiamate in sospeso", "unit": "n", "weight": 0.0},
+    {"key": "products_sold", "label": "Prodotti venduti (app.)", "unit": "n", "weight": 1.0},
+    {"key": "courses_yes", "label": "Corsi: adesioni", "unit": "n", "weight": 0.5},
+    {"key": "courses_present", "label": "Corsi: presenze", "unit": "n", "weight": 0.5},
+    {"key": "certificates", "label": "Attestati", "unit": "n", "weight": 1.0},
+    {"key": "chat_msgs", "label": "Domande ad Axon", "unit": "n", "weight": 0.5},
+    {"key": "conversion_pct", "label": "Conversione contatti→contratti", "unit": "%", "weight": 1.5},
+]
+
+
+async def _tc_sum(coll, q: dict, field: str) -> float:
+    cur = coll.aggregate([{"$match": q}, {"$group": {"_id": None, "s": {"$sum": {"$ifNull": [f"${field}", 0]}}}}])
+    rows = await cur.to_list(1)
+    try:
+        return float((rows[0] if rows else {}).get("s") or 0)
+    except Exception:
+        return 0.0
+
+
+async def _tc_member_kpi(tid: str, uid: str, since: Optional[datetime]) -> Dict[str, Any]:
+    """KPI di UN collaboratore nel periodo (since=None → da sempre)."""
+    now = utcnow()
+    own = {"$or": [{"user_id": tid, "created_by": uid}, {"user_id": uid}]}
+
+    def _p(field: str, extra: Optional[dict] = None) -> dict:
+        q: dict = {**own, **(extra or {})}
+        if since is not None:
+            q[field] = {"$gte": since}
+        return q
+
+    contacts_new = await db.contacts.count_documents(_p("created_at"))
+
+    appt_q = _p("start_at")
+    if since is None:
+        appt_q["start_at"] = {"$lte": now}
+    else:
+        appt_q["start_at"]["$lte"] = now
+    appts = await db.appointments.count_documents(appt_q)
+    appts_done = await db.appointments.count_documents({**appt_q, "done": True})
+    appts_signed = await db.appointments.count_documents({**appt_q, "contract_signed": True})
+    products_sold = await _tc_sum(db.appointments, appt_q, "products_sold")
+
+    calls_q = _p("created_at")
+    calls = await db.call_logs.count_documents(calls_q)
+    call_minutes = round(await _tc_sum(db.call_logs, calls_q, "duration_sec") / 60.0, 1)
+
+    cb_q = _p("created_at")
+    cb_q["$or"] = cb_q["$or"] + [{"user_id": tid, "assignee_user_id": uid}]
+    callbacks = await db.callbacks.count_documents(cb_q)
+    callbacks_done = await db.callbacks.count_documents({**cb_q, "$and": [{"$or": [{"done": True}, {"status": "done"}]}]})
+    callbacks_pending = max(0, callbacks - callbacks_done)
+
+    ctr_q = _p("created_at")
+    contracts = await db.contracts.count_documents(ctr_q)
+    contracts_amount = round(await _tc_sum(db.contracts, ctr_q, "amount_eur"), 2)
+    contracts_active = await db.contracts.count_documents({**ctr_q, "status": {"$in": ["active", "attivo", "signed", "firmato"]}})
+
+    course_q: dict = {"recipients": uid}
+    if since is not None:
+        course_q["created_at"] = {"$gte": since}
+    courses_yes = courses_present = certificates = courses_invited = 0
+    async for c in db.courses.find(course_q, {"_id": 0, "participation": 1, "attendance": 1, "certificates": 1}):
+        courses_invited += 1
+        if ((c.get("participation") or {}).get(uid) or {}).get("status") == "yes":
+            courses_yes += 1
+        if ((c.get("attendance") or {}).get(uid) or {}).get("present"):
+            courses_present += 1
+        if (c.get("certificates") or {}).get(uid):
+            certificates += 1
+
+    chat_q: dict = {"user_id": uid, "role": "user"}
+    if since is not None:
+        chat_q["created_at"] = {"$gte": since}
+    chat_msgs = await db.assistant_messages.count_documents(chat_q)
+
+    conversion_pct = round(100.0 * contracts / contacts_new, 1) if contacts_new else 0.0
+    return {
+        "contacts_new": contacts_new,
+        "appts": appts, "appts_done": appts_done, "appts_signed": appts_signed,
+        "products_sold": int(products_sold),
+        "calls": calls, "call_minutes": call_minutes,
+        "callbacks": callbacks, "callbacks_done": callbacks_done, "callbacks_pending": callbacks_pending,
+        "contracts": contracts, "contracts_amount": contracts_amount, "contracts_active": contracts_active,
+        "courses_invited": courses_invited, "courses_yes": courses_yes, "courses_present": courses_present, "certificates": certificates,
+        "chat_msgs": chat_msgs,
+        "conversion_pct": conversion_pct,
+    }
+
+
+def _tc_score(kpi: Dict[str, Any], maxima: Dict[str, float]) -> float:
+    """Punteggio composito 0-100: media pesata di valore/massimo-di-squadra per metrica."""
+    num = den = 0.0
+    for m in TEAM_COMPARE_METRICS:
+        w = float(m.get("weight") or 0)
+        mx = maxima.get(m["key"]) or 0
+        if w <= 0 or mx <= 0:
+            continue
+        num += w * min(1.0, float(kpi.get(m["key"]) or 0) / mx)
+        den += w
+    return round(100.0 * num / den, 1) if den else 0.0
+
+
+@api_router.get("/team-insights/compare")
+async def team_insights_compare(period: str = "30", user=Depends(get_current_user)):
+    """Master-only. Confronto KPI fra tutti i collaboratori diretti nel periodo
+    (30 / 90 / 365 giorni / all). Restituisce membri con KPI + punteggio, classifica,
+    media di squadra e miglior collaboratore per ogni metrica."""
+    _require_master(user)
+    tid = tenant_id(user)
+    if period not in TEAM_COMPARE_PERIODS:
+        raise HTTPException(status_code=400, detail="period deve essere 30, 90, 365 o all")
+    days = TEAM_COMPARE_PERIODS[period]
+    since = (utcnow() - timedelta(days=days)) if days else None
+
+    members = await db.users.find(
+        {"parent_user_id": tid},
+        {"_id": 0, "user_id": 1, "name": 1, "email": 1, "role": 1, "picture": 1, "areas": 1},
+    ).to_list(500)
+    rows: List[dict] = []
+    for m in members:
+        kpi = await _tc_member_kpi(tid, m["user_id"], since)
+        rows.append({
+            "user_id": m["user_id"], "name": m.get("name") or m.get("email") or "?", "email": m.get("email") or "",
+            "role": m.get("role") or "member", "picture": m.get("picture"), "areas": m.get("areas") or [],
+            "kpi": kpi,
+        })
+
+    keys = [m["key"] for m in TEAM_COMPARE_METRICS]
+    maxima = {k: max([float(r["kpi"].get(k) or 0) for r in rows] or [0]) for k in keys}
+    n = len(rows) or 1
+    team_avg = {k: round(sum(float(r["kpi"].get(k) or 0) for r in rows) / n, 1) for k in keys}
+    team_total = {k: round(sum(float(r["kpi"].get(k) or 0) for r in rows), 1) for k in keys}
+    best: Dict[str, Optional[str]] = {}
+    for k in keys:
+        if maxima[k] <= 0:
+            best[k] = None
+            continue
+        best[k] = next((r["user_id"] for r in rows if float(r["kpi"].get(k) or 0) >= maxima[k]), None)
+    for r in rows:
+        r["score"] = _tc_score(r["kpi"], maxima)
+        r["wins"] = sum(1 for k in keys if best.get(k) == r["user_id"] and (TEAM_COMPARE_METRICS[keys.index(k)].get("weight") or 0) > 0)
+    rows.sort(key=lambda r: (r["score"], r["kpi"].get("contracts", 0), r["kpi"].get("appts_done", 0)), reverse=True)
+    for i, r in enumerate(rows):
+        r["rank"] = i + 1
+
+    return {
+        "period": period, "days": days, "since": since.isoformat() if since else None,
+        "generated_at": utcnow().isoformat(),
+        "metrics": TEAM_COMPARE_METRICS,
+        "members": rows, "total": len(rows),
+        "team_avg": team_avg, "team_total": team_total, "best": best,
+    }
+
+
+
 @api_router.get("/team-insights/{member_user_id}")
 async def team_insights_detail(member_user_id: str, user=Depends(get_current_user)):
     """Master-only. Profilo dettagliato di un collaboratore.

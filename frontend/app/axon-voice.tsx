@@ -8,7 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
-import { playAudioBase64 } from "@/src/AssistantChat";
+import { playAudioBase64 } from "@/src/utils/audioPlayback";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 
 export const AXON_VOICES: { key: string; label: string; desc: string; gender: "F" | "M" | "N" }[] = [

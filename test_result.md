@@ -410,3 +410,9 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z308 — Primo avvio ridotto a 3 domande a tocco (POST /tour/quick-start) + form 20 domande opzionale; screenshot OK (tour-opt-*). Consolidamento prompt: 72.8k → 52.7k caratteri (−28%) via elenco navigatore compatto + mappa omniscienza per pertinenza; stress 60 domande 98,3% invariato."
+
+  - agent: "main"
+    message: "V50.z309 — Prompt core consolidato (72.8k → 43.6k, −40%), stress 70 mappate 100% + 61/61 su fatture/crt/master/contatti/documenti/stile. Master Files Prompt per Neo: Cancella tutti/Pulisci completati (DELETE /neo-bridge/prompts?scope=) e stato toccabile; verificato endpoint. Fix contratti (firmato → /contract/new, compilo → /crt, di Rossi → scheda cliente)."
+
+  - agent: "main"
+    message: "V50.z310 — CONFRONTO COLLABORATORI: GET /team-insights/compare?period=30|90|365|all (Master-only) + app/team-compare.tsx (classifica, barre per metrica, testa a testa, tabella; link da Master grid/hub e Team Insights). tests/test_team_compare.py OK. V50.z311 — refactor AssistantChat.tsx: FAB → src/AssistantFAB.tsx, bolle → src/assistant/ChatBubbles.tsx, stili → chatStyles.ts, audio → utils/audioPlayback.ts (spostamenti meccanici, nessuna modifica logica). Verificato E2E web: FAB → chat → 'aspetta' → 'OK!'."

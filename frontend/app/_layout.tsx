@@ -13,7 +13,7 @@ import { AuthProvider, useAuth, isAppLockEnabled, isTrustStillValid } from "@/sr
 import { AppLockOverlay } from "@/src/AppLock";
 import { WakeWordService } from "@/src/wakeword/WakeWordService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AssistantFAB } from "@/src/AssistantChat";
+import { AssistantFAB } from "@/src/AssistantFAB";
 import * as Linking from "expo-linking";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";

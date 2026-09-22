@@ -173,6 +173,18 @@ async def neo_prompts_create(body: NeoPromptIn, user=Depends(get_current_user)):
     return _neo_out(doc)
 
 
+@api_router.delete("/neo-bridge/prompts")
+async def neo_prompts_delete_all(scope: str = "pending", user=Depends(get_current_user)):
+    """V50.z309 — «Cancella tutti» da Master Files → Prompt per Neo. scope=pending (default: in attesa+letti) | done | all."""
+    q: Dict[str, Any] = {"user_id": tenant_id(user), "category": _NEO_CAT}
+    if scope == "pending":
+        q["neo_status"] = {"$in": ["pending", "read", None]}
+    elif scope == "done":
+        q["neo_status"] = "done"
+    r = await db.master_files.delete_many(q)
+    return {"ok": True, "deleted": r.deleted_count, "counts": await _neo_counts(tenant_id(user))}
+
+
 @api_router.patch("/neo-bridge/prompts/{file_id}")
 async def neo_prompts_patch(file_id: str, body: NeoPromptPatch, user=Depends(get_current_user)):
     upd: Dict[str, Any] = {"updated_at": utcnow()}

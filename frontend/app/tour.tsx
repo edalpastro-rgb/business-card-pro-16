@@ -14,7 +14,7 @@ import { notify } from "@/src/utils/notify";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { uriToBase64DataUrl } from "@/src/utils/media";
-import { playAudioBase64, AudioStopper } from "@/src/AssistantChat";
+import { playAudioBase64, AudioStopper } from "@/src/utils/audioPlayback";
 import { InterestForm } from "@/src/TourInterestForm"; // V50.z284 — form spuntabile 20 domande Sì/No
 import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
 import { ContactPreviewForm, flattenChannels, ExtractedContact } from "@/src/ContactPreviewForm"; // V50.z278

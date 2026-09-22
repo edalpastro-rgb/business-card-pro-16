@@ -1,0 +1,24 @@
+{
+  "summary": "V50.z310/z311 — Tested (1) NEW FEATURE 'Confronto collaboratori' backend + frontend and (2) regression of AssistantChat refactor. Backend smoke test (tests/test_team_compare.py) passed end-to-end: /api/team-insights/compare period 30/90/365/all → 200 with full payload (metrics, members with kpi/score/wins/rank, team_avg, team_total, best), period=7 → 400, sub-user → 403, /team-insights/{uid} still 200 (not shadowed). Frontend /team-compare (Master login test@dalpastro.it/Test1234!) renders header 'Confronto collaboratori', all 4 period chips, ranking card with 3 collaborators (Anna Sub score 100 + TEST_A/TEST_B score 0 — expected per note), all 15 metric chips, testa a testa card, full table, and hub-compare. Period switch, metric switch, and rank tap → /team-insights?member=<uid> all work. compare-back returns to previous route. Entry points verified: /master exposes hub-compare (testID present, 'Confronto Team' label found) and /team-insights exposes insights-compare which navigates to /team-compare. CHAT REGRESSION PASSED: floating FAB (assistant-fab) visible on /home, tap opens modal with placeholder 'Scrivi a Neo…'; 'aspetta un attimo' → reply exactly 'OK!'; assistant bubbles show Copia/Condividi/PDF; 'Dove confronto i risultati dei miei collaboratori?' → NAV chip 'Apri Confronto collaboratori' visible and tapping it navigates to /team-compare; 'Chiudi' button present. /tour and /axon-voice both load without crash (playAudioBase64 import ok). No red screen, no 'undefined is not a function', no missing-style-key errors. 405/404 network errors observed are pre-existing (optional endpoints, same on all pages).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_team_compare.py"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AssistantFAB.tsx is well-modularized after the refactor and imports styles/types from src/assistant/*. No breaking style-key mismatches detected during runtime.",
+    "team-compare.tsx correctly guards for !isMaster with a friendly lock screen, uses api() helper, and has full testID coverage (compare-back, compare-period-*, compare-ranking, compare-bars, compare-metric-*, compare-h2h, compare-h2h-<label>-<uid>, compare-table, compare-rank-<uid>, compare-insights).",
+    "Backend endpoint returns team_avg keys matching metric keys (invariant asserted in test)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "test_team_compare.py created 1 contact + 1 contract (1200€) + 1 done appointment (2 products_sold) + 1 call log (~3min) under sub1@dalpastro.it. Cumulative from prior runs: contacts_new=2, contracts=2, contracts_amount=2400, appts_done=2, products_sold=4, calls=2, call_minutes=6, conversion_pct=100.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "To login via Playwright, dispatch a synthetic MouseEvent on [data-testid=auth-submit-button] (Pressable does not react to Playwright's plain .click on this build). Then handle the first-launch /tour by tapping 'Salta'. Chat FAB tap works via page.mouse.click at bounding_box center. Chat AI ~10-15s to reply; NAV navigation chip requires ~15-20s wait.",
+  "rca_of_issue": "N/A — no bugs found."
+}

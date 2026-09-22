@@ -289,6 +289,8 @@ function MasterScreen() {
     // V50.z285 — Area Corsi nella griglia (prima solo card dentro Team Insights → introvabile); badge = corsi nuovi
     { label: "Area Corsi", icon: "school", color: "#EAB308", onPress: () => goto("/courses"), badge: newCourses },
     { label: "Team Insights", icon: "analytics", color: "#EAB308", onPress: () => goto("/team-insights") },
+    // V50.z310 — Confronto KPI fra collaboratori (classifica, grafico, testa a testa)
+    { label: "Confronto Team", icon: "podium", color: "#EAB308", onPress: () => goto("/team-compare") },
     // V50.z287 — area feedback/recensioni clienti e segnalazioni (bug, errori, idee) di nuovo raggiungibili dalla griglia
     { label: "Recensioni Clienti", icon: "star", color: "#EAB308", onPress: () => goto("/reviews-analytics") },
     { label: "Feedback & Bug", icon: "bug", color: "#EAB308", onPress: () => goto("/bug-report") },
@@ -907,6 +909,7 @@ function SettingsHubSection({
       color: "#EAB308", label: "Team & Insights", icon: "people",
       items: [
         { icon: "analytics", label: "Team Insights", hint: "Metriche + profilo AI dei collaboratori", onPress: () => onGoto("/team-insights"), ownerOnly: true, testID: "hub-insights" },
+        { icon: "podium", label: "Confronto collaboratori", hint: "Classifica KPI, grafico per metrica, testa a testa", onPress: () => onGoto("/team-compare"), ownerOnly: true, testID: "hub-compare" },
         { icon: "person-add", label: "Invita Collaboratore", hint: "Genera link / QR con ruolo", onPress: () => onGoto("/invite-collaborator"), ownerOnly: true, testID: "hub-invite-collab" },
         { icon: "mail-unread", label: "Richieste Info (Lead)", hint: "Lead pubblici con risposte AxonOS", onPress: () => onGoto("/leads"), testID: "hub-leads" },
       ],

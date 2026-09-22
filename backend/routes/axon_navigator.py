@@ -128,8 +128,9 @@ APP_MAP: list = [
     # ── MASTER ──
     dict(id="master_agenda", name="Agenda team (Master)", route="/master", group="Master", desc="Agenda di tutti i collaboratori.", kw=["agenda team", "agenda del team", "agenda collaboratori", "agenda team", "appuntamenti collaboratori", "agenda squadra"], master_only=True),
     dict(id="anagrafica_master", name="Anagrafica Master (dati personali, documenti, password)", route="/anagrafica-master", group="Master", desc="I tuoi dati anagrafici, documenti di riconoscimento e password vault cifrato.", kw=["anagrafica master", "i miei dati", "miei dati personali", "password vault", "mie password", "anagrafica personale", "dati titolare"], master_only=True),
-    dict(id="contratti", name="Contratti (Master)", route="/master", group="Master", desc="Contratti caricati dai collaboratori, stati e commissioni.", kw=["contratti", "caricare contratto", "stato contratto", "commissioni"], master_only=True),
-    dict(id="contratto_nuovo", name="Compilazione CRT (pratica contratto)", route="/crt", group="Master", desc="Pratica contratto multi-servizio (Luce/Gas/Telco insieme): dossier documenti (carta d'identità, CF, visura camerale, IBAN, SDI/PEC, referente, CTE, contratto precedente) letti da Axon; fatture del cliente → una fornitura per POD/PDR con consumo 12 mesi stimato (somma mesi ÷ mesi presenti × 12, min 4 mesi); moduli del fornitore compilati con righe forniture e replica automatica del modulo; verifica/correzione; PDF unico compresso con indice; condivisione via mail/WhatsApp/QR code. Esempi compilati e esempio pratica completa per insegnare ad Axon.", kw=["contratto", "nuovo contratto", "compilazione crt", "crt", "pratica contratto", "compila contratto", "moduli contratto", "pod", "pdr", "forniture", "pdf unico", "qr code contratto", "visura camerale", "iban cliente", "cte", "proposta di adesione", "sepa"], master_only=False),
+    dict(id="contratti", name="Contratti (Master)", route="/master", group="Master", desc="Contratti caricati dai collaboratori, stati e commissioni.", kw=["contratti dei collaboratori", "contratti caricati", "stato contratto", "stato dei contratti", "commissioni", "contratti master"], master_only=True),
+    dict(id="contratto_carica", name="Nuovo contratto (carica firmato)", route="/contract/new", group="Contatti", desc="Registra un contratto firmato per un cliente: numero, fornitore, servizio, date inizio/fine, importo/commissione, note e allegato (foto o PDF del contratto). Poi appare nella scheda del contatto (tab Contratti), nelle scadenze e per il Master nel pannello Contratti.", kw=["carico un contratto", "caricare un contratto", "contratto firmato", "registrare un contratto", "inserire un contratto", "nuovo contratto", "aggiungere contratto", "salvare il contratto", "contratto del cliente", "archiviare contratto", "dove metto il contratto"]),
+    dict(id="contratto_nuovo", name="Compilazione CRT (pratica contratto)", route="/crt", group="Master", desc="Consumo annuo: dai kWh/Smc della fattura riportati su 12 mesi (es. 8 mesi di storico → media mensile × 12), correggibile a mano. Pratica contratto multi-servizio (Luce/Gas/Telco insieme): dossier documenti (carta d'identità, CF, visura camerale, IBAN, SDI/PEC, referente, CTE, contratto precedente) letti da Axon; fatture del cliente → una fornitura per POD/PDR con consumo 12 mesi stimato (somma mesi ÷ mesi presenti × 12, min 4 mesi); moduli del fornitore compilati con righe forniture e replica automatica del modulo; verifica/correzione; PDF unico compresso con indice; condivisione via mail/WhatsApp/QR code. Esempi compilati e esempio pratica completa per insegnare ad Axon.", kw=["contratto", "nuovo contratto", "compilazione crt", "crt", "pratica contratto", "compila contratto", "compilo un nuovo contratto", "compilare un contratto", "contratto luce e gas", "nuovo contratto luce", "contratto per un cliente", "moduli contratto", "pod", "pdr", "forniture", "pdf unico", "qr code contratto", "visura camerale", "iban cliente", "cte", "proposta di adesione", "sepa", "consumo annuo", "consumo annuo stimato", "calcolo del consumo annuo"], master_only=False),
     dict(id="voce_lingua_axon", name="Voce e lingua di Axon", route="/axon-voice", group="AxonOS", desc="Scegli la voce con cui Axon parla (anteprima) e la lingua delle risposte.", kw=["cambia voce", "cambiare voce", "voce di axon", "voce assistente", "cambia lingua di axon", "cambiare lingua ad axon", "lingua di axon", "lingua assistente", "lingua delle risposte", "lingua in cui risponde", "axon mi risponde", "parla in inglese", "voce maschile", "voce femminile", "voce e lingua"]),
     dict(id="offline_mode", name="Modalità offline e sincronizzazione", route="/offline-sync", group="Impostazioni", desc="L'app funziona anche in modalità aereo/senza rete: navighi con gli ultimi dati scaricati (precaricamento automatico di clienti, agenda, corsi, team…), crei e modifichi clienti, appuntamenti, note e attività; le modifiche restano in coda e vengono inviate al gruppo appena torna la connessione. Pannello con modifiche in attesa, «Sincronizza ora», «Precarica dati», conflitti segnalati al Master. Non disponibili offline: Axon AI/voce, OCR, PDF/PowerPoint, email.", kw=["offline", "modalita aereo", "modalità aereo", "senza rete", "senza connessione", "senza internet", "sincronizza", "sincronizzazione", "modifiche in attesa", "in aereo", "no rete", "manca la rete", "non ho campo", "precarica dati", "cache", "vedono i colleghi", "quando lo vedono", "inserito senza rete", "nessuna connessione", "torno online", "tornato online", "quando torna la connessione", "axon offline", "voce offline", "offline axon", "lavorare offline", "funziona offline", "senza campo", "zona senza campo"]),
     dict(id="area_corsi", name="Area Corsi", route="/courses", group="Master", desc="Cartelle corsi per il team (Master/Manager creano, collaboratori leggono): materiali PDF/foto/audio, lettura tracciata, ✅ Partecipo / ❌ Non partecipo con motivo, lista partecipanti, reminder automatici; dentro ogni corso: Test/Quiz a scelta multipla + risposta aperta, Relazione vocale di fine corso (dettata e organizzata da Axon), Presentazione PowerPoint (.pptx generata dall'AI dai materiali o dettata a voce, oppure scritta a mano), Attestato di partecipazione PDF automatico. Data/ora del corso con promemoria pre-lezione, spunta presenze in aula e rilascio attestati (voci dedicate).", kw=["corsi", "area corsi", "cartella corso", "nuovo corso", "corso di formazione", "formazione team", "partecipo al corso", "materiali corso", "chi ha letto il corso", "partecipanti corso", "test del corso", "quiz corso", "quiz", "relazione fine corso", "relazione vocale", "corsi assegnati", "corso assegnato", "lettura corso", "punteggio test", "punteggio del test", "risultato del test", "risultato test", "esito del test", "test completato", "mio test"]),
@@ -144,7 +145,8 @@ APP_MAP: list = [
     dict(id="comunicazioni_azienda", name="Comunicazioni azienda (Master)", route="/master", group="Master", desc="Invia comunicazioni/banner ai collaboratori.", kw=["comunicazione collaboratori", "mando comunicazione", "avviso collaboratori", "comunicare ai collaboratori", "comunicazioni", "avviso ai collaboratori", "circolare", "banner"], master_only=True),
     dict(id="team", name="Team", route="/team", group="Master", desc="Gestione collaboratori, ruoli, aree.", kw=["team", "collaboratori", "squadra", "ruoli"], master_only=True),
     dict(id="invita", name="Invita collaboratore", route="/invite-collaborator", group="Master", desc="Invita un nuovo collaboratore.", kw=["invito collaboratore", "invitare collaboratore", "invita", "aggiungi collaboratore", "nuovo collaboratore"], master_only=True),
-    dict(id="team_insights", name="Team insights", route="/team-insights", group="Master", desc="KPI e confronto collaboratori.", kw=["kpi collaboratori", "kpi dei collaboratori", "risultati collaboratori", "confronto team", "team insights", "kpi team", "confronto collaboratori", "classifica"], master_only=True),
+    dict(id="team_insights", name="Team insights", route="/team-insights", group="Master", desc="Profilo AI e metriche di ogni collaboratore.", kw=["kpi collaboratori", "kpi dei collaboratori", "profilo collaboratore", "team insights", "kpi team"], master_only=True),
+    dict(id="confronto_collaboratori", name="Confronto collaboratori", route="/team-compare", group="Master", desc="Confronto KPI fra collaboratori per periodo (30/90/365 gg): classifica con punteggio, grafico per metrica, testa a testa, tabella completa, migliore per metrica.", kw=["confronto collaboratori", "confronta collaboratori", "confronto team", "classifica collaboratori", "classifica", "chi ha fatto più contratti", "miglior collaboratore", "testa a testa", "risultati collaboratori", "paragona collaboratori", "ranking"], master_only=True),
     dict(id="cruscotto", name="Cruscotto", route="/cruscotto", group="Master", desc="Cruscotto direzionale aziendale.", kw=["cruscotto", "direzionale", "andamento azienda"], master_only=True),
     dict(id="corporate_gym", name="Corporate Gym", route="/corporate-gym", group="Master", desc="Formazione e allenamento del team.", kw=["formazione", "corporate gym", "allenamento", "training"], master_only=True),
     dict(id="personalizzazione", name="Personalizzazione aziendale", route="/personalizzazione-aziendale", group="Master", desc="Logo, colori, nome azienda.", kw=["personalizzazione", "logo azienda", "colori", "branding"], master_only=True),
@@ -266,7 +268,7 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
         "FUNZIONI INESISTENTI (es. tema scuro, firma digitale dei contratti, pagare bollette, saldo conto corrente, prenotare voli, negozio gadget, fatture emesse ai clienti, videochiamate, SMS massivi, traduzione automatica, modalità offline): rispondi ESATTAMENTE «Questa funzione non è disponibile in AdvisorOS.» — senza inventare alternative, senza marker, senza rimandare ad altre schermate.",
         "CASI LIMITE: (a) fuori contesto (cultura generale, sport, ricette, fusi orari…) → NON rispondere all'argomento: una frase gentile e riporta all'app. (b) utente frustrato → calma, empatia, aiuto concreto ([[NAV:/help-center|Segnala il problema]]), mai polemica. (c) frase troncata → chiedi di completarla. (d) altra lingua → rispondi in italiano con il deep link giusto. (e) offese → una riga professionale. (f) «sei un'AI? chi ti ha creato?» → sei Axon, assistente di AdvisorOS; niente modelli/fornitori/dati riservati. (g) richieste impossibili/pericolose (cancellare tutto, mail massive, azioni all'insaputa) → non eseguire, indica il canale corretto.",
         "",
-        "ELENCO SCHERMATE (nome · route · a cosa serve):",
+        "ELENCO SCHERMATE (nome · route; per le pertinenti anche a cosa serve):",
     ]
     # V50.z308 — CONSOLIDAMENTO PROMPT: elenco COMPATTO (nome · route · sintesi ≤ 90 caratteri) per tutte le schermate;
     # descrizione COMPLETA solo per le schermate pertinenti al messaggio (max 6). Prima: 106 descrizioni integrali in ogni prompt.
@@ -278,11 +280,10 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
             continue
         if e["group"] != cur:
             cur = e["group"]; lines.append(f"[{cur}]")
-        d = e["desc"]
-        if e["id"] not in hint_ids and len(d) > 72:
-            cut = d[:72]
-            d = (cut[:cut.rfind(" ")] if " " in cut[60:] else cut).rstrip(" ,;:.") + "…"
-        lines.append(f"- {e['name']} · {e['route']} · {d}")
+        if e["id"] in hint_ids:  # pertinente al messaggio → descrizione completa
+            lines.append(f"- {e['name']} · {e['route']} · {e['desc']}")
+        else:  # V50.z309 — solo nome · route (il nome è autoesplicativo; i dettagli arrivano dalle sezioni pertinenti)
+            lines.append(f"- {e['name']} · {e['route']}")
     if hints and not _nav_is_creative(msg or ""):  # V50.z302 — nessun suggerimento di schermata per le richieste creative
         lines.append("")
         lines.append("SUGGERIMENTI PER QUESTO MESSAGGIO (probabile funzione cercata): " + " ".join(_nav(h["route"], h["name"]) for h in hints))
@@ -655,9 +656,12 @@ def _nav_flow_docs(msg: str) -> dict:
     if "cors" in m or "attestat" in m or "slide" in m:  # V50.z277 — materiali/attestati/slide dei corsi → Area Corsi
         return _nav_reply("I materiali dei corsi (PDF, foto, audio, PowerPoint) e gli attestati di partecipazione sono nella cartella del corso in **Area Corsi**.\n"
                           + _nav("/courses", "🎓 Area Corsi"))
-    if any(k in m for k in ["bollett", "fattur", "contratt"]):
-        return _nav_reply("Le bollette si fotografano e analizzano in **Analisi fatture**; restano poi nella scheda del cliente (tab Fatture). I contratti li carichi da **Nuovo contratto**.\n"
-                          + _nav("/bill-quick", "🧾 Analisi fatture") + "\n" + _nav("/scanner", "📷 Scanner") + "\n" + _nav("/crt", "📄 Compilazione CRT"))
+    if "contratt" in m:  # V50.z309 — contratti firmati/dei collaboratori → Nuovo contratto (+ pannello Master, + CRT per compilarne uno)
+        return _nav_reply("Un contratto firmato lo registri da **Nuovo contratto** (dati, importo/commissione, foto o PDF): finisce nella scheda del cliente, nelle scadenze e nel pannello **Contratti (Master)**. Per compilare una pratica da zero usa **Compilazione CRT**.\n"
+                          + _nav("/contract/new", "📝 Nuovo contratto") + "\n" + _nav("/master", "📋 Contratti (Master)") + "\n" + _nav("/crt", "📄 Compilazione CRT"))
+    if any(k in m for k in ["bollett", "fattur"]):
+        return _nav_reply("Le bollette si fotografano e analizzano in **Analisi fatture**; restano poi nella scheda del cliente (tab Fatture).\n"
+                          + _nav("/bill-quick", "🧾 Analisi fatture") + "\n" + _nav("/scanner", "📷 Scanner"))
     return _nav_reply("I documenti condivisi dall'azienda sono nell'**Archivio file**; i tuoi file personali nello **Spazio personale**; per digitalizzare un foglio usa lo **Scanner**.\n"
                       + _nav("/master-files", "🗂️ Archivio file") + "\n" + _nav("/spazio-personale", "📁 Spazio personale") + "\n" + _nav("/scanner", "📷 Scanner"))
 
@@ -715,6 +719,8 @@ def _nav_style_rules(msg: str) -> str:
         lines.append("🔒 RICHIESTA «SOLO TABELLA» RILEVATA: l'output è ESCLUSIVAMENTE la tabella Markdown (intestazione + righe). ZERO testo prima, ZERO testo dopo, ZERO note/fonti/disclaimer/legenda. Dati mancanti → `n/d` nella cella. Nessuna frase del tipo «Ecco la tabella».")
     elif _RX_DIRECT_Q.search(t) and len(t.split()) <= 12:
         lines.append("🔒 DOMANDA DIRETTA RILEVATA: prima riga = SOLO «Sì, …» / «No, …» / il dato richiesto (max 12 parole). Poi, se serve davvero, UNA frase di contesto o UNA domanda con opzioni A)/B).")
+    if _RX_CHOICE_REQ.search(t):
+        lines.append("🔒 SCELTE RICHIESTE: l'utente vuole opzioni cliccabili → una riga di contesto (max 1) e poi le opzioni come «A) …», «B) …» (eventualmente «C) …»), UNA PER RIGA, chiudendo con «Quale preferisci?». Mai rispondere senza le lettere A)/B).")
     if _RX_SEARCH_NEED.search(t):
         lines.append("🔒 DATO AGGIORNATO RICHIESTO: verifica la data del dato che usi e dichiarala nella prima riga («Dati GME del <data>»). Se non è odierno, proponi «A) Aggiorno da GME ora  B) Uso l'ultimo disponibile».")
     return "\n".join(lines)
@@ -788,7 +794,7 @@ async def _nav_intercept(msg: str, user: dict):
             return None
         if _RX_BILL_FLOW.search(t):
             return _nav_reply("Attivo l'analisi fattura: fotografa o carica la bolletta, Axon estrae i dati e confronta le offerte luce/gas mostrando il risparmio per il cliente.\n" + _nav("/bill-quick", "🧾 Analisi fattura e confronto offerte") + "\n" + _nav("/bill-quick?config=1", "⚙️ Regole di confronto"))
-        if _RX_CONTRACTS_CLIENT.search(t) and not _RX_GOTO.match(t):
+        if _RX_CONTRACTS_CLIENT.search(t) and not _RX_GOTO.match(t) and not _nav_re.search(r"\b(compil\w*|nuovo contratto|luce e gas|crt|pratica)\b", t, _nav_re.I):  # V50.z309 — «compilo un nuovo contratto» → CRT
             return await _nav_flow_client_contracts(user, t)
         if _RX_CUSTOM_FIELDS.search(t):
             return _nav_reply("I campi personalizzati della scheda cliente si configurano qui: aggiungi campi extra (testo, numero, data) visibili in ogni contatto.\n" + _nav("/custom-fields", "🧩 Campi personalizzati"))
@@ -822,7 +828,9 @@ async def _nav_intercept(msg: str, user: dict):
             return _nav_reply(txt)
         if _RX_CALLBACK.search(t):
             return await _nav_flow_callbacks(user)
-        if _RX_DOCS.search(t):
+        if _nav_re.search(r"\bcontratt\w*\s+(di|del|della)\s+[A-Z]", t) and not _nav_re.search(r"\b(compil\w*|nuovo|crt|pratica)\b", t, _nav_re.I):  # V50.z309 — «contratti di Rossi» → scheda cliente
+            return await _nav_flow_client_contracts(user, t)
+        if _RX_DOCS.search(t) and not _nav_re.search(r"\bcontratt\w*\s+(di|del|della)\s+[A-Z]|\bcontratt\w*\b.{0,20}\bclient\w*", t):  # V50.z309 — «contratti di Rossi / del cliente» → scheda cliente
             return _nav_flow_docs(t)
         hm = _RX_HOWTO.search(t)
         if hm:

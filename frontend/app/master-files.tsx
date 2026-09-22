@@ -363,6 +363,19 @@ function MasterFilesScreen() {
     } catch { return iso; }
   };
 
+  // V50.z309 — Prompt per Neo: cancellazione in blocco + «completato» con un tocco
+  const neoDeleteAll = async (scope: "pending" | "done") => {
+    const ok = await confirmAsync(scope === "pending" ? "Cancella tutti i prompt in attesa" : "Pulisci i prompt completati", "Operazione definitiva. Procedere?");
+    if (!ok) return;
+    try { const r = await api<{ deleted: number }>(`/neo-bridge/prompts?scope=${scope}`, { method: "DELETE" }); notify("Prompt per Neo", `Cancellati ${r.deleted} prompt.`); await load(); }
+    catch (e: any) { notify("Prompt per Neo", e?.message || "Errore"); }
+  };
+  const neoToggleDone = async (f: MasterFile) => {
+    const next = f.neo_status === "done" ? "pending" : "done";
+    try { await api(`/neo-bridge/prompts/${f.file_id}`, { method: "PATCH", body: { status: next } }); await load(); }
+    catch (e: any) { notify("Prompt per Neo", e?.message || "Errore"); }
+  };
+
   const removeItem = async (f: MasterFile) => {
     const ok = await confirmAsync(f.category === "notes" ? "Elimina nota" : "Elimina file", "Sei sicuro?");
     if (!ok) return;
@@ -517,6 +530,19 @@ function MasterFilesScreen() {
           {query ? <Pressable onPress={() => setQuery("")} hitSlop={8} testID="master-files-search-clear"><Ionicons name="close-circle" size={18} color={theme.color.muted} /></Pressable> : null}
         </View>
       ) : null}
+      {tab === "neo_prompts" && items.length > 0 ? (
+        // V50.z309 — barra azioni «Prompt per Neo»: Cancella tutti (in attesa) · Cancella completati
+        <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingBottom: 4, flexWrap: "wrap" }} testID="neo-toolbar">
+          <Pressable onPress={() => void neoDeleteAll("pending")} style={[styles.iconBtn, { flexDirection: "row", gap: 6, paddingHorizontal: 12, minHeight: 40, borderColor: "#FECACA", backgroundColor: "#FEF2F2" }]} testID="neo-delete-all">
+            <Ionicons name="trash-outline" size={16} color="#B91C1C" /><Text style={{ color: "#B91C1C", fontWeight: "800", fontSize: 13 }}>Cancella tutti in attesa ({items.filter((f) => (f.neo_status || "pending") !== "done").length})</Text>
+          </Pressable>
+          {items.some((f) => f.neo_status === "done") ? (
+            <Pressable onPress={() => void neoDeleteAll("done")} style={[styles.iconBtn, { flexDirection: "row", gap: 6, paddingHorizontal: 12, minHeight: 40 }]} testID="neo-delete-done">
+              <Ionicons name="checkmark-done" size={16} color={theme.color.muted} /><Text style={{ color: theme.color.muted, fontWeight: "800", fontSize: 13 }}>Pulisci completati</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
       <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 140 }}>
         {loading ? (
           <ActivityIndicator style={{ marginTop: 30 }} color={catMeta.color} />
@@ -555,9 +581,10 @@ function MasterFilesScreen() {
                   {f.ocr_excerpt ? <Text style={styles.ocrExcerpt} numberOfLines={2} testID={`ocr-excerpt-${f.file_id}`}>🔍 {f.ocr_excerpt}</Text> : null}
                   {tab === "neo_prompts" ? (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
-                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: (NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || "#64748B") + "22" }} testID={`neo-status-${f.file_id}`}>
-                        <Text style={{ fontSize: 10, fontWeight: "800", color: NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || "#64748B" }}>{NEO_STATUS_LABEL[f.neo_status || "pending"]?.label || f.neo_status}</Text>
-                      </View>
+                      <Pressable onPress={() => void neoToggleDone(f)} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: (NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || "#64748B") + "22" }} testID={`neo-status-${f.file_id}`} accessibilityLabel={f.neo_status === "done" ? "Riporta in attesa" : "Segna completato"}>
+                        <Ionicons name={f.neo_status === "done" ? "checkmark-circle" : "ellipse-outline"} size={13} color={NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || "#64748B"} />
+                        <Text style={{ fontSize: 10, fontWeight: "800", color: NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || "#64748B" }}>{NEO_STATUS_LABEL[f.neo_status || "pending"]?.label || f.neo_status}{f.neo_status === "done" ? "" : " · tocca per completare"}</Text>
+                      </Pressable>
                       {f.neo_note ? <Text style={[styles.itemMeta, { flexShrink: 1 }]} numberOfLines={1}>Neo: {f.neo_note}</Text> : null}
                     </View>
                   ) : null}
