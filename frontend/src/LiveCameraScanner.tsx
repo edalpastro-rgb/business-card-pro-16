@@ -27,8 +27,10 @@ import {
   ScrollView,
   AppState,
   Linking,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics"; // V50.z337 — feedback aptico «a fuoco»
 import { CameraView, useCameraPermissions, type CameraCapturedPicture } from "expo-camera";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polygon, Circle } from "react-native-svg";
@@ -126,6 +128,31 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
   // auto-shutter and warn the user.
   const [sharpness, setSharpness] = useState<number | null>(null);
   const SHARPNESS_THRESHOLD = 90; // empirical (backend returns Laplacian var on 400px gray)
+
+  // V50.z337 — INDICATORE DI FUOCO: quando il documento è rilevato E nitido → rettangolo verde che pulsa
+  // + breve feedback aptico al momento in cui la messa a fuoco viene acquisita. L'utente sa quando scattare.
+  const focusAnim = useRef(new Animated.Value(0)).current;
+  const focusLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    const isFocused = edgeDetectOn && !!liveCorners && sharpness !== null && sharpness >= SHARPNESS_THRESHOLD;
+    if (isFocused === focused) return;
+    setFocused(isFocused);
+    if (isFocused) {
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      focusAnim.setValue(0);
+      focusLoopRef.current = Animated.loop(Animated.sequence([
+        Animated.timing(focusAnim, { toValue: 1, duration: 420, useNativeDriver: true }),
+        Animated.timing(focusAnim, { toValue: 0, duration: 420, useNativeDriver: true }),
+      ]));
+      focusLoopRef.current.start();
+    } else {
+      focusLoopRef.current?.stop();
+      focusLoopRef.current = null;
+      focusAnim.setValue(0);
+    }
+  }, [edgeDetectOn, liveCorners, sharpness, focused, focusAnim, SHARPNESS_THRESHOLD]);
+  useEffect(() => () => { focusLoopRef.current?.stop(); }, []);
 
   // V50.z166 — Mutex fotocamera: il campionamento live e lo scatto vero NON devono
   // mai chiamare takePictureAsync in parallelo (su Android il secondo scatto poteva
@@ -664,10 +691,28 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
 
         {/* Overlay corner-guides to help user frame the document */}
         <View pointerEvents="none" style={styles.guides}>
-          <View style={[styles.corner, styles.cornerTL]} />
-          <View style={[styles.corner, styles.cornerTR]} />
-          <View style={[styles.corner, styles.cornerBL]} />
-          <View style={[styles.corner, styles.cornerBR]} />
+          <View style={[styles.corner, styles.cornerTL, focused && styles.cornerFocused]} />
+          <View style={[styles.corner, styles.cornerTR, focused && styles.cornerFocused]} />
+          <View style={[styles.corner, styles.cornerBL, focused && styles.cornerFocused]} />
+          <View style={[styles.corner, styles.cornerBR, focused && styles.cornerFocused]} />
+          {/* V50.z337 — Indicatore «a fuoco»: rettangolo verde che pulsa */}
+          {focused ? (
+            <Animated.View
+              testID="live-scan-focus-indicator"
+              style={[
+                styles.focusRect,
+                {
+                  opacity: focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }),
+                  transform: [{ scale: focusAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] }) }],
+                },
+              ]}
+            >
+              <View style={styles.focusPill}>
+                <Ionicons name="checkmark-circle" size={14} color="#FFF" />
+                <Text style={styles.focusPillTxt}>A fuoco</Text>
+              </View>
+            </Animated.View>
+          ) : null}
         </View>
 
         {/* Top bar */}
@@ -712,7 +757,9 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                       : liveCorners
                         ? autoShutter
                           ? "Rilevato · tieni fermo per lo scatto"
-                          : "Documento rilevato · tocca per scattare"
+                          : focused
+                            ? "A fuoco ✓ · scatta ora"
+                            : "Documento rilevato · tocca per scattare"
                         : "Cerco i bordi… inquadra il foglio"
                   : "Autofocus attivo · rilevamento OFF"}
                 {processingCount > 1 ? ` · ${processingCount}` : ""}
@@ -1007,6 +1054,11 @@ const styles = StyleSheet.create({
   cornerTR: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },
   cornerBL: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 6 },
   cornerBR: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 6 },
+  // V50.z337 — indicatore di fuoco
+  cornerFocused: { borderColor: "#22C55E" },
+  focusRect: { ...StyleSheet.absoluteFillObject, borderWidth: 2.5, borderColor: "#22C55E", borderRadius: 10, alignItems: "center", justifyContent: "flex-end", paddingBottom: 10, shadowColor: "#22C55E", shadowOpacity: 0.8, shadowRadius: 12 },
+  focusPill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(34,197,94,0.92)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  focusPillTxt: { color: "#FFF", fontWeight: "900", fontSize: 12 },
 
   topBar: {
     position: "absolute",

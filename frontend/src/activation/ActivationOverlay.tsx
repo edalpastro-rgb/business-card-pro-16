@@ -19,6 +19,12 @@ const CYAN = "#38BDF8";
 const ORANGE = "#F97316";
 const WAVE_MS = 5200; // V50.z335 — +2 s: il momento della connessione utente ↔ Axon deve restare impresso
 const PARTICLES = 24;
+// V50.z337 — Sequenza: 2 s di attesa → vibrazione ritmica di 2 s (4 impulsi ogni 500 ms) in sincronia con le onde
+// circolari del nucleo (una nuova onda parte a ogni impulso). Vista e tatto percepiscono lo stesso istante.
+const BUZZ_DELAY_MS = 2000;
+const BUZZ_TOTAL_MS = 2000;
+const BUZZ_PERIOD_MS = 500;
+const BUZZ_PULSES = BUZZ_TOTAL_MS / BUZZ_PERIOD_MS; // 4
 
 async function tts(text: string, voice?: string): Promise<void> {
   try {
@@ -28,23 +34,30 @@ async function tts(text: string, voice?: string): Promise<void> {
   } catch { /* senza audio */ }
 }
 
-/** Due impulsi distinti ravvicinati. */
+/** V50.z337 — Vibrazione ritmica di 2 s: 4 impulsi da 250 ms ogni 500 ms (stesso ritmo delle onde del nucleo). */
 export async function doubleBuzz() {
   if (Platform.OS === "web") return;
-  // V50.z335 — due impulsi (battito) + onda lunga che si spegne: ~2,4 s in tutto
-  if (Platform.OS === "android") { Vibration.vibrate([0, 140, 110, 140, 380, 700, 250, 450, 250, 250]); return; }
+  if (Platform.OS === "android") {
+    const pattern: number[] = [0];
+    for (let i = 0; i < BUZZ_PULSES; i++) pattern.push(BUZZ_PERIOD_MS / 2, BUZZ_PERIOD_MS / 2);
+    Vibration.vibrate(pattern);
+    return;
+  }
   try {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    setTimeout(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}); }, 220);
-    setTimeout(() => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); }, 800);
-    setTimeout(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); }, 1500);
-    setTimeout(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); }, 2100);
+    for (let i = 1; i < BUZZ_PULSES; i++) {
+      setTimeout(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}); }, i * BUZZ_PERIOD_MS);
+    }
   } catch { /* noop */ }
 }
 
-function Ring({ delay, size, color }: { delay: number; size: number; color: string }) {
+function Ring({ delay, size, color, active }: { delay: number; size: number; color: string; active: boolean }) {
   const p = useSharedValue(0);
-  useEffect(() => { p.value = withDelay(delay, withRepeat(withTiming(1, { duration: 1800, easing: Easing.out(Easing.cubic) }), -1, false)); }, [p, delay]);
+  useEffect(() => {
+    if (!active) { p.value = 0; return; }
+    // Una nuova onda ogni BUZZ_PERIOD_MS, sfasata per anello: ogni impulso di vibrazione «lancia» un'onda in uscita
+    p.value = withDelay(delay, withRepeat(withTiming(1, { duration: BUZZ_PERIOD_MS * 2, easing: Easing.out(Easing.cubic) }), -1, false));
+  }, [p, delay, active]);
   const st = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(p.value, [0, 1], [0.15, 1]) }], opacity: interpolate(p.value, [0, 0.15, 1], [0, 0.9, 0]) }));
   return <Animated.View style={[{ position: "absolute", width: size, height: size, borderRadius: size / 2, borderWidth: 3, borderColor: color, shadowColor: color, shadowOpacity: 1, shadowRadius: 24 }, st]} />;
 }
@@ -84,27 +97,30 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
   const [wave, setWave] = useState<ActivationPayload | null>(null);
   const [find, setFind] = useState<{ name: string } | null>(null);
   const [phase, setPhase] = useState(0); // V50.z335 — 0 «sta prendendo vita» → 1 «connessione stabilita» → 2 «pronto»
+  const [pulse, setPulse] = useState(false); // V50.z337 — onde + vibrazione partono insieme dopo BUZZ_DELAY_MS
   const findRef = useRef(false);
   const findTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const radius = Math.min(width, height) * 0.48;
 
-  // ONDA DI ENERGIA: vibrazione doppia → 3 s di animazione → voce → chiusura
+  // ONDA DI ENERGIA: 2 s nucleo che «prende vita» → vibrazione 2 s + onde in sincronia → voce → chiusura
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener(AXON_ACTIVATION_EVENT, (p: ActivationPayload) => {
       setWave(p);
       setPhase(0);
-      setTimeout(() => setPhase(1), 1900);
-      setTimeout(() => setPhase(2), 3600);
+      setPulse(false);
+      setTimeout(() => { setPulse(true); setPhase(1); }, BUZZ_DELAY_MS);
+      setTimeout(() => setPhase(2), BUZZ_DELAY_MS + BUZZ_TOTAL_MS);
       if (mirror) return;
-      void doubleBuzz();
+      setTimeout(() => { void doubleBuzz(); }, BUZZ_DELAY_MS);
       const greet = p.greet !== false;
       setTimeout(async () => {
         if (greet) await tts(`Ciao, sono ${p.name || "Axon"}. Sono pronto.`, p.voice);
         setWave(null);
+        setPulse(false);
         DeviceEventEmitter.emit(AXON_ACTIVATION_HIDE_EVENT, {});
       }, WAVE_MS);
     });
-    const hide = DeviceEventEmitter.addListener(AXON_ACTIVATION_HIDE_EVENT, () => { if (mirror) setWave(null); });
+    const hide = DeviceEventEmitter.addListener(AXON_ACTIVATION_HIDE_EVENT, () => { if (mirror) { setWave(null); setPulse(false); } });
     return () => { sub.remove(); hide.remove(); };
   }, [mirror]);
 
@@ -147,7 +163,7 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
       <Pressable style={StyleSheet.absoluteFill} onPress={find ? () => { stopFind(); stopFindPhone(); } : undefined} accessibilityRole="button" accessibilityLabel={find ? "Trovato: ferma" : "Attivazione"}>
         <LinearGradient colors={["#0B1226", "#1E1B4B", "#0B1226"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={styles.center}>
-          {[0, 450, 900, 1350].map((d, i) => <Ring key={d} delay={d} size={radius * 2} color={i % 2 ? VIOLET : CYAN} />)}
+          {[0, 1, 2, 3].map((i) => <Ring key={i} delay={i * BUZZ_PERIOD_MS} size={radius * 2} color={i % 2 ? VIOLET : CYAN} active={!!find || pulse} />)}
           {Array.from({ length: PARTICLES }).map((_, i) => <Particle key={i} i={i} radius={radius} />)}
           <Core pulseMs={find ? 500 : 900} />
         </View>

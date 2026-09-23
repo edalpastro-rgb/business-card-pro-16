@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { getWeatherCoords, weatherIcon } from "@/src/utils/weather";
+import { readWeatherCache, writeWeatherCache, fetchWeatherWithRetry, coordsKey } from "@/src/utils/weatherCache"; // V50.z337 — cache 30 min + retry 429
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Res = {
@@ -18,6 +19,27 @@ type Res = {
 };
 
 /**
+ * V50.z337 — Allerte/meteo di oggi con cache locale 30 min: se il dato è fresco NON chiama l'API; se è scaduto lo
+ * restituisce subito (`stale=true`) e aggiorna in background; su 429 riprova dopo 5 s.
+ */
+async function loadAlertsCached(onStale?: (r: Res) => void): Promise<Res> {
+  const c = await getWeatherCoords().catch(() => null);
+  const key = coordsKey(c, "_alerts");
+  const cached = await readWeatherCache<Res>(key);
+  if (cached?.fresh) return cached.data;
+  if (cached && onStale) onStale(cached.data);
+  try {
+    const r = await fetchWeatherWithRetry<Res & { error?: string }>(() => api<Res>("/weather/alerts", { method: "POST", body: c ? { lat: c.lat, lon: c.lon } : {} }));
+    if (r && !r.needs_address && r.weather) await writeWeatherCache(key, r);
+    if ((!r?.weather) && cached) return cached.data; // il server non ha dati (429 anche lato server) → mostra l'ultimo noto
+    return r;
+  } catch (e) {
+    if (cached) return cached.data;
+    throw e;
+  }
+}
+
+/**
  * @param alwaysVisible V50.z150 — widget "Meteo" della zona widget Home: mostra SEMPRE temperatura
  * attuale e condizioni (stessa fonte dell'icona in header), anche senza allerte e durante il caricamento.
  * Senza prop (default) resta il comportamento V50.z132 (solo con allerte attive).
@@ -26,14 +48,15 @@ export function WeatherWidget({ alwaysVisible = false }: { alwaysVisible?: boole
   const router = useRouter();
   const [res, setRes] = useState<Res | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stale, setStale] = useState(false); // V50.z337 — dato in cache scaduto mostrato durante l'aggiornamento
 
   const load = useCallback(async () => {
     try {
-      const c = await getWeatherCoords();
-      const r = await api<Res>("/weather/alerts", { method: "POST", body: c ? { lat: c.lat, lon: c.lon } : {} });
+      setStale(false);
+      const r = await loadAlertsCached((old) => { setRes(old); setStale(true); setLoading(false); });
       setRes(r);
-    } catch { setRes(null); }
-    finally { setLoading(false); }
+    } catch { setRes((prev) => prev); }
+    finally { setLoading(false); setStale(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -62,7 +85,7 @@ export function WeatherWidget({ alwaysVisible = false }: { alwaysVisible?: boole
               <Text style={styles.temp} testID="weather-temp">{(w?.temp ?? w?.temp_max) != null ? `${Math.round((w!.temp ?? w!.temp_max) as number)}°` : (loading ? "…" : "—")}</Text>
               {w?.temp_min != null && <Text style={styles.min}>min {Math.round(w.temp_min)}°{w?.temp_max != null ? ` · max ${Math.round(w.temp_max)}°` : ""}</Text>}
             </View>
-            <Text style={styles.sub} numberOfLines={1}>{w?.label || (loading ? "Caricamento…" : "Meteo non disponibile · tocca per riprovare")}</Text>
+            <Text style={styles.sub} numberOfLines={1} testID="weather-sub">{stale && w ? `${w.label || "Meteo"} · Aggiornamento in corso…` : (w?.label || (loading ? "Caricamento…" : "Meteo non disponibile · tocca per riprovare"))}</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
               <Ionicons name="location" size={11} color={HT.muted} />
               <Text style={styles.place} numberOfLines={1}>{res?.place || "Posizione"}</Text>
@@ -122,19 +145,17 @@ export function HeaderWeatherBadge({ inline }: { inline?: boolean } = {}) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // V50.z148 — coords con timeout (vedi getWeatherCoords) + 1 retry se la rete non è pronta
-      // al cold start: prima un errore lasciava il badge invisibile per sempre.
-      const c = await getWeatherCoords().catch(() => null);
+      // V50.z337 — cache 30 min + retry 429 (loadAlertsCached); 1 retry extra se la rete non è pronta al cold start
       for (let attempt = 0; attempt < 2 && !cancelled; attempt++) {
         try {
-          const r = await api<Res>("/weather/alerts", { method: "POST", body: c ? { lat: c.lat, lon: c.lon } : {} });
+          const r = await loadAlertsCached((old) => { if (!cancelled) setRes(old); });
           if (!cancelled) setRes(r);
           return;
         } catch {
           if (attempt === 0) await new Promise((res) => setTimeout(res, 4000));
         }
       }
-      if (!cancelled) setRes(null);
+      if (!cancelled) setRes((prev) => prev);
     })();
     return () => { cancelled = true; };
   }, [tick]);

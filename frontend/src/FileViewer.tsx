@@ -126,17 +126,40 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfErr, setPdfErr] = useState<string | null>(null);
   const pdfLoadingRef = useRef(false);
-  const loadPages = async (start: number) => {
+  const pdfRunRef = useRef(0); // V50.z337 — token: annulla il caricamento in background quando il viewer si chiude/cambia file
+  const pdfTotalRef = useRef(0);
+  const pdfLoadedRef = useRef(0);
+  /**
+   * V50.z337 — CARICAMENTO PROGRESSIVO: la PRIMA pagina viene richiesta da sola (max_pages=1) e mostrata subito;
+   * le successive arrivano in background a blocchi di 3, una richiesta dopo l'altra, mentre l'utente sfoglia.
+   * Prima: 8 pagine in un'unica richiesta → attesa completa prima di vedere il documento.
+   */
+  const loadPages = async (start: number, count = 3) => {
     if (pdfLoadingRef.current) return;
     pdfLoadingRef.current = true;
+    const run = pdfRunRef.current;
     setPdfBusy(true); setPdfErr(null);
     try {
-      const r = await api<{ pages: string[]; total: number; start: number }>("/files/pdf-pages", { method: "POST", body: { pdf_base64: dataBase64, start, max_pages: 8, dpi: 110 } });
+      const r = await api<{ pages: string[]; total: number; start: number }>("/files/pdf-pages", { method: "POST", body: { pdf_base64: dataBase64, start, max_pages: count, dpi: 110 } });
+      if (run !== pdfRunRef.current) return;
+      pdfTotalRef.current = r.total;
+      pdfLoadedRef.current = Math.max(pdfLoadedRef.current, start + r.pages.length);
       setPdfTotal(r.total);
-      setPdfPages((prev) => (start === 0 ? r.pages : [...prev, ...r.pages]));
+      setPdfPages((prev) => (start === 0 ? r.pages : [...prev.slice(0, start), ...r.pages]));
     } catch (e: any) {
-      setPdfErr(e?.message || "Impossibile aprire il PDF");
-    } finally { setPdfBusy(false); pdfLoadingRef.current = false; }
+      if (run === pdfRunRef.current && start === 0) setPdfErr(e?.message || "Impossibile aprire il PDF");
+    } finally { if (run === pdfRunRef.current) setPdfBusy(false); pdfLoadingRef.current = false; }
+  };
+  const loadAllProgressively = async () => {
+    const run = pdfRunRef.current;
+    pdfTotalRef.current = 0; pdfLoadedRef.current = 0;
+    await loadPages(0, 1); // prima pagina subito
+    // le altre in background, a blocchi di 3; si ferma se una richiesta fallisce (lo scroll ritenterà via onLoadMore)
+    while (run === pdfRunRef.current && pdfTotalRef.current > 0 && pdfLoadedRef.current < pdfTotalRef.current) {
+      const before = pdfLoadedRef.current;
+      await loadPages(before, 3);
+      if (pdfLoadedRef.current <= before) return;
+    }
   };
   // V50.z283 — pagine ad alta risoluzione (200 dpi) per lo zoom: testo piccolo leggibile
   const fetchHiRes = useCallback(async (start: number, count: number) => {
@@ -144,10 +167,12 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
     return r.pages;
   }, [dataBase64]);
   useEffect(() => {
-    if (Platform.OS === "web" || !visible || !isPdf) return;
+    if (Platform.OS === "web" || !visible || !isPdf) { pdfRunRef.current++; return; }
+    pdfRunRef.current++;
     setPdfPages([]); setPdfTotal(0);
     if (!dataBase64) { setPdfErr("Documento vuoto: il PDF non contiene dati."); return; }
-    void loadPages(0);
+    void loadAllProgressively();
+    return () => { pdfRunRef.current++; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, isPdf, dataBase64]);
 
@@ -240,7 +265,7 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
               <View style={styles.loading} testID="fileviewer-pdf-error">
                 <Ionicons name="alert-circle" size={40} color="#FCA5A5" />
                 <Text style={styles.loadingTxt}>{pdfErr}</Text>
-                <Pressable onPress={() => loadPages(0)} style={styles.retryBtn} testID="fileviewer-pdf-retry"><Text style={styles.retryTxt}>Riprova</Text></Pressable>
+                <Pressable onPress={() => void loadAllProgressively()} style={styles.retryBtn} testID="fileviewer-pdf-retry"><Text style={styles.retryTxt}>Riprova</Text></Pressable>
               </View>
             ) : (
               <PdfPagesZoom
@@ -249,7 +274,7 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
                 busy={pdfBusy}
                 winW={winW}
                 winH={winH}
-                onLoadMore={() => void loadPages(pdfPages.length)}
+                onLoadMore={() => void loadPages(pdfPages.length, 3)}
                 fetchHiRes={fetchHiRes}
               />
             )

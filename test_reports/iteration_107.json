@@ -1,0 +1,30 @@
+{
+  "summary": "V50.z342 backend testing complete. 9/9 pytest passing: (A) Weather forecast returns 7 days + cached:true on 2nd call + Mongo `weather_forecast_cache` entry with key '45.4,11.9'; /weather/alerts returns weather. (B) Scanner /process-page returns JPEG ≤500KB with non-empty OCR text/lines/conf. /scanner/merge-pdf con 9 pagine already_processed produce PDF ≤5MB in <15s, page_count=9, ogni pagina ha 2 immagini (contenuto + watermark AdvisorOS), testo estraibile via pymupdf, text_hash presente. Merge con pagine RAW (already_processed=false) funziona e mantiene il watermark. (C) /files/pdf-pages progressivo: start=0/max=1→1 pagina, start=1/max=3→3 pagine, start=7/max=3→2 pagine, total=9. (D) Regressione autocrop-preview e detect-corners → 200. Frontend smoke: /scanner monta DocumentScannerModal con tutti i testID richiesti (scanner-close, scanner-save, scanner-live, scanner-camera, scanner-gallery, scanner-pdf, tg-autocrop, tg-enhance, tg-bw, scanner-name) senza crash. Pagina /meteo carica con input di ricerca (placeholder 'es. Milano, Roma, Cortina d'Ampezzo') e non crasha. Login via UI in Playwright non innesca onPress del pulsante 'Accedi' (limitazione Playwright↔RN-web nota, non un bug: POST /api/auth/login diretto restituisce 200 con `token`), quindi non è stato possibile verificare visivamente meteo-hero autenticato — ma il backend è pienamente verificato lato API.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z342_scanner_weather.py",
+    "/app/test_reports/pytest/v50z342_scanner_weather.xml"
+  ],
+  "action_items": [
+    "OPZIONALE: aggiungere testID={'meteo-search-input'} su TextInput in app/meteo.tsx e testID={'meteo-search-submit'} sul pulsante di ricerca — ora identificati solo via placeholder e non c'è un data-testid per l'hero prima della ricerca (già presente 'meteo-hero' dopo la ricerca)."
+  ],
+  "critical_code_review_comments": [
+    "workers/heavy_ops.py: process_page + merge_pdf ben implementati; pipeline consistente (compressione a 500KB in process_page e ri-compressione in _pdf_with_text_layer). Watermark PNG cachato via _WATERMARK_CACHE, dimensione 16% larghezza pagina, alpha 35%.",
+    "routes/26_scanner.py: process-page usa `ocr=body.ocr` (default True) coerente. ScannerPageIn accetta already_processed + ocr precalcolato, correttamente inoltrato al worker in merge-pdf.",
+    "routes/07_contacts.py weather_forecast: cache key con round(lat,2)/round(lon,2) → collisione se due località a <1.1km, accettabile per meteo. Retry 429 (in _openmeteo_get) e fallback stale (dato scaduto) sono presenti."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z342_scanner_weather.py (created)"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "smoke: scanner OK; meteo autenticato non verificabile via Playwright"},
+  "seed_data_creation": "Nessun seed permanente. Cache weather 45.4,11.9 creata (TTL 30 min, auto-scade).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login via UI su Playwright: il pulsante 'Accedi' (l'ultimo elemento con testo 'Accedi', bounding box y=399) non innesca onPress con page.click(..., force=True) né con Enter dopo aver riempito la password. La POST /api/auth/login diretta funziona. Se serve testare pagine autenticate, iniettare il token con la chiave corretta di SecureStore/AsyncStorage (verificare come /app/frontend/src/auth.tsx salva `token` — probabilmente 'axon:token' o simile). Per il resto dei test backend V50.z342, riusare /app/backend/tests/test_v50z342_scanner_weather.py."
+}

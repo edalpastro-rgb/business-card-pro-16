@@ -650,14 +650,26 @@ class WeatherAlertsIn(BaseModel):
     address: Optional[str] = None
 
 
+async def _openmeteo_get(client, params: Dict[str, Any], timeout_label: str):
+    """V50.z337 — GET Open-Meteo con 1 retry automatico (backoff 5 s) in caso di HTTP 429 (troppe richieste)."""
+    r = await client.get(_OPEN_METEO_URL, params=params)
+    if r.status_code == 429:
+        logger.warning("open-meteo 429 (%s): retry in 5s", timeout_label)
+        await _asyncio.sleep(5)
+        r = await client.get(_OPEN_METEO_URL, params=params)
+    return r
+
+
 async def _fetch_openmeteo_daily(lat: float, lon: float, date_iso: Optional[str]) -> Optional[Dict[str, Any]]:
-    """Cache 1h. Ritorna {weather_code, temp_min, temp_max, temp, icon_key, label} per la data."""
+    """Cache 1h. Ritorna {weather_code, temp_min, temp_max, temp, icon_key, label} per la data.
+    V50.z337 — retry su 429 + se la chiamata fallisce si restituisce comunque il dato in cache anche se scaduto."""
     d = date_iso or utcnow().strftime("%Y-%m-%d")
     cache_key = f"{round(lat,3)},{round(lon,3)}|{d}"
     try:
         cached = await db.weather_cache.find_one({"key": cache_key}, {"_id": 0})
     except Exception:
         cached = None
+    stale_data = cached.get("data") if cached else None
     if cached and isinstance(cached.get("cached_at"), datetime):
         ca = cached["cached_at"]
         if ca.tzinfo is None:
@@ -666,15 +678,15 @@ async def _fetch_openmeteo_daily(lat: float, lon: float, date_iso: Optional[str]
             return cached.get("data")
     try:
         async with _httpx.AsyncClient(timeout=8.0) as client:
-            r = await client.get(_OPEN_METEO_URL, params={
+            r = await _openmeteo_get(client, {
                 "latitude": lat, "longitude": lon,
                 "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max",
                 "start_date": d, "end_date": d,
                 "timezone": "auto",
-            })
+            }, "daily")
             if r.status_code != 200:
                 logger.warning("open-meteo daily HTTP %s for %s,%s %s", r.status_code, lat, lon, d)
-                return None
+                return stale_data
             j = r.json() or {}
             daily = j.get("daily") or {}
             times = daily.get("time") or []
@@ -708,7 +720,7 @@ async def _fetch_openmeteo_daily(lat: float, lon: float, date_iso: Optional[str]
         # V50.z119 — Log esplicito: in produzione un "Meteo non disponibile" dipende
         # quasi sempre da timeout/blocco verso api.open-meteo.com → visibile nei log backend.
         logger.warning("open-meteo daily fetch failed (%s,%s %s): %s", lat, lon, d, e)
-        return None
+        return stale_data
 
 
 @api_router.post("/weather/forecast-batch")
@@ -806,20 +818,40 @@ async def weather_forecast(body: WeatherAlertsIn, user=Depends(get_current_user)
             # V50.z151 — se un indirizzo c'era ma il geocoding è fallito, segnalalo al client
             return {"days": [], "place": None, "needs_address": True,
                     "address_error": (candidates[0] if candidates else None)}
+    # V50.z337 — Cache 30 min per località (weather_forecast_cache): niente chiamate a Open-Meteo se il dato è fresco;
+    # retry con backoff 5 s su HTTP 429; se la chiamata fallisce ma esiste un dato scaduto → lo restituiamo con stale=true.
+    fc_key = f"{round(lat, 2)},{round(lon, 2)}"
+    try:
+        fc_cached = await db.weather_forecast_cache.find_one({"key": fc_key}, {"_id": 0})
+    except Exception:
+        fc_cached = None
+    fc_stale: Optional[Dict[str, Any]] = None
+    if fc_cached and isinstance(fc_cached.get("cached_at"), datetime) and isinstance(fc_cached.get("data"), dict):
+        ca = fc_cached["cached_at"]
+        if ca.tzinfo is None:
+            ca = ca.replace(tzinfo=timezone.utc)
+        age = (utcnow() - ca).total_seconds()
+        fc_stale = {**fc_cached["data"], "place": place, "cached_at": ca.isoformat()}
+        if age < 30 * 60:
+            return {**fc_stale, "cached": True}
     try:
         import httpx as _httpx
         async with _httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.get(_OPEN_METEO_URL, params={
+            r = await _openmeteo_get(client, {
                 "latitude": lat, "longitude": lon,
                 "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset,uv_index_max",
                 "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
                 "forecast_days": 7, "timezone": "auto",
-            })
+            }, "forecast")
             if r.status_code != 200:
+                if fc_stale:
+                    return {**fc_stale, "stale": True}
                 return {"days": [], "place": place, "error": f"Open-Meteo HTTP {r.status_code}"}
             j = r.json()
     except Exception as e:
         logger.warning("weather forecast failed: %s", e)
+        if fc_stale:
+            return {**fc_stale, "stale": True}
         return {"days": [], "place": place, "error": "Servizio meteo non raggiungibile"}
     d = j.get("daily") or {}
     days = []
@@ -845,7 +877,12 @@ async def weather_forecast(body: WeatherAlertsIn, user=Depends(get_current_user)
         "humidity": cur.get("relative_humidity_2m"), "wind_kmh": cur.get("wind_speed_10m"),
         "icon_key": cmeta["key"], "label": cmeta["label"],
     } if cur else None
-    return {"days": days, "current": current, "place": place, "location": {"lat": lat, "lon": lon}}
+    out = {"days": days, "current": current, "location": {"lat": lat, "lon": lon}}
+    try:
+        await db.weather_forecast_cache.update_one({"key": fc_key}, {"$set": {"key": fc_key, "data": out, "cached_at": utcnow()}}, upsert=True)
+    except Exception:
+        pass
+    return {**out, "place": place}
 
 
 

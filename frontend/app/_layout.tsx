@@ -17,6 +17,12 @@ import { AssistantFAB } from "@/src/AssistantFAB";
 import { ViolaWakeProvider } from "@/src/violawake/ViolaWakeProvider"; // V50.z315 — ViolaWake (wake-word «Viola»)
 import { ViolaStatusPill } from "@/src/violawake/ViolaStatusPill";
 import { ActivationOverlay } from "@/src/activation/ActivationOverlay"; // V50.z318 — onda di energia + trova il telefono
+import { startScannerResumeWatcher } from "@/src/scannerOffline"; // V50.z337 — scanner: ripresa automatica del PDF al ritorno della rete
+
+function ScannerResumeBridge({ enabled }: { enabled: boolean }) {
+  useEffect(() => { if (!enabled) return; return startScannerResumeWatcher(); }, [enabled]);
+  return null;
+}
 import * as Linking from "expo-linking";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
@@ -231,6 +237,7 @@ function StackWithCallBar() {
       <PushBridgeSync userId={user?.user_id} />
       {/* V50.z200 — Heartbeat versione app → Axon rileva da solo gli aggiornamenti (APK/IPA) */}
       <SystemHeartbeat userId={user?.user_id} />
+      <ScannerResumeBridge enabled={!!user?.user_id} />
       {inTour ? null : <AssistantFAB />}
       {/* V50.z315 — ViolaWake: pill di stato («Viola in ascolto» / trascrizione / risposta) */}
       {user && !inTour ? <ViolaStatusPill /> : null}

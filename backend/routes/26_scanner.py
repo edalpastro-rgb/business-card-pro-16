@@ -8,6 +8,9 @@ class ScannerPageIn(BaseModel):
     mime: str  # image/jpeg | image/png | application/pdf
     # Pagina già ritagliata dall'utente (manuale) o dall'autocrop live: salta l'autocrop server.
     already_cropped: bool = False
+    # V50.z337 — Pagina già elaborata da /scanner/process-page (crop+enhance+compressione+OCR): usata così com'è.
+    already_processed: bool = False
+    ocr: Optional[Dict[str, Any]] = None  # {text, conf, lines} restituito da process-page
 
 
 class ScannerMergeIn(BaseModel):
@@ -81,6 +84,30 @@ async def scanner_detect_corners(body: ScannerCornersIn, user=Depends(get_curren
         return {"detected": False, "corners": None, "sharpness": 0.0}
 
 
+class ScannerProcessPageIn(BaseModel):
+    data_base64: str
+    mime: str = "image/jpeg"
+    enhance: bool = True
+    autocrop: bool = True
+    grayscale: bool = False
+    already_cropped: bool = False
+    ocr: bool = True
+
+
+@api_router.post("/scanner/process-page")
+async def scanner_process_page(body: ScannerProcessPageIn, user=Depends(get_current_user)):
+    """V50.z337 — Elabora UNA pagina in background appena acquisita (crop/enhance + compressione ≤ 500 KB + OCR locale):
+    il PDF finale si assembla in pochi istanti. Risposta: JPEG base64 + ocr {text, conf, lines} da rimandare a merge-pdf
+    con already_processed=true."""
+    raw = _scan_b64(body.data_base64, 20)
+    try:
+        r = await heavy_call("process_page", img=raw, enhance=body.enhance, autocrop=(body.autocrop and not body.already_cropped), grayscale=body.grayscale, ocr=body.ocr, timeout=180)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("process-page failed: %s", e)
+        raise HTTPException(status_code=500, detail="Elaborazione pagina fallita")
+    return {"data_base64": base64.b64encode(r["jpeg"]).decode("ascii"), "mime": "image/jpeg", "width": r["width"], "height": r["height"], "size": len(r["jpeg"]), "ocr": r.get("ocr")}
+
+
 @api_router.post("/scanner/autocrop-preview")
 async def scanner_autocrop_preview(body: ScannerPreviewIn, user=Depends(get_current_user)):
     """Anteprima: autocrop (solo se il documento è rilevato) + enhance/grayscale → JPEG base64 + detected + sharpness. V50.z210: nel worker."""
@@ -107,7 +134,7 @@ async def scanner_merge_pdf(body: ScannerMergeIn, user=Depends(get_current_user)
             raw = base64.b64decode(pg.data_base64.split(",")[-1] if pg.data_base64.startswith("data:") else pg.data_base64)
         except Exception:
             raise HTTPException(status_code=400, detail=f"Pagina {i + 1}: base64 non valido")
-        pages.append({"data": raw, "mime": (pg.mime or "").lower(), "already_cropped": bool(pg.already_cropped)})
+        pages.append({"data": raw, "mime": (pg.mime or "").lower(), "already_cropped": bool(pg.already_cropped), "already_processed": bool(pg.already_processed), "ocr": pg.ocr if pg.already_processed else None})
     try:
         r = await heavy_call("merge_pdf", pages=pages, enhance=body.enhance, autocrop=body.autocrop, grayscale=body.grayscale, ocr=body.ocr, timeout=300)
     except HeavyWorkerError as e:

@@ -557,17 +557,110 @@ def ocr_images(images: List[Image.Image], lang: str = "ita+eng", detect_orientat
     return {"available": True, "texts": texts, "confs": confs, "rotations": rotations, "lines": lines_all}
 
 
+# V50.z337 — Compressione pagine scanner: max 500 KB/pagina (9 pagine ≤ 5 MB), lato lungo ≤ 2000 px.
+PAGE_MAX_BYTES = 500 * 1024
+PAGE_MAX_SIDE = 2000
+
+
+def _compress_jpeg(img: Image.Image, max_bytes: int = PAGE_MAX_BYTES, max_side: int = PAGE_MAX_SIDE) -> bytes:
+    """Ridimensiona (lato lungo ≤ max_side) e abbassa progressivamente la qualità JPEG finché il peso ≤ max_bytes."""
+    im = img.convert("RGB")
+    w, h = im.size
+    if max(w, h) > max_side:
+        s = max_side / float(max(w, h))
+        im = im.resize((max(1, int(w * s)), max(1, int(h * s))), Image.LANCZOS)
+    out = b""
+    for q in (85, 78, 70, 62, 55, 48, 40):
+        b = io.BytesIO(); im.save(b, format="JPEG", quality=q, optimize=True, progressive=True)
+        out = b.getvalue()
+        if len(out) <= max_bytes:
+            return out
+    # ancora troppo pesante: riduci la risoluzione e riprova con qualità media
+    while len(out) > max_bytes and max(im.size) > 900:
+        im = im.resize((int(im.size[0] * 0.85), int(im.size[1] * 0.85)), Image.LANCZOS)
+        b = io.BytesIO(); im.save(b, format="JPEG", quality=60, optimize=True, progressive=True)
+        out = b.getvalue()
+    return out
+
+
+_WATERMARK_CACHE: Dict[str, Optional[bytes]] = {}
+
+
+def _watermark_png() -> Optional[bytes]:
+    """V50.z337 — Logo AdvisorOS semitrasparente (alpha ≈ 35%) per il watermark in alto a destra di ogni pagina PDF."""
+    if "png" in _WATERMARK_CACHE:
+        return _WATERMARK_CACHE["png"]
+    png: Optional[bytes] = None
+    try:
+        p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "advisoros-logo.png")
+        logo = Image.open(p).convert("RGBA")
+        if logo.width > 600:
+            logo = logo.resize((600, max(1, int(logo.height * 600 / logo.width))), Image.LANCZOS)
+        r, g, b, a = logo.split()
+        a = a.point(lambda v: int(v * 0.35))
+        logo = Image.merge("RGBA", (r, g, b, a))
+        buf = io.BytesIO(); logo.save(buf, format="PNG"); png = buf.getvalue()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("watermark logo unavailable: %s", exc)
+    _WATERMARK_CACHE["png"] = png
+    return png
+
+
+def _stamp_watermark(page, fitz) -> None:
+    png = _watermark_png()
+    if not png:
+        return
+    try:
+        pw = page.rect.width
+        wm_w = max(40.0, pw * 0.16)  # ~16% della larghezza pagina
+        wm_h = wm_w * 358.0 / 1656.0
+        m = max(8.0, pw * 0.02)
+        rect = fitz.Rect(pw - m - wm_w, m, pw - m, m + wm_h)
+        page.insert_image(rect, stream=png, overlay=True, keep_proportion=True)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("watermark stamp failed: %s", exc)
+
+
+def process_page(img: bytes, enhance: bool = True, autocrop: bool = True, grayscale: bool = False, ocr: bool = True) -> Dict[str, Any]:
+    """V50.z337 — Elabora UNA pagina (crop/enhance + compressione ≤ 500 KB + OCR locale) appena acquisita: il PDF finale si
+    assembla in pochi istanti perché il lavoro pesante è già stato fatto pagina per pagina in background."""
+    try:
+        out = _cv2_scan_document(img, enhance=enhance, autocrop=autocrop, grayscale=grayscale)
+        pil = Image.open(io.BytesIO(out)).convert("RGB")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("process_page scan fail: %s", exc)
+        pil = ImageOps.exif_transpose(Image.open(io.BytesIO(img))).convert("RGB")
+    jpeg = _compress_jpeg(pil)
+    final = Image.open(io.BytesIO(jpeg)).convert("RGB")
+    res: Dict[str, Any] = {"jpeg": jpeg, "width": final.size[0], "height": final.size[1], "ocr": None}
+    if ocr:
+        try:
+            o = ocr_images([final])
+            if o.get("available"):
+                rot = o["rotations"][0]; ln = o["lines"][0]
+                if rot:
+                    final = final.rotate(rot, expand=True)
+                    W, H = final.size
+                    ln = [{"text": l["text"], "box": [W - l["box"][2], H - l["box"][3], W - l["box"][0], H - l["box"][1]]} for l in ln] if rot == 180 else ln
+                    res["jpeg"] = _compress_jpeg(final); res["width"], res["height"] = final.size
+                res["ocr"] = {"text": o["texts"][0], "conf": (o["confs"] or [0.0])[0], "lines": ln}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("process_page ocr fail: %s", exc)
+    return res
+
+
 def _pdf_with_text_layer(images: List[Image.Image], lines_per_page: List[List[dict]], dpi: float = 150.0) -> bytes:
     """V50.z250 — PDF «ricercabile»: ogni pagina = immagine + livello di testo OCR INVISIBILE (PyMuPDF, render_mode=3)
-    posizionato sulle righe rilevate da Tesseract → pypdf/PyMuPDF estraggono il testo (analisi bolletta, ricerca)."""
+    posizionato sulle righe rilevate da Tesseract → pypdf/PyMuPDF estraggono il testo (analisi bolletta, ricerca).
+    V50.z337 — immagini compresse (≤ 500 KB/pagina) + watermark logo AdvisorOS in alto a destra."""
     import pymupdf as fitz  # PyMuPDF
     doc = fitz.open()
     for i, img in enumerate(images):
         w_px, h_px = img.size
         w_pt, h_pt = w_px * 72.0 / dpi, h_px * 72.0 / dpi
         page = doc.new_page(width=w_pt, height=h_pt)
-        jb = io.BytesIO(); img.save(jb, format="JPEG", quality=88)
-        page.insert_image(page.rect, stream=jb.getvalue())
+        page.insert_image(page.rect, stream=_compress_jpeg(img))
+        _stamp_watermark(page, fitz)
         k = 72.0 / dpi
         for ln in (lines_per_page[i] if i < len(lines_per_page) else []):
             x0, y0, x1, y1 = ln["box"]
@@ -594,6 +687,7 @@ def merge_pdf(pages: List[Dict[str, Any]], enhance: bool = True, autocrop: bool 
     V50.z246: OCR Tesseract locale su ogni pagina (testo ricercabile + hash per i duplicati) e auto-raddrizzamento (OSD)."""
     import pymupdf as fitz  # PyMuPDF (il vecchio alias `fitz` stampa un warning su stdout e corromperebbe il protocollo JSON)
     images: List[Image.Image] = []
+    pre: List[Optional[Dict[str, Any]]] = []  # V50.z337 — OCR già calcolato in background da process_page (per immagine)
     for i, pg in enumerate(pages):
         raw = pg["data"]; mime = (pg.get("mime") or "").lower()
         if mime == "application/pdf":
@@ -601,18 +695,26 @@ def merge_pdf(pages: List[Dict[str, Any]], enhance: bool = True, autocrop: bool 
                 doc = fitz.open(stream=raw, filetype="pdf")
                 for pn in range(doc.page_count):
                     pix = doc.load_page(pn).get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
-                    images.append(Image.frombytes("RGB", (pix.width, pix.height), pix.samples))
+                    images.append(Image.frombytes("RGB", (pix.width, pix.height), pix.samples)); pre.append(None)
                 doc.close()
             except Exception as exc:  # noqa: BLE001
                 raise ValueError(f"Pagina {i + 1}: PDF non valido ({exc})")
+        elif pg.get("already_processed"):
+            # V50.z337 — pagina già elaborata (crop/enhance/compressione + OCR) da /scanner/process-page in background
+            try:
+                images.append(Image.open(io.BytesIO(raw)).convert("RGB"))
+                o = pg.get("ocr")
+                pre.append(o if isinstance(o, dict) and isinstance(o.get("lines"), list) else None)
+            except Exception:
+                raise ValueError(f"Pagina {i + 1}: immagine non valida")
         else:
             try:
                 out = _cv2_scan_document(raw, enhance=enhance, autocrop=(autocrop and not pg.get("already_cropped")), grayscale=grayscale)
-                images.append(Image.open(io.BytesIO(out)).convert("RGB"))
+                images.append(Image.open(io.BytesIO(out)).convert("RGB")); pre.append(None)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("scan image fail: %s", exc)
                 try:
-                    images.append(Image.open(io.BytesIO(raw)).convert("RGB"))
+                    images.append(Image.open(io.BytesIO(raw)).convert("RGB")); pre.append(None)
                 except Exception:
                     raise ValueError(f"Pagina {i + 1}: immagine non valida")
     if not images:
@@ -620,28 +722,36 @@ def merge_pdf(pages: List[Dict[str, Any]], enhance: bool = True, autocrop: bool 
     ocr_text = ""; ocr_conf = None; lines: List[List[dict]] = []
     if ocr:
         try:
-            o = ocr_images(images)
-            if o.get("available"):
-                for i, rot in enumerate(o["rotations"]):
-                    if rot:
-                        images[i] = images[i].rotate(rot, expand=True)
-                        # box calcolati sull'immagine ruotata: ruota anche le coordinate (180° → specchia)
-                        W, H = images[i].size
-                        o["lines"][i] = [{"text": l["text"], "box": [W - l["box"][2], H - l["box"][3], W - l["box"][0], H - l["box"][1]]} for l in o["lines"][i]] if rot == 180 else o["lines"][i]
-                ocr_text = "\f".join(o["texts"]).strip()
-                good = [c for c in o["confs"] if c > 0]
-                ocr_conf = round(sum(good) / len(good), 1) if good else None
-                lines = o.get("lines") or []
+            texts: List[str] = [(p.get("text") or "") if p else "" for p in pre]
+            confs: List[float] = [float(p.get("conf") or 0.0) for p in pre if p]
+            lines = [(p.get("lines") or []) if p else [] for p in pre]
+            need = [i for i, p in enumerate(pre) if p is None]
+            if need:
+                o = ocr_images([images[i] for i in need])
+                if o.get("available"):
+                    for k, i in enumerate(need):
+                        rot = o["rotations"][k]; ln = o["lines"][k]
+                        if rot:
+                            images[i] = images[i].rotate(rot, expand=True)
+                            # box calcolati sull'immagine ruotata: ruota anche le coordinate (180° → specchia)
+                            W, H = images[i].size
+                            ln = [{"text": l["text"], "box": [W - l["box"][2], H - l["box"][3], W - l["box"][0], H - l["box"][1]]} for l in ln] if rot == 180 else ln
+                        texts[i] = o["texts"][k]; lines[i] = ln
+                    confs += [c for c in o["confs"] if c > 0]
+            ocr_text = "\f".join(texts).strip()
+            good = [c for c in confs if c > 0]
+            ocr_conf = round(sum(good) / len(good), 1) if good else None
         except Exception as exc:  # noqa: BLE001
             logger.warning("ocr failed: %s", exc)
     # V50.z250 — PDF con livello testo invisibile (prima: PIL sola immagine → analisi bolletta «PDF vuoto»)
-    if ocr_text:
-        try:
-            return {"pdf": _pdf_with_text_layer(images, lines), "page_count": len(images), "ocr_text": ocr_text, "ocr_conf": ocr_conf, "text_layer": True}
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("text layer failed, fallback PIL: %s", exc)
+    # V50.z337 — anche senza OCR il PDF passa da PyMuPDF (compressione ≤ 500 KB/pagina + watermark logo)
+    try:
+        return {"pdf": _pdf_with_text_layer(images, lines if ocr_text else []), "page_count": len(images), "ocr_text": ocr_text, "ocr_conf": ocr_conf, "text_layer": bool(ocr_text)}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("text layer failed, fallback PIL: %s", exc)
     buf = io.BytesIO()
-    images[0].save(buf, format="PDF", save_all=True, append_images=images[1:], resolution=150.0)
+    small = [Image.open(io.BytesIO(_compress_jpeg(im))).convert("RGB") for im in images]
+    small[0].save(buf, format="PDF", save_all=True, append_images=small[1:], resolution=150.0)
     return {"pdf": buf.getvalue(), "page_count": len(images), "ocr_text": ocr_text, "ocr_conf": ocr_conf, "text_layer": False}
 
 
@@ -784,6 +894,7 @@ def pdf_cover(data: bytes) -> Dict[str, Any]:
 
 OPS = {
     "scan_document": scan_document, "manual_crop": manual_crop, "detect_corners": detect_corners, "autocrop_preview": autocrop_preview, "merge_pdf": merge_pdf,
+    "process_page": process_page,
     "pdf_ocr": pdf_ocr, "pdf_render": pdf_render,
     "ocr_images": lambda images, **kw: ocr_images([Image.open(io.BytesIO(b)).convert("RGB") for b in images], **kw),
     "pdf_text": pdf_text, "pdf_page_count": pdf_page_count, "pdf_render_pages": pdf_render_pages, "pdf_tables_text": pdf_tables_text, "pdf_cover": pdf_cover,

@@ -183,7 +183,7 @@ export function PdfPagesZoom({ pages, total, busy, winW, winH, onLoadMore, fetch
                 </ScrollView>
               </GestureDetector>
               {busy ? (
-                <View style={styles.loading}><ActivityIndicator size="large" color="#FFF" /><Text style={styles.loadingTxt}>Preparazione pagine…</Text></View>
+                <View style={styles.loading}><ActivityIndicator size={pages.length ? "small" : "large"} color="#FFF" /><Text style={styles.loadingTxt}>{pages.length && total ? `Carico pagina ${Math.min(total, pages.length + 1)} di ${total}…` : "Apro il documento…"}</Text></View>
               ) : null}
             </ScrollView>
           </GestureDetector>

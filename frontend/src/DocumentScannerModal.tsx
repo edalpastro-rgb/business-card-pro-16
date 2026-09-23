@@ -8,6 +8,8 @@ import { notify } from "@/src/utils/notify";
 import { LiveCameraScanner, type LiveScannedPage } from "@/src/LiveCameraScanner";
 import { isNativeScannerAvailable, scanWithNativeScanner } from "@/src/NativeDocScanner"; // V50.z246 — scanner di sistema (VisionKit / ML Kit)
 import { ManualCropEditor } from "@/src/ManualCropEditor";
+import { ScanPagesPreview } from "@/src/ScanPagesPreview"; // V50.z337 — anteprima piena schermata + «Scarta e rifai»
+import { savePendingScan, isNetworkError, type PendingScanJob } from "@/src/scannerOffline"; // V50.z337 — ripresa automatica offline
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
@@ -30,7 +32,15 @@ import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
  *   - Backend does auto-crop (OpenCV Canny + 4-point warp), CLAHE contrast,
  *     unsharp mask, optional grayscale, and merges into a single PDF.
  */
-export type ScannedPage = { data_base64: string; mime: string; preview_uri: string; original_base64?: string; manual_crop?: boolean; auto_cropped?: boolean };
+export type ScannedPage = {
+  id: string;
+  data_base64: string; mime: string; preview_uri: string; original_base64?: string; manual_crop?: boolean; auto_cropped?: boolean;
+  /** V50.z337 — risultato di /scanner/process-page (crop+enhance+compressione ≤500 KB+OCR) calcolato in background */
+  processed_base64?: string; processed_ocr?: any | null; processed_key?: string;
+};
+
+let _pageSeq = 0;
+export const newPageId = () => `pg_${Date.now().toString(36)}_${(_pageSeq++).toString(36)}`;
 
 type Props = {
   visible: boolean;
@@ -78,7 +88,44 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
   const [savingLbl, setSavingLbl] = useState<string>("");
   const [liveScanOpen, setLiveScanOpen] = useState<false | "multi" | "single">(false); // Bug 11 — modalità continua / V50.z139 foto singola
   const [cropIdx, setCropIdx] = useState<number | null>(null); // ritaglio manuale pagina
+  const [previewIdx, setPreviewIdx] = useState<number | null>(null); // V50.z337 — anteprima piena schermata
+  const retakeIdxRef = useRef<number | null>(null); // V50.z337 — posizione in cui reinserire la pagina rifatta
+  const [progress, setProgress] = useState<number | null>(null); // V50.z337 — 0..1 durante la generazione del PDF
   const nameSyncedFor = useRef<string | null>(null);
+
+  // V50.z337 — ELABORAZIONE IN BACKGROUND, una pagina alla volta: appena una pagina entra nella lista viene
+  // inviata a /scanner/process-page (crop + enhance + compressione ≤ 500 KB + OCR). Al «Salva» resta solo
+  // l'assemblaggio del PDF (≈1 s). Se cambiano i toggle, le pagine vengono rielaborate con le nuove opzioni.
+  const optsKey = `${autocrop ? 1 : 0}${enhance ? 1 : 0}${grayscale ? 1 : 0}`;
+  const processingRef = useRef(false);
+  const aliveRef = useRef(true);
+  const pagesRefForSave = useRef<ScannedPage[]>(pages);
+  pagesRefForSave.current = pages;
+  useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
+  const processedCount = pages.filter((p) => !p.mime.startsWith("image/") || p.processed_key === optsKey).length;
+  useEffect(() => {
+    if (!visible || processingRef.current) return;
+    const next = pages.find((p) => p.mime.startsWith("image/") && p.processed_key !== optsKey);
+    if (!next) return;
+    processingRef.current = true;
+    const id = next.id;
+    const key = optsKey;
+    (async () => {
+      try {
+        const r = await api<{ data_base64: string; mime: string; ocr: any | null }>("/scanner/process-page", {
+          method: "POST",
+          body: { data_base64: next.data_base64, mime: next.mime, enhance, autocrop, grayscale, already_cropped: !!(next.manual_crop || next.auto_cropped), ocr: true },
+        });
+        if (aliveRef.current) setPages((prev) => prev.map((p) => (p.id === id ? { ...p, processed_base64: r.data_base64, processed_ocr: r.ocr ?? null, processed_key: key } : p)));
+      } catch {
+        // pagina non elaborabile in background (rete/errore): verrà elaborata dal server al momento del merge
+        if (aliveRef.current) setPages((prev) => prev.map((p) => (p.id === id ? { ...p, processed_key: key, processed_base64: undefined, processed_ocr: null } : p)));
+      } finally {
+        processingRef.current = false;
+        // il setPages sopra fa ripartire l'effetto → pagina successiva
+      }
+    })();
+  }, [visible, pages, optsKey, enhance, autocrop, grayscale]);
 
   useEffect(() => {
     if (visible) {
@@ -98,15 +145,25 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
   // hardware, ritaglio + raddrizzamento istantanei. Disponibile solo nella build nativa; in Expo Go/web resta LiveCameraScanner.
   const nativeScanner = isNativeScannerAvailable();
   const [nativeBusy, setNativeBusy] = useState(false);
+  // V50.z337 — Inserisce le pagine acquisite: in coda, oppure nella posizione della pagina «scartata e rifatta».
+  const insertPages = useCallback((additions: ScannedPage[]) => {
+    const at = retakeIdxRef.current;
+    retakeIdxRef.current = null;
+    setPages((prev) => {
+      if (at == null || at < 0 || at > prev.length) return [...prev, ...additions];
+      const q = [...prev]; q.splice(at, 0, ...additions); return q;
+    });
+  }, []);
+
   const openNativeScanner = useCallback(async (mode: "multi" | "single") => {
     setNativeBusy(true);
     try {
       const got = await scanWithNativeScanner(mode === "single" ? 1 : undefined);
-      if (!got.length) return;
+      if (!got.length) { retakeIdxRef.current = null; return; }
       const additions: ScannedPage[] = got.map((p) => ({
-        data_base64: p.data_base64, mime: p.mime, preview_uri: `data:${p.mime};base64,${p.data_base64}`, auto_cropped: true,
+        id: newPageId(), data_base64: p.data_base64, mime: p.mime, preview_uri: `data:${p.mime};base64,${p.data_base64}`, auto_cropped: true,
       }));
-      setPages((prev) => [...prev, ...additions]);
+      insertPages(additions);
     } catch (e: any) {
       // Fallback: fotocamera in-app con autocrop server
       notify("Scanner di sistema non disponibile", e?.message || "Uso la fotocamera in-app.");
@@ -114,7 +171,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
     } finally {
       setNativeBusy(false);
     }
-  }, []);
+  }, [insertPages]);
 
   const addFromCamera = useCallback(() => {
     // V50.z139 — "Foto singola" usa la fotocamera in-app (expo-camera CameraView): autofocus
@@ -144,6 +201,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
       const additions: ScannedPage[] = res.assets
         .filter((a) => !!a.base64)
         .map((a) => ({
+          id: newPageId(),
           data_base64: a.base64!,
           mime: a.mimeType || "image/jpeg",
           preview_uri: a.uri || `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`,
@@ -186,6 +244,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
           }
           if (b64) {
             additions.push({
+              id: newPageId(),
               data_base64: b64,
               mime: a.mimeType || (a.name?.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg"),
               preview_uri: a.mimeType === "application/pdf" || (a.name || "").toLowerCase().endsWith(".pdf")
@@ -215,10 +274,12 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
   // preview when possible), so we can drop it into `pages` directly.
   const onLiveScanDone = useCallback((livePages: LiveScannedPage[]) => {
     if (!livePages?.length) {
+      retakeIdxRef.current = null;
       setLiveScanOpen(false);
       return;
     }
     const additions: ScannedPage[] = livePages.map((p) => ({
+      id: newPageId(),
       data_base64: p.data_base64,
       mime: p.mime || "image/jpeg",
       preview_uri: p.preview_uri || `data:${p.mime || "image/jpeg"};base64,${p.data_base64}`,
@@ -226,23 +287,51 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
       manual_crop: p.manual,
       auto_cropped: p.cropped && !p.manual,
     }));
-    setPages((prev) => [...prev, ...additions]);
+    insertPages(additions);
     setLiveScanOpen(false);
+  }, [insertPages]);
+
+  // V50.z337 — «Scarta e rifai» dall'anteprima: elimina la pagina e riapre la fotocamera (foto singola);
+  // la nuova pagina viene reinserita nella stessa posizione dell'ordine.
+  const retakePage = useCallback((idx: number) => {
+    setPreviewIdx(null);
+    setPages((p) => p.filter((_, i) => i !== idx));
+    retakeIdxRef.current = idx;
+    if (nativeScanner) { void openNativeScanner("single"); return; }
+    setLiveScanOpen("single");
+  }, [nativeScanner, openNativeScanner]);
+
+  const deleteFromPreview = useCallback((idx: number) => {
+    setPages((p) => {
+      const q = p.filter((_, i) => i !== idx);
+      setPreviewIdx(q.length ? Math.min(idx, q.length - 1) : null);
+      return q;
+    });
   }, []);
 
   const doSave = async () => {
     if (!pages.length) { notify("Nessuna pagina", "Aggiungi almeno una pagina."); return; }
     const finalName = (name || defaultName || "Scansione").trim() || "Scansione";
+    const jobPages = () => pagesRefForSave.current.map((p) => (p.processed_base64
+      ? { data_base64: p.processed_base64, mime: "image/jpeg", already_cropped: true, already_processed: true, ocr: p.processed_ocr ?? null }
+      : { data_base64: p.data_base64, mime: p.mime, already_cropped: !!(p.manual_crop || p.auto_cropped), already_processed: false, ocr: null }));
     try {
       setBusy(true);
-      setSavingLbl(`Elaborazione ${pages.length} pagine…`);
-      const payload = {
-        pages: pages.map((p) => ({ data_base64: p.data_base64, mime: p.mime, already_cropped: !!(p.manual_crop || p.auto_cropped) })),
-        enhance,
-        autocrop,
-        grayscale,
-        name: finalName,
-      };
+      // V50.z337 — Barra di avanzamento: attende le pagine ancora in elaborazione (una alla volta in background)
+      const total = pages.length;
+      let done = pagesRefForSave.current.filter((p) => !p.mime.startsWith("image/") || p.processed_key === optsKey).length;
+      setProgress(done / (total + 1));
+      setSavingLbl(`Elaboro pagina ${Math.min(total, done + 1)} di ${total}…`);
+      const t0 = Date.now();
+      while (done < total && Date.now() - t0 < 180000) {
+        await new Promise((r) => setTimeout(r, 300));
+        done = pagesRefForSave.current.filter((p) => !p.mime.startsWith("image/") || p.processed_key === optsKey).length;
+        setProgress(done / (total + 1));
+        setSavingLbl(`Elaboro pagina ${Math.min(total, done + 1)} di ${total}…`);
+      }
+      setProgress(total / (total + 1));
+      setSavingLbl("Creo il PDF…");
+      const payload = { pages: jobPages(), enhance, autocrop, grayscale, name: finalName };
       const r = await api<{ pdf_base64: string; name: string; page_count: number; ocr_text?: string; ocr_conf?: number | null; text_hash?: string | null }>("/scanner/merge-pdf", { method: "POST", body: { ...payload, ocr: true } });
       // V50.z226 — Il PDF viene salvato SUBITO, prima di qualsiasi flusso successivo (analisi, allegato…):
       // I miei file › Scanner sempre; se c'è un contatto di origine anche nei file del cliente. Mai perso se l'utente chiude.
@@ -284,10 +373,19 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
       await onSaved({ pdf_base64: r.pdf_base64, name: r.name, page_count: r.page_count, mime: "application/pdf" });
       onClose();
     } catch (e: any) {
+      // V50.z337 — Connessione caduta: salva il lavoro in locale e riprendi automaticamente al ritorno della rete
+      if (isNetworkError(e)) {
+        const job: PendingScanJob = { id: `job_${Date.now().toString(36)}`, created_at: new Date().toISOString(), name: finalName, pages: jobPages(), enhance, autocrop, grayscale, contactId: contactId || null, source: source || null };
+        await savePendingScan(job);
+        notify("Connessione assente 📶", `«${finalName}» è stato salvato sul dispositivo: il PDF verrà creato e archiviato automaticamente appena torna la connessione.`);
+        onClose();
+        return;
+      }
       notify("Errore scansione", e?.message || "");
     } finally {
       setBusy(false);
       setSavingLbl("");
+      setProgress(null);
     }
   };
 
@@ -350,20 +448,27 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
                 <Text style={styles.emptyTxt}>Nessuna pagina · usa Fotocamera / Galleria / PDF</Text>
               </View>
             ) : pages.map((p, i) => (
-              <View key={i} style={styles.pageRow} testID={`scanner-page-${i}`}>
+              <View key={p.id} style={styles.pageRow} testID={`scanner-page-${i}`}>
                 <View style={styles.pageBadge}><Text style={styles.pageBadgeTxt}>{i + 1}</Text></View>
-                {p.preview_uri === "pdf" ? (
-                  <View style={[styles.thumb, styles.thumbPdf]}>
-                    <Ionicons name="document" size={22} color="#DC2626" />
-                    <Text style={styles.thumbPdfTxt}>PDF</Text>
-                  </View>
-                ) : (
-                  <Image source={{ uri: p.preview_uri }} style={styles.thumb} resizeMode="cover" />
-                )}
+                <Pressable onPress={() => setPreviewIdx(i)} testID={`scanner-page-thumb-${i}`} accessibilityLabel={`Anteprima pagina ${i + 1}`}>
+                  {p.preview_uri === "pdf" ? (
+                    <View style={[styles.thumb, styles.thumbPdf]}>
+                      <Ionicons name="document" size={22} color="#DC2626" />
+                      <Text style={styles.thumbPdfTxt}>PDF</Text>
+                    </View>
+                  ) : (
+                    <Image source={{ uri: p.preview_uri }} style={styles.thumb} resizeMode="cover" />
+                  )}
+                </Pressable>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.pageMeta} numberOfLines={1}>
                     {p.mime.startsWith("image/") ? "Immagine" : p.mime === "application/pdf" ? "PDF" : p.mime}
                   </Text>
+                  {p.mime.startsWith("image/") ? (
+                    <Text style={[styles.pageSub, p.processed_key === optsKey && p.processed_base64 ? { color: HT.success } : null]} numberOfLines={1} testID={`scanner-page-state-${i}`}>
+                      {p.processed_key === optsKey ? (p.processed_base64 ? `Pronta · ${Math.round((p.processed_base64.length * 3) / 4 / 1024)} KB` : "Da elaborare al salvataggio") : "Elaborazione in background…"}
+                    </Text>
+                  ) : null}
                 </View>
                 {p.mime.startsWith("image/") && (
                   <Pressable onPress={() => setCropIdx(i)} style={styles.iconBtn} testID={`scanner-page-crop-${i}`}><Ionicons name="crop" size={17} color="#FF6B35" /></Pressable>
@@ -393,6 +498,14 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
           </View>
 
           {/* Footer */}
+          {busy && progress !== null ? (
+            <View style={styles.progressWrap} testID="scanner-progress">
+              <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.round(Math.max(0.04, Math.min(1, progress)) * 100)}%` }]} /></View>
+              <Text style={styles.progressTxt}>{savingLbl || "Elaboro…"} · {Math.round(progress * 100)}%</Text>
+            </View>
+          ) : pages.length > 0 && processedCount < pages.length ? (
+            <Text style={styles.bgHint} testID="scanner-bg-hint">Elaboro in background {processedCount}/{pages.length} pagine · puoi continuare ad acquisire</Text>
+          ) : null}
           <View style={styles.footer}>
             <Pressable onPress={onClose} style={[styles.btn, { backgroundColor: HT.card2 }]}>
               <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
@@ -443,9 +556,20 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
               mime: r.mime,
               preview_uri: r.preview_uri,
               manual_crop: true,
+              processed_key: undefined, processed_base64: undefined, processed_ocr: null, // V50.z337 — rielabora dopo il ritaglio
             } : p)));
             setCropIdx(null);
           }}
+        />
+      )}
+      {/* V50.z337 — Anteprima piena schermata con swipe + «Scarta e rifai» */}
+      {previewIdx !== null && pages.length > 0 && (
+        <ScanPagesPreview
+          pages={pages}
+          index={Math.min(previewIdx, pages.length - 1)}
+          onClose={() => setPreviewIdx(null)}
+          onRetake={retakePage}
+          onDelete={deleteFromPreview}
         />
       )}
     </Modal>
@@ -500,6 +624,12 @@ const styles = StyleSheet.create({
   thumbPdf: { alignItems: "center", justifyContent: "center", backgroundColor: HT.dangerTint },
   thumbPdfTxt: { fontSize: 9, color: "#DC2626", fontWeight: "800", marginTop: 2 },
   pageMeta: { fontSize: 12, fontWeight: "700", color: HT.text },
+  pageSub: { fontSize: 10.5, color: HT.muted, marginTop: 2 },
+  progressWrap: { paddingHorizontal: 12, paddingTop: 10, gap: 6 },
+  progressTrack: { height: 8, borderRadius: 999, backgroundColor: HT.border, overflow: "hidden" },
+  progressFill: { height: 8, borderRadius: 999, backgroundColor: "#FF6B35" },
+  progressTxt: { fontSize: 11.5, fontWeight: "700", color: HT.text2, textAlign: "center" },
+  bgHint: { fontSize: 11, color: HT.muted, textAlign: "center", paddingTop: 8, paddingHorizontal: 12, fontStyle: "italic" },
   iconBtn: { padding: 6 },
   nameWrap: { padding: 12, borderTopWidth: 1, borderTopColor: HT.border },
   lbl: { fontSize: 11, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },

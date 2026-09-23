@@ -11,10 +11,11 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { getWeatherCoords, weatherIcon, fmtDayIt } from "@/src/utils/weather";
+import { readWeatherCache, writeWeatherCache, fetchWeatherWithRetry, coordsKey } from "@/src/utils/weatherCache"; // V50.z337 — cache 30 min + retry 429
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Day = { date: string; icon_key: string; label: string; temp_min?: number; temp_max?: number; precipitation_mm?: number; precipitation_prob?: number; wind_kmh?: number; uv_index?: number; sunrise?: string; sunset?: string };
-type Forecast = { days: Day[]; current?: { temp?: number; feels_like?: number; humidity?: number; wind_kmh?: number; icon_key?: string; label?: string } | null; place?: string | null; needs_address?: boolean; address_error?: string | null; error?: string };
+type Forecast = { days: Day[]; current?: { temp?: number; feels_like?: number; humidity?: number; wind_kmh?: number; icon_key?: string; label?: string } | null; place?: string | null; needs_address?: boolean; address_error?: string | null; error?: string; stale?: boolean; cached?: boolean };
 type Alert = { id: string; severity: "red" | "orange" | "yellow"; title: string; detail: string };
 
 const SEV: Record<string, string> = { red: "#DC2626", orange: "#EA580C", yellow: "#CA8A04" };
@@ -44,22 +45,42 @@ function MeteoInner() {
   const [cityActive, setCityActive] = useState<string | null>(null);
   const [citySearching, setCitySearching] = useState(false);
   const [cityError, setCityError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState(false); // V50.z337 — dato in cache scaduto mostrato mentre si aggiorna
 
   const load = useCallback(async () => {
     try {
       const c = await getWeatherCoords();
       const body = c ? { lat: c.lat, lon: c.lon } : {};
+      // V50.z337 — Cache locale 30 min: dato fresco → nessuna chiamata; scaduto → mostrato subito con
+      // «Aggiornamento in corso» mentre si aggiorna; su 429 retry dopo 5 s; se la rete fallisce resta il dato in cache.
+      const fKey = coordsKey(c, "_forecast"); const aKey = coordsKey(c, "_alerts");
+      const [cf, ca] = await Promise.all([readWeatherCache<Forecast>(fKey), readWeatherCache<{ alerts: Alert[] }>(aKey)]);
+      if (cf?.fresh) {
+        setFc(cf.data); setAlerts(ca?.data?.alerts || []);
+        if (ca?.fresh) return;
+      } else if (cf) {
+        setFc(cf.data); setAlerts(ca?.data?.alerts || []); setUpdating(true); setLoading(false);
+      }
       const [f, a] = await Promise.all([
-        api<Forecast>("/weather/forecast", { method: "POST", body }),
-        api<{ alerts: Alert[] }>("/weather/alerts", { method: "POST", body }).catch(() => ({ alerts: [] })),
+        cf?.fresh ? Promise.resolve(cf.data) : fetchWeatherWithRetry<Forecast>(() => api<Forecast>("/weather/forecast", { method: "POST", body })),
+        fetchWeatherWithRetry<{ alerts: Alert[]; error?: string }>(() => api<{ alerts: Alert[] }>("/weather/alerts", { method: "POST", body })).catch(() => ({ alerts: ca?.data?.alerts || [] })),
       ]);
-      setFc(f);
+      if (f?.days?.length && !f.error) {
+        if (!cf?.fresh) await writeWeatherCache(fKey, f);
+        setFc(f);
+      } else if (cf) {
+        setFc({ ...cf.data, stale: true }); // server senza dati (es. 429 persistente): teniamo l'ultimo noto
+      } else {
+        setFc(f);
+      }
+      if (a?.alerts) await writeWeatherCache(aKey, { alerts: a.alerts });
       setAlerts(a?.alerts || []);
     } catch (e: any) {
-      setFc({ days: [], error: e?.message || "Errore di rete" });
+      setFc((prev) => (prev?.days?.length ? { ...prev, stale: true } : { days: [], error: e?.message || "Errore di rete" }));
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setUpdating(false);
     }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -189,6 +210,12 @@ function MeteoInner() {
         ) : (
           <>
             {/* Attuale */}
+            {(updating || fc?.stale) ? (
+              <View style={styles.staleBar} testID="meteo-stale">
+                <ActivityIndicator size="small" color={HT.brand} />
+                <Text style={styles.staleTxt}>{updating ? "Aggiornamento in corso…" : "Dati recenti · aggiornamento non riuscito, riprovo più tardi"}</Text>
+              </View>
+            ) : null}
             <View style={[styles.hero, { backgroundColor: icon.color }]} testID="meteo-hero">
               <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
                 <Ionicons name={icon.name} size={64} color="#FFF" />
@@ -291,6 +318,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
   title: { fontSize: 18, fontWeight: "800", color: HT.text },
   hero: { borderRadius: 18, padding: 16 },
+  staleBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, marginBottom: 10 },
+  staleTxt: { fontSize: 12, fontWeight: "700", color: HT.text2, flex: 1 },
   heroTemp: { fontSize: 44, fontWeight: "900", color: "#FFF", lineHeight: 48 },
   heroLabel: { fontSize: 15, fontWeight: "700", color: "#FFF" },
   heroPlace: { fontSize: 12, color: "rgba(255,255,255,0.9)", flexShrink: 1 },
