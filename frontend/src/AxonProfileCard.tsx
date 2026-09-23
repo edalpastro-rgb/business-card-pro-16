@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api } from "@/src/api";
+import { LinearGradient } from "expo-linear-gradient";
 import { AxonOSLogo } from "@/src/BrandLogos";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V29.i — "Profilo Axon" (Fase 2)
@@ -30,37 +32,38 @@ type AxonProfile = {
   updated_at?: string;
 };
 
+// V50.z335 — Card premium dark: bordo ciano/viola, accenti vivaci, barra interesse a gradiente rosso → giallo → verde
 const C = {
-  bg: "#FFFFFF",
-  cardBg: "#FBFCFD",
-  text: "#0F172A",
-  muted: "#64748B",
-  border: "#E2E8F0",
-  primary: "#7C3AED",
-  primarySoft: "#F5F3FF",
-  navy: "#1B2B4B",
+  bg: HT.card,
+  cardBg: HT.card2,
+  text: HT.text,
+  muted: HT.muted,
+  border: HT.border,
+  primary: HT.violet,
+  primarySoft: HT.violetTint,
+  navy: HT.axon,
 };
 
 const STYLE_META: Record<string, { label: string; icon: any; fg: string; bg: string; desc: string }> = {
-  analitico:   { label: "Analitico",   icon: "calculator",       fg: "#3730A3", bg: "#EEF2FF", desc: "Vuole dati e confronti precisi" },
-  emotivo:     { label: "Emotivo",     icon: "heart",            fg: "#B91C1C", bg: "#FEE2E2", desc: "Decide con l'istinto e la relazione" },
-  diretto:     { label: "Diretto",     icon: "flash",            fg: "#B45309", bg: "#FEF3C7", desc: "Va dritto al punto, poche parole" },
-  cauto:       { label: "Cauto",       icon: "shield-checkmark", fg: "#166534", bg: "#DCFCE7", desc: "Valuta con attenzione, senza fretta" },
-  espansivo:   { label: "Espansivo",   icon: "chatbubbles",      fg: "#7C3AED", bg: "#F5F3FF", desc: "Socievole, ama dialogare" },
-  riservato:   { label: "Riservato",   icon: "lock-closed",      fg: "#475569", bg: "#F1F5F9", desc: "Poche parole, spazi personali" },
-  pragmatico:  { label: "Pragmatico",  icon: "briefcase",        fg: "#0369A1", bg: "#DBEAFE", desc: "Concreto, orientato ai risultati" },
+  analitico:   { label: "Analitico",   icon: "calculator",       fg: "#818CF8", bg: "rgba(129,140,248,0.14)", desc: "Vuole dati e confronti precisi" },
+  emotivo:     { label: "Emotivo",     icon: "heart",            fg: HT.danger,  bg: HT.dangerTint,  desc: "Decide con l'istinto e la relazione" },
+  diretto:     { label: "Diretto",     icon: "flash",            fg: HT.warning, bg: HT.warningTint, desc: "Va dritto al punto, poche parole" },
+  cauto:       { label: "Cauto",       icon: "shield-checkmark", fg: HT.success, bg: HT.successTint, desc: "Valuta con attenzione, senza fretta" },
+  espansivo:   { label: "Espansivo",   icon: "chatbubbles",      fg: HT.violet,  bg: HT.violetTint,  desc: "Socievole, ama dialogare" },
+  riservato:   { label: "Riservato",   icon: "lock-closed",      fg: HT.text2,   bg: HT.glassStrong, desc: "Poche parole, spazi personali" },
+  pragmatico:  { label: "Pragmatico",  icon: "briefcase",        fg: HT.axon,    bg: HT.axonTint,    desc: "Concreto, orientato ai risultati" },
 };
 
 const INTEREST_META: Record<string, { label: string; fg: string; bg: string; ratio: number }> = {
-  high:   { label: "Alto",  fg: "#166534", bg: "#DCFCE7", ratio: 1.0 },
-  medium: { label: "Medio", fg: "#B45309", bg: "#FEF3C7", ratio: 0.55 },
-  low:    { label: "Basso", fg: "#B91C1C", bg: "#FEE2E2", ratio: 0.22 },
+  high:   { label: "Alto",  fg: HT.success, bg: HT.successTint, ratio: 1.0 },
+  medium: { label: "Medio", fg: HT.warning, bg: HT.warningTint, ratio: 0.55 },
+  low:    { label: "Basso", fg: HT.danger,  bg: HT.dangerTint,  ratio: 0.22 },
 };
 
 const TREND_META: Record<string, { icon: any; color: string; label: string }> = {
-  up:   { icon: "trending-up",   color: "#16A34A", label: "in crescita" },
-  flat: { icon: "remove",        color: "#64748B", label: "stabile" },
-  down: { icon: "trending-down", color: "#DC2626", label: "in calo" },
+  up:   { icon: "trending-up",   color: HT.success, label: "in crescita" },
+  flat: { icon: "remove",        color: HT.muted,   label: "stabile" },
+  down: { icon: "trending-down", color: HT.danger,  label: "in calo" },
 };
 
 const TIME_META: Record<string, { label: string; icon: any }> = {
@@ -145,7 +148,8 @@ export function AxonProfileCard({ contactId }: { contactId: string }) {
   const timeMeta = timeKey ? TIME_META[timeKey] : null;
 
   return (
-    <View style={styles.wrap}>
+    <View style={styles.wrap} testID="axon-profile-card">
+      <LinearGradient colors={[HT.axon, HT.violet]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.wrapTopLine} />
       <View style={styles.header}>
         <AxonOSLogo size={28} />
         <View style={{ flex: 1 }}>
@@ -184,8 +188,11 @@ export function AxonProfileCard({ contactId }: { contactId: string }) {
             <Text style={[styles.trendPillTxt, { color: trendMeta.color }]}>{trendMeta.label}</Text>
           </View>
         </View>
-        <View style={styles.meterBg}>
-          <View style={[styles.meterFill, { width: `${Math.round(intMeta.ratio * 100)}%`, backgroundColor: intMeta.fg }]} />
+        <View style={styles.meterBg} testID="axon-interest-meter">
+          <LinearGradient colors={[HT.danger, HT.warning, HT.success]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFillObject} />
+          {/* maschera scura sulla parte non raggiunta → il gradiente «si accende» fino al livello */}
+          <View style={[styles.meterMask, { width: `${Math.round((1 - intMeta.ratio) * 100)}%` }]} />
+          <View style={[styles.meterKnob, { left: `${Math.round(intMeta.ratio * 100)}%`, backgroundColor: intMeta.fg }]} />
         </View>
         <View style={styles.meterLabels}>
           <Text style={styles.meterEdge}>Basso</Text>
@@ -198,7 +205,7 @@ export function AxonProfileCard({ contactId }: { contactId: string }) {
       {profile.recurring_objections.length > 0 && (
         <View style={styles.objCard}>
           <View style={styles.rowLabelInline}>
-            <Ionicons name="alert-circle" size={15} color="#B45309" />
+            <Ionicons name="alert-circle" size={15} color={HT.warning} />
             <Text style={styles.objLabel}>Obiezioni ricorrenti</Text>
           </View>
           <View style={styles.chipsRow}>
@@ -213,14 +220,14 @@ export function AxonProfileCard({ contactId }: { contactId: string }) {
 
       {/* Best contact time */}
       <View style={styles.timeCard}>
-        <View style={[styles.rowIconMuted, { backgroundColor: "#E0F2FE" }]}>
-          <Ionicons name={timeMeta?.icon || "time"} size={16} color="#0369A1" />
+        <View style={[styles.rowIconMuted, { backgroundColor: HT.axonTint }]}>
+          <Ionicons name={timeMeta?.icon || "time"} size={16} color={HT.axon} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.rowLabel}>Momento migliore per contattarlo</Text>
           {timeMeta ? (
             <>
-              <Text style={[styles.rowValue, { color: "#0369A1" }]}>{timeMeta.label}</Text>
+              <Text style={[styles.rowValue, { color: HT.axon }]}>{timeMeta.label}</Text>
               {profile.best_contact_time_reason ? (
                 <Text style={styles.rowHint}>{profile.best_contact_time_reason}</Text>
               ) : null}
@@ -248,18 +255,22 @@ export function AxonProfileCard({ contactId }: { contactId: string }) {
 const styles = StyleSheet.create({
   wrap: {
     backgroundColor: C.bg,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: HT.axonLine,
     padding: 12,
     marginBottom: 12,
     gap: 10,
+    overflow: "hidden",
+    position: "relative",
   },
+  wrapTopLine: { position: "absolute", top: 0, left: 0, right: 0, height: 3 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     marginBottom: 4,
+    marginTop: 2,
   },
   title: { fontSize: 15, fontWeight: "800", color: C.text, letterSpacing: -0.2 },
   sub: { fontSize: 11, color: C.muted, marginTop: 1 },
@@ -269,8 +280,8 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 10,
     padding: 12,
-    borderRadius: 10,
-    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    backgroundColor: C.cardBg,
     borderWidth: 1,
     borderColor: C.border,
   },
@@ -282,6 +293,8 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: HT.border,
   },
   rowIcon: {
     width: 30, height: 30, borderRadius: 10,
@@ -289,14 +302,14 @@ const styles = StyleSheet.create({
   },
   rowIconMuted: {
     width: 30, height: 30, borderRadius: 10,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.glassStrong,
     alignItems: "center", justifyContent: "center",
   },
   rowLabel: { fontSize: 11, fontWeight: "800", color: C.muted, textTransform: "uppercase", letterSpacing: 0.4 },
   rowLabelInline: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   rowValueRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   rowValue: { fontSize: 15, fontWeight: "800", letterSpacing: -0.2 },
-  rowHint: { fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 17 },
+  rowHint: { fontSize: 12, color: HT.text2, marginTop: 4, lineHeight: 17 },
   rowHintItalic: { fontSize: 12, color: C.muted, marginTop: 4, fontStyle: "italic" },
 
   interestCard: {
@@ -305,34 +318,34 @@ const styles = StyleSheet.create({
     backgroundColor: C.cardBg,
     borderWidth: 1,
     borderColor: C.border,
-    gap: 8,
+    gap: 10,
   },
   interestHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   trendPill: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1, backgroundColor: HT.glass,
   },
   trendPillTxt: { fontSize: 10.5, fontWeight: "800" },
-  meterBg: {
-    height: 10, borderRadius: 6, backgroundColor: "#E2E8F0", overflow: "hidden",
-  },
-  meterFill: { height: "100%", borderRadius: 6 },
+  // V50.z335 — barra a gradiente (rosso → giallo → verde) con maschera + indicatore
+  meterBg: { height: 12, borderRadius: 6, backgroundColor: HT.glassStrong, overflow: "hidden", position: "relative" },
+  meterMask: { position: "absolute", right: 0, top: 0, bottom: 0, backgroundColor: "rgba(11,22,38,0.82)" },
+  meterKnob: { position: "absolute", top: -1, width: 14, height: 14, borderRadius: 7, marginLeft: -7, borderWidth: 2, borderColor: HT.card },
   meterLabels: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   meterEdge: { fontSize: 10, color: C.muted, fontWeight: "700" },
   meterActive: { fontSize: 11, fontWeight: "800" },
 
   objCard: {
-    padding: 12, borderRadius: 12, backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#FDE68A",
+    padding: 12, borderRadius: 12, backgroundColor: HT.warningTint, borderWidth: 1, borderColor: HT.warning + "55",
   },
-  objLabel: { fontSize: 11, fontWeight: "800", color: "#78350F", textTransform: "uppercase", letterSpacing: 0.3 },
+  objLabel: { fontSize: 11, fontWeight: "800", color: HT.warning, textTransform: "uppercase", letterSpacing: 0.3 },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
-  objChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1, borderColor: "#FDE68A" },
-  objChipTxt: { fontSize: 11, fontWeight: "700", color: "#92400E" },
+  objChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: HT.glass, borderWidth: 1, borderColor: HT.warning + "55" },
+  objChipTxt: { fontSize: 11, fontWeight: "700", color: "#FDE68A" },
 
   timeCard: {
     flexDirection: "row", alignItems: "flex-start", gap: 10,
     padding: 12, borderRadius: 12,
-    backgroundColor: "#F0F9FF", borderWidth: 1, borderColor: "#BAE6FD",
+    backgroundColor: HT.axonTint, borderWidth: 1, borderColor: HT.axonLine,
   },
 
   suggestCard: {
@@ -341,6 +354,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4, borderLeftColor: C.primary,
   },
   suggestHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  suggestLabel: { fontSize: 11, fontWeight: "800", color: "#5B21B6", textTransform: "uppercase", letterSpacing: 0.4 },
-  suggestTxt: { fontSize: 13.5, color: "#4C1D95", fontWeight: "600", lineHeight: 19 },
+  suggestLabel: { fontSize: 11, fontWeight: "800", color: HT.violet, textTransform: "uppercase", letterSpacing: 0.4 },
+  suggestTxt: { fontSize: 13.5, color: HT.text, fontWeight: "600", lineHeight: 19 },
 });

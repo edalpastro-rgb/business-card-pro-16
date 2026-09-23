@@ -10,11 +10,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type ContactRef = {
   contact_id: string;
   first_name: string;
@@ -209,7 +209,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
                     hitSlop={8}
                     style={styles.chipRemove}
                   >
-                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                    <Ionicons name="close-circle" size={16} color={HT.muted} />
                   </Pressable>
                 )}
               </View>
@@ -232,7 +232,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
                 </Text>
               </View>
               <Pressable onPress={closePicker} hitSlop={10} testID="ref-close">
-                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
 
@@ -253,7 +253,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
                 <Pressable
                   testID="ref-schedule-appt"
                   onPress={scheduleAppointmentForJustAdded}
-                  style={[styles.primaryAction, { backgroundColor: "#7C3AED" }]}
+                  style={[styles.primaryAction, { backgroundColor: '#7C3AED' }]}
                 >
                   <Ionicons name="calendar" size={18} color="#FFF" />
                   <Text style={styles.primaryActionTxt}>Fissa appuntamento</Text>
@@ -299,19 +299,19 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
                 </View>
 
                 <View style={styles.searchWrap}>
-                  <Ionicons name="search" size={16} color="#94A3B8" />
+                  <Ionicons name="search" size={16} color={HT.muted} />
                   <TextInput
                     testID="ref-search-input"
                     value={q}
                     onChangeText={setQ}
                     placeholder="Cerca per nome o codice…"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={HT.muted}
                     style={styles.searchInput}
                     autoCapitalize="none"
                   />
                   {q ? (
                     <Pressable onPress={() => setQ("")} hitSlop={8}>
-                      <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                      <Ionicons name="close-circle" size={16} color={HT.muted} />
                     </Pressable>
                   ) : null}
                 </View>
@@ -319,7 +319,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
                   <ActivityIndicator color="#7C3AED" style={{ marginTop: 20 }} />
                 ) : filtered.length === 0 ? (
                   <View style={styles.emptyPicker}>
-                    <Ionicons name="search" size={26} color="#94A3B8" />
+                    <Ionicons name="search" size={26} color={HT.muted} />
                     <Text style={styles.emptyTxt}>Nessun contatto trovato</Text>
                   </View>
                 ) : (
@@ -365,37 +365,37 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
 }
 
 const styles = StyleSheet.create({
-  wrap: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: theme.color.border, marginTop: 10 },
+  wrap: { backgroundColor: HT.card, borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: HT.border, marginTop: 10 },
   hdr: { flexDirection: "row", alignItems: "center", gap: 8 },
-  hdrIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center" },
-  hdrTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, letterSpacing: -0.2 },
-  countPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: "#EDE9FE" },
+  hdrIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
+  hdrTitle: { fontSize: 14, fontWeight: "800", color: HT.text, letterSpacing: -0.2 },
+  countPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: HT.violetTint },
   countPillTxt: { fontSize: 11, fontWeight: "800", color: "#7C3AED" },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: "#EDE9FE" },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: HT.violetTint },
   addBtnTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
-  emptyTxt: { fontSize: 12, color: theme.color.muted, fontStyle: "italic" },
+  emptyTxt: { fontSize: 12, color: HT.muted, fontStyle: "italic" },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F8FAFC", borderRadius: 999, paddingRight: 6, borderWidth: 1, borderColor: "#E2E8F0" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: HT.card2, borderRadius: 999, paddingRight: 6, borderWidth: 1, borderColor: HT.border },
   chipPress: { flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 2, paddingVertical: 3, paddingRight: 6, maxWidth: 220 },
-  chipAvatar: { width: 26, height: 26, borderRadius: 13, backgroundColor: "#E2E8F0" },
+  chipAvatar: { width: 26, height: 26, borderRadius: 13, backgroundColor: HT.border },
   chipAvatarFallback: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   chipInitials: { fontSize: 10, fontWeight: "800", color: "#FFF" },
-  chipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface, flexShrink: 1 },
+  chipTxt: { fontSize: 12, fontWeight: "700", color: HT.text, flexShrink: 1 },
   chipRemove: { padding: 2 },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "82%" },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "82%" },
   sheetHdr: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  sheetTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  sheetSub: { fontSize: 11, color: theme.color.muted, marginTop: 2, fontWeight: "600" },
-  searchWrap: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F1F5F9", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10 },
-  searchInput: { flex: 1, fontSize: 14, color: theme.color.onSurface, padding: 0 },
+  sheetTitle: { fontSize: 17, fontWeight: "800", color: HT.text },
+  sheetSub: { fontSize: 11, color: HT.muted, marginTop: 2, fontWeight: "600" },
+  searchWrap: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.card2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10 },
+  searchInput: { flex: 1, fontSize: 14, color: HT.text, padding: 0 },
   emptyPicker: { alignItems: "center", padding: 30, gap: 8 },
-  pickerRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  rowAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#E2E8F0" },
+  pickerRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: HT.card2 },
+  rowAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: HT.border },
   rowAvatarFallback: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   rowInitials: { fontSize: 13, fontWeight: "800", color: "#FFF" },
-  rowName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  rowMeta: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
+  rowName: { fontSize: 14, fontWeight: "700", color: HT.text },
+  rowMeta: { fontSize: 11, color: HT.muted, fontWeight: "600" },
   // V29.d — Create new + post-add success
   createNewBtn: {
     flexDirection: "row",
@@ -403,37 +403,37 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: "#F5F3FF",
+    backgroundColor: HT.violetTint,
     borderWidth: 1,
-    borderColor: "#DDD6FE",
+    borderColor: HT.violet + '66',
     marginBottom: 10,
   },
   createNewIcon: {
     width: 40, height: 40, borderRadius: 12,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: HT.violetTint,
     alignItems: "center", justifyContent: "center",
   },
-  createNewTitle: { fontSize: 14, fontWeight: "800", color: "#5B21B6" },
+  createNewTitle: { fontSize: 14, fontWeight: "800", color: HT.violet },
   createNewSub: { fontSize: 11.5, color: "#7C3AED", marginTop: 2 },
   divider: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
-  dividerTxt: { fontSize: 10.5, color: theme.color.muted, fontWeight: "700", letterSpacing: 0.3 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: HT.border },
+  dividerTxt: { fontSize: 10.5, color: HT.muted, fontWeight: "700", letterSpacing: 0.3 },
   successCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     padding: 14,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: HT.successTint,
     borderWidth: 1,
-    borderColor: "#BBF7D0",
+    borderColor: HT.success + '66',
     borderRadius: 12,
   },
   successIcon: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "#16A34A",
+    backgroundColor: '#16A34A',
     alignItems: "center", justifyContent: "center",
   },
-  successName: { fontSize: 14, fontWeight: "800", color: "#166534" },
+  successName: { fontSize: 14, fontWeight: "800", color: HT.success },
   successSub: { fontSize: 11.5, color: "#16A34A", marginTop: 2 },
   primaryAction: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
@@ -443,9 +443,9 @@ const styles = StyleSheet.create({
   secondaryAction: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     paddingVertical: 12, borderRadius: 12,
-    borderWidth: 1, borderColor: "#7C3AED", backgroundColor: "#F5F3FF",
+    borderWidth: 1, borderColor: '#7C3AED', backgroundColor: HT.violetTint,
   },
   secondaryActionTxt: { color: "#7C3AED", fontWeight: "800", fontSize: 13 },
   ghostAction: { paddingVertical: 10, alignItems: "center" },
-  ghostActionTxt: { color: theme.color.muted, fontWeight: "700", fontSize: 13 },
+  ghostActionTxt: { color: HT.muted, fontWeight: "700", fontSize: 13 },
 });

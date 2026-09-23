@@ -6756,3 +6756,9 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 - `src/DashboardWidgetsSection.tsx` (PUN dark: F1 ciano · F2 arancio · F3 verde, colonna «PUN mese»), `HomeTipsBanner`, `ProactiveBubbles`, `CgymWidget` → dark. `WeatherWidget.HeaderWeatherBadge({inline})`.
 - Backend `axon_tour._axon_interest_section`: regola (5) — su richiesta esplicita di consigli elenca TUTTE le funzioni di interesse «Nome → percorso».
 - Test: iteration_102 (backend 2/2, frontend desktop+mobile OK); drawer verificato con screenshot.
+
+## V50.z335 — CONTATTI dark/premium (lista + scheda cliente) — DONE (iteration_103)
+- `src/homeTheme.ts` (HT) riusato. Lista `app/(tabs)/contatti.tsx`: sfondo navy, card con bordo sottile, avatar iniziali su colore area pieno, pill area/fonte tinte, tag km con icona, search dark, chips filtro tinte, griglia responsive (1/2/3 colonne: <720 / <1100 / ≥1100), contatore `contacts-count`.
+- Scheda `app/contact/[id].tsx`: header `contact-hero` con LinearGradient colore area + linea accento; badge status pill tinta; tab bar scrollabile icone 22px + etichetta; azioni primarie grandi (comm-call, comm-whatsapp, comm-email) + secondarie in toggle `comm-more-toggle` («Altro»/«Meno») → `comm-secondary`; InfoRow mini-card dark con icona in box; `AxonProfileCard` bordo ciano + linea gradiente ciano→viola + barra interesse gradiente rosso→giallo→verde (`axon-interest-meter`).
+- `scripts/darkify_contacts.py`: conversione meccanica token chiari → HT applicata a 15 sezioni contact-only (non ai componenti condivisi: BillsSection, IdentityDocsSection, VoiceDictationButton, CallActionSheet…).
+- Test iteration_103: backend 4/4, frontend desktop/tablet/mobile OK, tutte le tab e azioni funzionanti.

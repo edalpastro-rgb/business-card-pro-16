@@ -18,8 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Channel = "whatsapp" | "email" | "sms" | "telegram";
 
@@ -61,11 +61,11 @@ const CHANNEL_META: Record<Channel, { label: string; icon: any; color: string }>
 };
 
 const STATUS_META: Record<ReviewRequest["status"], { label: string; color: string }> = {
-  pending:        { label: "In attesa (programmata)", color: theme.color.muted },
+  pending:        { label: "In attesa (programmata)", color: HT.muted },
   ready_to_send:  { label: "Pronta da inviare",       color: "#EA580C" },
   sent:           { label: "Inviata",                 color: "#2563EB" },
-  responded:      { label: "Risposta ricevuta ✓",     color: theme.color.success },
-  cancelled:      { label: "Cancellata",              color: "#94A3B8" },
+  responded:      { label: "Risposta ricevuta ✓",     color: HT.success },
+  cancelled:      { label: "Cancellata",              color: HT.muted },
 };
 
 function fmtIt(iso: string | null | undefined): string {
@@ -286,7 +286,7 @@ export function ContactReviewsSection({
   }, [reviews]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <View style={{ flex: 1, backgroundColor: HT.card2 }}>
       <ScrollView contentContainerStyle={styles.container}>
         {/* Header */}
         <View style={styles.headerRow}>
@@ -303,7 +303,7 @@ export function ContactReviewsSection({
         </View>
 
         <Pressable style={styles.publicLinkBtn} onPress={openPublicPage} testID="btn-public-reviews-link">
-          <Ionicons name="link" size={16} color={theme.color.brandPrimary} />
+          <Ionicons name="link" size={16} color={HT.brand} />
           <Text style={styles.publicLinkTxt}>Copia link pagina pubblica recensioni</Text>
         </Pressable>
 
@@ -317,14 +317,14 @@ export function ContactReviewsSection({
         </Pressable>
 
         {loading ? (
-          <View style={{ paddingVertical: 24 }}><ActivityIndicator color={theme.color.brandPrimary} /></View>
+          <View style={{ paddingVertical: 24 }}><ActivityIndicator color={HT.brand} /></View>
         ) : null}
 
         {/* Richieste */}
         <Text style={styles.section}>Richieste inviate ({requests.length})</Text>
         {requests.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="mail-open-outline" size={36} color={theme.color.muted} />
+            <Ionicons name="mail-open-outline" size={36} color={HT.muted} />
             <Text style={styles.emptyTxt}>Nessuna richiesta inviata. Programmane una con il pulsante in alto.</Text>
           </View>
         ) : requests.map((r) => {
@@ -373,8 +373,8 @@ export function ContactReviewsSection({
                   onPress={() => copyFormLink(r.form_url)}
                   testID={`copy-form-${r.req_id}`}
                 >
-                  <Ionicons name="copy" size={14} color={theme.color.brandPrimary} />
-                  <Text style={[styles.actionBtnTxt, { color: theme.color.brandPrimary }]}>Copia link form</Text>
+                  <Ionicons name="copy" size={14} color={HT.brand} />
+                  <Text style={[styles.actionBtnTxt, { color: HT.brand }]}>Copia link form</Text>
                 </Pressable>
                 {r.status !== "cancelled" && r.status !== "responded" ? (
                   <Pressable
@@ -395,7 +395,7 @@ export function ContactReviewsSection({
         <Text style={[styles.section, { marginTop: 24 }]}>Recensioni ricevute ({reviews.length})</Text>
         {reviews.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="star-outline" size={36} color={theme.color.muted} />
+            <Ionicons name="star-outline" size={36} color={HT.muted} />
             <Text style={styles.emptyTxt}>Nessuna risposta ancora. Le recensioni compaiono qui dopo l&apos;invio del cliente.</Text>
           </View>
         ) : reviews.map((rv) => (
@@ -412,7 +412,7 @@ export function ContactReviewsSection({
                 ))}
               </View>
               {rv.approved === true ? (
-                <Text style={[styles.stMiniTxt, { color: theme.color.success }]}>Approvata ✓</Text>
+                <Text style={[styles.stMiniTxt, { color: HT.success }]}>Approvata ✓</Text>
               ) : rv.approved === false ? (
                 <Text style={[styles.stMiniTxt, { color: "#DC2626" }]}>Respinta</Text>
               ) : (
@@ -425,7 +425,7 @@ export function ContactReviewsSection({
               <Ionicons
                 name={rv.consent_publish ? "checkmark-circle" : "close-circle"}
                 size={14}
-                color={rv.consent_publish ? theme.color.success : theme.color.muted}
+                color={rv.consent_publish ? HT.success : HT.muted}
               />
               <Text style={styles.consentTxt}>
                 {rv.consent_publish ? "Consenso alla pubblicazione dato" : "Consenso NON dato (solo interno)"}
@@ -434,7 +434,7 @@ export function ContactReviewsSection({
             <View style={styles.cardActions}>
               {rv.approved !== true ? (
                 <Pressable
-                  style={[styles.actionBtn, { backgroundColor: theme.color.success }]}
+                  style={[styles.actionBtn, { backgroundColor: HT.success }]}
                   onPress={() => approveReview(rv.review_id, true)}
                   testID={`approve-review-${rv.review_id}`}
                 >
@@ -474,7 +474,7 @@ export function ContactReviewsSection({
             <View style={styles.sheetHead}>
               <Text style={styles.sheetTitle}>Programma richiesta recensione</Text>
               <Pressable onPress={() => setShowNew(false)} testID="btn-close-new-review">
-                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16 }}>
@@ -551,7 +551,7 @@ export function ContactReviewsSection({
                 onPress={() => createRequest(true)}
                 testID="btn-send-now-review"
               >
-                <Ionicons name="send" size={18} color={theme.color.brandPrimary} />
+                <Ionicons name="send" size={18} color={HT.brand} />
                 <Text style={styles.btnGhostTxt}>Prepara e invia adesso</Text>
               </Pressable>
             </ScrollView>
@@ -565,13 +565,13 @@ export function ContactReviewsSection({
 const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 60 },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 6 },
-  h1: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
-  h1Sub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  h1: { fontSize: 18, fontWeight: "800", color: HT.text },
+  h1Sub: { fontSize: 12, color: HT.muted, marginTop: 2 },
   btnPrimary: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: theme.color.brandPrimary,
+    backgroundColor: HT.brand,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 10,
@@ -586,59 +586,59 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: theme.color.brandPrimary,
+    borderColor: HT.brand,
     marginTop: 10,
   },
-  btnGhostTxt: { color: theme.color.brandPrimary, fontWeight: "700" },
+  btnGhostTxt: { color: HT.brand, fontWeight: "700" },
   publicLinkBtn: {
     flexDirection: "row",
     gap: 6,
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: theme.color.brandPrimary + "10",
+    backgroundColor: HT.brand + "10",
     borderRadius: 8,
     marginTop: 12,
     marginBottom: 4,
   },
-  publicLinkTxt: { color: theme.color.brandPrimary, fontWeight: "600", fontSize: 13 },
-  section: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, marginTop: 16, marginBottom: 8 },
+  publicLinkTxt: { color: HT.brand, fontWeight: "600", fontSize: 13 },
+  section: { fontSize: 14, fontWeight: "800", color: HT.text, marginTop: 16, marginBottom: 8 },
   empty: {
     alignItems: "center",
     padding: 22,
     borderRadius: 12,
-    backgroundColor: theme.color.surfaceTertiary,
+    backgroundColor: HT.card2,
   },
-  emptyTxt: { color: theme.color.muted, fontSize: 13, textAlign: "center", marginTop: 8 },
+  emptyTxt: { color: HT.muted, fontSize: 13, textAlign: "center", marginTop: 8 },
   card: {
     padding: 14,
     borderRadius: 12,
-    backgroundColor: theme.color.surfaceSecondary,
+    backgroundColor: HT.card2,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
   },
   cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   chMini: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   chMiniTxt: { fontSize: 11, fontWeight: "700" },
   stMiniTxt: { fontSize: 12, fontWeight: "700" },
-  cardDate: { color: theme.color.muted, fontSize: 12, marginBottom: 6 },
-  cardMsg: { color: theme.color.onSurface, fontSize: 13, marginTop: 4, lineHeight: 18 },
+  cardDate: { color: HT.muted, fontSize: 12, marginBottom: 6 },
+  cardMsg: { color: HT.text, fontSize: 13, marginTop: 4, lineHeight: 18 },
   cardActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
-  actionBtnGhost: { backgroundColor: "transparent", borderWidth: 1, borderColor: theme.color.border },
+  actionBtnGhost: { backgroundColor: "transparent", borderWidth: 1, borderColor: HT.border },
   actionBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
-  reviewTxt: { color: theme.color.onSurface, fontSize: 14, fontStyle: "italic", lineHeight: 20, marginTop: 4 },
-  reviewTxtEmpty: { color: theme.color.muted, fontSize: 12, marginTop: 4 },
+  reviewTxt: { color: HT.text, fontSize: 14, fontStyle: "italic", lineHeight: 20, marginTop: 4 },
+  reviewTxtEmpty: { color: HT.muted, fontSize: 12, marginTop: 4 },
   consentBox: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingVertical: 6 },
-  consentTxt: { color: theme.color.muted, fontSize: 12 },
+  consentTxt: { color: HT.muted, fontSize: 12 },
   // Modal
   backdrop: { flex: 1, backgroundColor: "rgba(15,15,25,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: theme.color.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "90%" },
-  sheetHead: { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  sheetTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  lbl: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginBottom: 4 },
-  lblVal: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface },
+  sheet: { backgroundColor: HT.card2, borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "90%" },
+  sheetHead: { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border },
+  sheetTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: HT.text },
+  lbl: { fontSize: 12, fontWeight: "700", color: HT.muted, marginBottom: 4 },
+  lblVal: { fontSize: 15, fontWeight: "700", color: HT.text },
   chRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chBtn: {
     flexDirection: "row",
@@ -648,19 +648,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: theme.color.border,
-    backgroundColor: theme.color.surfaceSecondary,
+    borderColor: HT.border,
+    backgroundColor: HT.card2,
   },
-  chBtnTxt: { color: theme.color.onSurface, fontSize: 13 },
+  chBtnTxt: { color: HT.text, fontSize: 13 },
   dateInput: {
-    borderWidth: 1, borderColor: theme.color.border, borderRadius: 10,
-    padding: 12, color: theme.color.onSurface, backgroundColor: theme.color.surfaceSecondary,
+    borderWidth: 1, borderColor: HT.border, borderRadius: 10,
+    padding: 12, color: HT.text, backgroundColor: HT.card2,
     fontSize: 14,
   },
   msgInput: {
-    borderWidth: 1, borderColor: theme.color.border, borderRadius: 10,
-    padding: 12, color: theme.color.onSurface, backgroundColor: theme.color.surfaceSecondary,
+    borderWidth: 1, borderColor: HT.border, borderRadius: 10,
+    padding: 12, color: HT.text, backgroundColor: HT.card2,
     fontSize: 14, minHeight: 100, textAlignVertical: "top",
   },
-  hint: { fontSize: 11, color: theme.color.muted, marginTop: 4 },
+  hint: { fontSize: 11, color: HT.muted, marginTop: 4 },
 });

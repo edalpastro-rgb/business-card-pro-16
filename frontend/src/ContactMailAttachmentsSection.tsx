@@ -9,7 +9,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import { api, getAuthHeader } from "@/src/api";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type MailAtt = {
   attachment_id: string;
@@ -149,7 +149,7 @@ export function ContactMailAttachmentsSection({ contactId }: { contactId: string
               style={{ padding: 4 }}
               testID={`mail-att-del-${a.attachment_id}`}
             >
-              <Ionicons name="trash-outline" size={18} color={theme.color.error} />
+              <Ionicons name="trash-outline" size={18} color={HT.danger} />
             </Pressable>
           </Pressable>
         );
@@ -235,25 +235,25 @@ function MailAttPreview({ src, onClose }: { src: { url: string; name: string; ty
 const styles = StyleSheet.create({
   section: {
     marginTop: 14, padding: 12, borderRadius: 14,
-    backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#FED7AA", gap: 8,
+    backgroundColor: HT.brandTint, borderWidth: 1, borderColor: HT.brandLine, gap: 8,
   },
   header: { flexDirection: "row", alignItems: "center", gap: 6 },
-  title: { fontSize: 13, fontWeight: "800", color: "#9A3412" },
+  title: { fontSize: 13, fontWeight: "800", color: "#FDBA74" },
   badge: {
     marginLeft: 4, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999,
-    backgroundColor: "#F97316",
+    backgroundColor: '#F97316',
   },
   badgeTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
-  hint: { fontSize: 11, color: "#9A3412", opacity: 0.75, marginTop: -2 },
+  hint: { fontSize: 11, color: "#FDBA74", opacity: 0.75, marginTop: -2 },
   loading: { padding: 8, alignItems: "center" },
   card: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    padding: 10, borderRadius: 10, backgroundColor: "#FFF",
-    borderWidth: 1, borderColor: "#FED7AA",
+    padding: 10, borderRadius: 10, backgroundColor: HT.card,
+    borderWidth: 1, borderColor: HT.brandLine,
   },
-  fname: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
-  meta: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
-  subj: { fontSize: 10, color: "#9A3412", fontStyle: "italic", marginTop: 1 },
+  fname: { fontSize: 13, fontWeight: "700", color: HT.text },
+  meta: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  subj: { fontSize: 10, color: "#FDBA74", fontStyle: "italic", marginTop: 1 },
 });
 
 const pStyles = StyleSheet.create({
@@ -268,6 +268,6 @@ const pStyles = StyleSheet.create({
   nativeHint: { padding: 24, alignItems: "center", gap: 10 },
   hintTxt: { color: "#FFF", fontSize: 14, fontWeight: "700", textAlign: "center" },
   hintSub: { color: "rgba(255,255,255,0.6)", fontSize: 11, textAlign: "center" },
-  dlBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "#F97316" },
+  dlBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: '#F97316' },
   dlTxt: { color: "#FFF", fontSize: 12, fontWeight: "800" },
 });

@@ -9,11 +9,11 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platf
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type Referral = {
   contact_id: string;
   first_name?: string;
@@ -32,7 +32,7 @@ type Props = {
   contactPhone?: string;
 };
 
-const C = { primary: "#FF6B35", primarySoft: "#FFF1E9", navy: "#1B2B4B", muted: "#94A3B8", wa: "#25D366" };
+const C = { primary: "#FF6B35", primarySoft: "#FFF1E9", navy: HT.text, muted: HT.muted, wa: "#25D366" };
 
 export function ContactReferralsTab({ contactId, contactName, contactPhone }: Props) {
   const router = useRouter();
@@ -163,7 +163,7 @@ export function ContactReferralsTab({ contactId, contactName, contactPhone }: Pr
               onChangeText={setWaMessage}
               multiline
               placeholder="Scrivi il messaggio…"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={styles.textarea}
             />
             <Pressable testID="wa-send-btn" onPress={sendWa} style={[styles.btn, { backgroundColor: C.wa, marginTop: 12 }]}>
@@ -183,21 +183,21 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: "row", gap: 10, marginBottom: 8 },
   btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 13 },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-  empty: { alignItems: "center", padding: 30, gap: 8, marginTop: 16, backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, borderStyle: "dashed" },
+  empty: { alignItems: "center", padding: 30, gap: 8, marginTop: 16, backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: HT.border, borderStyle: "dashed" },
   emptyTxt: { color: C.navy, fontWeight: "800", fontSize: 14 },
   emptySub: { color: C.muted, fontSize: 12, textAlign: "center" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: theme.color.border },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: HT.border },
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.primarySoft, alignItems: "center", justifyContent: "center" },
   avatarTxt: { color: C.primary, fontWeight: "900", fontSize: 13 },
   rowName: { fontSize: 14, fontWeight: "800", color: C.navy },
   rowSub: { fontSize: 11, color: C.muted, marginTop: 2 },
-  rowNote: { fontSize: 11, color: theme.color.onSurfaceTertiary, marginTop: 3, fontStyle: "italic" },
+  rowNote: { fontSize: 11, color: HT.text2, marginTop: 3, fontStyle: "italic" },
   statusMini: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   statusMiniTxt: { fontSize: 10, fontWeight: "800" },
   back: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30 },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30 },
   sheetHdr: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   sheetTitle: { fontSize: 17, fontWeight: "800", color: C.navy },
   helpTxt: { fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 17 },
-  textarea: { backgroundColor: "#F1F5F9", borderRadius: 12, padding: 12, minHeight: 160, fontSize: 14, color: C.navy, textAlignVertical: "top" },
+  textarea: { backgroundColor: HT.card2, borderRadius: 12, padding: 12, minHeight: 160, fontSize: 14, color: C.navy, textAlignVertical: "top" },
 });

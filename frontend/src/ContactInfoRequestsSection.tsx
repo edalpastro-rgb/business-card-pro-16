@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V50.z83 — Sezione "Richieste info & chat" nella scheda del contatto.
@@ -48,13 +48,13 @@ export function ContactInfoRequestsSection({ contactId }: { contactId: string })
     <View style={styles.wrap} testID="contact-info-requests">
       <Pressable onPress={() => setExpanded((v) => !v)} style={styles.header}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
-          <Ionicons name="chatbubbles" size={16} color={theme.color.brandPrimary} />
+          <Ionicons name="chatbubbles" size={16} color={HT.brand} />
           <Text style={styles.title}>Richieste info & chat</Text>
           <View style={styles.count}>
             <Text style={styles.countTxt}>{items.length}</Text>
           </View>
         </View>
-        <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={theme.color.muted} />
+        <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={HT.muted} />
       </Pressable>
 
       {shown.map((r) => (
@@ -97,21 +97,21 @@ function formatDate(iso: string): string {
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginTop: 12, backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, padding: 12 },
+  wrap: { marginTop: 12, backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 12 },
   header: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  title: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface, letterSpacing: 0.3, textTransform: "uppercase" },
-  count: { backgroundColor: theme.color.brandPrimary + "18", borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 },
-  countTxt: { fontSize: 10, fontWeight: "800", color: theme.color.brandPrimary },
-  card: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: "#F8FAFC", marginTop: 6 },
-  cardUnread: { borderLeftWidth: 3, borderLeftColor: "#DC2626", backgroundColor: "#FEF2F2" },
-  unreadDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#DC2626" },
+  title: { fontSize: 13, fontWeight: "800", color: HT.text, letterSpacing: 0.3, textTransform: "uppercase" },
+  count: { backgroundColor: HT.brand + "18", borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 },
+  countTxt: { fontSize: 10, fontWeight: "800", color: HT.brand },
+  card: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: HT.card2, marginTop: 6 },
+  cardUnread: { borderLeftWidth: 3, borderLeftColor: '#DC2626', backgroundColor: HT.dangerTint },
+  unreadDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#DC2626' },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
-  subject: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  meta: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  subject: { fontSize: 13, fontWeight: "800", color: HT.text },
+  meta: { fontSize: 11, color: HT.muted, marginTop: 2 },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  pillPending: { backgroundColor: "#FEF3C7" },
-  pillResolved: { backgroundColor: "#DCFCE7" },
-  statusTxt: { fontSize: 10, fontWeight: "800", color: theme.color.onSurface, textTransform: "uppercase", letterSpacing: 0.3 },
+  pillPending: { backgroundColor: HT.warningTint },
+  pillResolved: { backgroundColor: HT.successTint },
+  statusTxt: { fontSize: 10, fontWeight: "800", color: HT.text, textTransform: "uppercase", letterSpacing: 0.3 },
   more: { alignItems: "center", paddingVertical: 8, marginTop: 4 },
-  moreTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
+  moreTxt: { color: HT.brand, fontWeight: "700", fontSize: 12 },
 });

@@ -4,15 +4,15 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Contract = { contract_id: string; contract_number?: string; contract_type?: string; supplier?: string; signed_date?: string; activation_date?: string; expiry_date?: string; amount_eur?: number; status?: string; notes?: string };
 
 const STATUS: Record<string, { t: string; c: string; bg: string }> = {
-  active: { t: "Attivo", c: "#166534", bg: "#DCFCE7" },
-  draft: { t: "Bozza", c: "#374151", bg: "#F3F4F6" },
-  expired: { t: "Scaduto", c: "#92400E", bg: "#FEF3C7" },
-  cancelled: { t: "Annullato", c: "#991B1B", bg: "#FEE2E2" },
+  active: { t: "Attivo", c: HT.success, bg: HT.successTint },
+  draft: { t: "Bozza", c: HT.text2, bg: HT.card2 },
+  expired: { t: "Scaduto", c: "#FDBA74", bg: HT.warningTint },
+  cancelled: { t: "Annullato", c: HT.danger, bg: HT.dangerTint },
 };
 const TYPE: Record<string, string> = { energy: "Energia", luce: "Luce", gas: "Gas", telco: "Telco", other: "Altro" };
 const fmtDate = (s?: string) => (s ? new Date(s).toLocaleDateString("it-IT") : "—");
@@ -35,9 +35,9 @@ export function ContactContractsSection({ contactId }: { contactId: string }) {
         <Ionicons name="add-circle" size={18} color="#FFF" />
         <Text style={styles.addTxt}>Nuovo contratto</Text>
       </Pressable>
-      {items === null ? <ActivityIndicator color={theme.color.brandPrimary} style={{ marginTop: 20 }} /> : items.length === 0 ? (
+      {items === null ? <ActivityIndicator color={HT.brand} style={{ marginTop: 20 }} /> : items.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="document-text-outline" size={28} color={theme.color.muted} />
+          <Ionicons name="document-text-outline" size={28} color={HT.muted} />
           <Text style={styles.emptyTxt}>Nessun contratto associato a questo cliente.</Text>
         </View>
       ) : items.map((c) => {
@@ -61,14 +61,14 @@ export function ContactContractsSection({ contactId }: { contactId: string }) {
 
 const styles = StyleSheet.create({
   wrap: { padding: 12, gap: 10, paddingBottom: 40 },
-  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: theme.color.brandPrimary, borderRadius: 12, minHeight: 44 },
+  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: HT.brand, borderRadius: 12, minHeight: 44 },
   addTxt: { color: "#FFF", fontWeight: "900", fontSize: 13.5 },
   empty: { alignItems: "center", gap: 8, paddingVertical: 28 },
-  emptyTxt: { color: theme.color.muted, fontSize: 13, textAlign: "center" },
-  card: { backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, padding: 12, gap: 4 },
+  emptyTxt: { color: HT.muted, fontSize: 13, textAlign: "center" },
+  card: { backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 12, gap: 4 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  title: { flex: 1, fontSize: 14.5, fontWeight: "800", color: theme.color.onSurface },
+  title: { flex: 1, fontSize: 14.5, fontWeight: "800", color: HT.text },
   badge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }, badgeTxt: { fontSize: 11, fontWeight: "900" },
-  meta: { fontSize: 12, color: theme.color.muted }, amount: { fontSize: 15, fontWeight: "900", color: theme.color.brandPrimary, marginTop: 2 },
-  notes: { fontSize: 12.5, color: theme.color.onSurfaceTertiary, marginTop: 2 },
+  meta: { fontSize: 12, color: HT.muted }, amount: { fontSize: 15, fontWeight: "900", color: HT.brand, marginTop: 2 },
+  notes: { fontSize: 12.5, color: HT.text2, marginTop: 2 },
 });

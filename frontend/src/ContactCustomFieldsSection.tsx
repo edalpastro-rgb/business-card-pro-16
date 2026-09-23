@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V50.z67 — Sezione "Campi Personalizzati" nella scheda contatto.
@@ -85,7 +85,7 @@ export function ContactCustomFieldsSection({ contactId, initialValues, onSaved }
   if (loading) {
     return (
       <View style={styles.section}>
-        <ActivityIndicator color={theme.color.brandPrimary} />
+        <ActivityIndicator color={HT.brand} />
       </View>
     );
   }
@@ -97,7 +97,7 @@ export function ContactCustomFieldsSection({ contactId, initialValues, onSaved }
   return (
     <View style={styles.section} testID="contact-custom-fields-section">
       <View style={styles.header}>
-        <Ionicons name="options-outline" size={16} color={theme.color.brandPrimary} />
+        <Ionicons name="options-outline" size={16} color={HT.brand} />
         <Text style={styles.title}>Campi personalizzati</Text>
       </View>
 
@@ -107,7 +107,7 @@ export function ContactCustomFieldsSection({ contactId, initialValues, onSaved }
         return (
           <View key={d.field_id} style={styles.row}>
             <View style={styles.labelRow}>
-              <Ionicons name={TYPE_ICONS[d.type]} size={14} color={theme.color.muted} />
+              <Ionicons name={TYPE_ICONS[d.type]} size={14} color={HT.muted} />
               <Text style={styles.label}>
                 {d.name}
                 {d.required ? <Text style={styles.reqStar}> *</Text> : null}
@@ -118,7 +118,7 @@ export function ContactCustomFieldsSection({ contactId, initialValues, onSaved }
                   <Text style={styles.badgeTxt}>Master</Text>
                 </View>
               ) : null}
-              {isSaving ? <ActivityIndicator size="small" color={theme.color.brandPrimary} /> : null}
+              {isSaving ? <ActivityIndicator size="small" color={HT.brand} /> : null}
             </View>
 
             {d.type === "checkbox" ? (
@@ -130,7 +130,7 @@ export function ContactCustomFieldsSection({ contactId, initialValues, onSaved }
                 <Ionicons
                   name={cur ? "checkmark-circle" : "ellipse-outline"}
                   size={22}
-                  color={cur ? "#16A34A" : theme.color.muted}
+                  color={cur ? "#16A34A" : HT.muted}
                 />
                 <Text style={styles.checkboxTxt}>{cur ? "Sì" : "No"}</Text>
               </Pressable>
@@ -149,7 +149,7 @@ export function ContactCustomFieldsSection({ contactId, initialValues, onSaved }
                 }}
                 keyboardType="numeric"
                 placeholder="—"
-                placeholderTextColor={theme.color.muted}
+                placeholderTextColor={HT.muted}
                 style={styles.input}
               />
             ) : d.type === "date" ? (
@@ -161,7 +161,7 @@ export function ContactCustomFieldsSection({ contactId, initialValues, onSaved }
                   saveValue(d.key, raw || null);
                 }}
                 placeholder="AAAA-MM-GG"
-                placeholderTextColor={theme.color.muted}
+                placeholderTextColor={HT.muted}
                 style={styles.input}
               />
             ) : (
@@ -173,7 +173,7 @@ export function ContactCustomFieldsSection({ contactId, initialValues, onSaved }
                   saveValue(d.key, raw || null);
                 }}
                 placeholder="—"
-                placeholderTextColor={theme.color.muted}
+                placeholderTextColor={HT.muted}
                 style={styles.input}
                 multiline={false}
               />
@@ -187,10 +187,10 @@ export function ContactCustomFieldsSection({ contactId, initialValues, onSaved }
 
 const styles = StyleSheet.create({
   section: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     padding: 12,
     marginTop: 12,
     marginBottom: 4,
@@ -202,12 +202,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: theme.color.border,
+    borderBottomColor: HT.border,
   },
-  title: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
+  title: { fontSize: 14, fontWeight: "800", color: HT.text },
   row: { marginBottom: 12 },
   labelRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
-  label: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface, flex: 1 },
+  label: { fontSize: 12, fontWeight: "700", color: HT.text, flex: 1 },
   badge: {
     flexDirection: "row",
     alignItems: "center",
@@ -215,19 +215,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 999,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: HT.dangerTint,
   },
   badgeTxt: { fontSize: 9, fontWeight: "700", color: "#7C2D12" },
-  reqStar: { color: "#B45309", fontWeight: "900" },
+  reqStar: { color: HT.warning, fontWeight: "900" },
   input: {
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
     fontSize: 14,
-    color: theme.color.onSurface,
-    backgroundColor: "#F8FAFC",
+    color: HT.text,
+    backgroundColor: HT.card2,
   },
   checkboxRow: {
     flexDirection: "row",
@@ -237,10 +237,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: theme.color.border,
-    backgroundColor: "#F8FAFC",
+    borderColor: HT.border,
+    backgroundColor: HT.card2,
     alignSelf: "flex-start",
   },
-  checkboxOn: { backgroundColor: "#DCFCE7", borderColor: "#16A34A" },
-  checkboxTxt: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
+  checkboxOn: { backgroundColor: HT.successTint, borderColor: '#16A34A' },
+  checkboxTxt: { fontSize: 13, fontWeight: "700", color: HT.text },
 });

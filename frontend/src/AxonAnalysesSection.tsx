@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-nati
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { AxonOSLogo } from "@/src/BrandLogos";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V29.g — "Analisi Axon" per contatto.
@@ -26,20 +27,20 @@ type AxonAnalysis = {
 };
 
 const C = {
-  text: "#0F172A",
-  muted: "#64748B",
+  text: HT.text,
+  muted: HT.muted,
   border: "#E2E8F0",
-  bg: "#FFFFFF",
+  bg: HT.card,
   cardBg: "#FBFCFD",
-  navy: "#1B2B4B",
+  navy: HT.text,
 };
 
 const TONE_META: Record<string, { label: string; fg: string; bg: string; icon: any }> = {
-  positive:    { label: "Positivo",   fg: "#166534", bg: "#DCFCE7", icon: "happy" },
-  interested:  { label: "Interessato",fg: "#7C3AED", bg: "#F5F3FF", icon: "flame" },
-  neutral:     { label: "Neutro",     fg: "#475569", bg: "#F1F5F9", icon: "remove-circle" },
-  skeptical:   { label: "Scettico",   fg: "#B45309", bg: "#FEF3C7", icon: "help-circle" },
-  negative:    { label: "Negativo",   fg: "#B91C1C", bg: "#FEE2E2", icon: "sad" },
+  positive:    { label: "Positivo",   fg: HT.success, bg: HT.successTint, icon: "happy" },
+  interested:  { label: "Interessato",fg: "#7C3AED", bg: HT.violetTint, icon: "flame" },
+  neutral:     { label: "Neutro",     fg: HT.text2, bg: HT.card2, icon: "remove-circle" },
+  skeptical:   { label: "Scettico",   fg: HT.warning, bg: HT.warningTint, icon: "help-circle" },
+  negative:    { label: "Negativo",   fg: HT.danger, bg: HT.dangerTint, icon: "sad" },
 };
 
 const TYPE_META: Record<string, { label: string; icon: any; color: string }> = {
@@ -181,7 +182,7 @@ export function AxonAnalysesSection({ contactId }: { contactId: string }) {
                     <Text style={styles.blockLabel}>Obiezioni</Text>
                     {a.objections.map((o, oi) => (
                       <View key={`o-${oi}`} style={styles.objRow}>
-                        <Ionicons name="alert-circle" size={14} color="#B45309" />
+                        <Ionicons name="alert-circle" size={14} color={HT.warning} />
                         <Text style={styles.objTxt}>{o}</Text>
                       </View>
                     ))}
@@ -240,7 +241,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     padding: 12,
     borderRadius: 10,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: HT.card2,
     borderWidth: 1,
     borderColor: C.border,
   },
@@ -260,16 +261,16 @@ const styles = StyleSheet.create({
   date: { fontSize: 10.5, color: C.muted, fontWeight: "600" },
   summaryTxt: { fontSize: 13, color: C.text, lineHeight: 19, marginBottom: 8 },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginBottom: 4 },
-  topicChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: "#EEF2FF", borderWidth: 1, borderColor: "#C7D2FE" },
-  topicChipTxt: { fontSize: 10.5, fontWeight: "700", color: "#3730A3" },
-  objBlock: { marginTop: 8, padding: 8, borderRadius: 10, backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#FDE68A" },
-  blockLabel: { fontSize: 10.5, fontWeight: "800", color: "#78350F", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4 },
+  topicChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + '66' },
+  topicChipTxt: { fontSize: 10.5, fontWeight: "700", color: HT.axon },
+  objBlock: { marginTop: 8, padding: 8, borderRadius: 10, backgroundColor: HT.warningTint, borderWidth: 1, borderColor: HT.warning + '66' },
+  blockLabel: { fontSize: 10.5, fontWeight: "800", color: "#FDBA74", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4 },
   objRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
-  objTxt: { flex: 1, fontSize: 12, color: "#92400E", fontWeight: "600" },
-  nextBlock: { marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: "#F5F3FF", borderLeftWidth: 3, borderLeftColor: "#7C3AED" },
+  objTxt: { flex: 1, fontSize: 12, color: "#FDBA74", fontWeight: "600" },
+  nextBlock: { marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: HT.violetTint, borderLeftWidth: 3, borderLeftColor: '#7C3AED' },
   nextHead: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 3 },
-  nextLabel: { fontSize: 10.5, fontWeight: "800", color: "#5B21B6", textTransform: "uppercase", letterSpacing: 0.3 },
-  nextTxt: { fontSize: 12.5, color: "#4C1D95", fontWeight: "600", lineHeight: 18 },
+  nextLabel: { fontSize: 10.5, fontWeight: "800", color: HT.violet, textTransform: "uppercase", letterSpacing: 0.3 },
+  nextTxt: { fontSize: 12.5, color: HT.violet, fontWeight: "600", lineHeight: 18 },
   moreBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, marginTop: 8 },
   moreBtnTxt: { fontSize: 12, color: "#7C3AED", fontWeight: "800" },
 });

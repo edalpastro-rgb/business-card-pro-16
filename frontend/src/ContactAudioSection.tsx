@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type AudioRecord = {
   audio_id: string;
@@ -93,7 +93,7 @@ export function ContactAudioSection({ contactId }: { contactId: string }) {
     ]);
   };
 
-  if (loading) return <ActivityIndicator style={{ marginTop: 30 }} color={theme.color.brandPrimary} />;
+  if (loading) return <ActivityIndicator style={{ marginTop: 30 }} color={HT.brand} />;
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
@@ -109,7 +109,7 @@ export function ContactAudioSection({ contactId }: { contactId: string }) {
 
       {items.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="mic-outline" size={48} color={theme.color.muted} />
+          <Ionicons name="mic-outline" size={48} color={HT.muted} />
           <Text style={styles.emptyTitle}>Nessuna nota vocale</Text>
           <Text style={styles.emptyTxt}>
             Vai su &quot;Interfaccia Master&quot; → tocca il microfono → scegli &quot;Cartella audio di un cliente&quot; e seleziona questo contatto.
@@ -136,12 +136,12 @@ export function ContactAudioSection({ contactId }: { contactId: string }) {
                   {rec.title || "Nota vocale"}
                 </Text>
                 <View style={styles.metaRow}>
-                  <Ionicons name="calendar-outline" size={12} color={theme.color.muted} />
+                  <Ionicons name="calendar-outline" size={12} color={HT.muted} />
                   <Text style={styles.metaTxt}>{fmtDateTime(rec.created_at)}</Text>
                   {typeof rec.duration_sec === "number" && rec.duration_sec > 0 && (
                     <>
                       <Text style={styles.metaSep}>·</Text>
-                      <Ionicons name="time-outline" size={12} color={theme.color.muted} />
+                      <Ionicons name="time-outline" size={12} color={HT.muted} />
                       <Text style={styles.metaTxt}>{fmtDuration(rec.duration_sec)}</Text>
                     </>
                   )}
@@ -179,25 +179,25 @@ function fmtDuration(s: number) {
 }
 
 const styles = StyleSheet.create({
-  introCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: "#F5F3FF", padding: 12, borderRadius: 12, marginBottom: 16 },
+  introCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: HT.violetTint, padding: 12, borderRadius: 12, marginBottom: 16 },
   introTitle: { fontSize: 13, fontWeight: "800", color: "#7C3AED" },
-  introTxt: { fontSize: 11, color: theme.color.muted, marginTop: 2, lineHeight: 15 },
+  introTxt: { fontSize: 11, color: HT.muted, marginTop: 2, lineHeight: 15 },
   empty: { alignItems: "center", padding: 40, marginTop: 20 },
-  emptyTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface, marginTop: 12 },
-  emptyTxt: { fontSize: 12, color: theme.color.muted, marginTop: 6, textAlign: "center", lineHeight: 16 },
+  emptyTitle: { fontSize: 15, fontWeight: "800", color: HT.text, marginTop: 12 },
+  emptyTxt: { fontSize: 12, color: HT.muted, marginTop: 6, textAlign: "center", lineHeight: 16 },
   card: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: theme.color.surface, borderRadius: 12, padding: 12, marginBottom: 10,
-    borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: HT.card2, borderRadius: 12, padding: 12, marginBottom: 10,
+    borderWidth: 1, borderColor: HT.border,
   },
   playBtn: {
     width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center",
     shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 3,
   },
-  title: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
+  title: { fontSize: 13, fontWeight: "700", color: HT.text },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 4 },
-  metaTxt: { fontSize: 11, color: theme.color.muted },
-  metaSep: { fontSize: 11, color: theme.color.muted, marginHorizontal: 4 },
+  metaTxt: { fontSize: 11, color: HT.muted },
+  metaSep: { fontSize: 11, color: HT.muted, marginHorizontal: 4 },
   playingHint: { fontSize: 10, color: "#DC2626", fontWeight: "800", marginTop: 3 },
   trashBtn: { padding: 8 },
 });

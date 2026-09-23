@@ -6,6 +6,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 /**
  * V28.c — Renamed: "Cronologia comunicazioni" (was: telefonate).
  * Renders a unified timeline of ALL communication events with the contact:
@@ -48,7 +49,7 @@ const CHANNEL_META: Record<
   phone:    { label: "Telefonata",  color: "#0F766E", icon: "call" },
   sms:      { label: "SMS",         color: "#6366F1", icon: "chatbubble-ellipses" },
   whatsapp: { label: "WhatsApp",    color: "#25D366", icon: "logo-whatsapp" },
-  email:    { label: "Email",       color: "#0F2438", icon: "mail" },
+  email:    { label: "Email",       color: HT.text, icon: "mail" },
   telegram: { label: "Telegram",    color: "#0088CC", icon: "paper-plane" },
 };
 
@@ -171,12 +172,12 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
       </View>
 
       {loading ? (
-        <ActivityIndicator color={theme.color.brandPrimary} style={{ marginTop: 30 }} />
+        <ActivityIndicator color={HT.brand} style={{ marginTop: 30 }} />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4 }}>
           {logs.length === 0 ? (
             <View style={styles.empty}>
-              <Ionicons name="chatbubbles-outline" size={44} color={theme.color.muted} />
+              <Ionicons name="chatbubbles-outline" size={44} color={HT.muted} />
               <Text style={styles.emptyTxt}>Nessuna comunicazione registrata</Text>
               <Text style={styles.emptyHint}>
                 Ogni volta che tocchi Chiama, SMS, WhatsApp, Email o Telegram nella scheda, l&apos;evento viene registrato qui con data e ora.
@@ -206,19 +207,19 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
                         hitSlop={8}
                         style={styles.editBtn}
                       >
-                        <Ionicons name="create-outline" size={16} color={theme.color.brandPrimary} />
+                        <Ionicons name="create-outline" size={16} color={HT.brand} />
                       </Pressable>
                     </View>
                   </View>
                   <Text style={styles.descriptionTxt}>{description}</Text>
                   <View style={styles.metaRow}>
-                    <Ionicons name="calendar-outline" size={12} color={theme.color.muted} />
+                    <Ionicons name="calendar-outline" size={12} color={HT.muted} />
                     <Text style={styles.metaTxt}>{date}</Text>
-                    <Ionicons name="time-outline" size={12} color={theme.color.muted} style={{ marginLeft: 10 }} />
+                    <Ionicons name="time-outline" size={12} color={HT.muted} style={{ marginLeft: 10 }} />
                     <Text style={styles.metaTxt}>{time}</Text>
                     {log.phone ? (
                       <>
-                        <Ionicons name="call-outline" size={12} color={theme.color.muted} style={{ marginLeft: 10 }} />
+                        <Ionicons name="call-outline" size={12} color={HT.muted} style={{ marginLeft: 10 }} />
                         <Text style={styles.metaTxt}>{log.phone}</Text>
                       </>
                     ) : null}
@@ -241,7 +242,7 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
             <View style={styles.editHead}>
               <Text style={styles.editTitle}>Modifica chiamata</Text>
               <Pressable onPress={() => setEditing(null)} hitSlop={8}>
-                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
@@ -275,20 +276,20 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
                   onChangeText={(t) => setEditDurationMin(t.replace(/[^\d]/g, "").slice(0, 3))}
                   keyboardType="number-pad"
                   placeholder="0"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={HT.muted}
                   style={styles.durInput}
                 />
-                <Text style={{ fontWeight: "700", color: theme.color.muted }}>min</Text>
+                <Text style={{ fontWeight: "700", color: HT.muted }}>min</Text>
                 <TextInput
                   testID="edit-duration-sec"
                   value={editDurationSec}
                   onChangeText={(t) => setEditDurationSec(t.replace(/[^\d]/g, "").slice(0, 2))}
                   keyboardType="number-pad"
                   placeholder="0"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={HT.muted}
                   style={styles.durInput}
                 />
-                <Text style={{ fontWeight: "700", color: theme.color.muted }}>sec</Text>
+                <Text style={{ fontWeight: "700", color: HT.muted }}>sec</Text>
               </View>
 
               <Text style={styles.editLbl}>Nota</Text>
@@ -298,7 +299,7 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
                 onChangeText={setEditNote}
                 multiline
                 placeholder="Aggiungi una nota sulla chiamata…"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={styles.noteInput}
               />
 
@@ -323,31 +324,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: theme.color.border,
+    borderBottomColor: HT.border,
   },
-  headerTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  headerSub: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  headerTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  headerSub: { fontSize: 11, color: HT.muted, marginTop: 1 },
   dialBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#16A34A",
+    backgroundColor: '#16A34A',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: theme.radius.pill,
   },
   dialBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
   empty: { alignItems: "center", padding: 40, gap: 8 },
-  emptyTxt: { fontSize: 15, fontWeight: "700", color: theme.color.onSurfaceTertiary },
-  emptyHint: { fontSize: 12, color: theme.color.muted, textAlign: "center", marginTop: 4, lineHeight: 17 },
+  emptyTxt: { fontSize: 15, fontWeight: "700", color: HT.text2 },
+  emptyHint: { fontSize: 12, color: HT.muted, textAlign: "center", marginTop: 4, lineHeight: 17 },
   logCard: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: theme.radius.md,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     borderLeftWidth: 4,
     padding: 12,
     marginBottom: 8,
@@ -355,23 +356,23 @@ const styles = StyleSheet.create({
   logRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
   channelChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: theme.radius.pill },
   channelChipTxt: { color: "#FFF", fontWeight: "700", fontSize: 11 },
-  durationTxt: { fontSize: 12, color: theme.color.muted, fontWeight: "600" },
-  descriptionTxt: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface, marginBottom: 4 },
+  durationTxt: { fontSize: 12, color: HT.muted, fontWeight: "600" },
+  descriptionTxt: { fontSize: 13, fontWeight: "700", color: HT.text, marginBottom: 4 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2, flexWrap: "wrap" },
-  metaTxt: { fontSize: 11, color: theme.color.muted },
-  noteTxt: { marginTop: 6, fontSize: 13, color: theme.color.onSurface, lineHeight: 18 },
+  metaTxt: { fontSize: 11, color: HT.muted },
+  noteTxt: { marginTop: 6, fontSize: 13, color: HT.text, lineHeight: 18 },
   editBtn: { padding: 4 },
   // V28.f — edit modal styles
   editBackdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.55)", justifyContent: "flex-end" },
-  editCard: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "88%" },
-  editHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  editTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  editLbl: { fontSize: 12, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 },
+  editCard: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "88%" },
+  editHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border },
+  editTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  editLbl: { fontSize: 12, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 },
   outcomeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  outcomeBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, borderWidth: 1.5, backgroundColor: "#FFF" },
+  outcomeBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, borderWidth: 1.5, backgroundColor: HT.card },
   outcomeBtnTxt: { fontSize: 12, fontWeight: "700" },
-  durInput: { width: 68, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, textAlign: "center", fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  noteInput: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 8, padding: 10, minHeight: 80, textAlignVertical: "top", color: theme.color.onSurface },
-  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.brandPrimary, paddingVertical: 12, borderRadius: 10, marginTop: 8 },
+  durInput: { width: 68, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, textAlign: "center", fontSize: 16, fontWeight: "800", color: HT.text },
+  noteInput: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 8, padding: 10, minHeight: 80, textAlignVertical: "top", color: HT.text },
+  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.brand, paddingVertical: 12, borderRadius: 10, marginTop: 8 },
   saveBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
 });

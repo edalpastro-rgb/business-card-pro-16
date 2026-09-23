@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Ref = {
   contact_id: string;
@@ -51,7 +52,7 @@ export function ContactReferralsSection({ contactId, contactName, refreshKey }: 
   if (loading) {
     return (
       <View style={styles.card}>
-        <ActivityIndicator color={theme.color.brandPrimary} />
+        <ActivityIndicator color={HT.brand} />
       </View>
     );
   }
@@ -61,12 +62,12 @@ export function ContactReferralsSection({ contactId, contactName, refreshKey }: 
 
   const fullName = (r: Ref) => `${r.first_name || ""} ${r.last_name || ""}`.trim() || "(senza nome)";
   const areaColor = (a?: string) =>
-    a === "energy" ? theme.color.energy : a === "network" ? theme.color.network : theme.color.muted;
+    a === "energy" ? theme.color.energy : a === "network" ? theme.color.network : HT.muted;
 
   return (
     <View style={styles.card}>
       <View style={styles.headRow}>
-        <Ionicons name="git-network" size={18} color={theme.color.brandPrimary} />
+        <Ionicons name="git-network" size={18} color={HT.brand} />
         <Text style={styles.title}>Anagrafiche collegate</Text>
       </View>
 
@@ -87,7 +88,7 @@ export function ContactReferralsSection({ contactId, contactName, refreshKey }: 
                 <Text style={styles.sub}>{parent.contact_code}</Text>
               ) : null}
             </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+            <Ionicons name="chevron-forward" size={18} color={HT.muted} />
           </Pressable>
         </View>
       )}
@@ -115,7 +116,7 @@ export function ContactReferralsSection({ contactId, contactName, refreshKey }: 
                     <Text style={styles.sub}>{r.contact_code}</Text>
                   ) : null}
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                <Ionicons name="chevron-forward" size={18} color={HT.muted} />
               </Pressable>
             ))}
           </View>
@@ -127,40 +128,40 @@ export function ContactReferralsSection({ contactId, contactName, refreshKey }: 
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: theme.color.surfaceSecondary,
+    backgroundColor: HT.card2,
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
   },
   headRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: {
     fontSize: 13,
     fontWeight: "700",
-    color: theme.color.brandPrimary,
+    color: HT.brand,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   label: {
     fontSize: 11,
     fontWeight: "700",
-    color: theme.color.muted,
+    color: HT.muted,
     textTransform: "uppercase",
     letterSpacing: 0.4,
     marginBottom: 6,
   },
   subHead: {},
-  subHint: { fontSize: 11, color: theme.color.muted, marginTop: -3, marginBottom: 6 },
+  subHint: { fontSize: 11, color: HT.muted, marginTop: -3, marginBottom: 6 },
   rowCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     padding: 10,
     borderRadius: 10,
-    backgroundColor: theme.color.surface,
+    backgroundColor: HT.card2,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
   },
   avatar: {
     width: 34,
@@ -169,6 +170,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  name: { fontSize: 14, fontWeight: "600", color: theme.color.onSurface },
-  sub: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  name: { fontSize: 14, fontWeight: "600", color: HT.text },
+  sub: { fontSize: 11, color: HT.muted, marginTop: 1 },
 });

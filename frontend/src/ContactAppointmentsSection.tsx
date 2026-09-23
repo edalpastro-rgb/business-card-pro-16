@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Appointment = {
   appointment_id: string;
@@ -70,7 +71,7 @@ export function ContactAppointmentsSection({ contactId }: Props) {
   };
 
   const outcomeName = (id: string) => outcomes.find((o) => o.id === id)?.name || id;
-  const outcomeColor = (id: string) => outcomes.find((o) => o.id === id)?.color || theme.color.muted;
+  const outcomeColor = (id: string) => outcomes.find((o) => o.id === id)?.color || HT.muted;
 
   const fmtDateTime = (iso: string) => {
     const d = new Date(iso);
@@ -80,7 +81,7 @@ export function ContactAppointmentsSection({ contactId }: Props) {
     };
   };
 
-  if (loading) return <ActivityIndicator style={{ marginTop: 30 }} color={theme.color.brandPrimary} />;
+  if (loading) return <ActivityIndicator style={{ marginTop: 30 }} color={HT.brand} />;
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
@@ -112,7 +113,7 @@ export function ContactAppointmentsSection({ contactId }: Props) {
                 <Text style={styles.cardTitle} numberOfLines={1}>{a.title}</Text>
               </View>
               <View style={styles.metaRow}>
-                <Ionicons name="calendar-outline" size={11} color={theme.color.muted} />
+                <Ionicons name="calendar-outline" size={11} color={HT.muted} />
                 <Text style={styles.metaTxt}>{date} · {time}</Text>
                 {a.appointment_type_tags && a.appointment_type_tags.length > 0 ? (
                   <>
@@ -127,7 +128,7 @@ export function ContactAppointmentsSection({ contactId }: Props) {
                   style={styles.shareInlineBtn}
                   testID={`share-appt-${a.appointment_id}`}
                 >
-                  <Ionicons name="share-social-outline" size={14} color={theme.color.brandPrimary} />
+                  <Ionicons name="share-social-outline" size={14} color={HT.brand} />
                 </Pressable>
               </View>
             </Pressable>
@@ -146,15 +147,15 @@ export function ContactAppointmentsSection({ contactId }: Props) {
             <View
               key={a.appointment_id}
               testID={`appt-past-${a.appointment_id}`}
-              style={[styles.card, { borderLeftColor: a.done ? theme.color.success : theme.color.muted, opacity: a.done ? 1 : 0.7 }]}
+              style={[styles.card, { borderLeftColor: a.done ? HT.success : HT.muted, opacity: a.done ? 1 : 0.7 }]}
             >
               <Pressable onPress={() => router.push(`/appointment/${a.appointment_id}`)}>
                 <View style={styles.cardRow}>
-                  <Ionicons name={a.done ? "checkmark-circle" : "close-circle"} size={14} color={a.done ? theme.color.success : theme.color.muted} />
+                  <Ionicons name={a.done ? "checkmark-circle" : "close-circle"} size={14} color={a.done ? HT.success : HT.muted} />
                   <Text style={[styles.cardTitle, { textDecorationLine: a.done ? "none" : "line-through" }]} numberOfLines={1}>{a.title}</Text>
                 </View>
                 <View style={styles.metaRow}>
-                  <Ionicons name="calendar-outline" size={11} color={theme.color.muted} />
+                  <Ionicons name="calendar-outline" size={11} color={HT.muted} />
                   <Text style={styles.metaTxt}>{date} · {time}</Text>
                 </View>
                 {a.outcome_ids && a.outcome_ids.length > 0 ? (
@@ -178,11 +179,11 @@ export function ContactAppointmentsSection({ contactId }: Props) {
                     multiline
                     autoFocus
                     placeholder="Aggiungi una nota all'esito"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={HT.muted}
                   />
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
-                    <Pressable onPress={() => setEditingNoteId(null)} style={[styles.miniBtn, { backgroundColor: "#E5E7EB" }]}>
-                      <Text style={[styles.miniBtnTxt, { color: theme.color.onSurface }]}>Annulla</Text>
+                    <Pressable onPress={() => setEditingNoteId(null)} style={[styles.miniBtn, { backgroundColor: HT.border }]}>
+                      <Text style={[styles.miniBtnTxt, { color: HT.text }]}>Annulla</Text>
                     </Pressable>
                     <Pressable
                       testID={`appt-note-save-${a.appointment_id}`}
@@ -205,7 +206,7 @@ export function ContactAppointmentsSection({ contactId }: Props) {
                 >
                   <Text style={styles.noteViewTxt}>{a.outcome_notes}</Text>
                   <View style={styles.editHint}>
-                    <Ionicons name="pencil" size={11} color={theme.color.brandPrimary} />
+                    <Ionicons name="pencil" size={11} color={HT.brand} />
                     <Text style={styles.editHintTxt}>Modifica</Text>
                   </View>
                 </Pressable>
@@ -215,7 +216,7 @@ export function ContactAppointmentsSection({ contactId }: Props) {
                   onPress={() => { setEditingNoteId(a.appointment_id); setEditingNote(""); }}
                   style={styles.addNoteBtn}
                 >
-                  <Ionicons name="add-circle-outline" size={13} color={theme.color.brandPrimary} />
+                  <Ionicons name="add-circle-outline" size={13} color={HT.brand} />
                   <Text style={styles.addNoteBtnTxt}>Aggiungi nota all&apos;esito</Text>
                 </Pressable>
               )}
@@ -237,28 +238,28 @@ export function ContactAppointmentsSection({ contactId }: Props) {
 
 const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  headerTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, textTransform: "uppercase", letterSpacing: 0.4 },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.color.brandPrimary, paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill },
+  headerTitle: { fontSize: 14, fontWeight: "800", color: HT.text, textTransform: "uppercase", letterSpacing: 0.4 },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: HT.brand, paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill },
   addBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
   empty: { padding: 24, alignItems: "center" },
-  emptyTxt: { fontSize: 13, color: theme.color.muted },
-  card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, borderLeftWidth: 4, padding: 12, marginBottom: 8 },
+  emptyTxt: { fontSize: 13, color: HT.muted },
+  card: { backgroundColor: HT.card, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, borderLeftWidth: 4, padding: 12, marginBottom: 8 },
   cardRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  cardTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface, flex: 1 },
+  cardTitle: { fontSize: 14, fontWeight: "700", color: HT.text, flex: 1 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
-  metaTxt: { fontSize: 11, color: theme.color.muted },
-  shareInlineBtn: { marginLeft: "auto", padding: 4, borderRadius: 999, backgroundColor: "#EEF2FF" },
-  dotSep: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: theme.color.muted, marginHorizontal: 4 },
+  metaTxt: { fontSize: 11, color: HT.muted },
+  shareInlineBtn: { marginLeft: "auto", padding: 4, borderRadius: 999, backgroundColor: HT.violetTint },
+  dotSep: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: HT.muted, marginHorizontal: 4 },
   outcomesRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 8 },
   outcomeChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.pill, borderWidth: 1 },
   outcomeChipTxt: { fontSize: 11, fontWeight: "700" },
-  noteInput: { backgroundColor: theme.color.surface, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: theme.color.border, minHeight: 60, color: theme.color.onSurface, textAlignVertical: "top" },
-  miniBtn: { flex: 1, backgroundColor: theme.color.brandPrimary, paddingVertical: 8, borderRadius: theme.radius.pill, alignItems: "center" },
+  noteInput: { backgroundColor: HT.card2, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: HT.border, minHeight: 60, color: HT.text, textAlignVertical: "top" },
+  miniBtn: { flex: 1, backgroundColor: HT.brand, paddingVertical: 8, borderRadius: theme.radius.pill, alignItems: "center" },
   miniBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
-  noteView: { marginTop: 8, backgroundColor: theme.color.surface, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: theme.color.border },
-  noteViewTxt: { fontSize: 12, color: theme.color.onSurface, lineHeight: 17 },
+  noteView: { marginTop: 8, backgroundColor: HT.card2, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: HT.border },
+  noteViewTxt: { fontSize: 12, color: HT.text, lineHeight: 17 },
   editHint: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 6, alignSelf: "flex-end" },
-  editHintTxt: { fontSize: 10, color: theme.color.brandPrimary, fontWeight: "700" },
+  editHintTxt: { fontSize: 10, color: HT.brand, fontWeight: "700" },
   addNoteBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, paddingVertical: 6, alignSelf: "flex-start" },
-  addNoteBtnTxt: { fontSize: 12, color: theme.color.brandPrimary, fontWeight: "700" },
+  addNoteBtnTxt: { fontSize: 12, color: HT.brand, fontWeight: "700" },
 });

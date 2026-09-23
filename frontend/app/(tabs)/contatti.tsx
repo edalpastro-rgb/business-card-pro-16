@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator, Modal } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator, Modal, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -11,6 +11,7 @@ import { isAreaVisible, areaCategories } from "@/src/utils/areaAccess";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { useScrollMemory } from "@/src/utils/appStatePersist";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium coerente con la Home
 
 type Contact = {
   _pending?: boolean; // V50.z281 — creato/modificato offline, in attesa di sincronizzazione
@@ -43,6 +44,9 @@ function ContattiScreen() {
   const pagePad = usePageBottomPadding();
   const allowed = user?.areas || ["energy", "network"];
   const scrollMem = useScrollMemory("contatti_list"); // V50.z243 — scroll memorizzato
+  // V50.z335 — Griglia responsive: 1 colonna telefono · 2 tablet · 3 desktop
+  const { width: winW } = useWindowDimensions();
+  const cols = winW >= 1100 ? 3 : winW >= 720 ? 2 : 1;
   const [items, setItems] = useState<Contact[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   // V50.z115 — Filtro Categoria › Sottocategoria (attivo quando è selezionata un'area con categorie)
@@ -140,15 +144,15 @@ function ContattiScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Contatti</Text>
-        <View style={{ flexDirection: "row", gap: 8 }} />
+        <View style={styles.countPill} testID="contacts-count"><Text style={styles.countPillTxt}>{orderedItems.length}</Text></View>
       </View>
 
       <View style={styles.search}>
-        <Ionicons name="search" size={18} color={theme.color.muted} />
+        <Ionicons name="search" size={18} color={HT.muted} />
         <TextInput
           testID="contacts-search"
           placeholder="Cerca per nome, telefono, email"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={HT.muted}
           value={q}
           onChangeText={setQ}
           style={styles.searchInput}
@@ -211,7 +215,7 @@ function ContattiScreen() {
           }}
           style={[styles.sortChip, sortMode === "distance" && styles.sortChipOn]}
         >
-          <Ionicons name={sortMode === "distance" ? "swap-vertical" : "swap-vertical-outline"} size={14} color={sortMode === "distance" ? "#FFF" : theme.color.brandPrimary} />
+          <Ionicons name={sortMode === "distance" ? "swap-vertical" : "swap-vertical-outline"} size={14} color={sortMode === "distance" ? "#FFF" : HT.brand} />
           <Text style={[styles.sortChipTxt, sortMode === "distance" && { color: "#FFF" }]}>
             {sortMode === "distance" ? "Ordina: vicinanza" : "Ordina per vicinanza"}
           </Text>
@@ -222,9 +226,9 @@ function ContattiScreen() {
             onPress={() => { setOriginDraft(distanceOrigin); setOriginModalOpen(true); }}
             style={styles.originPill}
           >
-            <Ionicons name="business-outline" size={12} color={theme.color.muted} />
+            <Ionicons name="business-outline" size={12} color={HT.muted} />
             <Text style={styles.originPillTxt} numberOfLines={1}>Da: {distanceOrigin}</Text>
-            <Ionicons name="create-outline" size={12} color={theme.color.brandPrimary} />
+            <Ionicons name="create-outline" size={12} color={HT.brand} />
           </Pressable>
         ) : (
           <Pressable
@@ -232,11 +236,11 @@ function ContattiScreen() {
             onPress={() => { setOriginDraft(""); setOriginModalOpen(true); }}
             style={styles.originPill}
           >
-            <Ionicons name="add-circle-outline" size={12} color={theme.color.brandPrimary} />
-            <Text style={[styles.originPillTxt, { color: theme.color.brandPrimary }]}>Imposta origine</Text>
+            <Ionicons name="add-circle-outline" size={12} color={HT.brand} />
+            <Text style={[styles.originPillTxt, { color: HT.brand }]}>Imposta origine</Text>
           </Pressable>
         )}
-        {distLoading ? <ActivityIndicator size="small" color={theme.color.brandPrimary} /> : null}
+        {distLoading ? <ActivityIndicator size="small" color={HT.brand} /> : null}
       </View>
 
       {groups.length > 0 && (
@@ -244,7 +248,7 @@ function ContattiScreen() {
           <FlatList
             horizontal
             showsHorizontalScrollIndicator={false}
-            data={[{ group_id: "__all__", name: "Tutti gruppi", color: theme.color.brandPrimary, member_count: 0 } as Group, ...groups]}
+            data={[{ group_id: "__all__", name: "Tutti gruppi", color: HT.brand, member_count: 0 } as Group, ...groups]}
             keyExtractor={(g) => g.group_id}
             contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 8 }}
             renderItem={({ item }) => {
@@ -255,10 +259,10 @@ function ContattiScreen() {
                   testID={`group-filter-${item.group_id}`}
                   onPress={() => setGroupId(isAll ? null : item.group_id)}
                   onLongPress={() => !isAll && router.push(`/groups/${item.group_id}`)}
-                  style={[styles.groupChip, on && { backgroundColor: item.color, borderColor: item.color }]}
+                  style={[styles.groupChip, on && { backgroundColor: item.color + "2E", borderColor: item.color }]}
                 >
-                  {!isAll && <View style={[styles.groupDot, { backgroundColor: on ? "#FFF" : item.color }]} />}
-                  <Text style={[styles.groupChipTxt, on && { color: "#FFF" }]}>{item.name}{!isAll && ` (${item.member_count})`}</Text>
+                  {!isAll && <View style={[styles.groupDot, { backgroundColor: item.color }]} />}
+                  <Text style={[styles.groupChipTxt, on && { color: HT.text }]}>{item.name}{!isAll && ` (${item.member_count})`}</Text>
                 </Pressable>
               );
             }}
@@ -273,17 +277,17 @@ function ContattiScreen() {
           onPress={() => router.push("/contacts-import" as any)}
           style={styles.importBtn}
         >
-          <Ionicons name="cloud-upload-outline" size={16} color="#7C3AED" />
+          <Ionicons name="cloud-upload-outline" size={16} color={HT.violet} />
           <Text style={styles.importBtnTxt}>Importa contatti da CSV / Excel</Text>
-          <Ionicons name="chevron-forward" size={14} color="#7C3AED" />
+          <Ionicons name="chevron-forward" size={14} color={HT.violet} />
         </Pressable>
       </View>
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
       ) : items.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="people-outline" size={40} color={theme.color.muted} />
+          <Ionicons name="people-outline" size={40} color={HT.muted} />
           <Text style={styles.emptyTxt}>Nessun contatto trovato</Text>
           <Pressable testID="empty-add-contact" style={styles.emptyBtn} onPress={() => router.push("/contact/new")}>
             <Text style={styles.emptyBtnTxt}>Aggiungi contatto</Text>
@@ -291,6 +295,10 @@ function ContattiScreen() {
         </View>
       ) : (
         <FlatList
+          key={`cols-${cols}`}
+          numColumns={cols}
+          columnWrapperStyle={cols > 1 ? { gap: 12 } : undefined}
+          testID="contacts-list"
           ref={scrollMem.ref}
           onScroll={scrollMem.onScroll}
           onContentSizeChange={scrollMem.onContentSizeChange}
@@ -304,10 +312,10 @@ function ContattiScreen() {
               <Pressable
                 testID={`contact-${item.contact_id}`}
                 onPress={() => router.push(`/contact/${item.contact_id}`)}
-                style={styles.card}
+                style={({ pressed }) => [styles.card, cols > 1 && { flex: 1 }, pressed && { borderColor: colorFor(item.area) + "99" }]}
               >
-                <View style={[styles.avatar, { backgroundColor: colorFor(item.area) + "22" }]}>
-                  <Text style={[styles.avatarTxt, { color: colorFor(item.area) }]}>
+                <View style={[styles.avatar, { backgroundColor: colorFor(item.area), borderColor: colorFor(item.area) + "66" }]}>
+                  <Text style={styles.avatarTxt}>
                     {(item.first_name?.[0] || "").toUpperCase()}{(item.last_name?.[0] || "").toUpperCase()}
                   </Text>
                 </View>
@@ -315,30 +323,30 @@ function ContattiScreen() {
                   <View style={{ flexDirection: "row", alignItems: "center" }}><Text style={styles.name}>{item.first_name} {item.last_name}</Text><PendingBadge pending={item._pending} /></View>
                   <Text style={styles.sub}>{item.phone || item.email || "—"}</Text>
                   <View style={styles.tags}>
-                    <View style={[styles.tag, { borderColor: colorFor(item.area) }]}>
-                      <View style={[styles.tagDot, { backgroundColor: colorFor(item.area) }]} />
+                    <View style={[styles.tag, { borderColor: colorFor(item.area) + "66", backgroundColor: colorFor(item.area) + "22" }]}>
                       <Text style={[styles.tagTxt, { color: colorFor(item.area) }]}>{item.area === "energy" ? (settings?.energy_title || "Energia") : (settings?.network_title || "Network")}</Text>
                     </View>
-                    <View style={[styles.tag, { borderColor: theme.color.border }]}>
+                    <View style={[styles.tag, { borderColor: HT.border, backgroundColor: HT.glass }]}>
+                      <Ionicons name={item.source === "referral" ? "git-branch-outline" : "hand-left-outline"} size={10} color={HT.text2} />
                       <Text style={styles.tagTxtNeutral}>{item.source === "referral" ? "Referenza" : "Conoscenza"}</Text>
                     </View>
                     {/* V50.z72 — Badge distanza */}
                     {distanceOrigin ? (
                       km == null ? (
                         <View style={[styles.tag, styles.kmTagNull]}>
-                          <Ionicons name="help-circle-outline" size={11} color={theme.color.muted} />
+                          <Ionicons name="help-circle-outline" size={11} color={HT.muted} />
                           <Text style={styles.tagTxtNeutral}>senza indirizzo</Text>
                         </View>
                       ) : (
                         <View style={[styles.tag, styles.kmTag]}>
-                          <Ionicons name="speedometer-outline" size={11} color="#0369A1" />
+                          <Ionicons name="navigate" size={10} color={HT.axon} />
                           <Text style={styles.kmTagTxt}>≈ {km.toFixed(1)} km</Text>
                         </View>
                       )
                     ) : null}
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+                <Ionicons name="chevron-forward" size={18} color={HT.muted} />
               </Pressable>
             );
           }}
@@ -359,14 +367,14 @@ function ContattiScreen() {
               value={originDraft}
               onChangeText={setOriginDraft}
               placeholder="es. Corso Italia 42, Milano"
-              placeholderTextColor={theme.color.muted}
+              placeholderTextColor={HT.muted}
               style={styles.modalInput}
               autoFocus
             />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
               {settings?.office_address && originDraft.trim() !== settings.office_address ? (
                 <Pressable onPress={() => setOriginDraft(settings.office_address || "")} style={[styles.modalBtn, styles.modalBtnGhost]}>
-                  <Ionicons name="business-outline" size={14} color={theme.color.onSurface} />
+                  <Ionicons name="business-outline" size={14} color={HT.text} />
                   <Text style={styles.modalBtnGhostTxt}>Ufficio</Text>
                 </Pressable>
               ) : null}
@@ -382,7 +390,7 @@ function ContattiScreen() {
                   setOriginModalOpen(false);
                   if (val && sortMode !== "distance") setSortMode("distance");
                 }}
-                style={[styles.modalBtn, { flex: 1, backgroundColor: theme.color.brandPrimary }]}
+                style={[styles.modalBtn, { flex: 1, backgroundColor: HT.brand }]}
               >
                 <Ionicons name="checkmark" size={16} color="#FFF" />
                 <Text style={styles.modalBtnTxt}>Calcola</Text>
@@ -396,82 +404,54 @@ function ContattiScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 },
-  title: { fontSize: 24, fontWeight: "700", color: theme.color.onSurface },
-  // V29.bb — Stile Optima
-  headerBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.color.brandPrimary,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.9)",
-    shadowColor: "#000",
-    shadowOpacity: 0.20,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
-  },
-  search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", marginHorizontal: 16, paddingHorizontal: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
-  searchInput: { flex: 1, paddingVertical: 10, color: theme.color.onSurface },
-  chipsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0 },
-  chipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  chipTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 13 },
-  chipTxtActive: { color: "#FFF" },
+  root: { flex: 1, backgroundColor: HT.bg },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 20, paddingVertical: 12 },
+  title: { fontSize: 26, fontWeight: "900", color: HT.text, letterSpacing: -0.6 },
+  countPill: { backgroundColor: HT.brandTint, borderWidth: 1, borderColor: HT.brandLine, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
+  countPillTxt: { color: HT.brand, fontWeight: "800", fontSize: 12 },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, marginHorizontal: 16, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: HT.border, minHeight: 46 },
+  searchInput: { flex: 1, paddingVertical: 10, color: HT.text, fontSize: 15 },
+  chipsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 12, flexWrap: "wrap" },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, flexShrink: 0, minHeight: 36, justifyContent: "center" },
+  chipActive: { backgroundColor: HT.brandTint, borderColor: HT.brand },
+  chipTxt: { color: HT.text2, fontWeight: "700", fontSize: 13 },
+  chipTxtActive: { color: HT.brand },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, gap: 12 },
-  emptyTxt: { color: theme.color.muted, fontSize: 15 },
-  emptyBtn: { backgroundColor: theme.color.brandPrimary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: theme.radius.md, marginTop: 8 },
+  emptyTxt: { color: HT.muted, fontSize: 15 },
+  emptyBtn: { backgroundColor: HT.brand, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 8 },
   emptyBtnTxt: { color: "#FFF", fontWeight: "700" },
-  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", padding: 12, borderRadius: theme.radius.md, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.9)",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
-  },
-  avatarTxt: { fontWeight: "700", fontSize: 15 },
-  name: { fontSize: 16, fontWeight: "700", color: theme.color.onSurface },
-  sub: { fontSize: 13, color: theme.color.muted, marginTop: 2 },
-  tags: { flexDirection: "row", gap: 6, marginTop: 6 },
-  tag: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.pill, borderWidth: 1 },
-  tagDot: { width: 6, height: 6, borderRadius: 3 },
-  tagTxt: { fontSize: 11, fontWeight: "700" },
-  tagTxtNeutral: { fontSize: 11, fontWeight: "600", color: theme.color.muted },
-  groupChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
-  groupChipTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 12 },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, padding: 12, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: HT.border },
+  avatar: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", borderWidth: 1.5 },
+  avatarTxt: { fontWeight: "800", fontSize: 15, color: "#FFF", letterSpacing: 0.3 },
+  name: { fontSize: 16, fontWeight: "800", color: HT.text, letterSpacing: -0.2 },
+  sub: { fontSize: 13, color: HT.muted, marginTop: 2 },
+  tags: { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
+  tag: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1 },
+  tagTxt: { fontSize: 11, fontWeight: "800" },
+  tagTxtNeutral: { fontSize: 11, fontWeight: "700", color: HT.text2 },
+  groupChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minHeight: 36 },
+  groupChipTxt: { color: HT.text2, fontWeight: "700", fontSize: 12 },
   groupDot: { width: 8, height: 8, borderRadius: 4 },
   // V50.z72 — Distanze in batch UI
-  distBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingBottom: 6, flexWrap: "wrap" },
+  distBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingBottom: 8, flexWrap: "wrap" },
   importBar: { paddingHorizontal: 16, paddingBottom: 8 },
-  importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE", minHeight: 44 },
-  importBtnTxt: { flex: 1, fontSize: 13, fontWeight: "700", color: "#7C3AED" },
-  sortChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.brandPrimary },
-  sortChipOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  sortChipTxt: { fontSize: 11, fontWeight: "700", color: theme.color.brandPrimary },
-  originPill: { flex: 1, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, minWidth: 100 },
-  originPillTxt: { flex: 1, fontSize: 11, fontWeight: "600", color: theme.color.muted },
-  kmTag: { flexDirection: "row", alignItems: "center", gap: 3, borderColor: "#BAE6FD", backgroundColor: "#E0F2FE" },
-  kmTagNull: { flexDirection: "row", alignItems: "center", gap: 3, borderColor: theme.color.border, backgroundColor: "#F8FAFC" },
-  kmTagTxt: { fontSize: 11, fontWeight: "700", color: "#0369A1" },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 20 },
-  modalSheet: { backgroundColor: "#FFF", borderRadius: 14, padding: 18 },
-  modalTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  modalSub: { fontSize: 12, color: theme.color.muted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
-  modalInput: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, backgroundColor: "#F8FAFC", color: theme.color.onSurface },
+  importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + "55", minHeight: 44 },
+  importBtnTxt: { flex: 1, fontSize: 13, fontWeight: "700", color: HT.violet },
+  sortChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.brandLine, minHeight: 32 },
+  sortChipOn: { backgroundColor: HT.brand, borderColor: HT.brand },
+  sortChipTxt: { fontSize: 11, fontWeight: "700", color: HT.brand },
+  originPill: { flex: 1, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minWidth: 100, minHeight: 32 },
+  originPillTxt: { flex: 1, fontSize: 11, fontWeight: "600", color: HT.muted },
+  kmTag: { borderColor: HT.axonLine, backgroundColor: HT.axonTint },
+  kmTagNull: { borderColor: HT.border, backgroundColor: HT.glass },
+  kmTagTxt: { fontSize: 11, fontWeight: "800", color: HT.axon },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+  modalSheet: { backgroundColor: HT.card, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: HT.border },
+  modalTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  modalSub: { fontSize: 12, color: HT.muted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
+  modalInput: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, backgroundColor: HT.card2, color: HT.text },
   modalBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 },
-  modalBtnGhost: { backgroundColor: "#F1F5F9" },
-  modalBtnGhostTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 13 },
+  modalBtnGhost: { backgroundColor: HT.glassStrong },
+  modalBtnGhostTxt: { color: HT.text, fontWeight: "700", fontSize: 13 },
   modalBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });

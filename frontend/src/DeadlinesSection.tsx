@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V29 — Sezione "Scadenze contratti" per l'anagrafica contatto.
@@ -27,13 +28,13 @@ type Deadline = {
 };
 
 const C = {
-  text: "#111820",
-  muted: "#6B7280",
+  text: HT.text,
+  muted: HT.muted,
   border: "#E5E7EB",
-  bg: "#FFFFFF",
+  bg: HT.card,
   primary: "#EA580C",
   primarySoft: "#FFF1E9",
-  navy: "#1B2B4B",
+  navy: HT.text,
   expired: "#DC2626",
   expiredSoft: "#FEE2E2",
   critical: "#F59E0B",
@@ -55,7 +56,7 @@ const STATUS_META: Record<string, { label: string; fg: string; bg: string }> = {
   critical: { label: "Urgente", fg: C.critical, bg: C.criticalSoft },
   warning: { label: "In arrivo", fg: C.warning, bg: C.warningSoft },
   ok: { label: "OK", fg: C.ok, bg: C.okSoft },
-  unknown: { label: "?", fg: C.muted, bg: "#F3F4F6" },
+  unknown: { label: "?", fg: C.muted, bg: HT.card2 },
 };
 
 function formatIsoDate(iso?: string | null): string {
@@ -191,7 +192,7 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderRadius: 10,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: HT.card2,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: "flex-start",
@@ -205,7 +206,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     marginBottom: 8,
-    backgroundColor: "#FBFCFD",
+    backgroundColor: HT.card2,
   },
   typeBadge: {
     flexDirection: "row",

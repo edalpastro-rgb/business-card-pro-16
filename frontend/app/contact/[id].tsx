@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Linking, Platform, Image, Modal } from "react-native";
+import { LinearGradient } from "expo-linear-gradient"; // V50.z335 — header dark premium
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect, router as expoRouter } from "expo-router";
@@ -46,6 +47,7 @@ import { ContactCustomFieldsSection } from "@/src/ContactCustomFieldsSection";
 import { ContactReviewsSection } from "@/src/ContactReviewsSection";
 import { ContactDistanceBadge } from "@/src/ContactDistanceBadge"; // V50.z241 — «📍 X km da te»
 import { useDraft } from "@/src/utils/appStatePersist"; // V50.z242 — BUG-STATE-001: bozza nota
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -121,6 +123,8 @@ function ContactDetail() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
   const [callScriptOpen, setCallScriptOpen] = useState(false);
+  // V50.z335 — Azioni di contatto secondarie (Script, SMS, Invia su WhatsApp, Telegram, social, web) raggruppate in «Altro»
+  const [commMoreOpen, setCommMoreOpen] = useState(false);
   // V28.r — Barra timer globale (sostituisce il modal a schermo intero V28.f).
   const activeCall = useActiveCall();
   const [callsRefreshTick, setCallsRefreshTick] = useState(0);
@@ -301,9 +305,10 @@ function ContactDetail() {
   };
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (!c) return <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} /></SafeAreaView>;
+  if (!c) return <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /></SafeAreaView>;
 
   const color = c.area === "energy" ? theme.color.energy : theme.color.network;
+  const hasSecondaryComm = !!(c.phone || c.telegram || c.linkedin || c.instagram || c.facebook || c.website || ((c.whatsapp || c.phone) && settings?.wa_referral_template));
 
   // Helpers per aprire navigazione con Waze e Google Maps su qualsiasi indirizzo (stringa libera)
   const openWazeAddr = (addr: string) => {
@@ -364,7 +369,7 @@ function ContactDetail() {
             <Ionicons
               name={isPreferred ? "star" : "star-outline"}
               size={20}
-              color={isPreferred ? "#F59E0B" : theme.color.muted}
+              color={isPreferred ? "#F59E0B" : HT.muted}
             />
           </Pressable>
         </View>
@@ -380,14 +385,14 @@ function ContactDetail() {
           <Pressable
             testID={`${testIdPrefix}-maps-btn`}
             onPress={() => openGoogleMapsAddr(addr)}
-            style={[styles.wazeInline, { backgroundColor: "#4285F4" }]}
+            style={[styles.wazeInline, { backgroundColor: '#4285F4' }]}
           >
             <Ionicons name="map" size={14} color="#FFF" />
             <Text style={styles.wazeInlineTxt}>Google Maps</Text>
           </Pressable>
           {distanceOrigin ? (
             <View style={styles.kmBadge}>
-              <Ionicons name="speedometer-outline" size={13} color="#0369A1" />
+              <Ionicons name="speedometer-outline" size={13} color={HT.axon} />
               <Text style={styles.kmBadgeTxt}>
                 {distLoading && km === undefined
                   ? "…"
@@ -646,7 +651,16 @@ function ContactDetail() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      <View style={[styles.heroCompact, { backgroundColor: color }]}>
+      {/* V50.z335 — Header dark premium: gradiente navy con accento del colore dell'area/gruppo (niente più rosso piatto) */}
+      <View style={styles.heroCompact} testID="contact-hero">
+        <LinearGradient
+          colors={[color + "66", color + "14", "rgba(11,22,38,0)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+          pointerEvents="none"
+        />
+        <View style={[styles.heroAccentLine, { backgroundColor: color }]} pointerEvents="none" />
         <View style={styles.heroTopRow}>
           <Pressable
             testID="back-btn"
@@ -661,7 +675,7 @@ function ContactDetail() {
             hitSlop={12}
             style={{ padding: 4 }}
           >
-            <Ionicons name="chevron-back" size={24} color="#FFF" />
+            <Ionicons name="chevron-back" size={24} color={HT.text} />
           </Pressable>
           <Pressable
             testID="contact-avatar-btn"
@@ -681,8 +695,8 @@ function ContactDetail() {
                 style={styles.avatarImgCompact}
               />
             ) : (
-              <View style={styles.avatarCompact}>
-                <Text style={styles.avatarTxtCompact}>{c.first_name[0]?.toUpperCase()}{c.last_name[0]?.toUpperCase()}</Text>
+              <View style={[styles.avatarCompact, { backgroundColor: color + "33", borderColor: color }]}>
+                <Text style={[styles.avatarTxtCompact, { color: "#FFF" }]}>{c.first_name[0]?.toUpperCase()}{c.last_name[0]?.toUpperCase()}</Text>
               </View>
             )}
             <View style={styles.avatarBadgeCompact}>
@@ -699,37 +713,37 @@ function ContactDetail() {
             </Text>
           </View>
           <Pressable testID="share-contact" onPress={shareContact} hitSlop={8} style={{ padding: 6 }}>
-            <Ionicons name="share-social-outline" size={20} color="#FFF" />
+            <Ionicons name="share-social-outline" size={20} color={HT.text} />
           </Pressable>
           <Pressable testID="edit-contact" onPress={() => router.push(`/contact/edit/${id}`)} hitSlop={8} style={{ padding: 6 }}>
-            <Ionicons name="create-outline" size={20} color="#FFF" />
+            <Ionicons name="create-outline" size={20} color={HT.text} />
           </Pressable>
         </View>
 
         {canAssign && !(c.assigned_to_user_id && c.assigned_to_user_id === user?.user_id) && (
           <Pressable testID="assign-btn" onPress={() => setAssignOpen(!assignOpen)} style={styles.assignPill}>
-            <Ionicons name="person" size={11} color={theme.color.brandPrimary} />
+            <Ionicons name="person" size={11} color={HT.brand} />
             <Text style={styles.assignPillTxt}>
               {c.assigned_to_user_id
                 ? "Assegnato: " + (team.find((m) => m.user_id === c.assigned_to_user_id)?.name || c.assigned_to_user_id.slice(0, 8))
                 : "Non assegnato — tocca per assegnare"}
             </Text>
-            <Ionicons name={assignOpen ? "chevron-up" : "chevron-down"} size={11} color={theme.color.brandPrimary} />
+            <Ionicons name={assignOpen ? "chevron-up" : "chevron-down"} size={11} color={HT.brand} />
           </Pressable>
         )}
         {canAssign && !(c.assigned_to_user_id && c.assigned_to_user_id === user?.user_id) && assignOpen && (
-          <View style={{ marginTop: 6, backgroundColor: "#FFF", borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, padding: 6 }}>
+          <View style={{ marginTop: 6, backgroundColor: HT.card, borderRadius: 10, borderWidth: 1, borderColor: HT.border, padding: 6 }}>
             <Pressable testID="assign-none" onPress={() => doAssign(null)} style={{ padding: 8 }}>
-              <Text style={{ color: theme.color.muted, fontStyle: "italic" }}>— Nessuno (orfano) —</Text>
+              <Text style={{ color: HT.muted, fontStyle: "italic" }}>— Nessuno (orfano) —</Text>
             </Pressable>
             {team.map((m) => (
               <Pressable
                 key={m.user_id}
                 testID={`assign-to-${m.user_id}`}
                 onPress={() => doAssign(m.user_id)}
-                style={{ padding: 8, borderTopWidth: 1, borderTopColor: theme.color.border }}
+                style={{ padding: 8, borderTopWidth: 1, borderTopColor: HT.border }}
               >
-                <Text style={{ color: theme.color.onSurface, fontWeight: c.assigned_to_user_id === m.user_id ? "800" : "500" }}>
+                <Text style={{ color: HT.text, fontWeight: c.assigned_to_user_id === m.user_id ? "800" : "500" }}>
                   {c.assigned_to_user_id === m.user_id ? "✓ " : ""}{m.name}{m.role === "admin" ? " ★" : m.role === "owner" ? " 👑" : ""}
                 </Text>
               </Pressable>
@@ -743,7 +757,8 @@ function ContactDetail() {
           (() => {
             const meta = STATUS_META[c.status] || STATUS_META.prospect;
             return (
-              <View style={styles.statusLabel} testID="contact-status-label">
+              <View style={[styles.statusLabel, { backgroundColor: meta.color + "22", borderColor: meta.color + "66" }]} testID="contact-status-label">
+                <View style={[styles.statusDot, { backgroundColor: meta.color }]} />
                 <Ionicons name={meta.icon} size={12} color={meta.color} />
                 <Text style={[styles.statusLabelTxt, { color: meta.color }]}>{meta.label}</Text>
               </View>
@@ -755,7 +770,9 @@ function ContactDetail() {
         </View>
       </View>
 
-      <View style={styles.tabs}>
+      {/* V50.z335 — Tab bar: icone più grandi con etichetta, scorrevole, stile dark */}
+      <View style={styles.tabsWrap}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs} testID="contact-tabs">
         {(["info", "notes", "files", "bills", "contracts", "audio", "calls", "appts", "visits", "refs", "reviews"] as const).map((t) => {
           const iconName: any = t === "info" ? "person"
             : t === "notes" ? "create"
@@ -768,29 +785,24 @@ function ContactDetail() {
             : t === "reviews" ? "star"
             : t === "visits" ? "location"
             : "calendar";
-          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "contracts" ? "Contratti" : t === "audio" ? "Audio" : t === "calls" ? "Comunicazioni" : t === "refs" ? "Referenze" : t === "reviews" ? "Recensioni" : t === "visits" ? "Visite" : "Appuntamenti";
+          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "contracts" ? "Contratti" : t === "audio" ? "Audio" : t === "calls" ? "Comunic." : t === "refs" ? "Referenze" : t === "reviews" ? "Recensioni" : t === "visits" ? "Visite" : "Appuntam.";
           const active = tab === t;
-          // V38E: All non-selected tabs are neutral grey; only the active tab is colored.
-          // Fatture tab keeps a distinctive orange when active (still the most important section).
-          const activeColor = t === "bills" ? "#EA580C" : t === "reviews" ? "#F59E0B" : t === "visits" ? "#0EA5E9" : theme.color.brandPrimary;
-          const iconColor = active ? activeColor : theme.color.muted;
+          const activeColor = t === "bills" ? HT.brand : t === "reviews" ? HT.warning : t === "visits" ? HT.axon : HT.brand;
+          const iconColor = active ? activeColor : HT.muted;
           return (
             <Pressable
               key={t}
               testID={`tab-${t}`}
               onPress={() => setTab(t)}
               accessibilityLabel={label}
-              style={[
-                styles.tabIcon,
-                active && (t === "bills"
-                  ? { borderBottomColor: activeColor, backgroundColor: activeColor + "15" }
-                  : styles.tabIconActive),
-              ]}
+              style={[styles.tabIcon, active && { backgroundColor: activeColor + "1F", borderColor: activeColor + "66" }]}
             >
-              <Ionicons name={iconName} size={20} color={iconColor} />
+              <Ionicons name={iconName} size={22} color={iconColor} />
+              <Text style={[styles.tabLbl, active && { color: activeColor }]} numberOfLines={1}>{label}</Text>
             </Pressable>
           );
         })}
+      </ScrollView>
       </View>
 
       {tab === "bills" ? (
@@ -866,7 +878,7 @@ function ContactDetail() {
                       <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, marginRight: 10, flexShrink: 1 }}>
                         <Text style={styles.compactRowLabel}>Aree</Text>
                         {contactAreas.map((aid, i) => {
-                          const info = areaMap[aid] || { name: aid, color: theme.color.muted };
+                          const info = areaMap[aid] || { name: aid, color: HT.muted };
                           return (
                             <View key={`a-${aid}`} style={[styles.areaBadgeMini, { backgroundColor: info.color, maxWidth: "100%" }]}>
                               {i === 0 && <Ionicons name="star" size={9} color="#FFF" />}
@@ -915,7 +927,8 @@ function ContactDetail() {
 
             <View style={styles.card}>
               <Text style={styles.commSectionTitle}>Comunica con {c.first_name}</Text>
-              <View style={styles.commGrid}>
+              {/* V50.z335 — Azioni principali grandi (Chiama · WhatsApp · Email) */}
+              <View style={styles.commPrimaryRow}>
                 {c.phone ? (
                   <Pressable
                     testID="comm-call"
@@ -933,23 +946,9 @@ function ContactDetail() {
                       const logId = await logIdPromise;
                       activeCall.setLogId(logId);
                     }}
-                    style={[styles.commBtn, { backgroundColor: "#0F766E" }]}
+                    style={[styles.commBtnPrimary, { backgroundColor: "#0F766E" }]}
                   >
-                    <Ionicons name="call" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Chiama</Text>
-                  </Pressable>
-                ) : null}
-                {c.phone ? (
-                  <Pressable
-                    testID="comm-script"
-                    onPress={() => setCallScriptOpen(true)}
-                    style={[styles.commBtn, { backgroundColor: "#1B2B4B" }]}
-                  >
-                    <Ionicons name="document-text" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Script</Text>
-                  </Pressable>
-                ) : null}
-                {c.phone ? (
-                  <Pressable testID="comm-sms" onPress={() => { logComm("sms", c.phone); Linking.openURL(`sms:${c.phone.replace(/\s/g, "")}`); }} style={[styles.commBtn, { backgroundColor: theme.color.brandSecondary }]}>
-                    <Ionicons name="chatbubble-ellipses" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>SMS</Text>
+                    <Ionicons name="call" size={22} color="#FFF" /><Text style={styles.commBtnPrimaryTxt}>Chiama</Text>
                   </Pressable>
                 ) : null}
                 {(c.whatsapp || c.phone) ? (
@@ -958,8 +957,38 @@ function ContactDetail() {
                     const num = raw.replace(/[^\d+]/g, "");
                     logComm("whatsapp", raw);
                     Linking.openURL(`https://wa.me/${num}`);
-                  }} style={[styles.commBtn, { backgroundColor: "#25D366" }]}>
-                    <Ionicons name="logo-whatsapp" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>WhatsApp</Text>
+                  }} style={[styles.commBtnPrimary, { backgroundColor: "#25D366" }]}>
+                    <Ionicons name="logo-whatsapp" size={22} color="#FFF" /><Text style={styles.commBtnPrimaryTxt}>WhatsApp</Text>
+                  </Pressable>
+                ) : null}
+                {c.email ? (
+                  <Pressable testID="comm-email" onPress={() => { logComm("email"); Linking.openURL(`mailto:${c.email}`); }} style={[styles.commBtnPrimary, { backgroundColor: "#2563EB" }]}>
+                    <Ionicons name="mail" size={22} color="#FFF" /><Text style={styles.commBtnPrimaryTxt}>Email</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              {/* Azioni secondarie raggruppate in «Altro» */}
+              {hasSecondaryComm ? (
+                <Pressable testID="comm-more-toggle" onPress={() => setCommMoreOpen((v) => !v)} style={styles.commMoreBtn}>
+                  <Ionicons name="ellipsis-horizontal-circle-outline" size={16} color={HT.text2} />
+                  <Text style={styles.commMoreTxt}>{commMoreOpen ? "Meno" : "Altro"}</Text>
+                  <Ionicons name={commMoreOpen ? "chevron-up" : "chevron-down"} size={14} color={HT.text2} />
+                </Pressable>
+              ) : null}
+              {commMoreOpen ? (
+              <View style={styles.commGrid} testID="comm-secondary">
+                {c.phone ? (
+                  <Pressable
+                    testID="comm-script"
+                    onPress={() => setCallScriptOpen(true)}
+                    style={[styles.commBtnSecondary, { borderColor: HT.borderStrong }]}
+                  >
+                    <Ionicons name="document-text" size={16} color={HT.text2} /><Text style={[styles.commBtnSecondaryTxt, { color: HT.text2 }]}>Script</Text>
+                  </Pressable>
+                ) : null}
+                {c.phone ? (
+                  <Pressable testID="comm-sms" onPress={() => { logComm("sms", c.phone); Linking.openURL(`sms:${c.phone.replace(/\s/g, "")}`); }} style={[styles.commBtnSecondary, { borderColor: theme.color.brandSecondary + "66" }]}>
+                    <Ionicons name="chatbubble-ellipses" size={16} color={theme.color.brandSecondary} /><Text style={[styles.commBtnSecondaryTxt, { color: theme.color.brandSecondary }]}>SMS</Text>
                   </Pressable>
                 ) : null}
                 {/* V29.aq — Bottone "Invia su WhatsApp": apre WhatsApp con numero
@@ -979,36 +1008,31 @@ function ContactDetail() {
                     } else {
                       Linking.openURL(url).catch(() => {});
                     }
-                  }} style={[styles.commBtn, { backgroundColor: "#128C7E" }]}>
-                    <Ionicons name="send" size={18} color="#FFF" /><Text style={styles.commBtnTxt}>Invia su WhatsApp</Text>
+                  }} style={[styles.commBtnSecondary, { borderColor: '#128C7E' + "66" }]}>
+                    <Ionicons name="send" size={16} color={"#128C7E"} /><Text style={[styles.commBtnSecondaryTxt, { color: "#128C7E" }]}>Invia su WhatsApp</Text>
                   </Pressable>
                 ) : null}
                 {c.telegram ? (
-                  <Pressable testID="comm-telegram" onPress={() => { logComm("telegram"); openTelegram(c.telegram || ""); }} style={[styles.commBtn, { backgroundColor: "#0088CC" }]}>
-                    <Ionicons name="paper-plane" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Telegram</Text>
-                  </Pressable>
-                ) : null}
-                {c.email ? (
-                  <Pressable testID="comm-email" onPress={() => { logComm("email"); Linking.openURL(`mailto:${c.email}`); }} style={[styles.commBtn, { backgroundColor: "#0F2438" }]}>
-                    <Ionicons name="mail" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Email</Text>
+                  <Pressable testID="comm-telegram" onPress={() => { logComm("telegram"); openTelegram(c.telegram || ""); }} style={[styles.commBtnSecondary, { borderColor: '#0088CC' + "66" }]}>
+                    <Ionicons name="paper-plane" size={16} color={"#0088CC"} /><Text style={[styles.commBtnSecondaryTxt, { color: "#0088CC" }]}>Telegram</Text>
                   </Pressable>
                 ) : null}
                 {c.linkedin ? (
-                  <Pressable testID="comm-linkedin" onPress={() => Linking.openURL(c.linkedin!.startsWith("http") ? c.linkedin! : `https://linkedin.com/${c.linkedin!.replace(/^\//, "")}`)} style={[styles.commBtn, { backgroundColor: "#0A66C2" }]}>
-                    <Ionicons name="logo-linkedin" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>LinkedIn</Text>
+                  <Pressable testID="comm-linkedin" onPress={() => Linking.openURL(c.linkedin!.startsWith("http") ? c.linkedin! : `https://linkedin.com/${c.linkedin!.replace(/^\//, "")}`)} style={[styles.commBtnSecondary, { borderColor: '#0A66C2' + "66" }]}>
+                    <Ionicons name="logo-linkedin" size={16} color={"#0A66C2"} /><Text style={[styles.commBtnSecondaryTxt, { color: "#0A66C2" }]}>LinkedIn</Text>
                   </Pressable>
                 ) : null}
                 {c.instagram ? (
                   <Pressable testID="comm-instagram" onPress={() => {
                     const u = c.instagram!.replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "");
                     Linking.openURL(`https://instagram.com/${u}`);
-                  }} style={[styles.commBtn, { backgroundColor: "#E4405F" }]}>
-                    <Ionicons name="logo-instagram" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Instagram</Text>
+                  }} style={[styles.commBtnSecondary, { borderColor: '#E4405F' + "66" }]}>
+                    <Ionicons name="logo-instagram" size={16} color={"#E4405F"} /><Text style={[styles.commBtnSecondaryTxt, { color: "#E4405F" }]}>Instagram</Text>
                   </Pressable>
                 ) : null}
                 {c.facebook ? (
-                  <Pressable testID="comm-facebook" onPress={() => Linking.openURL(c.facebook!.startsWith("http") ? c.facebook! : `https://facebook.com/${c.facebook!}`)} style={[styles.commBtn, { backgroundColor: "#1877F2" }]}>
-                    <Ionicons name="logo-facebook" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Facebook</Text>
+                  <Pressable testID="comm-facebook" onPress={() => Linking.openURL(c.facebook!.startsWith("http") ? c.facebook! : `https://facebook.com/${c.facebook!}`)} style={[styles.commBtnSecondary, { borderColor: '#1877F2' + "66" }]}>
+                    <Ionicons name="logo-facebook" size={16} color={"#1877F2"} /><Text style={[styles.commBtnSecondaryTxt, { color: "#1877F2" }]}>Facebook</Text>
                   </Pressable>
                 ) : null}
                 {c.website ? (
@@ -1019,12 +1043,13 @@ function ContactDetail() {
                       const full = u.startsWith("http://") || u.startsWith("https://") ? u : `https://${u}`;
                       Linking.openURL(full);
                     }}
-                    style={[styles.commBtn, { backgroundColor: "#0EA5E9" }]}
+                    style={[styles.commBtnSecondary, { borderColor: '#0EA5E9' + "66" }]}
                   >
-                    <Ionicons name="globe" size={20} color="#FFF" /><Text style={styles.commBtnTxt}>Web</Text>
+                    <Ionicons name="globe" size={16} color={"#0EA5E9"} /><Text style={[styles.commBtnSecondaryTxt, { color: "#0EA5E9" }]}>Web</Text>
                   </Pressable>
                 ) : null}
               </View>
+              ) : null}
             </View>
 
             <View style={styles.card}>
@@ -1061,18 +1086,18 @@ function ContactDetail() {
               <View style={{ marginTop: 6, gap: 6 }} testID="contact-business-card">
                 <Text style={styles.infoLabel}>Biglietto da visita</Text>
                 <Pressable onPress={() => setViewerFile({ id: "business_card", name: `Biglietto ${c.first_name} ${c.last_name}.jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.data_base64 })} testID="contact-business-card-open">
-                  <Image source={{ uri: `data:${c.business_card.mime || "image/jpeg"};base64,${c.business_card.data_base64}` }} style={{ width: "100%", height: 160, borderRadius: 12, backgroundColor: "#F1F5F9" }} resizeMode="contain" />
+                  <Image source={{ uri: `data:${c.business_card.mime || "image/jpeg"};base64,${c.business_card.data_base64}` }} style={{ width: "100%", height: 160, borderRadius: 12, backgroundColor: HT.card2 }} resizeMode="contain" />
                 </Pressable>
                 {c.business_card.back_data_base64 ? (
                   <Pressable onPress={() => setViewerFile({ id: "business_card_back", name: `Biglietto ${c.first_name} ${c.last_name} (retro).jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.back_data_base64! })} testID="contact-business-card-back-open">
-                    <Image source={{ uri: `data:${c.business_card.mime || "image/jpeg"};base64,${c.business_card.back_data_base64}` }} style={{ width: "100%", height: 160, borderRadius: 12, backgroundColor: "#F1F5F9" }} resizeMode="contain" />
+                    <Image source={{ uri: `data:${c.business_card.mime || "image/jpeg"};base64,${c.business_card.back_data_base64}` }} style={{ width: "100%", height: 160, borderRadius: 12, backgroundColor: HT.card2 }} resizeMode="contain" />
                     <Text style={[styles.infoLabel, { textAlign: "center", marginTop: 2 }]}>Retro</Text>
                   </Pressable>
                 ) : null}
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable onPress={() => setViewerFile({ id: "business_card", name: `Biglietto ${c.first_name} ${c.last_name}.jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.data_base64 })} style={styles.cardBtn}><Ionicons name="eye-outline" size={16} color={theme.color.brandPrimary} /><Text style={styles.cardBtnTxt}>Apri</Text></Pressable>
-                  {c.business_card.back_data_base64 ? <Pressable onPress={() => shareFile({ id: "business_card_back", name: `Biglietto ${c.first_name} ${c.last_name} (retro).jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.back_data_base64! })} style={styles.cardBtn} testID="contact-business-card-back-share"><Ionicons name="share-social-outline" size={16} color={theme.color.brandPrimary} /><Text style={styles.cardBtnTxt}>Retro</Text></Pressable> : null}
-                  <Pressable onPress={() => shareFile({ id: "business_card", name: `Biglietto ${c.first_name} ${c.last_name}.jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.data_base64 })} style={styles.cardBtn} testID="contact-business-card-share"><Ionicons name="share-social-outline" size={16} color={theme.color.brandPrimary} /><Text style={styles.cardBtnTxt}>Condividi</Text></Pressable>
+                  <Pressable onPress={() => setViewerFile({ id: "business_card", name: `Biglietto ${c.first_name} ${c.last_name}.jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.data_base64 })} style={styles.cardBtn}><Ionicons name="eye-outline" size={16} color={HT.brand} /><Text style={styles.cardBtnTxt}>Apri</Text></Pressable>
+                  {c.business_card.back_data_base64 ? <Pressable onPress={() => shareFile({ id: "business_card_back", name: `Biglietto ${c.first_name} ${c.last_name} (retro).jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.back_data_base64! })} style={styles.cardBtn} testID="contact-business-card-back-share"><Ionicons name="share-social-outline" size={16} color={HT.brand} /><Text style={styles.cardBtnTxt}>Retro</Text></Pressable> : null}
+                  <Pressable onPress={() => shareFile({ id: "business_card", name: `Biglietto ${c.first_name} ${c.last_name}.jpg`, mime: c.business_card!.mime || "image/jpeg", size: 0, created_at: c.business_card!.created_at || "", data_base64: c.business_card!.data_base64 })} style={styles.cardBtn} testID="contact-business-card-share"><Ionicons name="share-social-outline" size={16} color={HT.brand} /><Text style={styles.cardBtnTxt}>Condividi</Text></Pressable>
                 </View>
               </View>
             ) : null}
@@ -1080,7 +1105,7 @@ function ContactDetail() {
               <View style={{ marginTop: 4 }}>
                 {distanceOrigin ? (
                   <View style={styles.originRow}>
-                    <Ionicons name="business-outline" size={13} color={theme.color.muted} />
+                    <Ionicons name="business-outline" size={13} color={HT.muted} />
                     <Text style={styles.originLbl}>Distanze da: </Text>
                     <Text style={styles.originVal} numberOfLines={1}>{distanceOrigin}</Text>
                     <Pressable
@@ -1088,7 +1113,7 @@ function ContactDetail() {
                       onPress={() => { setOriginDraft(distanceOrigin); setOriginOverrideOpen(true); }}
                       hitSlop={8}
                     >
-                      <Ionicons name="create-outline" size={14} color={theme.color.brandPrimary} />
+                      <Ionicons name="create-outline" size={14} color={HT.brand} />
                     </Pressable>
                   </View>
                 ) : (
@@ -1097,7 +1122,7 @@ function ContactDetail() {
                     onPress={() => { setOriginDraft(""); setOriginOverrideOpen(true); }}
                     style={styles.originSetBtn}
                   >
-                    <Ionicons name="speedometer-outline" size={14} color={theme.color.brandPrimary} />
+                    <Ionicons name="speedometer-outline" size={14} color={HT.brand} />
                     <Text style={styles.originSetTxt}>Calcola distanze da un indirizzo</Text>
                   </Pressable>
                 )}
@@ -1129,9 +1154,9 @@ function ContactDetail() {
               <Text style={styles.categoryTitle}>Categoria della nota</Text>
               <View style={styles.categoryRow}>
                 {[
-                  { k: null, label: "Nota semplice", color: theme.color.brandPrimary, icon: "document-text" },
+                  { k: null, label: "Nota semplice", color: HT.brand, icon: "document-text" },
                   { k: "general", label: "Note generali", color: "#2D7A5A", icon: "list" },
-                  { k: "email", label: "Nota email condivisibile", color: "#0F2438", icon: "mail" },
+                  { k: "email", label: "Nota email condivisibile", color: HT.text, icon: "mail" },
                   { k: "referral", label: "Referenza", color: "#B77C14", icon: "people" },
                 ].map((c: any) => {
                   const on = activeCategory === c.k;
@@ -1159,7 +1184,7 @@ function ContactDetail() {
                 value={noteText}
                 onChangeText={setNoteText}
                 placeholder={showLinkInput ? "Etichetta del link (opzionale)" : "Scrivi una nota..."}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={[styles.input, { minHeight: showLinkInput ? 44 : 80, textAlignVertical: "top" }]}
                 multiline={!showLinkInput}
               />
@@ -1184,7 +1209,7 @@ function ContactDetail() {
                   value={linkUrl}
                   onChangeText={setLinkUrl}
                   placeholder="https://..."
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={HT.muted}
                   autoCapitalize="none"
                   keyboardType="url"
                   style={[styles.input, { marginTop: 8 }]}
@@ -1197,30 +1222,30 @@ function ContactDetail() {
                   </Pressable>
                 )}
                 {showLinkInput ? (
-                  <Pressable testID="note-add-link" onPress={addLinkNote} style={[styles.smallBtn, { backgroundColor: theme.color.success }]}>
+                  <Pressable testID="note-add-link" onPress={addLinkNote} style={[styles.smallBtn, { backgroundColor: HT.success }]}>
                     <Ionicons name="checkmark" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Salva link</Text>
                   </Pressable>
                 ) : (
-                  <Pressable testID="note-toggle-link" onPress={() => setShowLinkInput(true)} style={[styles.smallBtn, { backgroundColor: theme.color.info }]}>
+                  <Pressable testID="note-toggle-link" onPress={() => setShowLinkInput(true)} style={[styles.smallBtn, { backgroundColor: HT.axon }]}>
                     <Ionicons name="link" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Link/Video</Text>
                   </Pressable>
                 )}
                 <Pressable testID="note-photo-camera" onPress={() => addPhotoNote(true)} style={[styles.smallBtn, { backgroundColor: theme.color.brandSecondary }]}>
                   <Ionicons name="camera" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Scatta foto</Text>
                 </Pressable>
-                <Pressable testID="note-photo-gallery" onPress={() => addPhotoNote(false)} style={[styles.smallBtn, { backgroundColor: "#8B5CF6" }]}>
+                <Pressable testID="note-photo-gallery" onPress={() => addPhotoNote(false)} style={[styles.smallBtn, { backgroundColor: '#8B5CF6' }]}>
                   <Ionicons name="image" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Importa foto</Text>
                 </Pressable>
-                <Pressable testID="note-video-camera" onPress={() => addVideoNote(true)} style={[styles.smallBtn, { backgroundColor: "#DB2777" }]}>
+                <Pressable testID="note-video-camera" onPress={() => addVideoNote(true)} style={[styles.smallBtn, { backgroundColor: '#DB2777' }]}>
                   <Ionicons name="videocam" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Registra video</Text>
                 </Pressable>
-                <Pressable testID="note-video-gallery" onPress={() => addVideoNote(false)} style={[styles.smallBtn, { backgroundColor: "#7C3AED" }]}>
+                <Pressable testID="note-video-gallery" onPress={() => addVideoNote(false)} style={[styles.smallBtn, { backgroundColor: '#7C3AED' }]}>
                   <Ionicons name="film" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Importa video</Text>
                 </Pressable>
-                <Pressable testID="note-attach-file" onPress={addFileNote} style={[styles.smallBtn, { backgroundColor: "#0891B2" }]}>
+                <Pressable testID="note-attach-file" onPress={addFileNote} style={[styles.smallBtn, { backgroundColor: '#0891B2' }]}>
                   <Ionicons name="attach" size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>Allega file</Text>
                 </Pressable>
-                <Pressable testID="note-record-toggle" onPress={recording ? stopRecording : startRecording} style={[styles.smallBtn, { backgroundColor: recording ? theme.color.error : theme.color.warning }]}>
+                <Pressable testID="note-record-toggle" onPress={recording ? stopRecording : startRecording} style={[styles.smallBtn, { backgroundColor: recording ? HT.danger : HT.warning }]}>
                   <Ionicons name={recording ? "stop" : "mic"} size={16} color="#FFF" /><Text style={styles.smallBtnTxt}>{recording ? "Stop" : "Registra audio"}</Text>
                 </Pressable>
               </View>
@@ -1236,7 +1261,7 @@ function ContactDetail() {
                   {n.kind === "text" && <Text style={styles.noteTxt}>{n.text}</Text>}
                   {n.kind === "audio" && (
                     <Pressable testID={`play-${n.id}`} onPress={() => void playNote(n)} style={styles.playBtn}>
-                      <Ionicons name={playingNoteId === n.id ? "stop" : "play"} size={16} color={theme.color.brandPrimary} />
+                      <Ionicons name={playingNoteId === n.id ? "stop" : "play"} size={16} color={HT.brand} />
                       <Text style={styles.playBtnTxt}>{playingNoteId === n.id ? "Stop" : "Ascolta"}</Text>
                     </Pressable>
                   )}
@@ -1247,7 +1272,7 @@ function ContactDetail() {
                     <View style={styles.videoWrap}>
                       {Platform.OS === "web" ? (
                         // @ts-expect-error web element
-                        <video src={n.video_base64} controls style={{ width: 240, height: 180, borderRadius: 10, backgroundColor: "#000" }} />
+                        <video src={n.video_base64} controls style={{ width: 240, height: 180, borderRadius: 10, backgroundColor: '#000' }} />
                       ) : (
                         <Pressable onPress={async () => {
                           const uri = n.video_base64!;
@@ -1271,7 +1296,7 @@ function ContactDetail() {
                       if (u.startsWith("http")) openInAppLink(router, u, { title: n.link_title, contactId: id as string });
                       else Linking.openURL(u).catch(() => {});
                     }} style={styles.linkBox}>
-                      <Ionicons name="link" size={16} color={theme.color.brandPrimary} />
+                      <Ionicons name="link" size={16} color={HT.brand} />
                       <Text style={styles.linkTxt} numberOfLines={2}>{n.link_title || n.link_url}</Text>
                     </Pressable>
                   )}
@@ -1292,16 +1317,16 @@ function ContactDetail() {
                       }}
                       style={styles.linkBox}
                     >
-                      <Ionicons name={n.file_mime?.includes("pdf") ? "document-text" : "document"} size={20} color={theme.color.brandPrimary} />
+                      <Ionicons name={n.file_mime?.includes("pdf") ? "document-text" : "document"} size={20} color={HT.brand} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.linkTxt} numberOfLines={1}>{n.file_name || "File"}</Text>
-                        <Text style={{ fontSize: 11, color: theme.color.muted }}>{Math.round((n.file_size || 0) / 1024)} KB</Text>
+                        <Text style={{ fontSize: 11, color: HT.muted }}>{Math.round((n.file_size || 0) / 1024)} KB</Text>
                       </View>
                     </Pressable>
                   )}
                 </View>
-                <Pressable testID={`share-note-${n.id}`} onPress={() => shareNote(n)} style={{ marginRight: 6 }}><Ionicons name="share-social-outline" size={18} color={theme.color.brandPrimary} /></Pressable>
-                <Pressable testID={`del-note-${n.id}`} onPress={() => deleteNote(n.id)}><Ionicons name="trash-outline" size={18} color={theme.color.error} /></Pressable>
+                <Pressable testID={`share-note-${n.id}`} onPress={() => shareNote(n)} style={{ marginRight: 6 }}><Ionicons name="share-social-outline" size={18} color={HT.brand} /></Pressable>
+                <Pressable testID={`del-note-${n.id}`} onPress={() => deleteNote(n.id)}><Ionicons name="trash-outline" size={18} color={HT.danger} /></Pressable>
               </View>
             )) : <Text style={styles.emptyTxt}>Nessuna nota</Text>}
           </>
@@ -1311,10 +1336,10 @@ function ContactDetail() {
           <>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable testID="file-add-btn" onPress={pickFile} style={[styles.addFileBtn, { flex: 1 }]} disabled={busy}>
-                <Ionicons name="cloud-upload-outline" size={20} color={theme.color.brandPrimary} />
+                <Ionicons name="cloud-upload-outline" size={20} color={HT.brand} />
                 <Text style={styles.addFileTxt}>Carica</Text>
               </Pressable>
-              <Pressable testID="file-scan-btn" onPress={() => setScannerOpen(true)} style={[styles.addFileBtn, { flex: 1, borderColor: "#FF6B35" }]} disabled={busy}>
+              <Pressable testID="file-scan-btn" onPress={() => setScannerOpen(true)} style={[styles.addFileBtn, { flex: 1, borderColor: '#FF6B35' }]} disabled={busy}>
                 <Ionicons name="scan-outline" size={20} color="#FF6B35" />
                 <Text style={[styles.addFileTxt, { color: "#FF6B35" }]}>Scanner</Text>
               </Pressable>
@@ -1326,7 +1351,7 @@ function ContactDetail() {
                 onPress={() => setViewerFile(f)}
                 style={styles.fileCard}
               >
-                <Ionicons name={f.mime.startsWith("image/") ? "image-outline" : "document-outline"} size={22} color={theme.color.brandPrimary} />
+                <Ionicons name={f.mime.startsWith("image/") ? "image-outline" : "document-outline"} size={22} color={HT.brand} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fileName} numberOfLines={1}>{f.name}</Text>
                   <Text style={styles.fileMeta}>{Math.round((f.size || 0) / 1024)} KB · {new Date(f.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
@@ -1337,14 +1362,14 @@ function ContactDetail() {
                   hitSlop={8}
                   style={{ marginRight: 6 }}
                 >
-                  <Ionicons name="share-social-outline" size={18} color={theme.color.brandPrimary} />
+                  <Ionicons name="share-social-outline" size={18} color={HT.brand} />
                 </Pressable>
                 <Pressable
                   testID={`del-file-${f.id}`}
                   onPress={(e: any) => { e?.stopPropagation?.(); deleteFile(f.id); }}
                   hitSlop={8}
                 >
-                  <Ionicons name="trash-outline" size={18} color={theme.color.error} />
+                  <Ionicons name="trash-outline" size={18} color={HT.danger} />
                 </Pressable>
               </Pressable>
             )) : <Text style={styles.emptyTxt}>Nessun file</Text>}
@@ -1388,7 +1413,7 @@ function ContactDetail() {
             spostata in fondo alla pagina. Solo Master può editare tap-and-inline. */}
         {tab === "info" && (
           <View style={styles.codeCompactRow}>
-            <Ionicons name="pricetag-outline" size={14} color={theme.color.muted} />
+            <Ionicons name="pricetag-outline" size={14} color={HT.muted} />
             <Text style={styles.codeCompactLabel}>Codice cliente:</Text>
             {isMaster ? (
               <>
@@ -1399,14 +1424,14 @@ function ContactDetail() {
                   onBlur={saveContactCode}
                   onSubmitEditing={saveContactCode}
                   placeholder="—"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={HT.muted}
                   style={styles.codeCompactInput}
                 />
                 {contactCodeSaving ? (
-                  <ActivityIndicator size="small" color={theme.color.brandPrimary} />
+                  <ActivityIndicator size="small" color={HT.brand} />
                 ) : (
                   <Pressable testID="contact-code-save" onPress={saveContactCode} hitSlop={8}>
-                    <Ionicons name="save-outline" size={16} color={theme.color.brandPrimary} />
+                    <Ionicons name="save-outline" size={16} color={HT.brand} />
                   </Pressable>
                 )}
               </>
@@ -1489,14 +1514,14 @@ function ContactDetail() {
             </Text>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
               <Pressable
-                style={[styles.reviewPromptBtn, { backgroundColor: theme.color.surfaceTertiary }]}
+                style={[styles.reviewPromptBtn, { backgroundColor: HT.card2 }]}
                 onPress={() => setReviewPromptOpen(false)}
                 testID="review-prompt-later"
               >
-                <Text style={[styles.reviewPromptBtnTxt, { color: theme.color.onSurface }]}>Più tardi</Text>
+                <Text style={[styles.reviewPromptBtnTxt, { color: HT.text }]}>Più tardi</Text>
               </Pressable>
               <Pressable
-                style={[styles.reviewPromptBtn, { backgroundColor: "#F59E0B" }]}
+                style={[styles.reviewPromptBtn, { backgroundColor: '#F59E0B' }]}
                 onPress={() => {
                   setReviewPromptOpen(false);
                   setTab("reviews");
@@ -1526,7 +1551,7 @@ function ContactDetail() {
               value={originDraft}
               onChangeText={setOriginDraft}
               placeholder="es. Corso Italia 42, Milano"
-              placeholderTextColor={theme.color.muted}
+              placeholderTextColor={HT.muted}
               style={styles.originModalInput}
               autoFocus
             />
@@ -1537,7 +1562,7 @@ function ContactDetail() {
                   onPress={() => setOriginDraft(settings.office_address)}
                   style={[styles.originModalBtn, styles.originModalBtnGhost]}
                 >
-                  <Ionicons name="business-outline" size={14} color={theme.color.onSurface} />
+                  <Ionicons name="business-outline" size={14} color={HT.text} />
                   <Text style={styles.originModalBtnGhostTxt}>Usa ufficio</Text>
                 </Pressable>
               ) : null}
@@ -1554,7 +1579,7 @@ function ContactDetail() {
                   setDistances({});
                   setOriginOverrideOpen(false);
                 }}
-                style={[styles.originModalBtn, { flex: 1, backgroundColor: theme.color.brandPrimary }]}
+                style={[styles.originModalBtn, { flex: 1, backgroundColor: HT.brand }]}
               >
                 <Ionicons name="checkmark" size={16} color="#FFF" />
                 <Text style={styles.originModalBtnTxt}>Calcola</Text>
@@ -1569,14 +1594,17 @@ function ContactDetail() {
 
 function InfoRow({ icon, label, value, href }: { icon: any; label: string; value: string; href?: string }) {
   const clickable = !!href;
+  // V50.z335 — riga dati come mini-card dark con icona in box tinto
   const content = (
     <View style={styles.infoRow}>
-      <Ionicons name={icon} size={18} color={clickable ? "#0EA5E9" : theme.color.brandPrimary} />
+      <View style={[styles.infoIconBox, clickable && { backgroundColor: HT.axonTint }]}>
+        <Ionicons name={icon} size={16} color={clickable ? HT.axon : HT.brand} />
+      </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={[styles.infoValue, clickable && { color: "#0EA5E9", textDecorationLine: "underline" }]}>{value}</Text>
+        <Text style={[styles.infoValue, clickable && { color: HT.axon }]}>{value}</Text>
       </View>
-      {clickable ? <Ionicons name="open-outline" size={16} color="#0EA5E9" /> : null}
+      {clickable ? <Ionicons name="open-outline" size={16} color={HT.axon} /> : null}
     </View>
   );
   if (clickable && href) {
@@ -1594,139 +1622,151 @@ function InfoRow({ icon, label, value, href }: { icon: any; label: string; value
 }
 
 const styles = StyleSheet.create({
-  cardBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
-  cardBtnTxt: { fontWeight: "800", fontSize: 13, color: theme.color.brandPrimary },
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  cardBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40, borderRadius: 10, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card },
+  cardBtnTxt: { fontWeight: "800", fontSize: 13, color: HT.brand },
+  root: { flex: 1, backgroundColor: HT.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
   hero: { padding: 20, paddingTop: 4, alignItems: "center" },
-  heroCompact: { paddingHorizontal: 12, paddingVertical: 10 },
+  heroCompact: { paddingHorizontal: 12, paddingVertical: 12, backgroundColor: HT.bg, borderBottomWidth: 1, borderBottomColor: HT.border, overflow: "hidden", position: "relative" },
+  heroAccentLine: { position: "absolute", top: 0, left: 0, right: 0, height: 3 },
   heroTopRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   avatarWrap: { position: "relative", marginBottom: 10 },
   avatarWrapCompact: { position: "relative", marginLeft: 4 },
   avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center" },
-  avatarCompact: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center" },
+  avatarCompact: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", borderWidth: 1.5 },
   avatarImg: { width: 72, height: 72, borderRadius: 36 },
-  avatarImgCompact: { width: 44, height: 44, borderRadius: 22 },
-  avatarBadge: { position: "absolute", right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#FFF" },
-  avatarBadgeCompact: { position: "absolute", right: -1, bottom: -1, width: 16, height: 16, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#FFF" },
+  avatarImgCompact: { width: 48, height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: HT.borderStrong },
+  avatarBadge: { position: "absolute", right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: HT.card },
+  avatarBadgeCompact: { position: "absolute", right: -1, bottom: -1, width: 16, height: 16, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: HT.card },
   avatarTxt: { color: "#FFF", fontSize: 26, fontWeight: "700" },
   avatarTxtCompact: { color: "#FFF", fontSize: 16, fontWeight: "700" },
   name: { color: "#FFF", fontSize: 22, fontWeight: "700" },
-  nameCompact: { color: "#FFF", fontSize: 17, fontWeight: "700" },
+  nameCompact: { color: HT.text, fontSize: 18, fontWeight: "800", letterSpacing: -0.3 },
   areaTag: { color: "rgba(255,255,255,0.85)", marginTop: 4, fontSize: 12 },
-  areaTagCompact: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 1 },
-  assignPill: { marginTop: 8, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: theme.color.brandTertiary, borderRadius: 20 },
-  assignPillTxt: { fontSize: 11, color: theme.color.brandPrimary, fontWeight: "700" },
+  areaTagCompact: { color: HT.text2, fontSize: 11.5, marginTop: 2, fontWeight: "600" },
+  assignPill: { marginTop: 8, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: HT.brandTint, borderRadius: 20 },
+  assignPillTxt: { fontSize: 11, color: HT.brand, fontWeight: "700" },
   // V28.c — Read-only status label (edit only via edit form)
-  statusLabel: { marginTop: 8, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: "#FFF", borderRadius: 999, borderWidth: 1, borderColor: "rgba(255,255,255,0.35)" },
+  statusLabel: { marginTop: 8, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusLabelTxt: { fontSize: 11, fontWeight: "800" },
   statusRow: { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
-  statusChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5 },
+  statusChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1.5 },
   statusChipTxt: { fontSize: 11, fontWeight: "800" },
-  tabs: { flexDirection: "row", backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  tabIcon: { flex: 1, paddingVertical: 10, alignItems: "center", justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
-  tabIconActive: { borderBottomColor: theme.color.brandPrimary, backgroundColor: theme.color.brandPrimary + "10" },
+  tabsWrap: { backgroundColor: HT.bg, borderBottomWidth: 1, borderBottomColor: HT.border },
+  tabs: { flexDirection: "row", gap: 6, paddingHorizontal: 10, paddingVertical: 8 },
+  tabIcon: { minWidth: 64, paddingVertical: 8, paddingHorizontal: 8, alignItems: "center", justifyContent: "center", gap: 3, borderRadius: 12, borderWidth: 1, borderColor: "transparent", backgroundColor: HT.glass },
+  tabLbl: { fontSize: 9.5, fontWeight: "800", color: HT.muted, letterSpacing: 0.2 },
   tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: theme.color.brandPrimary },
-  tabTxt: { fontWeight: "600", color: theme.color.muted, fontSize: 12 },
-  tabTxtActive: { color: theme.color.brandPrimary },
-  card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: theme.color.border, gap: 12 },
-  infoRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  infoLabel: { fontSize: 11, color: theme.color.muted, textTransform: "uppercase", fontWeight: "700" },
-  infoValue: { fontSize: 15, color: theme.color.onSurface, marginTop: 2 },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, padding: 10, color: theme.color.onSurface },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: HT.brand },
+  tabTxt: { fontWeight: "600", color: HT.muted, fontSize: 12 },
+  tabTxtActive: { color: HT.brand },
+  card: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: HT.border, gap: 12 },
+  infoRow: { flexDirection: "row", gap: 12, alignItems: "center", backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  infoIconBox: { width: 34, height: 34, borderRadius: 10, backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center" },
+  infoLabel: { fontSize: 10.5, color: HT.muted, textTransform: "uppercase", fontWeight: "800", letterSpacing: 0.4 },
+  infoValue: { fontSize: 15, color: HT.text, marginTop: 2, fontWeight: "600" },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, padding: 10, color: HT.text },
   noteBtnRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
-  smallBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandPrimary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radius.pill },
+  smallBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.brand, paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radius.pill },
   smallBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
-  noteCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, marginTop: 8 },
-  noteMeta: { fontSize: 11, color: theme.color.muted, marginBottom: 4 },
-  noteTxt: { fontSize: 14, color: theme.color.onSurface },
-  playBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: theme.color.brandTertiary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill },
-  playBtnTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
-  addFileBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FFF", padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.brandPrimary, borderStyle: "dashed" },
-  addFileTxt: { color: theme.color.brandPrimary, fontWeight: "700" },
-  fileCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, marginTop: 8 },
-  fileName: { fontSize: 14, fontWeight: "600", color: theme.color.onSurface },
-  fileMeta: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
-  emptyTxt: { textAlign: "center", color: theme.color.muted, marginTop: 20 },
-  tagChip: { backgroundColor: theme.color.brandTertiary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
-  tagChipTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 11 },
+  noteCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, marginTop: 8 },
+  noteMeta: { fontSize: 11, color: HT.muted, marginBottom: 4 },
+  noteTxt: { fontSize: 14, color: HT.text },
+  playBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: HT.brandTint, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill },
+  playBtnTxt: { color: HT.brand, fontWeight: "700", fontSize: 12 },
+  addFileBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.card, padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.brand, borderStyle: "dashed" },
+  addFileTxt: { color: HT.brand, fontWeight: "700" },
+  fileCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, marginTop: 8 },
+  fileName: { fontSize: 14, fontWeight: "600", color: HT.text },
+  fileMeta: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  emptyTxt: { textAlign: "center", color: HT.muted, marginTop: 20 },
+  tagChip: { backgroundColor: HT.brandTint, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
+  tagChipTxt: { color: HT.brand, fontWeight: "700", fontSize: 11 },
   tagsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 },
   notePhoto: { width: "100%", height: 180, borderRadius: theme.radius.md, marginTop: 6 },
-  linkBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.brandTertiary, padding: 10, borderRadius: theme.radius.md, marginTop: 6 },
-  linkTxt: { color: theme.color.brandPrimary, fontWeight: "600", flex: 1 },
-  wazeInline: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandPrimary, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill },
+  linkBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.brandTint, padding: 10, borderRadius: theme.radius.md, marginTop: 6 },
+  linkTxt: { color: HT.brand, fontWeight: "600", flex: 1 },
+  wazeInline: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.brand, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill },
   wazeInlineTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
   navBtnRow: { flexDirection: "row", gap: 8, marginLeft: 30, marginTop: 6, flexWrap: "wrap", alignItems: "center" },
   // V50.z71 — Address block + preferred + km badge + origin editor
   addrBlock: { paddingVertical: 4, marginBottom: 6 },
-  addrBlockPreferred: { backgroundColor: "#FEF3C7", borderRadius: 10, borderWidth: 1, borderColor: "#FBBF24", padding: 6, marginBottom: 8 },
+  addrBlockPreferred: { backgroundColor: HT.warningTint, borderRadius: 10, borderWidth: 1, borderColor: '#FBBF24', padding: 6, marginBottom: 8 },
   starBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  kmBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: "#E0F2FE", borderWidth: 1, borderColor: "#BAE6FD" },
-  kmBadgeTxt: { fontSize: 11, fontWeight: "700", color: "#0369A1" },
-  originRow: { flexDirection: "row", alignItems: "center", gap: 6, padding: 8, borderRadius: 8, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, marginBottom: 6 },
-  originLbl: { fontSize: 11, fontWeight: "700", color: theme.color.muted },
-  originVal: { flex: 1, fontSize: 12, color: theme.color.onSurface, fontWeight: "600" },
-  originSetBtn: { flexDirection: "row", alignItems: "center", gap: 6, padding: 8, borderRadius: 8, borderWidth: 1, borderStyle: "dashed", borderColor: theme.color.brandPrimary, alignSelf: "flex-start", marginBottom: 6 },
-  originSetTxt: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary },
+  kmBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: HT.axonTint, borderWidth: 1, borderColor: HT.axonLine },
+  kmBadgeTxt: { fontSize: 11, fontWeight: "700", color: HT.axon },
+  originRow: { flexDirection: "row", alignItems: "center", gap: 6, padding: 8, borderRadius: 8, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, marginBottom: 6 },
+  originLbl: { fontSize: 11, fontWeight: "700", color: HT.muted },
+  originVal: { flex: 1, fontSize: 12, color: HT.text, fontWeight: "600" },
+  originSetBtn: { flexDirection: "row", alignItems: "center", gap: 6, padding: 8, borderRadius: 8, borderWidth: 1, borderStyle: "dashed", borderColor: HT.brand, alignSelf: "flex-start", marginBottom: 6 },
+  originSetTxt: { fontSize: 12, fontWeight: "700", color: HT.brand },
   originModalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 20 },
-  originModalSheet: { backgroundColor: "#FFF", borderRadius: 14, padding: 18 },
-  originModalTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  originModalSub: { fontSize: 12, color: theme.color.muted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
-  originModalInput: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, backgroundColor: "#F8FAFC", color: theme.color.onSurface },
+  originModalSheet: { backgroundColor: HT.card, borderRadius: 14, padding: 18 },
+  originModalTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  originModalSub: { fontSize: 12, color: HT.muted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
+  originModalInput: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, backgroundColor: HT.card2, color: HT.text },
   originModalBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 },
-  originModalBtnGhost: { backgroundColor: "#F1F5F9" },
-  originModalBtnGhostTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 13 },
+  originModalBtnGhost: { backgroundColor: HT.card2 },
+  originModalBtnGhostTxt: { color: HT.text, fontWeight: "700", fontSize: 13 },
   originModalBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   // V50.z101 — Popup transizione a "Cliente" → richiesta recensione
   reviewPromptBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
-  reviewPromptSheet: { backgroundColor: "#FFF", borderRadius: 16, padding: 22, alignItems: "center" },
-  reviewPromptIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: "#FEF3C7", alignItems: "center", justifyContent: "center", marginBottom: 10 },
-  reviewPromptTitle: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
-  reviewPromptSub: { fontSize: 13, color: theme.color.muted, textAlign: "center", marginTop: 6, lineHeight: 18 },
+  reviewPromptSheet: { backgroundColor: HT.card, borderRadius: 16, padding: 22, alignItems: "center" },
+  reviewPromptIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: HT.warningTint, alignItems: "center", justifyContent: "center", marginBottom: 10 },
+  reviewPromptTitle: { fontSize: 18, fontWeight: "800", color: HT.text, textAlign: "center" },
+  reviewPromptSub: { fontSize: 13, color: HT.muted, textAlign: "center", marginTop: 6, lineHeight: 18 },
   reviewPromptBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 10 },
   reviewPromptBtnTxt: { fontSize: 13, fontWeight: "800" },
-  commSectionTitle: { fontSize: 13, fontWeight: "700", color: theme.color.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  commSectionTitle: { fontSize: 13, fontWeight: "700", color: HT.brand, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
   // V29.av — Codice cliente compatto (elemento secondario in fondo pagina)
   codeCompactRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 16, marginTop: 12,
     paddingVertical: 8, paddingHorizontal: 10,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 8, borderWidth: 1, borderColor: theme.color.divider,
+    backgroundColor: HT.card2,
+    borderRadius: 8, borderWidth: 1, borderColor: HT.border,
   },
   codeCompactLabel: {
-    fontSize: 12, color: theme.color.muted, fontWeight: "600",
+    fontSize: 12, color: HT.muted, fontWeight: "600",
   },
   codeCompactValue: {
-    flex: 1, fontSize: 13, fontWeight: "700", color: theme.color.onSurface,
+    flex: 1, fontSize: 13, fontWeight: "700", color: HT.text,
   },
   codeCompactInput: {
     flex: 1, fontSize: 13, fontWeight: "700",
-    color: theme.color.onSurface, paddingVertical: 2, paddingHorizontal: 0,
+    color: HT.text, paddingVertical: 2, paddingHorizontal: 0,
   },
   badgesRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   areaBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill },
   areaBadgeTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
-  groupBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: theme.radius.pill, borderWidth: 1.5, backgroundColor: "#FFF" },
+  groupBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: theme.radius.pill, borderWidth: 1.5, backgroundColor: HT.card },
   groupBadgeDot: { width: 8, height: 8, borderRadius: 4 },
   groupBadgeTxt: { fontWeight: "700", fontSize: 12 },
   videoWrap: { marginTop: 6 },
-  videoPlaceholder: { width: 240, height: 180, borderRadius: 10, backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center" },
-  categoryTitle: { fontSize: 11, fontWeight: "700", color: theme.color.onSurfaceTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  videoPlaceholder: { width: 240, height: 180, borderRadius: 10, backgroundColor: HT.card2, alignItems: "center", justifyContent: "center" },
+  categoryTitle: { fontSize: 11, fontWeight: "700", color: HT.text2, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
   categoryRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  catChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
+  catChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border },
   catChipTxt: { fontWeight: "700", fontSize: 11 },
-  catHint: { color: theme.color.muted, fontSize: 11, marginTop: 8, marginBottom: 4, fontStyle: "italic" },
+  catHint: { color: HT.muted, fontSize: 11, marginTop: 8, marginBottom: 4, fontStyle: "italic" },
   commGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   commBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: theme.radius.md, minWidth: 108, flexGrow: 1, justifyContent: "center" },
   commBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  // V50.z335 — azioni principali grandi + secondarie ghost in «Altro»
+  commPrimaryRow: { flexDirection: "row", gap: 10 },
+  commBtnPrimary: { flex: 1, minWidth: 96, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 14 },
+  commBtnPrimaryTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
+  commMoreBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, alignSelf: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.glass, minHeight: 36 },
+  commMoreTxt: { color: HT.text2, fontWeight: "800", fontSize: 12 },
+  commBtnSecondary: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, borderWidth: 1, backgroundColor: HT.glass, flexGrow: 1, justifyContent: "center", minHeight: 40 },
+  commBtnSecondaryTxt: { fontWeight: "800", fontSize: 12 },
   // V29.c — Compact Aree + Gruppi card
   compactCard: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 12,
@@ -1740,7 +1780,7 @@ const styles = StyleSheet.create({
   compactRowLabel: {
     fontSize: 10.5,
     fontWeight: "800",
-    color: theme.color.muted,
+    color: HT.muted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginRight: 2,
@@ -1767,7 +1807,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 999,
     borderWidth: 1,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
   },
   groupBadgeMiniDot: { width: 6, height: 6, borderRadius: 3 },
   groupBadgeMiniTxt: { fontWeight: "700", fontSize: 10 },
@@ -1779,20 +1819,20 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#FED7AA",
-    backgroundColor: "#FFF7ED",
+    borderColor: HT.brandLine,
+    backgroundColor: HT.brandTint,
     marginBottom: 12,
   },
   promoteIconWrap: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#EA580C",
+    backgroundColor: '#EA580C',
     alignItems: "center",
     justifyContent: "center",
   },
-  promoteTitle: { fontSize: 14, fontWeight: "800", color: "#9A3412" },
-  promoteSub: { fontSize: 12, color: "#9A3412", opacity: 0.75, marginTop: 2, lineHeight: 16 },
+  promoteTitle: { fontSize: 14, fontWeight: "800", color: "#FDBA74" },
+  promoteSub: { fontSize: 12, color: "#FDBA74", opacity: 0.75, marginTop: 2, lineHeight: 16 },
   collabInfoBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -1800,9 +1840,9 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#BBF7D0",
-    backgroundColor: "#F0FDF4",
+    borderColor: HT.success + '66',
+    backgroundColor: HT.successTint,
     marginBottom: 12,
   },
-  collabInfoTxt: { flex: 1, fontSize: 13, color: "#166534", fontWeight: "600" },
+  collabInfoTxt: { flex: 1, fontSize: 13, color: HT.success, fontWeight: "600" },
 });
