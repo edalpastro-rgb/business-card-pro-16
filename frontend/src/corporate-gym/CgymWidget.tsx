@@ -3,7 +3,7 @@ import React, { useCallback, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z334 — Home dark/premium (widget solo in Home)
 import { cgymApi, CgymSummary, CGYM_TYPE_META, fmtCgymDate, isPast, CGYM_ORANGE } from "@/src/corporate-gym/api";
 
 export function CgymWidget() {
@@ -47,18 +47,18 @@ export function CgymWidget() {
             <Text style={styles.badgeTxt}>{data.mandatory_pending} obbl.</Text>
           </View>
         ) : null}
-        <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+        <Ionicons name="chevron-forward" size={18} color={HT.muted} />
       </View>
 
       {total > 0 && (
         <View style={styles.barBg} testID="widget-cgym-progress">
-          <View style={[styles.barFill, { width: `${Math.round(pct * 100)}%`, backgroundColor: pct >= 1 ? theme.color.success : CGYM_ORANGE }]} />
+          <View style={[styles.barFill, { width: `${Math.round(pct * 100)}%`, backgroundColor: pct >= 1 ? HT.success : CGYM_ORANGE }]} />
         </View>
       )}
 
       {data && data.assigned_total > 0 && (
         <View style={styles.assignedRow} testID="widget-cgym-assigned">
-          <Ionicons name="person-circle-outline" size={14} color={theme.color.brandPrimary} />
+          <Ionicons name="person-circle-outline" size={14} color={HT.axon} />
           <Text style={styles.assignedTxt}>Assegnate dal Master: {data.assigned_done}/{data.assigned_total} completate</Text>
           <View style={styles.assignedBarBg}>
             <View style={[styles.assignedBarFill, { width: `${Math.round((data.assigned_done / data.assigned_total) * 100)}%` }]} />
@@ -77,7 +77,7 @@ export function CgymWidget() {
                 <Ionicons name={meta.icon as any} size={14} color={meta.color} />
                 <Text style={styles.rowTitle} numberOfLines={1}>{s.title || meta.label}</Text>
                 {s.mandatory ? <Ionicons name="alert-circle" size={13} color={CGYM_ORANGE} /> : null}
-                <Text style={[styles.rowDate, late && { color: theme.color.error }]}>{late ? "In ritardo · " : ""}{fmtCgymDate(s.scheduled_at)}</Text>
+                <Text style={[styles.rowDate, late && { color: HT.danger }]}>{late ? "In ritardo · " : ""}{fmtCgymDate(s.scheduled_at)}</Text>
               </View>
             );
           })}
@@ -91,31 +91,31 @@ export function CgymWidget() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: theme.color.surfaceSecondary,
+    backgroundColor: HT.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     padding: 12,
     marginBottom: 10,
   },
   head: { flexDirection: "row", alignItems: "center", gap: 10 },
   iconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 12, color: theme.color.muted, marginTop: 1 },
+  title: { fontSize: 14, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 1 },
   badge: { backgroundColor: CGYM_ORANGE, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   badgeTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
-  barBg: { height: 6, borderRadius: 3, backgroundColor: theme.color.surfaceTertiary, marginTop: 10, overflow: "hidden" },
+  barBg: { height: 6, borderRadius: 3, backgroundColor: HT.glassStrong, marginTop: 10, overflow: "hidden" },
   barFill: { height: 6, borderRadius: 3 },
   assignedRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, flexWrap: "wrap" },
-  assignedTxt: { fontSize: 12, color: theme.color.onSurface, fontWeight: "700", flex: 1 },
-  assignedBarBg: { width: "100%", height: 4, borderRadius: 2, backgroundColor: theme.color.surfaceTertiary, overflow: "hidden" },
-  assignedBarFill: { height: 4, borderRadius: 2, backgroundColor: theme.color.brandPrimary },
+  assignedTxt: { fontSize: 12, color: HT.text, fontWeight: "700", flex: 1 },
+  assignedBarBg: { width: "100%", height: 4, borderRadius: 2, backgroundColor: HT.glassStrong, overflow: "hidden" },
+  assignedBarFill: { height: 4, borderRadius: 2, backgroundColor: HT.brand },
   list: { marginTop: 10, gap: 6 },
-  listHead: { fontSize: 11, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.4 },
+  listHead: { fontSize: 11, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.4 },
   row: { flexDirection: "row", alignItems: "center", gap: 6 },
-  rowTitle: { flex: 1, flexShrink: 1, fontSize: 13, color: theme.color.onSurface, fontWeight: "600" },
-  rowDate: { fontSize: 11, color: theme.color.muted, fontWeight: "700", flexShrink: 0 },
-  empty: { fontSize: 12, color: theme.color.muted, marginTop: 8 },
+  rowTitle: { flex: 1, flexShrink: 1, fontSize: 13, color: HT.text, fontWeight: "600" },
+  rowDate: { fontSize: 11, color: HT.muted, fontWeight: "700", flexShrink: 0 },
+  empty: { fontSize: 12, color: HT.muted, marginTop: 8 },
 });
 
 export default CgymWidget;

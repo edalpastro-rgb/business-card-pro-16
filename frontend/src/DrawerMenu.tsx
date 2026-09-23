@@ -18,6 +18,8 @@ import { MENU_CATEGORIES } from "@/src/menuCategories";
 import { CgymDrawerBadge } from "@/src/corporate-gym/CgymDrawerBadge"; // Corporate Gym (Blocco 3)
 
 import { AxnDrawerBadge } from "@/src/AxnDrawerBadge"; // V50.z181 — notifiche push AxonOS
+import { AlarmDrawerBadge } from "@/src/AlarmIndicators"; // V50.z334 — «tra 25m» accanto a Timer & Sveglie
+import { openAxonRecommendations } from "@/src/axonProactive"; // V50.z334 — Consigli di Axon → chat
 
 // Axon Drive — piccola icona automobile accanto al nome (solo UI)
 const AxonDriveCarBadge = () => <Ionicons name="car-sport" size={16} color="#7C3AED" style={{ marginRight: 6 }} />;
@@ -30,6 +32,7 @@ type DrawerItem = {
   href: string;
   categoryKey: keyof typeof MENU_CATEGORIES;
   badge?: React.ComponentType; // indicatore opzionale a destra (es. Corporate Gym "3/7")
+  action?: () => void; // V50.z334 — azione al posto della navigazione (es. apre la chat Axon)
 };
 
 const ITEMS: DrawerItem[] = [
@@ -42,10 +45,11 @@ const ITEMS: DrawerItem[] = [
   { label: "Scadenze",          icon: "hourglass-outline",    href: "/deadlines",          categoryKey: "crm" },
   // AI & Axon (viola #7C3AED)
   { label: "Axon Hub",          icon: "sparkles",             href: "/axon-hub",           categoryKey: "axon" },
+  { label: "Consigli di Axon",  icon: "bulb",                 href: "#axon-recommendations", categoryKey: "axon", action: openAxonRecommendations }, // V50.z334 — consigli del Tour nella chat
   { label: "Insegna ad Axon",   icon: "school-outline",       href: "/ai-teach",           categoryKey: "axon" },
   { label: "Cervello Axon",     icon: "bulb-outline",         href: "/axon-brain",         categoryKey: "axon" },
   { label: "Axon Drive",        icon: "mic",                  href: "/voice-copilot",      categoryKey: "axon", badge: AxonDriveCarBadge },
-  { label: "Timer & Sveglie",   icon: "alarm-outline",        href: "/axon-alarms",        categoryKey: "axon" },
+  { label: "Timer & Sveglie",   icon: "alarm-outline",        href: "/axon-alarms",        categoryKey: "axon", badge: AlarmDrawerBadge }, // V50.z334 — prossima sveglia/timer
   { label: "Notifiche Axon",    icon: "notifications",        href: "/axon-notifications", categoryKey: "axon", badge: AxnDrawerBadge },
   { label: "Avvisi Axon",       icon: "notifications-outline",href: "/axon-alerts",        categoryKey: "axon" },
   { label: "Home Assistant",    icon: "home-outline",         href: "/axon-homeassistant", categoryKey: "axon" },
@@ -102,10 +106,10 @@ export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: ()
     }
   }, [visible, slideX, opacity]);
 
-  const go = (href: string) => {
+  const go = (it: DrawerItem) => {
     onClose();
     // slight delay so drawer close animation doesn't glitch
-    setTimeout(() => router.push(href as any), 80);
+    setTimeout(() => { if (it.action) it.action(); else router.push(it.href as any); }, 80);
   };
 
   // Raggruppa per categoria in ordine palette
@@ -152,7 +156,7 @@ export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: ()
               {items.map((it) => (
                 <Pressable
                   key={it.href}
-                  onPress={() => go(it.href)}
+                  onPress={() => go(it)}
                   style={({ pressed }) => [styles.row, pressed && { backgroundColor: cat.color + "0C" }]}
                   testID={`drawer-item-${it.href}`}
                 >

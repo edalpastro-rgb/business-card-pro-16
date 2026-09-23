@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-nati
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z334 — Home dark/premium
 import { WeatherAlertsCard } from "@/src/WeatherAlertsCard";
 import { WeatherWidget } from "@/src/WeatherWidget";
 import { CgymWidget } from "@/src/corporate-gym/CgymWidget"; // Corporate Gym (Blocco 1)
@@ -56,7 +56,7 @@ export function DashboardWidgetsSection({ only, exclude }: { only?: string[]; ex
 
   if (loading && active.length === 0) {
     if (only) return null;
-    return <ActivityIndicator style={{ marginVertical: 8 }} color={theme.color.brandPrimary} />;
+    return <ActivityIndicator style={{ marginVertical: 8 }} color={HT.brand} />;
   }
   if (active.length === 0) return null;
 
@@ -95,7 +95,7 @@ function MiniStatCard({ testID, icon, label, value, color, onPress }: { testID?:
         <Text style={styles.value}>{value}</Text>
         <Text style={styles.label} numberOfLines={1}>{label}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+      <Ionicons name="chevron-forward" size={16} color={HT.muted} />
     </Pressable>
   );
 }
@@ -103,8 +103,8 @@ function MiniStatCard({ testID, icon, label, value, color, onPress }: { testID?:
 function ComingSoonCard({ label, icon }: { label: string; icon: keyof typeof Ionicons.glyphMap }) {
   return (
     <View style={[styles.card, styles.coming]}>
-      <View style={[styles.iconBadge, { backgroundColor: "#F1F5F9" }]}>
-        <Ionicons name={icon} size={16} color={theme.color.muted} />
+      <View style={[styles.iconBadge, { backgroundColor: HT.glassStrong }]}>
+        <Ionicons name={icon} size={16} color={HT.muted} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.value}>—</Text>
@@ -121,8 +121,8 @@ function PunLiveCard({ data }: { data: PunLatest | null }) {
   if (!data || !data.available) {
     return (
       <View style={[styles.card, styles.coming]}>
-        <View style={[styles.iconBadge, { backgroundColor: "#FEF3C7" }]}>
-          <Ionicons name="flash" size={16} color="#F59E0B" />
+        <View style={[styles.iconBadge, { backgroundColor: HT.warningTint }]}>
+          <Ionicons name="flash" size={16} color={HT.warning} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.value}>—</Text>
@@ -135,29 +135,34 @@ function PunLiveCard({ data }: { data: PunLatest | null }) {
   // V50.z327 — mese corrente parziale (job giornaliero GME): etichetta «parziale · N gg · agg. gg/mm»
   const upd = data.partial_updated_at ? new Date(data.partial_updated_at) : null;
   const partialTxt = data.partial ? `PUN ${data.month_short || ""} parziale · ${data.partial_days || 0} gg${upd ? ` · agg. ${upd.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}` : ""}` : null;
+  // V50.z334 — card dark con accenti vivaci (ciano F1 · arancio F2 · verde F3), niente pastelli
   return (
     <View style={{ gap: 4 }} testID="widget-pun">
       <View style={styles.punCardCompact}>
-        <PunFascia label="F1" value={data.F1} delta={data.delta_f1_pct} monthTag={data.month_short} unit={unit} bg="#EEF2FF" fg="#4338CA" />
-        <PunFascia label="F2" value={data.F2} delta={data.delta_f2_pct} unit={unit} bg="#FEF3C7" fg="#B45309" />
-        <PunFascia label="F3" value={data.F3} delta={data.delta_f3_pct} unit={unit} bg="#DCFCE7" fg="#15803D" />
+        <View style={styles.punHeadCol}>
+          <View style={[styles.iconBadge, { backgroundColor: HT.warningTint }]}>
+            <Ionicons name="flash" size={16} color={HT.warning} />
+          </View>
+          <Text style={styles.punTitle}>PUN</Text>
+          {data.month_short ? <Text style={styles.punMonth}>{data.month_short}{data.year ? ` ${String(data.year).slice(2)}` : ""}</Text> : null}
+        </View>
+        <PunFascia label="F1" value={data.F1} delta={data.delta_f1_pct} unit={unit} bg={HT.axonTint} fg={HT.axon} />
+        <PunFascia label="F2" value={data.F2} delta={data.delta_f2_pct} unit={unit} bg={HT.brandTint} fg="#FB923C" />
+        <PunFascia label="F3" value={data.F3} delta={data.delta_f3_pct} unit={unit} bg={HT.successTint} fg={HT.success} />
       </View>
       {partialTxt ? <Text style={styles.punPartial} testID="widget-pun-partial">{partialTxt} · Δ vs mese chiuso</Text> : null}
     </View>
   );
 }
 
-function PunFascia({ label, value, delta, monthTag, unit, bg, fg }: { label: string; value?: number; delta?: number | null; monthTag?: string; unit: string; bg: string; fg: string }) {
+function PunFascia({ label, value, delta, unit, bg, fg }: { label: string; value?: number; delta?: number | null; unit: string; bg: string; fg: string }) {
   const dTxt = typeof delta === "number" ? `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%` : null;
-  const dColor = typeof delta === "number" ? (delta >= 0 ? "#DC2626" : "#16A34A") : fg;
+  const dColor = typeof delta === "number" ? (delta >= 0 ? HT.danger : HT.success) : fg;
   return (
-    <View style={[styles.fasciaBox, { backgroundColor: bg }]}>
-      <View style={styles.fasciaTopRow}>
-        <Text style={[styles.fasciaLabel, { color: fg }]}>{label}</Text>
-        {monthTag ? <Text style={[styles.fasciaMonth, { color: fg }]}>{monthTag}</Text> : null}
-      </View>
-      <Text style={[styles.fasciaVal, { color: fg }]}>{typeof value === "number" ? value.toFixed(1) : "—"}</Text>
-      <Text style={[styles.fasciaUnit, { color: fg }]}>{unit}</Text>
+    <View style={[styles.fasciaBox, { backgroundColor: bg, borderColor: fg + "55" }]}>
+      <Text style={[styles.fasciaLabel, { color: fg }]}>{label}</Text>
+      <Text style={[styles.fasciaVal, { color: HT.text }]}>{typeof value === "number" ? value.toFixed(1) : "—"}</Text>
+      <Text style={styles.fasciaUnit}>{unit}</Text>
       {dTxt ? <Text style={[styles.fasciaDelta, { color: dColor }]}>{dTxt}</Text> : null}
     </View>
   );
@@ -165,27 +170,21 @@ function PunFascia({ label, value, delta, monthTag, unit, bg, fg }: { label: str
 
 const styles = StyleSheet.create({
   wrap: { gap: 8, marginBottom: 8 },
-  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 14, padding: 12 },
-  coming: { backgroundColor: "#F8FAFC" },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 14, padding: 12 },
+  coming: { backgroundColor: HT.card },
   iconBadge: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  value: { fontSize: 22, fontWeight: "900", color: theme.color.onSurface, letterSpacing: -0.5 },
-  label: { fontSize: 12, fontWeight: "700", color: theme.color.muted },
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: "#E2E8F0" },
-  badgeTxt: { fontSize: 10, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5 },
-  punCard: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 14, padding: 12, gap: 10 },
-  // V50.z87 — Compatto: no header, solo 3 fasce (altezza ridotta)
-  punCardCompact: { flexDirection: "row", gap: 6, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 14, padding: 6 },
-  punHead: { flexDirection: "row", alignItems: "center", gap: 10 },
-  punTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  deltaPill: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  deltaTxt: { fontSize: 11, fontWeight: "800" },
-  punFasce: { flexDirection: "row", gap: 6 },
-  fasciaBox: { flex: 1, alignItems: "center", paddingVertical: 6, paddingHorizontal: 4, borderRadius: 10 },
-  fasciaTopRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  fasciaLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-  fasciaMonth: { fontSize: 8, fontWeight: "800", letterSpacing: 0.6, opacity: 0.75 },
-  punPartial: { fontSize: 10, color: theme.color.muted, textAlign: "center", fontWeight: "600" },
-  fasciaVal: { fontSize: 14, fontWeight: "900", marginTop: 1 },
-  fasciaUnit: { fontSize: 8, fontWeight: "700", opacity: 0.7 },
+  value: { fontSize: 22, fontWeight: "900", color: HT.text, letterSpacing: -0.5 },
+  label: { fontSize: 12, fontWeight: "700", color: HT.muted },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: HT.glassStrong },
+  badgeTxt: { fontSize: 10, fontWeight: "800", color: HT.text2, textTransform: "uppercase", letterSpacing: 0.5 },
+  punCardCompact: { flexDirection: "row", alignItems: "stretch", gap: 6, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 14, padding: 8 },
+  punHeadCol: { width: 52, alignItems: "center", justifyContent: "center", gap: 2 },
+  punTitle: { fontSize: 11, fontWeight: "900", color: HT.text, letterSpacing: 0.8 },
+  punMonth: { fontSize: 9, fontWeight: "700", color: HT.muted, textTransform: "uppercase" },
+  fasciaBox: { flex: 1, alignItems: "center", paddingVertical: 6, paddingHorizontal: 4, borderRadius: 10, borderWidth: 1 },
+  fasciaLabel: { fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  punPartial: { fontSize: 10, color: HT.muted, textAlign: "center", fontWeight: "600" },
+  fasciaVal: { fontSize: 15, fontWeight: "900", marginTop: 1, letterSpacing: -0.3 },
+  fasciaUnit: { fontSize: 8, fontWeight: "700", color: HT.muted },
   fasciaDelta: { fontSize: 10, fontWeight: "800", marginTop: 2 },
 });

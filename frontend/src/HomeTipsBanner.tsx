@@ -6,7 +6,7 @@ import { View, Text, StyleSheet, Pressable, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z334 — Home dark/premium
 import { openInAppLink } from "@/src/utils/openInAppLink";
 
 type Tip = {
@@ -70,7 +70,7 @@ export function HomeTipsBanner() {
           testID="dismiss-tip"
           hitSlop={10}
         >
-          <Ionicons name="close" size={16} color={theme.color.muted} />
+          <Ionicons name="close" size={16} color={HT.muted} />
         </Pressable>
       </View>
       {tip.feature_label && isBroadcast ? (
@@ -108,27 +108,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 14,
     borderRadius: 14,
-    backgroundColor: theme.color.surfaceSecondary,
+    backgroundColor: HT.card,
     borderWidth: 1,
-    borderColor: "#F59E0B44",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    borderColor: HT.border,
   },
   header: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   iconBox: {
     width: 24, height: 24, borderRadius: 6,
     alignItems: "center", justifyContent: "center",
   },
-  headerTxt: { flex: 1, fontSize: 11, fontWeight: "800", color: theme.color.onSurface, letterSpacing: 0.4 },
+  headerTxt: { flex: 1, fontSize: 11, fontWeight: "800", color: HT.text2, letterSpacing: 0.4 },
   dismissBtn: { padding: 4 },
-  subject: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, marginBottom: 4 },
-  msg: { fontSize: 13, color: theme.color.onSurface, lineHeight: 18 },
+  subject: { fontSize: 14, fontWeight: "800", color: HT.text, marginBottom: 4 },
+  msg: { fontSize: 13, color: HT.text2, lineHeight: 18 },
   videoBtn: {
     marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    paddingVertical: 8, borderRadius: 8, backgroundColor: theme.color.brandPrimary,
+    paddingVertical: 8, borderRadius: 8, backgroundColor: HT.brand,
     alignSelf: "flex-start", paddingHorizontal: 14,
   },
   videoBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert, AppState } from "react-native";
+import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert, AppState, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, useRootNavigationState, usePathname, useLocalSearchParams } from "expo-router";
@@ -11,7 +11,7 @@ import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
 import { CallScriptOverlay } from "@/src/CallScriptOverlay";
 import { CompanyContactSheet } from "@/src/CompanyContactSheet";
 import { HomeEventBanner } from "@/src/HomeEventBanner";
-import { AlarmHomeWidget } from "@/src/AlarmHomeWidget";
+import { AlarmHeaderIcon } from "@/src/AlarmIndicators"; // V50.z334 — icona ⏰ discreta nella barra (widget sveglia rimosso dalla Home)
 import { DrawerMenu } from "@/src/DrawerMenu";
 import { DashboardWidgetsSection } from "@/src/DashboardWidgetsSection";
 import { HeaderWeatherBadge } from "@/src/WeatherWidget";
@@ -20,36 +20,36 @@ const APPT_TODAY_WIDGET = ["appointments_today"];
 import { HomeTipsBanner } from "@/src/HomeTipsBanner";
 import { CgymAlertStrip } from "@/src/corporate-gym/CgymAlertStrip"; // Corporate Gym (Blocco 1)
 import { ProactiveBubbles } from "@/src/ProactiveBubbles"; // V50.z196 — Blocco 9: bubble proattive AxonOS
-import { RecommendedForYou } from "@/src/RecommendedForYou"; // V50.z300 — Card «Consigliato per te» (risposte del Tour)
+import { openAxonRecommendations } from "@/src/axonProactive"; // V50.z334 — «Consigli di Axon» → chat (card «Consigliato per te» rimossa dalla Home)
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5: «AxonOS sta leggendo i tuoi file…»
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
-
-// V29.aq — Header dashboard image (loaded as local bundled asset so it works
-// offline on APK/IPA builds). Full-bleed dark image with AdvisorOS + AxonOS
-// branding. Aspect 2:1 (2000x1000).
-import { BrandHeaderImage } from "@/src/BrandHeaderImage"; // V50.z232
+import { useOrgBranding } from "@/src/BrandHeaderImage"; // logo aziendale (Personalizzazione Aziendale) nella barra
+import { HT } from "@/src/homeTheme";
 
 /* ────────────────────────────────────────────────────────────────
-   V27 — Modern Dashboard Redesign
-   Palette: primary orange #FF6B35 · secondary navy #1B2B4B
-   White background · rounded shadow cards · bold KPIs · SVG charts
+   V50.z334 — Home DARK/PREMIUM coerente con la landing (src/homeTheme.ts)
+   Sfondo navy · card con bordi sottili · arancio «OS» per le azioni ·
+   ciano AxonOS per l'intelligenza · niente pastelli, niente banner foto.
    ──────────────────────────────────────────────────────────────── */
 const C = {
-  primary: "#FF6B35",
-  primarySoft: "#FFF1E9",
-  navy: "#1B2B4B",
-  navySoft: "#EEF1F7",
+  primary: HT.brand,
+  primarySoft: HT.brandTint,
+  navy: HT.axon,           // accento secondario (ciano AxonOS)
+  navySoft: HT.axonTint,
   white: "#FFFFFF",
-  bg: "#FFFFFF",
-  border: "#EEF0F4",
-  muted: "#7A8794",
-  text: "#111820",
-  success: "#16A34A",
-  successSoft: "#DCFCE7",
-  danger: "#DC2626",
-  dangerSoft: "#FEE2E2",
-  warning: "#F59E0B",
-  warningSoft: "#FEF3C7",
+  bg: HT.bg,
+  card: HT.card,
+  card2: HT.card2,
+  border: HT.border,
+  muted: HT.muted,
+  text: HT.text,
+  text2: HT.text2,
+  success: HT.success,
+  successSoft: HT.successTint,
+  danger: HT.danger,
+  dangerSoft: HT.dangerTint,
+  warning: HT.warning,
+  warningSoft: HT.warningTint,
 };
 
 type CustomArea = { id: string; name: string; color: string };
@@ -147,7 +147,9 @@ export default function HomeScreen() {
   //   layout ad ogni frame di scroll → "effetto scatto" visibile su Android.
   //   Preferiamo scroll fluido (native driver possibile perché non serve
   //   più agganciare scrollY a nulla) rispetto a un mini-collapse del brand.
-  const HEADER_HEIGHT = 140;
+  const { width: winW } = useWindowDimensions();
+  const compactBar = winW < 430; // V50.z334 — su telefoni stretti la barra mostra solo l'ora
+  const orgBranding = useOrgBranding();
   const [deadlinesLoading, setDeadlinesLoading] = useState<boolean>(true);
   // V49 — "Comunica con l'azienda" panel (nome, email, numeri di servizio)
   const [companySheetOpen, setCompanySheetOpen] = useState<boolean>(false);
@@ -399,50 +401,49 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      {/* ── Header V29.aq: sfondo immagine dashboard locale (offline-safe).
-          Riga 1: data/ora TL + avatar TR come overlay corner.
-          L'immagine include già il logo AdvisorOS + AxonOS quindi non serve
-          il fade animato con testo "Ciao, NOME". */}
-      <View style={styles.brandHeader}>
-        <View
-          style={[styles.brandHeaderBox, { height: HEADER_HEIGHT }]}
-          testID="home-brand-header"
+      {/* ── V50.z334 — Barra superiore minimalista: menu · logo · data/ora · meteo · ⏰ · ✨ consigli · avatar ── */}
+      <View style={styles.topBar} testID="home-brand-header">
+        <Pressable
+          onPress={() => setDrawerOpen(true)}
+          hitSlop={10}
+          style={styles.topBarIconBtn}
+          testID="home-drawer-open"
+          accessibilityLabel="Apri menu completo"
         >
-          {/* V50.z232 — header pulito + nuovo logo AxonOS piccolo; logo aziendale (Personalizzazione Aziendale) al posto di AdvisorOS se caricato */}
-          <BrandHeaderImage radius={12} />
-          {/* Gradient scrim per garantire leggibilità della data/ora sopra l'immagine */}
-          <View pointerEvents="none" style={styles.brandHeaderScrim} />
-          {/* V50.z132 — Mini icona meteo (sole/pioggia/neve) in basso a sinistra */}
-          <HeaderWeatherBadge />
-
-          {/* V29.ae — Layout header 80px: date/avatar come overlay corner */}
-          <View style={styles.brandHeaderCornerTL} pointerEvents="none">
-            <Text style={styles.brandHeaderDate} numberOfLines={1}>
-              {new Date(nowTick).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
-              {" · "}
-              {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-            </Text>
-          </View>
-          {/* V50.z35 — Hamburger drawer (angolo top-left, sopra la data) */}
-          <Pressable
-            onPress={() => setDrawerOpen(true)}
-            hitSlop={10}
-            style={styles.brandHeaderHamburger}
-            testID="home-drawer-open"
-            accessibilityLabel="Apri menu completo"
-          >
-            <Ionicons name="menu" size={22} color="#FFF" />
-          </Pressable>
-          <Pressable onPress={() => router.push("/impostazioni" as any)} hitSlop={8} style={styles.brandHeaderCornerTR}>
-            {user?.avatar_base64 ? (
-              <Image source={{ uri: user.avatar_base64 }} style={styles.brandHeaderAvatar} />
-            ) : (
-              <View style={styles.brandHeaderAvatarFallback}>
-                <Text style={styles.brandHeaderAvatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text>
-              </View>
-            )}
-          </Pressable>
-        </View>
+          <Ionicons name="menu" size={22} color={C.text} />
+        </Pressable>
+        {orgBranding?.logo_data_uri ? (
+          <Image source={{ uri: orgBranding.logo_data_uri }} resizeMode="contain" style={styles.topBarOrgLogo} accessibilityLabel={orgBranding.company_name || "Logo aziendale"} testID="brand-header-org" />
+        ) : (
+          <Text style={styles.topBarBrand} numberOfLines={1} testID="brand-header-advisoros">
+            Advisor<Text style={styles.topBarBrandOS}>OS</Text>
+          </Text>
+        )}
+        <View style={{ flex: 1 }} />
+        <Text style={styles.topBarClock} numberOfLines={1} testID="home-clock">
+          {!compactBar ? `${new Date(nowTick).toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "short" })} · ` : ""}
+          {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+        </Text>
+        <HeaderWeatherBadge inline />
+        <AlarmHeaderIcon />
+        <Pressable
+          onPress={openAxonRecommendations}
+          hitSlop={8}
+          style={styles.topBarIconBtn}
+          testID="home-axon-recommendations"
+          accessibilityLabel="Consigli di Axon"
+        >
+          <Ionicons name="sparkles" size={18} color={C.navy} />
+        </Pressable>
+        <Pressable onPress={() => router.push("/impostazioni" as any)} hitSlop={8} testID="home-avatar" accessibilityLabel="Profilo">
+          {user?.avatar_base64 ? (
+            <Image source={{ uri: user.avatar_base64 }} style={styles.topBarAvatar} />
+          ) : (
+            <View style={styles.topBarAvatarFallback}>
+              <Text style={styles.topBarAvatarTxt}>{user?.name?.[0]?.toUpperCase() || "?"}</Text>
+            </View>
+          )}
+        </Pressable>
       </View>
       <ScrollView
         ref={homeScrollRef}
@@ -470,9 +471,6 @@ export default function HomeScreen() {
             <Text style={[styles.bannerTxt, { color: C.danger }]}>Prova gratuita scaduta — rinnova da Profilo › Abbonamento o inserisci un codice promo/amico</Text>
           </View>
         )}
-
-        {/* V50.z10 — Widget prossima sveglia (nascosto se nessuna entro 12h) */}
-        <AlarmHomeWidget />
 
         {/* ── 2) Banner My Thing — nascosto completamente se vuoto (V50.z5) ── */}
         {myThingSlide ? (
@@ -555,8 +553,7 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
-        {/* V50.z300 — Card «Consigliato per te»: scorciatoie alle funzioni scelte nel Tour */}
-        <RecommendedForYou />
+        {/* V50.z334 — La card «Consigliato per te» è stata rimossa: i consigli del Tour vivono nella chat di Axon (icona ✨ in alto / menu). */}
 
         {/* V50.z120 — Sezione widget dashboard (meteo, appuntamenti oggi, PUN, scadenze…)
              spostata SOTTO il bottone Interfaccia Master su richiesta utente */}
@@ -570,11 +567,13 @@ export default function HomeScreen() {
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Ritelefonate di oggi</Text>
             <View style={styles.pill}><Text style={styles.pillTxt}>{cbTodayTotal}</Text></View>
+            <View style={{ flex: 1 }} />
+            {/* V50.z334 — bottone compatto (era un blocco arancione a tutta larghezza) */}
+            <Pressable testID="add-callback-btn" onPress={() => router.push("/callback/new")} style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]} accessibilityLabel="Aggiungi telefonata">
+              <Ionicons name="add" size={16} color={C.white} />
+              <Text style={styles.addBtnTxt}>Telefonata</Text>
+            </Pressable>
           </View>
-          <Pressable testID="add-callback-btn" onPress={() => router.push("/callback/new")} style={styles.addBtn}>
-            <Ionicons name="add-circle" size={20} color={C.white} />
-            <Text style={styles.addBtnTxt}>Aggiungi Telefonata</Text>
-          </Pressable>
           {callbacks.length === 0 && (
             <View style={styles.empty}>
               <Ionicons name="call-outline" size={28} color={C.muted} />
@@ -878,8 +877,8 @@ function DeadlinesWidget({
   const TYPE = { luce: { i: "flash", c: "#F59E0B" }, gas: { i: "flame", c: "#EA580C" }, telco: { i: "wifi", c: "#0891B2" } } as const;
   const STATUS = {
     expired: { l: "Scaduta", fg: C.danger, bg: C.dangerSoft },
-    critical: { l: "Urgente", fg: "#B45309", bg: C.warningSoft },
-    warning: { l: "In arrivo", fg: "#0369A1", bg: "#DBEAFE" },
+    critical: { l: "Urgente", fg: C.warning, bg: C.warningSoft },
+    warning: { l: "In arrivo", fg: C.navy, bg: C.navySoft },
     ok: { l: "OK", fg: C.success, bg: C.successSoft },
   } as any;
   if (loading) {
@@ -1080,9 +1079,9 @@ function CallbackRow({ cb, color, onOpen, onScript, onEdit, onToggleDone }: { cb
     return () => loop.stop();
   }, [urgent, soon, sweep]);
 
-  const bg = cb.done ? C.white : urgent ? C.dangerSoft : soon ? "#FFEDD5" : upcoming ? C.warningSoft : C.white;
-  const border = cb.done ? C.border : urgent ? C.danger : soon ? "#F59E0B" : upcoming ? "#EAB308" : C.border;
-  const sweepColor = urgent ? "rgba(220,38,38,0.22)" : "rgba(245,158,11,0.18)";
+  const bg = cb.done ? C.card : urgent ? C.dangerSoft : soon ? C.warningSoft : C.card;
+  const border = cb.done ? C.border : urgent ? C.danger : soon ? C.warning : upcoming ? "rgba(251,191,36,0.45)" : C.border;
+  const sweepColor = urgent ? "rgba(248,113,113,0.20)" : "rgba(251,191,36,0.16)";
 
   return (
     <View style={{ opacity: cb.done ? 0.55 : 1 }} testID={`callback-${cb.callback_id}`}>
@@ -1100,7 +1099,7 @@ function CallbackRow({ cb, color, onOpen, onScript, onEdit, onToggleDone }: { cb
         <Pressable
           testID={`callback-open-${cb.callback_id}`}
           onPress={() => { if (typeof onOpen === "function") onOpen(); }}
-          android_ripple={{ color: "rgba(0,0,0,0.06)" }}
+          android_ripple={{ color: "rgba(255,255,255,0.06)" }}
           style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", opacity: pressed ? 0.75 : 1, zIndex: 1 }]}
         >
           <View style={{ width: 5, backgroundColor: color, alignSelf: "stretch" }} />
@@ -1131,15 +1130,8 @@ function CallbackRow({ cb, color, onOpen, onScript, onEdit, onToggleDone }: { cb
 
 /* ═══════════════════════ Styles ═══════════════════════ */
 
-const cardShadow = Platform.select({
-  ios: { shadowColor: "#0F172A", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
-  android: { elevation: 3 },
-  default: { shadowColor: "#0F172A", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
-});
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
-  rootDark: { flex: 1, backgroundColor: "#0D1B2A" },
   scrollBg: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { paddingHorizontal: 16, paddingTop: 12 },
@@ -1151,12 +1143,9 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: C.navy,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
   },
   companyContactIcon: {
     width: 44,
@@ -1169,165 +1158,52 @@ const styles = StyleSheet.create({
   companyContactTitle: {
     fontSize: 14,
     fontWeight: "900",
-    color: "#FFF",
+    color: C.text,
     letterSpacing: 0.3,
   },
   companyContactSub: {
     fontSize: 11,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.75)",
+    color: C.muted,
     marginTop: 2,
   },
 
-
-  /* Header V29.y — container unico bordato, sfondo trasparente */
-  brandHeader: {
-    backgroundColor: "transparent",
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-  brandHeaderBox: {
-    // V29.aq — Header con immagine full-bleed locale (offline-safe).
-    // V29.ar — height animata via scrollY (140 → 60 su scroll).
-    backgroundColor: "#000",
-    borderWidth: 1,
-    borderColor: "rgba(56,189,248,0.35)",
-    borderRadius: 12,
-    position: "relative",
-    overflow: "hidden",
-    justifyContent: "center",
-  },
-  brandHeaderScrim: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 12,
-    // Sottile scrim scuro solo nella parte superiore per data/ora leggibile.
-    backgroundColor: "transparent",
-    // Web: usa boxShadow-like gradient — su native usiamo backgroundColor + border only
-  },
-  brandHeaderCornerTL: {
-    position: "absolute",
-    top: 4,
-    left: 44,   // V50.z35: spazio a sinistra per hamburger
-    zIndex: 2,
-  },
-  brandHeaderHamburger: {
-    position: "absolute",
-    top: 4,
-    left: 8,
-    zIndex: 3,
-    width: 32, height: 28,
-    alignItems: "center", justifyContent: "center",
-    borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.28)",
-  },
-  brandHeaderCornerTR: {
-    position: "absolute",
-    top: 4,
-    right: 8,
-    zIndex: 2,
-  },
-  brandHeaderBgLayer: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
-    zIndex: 0,
-  },
-  brandHeaderRow: {
+  /* V50.z334 — Barra superiore minimalista */
+  topBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: C.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
   },
-  brandHeaderDate: {
-    // V29.ao — Header dark: testo cyan chiaro leggibile sul fondo navy
-    color: "rgba(186,230,253,0.85)", // sky-200 alpha
-    fontSize: 10,
+  topBarIconBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: HT.glass,
+  },
+  topBarBrand: { fontSize: 17, fontWeight: "900", color: C.text, letterSpacing: -0.4, marginLeft: 4 },
+  topBarBrandOS: { color: C.primary },
+  topBarOrgLogo: { width: 92, height: 30, marginLeft: 4 },
+  topBarClock: {
+    color: C.text2,
+    fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.2,
     textTransform: "capitalize",
+    marginRight: 4,
+    fontVariant: ["tabular-nums"],
   },
-  brandHeaderAvatar: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1.5,
-    borderColor: C.primarySoft,
-  },
-  brandHeaderAvatarFallback: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+  topBarAvatar: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: HT.brandLine },
+  topBarAvatarFallback: {
+    width: 32, height: 32, borderRadius: 16,
     backgroundColor: C.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: C.primarySoft,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: HT.brandLine,
   },
-  brandHeaderAvatarTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
-  brandHeaderGreet: {
-    // V29.ao — Testo bianco su fondo dark per leggibilità
-    color: "#F1F5F9",
-    fontSize: 22,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-  },
-  brandHeaderGreetName: {
-    color: "#FF6B35",
-    fontWeight: "900",
-  },
-  brandHeaderHero: {
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "transparent",
-    marginTop: 0,
-    paddingTop: 0,
-  },
-  brandHeaderHeroLayer: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  brandHeaderHeroLogo: {
-    width: "70%",
-    height: 50,
-    alignSelf: "center",
-    backgroundColor: "transparent",
-  },
-
-  /* Header (legacy — mantenuto per compatibilità) */
-  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
-  headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 8, paddingBottom: 4 },
-  heroWrap: {
-    height: 120,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 6,
-  },
-  heroLayer: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroBrandImg: {
-    width: 280,
-    height: 110,
-    backgroundColor: "transparent",
-  },
-  heroGreet: {
-    color: C.navy,
-    fontSize: 32,
-    fontWeight: "900",
-    letterSpacing: -0.8,
-    textAlign: "center",
-  },
-  eyebrow: { color: C.muted, fontSize: 12, textTransform: "capitalize", fontWeight: "600" },
-  hi: { color: C.navy, fontSize: 26, fontWeight: "800", marginTop: 2, letterSpacing: -0.5 },
-  avatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: C.primarySoft },
-  avatarFallback: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.navy, alignItems: "center", justifyContent: "center" },
-  avatarTxt: { color: C.white, fontSize: 16, fontWeight: "800" },
+  topBarAvatarTxt: { color: "#FFF", fontSize: 13, fontWeight: "800" },
 
   /* Banners */
   banner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
@@ -1336,51 +1212,50 @@ const styles = StyleSheet.create({
   /* KPI */
   kpiRow: { flexDirection: "row", gap: 12, marginTop: 8 },
   kpi: {
-    flex: 1, backgroundColor: C.white, borderRadius: 18, padding: 14,
+    flex: 1, backgroundColor: C.card, borderRadius: 18, padding: 14,
     borderWidth: 1, borderColor: C.border,
-    ...(cardShadow as any),
   },
   kpiIconBadge: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  kpiValue: { fontSize: 32, fontWeight: "900", color: C.navy, letterSpacing: -1 },
-  kpiLabel: { fontSize: 12, fontWeight: "700", color: C.text, marginTop: 2 },
+  kpiValue: { fontSize: 32, fontWeight: "900", color: C.text, letterSpacing: -1 },
+  kpiLabel: { fontSize: 12, fontWeight: "700", color: C.text2, marginTop: 2 },
   kpiHint: { fontSize: 11, fontWeight: "600", marginTop: 4 },
 
   /* Master */
   masterCard: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: C.navy,
+    backgroundColor: C.card,
+    borderWidth: 1, borderColor: HT.axonLine,
     paddingHorizontal: 14, paddingVertical: 14, borderRadius: 16,
     marginTop: 16, marginBottom: 12,
-    ...(cardShadow as any),
   },
   masterIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" },
-  masterTitle: { color: C.white, fontWeight: "800", fontSize: 15 },
-  masterSub: { color: "rgba(255,255,255,0.75)", fontSize: 11, marginTop: 2, fontWeight: "600" },
+  masterTitle: { color: C.text, fontWeight: "800", fontSize: 15 },
+  masterSub: { color: C.muted, fontSize: 11, marginTop: 2, fontWeight: "600" },
 
   /* Charts */
   chartsRow: { flexDirection: "row", gap: 12, marginTop: 12 },
-  card: { flex: 1, backgroundColor: C.white, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: C.border, ...(cardShadow as any) },
+  card: { flex: 1, backgroundColor: C.card, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: C.border },
   donutCard: { minHeight: 220 },
-  cardTitle: { fontSize: 14, fontWeight: "800", color: C.navy },
+  cardTitle: { fontSize: 14, fontWeight: "800", color: C.text },
   cardSub: { fontSize: 11, color: C.muted, marginTop: 2, fontWeight: "600" },
   donutWrap: { alignItems: "center", justifyContent: "center", marginTop: 10 },
-  donutCenterLabel: { fontSize: 20, fontWeight: "900", color: C.navy, letterSpacing: -0.5 },
+  donutCenterLabel: { fontSize: 20, fontWeight: "900", color: C.text, letterSpacing: -0.5 },
   donutCenterSub: { fontSize: 10, color: C.muted, fontWeight: "700", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.6 },
   legend: { marginTop: 12, gap: 6 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 8 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: { fontSize: 11, fontWeight: "700", color: C.text },
+  legendLabel: { fontSize: 11, fontWeight: "700", color: C.text2 },
 
   /* Bars */
   barRow: { marginBottom: 12 },
   barTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  barLabel: { fontSize: 12, fontWeight: "700", color: C.text, flex: 1 },
-  barValue: { fontSize: 14, fontWeight: "900", color: C.navy },
-  barTrack: { height: 8, borderRadius: 4, backgroundColor: C.navySoft, overflow: "hidden" },
+  barLabel: { fontSize: 12, fontWeight: "700", color: C.text2, flex: 1 },
+  barValue: { fontSize: 14, fontWeight: "900", color: C.text },
+  barTrack: { height: 8, borderRadius: 4, backgroundColor: HT.glassStrong, overflow: "hidden" },
   barFill: { height: 8, borderRadius: 4 },
 
   /* My Thing */
-  myThingBtn: { backgroundColor: C.primarySoft, borderRadius: 12, marginTop: 6, marginBottom: 6, overflow: "hidden", position: "relative", height: 80, borderWidth: 1, borderColor: C.border },
+  myThingBtn: { backgroundColor: C.card, borderRadius: 12, marginTop: 6, marginBottom: 6, overflow: "hidden", position: "relative", height: 80, borderWidth: 1, borderColor: C.border },
   // V29.ad — Card compatta (max 80px): niente titolo, testo su una riga con overflow nascosto
   myThingMsg: { paddingVertical: 6, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", gap: 0, minHeight: 78 },
   myThingMsgTitle: { fontWeight: "800", fontSize: 12, letterSpacing: 0.3, textTransform: "uppercase", opacity: 0.85, textAlign: "center" },
@@ -1413,34 +1288,33 @@ const styles = StyleSheet.create({
 
   /* Section */
   section: { marginTop: 22 },
-  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionTitle: { fontSize: 17, fontWeight: "800", color: C.navy, letterSpacing: -0.3 },
+  sectionHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  sectionTitle: { fontSize: 17, fontWeight: "800", color: C.text, letterSpacing: -0.3 },
   pill: { backgroundColor: C.primarySoft, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
   pillTxt: { color: C.primary, fontWeight: "800", fontSize: 12 },
 
+  /* V50.z334 — Bottone compatto «+ Telefonata» */
   addBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: C.primary, paddingVertical: 13, borderRadius: 14, marginBottom: 12,
-    ...(cardShadow as any),
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: C.primary, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, minHeight: 36,
   },
-  addBtnTxt: { color: C.white, fontSize: 14, fontWeight: "800" },
+  addBtnTxt: { color: C.white, fontSize: 12.5, fontWeight: "800" },
 
-  empty: { alignItems: "center", padding: 22, gap: 8, backgroundColor: C.white, borderRadius: 14, borderWidth: 1, borderColor: C.border, borderStyle: "dashed" },
+  empty: { alignItems: "center", padding: 22, gap: 8, backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.border, borderStyle: "dashed" },
   emptyTxt: { color: C.muted, fontWeight: "600" },
 
   areaBlock: { marginBottom: 8 },
   areaHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6, marginTop: 6 },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  areaTitle: { fontSize: 12, fontWeight: "800", color: C.navy, textTransform: "uppercase", letterSpacing: 0.5 },
+  areaTitle: { fontSize: 12, fontWeight: "800", color: C.text2, textTransform: "uppercase", letterSpacing: 0.5 },
 
-  /* Quick — V29.ba stile "Optima": icona full-round colorata con shadow rialzato */
+  /* Quick — icona full-round colorata su card dark */
   qaHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   quickRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   quick: {
     flexGrow: 1, flexBasis: "45%", minWidth: 140, maxWidth: "100%",
-    backgroundColor: C.white, padding: 14, borderRadius: 16, alignItems: "flex-start", gap: 10,
+    backgroundColor: C.card, padding: 14, borderRadius: 16, alignItems: "flex-start", gap: 10,
     borderWidth: 1, borderColor: C.border,
-    ...(cardShadow as any),
   },
   quickIcon: {
     width: 44,
@@ -1449,37 +1323,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.9)",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
+    borderColor: "rgba(255,255,255,0.14)",
   },
-  quickTxt: { fontWeight: "800", color: C.navy, fontSize: 13 },
+  quickTxt: { fontWeight: "800", color: C.text, fontSize: 13 },
 
   /* V29 · Scadenze */
   dlChipsRow: { flexDirection: "row", gap: 6 },
   // V50.s — Header "SCADENZE" con chips centrati sotto
   dlHeader: { alignItems: "center", gap: 10, marginBottom: 12 },
-  dlSectionTitle: { fontSize: 18, fontWeight: "900", color: C.navy, letterSpacing: 2, textAlign: "center" },
+  dlSectionTitle: { fontSize: 18, fontWeight: "900", color: C.text, letterSpacing: 2, textAlign: "center" },
   dlChipsRowCentered: { flexDirection: "row", gap: 8, justifyContent: "center", alignItems: "center", flexWrap: "wrap" },
-  dlChip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 9, paddingVertical: 5, minHeight: 28, borderRadius: 999, backgroundColor: C.navySoft, borderWidth: 1, borderColor: C.border },
+  dlChip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 9, paddingVertical: 5, minHeight: 28, borderRadius: 999, backgroundColor: C.card, borderWidth: 1, borderColor: C.border },
   dlCollapsedHint: { fontSize: 11, color: C.muted, textAlign: "center", paddingVertical: 8, fontStyle: "italic" },
   dlChipActive: { backgroundColor: C.primarySoft, borderColor: C.primary },
-  dlChipTxt: { fontSize: 11, fontWeight: "800", color: C.navy },
+  dlChipTxt: { fontSize: 11, fontWeight: "800", color: C.text2 },
   dlChipTxtActive: { color: C.primary },
   deadlineRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: C.white,
+    backgroundColor: C.card,
     borderWidth: 1,
     borderColor: C.border,
     borderRadius: 14,
     padding: 12,
     marginBottom: 8,
-    ...(cardShadow as any),
   },
   deadlineIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   deadlineName: { fontSize: 14, fontWeight: "800", color: C.text },

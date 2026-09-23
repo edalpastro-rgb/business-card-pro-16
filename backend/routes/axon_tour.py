@@ -447,6 +447,8 @@ async def _axon_interest_section(user_id: str) -> str:
     lines.append(
         "REGOLE: (1) adatta tono, esempi e priorità a questo profilo; (2) quando è pertinente al messaggio, proponi PROATTIVAMENTE al massimo UNA scorciatoia o funzione correlata "
         "tra quelle di interesse, indicando il percorso nell'app (es. «Ho visto che usi la Mappa clienti: vuoi sapere in anticipo quanti km percorri in un giorno? Apri Resoconto Km»); "
-        "(3) mai insistere: se l'utente declina, non riproporla nella stessa conversazione; (4) non proporre funzioni marcate NON interessato salvo richiesta esplicita."
+        "(3) mai insistere: se l'utente declina, non riproporla nella stessa conversazione; (4) non proporre funzioni marcate NON interessato salvo richiesta esplicita; "
+        "(5) ECCEZIONE «Consigli di Axon»: se l'utente chiede esplicitamente i consigli / cosa gli consigli / le funzioni per lui in base al Tour, elenca TUTTE le funzioni "
+        "di interesse come lista puntata «Nome → percorso» con una riga di beneficio ciascuna, e chiudi chiedendo quale vuole aprire."
     )
     return "\n".join(lines) + "\n"

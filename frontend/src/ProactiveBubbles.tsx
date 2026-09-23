@@ -6,6 +6,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { proactiveApi, respondToItem, ProactiveItem, KIND_ICON, KIND_COLOR } from "@/src/axonProactive";
+import { HT } from "@/src/homeTheme"; // V50.z334 — Home dark/premium
 
 export function ProactiveBubbles() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export function ProactiveBubbles() {
         <Ionicons name="sparkles" size={14} color="#7C3AED" />
         <Text style={styles.headTxt}>AxonOS ti segnala</Text>
         {/* V50.z233 — «Chiudi tutte»: svuota le card con un tap (persistente sul server) */}
-        <Pressable onPress={() => { setItems([]); proactiveApi.dismissAll().catch(() => {}); }} hitSlop={8} testID="proactive-bubbles-dismiss-all" style={{ marginRight: 12 }}><Text style={[styles.link, { color: "#64748B" }]}>Chiudi tutte</Text></Pressable>
+        <Pressable onPress={() => { setItems([]); proactiveApi.dismissAll().catch(() => {}); }} hitSlop={8} testID="proactive-bubbles-dismiss-all" style={{ marginRight: 12 }}><Text style={[styles.link, { color: HT.muted }]}>Chiudi tutte</Text></Pressable>
         <Pressable onPress={() => router.push("/axon-proactive" as any)} hitSlop={8} testID="proactive-bubbles-all"><Text style={styles.link}>Vedi tutte</Text></Pressable>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 2 }}>
@@ -35,7 +36,7 @@ export function ProactiveBubbles() {
               <View style={styles.row}>
                 <View style={[styles.icon, { backgroundColor: color + "22" }]}><Ionicons name={(KIND_ICON[it.kind] || "sparkles") as any} size={16} color={color} /></View>
                 <Text style={styles.type}>{it.type_label}</Text>
-                <Pressable onPress={() => dismiss(it)} hitSlop={10} style={styles.x} testID={`proactive-dismiss-${it.item_id}`}><Ionicons name="close" size={16} color="#94A3B8" /></Pressable>
+                <Pressable onPress={() => dismiss(it)} hitSlop={10} style={styles.x} testID={`proactive-dismiss-${it.item_id}`}><Ionicons name="close" size={16} color={HT.muted} /></Pressable>
               </View>
               <Text style={styles.body} numberOfLines={3}>{it.body}</Text>
               <View style={styles.actions}>
@@ -57,16 +58,16 @@ export function ProactiveBubbles() {
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: 16, marginTop: 8, marginBottom: 6, gap: 8 },
   head: { flexDirection: "row", alignItems: "center", gap: 6 },
-  headTxt: { flex: 1, fontSize: 12, fontWeight: "800", color: "#7C3AED", textTransform: "uppercase", letterSpacing: 0.4 },
-  link: { fontSize: 12, fontWeight: "700", color: "#7C3AED" },
-  bubble: { width: 272, backgroundColor: "#FFFFFF", borderRadius: 16, borderWidth: 1, padding: 12, gap: 8 },
+  headTxt: { flex: 1, fontSize: 12, fontWeight: "800", color: HT.violet, textTransform: "uppercase", letterSpacing: 0.4 },
+  link: { fontSize: 12, fontWeight: "700", color: HT.violet },
+  bubble: { width: 272, backgroundColor: HT.card, borderRadius: 16, borderWidth: 1, padding: 12, gap: 8 },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
   icon: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  type: { flex: 1, fontSize: 12, fontWeight: "800", color: "#1B2B4B" },
+  type: { flex: 1, fontSize: 12, fontWeight: "800", color: HT.text },
   x: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
-  body: { fontSize: 13, color: "#334155", lineHeight: 18 },
+  body: { fontSize: 13, color: HT.text2, lineHeight: 18 },
   actions: { flexDirection: "row", alignItems: "center", gap: 8 },
   btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, minHeight: 40, paddingHorizontal: 10 },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12.5 },
-  btnGhost: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", alignItems: "center", justifyContent: "center" },
+  btnGhost: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: HT.borderStrong, alignItems: "center", justifyContent: "center" },
 });

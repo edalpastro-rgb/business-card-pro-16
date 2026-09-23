@@ -16,6 +16,13 @@ export function openAxonChat(prompt?: string | null, opts?: { voice?: boolean })
   DeviceEventEmitter.emit(AXON_OPEN_CHAT_EVENT, { prompt: pendingPrompt, voice: pendingVoice });
 }
 
+/** V50.z334 — «Consigli di Axon»: i consigli del Tour vivono nella chat (icona ✨ nella barra Home + voce nel menu laterale). */
+export const AXON_RECOMMENDATIONS_PROMPT =
+  "Consigli di Axon: quali funzioni di AdvisorOS mi consigli in base alle risposte che ho dato nel Tour guidato? Elencale tutte con il percorso nell'app.";
+export function openAxonRecommendations() {
+  openAxonChat(AXON_RECOMMENDATIONS_PROMPT);
+}
+
 /** Letto UNA volta dal modal chat quando si apre: se c'è un prompt in attesa lo invia. */
 export function consumePendingPrompt(): string | null {
   const p = pendingPrompt; pendingPrompt = null; return p;

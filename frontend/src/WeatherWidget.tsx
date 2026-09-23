@@ -99,6 +99,8 @@ const styles = StyleSheet.create({
   pill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: "#DCFCE7" },
   pillTxt: { fontSize: 10.5, fontWeight: "800", color: "#16A34A" },
   headerBadge: { position: "absolute", left: 8, bottom: 6, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: "rgba(15,23,42,0.45)" },
+  // V50.z334 — variante inline per la barra superiore dark della Home
+  headerBadgeInline: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, minHeight: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.06)" },
   headerBadgeTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
 });
 
@@ -107,7 +109,7 @@ const styles = StyleSheet.create({
  * (angolo in basso a sinistra): icona sole/pioggia/neve + temperatura.
  * Tap → pagina /meteo. Non renderizza nulla se il meteo non è disponibile.
  */
-export function HeaderWeatherBadge() {
+export function HeaderWeatherBadge({ inline }: { inline?: boolean } = {}) {
   const router = useRouter();
   const [res, setRes] = useState<Res | null>(null);
   // V50.z157 — Il badge è SEMPRE visibile: senza dati meteo (GPS negato/assente nella
@@ -147,9 +149,9 @@ export function HeaderWeatherBadge() {
       onPress={() => router.push("/meteo" as any)}
       hitSlop={8}
       accessibilityLabel={hasWeather ? `Meteo attuale: ${w!.label || ""}` : "Meteo: imposta la tua località"}
-      style={styles.headerBadge}
+      style={inline ? styles.headerBadgeInline : styles.headerBadge}
     >
-      <Ionicons name={icon.name} size={14} color="#FFF" />
+      <Ionicons name={icon.name} size={14} color={inline ? "#38BDF8" : "#FFF"} />
       {temp != null ? (
         <Text style={styles.headerBadgeTxt}>{Math.round(temp as number)}°</Text>
       ) : (
