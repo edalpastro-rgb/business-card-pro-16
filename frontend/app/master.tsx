@@ -80,7 +80,7 @@ function MasterScreen() {
             const parsed = JSON.parse(ord);
             if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string")) {
               // V50.z287 — migrazione etichetta rinominata (l'ordine salvato è per etichetta)
-              setButtonOrder(parsed.map((x: string) => (x === "Compilazione CRT" ? "Autocompilazione CRT" : x)));
+              setButtonOrder(parsed.map((x: string) => (x === "Compilazione CRT" || x === "Autocompilazione CRT" ? "Axon Lab" : x)));
             }
           } catch { /* ignore malformed */ }
         }
@@ -225,7 +225,7 @@ function MasterScreen() {
   const handleNewContract = async () => {
     // Mark as seen (clears the badge)
     try { await api("/contracts/mark-seen", { method: "POST" }); await load(); } catch {}
-    router.push("/crt" as any);
+    router.push("/axon-lab" as any); // V50.z343 — Axon Lab sostituisce Autocompilazione CRT
   };
 
   const buttons: { label: string; icon: MenuIconName; color: string; onPress: () => void; badge?: number; pulse?: Animated.Value }[] = [
@@ -246,7 +246,7 @@ function MasterScreen() {
     { label: "Meteo", icon: "partly-sunny", color: HT.text2, onPress: () => goto("/meteo") },
     { label: "Profilo", icon: "person", color: HT.text2, onPress: () => goto("/(tabs)/impostazioni") }, // V50.z287 — mancava nel blocco Utility
     // CRM Core
-    { label: "Autocompilazione CRT", icon: "color-wand", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread }, // V50.z287
+    { label: "Axon Lab", icon: "color-wand", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread }, // V50.z343 — Axon Lab (ex Autocompilazione CRT)
     { label: "New App", icon: "add-circle", color: "#0EA5E9", onPress: () => goto("/appointment/new") },
     // Comunicazioni
     {

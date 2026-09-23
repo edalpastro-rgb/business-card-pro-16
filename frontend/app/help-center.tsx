@@ -136,7 +136,7 @@ export default function HelpCenterScreen() {
           <View style={styles.faqIcon}><Ionicons name="help-circle" size={22} color={HT.brand} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.faqTitle}>Domande frequenti</Text>
-            <Text style={styles.faqHint}>Addestramento Axon, CRT, salvataggio documenti, collaboratori, sicurezza</Text>
+            <Text style={styles.faqHint}>Axon Lab, addestramento Axon, salvataggio documenti, collaboratori, sicurezza</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={HT.muted} />
         </Pressable>

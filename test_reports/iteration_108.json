@@ -1,0 +1,46 @@
+{
+  "summary": "V50.z343 AXON LAB backend testing: 17/18 pytest passed. Login OK, GET /api/lab/access returns 12 docs in the exact order requested + key_labels. Training checklist works (POST iban manual normalized → uploaded → confirmed, discard→none round-trip). Stamp upload via Gemini vision (JPEG sintetico 900x400) restituisce company_name/vat_number/phone/mobile/email/pec/website (~11-14s); derived phone_company/mobile_referent/email_referent/pec correttamente proposti come 'uploaded' con derived_from='stamp.*'. POST /lab/training/docs/phone_company senza body → 400; documento inesistente → 400. Extra create+delete OK. GET /lab/sources include tutti gli id richiesti inclusi speciali. POST /lab/modules (Gemini field detection ~15-18s) rileva 9 campi + mapping dict con regole default: date_today→sign_date, place_today→sign_place, iban→iban.iban tutti verificati; mapping_source='default', trained=false, sources presenti. PUT /mapping con source invalida ('foo.bar') correttamente ignorata + trained=true persistito. GET /form-templates/{id}/page/0 restituisce data:image/png. Pratica creata, docs/iban+stamp caricati e confermati, POST /fill compila con valori del dossier pratica; campi con regola sign_date/sign_place restano VUOTI. PUT /sign con data 'abc' → 400, 23/09/2026 → normalizza a 2026-09-23 e propaga a filled_forms.values (verificato via GET /filled-forms/{id}). PDF generato contiene '23/09/2026' e 'Padova' (verificato via pymupdf). PUT filled-forms per revisione consulente OK. **BUG CRITICO su POST /api/lab/practices/{id}/archive**: 500 Internal Server Error. Regressione GET /api/form-templates + GET /api/crt → 200.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/lab/practices/{practice_id}/archive",
+        "issue": "500 Internal Server Error. Root cause: MongoDB projection mista inclusione+esclusione in /app/backend/routes/axon_lab.py:719 → `db.filled_forms.find({...}, {'_id': 0, 'pdf_b64': 0, 'form_id': 1, 'name': 1})`. MongoDB genera 'Cannot do inclusion on field form_id in exclusion projection' (code 31253). Blocca completamente il flusso 'archivia pratica → salva in Master files + scheda cliente'. Fix: usare solo esclusione (rimuovere `form_id: 1, name: 1`, verranno restituiti tutti i campi tranne _id e pdf_b64) oppure solo inclusione (`{'form_id': 1, 'name': 1, 'template_name': 1}`).",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z343_axon_lab.py",
+    "/app/test_reports/pytest/v50z343_axon_lab.xml"
+  ],
+  "action_items": [
+    "FIX CRITICO: /app/backend/routes/axon_lab.py:719 — nella query `db.filled_forms.find({'lab_practice_id': practice_id}, {'_id': 0, 'pdf_b64': 0, 'form_id': 1, 'name': 1}).to_list(50)` MongoDB rifiuta la proiezione mista (errore 31253). Sostituire con `{'_id': 0, 'pdf_b64': 0}` (solo esclusione) — il codice a valle usa `f['form_id']` e `ff.get('name')` che restano disponibili — oppure adottare inclusione esplicita `{'form_id': 1, 'name': 1, 'template_name': 1}`. Dopo la fix rilanciare `pytest backend/tests/test_v50z343_axon_lab.py::test_archive_and_cleanup` per verificare che il PDF venga salvato in master_files (source='axon_lab') e nella scheda cliente.",
+    "Frontend smoke test non eseguito in questa iterazione (in linea con l'iterazione 107, il login via Playwright su Expo-web-RN non innesca l'onPress: la review request esplicita di riportare bug senza modificare l'app). Se serve smoke UI di /axon-lab, iniettare direttamente il token JWT in AsyncStorage con la chiave usata da /app/frontend/src/auth.tsx e page.goto verso /axon-lab, /axon-lab/training, /axon-lab/business. TestID da verificare: lab-area-training, lab-area-business, lab-delegates-link, lab-checklist, lab-doc-*, lab-phase-2, lab-module-new, lab-doc-sheet, lab-doc-manual-iban, lab-doc-manual-save, lab-doc-field-iban, lab-doc-confirm, lab-practice-new, lab-contact-search, lab-contact-*, lab-modules-select, lab-fill."
+  ],
+  "critical_code_review_comments": [
+    "axon_lab.py:719 usa proiezione MongoDB mista (inclusione+esclusione) → 500. Verificare che non esistano pattern simili altrove nel file (grep '{.*: 0.*: 1' non trova altre occorrenze problematiche negli altri find di questo modulo, ma è un'anti-pattern che il team dovrebbe evitare sistematicamente).",
+    "axon_lab.py:497 il controllo di validità delle regole di mapping (`sid.split('.')[0] in ('extra',)`) permette qualsiasi `extra.<qualcosa>` anche se l'id extra non esiste — il resolve poi restituisce vuoto+missing, comportamento accettabile ma migliorabile validando contro l'elenco effettivo degli extra.",
+    "axon_lab.py:696 lo status della pratica passa a 'done' solo se ci sono form_ids: se il consulente firma senza aver mai chiamato /fill lo status resta invariato — comportamento coerente ma non documentato lato client.",
+    "axon_lab.py:673 uso di `asyncio.gather` per compilare N moduli in parallelo: se un modulo lancia un'eccezione il gather propaga e blocca tutti. Considerare `return_exceptions=True` per compilare comunque i moduli validi.",
+    "axon_lab.py:732 la scheda cliente riceve `files.$push` con `uploaded_at: utcnow().isoformat()` (stringa) mentre master_files usa `created_at: utcnow()` (datetime). Inconsistenza di tipo, ma non rompe nulla."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z343_axon_lab.py (created — 18 test)"
+  ],
+  "success_rate": {
+    "backend": "94% (17/18)",
+    "frontend": "non testato (come da nota agent-to-agent: bug archive blocca il flusso end-to-end della pratica)"
+  },
+  "seed_data_creation": "Tenant test@dalpastro.it: doc training IBAN + STAMP lasciati in stato 'confirmed' come richiesto dalla review. Modulo test 'Modulo Test V50z343' e pratica creata sono stati SOLO parzialmente puliti perché il test di archive è fallito prima del cleanup: rimangono nel DB una pratica lab_* e un modulo ftpl_* non eliminati. Extra 'Codice agente' rimosso.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Dopo il fix di axon_lab.py:719, rilanciare `pytest backend/tests/test_v50z343_axon_lab.py -v`. Il test test_archive_and_cleanup verifica: (a) POST /archive → 200 con saved[]≥1, (b) GET /master-files?category=files contiene il file con source='axon_lab', (c) DELETE pratica + modulo. Ripulire manualmente eventuali pratiche lab_* e moduli 'Modulo Test V50z343' residui dai test precedenti prima del retest: `db.axon_lab_practices.deleteMany({tenant_id:'user_a1fccc0121dc', status:'review'})` e `db.form_templates.deleteMany({tenant_id:'user_a1fccc0121dc', name:'Modulo Test V50z343'})`. Il file di test è idempotente per il resto ma il module_id / practice_id sono module-scoped fixtures: se il primo run fallisce restano orfani.",
+  "rca_of_issue": "POST /api/lab/practices/{id}/archive → 500. Traceback estratto da /var/log/supervisor/backend.err.log:\n  File '/app/backend/routes/axon_lab.py', line 719, in lab_practice_archive\n    forms = await db.filled_forms.find({'lab_practice_id': practice_id}, {'_id': 0, 'pdf_b64': 0, 'form_id': 1, 'name': 1}).to_list(50)\n  pymongo.errors.OperationFailure: Cannot do inclusion on field form_id in exclusion projection, full error: {'ok': 0.0, 'errmsg': 'Cannot do inclusion on field form_id in exclusion projection', 'code': 31253}.\nMongoDB consente proiezioni miste solo per il campo _id. Riproduzione: dopo creazione pratica + /fill di almeno un modulo, chiamare POST /lab/practices/{practice_id}/archive → 500. Mitigazione: cambiare la proiezione in `{'_id': 0, 'pdf_b64': 0}` (una sola linea)."
+}

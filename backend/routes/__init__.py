@@ -95,7 +95,8 @@ MODULES = [
     "axon_stress_test.py",  # V50.z260 — Stress test AxonOS: 200+ domande × N ripetizioni via /assistant/chat/stream, valutazione deep link/coerenza/trap, report + HTML PDF, correzioni prompt (db.axon_prompt_rules) (isolato; DOPO axon_navigator: avvolge _prepare_assistant_prompt e _nav_intercept)
     "identity_documents.py",  # V50.z267 — Documenti di riconoscimento: OCR Gemini CI/patente/passaporto/CF fronte-retro, archivio (Object Storage → fallback Mongo), scadenze (job 09:15: email 90gg, popup/CRITICAL 30gg) (isolato; usa 05, 12, axon_personal_lock, axon_notifications)
     "form_templates.py",  # V50.z268 — Modelli moduli (Master): PDF → campi rilevati da Gemini (bbox) / AcroForm; compilazione per cliente da anagrafica + documenti + fatture → PDF pronto per stampa/firma, modificabile (isolato; usa PyMuPDF)
-    "crt_practices.py",  # V50.z282 — Compilazione CRT (pratiche multi-servizio, dossier, forniture per POD, replica moduli, PDF unico, esempi)
+    "crt_practices.py",
+    "axon_lab.py",  # V50.z343 — Axon Lab: addestramento Master (cliente tipo + regole mapping moduli) e compilazione business consulenti (DOPO form_templates, crt_practices)  # V50.z282 — Compilazione CRT (pratiche multi-servizio, dossier, forniture per POD, replica moduli, PDF unico, esempi)
     "offline_sync.py",  # V50.z279 — Modalità aereo/offline: replay idempotente della coda client, conflitti segnalati al Master
     "courses.py",  # V50.z273 — Area Corsi (Corporate Gym v2.0 Fase 1): cartelle corsi, lettura/partecipazione, lista partecipanti, export, reminder (isolato)
     "viola_wake.py",  # V50.z315 — ViolaWake: modulo opzionale per azienda (wake-word «Viola» offline → comando → Axon voce / trigger proattivo); impostazioni, routing deterministico, log eventi (isolato; usa axon_proactive)
